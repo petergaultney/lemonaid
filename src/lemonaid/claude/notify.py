@@ -30,15 +30,48 @@ from ..inbox import db
 
 
 def get_tty() -> str | None:
-    """Get the TTY name for this process."""
+    """Get the TTY name for this process or its parent."""
+    import subprocess
+
+    # Try stdin first
     try:
-        return os.ttyname(sys.stdin.fileno())
+        tty = os.ttyname(sys.stdin.fileno())
+        if tty and tty != "/dev/tty":
+            return tty
     except OSError:
-        # stdin might not be a TTY in hook context, try stdout
-        try:
-            return os.ttyname(sys.stdout.fileno())
-        except OSError:
-            return None
+        pass
+
+    # Try stdout
+    try:
+        tty = os.ttyname(sys.stdout.fileno())
+        if tty and tty != "/dev/tty":
+            return tty
+    except OSError:
+        pass
+
+    # Try stderr
+    try:
+        tty = os.ttyname(sys.stderr.fileno())
+        if tty and tty != "/dev/tty":
+            return tty
+    except OSError:
+        pass
+
+    # Fall back to asking ps for parent's TTY (works when spawned as hook)
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "tty=", "-p", str(os.getppid())],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tty = result.stdout.strip()
+        if tty and tty != "??" and tty != "":
+            return f"/dev/{tty}"
+    except (subprocess.CalledProcessError, OSError):
+        pass
+
+    return None
 
 
 def shorten_path(path: str) -> str:
@@ -100,9 +133,33 @@ def handle_notification(stdin_data: str | None = None) -> None:
     # Channel format: claude:<session_id_prefix>
     channel = f"claude:{session_id[:8]}" if session_id else "claude:unknown"
 
-    # Add to inbox
-    db.add_notification(
-        channel=channel,
-        title=title,
-        metadata=metadata,
-    )
+    # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
+    with db.connect() as conn:
+        db.add(conn, channel=channel, title=title, metadata=metadata)
+
+
+def _get_channel_from_stdin() -> str | None:
+    """Read session_id from stdin and return the channel name."""
+    try:
+        stdin_data = sys.stdin.read()
+        data = json.loads(stdin_data) if stdin_data else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    session_id = data.get("session_id", "")
+    if session_id:
+        return f"claude:{session_id[:8]}"
+    return None
+
+
+def handle_dismiss() -> None:
+    """
+    Dismiss (mark as read) the notification for this Claude session.
+
+    Reads session_id from stdin and marks any unread notification
+    for that channel as read.
+    """
+    channel = _get_channel_from_stdin()
+    if channel:
+        with db.connect() as conn:
+            db.mark_all_read_for_channel(conn, channel)

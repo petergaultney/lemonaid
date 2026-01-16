@@ -9,23 +9,24 @@ import json
 import sys
 from datetime import datetime
 
-from .config import ensure_config_exists, get_config_path, load_config
+from .config import ensure_config_exists, get_config_path
 from .inbox import db
 
 
 def cmd_inbox_list(args: argparse.Namespace) -> None:
     """List unread notifications."""
-    notifications = db.get_unread()
+    with db.connect() as conn:
+        notifications = db.get_unread(conn)
 
     if not notifications:
         print("No unread notifications.")
         return
 
     for n in notifications:
-        created = datetime.fromtimestamp(n["created_at"]).strftime("%H:%M:%S")
-        print(f"[{n['id']}] {created} | {n['channel']} | {n['title']}")
-        if args.verbose and n["message"]:
-            print(f"    {n['message']}")
+        created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
+        print(f"[{n.id}] {created} | {n.channel} | {n.title}")
+        if args.verbose and n.message:
+            print(f"    {n.message}")
 
 
 def cmd_inbox_add(args: argparse.Namespace) -> None:
@@ -38,18 +39,21 @@ def cmd_inbox_add(args: argparse.Namespace) -> None:
             print(f"Error: invalid JSON metadata: {e}", file=sys.stderr)
             sys.exit(1)
 
-    notification_id = db.add_notification(
-        channel=args.channel,
-        title=args.title,
-        message=args.message,
-        metadata=metadata,
-    )
-    print(f"Added notification {notification_id}")
+    with db.connect() as conn:
+        notification = db.add(
+            conn,
+            channel=args.channel,
+            title=args.title,
+            message=args.message,
+            metadata=metadata,
+        )
+    print(f"Added notification {notification.id}")
 
 
 def cmd_inbox_read(args: argparse.Namespace) -> None:
     """Mark a notification as read."""
-    db.mark_read(args.id)
+    with db.connect() as conn:
+        db.mark_read(conn, args.id)
     print(f"Marked notification {args.id} as read")
 
 
@@ -85,7 +89,15 @@ def cmd_config_show(args: argparse.Namespace) -> None:
 def cmd_claude_notify(args: argparse.Namespace) -> None:
     """Handle Claude Code notification hook."""
     from .claude.notify import handle_notification
+
     handle_notification()
+
+
+def cmd_claude_dismiss(args: argparse.Namespace) -> None:
+    """Handle Claude Code dismiss hook (mark notification as read)."""
+    from .claude.notify import handle_dismiss
+
+    handle_dismiss()
 
 
 def setup_claude_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -102,6 +114,13 @@ def setup_claude_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Handle notification from Claude Code hook (reads JSON from stdin)",
     )
     notify_parser.set_defaults(func=cmd_claude_notify)
+
+    # claude dismiss
+    dismiss_parser = claude_subparsers.add_parser(
+        "dismiss",
+        help="Mark session's notification as read (reads JSON from stdin)",
+    )
+    dismiss_parser.set_defaults(func=cmd_claude_dismiss)
 
     claude_parser.set_defaults(func=lambda a: claude_parser.print_help())
 

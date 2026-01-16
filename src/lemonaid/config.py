@@ -1,10 +1,11 @@
 """Configuration management for lemonaid."""
 
-import tomllib
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
+
+import tomllib
 
 
 def get_config_path() -> Path:
@@ -15,7 +16,7 @@ def get_config_path() -> Path:
 
 def get_default_config() -> str:
     """Return the default config file contents."""
-    return '''\
+    return """\
 # Lemonaid configuration
 
 [handlers]
@@ -28,18 +29,20 @@ def get_default_config() -> str:
 # How to resolve pane from notification metadata
 # Options: "tty" (match TTY to pane), "metadata" (use workspace/pane_id from metadata)
 resolve_pane = "tty"
-'''
+"""
 
 
 @dataclass
 class WeztermConfig:
     """Configuration for the WezTerm handler."""
+
     resolve_pane: str = "tty"  # "tty" or "metadata"
 
 
 @dataclass
 class Config:
     """Lemonaid configuration."""
+
     handlers: dict[str, str] = field(default_factory=dict)
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
 

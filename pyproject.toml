@@ -8,8 +8,9 @@ dependencies = [
     "textual>=0.89.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
+    "pre-commit",
     "pytest",
     "ruff",
 ]
@@ -27,3 +28,23 @@ packages = ["src/lemonaid"]
 
 [tool.ruff]
 line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "RUF012", # mutable class attrs - Textual uses this pattern
+    "RUF022", # __all__ not sorted - we organize by category
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lemonaid"]

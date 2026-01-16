@@ -1,15 +1,14 @@
 """Textual TUI for lemonaid inbox."""
 
-import json
 from datetime import datetime
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import db
 from ..config import load_config
 from ..handlers import handle_notification
+from . import db
 
 
 class LemonaidApp(App):
@@ -31,8 +30,9 @@ class LemonaidApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
+        Binding("escape", "quit", "Quit", show=False),
         Binding("r", "refresh", "Refresh"),
-        Binding("enter", "open", "Open"),
+        Binding("g", "refresh", "Refresh", show=False),  # magit-style
         Binding("d", "mark_read", "Mark Read"),
     ]
 
@@ -51,30 +51,67 @@ class LemonaidApp(App):
         self.sub_title = "attention inbox"
         self._setup_table()
         self._refresh_notifications()
+        # Auto-refresh every 2 seconds
+        self.set_interval(2.0, self._refresh_notifications)
+
+    def on_app_focus(self) -> None:
+        """Refresh when the app regains focus."""
+        self._refresh_notifications()
 
     def _setup_table(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_column("ID", width=4)
         table.add_column("Time", width=10)
-        table.add_column("Channel", width=30)
-        table.add_column("Title", width=50)
+        table.add_column("Channel", width=20)
+        table.add_column("Title", width=40)
+        table.add_column("TTY", width=15)
+
+    def _get_current_row_key(self) -> str | None:
+        """Get the row key (notification ID) at current cursor."""
+        table = self.query_one(DataTable)
+        if table.row_count == 0:
+            return None
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+            return row_key.value if row_key else None
+        except Exception:
+            return None
 
     def _refresh_notifications(self) -> None:
         table = self.query_one(DataTable)
+
+        # Remember current selection
+        current_key = self._get_current_row_key()
+
         table.clear()
 
-        notifications = db.get_unread()
+        with db.connect() as conn:
+            notifications = db.get_unread(conn)
 
         for n in notifications:
-            created = datetime.fromtimestamp(n["created_at"]).strftime("%H:%M:%S")
+            created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
+            tty = n.metadata.get("tty", "")
+            if tty:
+                tty = tty.replace("/dev/", "")
+
             table.add_row(
-                str(n["id"]),
+                str(n.id),
                 created,
-                n["channel"][:28] + ".." if len(n["channel"]) > 30 else n["channel"],
-                n["title"][:48] + ".." if len(n["title"]) > 50 else n["title"],
-                key=str(n["id"]),
+                n.channel[:18] + ".." if len(n.channel) > 20 else n.channel,
+                n.title[:38] + ".." if len(n.title) > 40 else n.title,
+                tty,
+                key=str(n.id),
             )
+
+        # Restore cursor to same notification if it still exists
+        if current_key and table.row_count > 0:
+            try:
+                row_index = table.get_row_index(current_key)
+                table.move_cursor(row=row_index)
+            except Exception:
+                # Row no longer exists, cursor stays where it is (or at top)
+                pass
 
         status = self.query_one("#status", Static)
         count = len(notifications)
@@ -91,45 +128,29 @@ class LemonaidApp(App):
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         if row_key:
             notification_id = int(row_key.value)
-            db.mark_read(notification_id)
+            with db.connect() as conn:
+                db.mark_read(conn, notification_id)
             self._refresh_notifications()
 
-    def action_open(self) -> None:
-        """Open the selected notification - mark read and run handler if configured."""
-        table = self.query_one(DataTable)
-        if table.row_count == 0:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter on a row - open the notification."""
+        if event.row_key is None:
             return
 
-        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if not row_key:
-            return
+        notification_id = int(event.row_key.value)
 
-        notification_id = int(row_key.value)
-
-        # Get the notification details
-        conn = db.get_connection()
-        try:
-            row = conn.execute(
-                "SELECT * FROM notifications WHERE id = ?", (notification_id,)
-            ).fetchone()
-
-            if row:
-                channel = row["channel"]
-                metadata = json.loads(row["metadata"]) if row["metadata"] else None
-
-                # Use the handler system
-                handled = handle_notification(channel, metadata, self.config)
-
+        with db.connect() as conn:
+            notification = db.get(conn, notification_id)
+            if notification:
+                handled = handle_notification(
+                    notification.channel, notification.metadata, self.config
+                )
                 if handled:
-                    # Mark as read and exit TUI for handlers that switch context
-                    db.mark_read(notification_id, conn)
+                    db.mark_read(conn, notification_id)
                     self.exit()
                     return
 
-            # Mark as read even if no handler
-            db.mark_read(notification_id, conn)
-        finally:
-            conn.close()
+            db.mark_read(conn, notification_id)
 
         self._refresh_notifications()
 

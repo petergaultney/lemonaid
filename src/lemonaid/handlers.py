@@ -4,7 +4,6 @@ import base64
 import json
 import os
 import subprocess
-import sys
 from typing import Any
 
 from .config import Config, load_config
@@ -33,7 +32,7 @@ def handle_notification(
         cmd = handler_name[5:]  # Strip "exec:" prefix
         return _handle_exec(cmd, channel, metadata)
     else:
-        print(f"Unknown handler: {handler_name}", file=sys.stderr)
+        # Unknown handler - silently fail
         return False
 
 
@@ -61,7 +60,6 @@ def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
         pane_id = metadata.get("pane_id")
 
     if workspace is None or pane_id is None:
-        print("Could not determine workspace/pane_id", file=sys.stderr)
         return False
 
     return _switch_wezterm_pane(workspace, pane_id)
@@ -82,8 +80,8 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
             if pane.get("tty_name") == tty:
                 return pane.get("workspace"), pane.get("pane_id")
 
-    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
-        print(f"Error resolving pane from TTY: {e}", file=sys.stderr)
+    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
+        pass
 
     return None, None
 
@@ -95,10 +93,14 @@ def _switch_wezterm_pane(workspace: str, pane_id: int) -> bool:
     seq = f"\033]1337;SetUserVar=switch_workspace_and_pane={encoded}\007"
 
     try:
-        os.write(sys.stdout.fileno(), seq.encode())
+        # Write directly to /dev/tty to bypass any stdout redirection (e.g., from TUIs)
+        fd = os.open("/dev/tty", os.O_WRONLY)
+        try:
+            os.write(fd, seq.encode())
+        finally:
+            os.close(fd)
         return True
-    except OSError as e:
-        print(f"Error sending escape sequence: {e}", file=sys.stderr)
+    except OSError:
         return False
 
 
@@ -112,6 +114,5 @@ def _handle_exec(cmd: str, channel: str, metadata: dict[str, Any] | None) -> boo
     try:
         subprocess.run(cmd, shell=True, env=env, check=False)
         return True
-    except Exception as e:
-        print(f"Error executing handler: {e}", file=sys.stderr)
+    except Exception:
         return False

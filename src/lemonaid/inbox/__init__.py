@@ -1,9 +1,13 @@
 """Lemonaid Inbox - attention management for notifications from lemons and other tools."""
 
 from .db import (
+    Notification,
+    add,
     add_notification,
-    clear_old_notifications,
-    get_connection,
+    clear_old,
+    connect,
+    get,
+    get_by_channel,
     get_db_path,
     get_unread,
     mark_all_read_for_channel,
@@ -12,12 +16,20 @@ from .db import (
 from .tui import LemonaidApp
 
 __all__ = [
-    "add_notification",
-    "clear_old_notifications",
-    "get_connection",
-    "get_db_path",
+    # Types
+    "Notification",
+    # New functional API
+    "connect",
+    "get",
+    "get_by_channel",
     "get_unread",
-    "mark_all_read_for_channel",
+    "add",
     "mark_read",
+    "mark_all_read_for_channel",
+    "clear_old",
+    "get_db_path",
+    # Legacy
+    "add_notification",
+    # TUI
     "LemonaidApp",
 ]

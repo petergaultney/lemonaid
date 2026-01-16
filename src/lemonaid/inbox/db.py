@@ -1,10 +1,47 @@
 """SQLite database for lemonaid notifications."""
 
+from __future__ import annotations
+
 import json
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+@dataclass(frozen=True)
+class Notification:
+    """A notification in the lemonaid inbox."""
+
+    id: int
+    channel: str
+    title: str
+    message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    status: str = "unread"
+    created_at: float = field(default_factory=time.time)
+    read_at: float | None = None
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> Notification:
+        """Create a Notification from a database row."""
+        return cls(
+            id=row["id"],
+            channel=row["channel"],
+            title=row["title"],
+            message=row["message"],
+            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+            status=row["status"],
+            created_at=row["created_at"],
+            read_at=row["read_at"],
+        )
+
+    @property
+    def is_read(self) -> bool:
+        return self.status == "read"
 
 
 def get_db_path() -> Path:
@@ -15,29 +52,18 @@ def get_db_path() -> Path:
     return lemonaid_dir / "lemonaid.db"
 
 
-def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    """Get a database connection, creating the schema if needed."""
-    if db_path is None:
-        db_path = get_db_path()
-
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    _init_schema(conn)
-    return conn
-
-
 def _init_schema(conn: sqlite3.Connection) -> None:
     """Initialize the database schema."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            channel TEXT NOT NULL,           -- e.g., "claude:session_id" or tool identifier
-            title TEXT NOT NULL,             -- short display title
-            message TEXT,                    -- optional longer message
-            metadata TEXT,                   -- JSON blob for handler-specific data
-            status TEXT DEFAULT 'unread',    -- 'unread' or 'read'
-            created_at REAL NOT NULL,        -- unix timestamp
-            read_at REAL                     -- unix timestamp when marked read
+            channel TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT,
+            metadata TEXT,
+            status TEXT DEFAULT 'unread',
+            created_at REAL NOT NULL,
+            read_at REAL
         );
 
         CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
@@ -47,118 +73,164 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+@contextmanager
+def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Context manager for database connections."""
+    if db_path is None:
+        db_path = get_db_path()
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    _init_schema(conn)
+
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+# --- Queries ---
+
+
+def get(conn: sqlite3.Connection, notification_id: int) -> Notification | None:
+    """Get a notification by ID."""
+    row = conn.execute(
+        "SELECT * FROM notifications WHERE id = ?",
+        (notification_id,),
+    ).fetchone()
+    return Notification.from_row(row) if row else None
+
+
+def get_unread(conn: sqlite3.Connection) -> list[Notification]:
+    """Get all unread notifications, newest first."""
+    rows = conn.execute(
+        """
+        SELECT * FROM notifications
+        WHERE status = 'unread'
+        ORDER BY created_at DESC
+        """
+    ).fetchall()
+    return [Notification.from_row(row) for row in rows]
+
+
+def get_by_channel(
+    conn: sqlite3.Connection,
+    channel: str,
+    unread_only: bool = True,
+) -> Notification | None:
+    """Get the most recent notification for a channel."""
+    query = "SELECT * FROM notifications WHERE channel = ?"
+    if unread_only:
+        query += " AND status = 'unread'"
+    query += " ORDER BY created_at DESC LIMIT 1"
+
+    row = conn.execute(query, (channel,)).fetchone()
+    return Notification.from_row(row) if row else None
+
+
+# --- Mutations ---
+
+
+def add(
+    conn: sqlite3.Connection,
+    channel: str,
+    title: str,
+    message: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    upsert: bool = True,
+) -> Notification:
+    """Add a notification or update existing unread one if upsert=True."""
+    now = time.time()
+    metadata = metadata or {}
+
+    if upsert:
+        existing = get_by_channel(conn, channel, unread_only=True)
+        if existing:
+            conn.execute(
+                """
+                UPDATE notifications
+                SET title = ?, message = ?, metadata = ?, created_at = ?
+                WHERE id = ?
+                """,
+                (title, message, json.dumps(metadata), now, existing.id),
+            )
+            conn.commit()
+            return Notification(
+                id=existing.id,
+                channel=channel,
+                title=title,
+                message=message,
+                metadata=metadata,
+                created_at=now,
+            )
+
+    cursor = conn.execute(
+        """
+        INSERT INTO notifications (channel, title, message, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (channel, title, message, json.dumps(metadata), now),
+    )
+    conn.commit()
+
+    return Notification(
+        id=cursor.lastrowid or 0,
+        channel=channel,
+        title=title,
+        message=message,
+        metadata=metadata,
+        created_at=now,
+    )
+
+
+def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
+    """Mark a notification as read."""
+    conn.execute(
+        "UPDATE notifications SET status = 'read', read_at = ? WHERE id = ?",
+        (time.time(), notification_id),
+    )
+    conn.commit()
+
+
+def mark_all_read_for_channel(conn: sqlite3.Connection, channel: str) -> int:
+    """Mark all notifications for a channel as read. Returns count."""
+    cursor = conn.execute(
+        """
+        UPDATE notifications
+        SET status = 'read', read_at = ?
+        WHERE channel = ? AND status = 'unread'
+        """,
+        (time.time(), channel),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+def clear_old(conn: sqlite3.Connection, days: int = 7) -> int:
+    """Delete read notifications older than N days. Returns count."""
+    cutoff = time.time() - (days * 24 * 60 * 60)
+    cursor = conn.execute(
+        "DELETE FROM notifications WHERE status = 'read' AND read_at < ?",
+        (cutoff,),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+# --- Legacy aliases for existing code ---
+
+
 def add_notification(
     channel: str,
     title: str,
     message: str | None = None,
     metadata: dict[str, Any] | None = None,
     conn: sqlite3.Connection | None = None,
+    upsert: bool = True,
 ) -> int:
-    """Add a new notification. Returns the notification ID."""
-    close_conn = conn is None
-    if conn is None:
-        conn = get_connection()
+    """Legacy wrapper - prefer using add() with connect() context manager."""
+    if conn is not None:
+        return add(conn, channel, title, message, metadata, upsert).id
 
-    try:
-        cursor = conn.execute(
-            """
-            INSERT INTO notifications (channel, title, message, metadata, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                channel,
-                title,
-                message,
-                json.dumps(metadata) if metadata else None,
-                time.time(),
-            ),
-        )
-        conn.commit()
-        return cursor.lastrowid or 0
-    finally:
-        if close_conn:
-            conn.close()
-
-
-def get_unread(conn: sqlite3.Connection | None = None) -> list[sqlite3.Row]:
-    """Get all unread notifications, newest first."""
-    close_conn = conn is None
-    if conn is None:
-        conn = get_connection()
-
-    try:
-        return conn.execute(
-            """
-            SELECT * FROM notifications
-            WHERE status = 'unread'
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
-    finally:
-        if close_conn:
-            conn.close()
-
-
-def mark_read(notification_id: int, conn: sqlite3.Connection | None = None) -> None:
-    """Mark a notification as read."""
-    close_conn = conn is None
-    if conn is None:
-        conn = get_connection()
-
-    try:
-        conn.execute(
-            """
-            UPDATE notifications
-            SET status = 'read', read_at = ?
-            WHERE id = ?
-            """,
-            (time.time(), notification_id),
-        )
-        conn.commit()
-    finally:
-        if close_conn:
-            conn.close()
-
-
-def mark_all_read_for_channel(channel: str, conn: sqlite3.Connection | None = None) -> int:
-    """Mark all notifications for a channel as read. Returns count updated."""
-    close_conn = conn is None
-    if conn is None:
-        conn = get_connection()
-
-    try:
-        cursor = conn.execute(
-            """
-            UPDATE notifications
-            SET status = 'read', read_at = ?
-            WHERE channel = ? AND status = 'unread'
-            """,
-            (time.time(), channel),
-        )
-        conn.commit()
-        return cursor.rowcount
-    finally:
-        if close_conn:
-            conn.close()
-
-
-def clear_old_notifications(days: int = 7, conn: sqlite3.Connection | None = None) -> int:
-    """Delete read notifications older than N days. Returns count deleted."""
-    close_conn = conn is None
-    if conn is None:
-        conn = get_connection()
-
-    try:
-        cutoff = time.time() - (days * 24 * 60 * 60)
-        cursor = conn.execute(
-            """
-            DELETE FROM notifications
-            WHERE status = 'read' AND read_at < ?
-            """,
-            (cutoff,),
-        )
-        conn.commit()
-        return cursor.rowcount
-    finally:
-        if close_conn:
-            conn.close()
+    with connect() as conn:
+        return add(conn, channel, title, message, metadata, upsert).id
