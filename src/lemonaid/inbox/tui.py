@@ -63,11 +63,12 @@ class LemonaidApp(App):
     def _setup_table(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
-        table.add_column("", width=1)  # Unread indicator
-        table.add_column("ID", width=5)
         table.add_column("Time", width=10)
-        table.add_column("Channel", width=25)
+        table.add_column("", width=1)  # Unread indicator
+        table.add_column("Name", width=20)
         table.add_column("Title")  # No width = expands to fill
+        table.add_column("Channel", width=15)
+        table.add_column("ID", width=5)
         table.add_column("TTY", width=12)
 
     def _get_current_row_key(self) -> str | None:
@@ -86,6 +87,14 @@ class LemonaidApp(App):
         if is_unread:
             return Text(value, style="bold cyan")
         return Text(value, style="dim")
+
+    def _get_name_from_cwd(self, cwd: str) -> str:
+        """Extract a display name from the cwd path."""
+        if not cwd:
+            return ""
+        # Use the last path component (project folder name)
+        parts = cwd.rstrip("/").split("/")
+        return parts[-1] if parts else ""
 
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
@@ -116,12 +125,14 @@ class LemonaidApp(App):
                 unread_count += 1
 
             indicator = Text("●", style="bold cyan") if is_unread else Text("")
+            name = self._get_name_from_cwd(n.metadata.get("cwd", ""))
             table.add_row(
-                indicator,
-                self._styled_cell(str(n.id), is_unread),
                 self._styled_cell(created, is_unread),
-                self._styled_cell(n.channel, is_unread),
+                indicator,
+                self._styled_cell(name, is_unread),
                 self._styled_cell(n.title, is_unread),
+                self._styled_cell(n.channel, is_unread),
+                self._styled_cell(str(n.id), is_unread),
                 self._styled_cell(tty, is_unread),
                 key=str(n.id),
             )
