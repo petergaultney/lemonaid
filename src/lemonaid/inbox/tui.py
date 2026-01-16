@@ -1,7 +1,6 @@
-"""Textual TUI for lemonaid."""
+"""Textual TUI for lemonaid inbox."""
 
 import json
-import subprocess
 from datetime import datetime
 
 from textual.app import App, ComposeResult
@@ -9,6 +8,8 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
 from . import db
+from ..config import load_config
+from ..handlers import handle_notification
 
 
 class LemonaidApp(App):
@@ -34,6 +35,10 @@ class LemonaidApp(App):
         Binding("enter", "open", "Open"),
         Binding("d", "mark_read", "Mark Read"),
     ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = load_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -108,44 +113,25 @@ class LemonaidApp(App):
                 "SELECT * FROM notifications WHERE id = ?", (notification_id,)
             ).fetchone()
 
-            if row and row["metadata"]:
-                metadata = json.loads(row["metadata"])
+            if row:
+                channel = row["channel"]
+                metadata = json.loads(row["metadata"]) if row["metadata"] else None
 
-                # Check for handler command in metadata
-                if "handler" in metadata:
-                    handler = metadata["handler"]
-                    # Run the handler command
-                    try:
-                        subprocess.run(handler, shell=True, check=False)
-                    except Exception as e:
-                        self.notify(f"Handler error: {e}", severity="error")
+                # Use the handler system
+                handled = handle_notification(channel, metadata, self.config)
 
-                # Check for wezterm-specific handler
-                elif "workspace" in metadata and "pane_id" in metadata:
-                    self._switch_wezterm_pane(metadata["workspace"], metadata["pane_id"])
+                if handled:
+                    # Mark as read and exit TUI for handlers that switch context
+                    db.mark_read(notification_id, conn)
+                    self.exit()
+                    return
 
-            # Mark as read
+            # Mark as read even if no handler
             db.mark_read(notification_id, conn)
         finally:
             conn.close()
 
         self._refresh_notifications()
-
-    def _switch_wezterm_pane(self, workspace: str, pane_id: int) -> None:
-        """Switch to a WezTerm workspace and pane."""
-        import base64
-        import os
-        import sys
-
-        value = f"{workspace}|{pane_id}"
-        encoded = base64.b64encode(value.encode()).decode()
-        seq = f"\033]1337;SetUserVar=switch_workspace_and_pane={encoded}\007"
-
-        # Write to stdout to send to the terminal
-        os.write(sys.stdout.fileno(), seq.encode())
-
-        # Exit the TUI so the switch can happen
-        self.exit()
 
 
 def main() -> None:
