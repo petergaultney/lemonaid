@@ -46,6 +46,10 @@ lemonaid inbox list
 | `r` / `g` | Refresh |
 | `q` / `Escape` | Quit |
 
+### Programmatic Access
+
+For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
+
 ## Claude Code Integration
 
 Add these hooks to your `~/.claude/settings.json`:
