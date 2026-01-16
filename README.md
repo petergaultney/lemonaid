@@ -10,7 +10,7 @@ Eventually other tools will get packaged here as well.
 ## Features
 
 - **Notification inbox**: Track which Claude Code sessions need your attention
-- **WezTerm integration**: Jump directly to the waiting session's workspace and pane
+- **WezTerm integration**: Hit enter on a line to jump directly to the waiting session's workspace and pane
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 - **Upsert behavior**: Repeated notifications update timestamp instead of creating duplicates
 
