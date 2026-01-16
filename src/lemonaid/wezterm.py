@@ -20,7 +20,22 @@ def get_back_file() -> Path:
 
 
 def get_current_pane() -> tuple[str | None, int | None]:
-    """Get the currently active WezTerm workspace and pane_id."""
+    """Get the currently active WezTerm workspace and pane_id.
+
+    Uses WEZTERM_PANE env var to identify the current pane, then looks up
+    its workspace from the pane list.
+    """
+    # Get pane ID from environment - this is authoritative
+    pane_id_str = os.environ.get("WEZTERM_PANE")
+    if not pane_id_str:
+        return None, None
+
+    try:
+        pane_id = int(pane_id_str)
+    except ValueError:
+        return None, None
+
+    # Look up the workspace for this pane
     try:
         result = subprocess.run(
             ["wezterm", "cli", "list", "--format", "json"],
@@ -31,8 +46,8 @@ def get_current_pane() -> tuple[str | None, int | None]:
         panes = json.loads(result.stdout)
 
         for pane in panes:
-            if pane.get("is_active"):
-                return pane.get("workspace"), pane.get("pane_id")
+            if pane.get("pane_id") == pane_id:
+                return pane.get("workspace"), pane_id
 
     except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
         pass
