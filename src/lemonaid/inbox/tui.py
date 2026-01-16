@@ -61,11 +61,11 @@ class LemonaidApp(App):
     def _setup_table(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
-        table.add_column("ID", width=4)
+        table.add_column("ID", width=5)
         table.add_column("Time", width=10)
-        table.add_column("Channel", width=20)
-        table.add_column("Title", width=40)
-        table.add_column("TTY", width=15)
+        table.add_column("Channel", width=25)
+        table.add_column("Title")  # No width = expands to fill
+        table.add_column("TTY", width=12)
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
@@ -98,8 +98,8 @@ class LemonaidApp(App):
             table.add_row(
                 str(n.id),
                 created,
-                n.channel[:18] + ".." if len(n.channel) > 20 else n.channel,
-                n.title[:38] + ".." if len(n.title) > 40 else n.title,
+                n.channel,
+                n.title,
                 tty,
                 key=str(n.id),
             )
@@ -133,7 +133,7 @@ class LemonaidApp(App):
             self._refresh_notifications()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter on a row - open the notification."""
+        """Handle Enter on a row - switch to that session but stay in TUI."""
         if event.row_key is None:
             return
 
@@ -142,15 +142,8 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
             if notification:
-                handled = handle_notification(
-                    notification.channel, notification.metadata, self.config
-                )
-                if handled:
-                    db.mark_read(conn, notification_id)
-                    self.exit()
-                    return
-
-            db.mark_read(conn, notification_id)
+                handle_notification(notification.channel, notification.metadata, self.config)
+                db.mark_read(conn, notification_id)
 
         self._refresh_notifications()
 
