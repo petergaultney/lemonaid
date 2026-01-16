@@ -3,6 +3,8 @@
 Attention inbox for managing notifications from lemons (go on, say LLMs three times fast)
 when you live in the CLI.
 
+<img width="943" height="285" alt="Screenshot 2026-01-16 at 11 43 47" src="https://github.com/user-attachments/assets/d7ad9984-9668-4977-a0b3-4f54b43cf2ae" />
+
 Eventually other tools will get packaged here as well.
 
 ## Features
