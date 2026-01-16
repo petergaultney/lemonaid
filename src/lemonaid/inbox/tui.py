@@ -63,6 +63,7 @@ class LemonaidApp(App):
     def _setup_table(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
+        table.add_column("", width=1)  # Unread indicator
         table.add_column("ID", width=5)
         table.add_column("Time", width=10)
         table.add_column("Channel", width=25)
@@ -114,7 +115,9 @@ class LemonaidApp(App):
             if is_unread:
                 unread_count += 1
 
+            indicator = Text("●", style="bold cyan") if is_unread else Text("")
             table.add_row(
+                indicator,
                 self._styled_cell(str(n.id), is_unread),
                 self._styled_cell(created, is_unread),
                 self._styled_cell(n.channel, is_unread),
