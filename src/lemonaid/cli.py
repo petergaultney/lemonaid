@@ -111,6 +111,19 @@ def cmd_wezterm_back(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def cmd_wezterm_swap(args: argparse.Namespace) -> None:
+    """Swap back location: save current, print target.
+
+    Designed for WezTerm Lua integration to minimize Lua code.
+    Outputs "workspace|pane_id" on success, empty on failure.
+    """
+    from . import wezterm
+
+    target_ws, target_pane = wezterm.swap_back_location(args.workspace, args.pane_id)
+    if target_ws is not None and target_pane is not None:
+        print(f"{target_ws}|{target_pane}")
+
+
 def setup_wezterm_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the wezterm subcommand."""
     wezterm_parser = subparsers.add_parser(
@@ -125,6 +138,15 @@ def setup_wezterm_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Switch back to previous location",
     )
     back_parser.set_defaults(func=cmd_wezterm_back)
+
+    # wezterm swap - for Lua integration
+    swap_parser = wezterm_subparsers.add_parser(
+        "swap",
+        help="Swap back location (for WezTerm Lua integration)",
+    )
+    swap_parser.add_argument("workspace", help="Current workspace name")
+    swap_parser.add_argument("pane_id", type=int, help="Current pane ID")
+    swap_parser.set_defaults(func=cmd_wezterm_swap)
 
     wezterm_parser.set_defaults(func=lambda a: wezterm_parser.print_help())
 

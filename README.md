@@ -95,42 +95,7 @@ This gives you:
 
 ## WezTerm Setup
 
-For workspace/pane switching to work, add this to your `~/.config/wezterm/wezterm.lua`:
-
-```lua
-local wezterm = require 'wezterm'
-local act = wezterm.action
-
-wezterm.on('user-var-changed', function(window, pane, name, value)
-  if name == "switch_workspace_and_pane" then
-    local sep = value:find("|")
-    if sep then
-      local workspace = value:sub(1, sep - 1)
-      local target_pane_id = tonumber(value:sub(sep + 1))
-
-      window:perform_action(
-        wezterm.action_callback(function(win, p)
-          win:perform_action(act.SwitchToWorkspace { name = workspace }, p)
-
-          local mux = wezterm.mux
-          for _, mux_win in ipairs(mux.all_windows()) do
-            for _, tab in ipairs(mux_win:tabs()) do
-              for _, tab_pane in ipairs(tab:panes()) do
-                if tab_pane:pane_id() == target_pane_id then
-                  tab:activate()
-                  tab_pane:activate()
-                  return
-                end
-              end
-            end
-          end
-        end),
-        pane
-      )
-    end
-  end
-end)
-```
+For workspace/pane switching and back navigation, see [docs/wezterm.md](docs/wezterm.md) for full setup instructions.
 
 ## Configuration
 

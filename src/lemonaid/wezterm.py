@@ -111,3 +111,20 @@ def go_back() -> bool:
 
     # Don't save current as new back location (would cause ping-pong)
     return switch_to_pane(workspace, pane_id, save_current=False)
+
+
+def swap_back_location(
+    current_workspace: str, current_pane_id: int
+) -> tuple[str | None, int | None]:
+    """Atomically swap: save current location, return previous target.
+
+    This is designed to be called from WezTerm Lua to minimize Lua code.
+    Returns (workspace, pane_id) of the target to switch to, or (None, None).
+    """
+    # Load target before overwriting
+    target_workspace, target_pane_id = load_back_location()
+
+    # Save current as new back location (enables ping-pong)
+    save_back_location(current_workspace, current_pane_id)
+
+    return target_workspace, target_pane_id
