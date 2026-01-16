@@ -53,9 +53,10 @@ This keybinding lets you toggle between your current location and the previous o
 -- Add to your config.keys table:
 { key = 'p', mods = 'LEADER', action = wezterm.action_callback(function(window, pane)
     -- Call lemonaid to swap: saves current location, returns target
+    local lemonaid = os.getenv("HOME") .. "/.local/bin/lemonaid"
     local current_ws = wezterm.mux.get_active_workspace()
     local current_pane = pane:pane_id()
-    local handle = io.popen("lemonaid wezterm swap '" .. current_ws .. "' " .. tostring(current_pane))
+    local handle = io.popen(lemonaid .. " wezterm swap '" .. current_ws .. "' " .. tostring(current_pane))
     if not handle then return end
     local result = handle:read("*a"):gsub("%s+$", "")
     handle:close()
