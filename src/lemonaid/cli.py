@@ -82,6 +82,30 @@ def cmd_config_show(args: argparse.Namespace) -> None:
         print("Run 'lemonaid config init' to create one.")
 
 
+def cmd_claude_notify(args: argparse.Namespace) -> None:
+    """Handle Claude Code notification hook."""
+    from .claude.notify import handle_notification
+    handle_notification()
+
+
+def setup_claude_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Set up the claude subcommand."""
+    claude_parser = subparsers.add_parser(
+        "claude",
+        help="Claude Code integration",
+    )
+    claude_subparsers = claude_parser.add_subparsers(dest="claude_command")
+
+    # claude notify
+    notify_parser = claude_subparsers.add_parser(
+        "notify",
+        help="Handle notification from Claude Code hook (reads JSON from stdin)",
+    )
+    notify_parser.set_defaults(func=cmd_claude_notify)
+
+    claude_parser.set_defaults(func=lambda a: claude_parser.print_help())
+
+
 def setup_config_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the config subcommand."""
     config_parser = subparsers.add_parser(
@@ -144,6 +168,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     setup_inbox_parser(subparsers)
+    setup_claude_parser(subparsers)
     setup_config_parser(subparsers)
 
     args = parser.parse_args()
