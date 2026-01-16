@@ -3,15 +3,25 @@
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from datetime import datetime
 
 from . import db
+
+
+def _notification_to_json(n: db.Notification) -> dict:
+    """Convert notification to JSON-serializable dict."""
+    return asdict(n)
 
 
 def cmd_list(args: argparse.Namespace) -> None:
     """List unread notifications."""
     with db.connect() as conn:
         notifications = db.get_unread(conn)
+
+    if getattr(args, "json", False):
+        print(json.dumps([_notification_to_json(n) for n in notifications]))
+        return
 
     if not notifications:
         print("No unread notifications.")
@@ -22,6 +32,32 @@ def cmd_list(args: argparse.Namespace) -> None:
         print(f"[{n.id}] {created} | {n.channel} | {n.title}")
         if args.verbose and n.message:
             print(f"    {n.message}")
+
+
+def cmd_get(args: argparse.Namespace) -> None:
+    """Get a specific notification by ID."""
+    with db.connect() as conn:
+        notification = db.get(conn, args.id)
+
+    if notification is None:
+        if getattr(args, "json", False):
+            print("null")
+        else:
+            print(f"Notification {args.id} not found", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    if getattr(args, "json", False):
+        print(json.dumps(_notification_to_json(notification)))
+    else:
+        created = datetime.fromtimestamp(notification.created_at).strftime("%Y-%m-%d %H:%M:%S")
+        print(f"ID:      {notification.id}")
+        print(f"Channel: {notification.channel}")
+        print(f"Title:   {notification.title}")
+        print(f"Status:  {notification.status}")
+        print(f"Created: {created}")
+        if notification.message:
+            print(f"Message: {notification.message}")
 
 
 def cmd_add(args: argparse.Namespace) -> None:
@@ -72,7 +108,14 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     # inbox list
     list_parser = inbox_subparsers.add_parser("list", aliases=["ls"], help="List unread")
     list_parser.add_argument("-v", "--verbose", action="store_true", help="Show full messages")
+    list_parser.add_argument("--json", action="store_true", help="Output as JSON (for lemons)")
     list_parser.set_defaults(func=cmd_list)
+
+    # inbox get
+    get_parser = inbox_subparsers.add_parser("get", help="Get a notification by ID")
+    get_parser.add_argument("id", type=int, help="Notification ID")
+    get_parser.add_argument("--json", action="store_true", help="Output as JSON (for lemons)")
+    get_parser.set_defaults(func=cmd_get)
 
     # inbox add
     add_parser = inbox_subparsers.add_parser("add", help="Add a notification")
