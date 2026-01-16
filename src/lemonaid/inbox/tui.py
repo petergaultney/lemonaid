@@ -92,7 +92,7 @@ class LemonaidApp(App):
         table = self.query_one(DataTable)
         return table.cursor_coordinate.row
 
-    def _refresh_notifications(self, fallback_row_index: int | None = None) -> None:
+    def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
         table = self.query_one(DataTable)
 
         # Remember current selection (both key and index)
@@ -129,14 +129,20 @@ class LemonaidApp(App):
         # Restore cursor position
         if table.row_count > 0:
             target_index = None
-            # First try to find the same row by key
-            if current_key:
-                with contextlib.suppress(Exception):
-                    target_index = table.get_row_index(current_key)
-            # Fall back to same position (clamped to valid range)
-            if target_index is None:
-                idx = fallback_row_index if fallback_row_index is not None else current_index
-                target_index = min(idx, table.row_count - 1)
+            if stay_on_unread and unread_count > 0:
+                # Stay on an unread item: use current index but cap at last unread
+                target_index = min(current_index, unread_count - 1)
+            elif stay_on_unread:
+                # No unread left, go to top
+                target_index = 0
+            else:
+                # Try to find the same row by key
+                if current_key:
+                    with contextlib.suppress(Exception):
+                        target_index = table.get_row_index(current_key)
+                # Fall back to same position (clamped to valid range)
+                if target_index is None:
+                    target_index = min(current_index, table.row_count - 1)
             table.move_cursor(row=target_index)
 
         status = self.query_one("#status", Static)
@@ -157,7 +163,8 @@ class LemonaidApp(App):
             notification_id = int(row_key.value)
             with db.connect() as conn:
                 db.mark_read(conn, notification_id)
-            self._refresh_notifications()
+            # Keep cursor on unread items when possible
+            self._refresh_notifications(stay_on_unread=True)
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
