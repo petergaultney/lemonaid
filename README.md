@@ -1,6 +1,9 @@
 # lemonaid
 
-Attention inbox for managing notifications from LLMs ("lemons") and other background tools.
+Attention inbox for managing notifications from lemons (go on, say LLMs three times fast)
+when you live in the CLI.
+
+Eventually other tools will get packaged here as well.
 
 ## Features
 

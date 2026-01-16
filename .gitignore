@@ -38,3 +38,7 @@ htmlcov/
 
 # uv
 uv.lock
+
+
+# lemons
+.claude/**

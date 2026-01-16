@@ -1,11 +1,11 @@
 """Notification handlers for lemonaid."""
 
-import base64
 import json
 import os
 import subprocess
 from typing import Any
 
+from . import wezterm
 from .config import Config, load_config
 
 
@@ -62,7 +62,7 @@ def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
     if workspace is None or pane_id is None:
         return False
 
-    return _switch_wezterm_pane(workspace, pane_id)
+    return wezterm.switch_to_pane(workspace, pane_id)
 
 
 def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
@@ -84,24 +84,6 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
         pass
 
     return None, None
-
-
-def _switch_wezterm_pane(workspace: str, pane_id: int) -> bool:
-    """Switch to a WezTerm workspace and pane via escape sequence."""
-    value = f"{workspace}|{pane_id}"
-    encoded = base64.b64encode(value.encode()).decode()
-    seq = f"\033]1337;SetUserVar=switch_workspace_and_pane={encoded}\007"
-
-    try:
-        # Write directly to /dev/tty to bypass any stdout redirection (e.g., from TUIs)
-        fd = os.open("/dev/tty", os.O_WRONLY)
-        try:
-            os.write(fd, seq.encode())
-        finally:
-            os.close(fd)
-        return True
-    except OSError:
-        return False
 
 
 def _handle_exec(cmd: str, channel: str, metadata: dict[str, Any] | None) -> bool:

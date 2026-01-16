@@ -1,11 +1,10 @@
 """Configuration management for lemonaid."""
 
+import tomllib
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
-
-import tomllib
 
 
 def get_config_path() -> Path:

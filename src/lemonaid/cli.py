@@ -100,6 +100,35 @@ def cmd_claude_dismiss(args: argparse.Namespace) -> None:
     handle_dismiss()
 
 
+def cmd_wezterm_back(args: argparse.Namespace) -> None:
+    """Switch back to the previous WezTerm location."""
+    from . import wezterm
+
+    if wezterm.go_back():
+        pass  # Success - switched back
+    else:
+        print("No previous location saved", file=sys.stderr)
+        sys.exit(1)
+
+
+def setup_wezterm_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Set up the wezterm subcommand."""
+    wezterm_parser = subparsers.add_parser(
+        "wezterm",
+        help="WezTerm integration commands",
+    )
+    wezterm_subparsers = wezterm_parser.add_subparsers(dest="wezterm_command")
+
+    # wezterm back
+    back_parser = wezterm_subparsers.add_parser(
+        "back",
+        help="Switch back to previous location",
+    )
+    back_parser.set_defaults(func=cmd_wezterm_back)
+
+    wezterm_parser.set_defaults(func=lambda a: wezterm_parser.print_help())
+
+
 def setup_claude_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the claude subcommand."""
     claude_parser = subparsers.add_parser(
@@ -188,6 +217,7 @@ def main() -> None:
 
     setup_inbox_parser(subparsers)
     setup_claude_parser(subparsers)
+    setup_wezterm_parser(subparsers)
     setup_config_parser(subparsers)
 
     args = parser.parse_args()
