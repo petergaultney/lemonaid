@@ -43,6 +43,14 @@ class Notification:
     def is_read(self) -> bool:
         return self.status == "read"
 
+    @property
+    def is_unread(self) -> bool:
+        return self.status == "unread"
+
+    @property
+    def is_archived(self) -> bool:
+        return self.status == "archived"
+
 
 def get_db_path() -> Path:
     """Get the path to the lemonaid database, following XDG conventions."""
@@ -113,6 +121,28 @@ def get_unread(conn: sqlite3.Connection) -> list[Notification]:
     return [Notification.from_row(row) for row in rows]
 
 
+def get_active(conn: sqlite3.Connection) -> list[Notification]:
+    """Get active sessions (one per channel), unread first then by recency.
+
+    Returns only the most recent notification per channel, excluding archived.
+    """
+    rows = conn.execute(
+        """
+        SELECT n.* FROM notifications n
+        INNER JOIN (
+            SELECT channel, MAX(id) as max_id
+            FROM notifications
+            GROUP BY channel
+        ) latest ON n.id = latest.max_id
+        WHERE n.status != 'archived'
+        ORDER BY
+            CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
+            n.created_at DESC
+        """
+    ).fetchall()
+    return [Notification.from_row(row) for row in rows]
+
+
 def get_by_channel(
     conn: sqlite3.Connection,
     channel: str,
@@ -139,17 +169,22 @@ def add(
     metadata: dict[str, Any] | None = None,
     upsert: bool = True,
 ) -> Notification:
-    """Add a notification or update existing unread one if upsert=True."""
+    """Add a notification or update existing one if upsert=True.
+
+    If upsert=True and a notification exists for the channel (even if read or archived),
+    it will be updated and set back to unread status.
+    """
     now = time.time()
     metadata = metadata or {}
 
     if upsert:
-        existing = get_by_channel(conn, channel, unread_only=True)
+        # Look for any existing notification for this channel (including read/archived)
+        existing = get_by_channel(conn, channel, unread_only=False)
         if existing:
             conn.execute(
                 """
                 UPDATE notifications
-                SET title = ?, message = ?, metadata = ?, created_at = ?
+                SET title = ?, message = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL
                 WHERE id = ?
                 """,
                 (title, message, json.dumps(metadata), now, existing.id),
@@ -161,6 +196,7 @@ def add(
                 title=title,
                 message=message,
                 metadata=metadata,
+                status="unread",
                 created_at=now,
             )
 
@@ -206,12 +242,25 @@ def mark_all_read_for_channel(conn: sqlite3.Connection, channel: str) -> int:
     return cursor.rowcount
 
 
+def archive(conn: sqlite3.Connection, notification_id: int) -> None:
+    """Archive a notification (session ended or no longer relevant)."""
+    conn.execute(
+        "UPDATE notifications SET status = 'archived' WHERE id = ?",
+        (notification_id,),
+    )
+    conn.commit()
+
+
 def clear_old(conn: sqlite3.Connection, days: int = 7) -> int:
-    """Delete read notifications older than N days. Returns count."""
+    """Delete read/archived notifications older than N days. Returns count."""
     cutoff = time.time() - (days * 24 * 60 * 60)
     cursor = conn.execute(
-        "DELETE FROM notifications WHERE status = 'read' AND read_at < ?",
-        (cutoff,),
+        """
+        DELETE FROM notifications
+        WHERE status IN ('read', 'archived')
+        AND (read_at < ? OR (read_at IS NULL AND created_at < ?))
+        """,
+        (cutoff, cutoff),
     )
     conn.commit()
     return cursor.rowcount
