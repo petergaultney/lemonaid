@@ -10,7 +10,8 @@ Eventually other tools will get packaged here as well.
 ## Features
 
 - **Notification inbox**: Track which Claude Code sessions need your attention
-- **WezTerm integration**: Hit enter on a line to jump directly to the waiting session's workspace and pane
+- **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports tmux and WezTerm)
+- **Back navigation**: Toggle between your inbox and the session you jumped to
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 - **Upsert behavior**: Repeated notifications update timestamp instead of creating duplicates
 
@@ -99,9 +100,12 @@ This gives you:
 - **Notification hook**: Notification when Claude needs permission
 - **UserPromptSubmit hook**: Dismisses notification when you send a message
 
-## WezTerm Setup
+**Important**: If you have other `UserPromptSubmit` hooks (e.g., a statusline hook), each hook must be in a **separate entry** in the array. Hooks in the same `hooks` array share stdin, so the first hook will consume it and subsequent hooks receive nothing.
 
-For workspace/pane switching and back navigation, see [docs/wezterm.md](docs/wezterm.md) for full setup instructions.
+## Terminal Setup
+
+- **tmux**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, and window colors
+- **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
 
 ## Configuration
 

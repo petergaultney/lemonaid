@@ -17,12 +17,13 @@ Output:
   {
     "id": 42,
     "channel": "claude:abc123",
-    "title": "Permission needed in my-project",
-    "message": null,
-    "metadata": {"cwd": "/path/to/project", "tty": "/dev/ttys001"},
+    "name": "my-session-name",
+    "message": "Permission needed in my-project",
+    "metadata": {"cwd": "/path/to/project", "tty": "/dev/ttys001", "session_id": "abc123..."},
     "status": "unread",
     "created_at": 1768578211.645825,
-    "read_at": null
+    "read_at": null,
+    "terminal_env": "tmux"
   }
 ]
 ```
@@ -52,10 +53,11 @@ lemonaid inbox add "channel-name" "Title" -m "Optional message" --metadata '{"ke
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | int | Unique identifier |
-| `channel` | string | Source identifier (e.g., `claude:<session_id>`) |
-| `title` | string | Short description |
-| `message` | string? | Optional longer message |
-| `metadata` | object | Arbitrary JSON metadata |
-| `status` | string | `unread` or `read` |
+| `channel` | string | Source identifier (e.g., `claude:<session_id_prefix>`) |
+| `name` | string? | Session name (from Claude Code or derived from cwd) |
+| `message` | string | Status text (e.g., "Permission needed in my-project") |
+| `metadata` | object | Arbitrary JSON metadata (cwd, tty, session_id, etc.) |
+| `status` | string | `unread`, `read`, or `archived` |
 | `created_at` | float | Unix timestamp |
 | `read_at` | float? | Unix timestamp when marked read |
+| `terminal_env` | string? | Terminal environment: `tmux`, `wezterm`, or `null` |
