@@ -5,7 +5,7 @@ import os
 import subprocess
 from typing import Any
 
-from . import wezterm
+from . import tmux, wezterm
 from .config import Config, load_config
 
 
@@ -28,6 +28,8 @@ def handle_notification(
 
     if handler_name == "wezterm":
         return _handle_wezterm(metadata, config)
+    elif handler_name == "tmux":
+        return _handle_tmux(metadata)
     elif handler_name.startswith("exec:"):
         cmd = handler_name[5:]  # Strip "exec:" prefix
         return _handle_exec(cmd, channel, metadata)
@@ -84,6 +86,23 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
         pass
 
     return None, None
+
+
+def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
+    """Handle notification by switching to tmux session/pane."""
+    if metadata is None:
+        return False
+
+    # Resolve pane from TTY
+    tty = metadata.get("tty")
+    if not tty:
+        return False
+
+    session, pane_id = tmux.get_pane_for_tty(tty)
+    if session is None or pane_id is None:
+        return False
+
+    return tmux.switch_to_pane(session, pane_id)
 
 
 def _handle_exec(cmd: str, channel: str, metadata: dict[str, Any] | None) -> bool:
