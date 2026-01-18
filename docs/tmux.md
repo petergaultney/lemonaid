@@ -61,6 +61,102 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 - `lemonaid tmux back` - Switch to the saved back location
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
 
+## Window Colors
+
+Lemonaid includes `tmux-window-color`, a tool that formats tmux window titles with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
+
+### tmux.conf setup
+
+```tmux
+# Enable true color support
+set-option -g default-terminal "tmux-256color"
+set-option -sa terminal-features ',xterm-256color:RGB'
+
+# Window status with colored directory names
+# Third argument is pane_title - used to show app names instead of "python3.12"
+setw -g window-status-format " #I:#(tmux-window-color '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+setw -g window-status-current-format " #I:#(tmux-window-color '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+setw -g window-status-style none
+setw -g window-status-current-style "bg=colour238,bold"
+setw -g window-status-separator "│"
+```
+
+### Shell integration
+
+For `#{pane_current_path}` to work, your shell must report the current directory to tmux via OSC 7 escape sequences. Add the appropriate snippet for your shell:
+
+#### Bash
+
+```bash
+# Add to ~/.bashrc
+if [ -n "$TMUX" ]; then
+    __tmux_osc7() {
+        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' "$HOSTNAME" "$PWD"
+    }
+    PROMPT_COMMAND="__tmux_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+fi
+```
+
+#### Zsh
+
+```zsh
+# Add to ~/.zshrc
+if [[ -n "$TMUX" ]]; then
+    __tmux_osc7() {
+        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' "$HOST" "$PWD"
+    }
+    add-zsh-hook chpwd __tmux_osc7
+    __tmux_osc7  # run on startup
+fi
+```
+
+#### Fish
+
+```fish
+# Add to ~/.config/fish/config.fish
+if set -q TMUX
+    function __tmux_osc7 --on-variable PWD
+        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' (hostname) "$PWD"
+    end
+    __tmux_osc7  # run on startup
+end
+```
+
+#### Xonsh
+
+```python
+# Add to ~/.xonshrc
+import platform
+if "TMUX" in ${...}:
+    @events.on_chdir
+    def _report_cwd_to_tmux(olddir, newdir, **kw):
+        print(f"\x1bPtmux;\x1b\x1b]7;file://{platform.node()}{newdir}\x1b\x1b\\\x1b\\", end="", flush=True)
+    _report_cwd_to_tmux(None, os.getcwd())  # run on startup
+```
+
+### App title integration
+
+When running Python/Node apps, tmux shows the interpreter name (e.g., "python3.12") instead of the app name. To fix this, apps can set the terminal title:
+
+```python
+# Set terminal title on startup
+import sys
+sys.stdout.write("\033]0;myapp\007")
+sys.stdout.flush()
+```
+
+`tmux-window-color` will prefer `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
+
+### Customization
+
+Edit `src/lemonaid/tmux/window_color.py` to customize:
+
+- `COLORS` - The color palette (23 distinct colors)
+- `DIR_COLORS` - Override colors for specific directory names
+- `PROCESS_COLORS` - Override colors for specific process names
+- `HIDDEN_PROCESSES` - Shells/wrappers that shouldn't appear (just show directory)
+- `INTERPRETER_PROCESSES` - Interpreters where pane_title is preferred
+
 ## Advantages over WezTerm integration
 
 - **Simpler**: Direct CLI commands, no escape sequences or Lua callbacks

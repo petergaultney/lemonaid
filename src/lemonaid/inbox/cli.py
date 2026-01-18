@@ -29,9 +29,8 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     for n in notifications:
         created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
-        print(f"[{n.id}] {created} | {n.channel} | {n.title}")
-        if args.verbose and n.message:
-            print(f"    {n.message}")
+        name_part = f" ({n.name})" if n.name else ""
+        print(f"[{n.id}] {created} | {n.channel}{name_part} | {n.message}")
 
 
 def cmd_get(args: argparse.Namespace) -> None:
@@ -53,11 +52,11 @@ def cmd_get(args: argparse.Namespace) -> None:
         created = datetime.fromtimestamp(notification.created_at).strftime("%Y-%m-%d %H:%M:%S")
         print(f"ID:      {notification.id}")
         print(f"Channel: {notification.channel}")
-        print(f"Title:   {notification.title}")
+        if notification.name:
+            print(f"Name:    {notification.name}")
+        print(f"Message: {notification.message}")
         print(f"Status:  {notification.status}")
         print(f"Created: {created}")
-        if notification.message:
-            print(f"Message: {notification.message}")
 
 
 def cmd_add(args: argparse.Namespace) -> None:
@@ -74,8 +73,8 @@ def cmd_add(args: argparse.Namespace) -> None:
         notification = db.add(
             conn,
             channel=args.channel,
-            title=args.title,
             message=args.message,
+            name=args.name,
             metadata=metadata,
         )
     print(f"Added notification {notification.id}")
@@ -120,8 +119,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     # inbox add
     add_parser = inbox_subparsers.add_parser("add", help="Add a notification")
     add_parser.add_argument("channel", help="Channel/source identifier")
-    add_parser.add_argument("title", help="Notification title")
-    add_parser.add_argument("-m", "--message", help="Optional longer message")
+    add_parser.add_argument("message", help="Notification message")
+    add_parser.add_argument("-n", "--name", help="Optional session name")
     add_parser.add_argument("--metadata", help="JSON metadata for handlers")
     add_parser.set_defaults(func=cmd_add)
 

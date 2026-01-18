@@ -74,6 +74,18 @@ def get_tty() -> str | None:
     return None
 
 
+def detect_terminal_env() -> str:
+    """Detect which terminal environment we're running in.
+
+    Returns one of: 'tmux', 'wezterm', or 'unknown'.
+    """
+    if os.environ.get("TMUX"):
+        return "tmux"
+    if os.environ.get("WEZTERM_PANE"):
+        return "wezterm"
+    return "unknown"
+
+
 def shorten_path(path: str) -> str:
     """Shorten a path for display, using last 2 components."""
     cwd_path = Path(path)
@@ -88,6 +100,70 @@ def shorten_path(path: str) -> str:
     if len(parts) > 2:
         return "/".join(parts[-2:])
     return display_path
+
+
+def get_session_name(session_id: str, cwd: str) -> str | None:
+    """Look up the session name from Claude Code's data files.
+
+    Checks sessions-index.json first, then falls back to history.jsonl
+    for sessions that haven't been indexed yet.
+
+    Returns customTitle if set, otherwise firstPrompt, otherwise None.
+    """
+    if not session_id or not cwd:
+        return None
+
+    # Convert cwd to project directory name
+    # /Users/peter.gaultney/play/lemonaid -> -Users-peter-gaultney-play-lemonaid
+    project_dir = cwd.replace("/", "-")
+    if project_dir.startswith("-"):
+        project_dir = project_dir[1:]  # Remove leading dash
+    project_dir = "-" + project_dir  # Add it back (consistent format)
+
+    # Try sessions-index.json first
+    sessions_index_path = Path.home() / ".claude" / "projects" / project_dir / "sessions-index.json"
+    if sessions_index_path.exists():
+        try:
+            data = json.loads(sessions_index_path.read_text())
+            entries = data.get("entries", [])
+
+            for entry in entries:
+                if entry.get("sessionId") == session_id:
+                    # Prefer customTitle, fall back to firstPrompt
+                    return entry.get("customTitle") or entry.get("firstPrompt")
+
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Fall back to history.jsonl for sessions not yet indexed
+    # Look for most recent /rename command for this session
+    history_path = Path.home() / ".claude" / "history.jsonl"
+    if history_path.exists():
+        try:
+            rename_name = None
+            for line in history_path.read_text().splitlines():
+                try:
+                    entry = json.loads(line)
+                    if entry.get("sessionId") == session_id:
+                        display = entry.get("display", "")
+                        if display.startswith("/rename "):
+                            rename_name = display[8:].strip()  # Get name after "/rename "
+                except json.JSONDecodeError:
+                    continue
+            if rename_name:
+                return rename_name
+        except OSError:
+            pass
+
+    return None
+
+
+def get_name_from_cwd(cwd: str) -> str:
+    """Extract a display name from the cwd path (last component)."""
+    if not cwd:
+        return ""
+    parts = cwd.rstrip("/").split("/")
+    return parts[-1] if parts else ""
 
 
 def handle_notification(stdin_data: str | None = None) -> None:
@@ -109,14 +185,20 @@ def handle_notification(stdin_data: str | None = None) -> None:
     session_id = data.get("session_id", "")
     notification_type = data.get("notification_type", "idle_prompt")
 
-    # Build title based on notification type
+    # Build message based on notification type
     short_path = shorten_path(cwd)
     if notification_type == "idle_prompt":
-        title = f"Waiting in {short_path}"
+        message = f"Waiting in {short_path}"
     elif notification_type == "permission_prompt":
-        title = f"Permission needed in {short_path}"
+        message = f"Permission needed in {short_path}"
     else:
-        title = f"{notification_type} in {short_path}"
+        message = f"{notification_type} in {short_path}"
+
+    # Look up session name from Claude Code, fall back to cwd-derived name
+    name = get_session_name(session_id, cwd) or get_name_from_cwd(cwd)
+
+    # Detect terminal environment
+    terminal_env = detect_terminal_env()
 
     # Build metadata for handler
     metadata = {
@@ -135,7 +217,14 @@ def handle_notification(stdin_data: str | None = None) -> None:
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
     with db.connect() as conn:
-        db.add(conn, channel=channel, title=title, metadata=metadata)
+        db.add(
+            conn,
+            channel=channel,
+            message=message,
+            name=name,
+            metadata=metadata,
+            terminal_env=terminal_env if terminal_env != "unknown" else None,
+        )
 
 
 def _get_channel_from_stdin() -> str | None:

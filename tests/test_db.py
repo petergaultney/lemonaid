@@ -26,15 +26,15 @@ def test_add_creates_notification():
             notification = db.add(
                 conn,
                 channel="test:123",
-                title="Test notification",
-                message="Test message",
+                message="Test notification",
+                name="test-session",
                 metadata={"key": "value"},
             )
 
             assert notification.id > 0
             assert notification.channel == "test:123"
-            assert notification.title == "Test notification"
-            assert notification.message == "Test message"
+            assert notification.message == "Test notification"
+            assert notification.name == "test-session"
             assert notification.metadata == {"key": "value"}
             assert notification.status == "unread"
 
@@ -45,34 +45,41 @@ def test_add_upsert_updates_existing():
         db_path = Path(tmpdir) / "test.db"
         with db.connect(db_path) as conn:
             # Create first notification
-            n1 = db.add(conn, channel="test:123", title="First")
+            n1 = db.add(conn, channel="test:123", message="First")
             first_id = n1.id
 
             # Create second with same channel - should update
-            n2 = db.add(conn, channel="test:123", title="Second")
+            n2 = db.add(conn, channel="test:123", message="Second")
 
             assert n2.id == first_id  # Same ID
-            assert n2.title == "Second"  # Updated title
+            assert n2.message == "Second"  # Updated message
 
             # Only one notification should exist
             unread = db.get_unread(conn)
             assert len(unread) == 1
-            assert unread[0].title == "Second"
+            assert unread[0].message == "Second"
 
 
-def test_add_upsert_creates_new_after_read():
-    """add() should create new notification if previous was read."""
+def test_add_upsert_updates_read_notification():
+    """add() with upsert=True should update and reset read notification to unread."""
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         with db.connect(db_path) as conn:
             # Create and mark as read
-            n1 = db.add(conn, channel="test:123", title="First")
+            n1 = db.add(conn, channel="test:123", message="First")
             db.mark_read(conn, n1.id)
 
-            # Create second - should be new since first is read
-            n2 = db.add(conn, channel="test:123", title="Second")
+            # Verify it's read
+            read_n1 = db.get(conn, n1.id)
+            assert read_n1 is not None
+            assert read_n1.is_read
 
-            assert n2.id != n1.id  # Different ID
+            # Create second with upsert - should update and reset to unread
+            n2 = db.add(conn, channel="test:123", message="Second")
+
+            assert n2.id == n1.id  # Same ID (updated)
+            assert n2.message == "Second"
+            assert n2.status == "unread"  # Reset to unread
 
 
 def test_get_unread_returns_only_unread():
@@ -80,8 +87,8 @@ def test_get_unread_returns_only_unread():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         with db.connect(db_path) as conn:
-            n1 = db.add(conn, channel="test:1", title="Unread")
-            n2 = db.add(conn, channel="test:2", title="Will be read")
+            n1 = db.add(conn, channel="test:1", message="Unread")
+            n2 = db.add(conn, channel="test:2", message="Will be read")
             db.mark_read(conn, n2.id)
 
             unread = db.get_unread(conn)
@@ -94,7 +101,7 @@ def test_mark_read():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         with db.connect(db_path) as conn:
-            n = db.add(conn, channel="test:123", title="Test")
+            n = db.add(conn, channel="test:123", message="Test")
             assert not n.is_read
 
             db.mark_read(conn, n.id)
@@ -110,9 +117,9 @@ def test_mark_all_read_for_channel():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         with db.connect(db_path) as conn:
-            db.add(conn, channel="test:aaa", title="A1", upsert=False)
-            db.add(conn, channel="test:aaa", title="A2", upsert=False)
-            db.add(conn, channel="test:bbb", title="B1")
+            db.add(conn, channel="test:aaa", message="A1", upsert=False)
+            db.add(conn, channel="test:aaa", message="A2", upsert=False)
+            db.add(conn, channel="test:bbb", message="B1")
 
             count = db.mark_all_read_for_channel(conn, "test:aaa")
             assert count == 2
@@ -130,7 +137,8 @@ def test_notification_from_row():
             db.add(
                 conn,
                 channel="test:123",
-                title="Test",
+                message="Test",
+                name="my-session",
                 metadata={"tty": "/dev/ttys001"},
             )
 
@@ -138,4 +146,6 @@ def test_notification_from_row():
             notification = db.Notification.from_row(row)
 
             assert notification.channel == "test:123"
+            assert notification.message == "Test"
+            assert notification.name == "my-session"
             assert notification.metadata == {"tty": "/dev/ttys001"}

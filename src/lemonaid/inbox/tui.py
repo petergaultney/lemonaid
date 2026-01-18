@@ -1,6 +1,7 @@
 """Textual TUI for lemonaid inbox."""
 
 import contextlib
+import os
 from datetime import datetime
 
 from rich.text import Text
@@ -11,6 +12,24 @@ from textual.widgets import DataTable, Footer, Header, Static
 from ..config import load_config
 from ..handlers import handle_notification
 from . import db
+
+
+def detect_terminal_env() -> str:
+    """Detect which terminal environment we're running in."""
+    if os.environ.get("TMUX"):
+        return "tmux"
+    if os.environ.get("WEZTERM_PANE"):
+        return "wezterm"
+    return "unknown"
+
+
+def set_terminal_title(title: str) -> None:
+    """Set the terminal/pane title via OSC escape sequence."""
+    import sys
+
+    # OSC 0 sets both icon name and window title
+    sys.stdout.write(f"\033]0;{title}\007")
+    sys.stdout.flush()
 
 
 class LemonaidApp(App):
@@ -41,6 +60,7 @@ class LemonaidApp(App):
     def __init__(self) -> None:
         super().__init__()
         self.config = load_config()
+        self.terminal_env = detect_terminal_env()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -66,7 +86,7 @@ class LemonaidApp(App):
         table.add_column("Time", width=10)
         table.add_column("", width=1)  # Unread indicator
         table.add_column("Name", width=20)
-        table.add_column("Title")  # No width = expands to fill
+        table.add_column("Message")  # No width = expands to fill
         table.add_column("Channel", width=15)
         table.add_column("ID", width=5)
         table.add_column("TTY", width=12)
@@ -88,14 +108,6 @@ class LemonaidApp(App):
             return Text(value, style="bold cyan")
         return Text(value, style="dim")
 
-    def _get_name_from_cwd(self, cwd: str) -> str:
-        """Extract a display name from the cwd path."""
-        if not cwd:
-            return ""
-        # Use the last path component (project folder name)
-        parts = cwd.rstrip("/").split("/")
-        return parts[-1] if parts else ""
-
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
         table = self.query_one(DataTable)
@@ -111,7 +123,9 @@ class LemonaidApp(App):
         table.clear()
 
         with db.connect() as conn:
-            notifications = db.get_active(conn)
+            # Filter to notifications handleable in current environment
+            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
+            notifications = db.get_active(conn, terminal_env=env_filter)
 
         unread_count = 0
         for n in notifications:
@@ -125,12 +139,11 @@ class LemonaidApp(App):
                 unread_count += 1
 
             indicator = Text("●", style="bold cyan") if is_unread else Text("")
-            name = self._get_name_from_cwd(n.metadata.get("cwd", ""))
             table.add_row(
                 self._styled_cell(created, is_unread),
                 indicator,
-                self._styled_cell(name, is_unread),
-                self._styled_cell(n.title, is_unread),
+                self._styled_cell(n.name or "", is_unread),
+                self._styled_cell(n.message, is_unread),
                 self._styled_cell(n.channel, is_unread),
                 self._styled_cell(str(n.id), is_unread),
                 self._styled_cell(tty, is_unread),
@@ -159,7 +172,8 @@ class LemonaidApp(App):
         status = self.query_one("#status", Static)
         total = len(notifications)
         read_count = total - unread_count
-        status.update(f"{unread_count} unread, {read_count} read")
+        env_label = f" [{self.terminal_env}]" if self.terminal_env != "unknown" else ""
+        status.update(f"{unread_count} unread, {read_count} read{env_label}")
 
     def action_refresh(self) -> None:
         self._refresh_notifications()
@@ -208,6 +222,7 @@ class LemonaidApp(App):
 
 
 def main() -> None:
+    set_terminal_title("lma")
     app = LemonaidApp()
     app.run()
 

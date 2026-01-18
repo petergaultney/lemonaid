@@ -64,6 +64,19 @@ HIDDEN_PROCESSES: set[str] = {
     "mise",
 }
 
+# Interpreters where we prefer pane_title over the interpreter name
+INTERPRETER_PROCESSES: set[str] = {
+    "python",
+    "python3",
+    "python3.10",
+    "python3.11",
+    "python3.12",
+    "python3.13",
+    "node",
+    "ruby",
+    "perl",
+}
+
 
 def djb2(s: str) -> int:
     """DJB2 hash algorithm for deterministic string hashing."""
@@ -118,6 +131,44 @@ def format_path(path: str) -> str:
     return "".join(result)
 
 
+def extract_app_from_title(title: str | None, path: str) -> str | None:
+    """Extract a meaningful app name from the pane title.
+
+    Many shells/prompts set titles like "app - hostname" or "app user@host path".
+    We try to extract just the app name from the beginning.
+
+    Returns None if no meaningful app name found.
+    """
+    if not title or not title.strip():
+        return None
+
+    # Get the first word/token from the title
+    title = title.strip()
+    first_word = title.split()[0] if title.split() else ""
+
+    if not first_word:
+        return None
+
+    # Skip if it looks like a path
+    if first_word.startswith("/") or first_word.startswith("~"):
+        return None
+
+    # Skip if it looks like a hostname or user@host
+    if "@" in first_word:
+        return None
+
+    # Skip if it matches common shell defaults
+    if first_word in {"bash", "zsh", "fish", "xonsh", "-bash", "-zsh", "sh"}:
+        return None
+
+    # Skip if it's the same as the last path component (common default)
+    path_parts = [p for p in path.split("/") if p]
+    if path_parts and first_word == path_parts[-1]:
+        return None
+
+    return first_word
+
+
 def format_process(process: str) -> str | None:
     """Format a process name with tmux color codes.
 
@@ -134,17 +185,25 @@ def format_process(process: str) -> str | None:
     return f"#[fg={color}]{process}#[fg=default]"
 
 
-def format_window(path: str, process: str | None = None) -> str:
+def format_window(path: str, process: str | None = None, title: str | None = None) -> str:
     """Format a window title with optional process and path.
 
     Args:
         path: The current working directory
         process: The foreground process name (optional)
+        title: The pane title, if set by the application (optional)
 
     Returns:
         Formatted string like "git: play/lemonaid" or just "play/lemonaid"
     """
     formatted_path = format_path(path)
+
+    # If we have a meaningful title and process is an interpreter, prefer title
+    if process in INTERPRETER_PROCESSES:
+        app_name = extract_app_from_title(title, path)
+        if app_name:
+            process = app_name
+
     formatted_process = format_process(process) if process else None
 
     if formatted_process:
@@ -155,14 +214,15 @@ def format_window(path: str, process: str | None = None) -> str:
 def main() -> None:
     """CLI entry point for direct script execution.
 
-    Usage: tmux-window-color <path> [process]
+    Usage: tmux-window-color <path> [process] [title]
     """
     if len(sys.argv) > 1:
         path = sys.argv[1]
         process = sys.argv[2] if len(sys.argv) > 2 else None
-        print(format_window(path, process))
+        title = sys.argv[3] if len(sys.argv) > 3 else None
+        print(format_window(path, process, title))
     else:
-        print("Usage: tmux-window-color <path> [process]", file=sys.stderr)
+        print("Usage: tmux-window-color <path> [process] [title]", file=sys.stderr)
         sys.exit(1)
 
 

@@ -6,7 +6,7 @@ import json
 import sqlite3
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,25 +18,35 @@ class Notification:
 
     id: int
     channel: str
-    title: str
-    message: str | None = None
+    message: str
+    name: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     status: str = "unread"
     created_at: float = field(default_factory=time.time)
     read_at: float | None = None
+    terminal_env: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Notification:
         """Create a Notification from a database row."""
+        # Handle columns which may not exist in older DBs
+        terminal_env = None
+        name = None
+        with suppress(IndexError, KeyError):
+            terminal_env = row["terminal_env"]
+        with suppress(IndexError, KeyError):
+            name = row["name"]
+
         return cls(
             id=row["id"],
             channel=row["channel"],
-            title=row["title"],
             message=row["message"],
+            name=name,
             metadata=json.loads(row["metadata"]) if row["metadata"] else {},
             status=row["status"],
             created_at=row["created_at"],
             read_at=row["read_at"],
+            terminal_env=terminal_env,
         )
 
     @property
@@ -61,7 +71,11 @@ def get_db_path() -> Path:
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:
-    """Initialize the database schema."""
+    """Initialize the database schema.
+
+    This creates the baseline schema (version 0). Migrations bring it up to date.
+    Keep this as the original schema to ensure migrations work on fresh databases.
+    """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,12 +98,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 @contextmanager
 def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
     """Context manager for database connections."""
+    from . import migrations
+
     if db_path is None:
         db_path = get_db_path()
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     _init_schema(conn)
+    migrations.run_migrations(conn)
 
     try:
         yield conn
@@ -121,25 +138,45 @@ def get_unread(conn: sqlite3.Connection) -> list[Notification]:
     return [Notification.from_row(row) for row in rows]
 
 
-def get_active(conn: sqlite3.Connection) -> list[Notification]:
+def get_active(conn: sqlite3.Connection, terminal_env: str | None = None) -> list[Notification]:
     """Get active sessions (one per channel), unread first then by recency.
 
     Returns only the most recent notification per channel, excluding archived.
+    If terminal_env is provided, filters to only notifications from that environment
+    (or with NULL terminal_env for backwards compatibility).
     """
-    rows = conn.execute(
-        """
-        SELECT n.* FROM notifications n
-        INNER JOIN (
-            SELECT channel, MAX(id) as max_id
-            FROM notifications
-            GROUP BY channel
-        ) latest ON n.id = latest.max_id
-        WHERE n.status != 'archived'
-        ORDER BY
-            CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
-            n.created_at DESC
-        """
-    ).fetchall()
+    if terminal_env:
+        rows = conn.execute(
+            """
+            SELECT n.* FROM notifications n
+            INNER JOIN (
+                SELECT channel, MAX(id) as max_id
+                FROM notifications
+                GROUP BY channel
+            ) latest ON n.id = latest.max_id
+            WHERE n.status != 'archived'
+            AND (n.terminal_env = ? OR n.terminal_env IS NULL)
+            ORDER BY
+                CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
+                n.created_at DESC
+            """,
+            (terminal_env,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT n.* FROM notifications n
+            INNER JOIN (
+                SELECT channel, MAX(id) as max_id
+                FROM notifications
+                GROUP BY channel
+            ) latest ON n.id = latest.max_id
+            WHERE n.status != 'archived'
+            ORDER BY
+                CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
+                n.created_at DESC
+            """
+        ).fetchall()
     return [Notification.from_row(row) for row in rows]
 
 
@@ -164,10 +201,11 @@ def get_by_channel(
 def add(
     conn: sqlite3.Connection,
     channel: str,
-    title: str,
-    message: str | None = None,
+    message: str,
+    name: str | None = None,
     metadata: dict[str, Any] | None = None,
     upsert: bool = True,
+    terminal_env: str | None = None,
 ) -> Notification:
     """Add a notification or update existing one if upsert=True.
 
@@ -184,38 +222,40 @@ def add(
             conn.execute(
                 """
                 UPDATE notifications
-                SET title = ?, message = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL
+                SET message = ?, name = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL, terminal_env = ?
                 WHERE id = ?
                 """,
-                (title, message, json.dumps(metadata), now, existing.id),
+                (message, name, json.dumps(metadata), now, terminal_env, existing.id),
             )
             conn.commit()
             return Notification(
                 id=existing.id,
                 channel=channel,
-                title=title,
                 message=message,
+                name=name,
                 metadata=metadata,
                 status="unread",
                 created_at=now,
+                terminal_env=terminal_env,
             )
 
     cursor = conn.execute(
         """
-        INSERT INTO notifications (channel, title, message, metadata, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO notifications (channel, message, name, metadata, created_at, terminal_env)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (channel, title, message, json.dumps(metadata), now),
+        (channel, message, name, json.dumps(metadata), now, terminal_env),
     )
     conn.commit()
 
     return Notification(
         id=cursor.lastrowid or 0,
         channel=channel,
-        title=title,
         message=message,
+        name=name,
         metadata=metadata,
         created_at=now,
+        terminal_env=terminal_env,
     )
 
 
@@ -271,15 +311,15 @@ def clear_old(conn: sqlite3.Connection, days: int = 7) -> int:
 
 def add_notification(
     channel: str,
-    title: str,
-    message: str | None = None,
+    message: str,
+    name: str | None = None,
     metadata: dict[str, Any] | None = None,
     conn: sqlite3.Connection | None = None,
     upsert: bool = True,
 ) -> int:
     """Legacy wrapper - prefer using add() with connect() context manager."""
     if conn is not None:
-        return add(conn, channel, title, message, metadata, upsert).id
+        return add(conn, channel, message, name, metadata, upsert).id
 
     with connect() as conn:
-        return add(conn, channel, title, message, metadata, upsert).id
+        return add(conn, channel, message, name, metadata, upsert).id
