@@ -252,6 +252,10 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
         app_name = extract_app_from_title(title, path)
         if app_name:
             process = app_name
+            # Check again if the extracted app is a standalone process
+            if process in STANDALONE_PROCESSES:
+                color = PROCESS_COLORS.get(process, get_color(process))
+                return f"#[fg={color}]{process}#[fg=default]"
 
     formatted_process = format_process(process) if process else None
 
