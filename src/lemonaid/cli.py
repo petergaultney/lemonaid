@@ -9,6 +9,7 @@ import argparse
 from .claude import cli as claude_cli
 from .config import ensure_config_exists, get_config_path
 from .inbox import cli as inbox_cli
+from .inbox import db as inbox_db
 from .tmux import cli as tmux_cli
 from .wezterm import cli as wezterm_cli
 
@@ -35,6 +36,16 @@ def cmd_config_show(args: argparse.Namespace) -> None:
         print("Run 'lemonaid config init' to create one.")
 
 
+def cmd_mark_read(args: argparse.Namespace) -> None:
+    """Mark notifications as read by TTY."""
+    with inbox_db.connect() as conn:
+        count = inbox_db.mark_read_by_tty(conn, args.tty, args.minutes)
+    if count > 0:
+        print(f"Marked {count} notification(s) as read")
+    else:
+        print("No matching notifications")
+
+
 def setup_config_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the config subcommand."""
     config_parser = subparsers.add_parser(
@@ -58,6 +69,27 @@ def setup_config_parser(subparsers: argparse._SubParsersAction) -> None:
     config_parser.set_defaults(func=cmd_config_show, config_command=None)
 
 
+def setup_mark_read_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Set up the mark-read command for tmux integration."""
+    parser = subparsers.add_parser(
+        "mark-read",
+        help="Mark notifications as read by TTY (for tmux keybindings)",
+        description="Mark recent unread notifications from a specific TTY as read.",
+    )
+    parser.add_argument(
+        "--tty",
+        required=True,
+        help="The TTY device path (e.g., /dev/ttys005)",
+    )
+    parser.add_argument(
+        "--minutes",
+        type=int,
+        default=5,
+        help="Only mark notifications created within this many minutes (default: 5)",
+    )
+    parser.set_defaults(func=cmd_mark_read)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="lemonaid",
@@ -70,6 +102,7 @@ def main() -> None:
     tmux_cli.setup_parser(subparsers)
     wezterm_cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
+    setup_mark_read_parser(subparsers)
 
     args = parser.parse_args()
 
