@@ -2,7 +2,7 @@
 
 import argparse
 
-from .notify import handle_dismiss, handle_notification
+from .notify import dismiss_session, handle_dismiss, handle_notification
 
 
 def cmd_notify(args: argparse.Namespace) -> None:
@@ -12,7 +12,12 @@ def cmd_notify(args: argparse.Namespace) -> None:
 
 def cmd_dismiss(args: argparse.Namespace) -> None:
     """Handle Claude Code dismiss hook (mark notification as read)."""
-    handle_dismiss()
+    if args.session_id:
+        # Direct session_id provided (e.g., from another hook that already parsed stdin)
+        dismiss_session(args.session_id)
+    else:
+        # Read from stdin (original behavior)
+        handle_dismiss()
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -34,6 +39,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     dismiss_parser = claude_subparsers.add_parser(
         "dismiss",
         help="Mark session's notification as read (reads JSON from stdin)",
+    )
+    dismiss_parser.add_argument(
+        "--session-id",
+        "-s",
+        help="Session ID to dismiss (if not provided, reads from stdin)",
     )
     dismiss_parser.set_defaults(func=cmd_dismiss)
 

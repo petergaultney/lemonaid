@@ -106,12 +106,24 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command is None:
-        parser.print_help()
-    elif hasattr(args, "func"):
-        args.func(args)
-    else:
-        parser.print_help()
+    try:
+        if args.command is None:
+            parser.print_help()
+        elif hasattr(args, "func"):
+            args.func(args)
+        else:
+            parser.print_help()
+    except Exception:
+        import sys
+        import time
+        import traceback
+
+        # Log to file since Claude Code may hide stderr
+        with open("/tmp/lemonaid-errors.log", "a") as f:
+            f.write(f"[{time.strftime('%H:%M:%S')}] {' '.join(sys.argv)}\n")
+            f.write(traceback.format_exc())
+            f.write("\n")
+        raise
 
 
 def inbox_main() -> None:

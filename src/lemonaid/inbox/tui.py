@@ -74,7 +74,7 @@ class LemonaidApp(App):
         self._setup_table()
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
-        self.set_interval(2.0, self._refresh_notifications)
+        self.set_interval(1.0, self._refresh_notifications)
 
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""

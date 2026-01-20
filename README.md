@@ -90,6 +90,16 @@ Add these hooks to your `~/.claude/settings.json`:
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid claude dismiss"
+          }
+        ]
+      }
     ]
   }
 }
@@ -99,8 +109,11 @@ This gives you:
 - **Stop hook**: Notification when Claude finishes responding
 - **Notification hook**: Notification when Claude needs permission
 - **UserPromptSubmit hook**: Dismisses notification when you send a message
+- **PreToolUse hook** (recommended): Dismisses notification whenever Claude runs a tool
 
-**Important**: If you have other `UserPromptSubmit` hooks (e.g., a statusline hook), each hook must be in a **separate entry** in the array. Hooks in the same `hooks` array share stdin, so the first hook will consume it and subsequent hooks receive nothing.
+The `PreToolUse` hook is important because granting a permission prompt doesn't trigger `UserPromptSubmit`. Without it, you'll see stale "permission needed" notifications after granting permission, since Claude continues working but the notification remains unread until your next prompt.
+
+**Known limitation**: There's no Claude Code hook for "permission granted" or "Claude is thinking." After you grant a permission, Claude may think for a few seconds before invoking the next tool. During this gap, no hook fires, so the notification briefly stays unread. This is unavoidable with current Claude Code hook events.
 
 ## Terminal Setup
 

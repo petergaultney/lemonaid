@@ -173,8 +173,15 @@ def handle_notification(stdin_data: str | None = None) -> None:
     Reads JSON from stdin (as provided by Claude Code hooks) and adds
     a notification to the lemonaid inbox.
     """
+    import time
+
+    log_file = "/tmp/lemonaid-notify.log"
+
     if stdin_data is None:
         stdin_data = sys.stdin.read()
+
+    with open(log_file, "a") as f:
+        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_data}\n")
 
     try:
         data = json.loads(stdin_data) if stdin_data else {}
@@ -226,29 +233,67 @@ def handle_notification(stdin_data: str | None = None) -> None:
             terminal_env=terminal_env if terminal_env != "unknown" else None,
         )
 
-
-def _get_channel_from_stdin() -> str | None:
-    """Read session_id from stdin and return the channel name."""
-    try:
-        stdin_data = sys.stdin.read()
-        data = json.loads(stdin_data) if stdin_data else {}
-    except json.JSONDecodeError:
-        data = {}
-
-    session_id = data.get("session_id", "")
-    if session_id:
-        return f"claude:{session_id[:8]}"
-    return None
+    with open(log_file, "a") as f:
+        f.write(
+            f"[{time.strftime('%H:%M:%S')}] added: channel={channel}, type={notification_type}\n"
+        )
 
 
-def handle_dismiss() -> None:
+def dismiss_session(session_id: str, debug: bool = False) -> int:
+    """
+    Dismiss (mark as read) the notification for a Claude session.
+
+    Args:
+        session_id: The Claude Code session ID
+        debug: Enable debug output
+
+    Returns:
+        Number of notifications marked as read
+    """
+    if not session_id:
+        if debug:
+            print("[dismiss] no session_id provided", file=sys.stderr)
+        return 0
+
+    channel = f"claude:{session_id[:8]}"
+    with db.connect() as conn:
+        count = db.mark_all_read_for_channel(conn, channel)
+        if debug:
+            print(
+                f"[dismiss] marked {count} notification(s) as read for {channel}", file=sys.stderr
+            )
+        return count
+
+
+def handle_dismiss(debug: bool = False) -> None:
     """
     Dismiss (mark as read) the notification for this Claude session.
 
     Reads session_id from stdin and marks any unread notification
     for that channel as read.
+
+    Set LEMONAID_DEBUG=1 environment variable to enable debug output.
+    Set LEMONAID_LOG_FILE to a path to write debug logs to a file.
     """
-    channel = _get_channel_from_stdin()
-    if channel:
-        with db.connect() as conn:
-            db.mark_all_read_for_channel(conn, channel)
+    import time
+
+    debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
+    log_file = "/tmp/lemonaid-dismiss.log"
+
+    stdin_raw = sys.stdin.read() or "{}"
+
+    with open(log_file, "a") as f:
+        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_raw[:100]}\n")
+
+    try:
+        data = json.loads(stdin_raw)
+    except json.JSONDecodeError:
+        data = {}
+
+    session_id = data.get("session_id", "")
+    count = dismiss_session(session_id, debug=debug)
+
+    with open(log_file, "a") as f:
+        f.write(
+            f"[{time.strftime('%H:%M:%S')}] session_id={session_id[:8] if session_id else 'NONE'}, marked={count}\n"
+        )
