@@ -18,7 +18,8 @@ dev = [
 [project.scripts]
 lemonaid = "lemonaid.cli:main"
 lma = "lemonaid.cli:inbox_main"
-tmux-window-color = "lemonaid.tmux.window_color:main"
+lemonaid-tmux-window-status = "lemonaid.tmux.window_status:main"
+lemonaid-tmux-session-name = "lemonaid.tmux.window_status:session_main"
 
 [build-system]
 requires = ["hatchling"]

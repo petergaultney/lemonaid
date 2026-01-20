@@ -2,6 +2,31 @@
 
 Generates tmux-format colored output based on directory names,
 using a hash to pick from a color palette for visual distinction.
+
+## tmux Configuration
+
+This tool expects both `#{pane_path}` (from OSC 7) and `#{pane_current_path}`
+(from process cwd) to be passed. It prefers `pane_path` when available.
+
+Required tmux settings for OSC 7 support:
+
+    set -as terminal-features 'xterm*:osc7'
+    set -g set-titles on
+
+Example window-status-format:
+
+    setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+
+For session name with inverted colors:
+
+    set -g status-left '#(lemonaid-tmux-session-name "#{session_name}")'
+
+## Shell Setup
+
+Shells must send OSC 7 on every prompt for reliable directory tracking.
+See: https://github.com/tmux/tmux/issues/3098
+
+The escape sequence format is: \\033]7;file://HOSTNAME/PATH\\033\\\\
 """
 
 import os
@@ -64,6 +89,19 @@ HIDDEN_PROCESSES: set[str] = {
     "mise",
 }
 
+# Standalone apps that should show ONLY the process name (no directory)
+# These are apps where the launch directory isn't meaningful
+STANDALONE_PROCESSES: set[str] = {
+    "claude",
+    "emacs",
+    "emacsclient",
+    "lma",
+    "vim",
+    "nvim",
+    "htop",
+    "top",
+}
+
 # Interpreters where we prefer pane_title over the interpreter name
 INTERPRETER_PROCESSES: set[str] = {
     "python",
@@ -100,9 +138,13 @@ def format_path(path: str) -> str:
     Returns:
         Tmux-formatted string with color codes like #[fg=#FF5555]
     """
-    # Normalize: strip file:// prefix
+    # Normalize: strip file://hostname prefix (e.g., file://MBP-0097.local/Users/...)
     if path.startswith("file://"):
-        path = path[7:]
+        path = path[7:]  # Remove "file://"
+        # Find the first "/" which starts the actual path (after hostname)
+        slash_idx = path.find("/")
+        if slash_idx != -1:
+            path = path[slash_idx:]  # Keep from "/" onwards
 
     # Replace $HOME with ~
     home = os.environ.get("HOME", "")
@@ -112,23 +154,21 @@ def format_path(path: str) -> str:
     # Get path components
     parts = [p for p in path.split("/") if p]
 
-    # Determine display parts (last two components, like WezTerm)
-    if len(parts) >= 2:
-        display_parts = ["~", parts[-1]] if parts[-2] == "~" else parts[-2:]
-    elif parts:
-        display_parts = parts
-    else:
+    # Show just the last directory (or ~ for home)
+    if not parts:
         return "/"
 
-    # Format with tmux colors
-    result = []
-    for i, part in enumerate(display_parts):
-        if i > 0:
-            result.append("/")
-        color = get_color(part)
-        result.append(f"#[fg={color}]{part}#[fg=default]")
+    # If we're exactly at ~, show ~
+    if path == "~" or path == "~/":
+        display = "~"
+    # If it's a root-level directory (like /tmp), keep the leading slash
+    elif len(parts) == 1 and path.startswith("/"):
+        display = "/" + parts[0]
+    else:
+        display = parts[-1]
 
-    return "".join(result)
+    color = get_color(display)
+    return f"#[fg={color}]{display}#[fg=default]"
 
 
 def extract_app_from_title(title: str | None, path: str) -> str | None:
@@ -196,6 +236,15 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
     Returns:
         Formatted string like "git: play/lemonaid" or just "play/lemonaid"
     """
+    # Normalize version strings (like "2.1.12") to "claude"
+    if process and re.match(r"^\d+\.\d+\.\d+$", process):
+        process = "claude"
+
+    # Standalone apps: show ONLY the process name, no directory
+    if process in STANDALONE_PROCESSES:
+        color = PROCESS_COLORS.get(process, get_color(process))
+        return f"#[fg={color}]{process}#[fg=default]"
+
     formatted_path = format_path(path)
 
     # If we have a meaningful title and process is an interpreter, prefer title
@@ -211,18 +260,63 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
     return formatted_path
 
 
-def main() -> None:
-    """CLI entry point for direct script execution.
+# Session name background color - a nice dark purplish blue
+SESSION_BG_COLOR = "#5865F2"  # Discord-like purple/blue
 
-    Usage: tmux-window-color <path> [process] [title]
+
+def format_session(name: str) -> str:
+    """Format a session name with inverted colors (colored background).
+
+    Args:
+        name: The tmux session name
+
+    Returns:
+        Tmux-formatted string with dark purple/blue background and white text
     """
-    if len(sys.argv) > 1:
-        path = sys.argv[1]
-        process = sys.argv[2] if len(sys.argv) > 2 else None
-        title = sys.argv[3] if len(sys.argv) > 3 else None
+    return f"#[bg={SESSION_BG_COLOR},fg=#FFFFFF,bold] {name} #[default]"
+
+
+def main() -> None:
+    """CLI entry point for window status formatting.
+
+    Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]
+
+    pane_path: from OSC 7 (xonsh sends this on every prompt)
+    pane_current_path: from process cwd (works for fish, bash but not xonsh)
+
+    Prefers pane_path (OSC 7) when available, falls back to pane_current_path.
+    This works for xonsh; fish/bash may show stale paths until they send OSC 7.
+    """
+    if len(sys.argv) > 2:
+        pane_path = sys.argv[1]
+        pane_current_path = sys.argv[2]
+        process = sys.argv[3] if len(sys.argv) > 3 else None
+        title = sys.argv[4] if len(sys.argv) > 4 else None
+
+        # Prefer OSC 7 path when available (works for xonsh)
+        path = pane_path if pane_path else pane_current_path
+
         print(format_window(path, process, title))
     else:
-        print("Usage: tmux-window-color <path> [process] [title]", file=sys.stderr)
+        print(
+            "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def session_main() -> None:
+    """CLI entry point for session name formatting.
+
+    Usage: lemonaid-tmux-session-name <session_name>
+
+    Returns the session name with inverted colors (colored background, black text).
+    """
+    if len(sys.argv) > 1:
+        session_name = sys.argv[1]
+        print(format_session(session_name))
+    else:
+        print("Usage: lemonaid-tmux-session-name <session_name>", file=sys.stderr)
         sys.exit(1)
 
 
