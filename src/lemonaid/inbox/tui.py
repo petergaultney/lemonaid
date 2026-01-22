@@ -53,7 +53,7 @@ class LemonaidApp(App):
         Binding("q", "quit", "Quit"),
         Binding("escape", "quit", "Quit", show=False),
         Binding("g", "refresh", "Refresh", show=False),
-        Binding("r", "mark_read", "Mark Read"),
+        Binding("m", "mark_read", "Mark Read"),
         Binding("a", "archive", "Archive"),
     ]
 
