@@ -9,6 +9,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
+from ..claude.patcher import apply_patch, check_status, find_binary
 from ..config import load_config
 from ..handlers import handle_notification
 from . import db
@@ -41,7 +42,6 @@ class LemonaidApp(App):
     }
 
     #status {
-        dock: bottom;
         height: 1;
         background: $surface;
         color: $text-muted;
@@ -55,12 +55,15 @@ class LemonaidApp(App):
         Binding("g", "refresh", "Refresh", show=False),
         Binding("m", "mark_read", "Mark Read"),
         Binding("a", "archive", "Archive"),
+        Binding("P", "patch_claude", "Patch Claude", show=False),
     ]
 
     def __init__(self) -> None:
         super().__init__()
         self.config = load_config()
         self.terminal_env = detect_terminal_env()
+        self._claude_patch_status: str | None = None
+        self._claude_binary = find_binary()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -72,9 +75,17 @@ class LemonaidApp(App):
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
         self._setup_table()
+        self._check_claude_patch()
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
+
+    def _check_claude_patch(self) -> None:
+        """Check Claude Code patch status."""
+        if self._claude_binary:
+            self._claude_patch_status = check_status(self._claude_binary)
+        else:
+            self._claude_patch_status = None
 
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""
@@ -173,7 +184,13 @@ class LemonaidApp(App):
         total = len(notifications)
         read_count = total - unread_count
         env_label = f" [{self.terminal_env}]" if self.terminal_env != "unknown" else ""
-        status.update(f"{unread_count} unread, {read_count} read{env_label}")
+        status_text = f"{unread_count} unread, {read_count} read{env_label}"
+
+        # Add patch warning if Claude is unpatched
+        if self._claude_patch_status == "unpatched":
+            status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
+
+        status.update(status_text)
 
     def action_refresh(self) -> None:
         self._refresh_notifications()
@@ -203,6 +220,23 @@ class LemonaidApp(App):
             with db.connect() as conn:
                 db.archive(conn, notification_id)
             self._refresh_notifications()
+
+    def action_patch_claude(self) -> None:
+        """Patch Claude Code binary for faster notifications."""
+        if not self._claude_binary or self._claude_patch_status != "unpatched":
+            return
+
+        try:
+            count = apply_patch(self._claude_binary)
+            if count > 0:
+                self._claude_patch_status = "patched"
+                self.notify(f"Patched Claude Code ({count} locations). Restart Claude for effect.")
+            else:
+                self.notify("No patterns found to patch", severity="warning")
+        except Exception as e:
+            self.notify(f"Patch failed: {e}", severity="error")
+
+        self._refresh_notifications()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter on a row - switch to that session without marking as read.
