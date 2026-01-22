@@ -69,13 +69,13 @@ DIR_COLORS: dict[str, str] = {
 # Special colors for known processes
 PROCESS_COLORS: dict[str, str] = {
     "emacs": "#FFB86C",  # Orange
-    "emacsclient": "#FFB86C",
+    "emacsclient": "#E0922D",  # Darker orange
     "git": "#BB55FF",  # Purple
     "python": "#F1FA8C",  # Yellow
     "python3": "#F1FA8C",
     "node": "#50FA7B",  # Green
     "npm": "#50FA7B",
-    "claude": "#E3CF65",  # Gold
+    "claude": "#50FA7B",  # Green
 }
 
 # Shells/wrappers that shouldn't be shown (just show directory instead)
