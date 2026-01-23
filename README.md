@@ -116,6 +116,8 @@ The `PreToolUse` hook is important because granting a permission prompt doesn't 
 
 **Known limitation**: There's no Claude Code hook for "permission granted" or "Claude is thinking." After you grant a permission, Claude may think for a few seconds before invoking the next tool. During this gap, no hook fires, so the notification briefly stays unread. This is unavoidable with current Claude Code hook events.
 
+**Faster notifications**: Claude Code has a hardcoded 6-second polling interval for notification hooks, causing ~10 second delays. Lemonaid can patch the binary to reduce this to 500ms - see [docs/claude-patch.md](docs/claude-patch.md).
+
 ## Terminal Setup
 
 - **tmux**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
