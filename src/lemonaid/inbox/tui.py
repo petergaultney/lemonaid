@@ -58,12 +58,13 @@ class LemonaidApp(App):
         Binding("P", "patch_claude", "Patch Claude", show=False),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, scratch_mode: bool = False) -> None:
         super().__init__()
         self.config = load_config()
         self.terminal_env = detect_terminal_env()
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
+        self._scratch_mode = scratch_mode
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -248,6 +249,17 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
+    def _hide_scratch_pane(self) -> None:
+        """Hide this pane by breaking it to a new window (for scratch mode)."""
+        import subprocess
+
+        pane_id = os.environ.get("TMUX_PANE")
+        if pane_id:
+            subprocess.run(
+                ["tmux", "break-pane", "-d", "-s", pane_id],
+                capture_output=True,
+            )
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter on a row - switch to that session without marking as read.
 
@@ -263,6 +275,9 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
             if notification:
                 handle_notification(notification.channel, notification.metadata, self.config)
+                # In scratch/auto-dismiss mode, hide the pane after navigation
+                if self._scratch_mode:
+                    self._hide_scratch_pane()
 
 
 def main() -> None:

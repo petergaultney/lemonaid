@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..config import load_config
 from . import go_back, swap_back_location
+from .scratch import toggle_scratch
 from .session import create_session
 
 
@@ -27,6 +28,14 @@ def cmd_swap(args: argparse.Namespace) -> None:
     target_session, target_pane = swap_back_location(args.session, args.pane_id)
     if target_session is not None and target_pane is not None:
         print(f"{target_session}|{target_pane}")
+
+
+def cmd_scratch(args: argparse.Namespace) -> None:
+    """Toggle the scratch lma pane."""
+    result = toggle_scratch(height=args.height)
+    # Optionally print result for debugging
+    if args.verbose:
+        print(result)
 
 
 def cmd_new(args: argparse.Namespace) -> None:
@@ -81,6 +90,26 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     swap_parser.add_argument("session", help="Current session name")
     swap_parser.add_argument("pane_id", help="Current pane ID (e.g., %5)")
     swap_parser.set_defaults(func=cmd_swap)
+
+    # tmux scratch - toggle scratch pane
+    scratch_parser = tmux_subparsers.add_parser(
+        "scratch",
+        help="Toggle the scratch lma pane (show/hide)",
+        description="Toggle a persistent lma pane that stays running. "
+        "First invocation creates it, subsequent invocations show/hide it.",
+    )
+    scratch_parser.add_argument(
+        "--height",
+        default="30%",
+        help="Height of the scratch pane when shown (default: 30%%)",
+    )
+    scratch_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print action taken (created/shown/hidden)",
+    )
+    scratch_parser.set_defaults(func=cmd_scratch)
 
     # tmux new - create session from template
     new_parser = tmux_subparsers.add_parser(
