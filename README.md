@@ -1,4 +1,4 @@
-# lemonaid
+# 🍋🥤 lemonaid
 
 Attention inbox for managing notifications from lemons (go on, say LLMs three times fast)
 when you live in the CLI.
