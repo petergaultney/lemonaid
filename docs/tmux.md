@@ -60,6 +60,56 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 
 - `lemonaid tmux back` - Switch to the saved back location
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
+- `lemonaid tmux new [name]` - Create a new tmux session from a template
+
+## Session Templates
+
+Create tmux sessions with a predefined window layout using `lemonaid tmux new`.
+
+### Configuration
+
+Add templates to `~/.config/lemonaid/config.toml`:
+
+```toml
+[tmux-session.templates]
+default = [
+    "emacsclient -nw .",
+    "claude",
+    "lma",
+    "",
+]
+```
+
+Each entry in the list creates a window. Empty string means just a shell.
+
+### Usage
+
+```bash
+# Create session named after current directory, using "default" template
+lemonaid tmux new
+
+# Create session with explicit name
+lemonaid tmux new my-feature
+
+# Use a different template
+lemonaid tmux new --from no-emacs
+
+# Create in a specific directory
+lemonaid tmux new --dir ~/work/project
+
+# Create detached (don't switch to it)
+lemonaid tmux new -d
+```
+
+### Claude session naming
+
+When a template includes a `claude` command, lemonaid will attempt to send `/rename <session-name>` to that window after startup. Due to tmux/Claude timing issues, the Enter key may not be submitted automatically - you may need to press Enter yourself to confirm the rename.
+
+To skip this behavior:
+
+```bash
+lemonaid tmux new --no-rename
+```
 
 ## Window Colors
 

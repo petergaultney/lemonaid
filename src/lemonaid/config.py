@@ -39,11 +39,23 @@ class WeztermConfig:
 
 
 @dataclass
+class TmuxSessionConfig:
+    """Configuration for tmux session templates."""
+
+    templates: dict[str, list[str]] = field(default_factory=dict)
+
+    def get_template(self, name: str) -> list[str] | None:
+        """Get a template by name."""
+        return self.templates.get(name)
+
+
+@dataclass
 class Config:
     """Lemonaid configuration."""
 
     handlers: dict[str, str] = field(default_factory=dict)
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
+    tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -81,7 +93,12 @@ def _parse_config(data: dict[str, Any]) -> Config:
         resolve_pane=wezterm_data.get("resolve_pane", "tty"),
     )
 
-    return Config(handlers=handlers, wezterm=wezterm)
+    tmux_session_data = data.get("tmux-session", {})
+    tmux_session = TmuxSessionConfig(
+        templates=tmux_session_data.get("templates", {}),
+    )
+
+    return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session)
 
 
 def ensure_config_exists() -> Path:
