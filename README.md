@@ -11,6 +11,7 @@ Eventually other tools will get packaged here as well.
 
 - **Notification inbox**: Track which Claude Code sessions need your attention
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [tmux](docs/tmux.md) and [WezTerm](docs/wezterm.md))
+- **Scratch pane** (tmux): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
 - **Back navigation**: Toggle between your inbox and the session you jumped to
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 - **Upsert behavior**: Repeated notifications update timestamp instead of creating duplicates
