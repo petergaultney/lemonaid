@@ -50,12 +50,20 @@ class TmuxSessionConfig:
 
 
 @dataclass
+class TuiConfig:
+    """Configuration for the TUI."""
+
+    transparent: bool = False  # Use ANSI colors for terminal transparency
+
+
+@dataclass
 class Config:
     """Lemonaid configuration."""
 
     handlers: dict[str, str] = field(default_factory=dict)
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
+    tui: TuiConfig = field(default_factory=TuiConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -98,7 +106,12 @@ def _parse_config(data: dict[str, Any]) -> Config:
         templates=tmux_session_data.get("templates", {}),
     )
 
-    return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session)
+    tui_data = data.get("tui", {})
+    tui = TuiConfig(
+        transparent=tui_data.get("transparent", False),
+    )
+
+    return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui)
 
 
 def ensure_config_exists() -> Path:

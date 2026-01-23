@@ -64,6 +64,10 @@ class LemonaidApp(App):
         self.terminal_env = detect_terminal_env()
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
+        # Enable ANSI colors for terminal transparency support
+        if self.config.tui.transparent:
+            self.ansi_color = True
+            self.dark = True  # Use dark theme as base
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -74,6 +78,12 @@ class LemonaidApp(App):
     def on_mount(self) -> None:
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
+
+        # Apply transparent styles if configured
+        if self.config.tui.transparent:
+            self.screen.styles.background = "transparent"
+            self.query_one(DataTable).styles.background = "transparent"
+
         self._setup_table()
         self._check_claude_patch()
         self._refresh_notifications()
