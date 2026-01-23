@@ -42,3 +42,4 @@ uv.lock
 
 # lemons
 .claude/**
+!.claude/CLAUDE.md
