@@ -122,9 +122,19 @@ def main() -> None:
 
 def inbox_main() -> None:
     """Direct entry point for `lma` alias - goes straight to inbox TUI."""
+    import argparse
+
     from .inbox.tui import LemonaidApp
 
-    app = LemonaidApp()
+    parser = argparse.ArgumentParser(prog="lma", description="Lemonaid attention inbox")
+    parser.add_argument(
+        "--scratch",
+        action="store_true",
+        help="Run as a scratch pane: auto-hide after selecting a notification",
+    )
+    args = parser.parse_args()
+
+    app = LemonaidApp(scratch_mode=args.scratch)
     app.run()
 
 

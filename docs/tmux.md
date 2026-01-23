@@ -60,7 +60,52 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 
 - `lemonaid tmux back` - Switch to the saved back location
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
+- `lemonaid tmux scratch` - Toggle the scratch lma pane (see below)
 - `lemonaid tmux new [name]` - Create a new tmux session from a template
+
+## Scratch Pane
+
+The scratch pane provides an always-available lma inbox that can be toggled with a keybinding. Unlike running `lma` in a popup, the scratch pane stays running in the background, so there's no startup delay when showing it.
+
+### Setup
+
+Add to your `~/.tmux.conf`:
+
+```tmux
+# Toggle scratch lma pane
+bind-key l run-shell 'lemonaid tmux scratch'
+```
+
+Reload tmux config:
+
+```bash
+tmux source-file ~/.tmux.conf
+```
+
+### Usage
+
+1. Press `prefix + l` to show the lma inbox as a split at the top of your current window
+2. Select a notification with Enter - you'll switch to that session and the lma pane auto-hides
+3. Press `prefix + l` again to bring it back
+
+### How it works
+
+1. First toggle creates a tmux session (`_lma_scratch`) running `lma --scratch`
+2. The pane is joined into your current window as a 30% top split
+3. When you select a notification, lma auto-dismisses by breaking the pane to its own window
+4. Subsequent toggles show/hide the same pane (no restart, instant response)
+
+State is tracked per tmux server in `~/.local/state/lemonaid/scratch-pane-<server>.json`, so multiple tmux servers won't conflict.
+
+### Options
+
+```bash
+# Customize the pane height
+lemonaid tmux scratch --height 40%
+
+# See what action was taken
+lemonaid tmux scratch -v  # prints: created, shown, or hidden
+```
 
 ## Session Templates
 
