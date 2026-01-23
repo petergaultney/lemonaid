@@ -282,22 +282,16 @@ def mark_all_read_for_channel(conn: sqlite3.Connection, channel: str) -> int:
     return cursor.rowcount
 
 
-def mark_read_by_tty(conn: sqlite3.Connection, tty: str, minutes: int = 5) -> int:
-    """Mark recent unread notifications from a TTY as read.
-
-    Uses a time window to handle TTY reuse - only marks notifications
-    created within the last N minutes.
-    """
-    cutoff = time.time() - (minutes * 60)
+def mark_read_by_tty(conn: sqlite3.Connection, tty: str) -> int:
+    """Mark all unread notifications from a TTY as read."""
     cursor = conn.execute(
         """
         UPDATE notifications
         SET status = 'read', read_at = ?
         WHERE json_extract(metadata, '$.tty') = ?
           AND status = 'unread'
-          AND created_at > ?
         """,
-        (time.time(), tty, cutoff),
+        (time.time(), tty),
     )
     conn.commit()
     return cursor.rowcount
