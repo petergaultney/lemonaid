@@ -47,8 +47,10 @@ lemonaid inbox list
 | Key | Action |
 |-----|--------|
 | `Enter` | Open notification (switches to that session) |
-| `d` | Mark as read (dismiss) |
-| `r` / `g` | Refresh |
+| `u` | Jump directly to earliest unread session |
+| `m` | Mark as read |
+| `a` | Archive (remove from list) |
+| `g` | Refresh |
 | `q` / `Escape` | Quit |
 
 ### Programmatic Access

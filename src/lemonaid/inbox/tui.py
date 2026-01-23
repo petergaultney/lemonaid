@@ -53,6 +53,7 @@ class LemonaidApp(App):
         Binding("q", "quit", "Quit"),
         Binding("escape", "quit", "Quit", show=False),
         Binding("g", "refresh", "Refresh", show=False),
+        Binding("u", "jump_unread", "Jump Unread"),
         Binding("m", "mark_read", "Mark Read"),
         Binding("a", "archive", "Archive"),
         Binding("P", "patch_claude", "Patch Claude", show=False),
@@ -231,6 +232,24 @@ class LemonaidApp(App):
             with db.connect() as conn:
                 db.archive(conn, notification_id)
             self._refresh_notifications()
+
+    def action_jump_unread(self) -> None:
+        """Jump directly to the earliest unread session."""
+        with db.connect() as conn:
+            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
+            notifications = db.get_active(conn, terminal_env=env_filter)
+
+        # Find the earliest (oldest) unread - they're sorted newest first
+        unread = [n for n in notifications if n.is_unread]
+        if not unread:
+            self.notify("No unread notifications", severity="information")
+            return
+
+        # Move cursor to earliest unread row, then select it (same path as Enter)
+        earliest_row = len(unread) - 1
+        table = self.query_one(DataTable)
+        table.move_cursor(row=earliest_row)
+        table.action_select_cursor()
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-01-23)
+
+### Added
+
+- **Jump to unread** (`u`): New keybinding to jump directly to the earliest unread session without navigating through the list
+
 ## 0.2.0 (2026-01-23)
 
 ### Added
