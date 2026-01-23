@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 (2026-01-23)
+
+### Fixed
+
+- Scratch pane window now named "lma" instead of hostname:lemonaid
+- `lma` command now sets terminal title to "lma" (was missing, causing window status to show hostname)
+
 ## 0.2.2 (2026-01-23)
 
 ### Changed

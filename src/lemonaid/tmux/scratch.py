@@ -118,8 +118,13 @@ def _create_pane() -> str:
 
     # Create a new session with lma in scratch mode
     subprocess.run(
-        ["tmux", "new-session", "-d", "-s", _SCRATCH_SESSION, "lma", "--scratch"],
+        ["tmux", "new-session", "-d", "-s", _SCRATCH_SESSION, "-n", "lma", "lma", "--scratch"],
         check=True,
+    )
+    # Prevent tmux from auto-renaming the window
+    subprocess.run(
+        ["tmux", "set-window-option", "-t", _SCRATCH_SESSION, "automatic-rename", "off"],
+        capture_output=True,
     )
 
     result = subprocess.run(

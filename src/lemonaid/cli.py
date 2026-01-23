@@ -124,7 +124,7 @@ def inbox_main() -> None:
     """Direct entry point for `lma` alias - goes straight to inbox TUI."""
     import argparse
 
-    from .inbox.tui import LemonaidApp
+    from .inbox.tui import LemonaidApp, set_terminal_title
 
     parser = argparse.ArgumentParser(prog="lma", description="Lemonaid attention inbox")
     parser.add_argument(
@@ -134,6 +134,7 @@ def inbox_main() -> None:
     )
     args = parser.parse_args()
 
+    set_terminal_title("lma")
     app = LemonaidApp(scratch_mode=args.scratch)
     app.run()
 
