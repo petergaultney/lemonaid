@@ -26,7 +26,7 @@ def create_session(
     name: str,
     windows: list[str],
     directory: str | Path | None = None,
-    claude_rename: bool = True,
+    claude_rename: bool = False,
     attach: bool = True,
 ) -> bool:
     """Create a new tmux session with the specified windows.
@@ -85,7 +85,9 @@ def create_session(
             capture_output=True,
         )
 
-        # Send /rename to claude windows after a delay
+        # Send /rename to claude windows after a delay.
+        # Disabled by default since lemonaid now derives notification names from
+        # the tmux session name automatically (see claude/notify.py get_tmux_session_name).
         if claude_rename:
             claude_win_indices = [
                 base_index + i for i, cmd in enumerate(windows) if cmd.strip().startswith("claude")

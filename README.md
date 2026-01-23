@@ -10,10 +10,11 @@ Eventually other tools will get packaged here as well.
 ## Features
 
 - **Notification inbox**: Track which Claude Code sessions need your attention
-- **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports tmux and WezTerm)
+- **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [tmux](docs/tmux.md) and [WezTerm](docs/wezterm.md))
 - **Back navigation**: Toggle between your inbox and the session you jumped to
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 - **Upsert behavior**: Repeated notifications update timestamp instead of creating duplicates
+- **tmux session templates**: Spin up new Claude workspaces with a predefined window layout
 
 ## Installation
 
@@ -117,7 +118,7 @@ The `PreToolUse` hook is important because granting a permission prompt doesn't 
 
 ## Terminal Setup
 
-- **tmux**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, and window colors
+- **tmux**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
 - **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
 
 ## Configuration
@@ -127,12 +128,10 @@ Config file: `~/.config/lemonaid/config.toml`
 ```toml
 [handlers]
 # Map channel patterns to handlers
-"claude:*" = "wezterm"
-
-[wezterm]
-# How to resolve pane: "tty" or "metadata"
-resolve_pane = "tty"
+"claude:*" = "tmux"  # or "wezterm"
 ```
+
+See the terminal-specific docs for additional configuration options.
 
 ## Architecture
 

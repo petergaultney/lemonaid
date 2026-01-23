@@ -86,6 +86,25 @@ def detect_terminal_env() -> str:
     return "unknown"
 
 
+def get_tmux_session_name() -> str | None:
+    """Get the tmux session name if running in tmux."""
+    import subprocess
+
+    pane_id = os.environ.get("TMUX_PANE")
+    if not pane_id:
+        return None
+    try:
+        result = subprocess.run(
+            ["tmux", "display-message", "-t", pane_id, "-p", "#{session_name}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip() or None
+    except subprocess.CalledProcessError:
+        return None
+
+
 def shorten_path(path: str) -> str:
     """Shorten a path for display, using last 2 components."""
     cwd_path = Path(path)
@@ -201,8 +220,8 @@ def handle_notification(stdin_data: str | None = None) -> None:
     else:
         message = f"{notification_type} in {short_path}"
 
-    # Look up session name from Claude Code, fall back to cwd-derived name
-    name = get_session_name(session_id, cwd) or get_name_from_cwd(cwd)
+    # Look up session name: Claude name > tmux session name > cwd-derived name
+    name = get_session_name(session_id, cwd) or get_tmux_session_name() or get_name_from_cwd(cwd)
 
     # Detect terminal environment
     terminal_env = detect_terminal_env()

@@ -103,13 +103,15 @@ lemonaid tmux new -d
 
 ### Claude session naming
 
-When a template includes a `claude` command, lemonaid will attempt to send `/rename <session-name>` to that window after startup. Due to tmux/Claude timing issues, the Enter key may not be submitted automatically - you may need to press Enter yourself to confirm the rename.
+Lemonaid automatically derives notification names from the tmux session name, so Claude sessions created with `lemonaid tmux new` will show the session name in the inbox without any extra configuration.
 
-To skip this behavior:
+If you want to also set Claude's internal session name (via `/rename`), you can use:
 
 ```bash
-lemonaid tmux new --no-rename
+lemonaid tmux new --rename
 ```
+
+Note: Due to tmux timing issues, the Enter key may not be submitted automatically - you may need to press Enter yourself to confirm the rename.
 
 ## Window Colors
 

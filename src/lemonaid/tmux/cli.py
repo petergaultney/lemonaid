@@ -51,7 +51,7 @@ def cmd_new(args: argparse.Namespace) -> None:
         name=session_name,
         windows=windows,
         directory=directory,
-        claude_rename=not args.no_rename,
+        claude_rename=args.rename,
         attach=not args.detach,
     )
     if not success:
@@ -103,9 +103,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Working directory (default: current directory)",
     )
     new_parser.add_argument(
-        "--no-rename",
+        "--rename",
         action="store_true",
-        help="Don't send /rename to claude windows",
+        help="Send /rename to claude windows (usually not needed, lemonaid uses tmux session name)",
     )
     new_parser.add_argument(
         "-d",
