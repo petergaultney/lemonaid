@@ -204,6 +204,13 @@ class LemonaidApp(App):
 
         status.update(status_text)
 
+    def action_quit(self) -> None:
+        """Quit the app, or just hide the pane in scratch mode."""
+        if self._scratch_mode:
+            self._hide_scratch_pane()
+        else:
+            self.exit()
+
     def action_refresh(self) -> None:
         self._refresh_notifications()
 

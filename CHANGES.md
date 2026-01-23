@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 (2026-01-23)
+
+### Changed
+
+- **Scratch mode**: `q`/`Escape` now hides the pane instead of quitting, keeping lma alive for instant re-toggle
+
 ## 0.2.1 (2026-01-23)
 
 ### Added
