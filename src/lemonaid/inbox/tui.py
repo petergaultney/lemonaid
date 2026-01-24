@@ -10,7 +10,8 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ..claude.patcher import apply_patch, check_status, find_binary
-from ..claude.watcher import start_watcher
+from ..claude.watcher import start_watcher as start_claude_watcher
+from ..codex.watcher import start_watcher as start_codex_watcher
 from ..config import load_config
 from ..handlers import handle_notification
 from . import db
@@ -91,8 +92,13 @@ class LemonaidApp(App):
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
-        # Start transcript watcher for auto-dismiss and message updates
-        start_watcher(
+        # Start transcript watchers for auto-dismiss and message updates
+        start_claude_watcher(
+            get_active=self._get_active_for_watcher,
+            mark_read=self._mark_channel_read,
+            update_message=self._update_channel_message,
+        )
+        start_codex_watcher(
             get_active=self._get_active_for_watcher,
             mark_read=self._mark_channel_read,
             update_message=self._update_channel_message,
