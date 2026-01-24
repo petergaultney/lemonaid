@@ -64,16 +64,6 @@ Add these hooks to your `~/.claude/settings.json`:
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid claude dismiss"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
@@ -94,32 +84,26 @@ Add these hooks to your `~/.claude/settings.json`:
           }
         ]
       }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid claude dismiss"
-          }
-        ]
-      }
     ]
   }
 }
 ```
 
 This gives you:
-- **Stop hook**: Notification when Claude finishes responding
+- **Stop hook**: Notification when Claude finishes responding and is waiting for input
 - **Notification hook**: Notification when Claude needs permission
-- **UserPromptSubmit hook**: Dismisses notification when you send a message
-- **PreToolUse hook** (recommended): Dismisses notification whenever Claude runs a tool
 
-The `PreToolUse` hook is important because granting a permission prompt doesn't trigger `UserPromptSubmit`. Without it, you'll see stale "permission needed" notifications after granting permission, since Claude continues working but the notification remains unread until your next prompt.
+### Auto-dismiss via transcript watching
 
-**Known limitation**: There's no Claude Code hook for "permission granted" or "Claude is thinking." After you grant a permission, Claude may think for a few seconds before invoking the next tool. During this gap, no hook fires, so the notification briefly stays unread. This is unavoidable with current Claude Code hook events.
+Lemonaid automatically monitors Claude's transcript files to detect when you provide input. When Claude starts working (thinking, running tools), the notification is dismissed automatically. This is more reliable than hook-based dismiss because:
 
-**Faster notifications**: Claude Code has a hardcoded 6-second polling interval for notification hooks, causing ~10 second delays. Lemonaid can patch the binary to reduce this to 500ms - see [docs/claude-patch.md](docs/claude-patch.md).
+- No race conditions with the Stop hook
+- Works for all input types (prompts, permission grants, etc.)
+- No additional hooks needed (reduces overhead on every tool call)
+
+The transcript watcher starts automatically when the TUI runs.
+
+**Faster notifications**: Claude Code has a hardcoded 6-second polling interval for notification hooks, causing delays. Lemonaid can patch the binary to reduce this to 500ms - see [docs/claude-patch.md](docs/claude-patch.md).
 
 ## Terminal Setup
 
