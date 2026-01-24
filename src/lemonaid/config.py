@@ -50,10 +50,32 @@ class TmuxSessionConfig:
 
 
 @dataclass
+class KeybindingsConfig:
+    """Configuration for TUI keybindings.
+
+    Each command field is a string where each character is a valid key binding.
+    For example, quit="qQ" means both 'q' and 'Q' will quit.
+
+    The up_down field is a 2-character string: up, down.
+    For vim: "kj", for Norman WASD-style: "ri".
+    Empty string means use default arrow keys only.
+    """
+
+    quit: str = "q"
+    refresh: str = "g"
+    jump_unread: str = "u"
+    mark_read: str = "m"
+    archive: str = "a"
+    rename: str = "r"
+    up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
+
+
+@dataclass
 class TuiConfig:
     """Configuration for the TUI."""
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
+    keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
 
 
 @dataclass
@@ -107,8 +129,16 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
 
     tui_data = data.get("tui", {})
+    keybindings_data = tui_data.get("keybindings", {})
+    # Use dataclass defaults for any unspecified keybindings
+    defaults = KeybindingsConfig()
+    keybindings = KeybindingsConfig(**{
+        field: keybindings_data.get(field, getattr(defaults, field))
+        for field in defaults.__dataclass_fields__
+    })
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
+        keybindings=keybindings,
     )
 
     return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui)

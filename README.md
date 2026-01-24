@@ -54,6 +54,8 @@ lemonaid inbox list
 | `g` | Refresh |
 | `q` / `Escape` | Quit |
 
+All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).
+
 ### Programmatic Access
 
 For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
@@ -105,7 +107,10 @@ Config file: `~/.config/lemonaid/config.toml`
 "codex:*" = "tmux"
 ```
 
-See the terminal-specific docs for additional configuration options.
+See also:
+- [docs/keybindings.md](docs/keybindings.md) - Customize TUI keybindings
+- [docs/tmux.md](docs/tmux.md) - tmux-specific options
+- [docs/wezterm.md](docs/wezterm.md) - WezTerm-specific options
 
 ## Architecture
 

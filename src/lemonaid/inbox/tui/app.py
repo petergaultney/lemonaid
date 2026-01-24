@@ -20,6 +20,32 @@ from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
 
 
+def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
+    """Build Binding objects for all keys mapped to an action.
+
+    Args:
+        keys: String of characters, each is a key binding
+        action: The action name (without 'action_' prefix)
+        label: Human-readable label for the action
+        show: Whether to show in footer (only first key will be shown)
+
+    Returns:
+        List of Binding objects
+    """
+    if not keys:
+        return []
+
+    bindings = []
+    # First key gets the visible binding
+    bindings.append(Binding(keys[0], action, label, show=show))
+
+    # Additional keys get hidden bindings
+    for key in keys[1:]:
+        bindings.append(Binding(key, action, label, show=False))
+
+    return bindings
+
+
 class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
@@ -36,20 +62,10 @@ class LemonaidApp(App):
     }
     """
 
-    BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("escape", "quit", "Quit", show=False),
-        Binding("g", "refresh", "Refresh", show=False),
-        Binding("u", "jump_unread", "Jump Unread"),
-        Binding("m", "mark_read", "Mark Read"),
-        Binding("a", "archive", "Archive"),
-        Binding("r", "rename", "Rename"),
-        Binding("P", "patch_claude", "Patch Claude", show=False),
-    ]
-
     def __init__(self, scratch_mode: bool = False) -> None:
         super().__init__()
         self.config = load_config()
+        self._setup_keybindings()
         self.terminal_env = detect_terminal_env()
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
@@ -58,6 +74,39 @@ class LemonaidApp(App):
         if self.config.tui.transparent:
             self.ansi_color = True
             self.dark = True  # Use dark theme as base
+
+    def _setup_keybindings(self) -> None:
+        """Build keybindings from config."""
+        kb = self.config.tui.keybindings
+
+        # Main commands
+        for b in _build_bindings(kb.quit, "quit", "Quit"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+        self.bind("escape", "quit", description="Quit", show=False)
+
+        for b in _build_bindings(kb.refresh, "refresh", "Refresh", show=False):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.jump_unread, "jump_unread", "Jump Unread"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.mark_read, "mark_read", "Mark Read"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.archive, "archive", "Archive"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.rename, "rename", "Rename"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        # Patch Claude (always hidden, always 'P')
+        self.bind("P", "patch_claude", description="Patch Claude", show=False)
+
+        # Arrow key alternatives (if configured)
+        if len(kb.up_down) == 2:
+            up, down = kb.up_down
+            self.bind(up, "cursor_up", description="Up", show=False)
+            self.bind(down, "cursor_down", description="Down", show=False)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -214,6 +263,14 @@ class LemonaidApp(App):
             self._hide_scratch_pane()
         else:
             self.exit()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up in the table."""
+        self.query_one(DataTable).action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down in the table."""
+        self.query_one(DataTable).action_cursor_down()
 
     def action_refresh(self) -> None:
         self._refresh_notifications()

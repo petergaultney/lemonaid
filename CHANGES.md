@@ -1,3 +1,9 @@
+## 0.4.5 (2026-01-24)
+
+#### Added
+
+- **Configurable keybindings**: All TUI keybindings can now be customized in `config.toml`. Each action can have multiple keys (e.g., `quit = "qQ"`), and arrow key alternatives can be set for up/down navigation (e.g., `up_down = "kj"` for vim-style).
+
 ## 0.4.4 (2026-01-24)
 
 #### Added
