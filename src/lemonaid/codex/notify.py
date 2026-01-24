@@ -8,93 +8,18 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
+from ..lemon_watchers import (
+    detect_terminal_env,
+    get_name_from_cwd,
+    get_tty,
+    shorten_path,
+)
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
     find_session_path,
     read_session_meta,
 )
-
-
-def get_tty() -> str | None:
-    """Get the TTY name for this process or its parent."""
-    # TODO: share implementation with claude.notify
-    import subprocess
-
-    # Try stdin first
-    try:
-        tty = os.ttyname(sys.stdin.fileno())
-        if tty and tty != "/dev/tty":
-            return tty
-    except OSError:
-        pass
-
-    # Try stdout
-    try:
-        tty = os.ttyname(sys.stdout.fileno())
-        if tty and tty != "/dev/tty":
-            return tty
-    except OSError:
-        pass
-
-    # Try stderr
-    try:
-        tty = os.ttyname(sys.stderr.fileno())
-        if tty and tty != "/dev/tty":
-            return tty
-    except OSError:
-        pass
-
-    # Fall back to asking ps for parent's TTY (works when spawned as hook)
-    try:
-        result = subprocess.run(
-            ["ps", "-o", "tty=", "-p", str(os.getppid())],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        tty = result.stdout.strip()
-        if tty and tty != "??" and tty != "":
-            return f"/dev/{tty}"
-    except (subprocess.CalledProcessError, OSError):
-        pass
-
-    return None
-
-
-def detect_terminal_env() -> str:
-    """Detect which terminal environment we're running in."""
-    if os.environ.get("TMUX"):
-        return "tmux"
-    if os.environ.get("WEZTERM_PANE"):
-        return "wezterm"
-    return "unknown"
-
-
-def shorten_path(path: str) -> str:
-    """Shorten a path for display, using last 2 components."""
-    if not path:
-        return "session"
-    cwd_path = Path(path)
-    home = Path.home()
-
-    if cwd_path.is_relative_to(home):
-        display_path = "~/" + str(cwd_path.relative_to(home))
-    else:
-        display_path = str(cwd_path)
-
-    parts = display_path.split("/")
-    if len(parts) > 2:
-        return "/".join(parts[-2:])
-    return display_path
-
-
-def get_name_from_cwd(cwd: str) -> str:
-    """Extract a display name from the cwd path (last component)."""
-    if not cwd:
-        return ""
-    parts = cwd.rstrip("/").split("/")
-    return parts[-1] if parts else ""
 
 
 def _parse_input_messages(data: dict) -> str | None:

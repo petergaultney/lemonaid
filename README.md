@@ -57,7 +57,7 @@ lemonaid inbox list
 
 For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
 
-## LLM Integrations
+## 🍋 Integrations
 
 ### Claude Code
 
