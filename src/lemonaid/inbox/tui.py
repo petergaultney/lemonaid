@@ -1,7 +1,6 @@
 """Textual TUI for lemonaid inbox."""
 
 import contextlib
-import os
 from datetime import datetime
 
 from rich.text import Text
@@ -10,21 +9,12 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ..claude.patcher import apply_patch, check_status, find_binary
-from ..claude.watcher import start_watcher as start_claude_watcher
-from ..codex.watcher import start_watcher as start_codex_watcher
+from ..claude import watcher as claude_watcher
 from ..config import load_config
+from ..codex import watcher as codex_watcher
 from ..handlers import handle_notification
+from ..lemon_watchers import detect_terminal_env, start_unified_watcher
 from . import db
-
-
-def detect_terminal_env() -> str:
-    """Detect which terminal environment we're running in."""
-    if os.environ.get("TMUX"):
-        return "tmux"
-    if os.environ.get("WEZTERM_PANE"):
-        return "wezterm"
-    return "unknown"
-
 
 def set_terminal_title(title: str) -> None:
     """Set the terminal/pane title via OSC escape sequence."""
@@ -93,12 +83,8 @@ class LemonaidApp(App):
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss and message updates
-        start_claude_watcher(
-            get_active=self._get_active_for_watcher,
-            mark_read=self._mark_channel_read,
-            update_message=self._update_channel_message,
-        )
-        start_codex_watcher(
+        start_unified_watcher(
+            backends=[claude_watcher, codex_watcher],
             get_active=self._get_active_for_watcher,
             mark_read=self._mark_channel_read,
             update_message=self._update_channel_message,
