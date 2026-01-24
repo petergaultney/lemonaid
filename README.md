@@ -1,7 +1,7 @@
 # 🍋🥤 lemonaid
 
-Attention inbox for managing notifications from lemons (go on, say LLMs three times fast)
-when you live in the CLI.
+Attention inbox for monitoring progress from and switching between lemons (go on... say
+'LLMs' three times fast) when you live in the terminal.
 
 <img width="1186" height="386" alt="Screenshot 2026-01-22 at 21 36 45" src="https://github.com/user-attachments/assets/cff462af-52dc-4d61-a8ef-0a6949f87d30" />
 
