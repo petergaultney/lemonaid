@@ -268,15 +268,57 @@ def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
-def mark_all_read_for_channel(conn: sqlite3.Connection, channel: str) -> int:
-    """Mark all notifications for a channel as read. Returns count."""
+def mark_all_read_for_channel(
+    conn: sqlite3.Connection,
+    channel: str,
+    message: str | None = None,
+) -> int:
+    """Mark all notifications for a channel as read, optionally updating message.
+
+    Args:
+        conn: Database connection
+        channel: Channel to mark as read
+        message: Optional new message (e.g., what Claude is now doing)
+
+    Returns:
+        Count of notifications marked as read
+    """
+    now = time.time()
+    if message:
+        cursor = conn.execute(
+            """
+            UPDATE notifications
+            SET status = 'read', read_at = ?, message = ?
+            WHERE channel = ? AND status = 'unread'
+            """,
+            (now, message, channel),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            UPDATE notifications
+            SET status = 'read', read_at = ?
+            WHERE channel = ? AND status = 'unread'
+            """,
+            (now, channel),
+        )
+    conn.commit()
+    return cursor.rowcount
+
+
+def update_message(conn: sqlite3.Connection, channel: str, message: str) -> int:
+    """Update the message for a channel without changing read/unread status.
+
+    Used for real-time activity updates while Claude is working.
+    Returns count of notifications updated.
+    """
     cursor = conn.execute(
         """
         UPDATE notifications
-        SET status = 'read', read_at = ?
-        WHERE channel = ? AND status = 'unread'
+        SET message = ?
+        WHERE channel = ?
         """,
-        (time.time(), channel),
+        (message, channel),
     )
     conn.commit()
     return cursor.rowcount

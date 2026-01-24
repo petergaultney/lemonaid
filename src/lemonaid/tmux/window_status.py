@@ -234,7 +234,7 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
         title: The pane title, if set by the application (optional)
 
     Returns:
-        Formatted string like "git: play/lemonaid" or just "play/lemonaid"
+        Formatted string like "git: play/lemonaid" or "$lemonaid" for shells
     """
     # Normalize version strings (like "2.1.12") to "claude"
     if process and re.match(r"^\d+\.\d+\.\d+$", process):
@@ -244,6 +244,9 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
     if process in STANDALONE_PROCESSES:
         color = PROCESS_COLORS.get(process, get_color(process))
         return f"#[fg={color}]{process}#[fg=default]"
+
+    # Check if this is a shell window (process will be hidden)
+    is_shell = process in HIDDEN_PROCESSES
 
     formatted_path = format_path(path)
 
@@ -261,6 +264,10 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
 
     if formatted_process:
         return f"{formatted_process}: {formatted_path}"
+
+    # Shell windows get a $ prefix
+    if is_shell:
+        return f"${formatted_path}"
     return formatted_path
 
 

@@ -129,6 +129,24 @@ def test_mark_all_read_for_channel():
             assert unread[0].channel == "test:bbb"
 
 
+def test_mark_all_read_for_channel_with_message():
+    """mark_all_read_for_channel() should update message when provided."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        with db.connect(db_path) as conn:
+            n = db.add(conn, channel="test:123", message="Waiting...")
+
+            count = db.mark_all_read_for_channel(
+                conn, "test:123", message="Reading file.py"
+            )
+            assert count == 1
+
+            updated = db.get(conn, n.id)
+            assert updated is not None
+            assert updated.is_read
+            assert updated.message == "Reading file.py"
+
+
 def test_notification_from_row():
     """Notification.from_row() should correctly parse database row."""
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -160,7 +160,7 @@ Note: Due to tmux timing issues, the Enter key may not be submitted automaticall
 
 ## Window Colors
 
-Lemonaid includes `tmux-window-color`, a tool that formats tmux window titles with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
+Lemonaid includes `lemonaid-tmux-window-status`, a tool that formats tmux window titles with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
 
 ### tmux.conf setup
 
@@ -171,8 +171,8 @@ set-option -sa terminal-features ',xterm-256color:RGB'
 
 # Window status with colored directory names
 # Third argument is pane_title - used to show app names instead of "python3.12"
-setw -g window-status-format " #I:#(tmux-window-color '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
-setw -g window-status-current-format " #I:#(tmux-window-color '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
 setw -g window-status-style none
 setw -g window-status-current-style "bg=colour238,bold"
 setw -g window-status-separator "│"
@@ -242,7 +242,7 @@ sys.stdout.write("\033]0;myapp\007")
 sys.stdout.flush()
 ```
 
-`tmux-window-color` will prefer `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
+`lemonaid-tmux-window-status` will prefer `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
 
 ### Customization
 
