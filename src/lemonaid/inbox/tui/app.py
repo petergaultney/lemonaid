@@ -84,6 +84,10 @@ class LemonaidApp(App):
             self.bind(b.key, b.action, description=b.description, show=b.show)
         self.bind("escape", "quit", description="Quit", show=False)
 
+        # Select row (Enter always works via DataTable, these are additional keys)
+        for b in _build_bindings(kb.select, "select", "Select", show=False):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
         for b in _build_bindings(kb.refresh, "refresh", "Refresh", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
@@ -271,6 +275,10 @@ class LemonaidApp(App):
     def action_cursor_down(self) -> None:
         """Move cursor down in the table."""
         self.query_one(DataTable).action_cursor_down()
+
+    def action_select(self) -> None:
+        """Select the current row (same as Enter)."""
+        self.query_one(DataTable).action_select_cursor()
 
     def action_refresh(self) -> None:
         self._refresh_notifications()

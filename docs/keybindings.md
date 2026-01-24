@@ -22,12 +22,20 @@ Add a `[tui.keybindings]` section to your config:
 ```toml
 [tui.keybindings]
 quit = "q"
+select = ""  # additional keys for select (Enter always works)
 refresh = "g"
 jump_unread = "u"
 mark_read = "m"
 archive = "a"
 rename = "r"
 up_down = ""  # arrow key alternatives (see below)
+```
+
+For example, to use `o` for selecting sessions:
+
+```toml
+[tui.keybindings]
+select = "o"
 ```
 
 ### Multiple keys per action

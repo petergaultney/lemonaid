@@ -1,3 +1,9 @@
+## 0.4.7 (2026-01-24)
+
+#### Added
+
+- **Configurable select key**: New `select` keybinding option (e.g., `select = "o"`) adds additional keys for selecting a session. Enter always works regardless of config.
+
 ## 0.4.6 (2026-01-24)
 
 #### Changed

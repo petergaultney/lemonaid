@@ -62,6 +62,7 @@ class KeybindingsConfig:
     """
 
     quit: str = "q"
+    select: str = ""  # Additional keys for selecting (Enter always works)
     refresh: str = "g"
     jump_unread: str = "u"
     mark_read: str = "m"
