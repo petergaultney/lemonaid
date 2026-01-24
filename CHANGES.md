@@ -1,3 +1,9 @@
+## 0.4.3 (2026-01-24)
+
+#### Added
+
+- **Auto-archive on session exit**: Sessions are now automatically archived when the watcher detects the Claude/Codex process is no longer running on its TTY. No more stale sessions lingering in the inbox.
+
 ## 0.4.2 (2026-01-24)
 
 #### Fixed
