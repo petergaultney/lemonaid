@@ -22,13 +22,74 @@ def parse_version(name: str) -> tuple[int, ...] | None:
     return None
 
 
-def get_pattern_for_version(version: tuple[int, ...]) -> tuple[bytes, bytes]:
-    """Return (original, patched) pattern for the given version."""
+def find_notification_polling_pattern(content: bytes, check_patched: bool = False) -> bytes | None:
+    """Find the notification polling interval pattern dynamically.
+
+    The minified variable name changes with each build, so we search for
+    patterns like 'XXX=6000' that appear near 'notificationType' in the code.
+
+    If check_patched=True, also look for already-patched 'XXX=0500' patterns.
+    """
+    # Look for short identifier = 6000 patterns (1-3 char identifiers)
+    # Also check for =0500 (patched) if requested
+    if check_patched:
+        pattern = rb"[a-zA-Z][a-zA-Z0-9]{0,2}=(?:6000|0500)"
+    else:
+        pattern = rb"[a-zA-Z][a-zA-Z0-9]{0,2}=6000"
+    matches = list(re.finditer(pattern, content))
+
+    if not matches:
+        return None
+
+    # Find the match that's closest to 'notificationType' - that's the polling interval
+    notification_marker = b"notificationType"
+    marker_positions = [m.start() for m in re.finditer(notification_marker, content)]
+
+    if not marker_positions:
+        # Fallback: return the first match (less reliable)
+        return matches[0].group()
+
+    best_match = None
+    best_distance = float("inf")
+
+    for match in matches:
+        pos = match.start()
+        # Find distance to nearest notificationType marker
+        for marker_pos in marker_positions:
+            distance = abs(pos - marker_pos)
+            if distance < best_distance:
+                best_distance = distance
+                best_match = match.group()
+
+    # Only return if very close (within 500 bytes of the marker)
+    # In practice, the correct pattern is ~74 bytes away, next closest is ~5000+
+    if best_distance < 500:
+        return best_match
+
+    return None
+
+
+def get_pattern_for_version(
+    version: tuple[int, ...], content: bytes | None = None
+) -> tuple[bytes, bytes] | None:
+    """Return (original, patched) pattern for the given version.
+
+    For v2.1.16+, patterns are found dynamically since minified names vary.
+    """
     # v2.0.x used ewD=6000
     if version < (2, 1, 0):
         return (b"ewD=6000", b"ewD=0500")
-    # v2.1.0+ uses spB=6000
-    return (b"spB=6000", b"spB=0500")
+    # v2.1.0-2.1.15 used spB=6000
+    if version < (2, 1, 16):
+        return (b"spB=6000", b"spB=0500")
+    # v2.1.16+: find pattern dynamically (minified names change per build)
+    if content is not None:
+        original = find_notification_polling_pattern(content)
+        if original:
+            # Replace 6000 with 0500 in the pattern
+            patched = original.replace(b"6000", b"0500")
+            return (original, patched)
+    return None
 
 
 def find_binary() -> Path | None:
@@ -85,8 +146,25 @@ def check_status(binary_path: Path) -> str:
     if not version:
         return "unknown"
 
-    original, patched = get_pattern_for_version(version)
     content = binary_path.read_bytes()
+
+    # For v2.1.16+, we need to check for both patched and unpatched patterns
+    if version >= (2, 1, 16):
+        found = find_notification_polling_pattern(content, check_patched=True)
+        if found is None:
+            return "unknown"
+        if b"=0500" in found:
+            return "patched"
+        if b"=6000" in found:
+            return "unpatched"
+        return "unknown"
+
+    # For older versions, use hardcoded patterns
+    patterns = get_pattern_for_version(version, content)
+    if patterns is None:
+        return "unknown"
+
+    original, patched = patterns
 
     if patched in content:
         return "patched"
@@ -102,8 +180,13 @@ def apply_patch(binary_path: Path, backup: bool = True) -> int:
     if not version:
         return 0
 
-    original, patched = get_pattern_for_version(version)
     content = binary_path.read_bytes()
+    patterns = get_pattern_for_version(version, content)
+
+    if patterns is None:
+        return 0
+
+    original, patched = patterns
 
     # Find all occurrences
     count = content.count(original)
