@@ -91,8 +91,12 @@ class LemonaidApp(App):
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
-        # Start transcript watcher for auto-dismiss
-        start_watcher(get_unread=self._get_unread_for_watcher, dismiss=self._dismiss_channel)
+        # Start transcript watcher for auto-dismiss and message updates
+        start_watcher(
+            get_active=self._get_active_for_watcher,
+            mark_read=self._mark_channel_read,
+            update_message=self._update_channel_message,
+        )
         # Check Claude patch status after initial render (reads 180MB binary)
         self.call_later(self._check_claude_patch)
 
@@ -292,26 +296,32 @@ class LemonaidApp(App):
                 capture_output=True,
             )
 
-    def _get_unread_for_watcher(self) -> list[tuple[str, str, str, float]]:
-        """Get unread notifications for the transcript watcher.
+    def _get_active_for_watcher(self) -> list[tuple[str, str, str, float, bool]]:
+        """Get active notifications for the transcript watcher.
 
-        Returns list of (channel, session_id, cwd, created_at).
+        Returns list of (channel, session_id, cwd, created_at, is_unread).
         """
         with db.connect() as conn:
-            notifications = db.get_unread(conn)
+            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
+            notifications = db.get_active(conn, terminal_env=env_filter)
 
         result = []
         for n in notifications:
             session_id = n.metadata.get("session_id")
             cwd = n.metadata.get("cwd")
             if session_id and cwd:
-                result.append((n.channel, session_id, cwd, n.created_at))
+                result.append((n.channel, session_id, cwd, n.created_at, n.is_unread))
         return result
 
-    def _dismiss_channel(self, channel: str) -> int:
-        """Dismiss (mark read) all notifications for a channel."""
+    def _mark_channel_read(self, channel: str) -> int:
+        """Mark all notifications for a channel as read."""
         with db.connect() as conn:
             return db.mark_all_read_for_channel(conn, channel)
+
+    def _update_channel_message(self, channel: str, message: str) -> int:
+        """Update the message for a channel."""
+        with db.connect() as conn:
+            return db.update_message(conn, channel, message)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter on a row - switch to that session without marking as read.
