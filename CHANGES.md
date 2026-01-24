@@ -1,3 +1,13 @@
+## 0.4.4 (2026-01-24)
+
+#### Added
+
+- **Rename sessions from TUI**: Press `r` to rename any session directly in the inbox. Enter a custom name or clear to revert to auto-detected naming. Names persist and survive session updates.
+
+#### Changed
+
+- **TUI modularized**: Split monolithic `tui.py` into `tui/` package with separate modules for app, screens, and utilities.
+
 ## 0.4.3 (2026-01-24)
 
 #### Added

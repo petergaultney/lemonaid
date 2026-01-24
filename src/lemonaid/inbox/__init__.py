@@ -12,6 +12,7 @@ from .db import (
     get_unread,
     mark_all_read_for_channel,
     mark_read,
+    update_name,
 )
 from .tui import LemonaidApp
 
@@ -26,6 +27,7 @@ __all__ = [
     "add",
     "mark_read",
     "mark_all_read_for_channel",
+    "update_name",
     "clear_old",
     "get_db_path",
     # Legacy

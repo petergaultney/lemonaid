@@ -324,6 +324,45 @@ def update_message(conn: sqlite3.Connection, channel: str, message: str) -> int:
     return cursor.rowcount
 
 
+def update_name(
+    conn: sqlite3.Connection,
+    notification_id: int,
+    name: str | None,
+) -> bool:
+    """Update (or clear) the user-override name for a notification.
+
+    When setting a name, preserves the current auto-detected name in metadata.
+    When clearing (name=None), restores the auto-detected name if available.
+
+    Returns True if a row was updated.
+    """
+    notification = get(conn, notification_id)
+    if not notification:
+        return False
+
+    metadata = dict(notification.metadata)
+
+    if name:
+        # Setting a custom name - preserve current name as auto_name (if not already overridden)
+        if "auto_name" not in metadata and notification.name:
+            metadata["auto_name"] = notification.name
+        final_name = name
+    else:
+        # Clearing - restore auto_name if we have one
+        final_name = metadata.pop("auto_name", None)
+
+    cursor = conn.execute(
+        """
+        UPDATE notifications
+        SET name = ?, metadata = ?
+        WHERE id = ?
+        """,
+        (final_name, json.dumps(metadata), notification_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
 def mark_read_by_tty(conn: sqlite3.Connection, tty: str) -> int:
     """Mark all unread notifications from a TTY as read."""
     cursor = conn.execute(

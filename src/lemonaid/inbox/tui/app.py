@@ -1,4 +1,4 @@
-"""Textual TUI for lemonaid inbox."""
+"""Main Lemonaid TUI application."""
 
 import contextlib
 import os
@@ -9,22 +9,15 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..claude import watcher as claude_watcher
-from ..claude.patcher import apply_patch, check_status, find_binary
-from ..codex import watcher as codex_watcher
-from ..config import load_config
-from ..handlers import handle_notification
-from ..lemon_watchers import detect_terminal_env, start_unified_watcher
-from . import db
-
-
-def set_terminal_title(title: str) -> None:
-    """Set the terminal/pane title via OSC escape sequence."""
-    import sys
-
-    # OSC 0 sets both icon name and window title
-    sys.stdout.write(f"\033]0;{title}\007")
-    sys.stdout.flush()
+from ...claude import watcher as claude_watcher
+from ...claude.patcher import apply_patch, check_status, find_binary
+from ...codex import watcher as codex_watcher
+from ...config import load_config
+from ...handlers import handle_notification
+from ...lemon_watchers import detect_terminal_env, start_unified_watcher
+from .. import db
+from .screens import RenameScreen
+from .utils import set_terminal_title, styled_cell
 
 
 class LemonaidApp(App):
@@ -50,6 +43,7 @@ class LemonaidApp(App):
         Binding("u", "jump_unread", "Jump Unread"),
         Binding("m", "mark_read", "Mark Read"),
         Binding("a", "archive", "Archive"),
+        Binding("r", "rename", "Rename"),
         Binding("P", "patch_claude", "Patch Claude", show=False),
     ]
 
@@ -141,12 +135,6 @@ class LemonaidApp(App):
         except Exception:
             return None
 
-    def _styled_cell(self, value: str, is_unread: bool) -> Text:
-        """Style a cell value based on read/unread status."""
-        if is_unread:
-            return Text(value, style="bold cyan")
-        return Text(value, style="dim")
-
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
         table = self.query_one(DataTable)
@@ -179,13 +167,13 @@ class LemonaidApp(App):
 
             indicator = Text("●", style="bold cyan") if is_unread else Text("")
             table.add_row(
-                self._styled_cell(created, is_unread),
+                styled_cell(created, is_unread),
                 indicator,
-                self._styled_cell(n.name or "", is_unread),
-                self._styled_cell(n.message, is_unread),
-                self._styled_cell(n.channel, is_unread),
-                self._styled_cell(str(n.id), is_unread),
-                self._styled_cell(tty, is_unread),
+                styled_cell(n.name or "", is_unread),
+                styled_cell(n.message, is_unread),
+                styled_cell(n.channel, is_unread),
+                styled_cell(str(n.id), is_unread),
+                styled_cell(tty, is_unread),
                 key=str(n.id),
             )
 
@@ -255,6 +243,38 @@ class LemonaidApp(App):
             with db.connect() as conn:
                 db.archive(conn, notification_id)
             self._refresh_notifications()
+
+    def action_rename(self) -> None:
+        """Rename the selected session."""
+        table = self.query_one(DataTable)
+        if table.row_count == 0:
+            return
+
+        row_key = self._get_current_row_key()
+        if not row_key:
+            return
+
+        notification_id = int(row_key)
+        with db.connect() as conn:
+            notification = db.get(conn, notification_id)
+
+        if not notification:
+            return
+
+        def handle_rename(new_name: str | None) -> None:
+            if new_name is None:
+                # User cancelled
+                return
+            # Empty string means clear override, otherwise set the name
+            name_to_set = new_name.strip() if new_name.strip() else None
+            with db.connect() as conn:
+                db.update_name(conn, notification_id, name_to_set)
+            self._refresh_notifications()
+
+        self.push_screen(
+            RenameScreen(current_name=notification.name or ""),
+            handle_rename,
+        )
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
@@ -365,7 +385,3 @@ def main() -> None:
     set_terminal_title("lma")
     app = LemonaidApp()
     app.run()
-
-
-if __name__ == "__main__":
-    main()

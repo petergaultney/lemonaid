@@ -50,6 +50,7 @@ lemonaid inbox list
 | `u` | Jump directly to earliest unread session |
 | `m` | Mark as read |
 | `a` | Archive (remove from list) |
+| `r` | Rename session (clear to revert to auto-name) |
 | `g` | Refresh |
 | `q` / `Escape` | Quit |
 
