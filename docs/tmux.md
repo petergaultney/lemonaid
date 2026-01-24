@@ -88,12 +88,18 @@ tmux source-file ~/.tmux.conf
 2. Select a notification with Enter - you'll switch to that session and the lma pane auto-hides
 3. Press `prefix + l` again to bring it back
 
+The keybinding is "idempotent" in that pressing it always gets you to the scratch pane:
+
+- If the pane is hidden → show it
+- If the pane is visible but not focused → select it
+- If the pane is visible and focused → hide it
+
 ### How it works
 
 1. First toggle creates a tmux session (`_lma_scratch`) running `lma --scratch`
 2. The pane is joined into your current window as a 30% top split
 3. When you select a notification, lma auto-dismisses by breaking the pane to its own window
-4. Subsequent toggles show/hide the same pane (no restart, instant response)
+4. Subsequent toggles show/select/hide the same pane (no restart, instant response)
 
 State is tracked per tmux server in `~/.local/state/lemonaid/scratch-pane-<server>.json`, so multiple tmux servers won't conflict.
 

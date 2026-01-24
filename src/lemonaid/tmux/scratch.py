@@ -156,6 +156,15 @@ def _hide(pane_id: str) -> bool:
     return result.returncode == 0
 
 
+def _select_pane(pane_id: str) -> bool:
+    """Select (focus) a pane."""
+    result = subprocess.run(
+        ["tmux", "select-pane", "-t", pane_id],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
 def _get_current_pane() -> str | None:
     """Get the current pane ID."""
     result = subprocess.run(
@@ -185,7 +194,7 @@ def _create_and_show(height: str) -> str:
 
 
 def toggle_scratch(height: str = "30%") -> str:
-    """Toggle the scratch lma pane. Returns 'shown', 'hidden', or 'created'."""
+    """Toggle the scratch lma pane. Returns 'shown', 'hidden', 'selected', or 'created'."""
     # Capture current pane early - tmux context can change during operations
     current_pane = _get_current_pane()
     state = _get_state()
@@ -202,9 +211,17 @@ def toggle_scratch(height: str = "30%") -> str:
     pane_window = _get_pane_window(pane_id)
 
     if pane_window == current_window:
-        if not _hide(pane_id):
-            return _create_and_show(height)
-        return "hidden"
+        # Pane is visible - either select it or hide it
+        if current_pane == pane_id:
+            # Already focused on scratch pane, hide it
+            if not _hide(pane_id):
+                return _create_and_show(height)
+            return "hidden"
+        else:
+            # Scratch pane visible but not focused, select it
+            if not _select_pane(pane_id):
+                return _create_and_show(height)
+            return "selected"
     else:
         if not _show(pane_id, height, current_pane):
             return _create_and_show(height)

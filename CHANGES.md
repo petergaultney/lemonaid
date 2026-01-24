@@ -1,3 +1,9 @@
+## 0.4.6 (2026-01-24)
+
+#### Changed
+
+- **Smarter scratch pane toggle**: `prefix+l` now selects the scratch pane if it's visible but not focused, instead of hiding it. Press again when focused to hide. This makes the keybinding more idempotent - pressing it always gets you to the scratch pane.
+
 ## 0.4.5 (2026-01-24)
 
 #### Added
