@@ -138,12 +138,12 @@ def _create_pane() -> str:
     return pane_id
 
 
-def _show(pane_id: str, height: str) -> bool:
+def _show(pane_id: str, height: str, target_pane: str | None = None) -> bool:
     """Join the scratch pane into current window as a top split."""
-    result = subprocess.run(
-        ["tmux", "join-pane", "-v", "-b", "-l", height, "-s", pane_id],
-        capture_output=True,
-    )
+    cmd = ["tmux", "join-pane", "-v", "-b", "-l", height, "-s", pane_id]
+    if target_pane:
+        cmd.extend(["-t", target_pane])
+    result = subprocess.run(cmd, capture_output=True)
     return result.returncode == 0
 
 
@@ -156,8 +156,23 @@ def _hide(pane_id: str) -> bool:
     return result.returncode == 0
 
 
+def _get_current_pane() -> str | None:
+    """Get the current pane ID."""
+    result = subprocess.run(
+        ["tmux", "display-message", "-p", "#{pane_id}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return None
+
+
 def _create_and_show(height: str) -> str:
     """Create a fresh scratch pane and show it."""
+    # Capture target pane BEFORE creating new session (tmux context can change)
+    target_pane = _get_current_pane()
+
     _clear_state()
     if _session_exists():
         subprocess.run(
@@ -165,12 +180,14 @@ def _create_and_show(height: str) -> str:
             capture_output=True,
         )
     pane_id = _create_pane()
-    _show(pane_id, height)
+    _show(pane_id, height, target_pane)
     return "created"
 
 
 def toggle_scratch(height: str = "30%") -> str:
     """Toggle the scratch lma pane. Returns 'shown', 'hidden', or 'created'."""
+    # Capture current pane early - tmux context can change during operations
+    current_pane = _get_current_pane()
     state = _get_state()
 
     if state is None:
@@ -189,6 +206,6 @@ def toggle_scratch(height: str = "30%") -> str:
             return _create_and_show(height)
         return "hidden"
     else:
-        if not _show(pane_id, height):
+        if not _show(pane_id, height, current_pane):
             return _create_and_show(height)
         return "shown"

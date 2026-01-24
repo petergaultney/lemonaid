@@ -13,6 +13,7 @@ Attention inbox for monitoring progress from and switching between lemons (go on
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers
+- **Claude statusline**: Colorful statusline showing time, elapsed, git branch, context %, vim mode
 - **tmux session templates**: Spin up new Claude workspaces with a predefined window layout
 - **tmux window status formatting**: An optional `tmux` integration to keep your status bar sane
 

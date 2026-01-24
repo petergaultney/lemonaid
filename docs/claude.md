@@ -93,6 +93,45 @@ lemonaid claude patch
 lemonaid claude patch-restore
 ```
 
+## Custom statusline (optional)
+
+Lemonaid provides an optional statusline command that shows:
+
+- Current time with elapsed time since last message (in red)
+- Working directory basename (in blue)
+- Git branch (in cyan)
+- Context window usage percentage (color gradient: indigo → blue → green → yellow → red → magenta)
+- Vim mode indicator `[N]`/`[I]`
+
+Example output: `<14:32:15 3.2s> lemonaid feature/new-thing 23%`
+
+### Setup
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "lemonaid-claude-statusline"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid-claude-statusline write-last-message-time"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The `UserPromptSubmit` hook records when you send a message, enabling the elapsed time display. Without this hook, elapsed time won't be shown but everything else still works.
+
 ## Faster notifications
 
 Claude Code has a hardcoded 6-second polling interval for notification hooks, causing ~10 second delays. Lemonaid can patch the binary to reduce this to 500ms.

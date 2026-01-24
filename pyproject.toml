@@ -1,6 +1,6 @@
 [project]
 name = "lemonaid"
-version = "0.4.0"
+version = "0.4.1"
 description = "Attention inbox for managing notifications from LLMs and other background tools"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,6 +20,7 @@ lemonaid = "lemonaid.cli:main"
 lma = "lemonaid.cli:inbox_main"
 lemonaid-tmux-window-status = "lemonaid.tmux.window_status:main"
 lemonaid-tmux-session-name = "lemonaid.tmux.window_status:session_main"
+lemonaid-claude-statusline = "lemonaid.claude.statusline:main"
 
 [build-system]
 requires = ["hatchling"]

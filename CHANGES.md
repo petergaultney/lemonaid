@@ -1,3 +1,13 @@
+## 0.4.1 (2026-01-24)
+
+#### Added
+
+- **Claude statusline**: Optional `lemonaid-claude-statusline` command for Claude Code's `statusLine` setting. Shows time, elapsed since last message, git branch, context window usage (with color gradient), and vim mode.
+
+#### Fixed
+
+- **Scratch pane first-launch**: Fixed issue where the scratch pane required two key presses on first launch. The cause was `tmux new-session` changing the implicit "current pane" context; now we capture and explicitly target the original pane.
+
 # 0.4.0 (2026-01-24)
 
 #### Added
