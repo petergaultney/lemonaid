@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 (2026-01-24)
+
+### Added
+
+- **Real-time activity updates**: The message column now updates continuously as Claude works, showing the current tool being used (e.g., "Reading main.py", "Running pytest", "Searching for pattern"). Updates happen for all active sessions, not just unread ones.
+
+### Changed
+
+- Watcher now polls all active sessions (not just unread) to provide live activity feedback
+- Separated "mark as read" from "update message" - marking happens on first activity, messages update continuously
+
 ## 0.2.3 (2026-01-23)
 
 ### Fixed
