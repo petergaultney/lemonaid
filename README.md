@@ -8,14 +8,14 @@ Attention inbox for monitoring progress from and switching between lemons (go on
 ## Features
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md) and [Codex CLI](docs/codex.md) sessions need your attention, and what they're doing as they do it
-- **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [tmux](docs/tmux.md) and [WezTerm](docs/wezterm.md))
-- **Scratch pane** (tmux): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
+- **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md) and [WezTerm](docs/wezterm.md))
+- **Scratch pane** (`tmux`): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers
 - **Claude statusline**: Colorful statusline showing time, elapsed, git branch, context %, vim mode
-- **tmux session templates**: Spin up new Claude workspaces with a predefined window layout
-- **tmux window status formatting**: An optional `tmux` integration to keep your status bar sane
+- **`tmux` session templates**: Spin up new Claude workspaces with a predefined window layout
+- **`tmux` window status formatting**: An optional `tmux` integration to keep your status bar sane
 
 ## Installation
 
@@ -90,7 +90,7 @@ Features: auto-dismiss via session watching, live activity updates.
 
 ## Terminal Setup
 
-- **tmux**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
+- **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
 - **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
 
 ## Configuration
@@ -109,6 +109,6 @@ See the terminal-specific docs for additional configuration options.
 ## Architecture
 
 - **inbox**: SQLite-backed notification storage with Textual TUI
-- **handlers**: Pluggable system for handling notifications (tmux, wezterm, exec)
+- **handlers**: Pluggable system for handling notifications (`tmux`, WezTerm, exec)
 - **claude**: Claude Code hook integration with transcript watching
 - **codex**: Codex CLI hook integration with session watching
