@@ -88,17 +88,20 @@ class LemonaidApp(App):
             self.query_one(DataTable).styles.background = "transparent"
 
         self._setup_table()
-        self._check_claude_patch()
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
         # Start transcript watcher for auto-dismiss
         start_watcher(get_unread=self._get_unread_for_watcher, dismiss=self._dismiss_channel)
+        # Check Claude patch status after initial render (reads 180MB binary)
+        self.call_later(self._check_claude_patch)
 
     def _check_claude_patch(self) -> None:
         """Check Claude Code patch status."""
         if self._claude_binary:
             self._claude_patch_status = check_status(self._claude_binary)
+            # Update status bar to show patch warning if needed
+            self._refresh_notifications()
         else:
             self._claude_patch_status = None
 
