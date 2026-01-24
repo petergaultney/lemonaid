@@ -5,17 +5,16 @@ Attention inbox for monitoring progress from and switching between lemons (go on
 
 <img width="1186" height="386" alt="Screenshot 2026-01-22 at 21 36 45" src="https://github.com/user-attachments/assets/cff462af-52dc-4d61-a8ef-0a6949f87d30" />
 
-Eventually other tools will get packaged here as well.
-
 ## Features
 
-- **Notification inbox**: Track which [Claude Code](docs/claude.md) and [Codex CLI](docs/codex.md) sessions need your attention
+- **Notification inbox**: Track which [Claude Code](docs/claude.md) and [Codex CLI](docs/codex.md) sessions need your attention, and what they're doing as they do it
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [tmux](docs/tmux.md) and [WezTerm](docs/wezterm.md))
 - **Scratch pane** (tmux): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
-- **Back navigation**: Toggle between your inbox and the session you jumped to
 - **Auto-refresh TUI**: See new notifications appear without losing your place
-- **Upsert behavior**: Repeated notifications update timestamp instead of creating duplicates
+
+### Assorted helpers
 - **tmux session templates**: Spin up new Claude workspaces with a predefined window layout
+- **tmux window status formatting**: An optional `tmux` integration to keep your status bar sane
 
 ## Installation
 
