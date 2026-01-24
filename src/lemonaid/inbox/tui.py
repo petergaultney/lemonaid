@@ -1,6 +1,7 @@
 """Textual TUI for lemonaid inbox."""
 
 import contextlib
+import os
 from datetime import datetime
 
 from rich.text import Text
@@ -8,13 +9,14 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..claude.patcher import apply_patch, check_status, find_binary
 from ..claude import watcher as claude_watcher
-from ..config import load_config
+from ..claude.patcher import apply_patch, check_status, find_binary
 from ..codex import watcher as codex_watcher
+from ..config import load_config
 from ..handlers import handle_notification
 from ..lemon_watchers import detect_terminal_env, start_unified_watcher
 from . import db
+
 
 def set_terminal_title(title: str) -> None:
     """Set the terminal/pane title via OSC escape sequence."""
@@ -93,13 +95,24 @@ class LemonaidApp(App):
         self.call_later(self._check_claude_patch)
 
     def _check_claude_patch(self) -> None:
-        """Check Claude Code patch status."""
-        if self._claude_binary:
-            self._claude_patch_status = check_status(self._claude_binary)
-            # Update status bar to show patch warning if needed
-            self._refresh_notifications()
-        else:
+        """Check Claude Code patch status in a background thread."""
+        if not self._claude_binary:
             self._claude_patch_status = None
+            return
+
+        import threading
+
+        def check():
+            status = check_status(self._claude_binary)
+            # Schedule UI update back on main thread
+            self.call_from_thread(self._set_patch_status, status)
+
+        threading.Thread(target=check, daemon=True).start()
+
+    def _set_patch_status(self, status: str) -> None:
+        """Set patch status and refresh UI (called from main thread)."""
+        self._claude_patch_status = status
+        self._refresh_notifications()
 
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""

@@ -1,3 +1,9 @@
+## 0.4.2 (2026-01-24)
+
+#### Fixed
+
+- **TUI startup speed**: Fixed ~2 second delay on TUI startup by moving Claude binary patch check to a background thread.
+
 ## 0.4.1 (2026-01-24)
 
 #### Added
