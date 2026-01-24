@@ -132,15 +132,10 @@ def get_session_name(session_id: str, cwd: str) -> str | None:
     if not session_id or not cwd:
         return None
 
-    # Convert cwd to project directory name
-    # /Users/peter.gaultney/play/lemonaid -> -Users-peter-gaultney-play-lemonaid
-    project_dir = cwd.replace("/", "-")
-    if project_dir.startswith("-"):
-        project_dir = project_dir[1:]  # Remove leading dash
-    project_dir = "-" + project_dir  # Add it back (consistent format)
+    from . import get_project_path
 
     # Try sessions-index.json first
-    sessions_index_path = Path.home() / ".claude" / "projects" / project_dir / "sessions-index.json"
+    sessions_index_path = get_project_path(cwd) / "sessions-index.json"
     if sessions_index_path.exists():
         try:
             data = json.loads(sessions_index_path.read_text())

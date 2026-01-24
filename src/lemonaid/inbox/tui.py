@@ -10,6 +10,7 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ..claude.patcher import apply_patch, check_status, find_binary
+from ..claude.watcher import start_watcher
 from ..config import load_config
 from ..handlers import handle_notification
 from . import db
@@ -91,6 +92,8 @@ class LemonaidApp(App):
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
+        # Start transcript watcher for auto-dismiss
+        start_watcher(get_unread=self._get_unread_for_watcher, dismiss=self._dismiss_channel)
 
     def _check_claude_patch(self) -> None:
         """Check Claude Code patch status."""
@@ -285,6 +288,27 @@ class LemonaidApp(App):
                 ["tmux", "break-pane", "-d", "-s", pane_id],
                 capture_output=True,
             )
+
+    def _get_unread_for_watcher(self) -> list[tuple[str, str, str, float]]:
+        """Get unread notifications for the transcript watcher.
+
+        Returns list of (channel, session_id, cwd, created_at).
+        """
+        with db.connect() as conn:
+            notifications = db.get_unread(conn)
+
+        result = []
+        for n in notifications:
+            session_id = n.metadata.get("session_id")
+            cwd = n.metadata.get("cwd")
+            if session_id and cwd:
+                result.append((n.channel, session_id, cwd, n.created_at))
+        return result
+
+    def _dismiss_channel(self, channel: str) -> int:
+        """Dismiss (mark read) all notifications for a channel."""
+        with db.connect() as conn:
+            return db.mark_all_read_for_channel(conn, channel)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle Enter on a row - switch to that session without marking as read.
