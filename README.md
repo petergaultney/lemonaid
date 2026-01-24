@@ -9,7 +9,7 @@ Eventually other tools will get packaged here as well.
 
 ## Features
 
-- **Notification inbox**: Track which Claude Code sessions need your attention
+- **Notification inbox**: Track which [Claude Code](docs/claude.md) and [Codex CLI](docs/codex.md) sessions need your attention
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [tmux](docs/tmux.md) and [WezTerm](docs/wezterm.md))
 - **Scratch pane** (tmux): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
 - **Back navigation**: Toggle between your inbox and the session you jumped to
@@ -57,53 +57,36 @@ lemonaid inbox list
 
 For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
 
-## Claude Code Integration
+## LLM Integrations
 
-Add these hooks to your `~/.claude/settings.json`:
+### Claude Code
+
+Add hooks to `~/.claude/settings.json`:
 
 ```json
 {
   "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid claude notify"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid claude notify"
-          }
-        ]
-      }
-    ]
+    "Stop": [{ "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }],
+    "Notification": [{ "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }]
   }
 }
 ```
 
-This gives you:
-- **Stop hook**: Notification when Claude finishes responding and is waiting for input
-- **Notification hook**: Notification when Claude needs permission
+Features: auto-dismiss via transcript watching, live activity updates, binary patch for faster notifications.
 
-### Auto-dismiss via transcript watching
+**Full documentation**: [docs/claude.md](docs/claude.md) | [Binary patch](docs/claude-patch.md)
 
-Lemonaid automatically monitors Claude's transcript files to detect when you provide input. When Claude starts working (thinking, running tools), the notification is dismissed automatically. This is more reliable than hook-based dismiss because:
+### Codex CLI
 
-- No race conditions with the Stop hook
-- Works for all input types (prompts, permission grants, etc.)
-- No additional hooks needed (reduces overhead on every tool call)
+Add to `~/.codex/config.toml` **at the very top** (before any `[table]` headers):
 
-The transcript watcher starts automatically when the TUI runs.
+```toml
+notify = ["lemonaid", "codex", "notify"]
+```
 
-**Faster notifications**: Claude Code has a hardcoded 6-second polling interval for notification hooks, causing delays. Lemonaid can patch the binary to reduce this to 500ms - see [docs/claude-patch.md](docs/claude-patch.md).
+Features: auto-dismiss via session watching, live activity updates.
+
+**Full documentation**: [docs/codex.md](docs/codex.md)
 
 ## Terminal Setup
 
@@ -118,6 +101,7 @@ Config file: `~/.config/lemonaid/config.toml`
 [handlers]
 # Map channel patterns to handlers
 "claude:*" = "tmux"  # or "wezterm"
+"codex:*" = "tmux"
 ```
 
 See the terminal-specific docs for additional configuration options.
@@ -125,5 +109,6 @@ See the terminal-specific docs for additional configuration options.
 ## Architecture
 
 - **inbox**: SQLite-backed notification storage with Textual TUI
-- **handlers**: Pluggable system for handling notifications (wezterm, exec)
-- **claude**: Claude Code hook integration for notify/dismiss
+- **handlers**: Pluggable system for handling notifications (tmux, wezterm, exec)
+- **claude**: Claude Code hook integration with transcript watching
+- **codex**: Codex CLI hook integration with session watching

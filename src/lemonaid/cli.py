@@ -7,6 +7,7 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 
 from .claude import cli as claude_cli
+from .codex import cli as codex_cli
 from .config import ensure_config_exists, get_config_path
 from .inbox import cli as inbox_cli
 from .inbox import db as inbox_db
@@ -93,6 +94,7 @@ def main() -> None:
 
     inbox_cli.setup_parser(subparsers)
     claude_cli.setup_parser(subparsers)
+    codex_cli.setup_parser(subparsers)
     tmux_cli.setup_parser(subparsers)
     wezterm_cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
