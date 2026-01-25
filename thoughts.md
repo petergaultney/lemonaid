@@ -133,7 +133,7 @@ open "$URL"
 
 ### Implementation Phases
 
-1. **Documentation** (current) - Capture design thinking
-2. **Rename and simplify** - `terminal_env` → `switch_source`, auto-select handler
-3. **Actionability check** - Verify pane exists before marking as actionable
-4. **Custom handlers** - Support external scripts for non-terminal sources
+1. [x] **Documentation** - Capture design thinking
+2. [x] **Rename and simplify** - `terminal_env` → `switch_source`, auto-select handler
+3. [x] **Actionability check** - Verify pane exists before marking as actionable
+4. [ ] **Custom handlers** - Support external scripts for non-terminal sources

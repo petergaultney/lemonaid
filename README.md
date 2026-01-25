@@ -100,14 +100,6 @@ For JSON output and programmatic access (useful for lemons), see [docs/for-lemon
 
 Config file: `~/.config/lemonaid/config.toml`
 
-```toml
-[handlers]
-# Map channel patterns to handlers
-"claude:*" = "tmux"  # or "wezterm"
-"codex:*" = "tmux"
-```
-
-See also:
 - [docs/keybindings.md](docs/keybindings.md) - Customize TUI keybindings
 - [docs/tmux.md](docs/tmux.md) - tmux-specific options
 - [docs/wezterm.md](docs/wezterm.md) - WezTerm-specific options
@@ -115,6 +107,6 @@ See also:
 ## Architecture
 
 - **inbox**: SQLite-backed notification storage with Textual TUI
-- **handlers**: Pluggable system for handling notifications (`tmux`, WezTerm, exec)
+- **handlers**: Auto-selects switch-handler based on notification's switch-source (tmux, wezterm)
 - **claude**: Claude Code hook integration with transcript watching
 - **codex**: Codex CLI hook integration with session watching

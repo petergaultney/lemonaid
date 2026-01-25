@@ -40,15 +40,6 @@ This gives you:
 - **Stop hook**: Notification when Claude finishes responding and is waiting for input
 - **Notification hook**: Notification when Claude needs permission
 
-### 2. Configure lemonaid handler
-
-In `~/.config/lemonaid/config.toml`:
-
-```toml
-[handlers]
-"claude:*" = "tmux"  # or "wezterm"
-```
-
 ## How it works
 
 ### Notification flow

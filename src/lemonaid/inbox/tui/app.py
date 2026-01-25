@@ -14,7 +14,7 @@ from ...claude.patcher import apply_patch, check_status, find_binary
 from ...codex import watcher as codex_watcher
 from ...config import load_config
 from ...handlers import handle_notification
-from ...lemon_watchers import detect_terminal_env, start_unified_watcher
+from ...lemon_watchers import detect_terminal_switch_source, start_unified_watcher
 from .. import db
 from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
@@ -50,8 +50,22 @@ class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
     CSS = """
-    DataTable {
+    #main_table {
         height: 1fr;
+    }
+
+    #other_sources_label {
+        height: 1;
+        background: $surface;
+        color: $text-muted;
+        padding: 0 1;
+        text-style: italic;
+    }
+
+    #other_sources_table {
+        height: auto;
+        max-height: 8;
+        color: $text-muted;
     }
 
     #status {
@@ -66,7 +80,7 @@ class LemonaidApp(App):
         super().__init__()
         self.config = load_config()
         self._setup_keybindings()
-        self.terminal_env = detect_terminal_env()
+        self.current_env = detect_terminal_switch_source()
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
@@ -114,7 +128,9 @@ class LemonaidApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield DataTable()
+        yield DataTable(id="main_table")
+        yield Static("", id="other_sources_label")
+        yield DataTable(id="other_sources_table", show_header=False)
         yield Static("", id="status")
         yield Footer()
 
@@ -125,9 +141,18 @@ class LemonaidApp(App):
         # Apply transparent styles if configured
         if self.config.tui.transparent:
             self.screen.styles.background = "transparent"
-            self.query_one(DataTable).styles.background = "transparent"
+            self.query_one("#main_table", DataTable).styles.background = "transparent"
+            self.query_one("#other_sources_table", DataTable).styles.background = "transparent"
 
-        self._setup_table()
+        self._setup_table(self.query_one("#main_table", DataTable))
+        other_table = self.query_one("#other_sources_table", DataTable)
+        self._setup_table(other_table)
+        other_table.can_focus = False
+
+        # Hide other sources section initially
+        self.query_one("#other_sources_label", Static).display = False
+        other_table.display = False
+
         self._refresh_notifications()
         # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
@@ -166,8 +191,7 @@ class LemonaidApp(App):
         """Refresh when the app regains focus."""
         self._refresh_notifications()
 
-    def _setup_table(self) -> None:
-        table = self.query_one(DataTable)
+    def _setup_table(self, table: DataTable) -> None:
         table.cursor_type = "row"
         table.add_column("Time", width=10)
         table.add_column("", width=1)  # Unread indicator
@@ -179,7 +203,7 @@ class LemonaidApp(App):
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         if table.row_count == 0:
             return None
         try:
@@ -190,25 +214,37 @@ class LemonaidApp(App):
 
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         return table.cursor_coordinate.row
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
-        table = self.query_one(DataTable)
+        main_table = self.query_one("#main_table", DataTable)
+        other_table = self.query_one("#other_sources_table", DataTable)
+        other_label = self.query_one("#other_sources_label", Static)
 
         # Remember current selection (both key and index)
         current_key = self._get_current_row_key()
         current_index = self._get_current_row_index()
 
-        table.clear()
+        main_table.clear()
+        other_table.clear()
 
         with db.connect() as conn:
-            # Filter to notifications handleable in current environment
-            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
-            notifications = db.get_active(conn, terminal_env=env_filter)
+            env_filter = self.current_env if self.current_env != "unknown" else None
+            # Always get current source for main table
+            current_notifications = db.get_active(conn, switch_source=env_filter)
+            # Get other sources if configured
+            if self.config.tui.show_all_sources and env_filter:
+                all_notifications = db.get_active(conn, switch_source=None)
+                other_notifications = [
+                    n for n in all_notifications if n.switch_source != env_filter
+                ]
+            else:
+                other_notifications = []
 
         unread_count = 0
-        for n in notifications:
+
+        for n in current_notifications:
             created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
             tty = n.metadata.get("tty", "")
             if tty:
@@ -219,7 +255,8 @@ class LemonaidApp(App):
                 unread_count += 1
 
             indicator = Text("●", style="bold cyan") if is_unread else Text("")
-            table.add_row(
+
+            main_table.add_row(
                 styled_cell(created, is_unread),
                 indicator,
                 styled_cell(n.name or "", is_unread),
@@ -230,8 +267,38 @@ class LemonaidApp(App):
                 key=str(n.id),
             )
 
+        # Populate other sources table (always dim, not interactive)
+        if other_notifications:
+            # Group by source for the label
+            other_sources = set(n.switch_source for n in other_notifications if n.switch_source)
+            other_label.update(f"── {', '.join(sorted(other_sources))} ──")
+            other_label.display = True
+            other_table.display = True
+
+            for n in other_notifications:
+                created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
+                tty = n.metadata.get("tty", "")
+                if tty:
+                    tty = tty.replace("/dev/", "")
+
+                indicator = Text("○", style="dim") if n.is_unread else Text("")
+
+                other_table.add_row(
+                    Text(created, style="dim"),
+                    indicator,
+                    Text(n.name or "", style="dim"),
+                    Text(n.message, style="dim"),
+                    Text(n.channel, style="dim"),
+                    Text(str(n.id), style="dim"),
+                    Text(tty, style="dim"),
+                    key=str(n.id),
+                )
+        else:
+            other_label.display = False
+            other_table.display = False
+
         # Restore cursor position
-        if table.row_count > 0:
+        if main_table.row_count > 0:
             target_index = None
             if stay_on_unread and unread_count > 0:
                 # Stay on an unread item: use current index but cap at last unread
@@ -243,16 +310,16 @@ class LemonaidApp(App):
                 # Try to find the same row by key
                 if current_key:
                     with contextlib.suppress(Exception):
-                        target_index = table.get_row_index(current_key)
+                        target_index = main_table.get_row_index(current_key)
                 # Fall back to same position (clamped to valid range)
                 if target_index is None:
-                    target_index = min(current_index, table.row_count - 1)
-            table.move_cursor(row=target_index)
+                    target_index = min(current_index, main_table.row_count - 1)
+            main_table.move_cursor(row=target_index)
 
         status = self.query_one("#status", Static)
-        total = len(notifications)
-        read_count = total - unread_count
-        env_label = f" [{self.terminal_env}]" if self.terminal_env != "unknown" else ""
+        displayed = main_table.row_count
+        read_count = displayed - unread_count
+        env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
 
         # Add patch warning if Claude is unpatched
@@ -270,21 +337,21 @@ class LemonaidApp(App):
 
     def action_cursor_up(self) -> None:
         """Move cursor up in the table."""
-        self.query_one(DataTable).action_cursor_up()
+        self.query_one("#main_table", DataTable).action_cursor_up()
 
     def action_cursor_down(self) -> None:
         """Move cursor down in the table."""
-        self.query_one(DataTable).action_cursor_down()
+        self.query_one("#main_table", DataTable).action_cursor_down()
 
     def action_select(self) -> None:
         """Select the current row (same as Enter)."""
-        self.query_one(DataTable).action_select_cursor()
+        self.query_one("#main_table", DataTable).action_select_cursor()
 
     def action_refresh(self) -> None:
         self._refresh_notifications()
 
     def action_mark_read(self) -> None:
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         if table.row_count == 0:
             return
 
@@ -298,7 +365,7 @@ class LemonaidApp(App):
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         if table.row_count == 0:
             return
 
@@ -311,7 +378,7 @@ class LemonaidApp(App):
 
     def action_rename(self) -> None:
         """Rename the selected session."""
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         if table.row_count == 0:
             return
 
@@ -344,8 +411,8 @@ class LemonaidApp(App):
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
         with db.connect() as conn:
-            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
-            notifications = db.get_active(conn, terminal_env=env_filter)
+            env_filter = self.current_env if self.current_env != "unknown" else None
+            notifications = db.get_active(conn, switch_source=env_filter)
 
         # Find the earliest (oldest) unread - they're sorted newest first
         unread = [n for n in notifications if n.is_unread]
@@ -355,7 +422,7 @@ class LemonaidApp(App):
 
         # Move cursor to earliest unread row, then select it (same path as Enter)
         earliest_row = len(unread) - 1
-        table = self.query_one(DataTable)
+        table = self.query_one("#main_table", DataTable)
         table.move_cursor(row=earliest_row)
         table.action_select_cursor()
 
@@ -389,14 +456,14 @@ class LemonaidApp(App):
 
     def _get_active_for_watcher(
         self,
-    ) -> list[tuple[str, str, str, float, bool, str | None, str]]:
+    ) -> list[tuple[str, str, str, float, bool, str | None, str, str | None]]:
         """Get active notifications for the transcript watcher.
 
-        Returns list of (channel, session_id, cwd, created_at, is_unread, tty, message).
+        Returns list of (channel, session_id, cwd, created_at, is_unread, tty, message, switch_source).
         """
         with db.connect() as conn:
-            env_filter = self.terminal_env if self.terminal_env != "unknown" else None
-            notifications = db.get_active(conn, terminal_env=env_filter)
+            env_filter = self.current_env if self.current_env != "unknown" else None
+            notifications = db.get_active(conn, switch_source=env_filter)
 
         result = []
         for n in notifications:
@@ -405,7 +472,16 @@ class LemonaidApp(App):
             tty = n.metadata.get("tty")
             if session_id and cwd:
                 result.append(
-                    (n.channel, session_id, cwd, n.created_at, n.is_unread, tty, n.message)
+                    (
+                        n.channel,
+                        session_id,
+                        cwd,
+                        n.created_at,
+                        n.is_unread,
+                        tty,
+                        n.message,
+                        n.switch_source,
+                    )
                 )
         return result
 
@@ -432,6 +508,10 @@ class LemonaidApp(App):
         The notification will be marked read when the user actually submits input
         in that session (via the UserPromptSubmit hook).
         """
+        # Only handle events from the main table
+        if event.data_table.id != "main_table":
+            return
+
         if event.row_key is None:
             return
 
@@ -440,7 +520,11 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
             if notification:
-                handle_notification(notification.channel, notification.metadata, self.config)
+                handle_notification(
+                    notification.metadata,
+                    self.config,
+                    switch_source=notification.switch_source,
+                )
                 # In scratch/auto-dismiss mode, hide the pane after navigation
                 if self._scratch_mode:
                     self._hide_scratch_pane()

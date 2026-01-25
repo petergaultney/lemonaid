@@ -18,17 +18,6 @@ notify = ["lemonaid", "codex", "notify"]
 
 **Important**: In TOML, anything after a `[table]` header belongs to that table. The `notify` setting must appear before any tables to be recognized as a root-level setting.
 
-### 2. Configure lemonaid handler (optional)
-
-In `~/.config/lemonaid/config.toml`:
-
-```toml
-[handlers]
-"codex:*" = "tmux"  # or "wezterm"
-```
-
-If not configured, Codex notifications will still appear in the inbox but won't auto-switch to the pane.
-
 ## How it works
 
 ### Notification flow

@@ -24,16 +24,16 @@ class Notification:
     status: str = "unread"
     created_at: float = field(default_factory=time.time)
     read_at: float | None = None
-    terminal_env: str | None = None
+    switch_source: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Notification:
         """Create a Notification from a database row."""
         # Handle columns which may not exist in older DBs
-        terminal_env = None
+        switch_source = None
         name = None
         with suppress(IndexError, KeyError):
-            terminal_env = row["terminal_env"]
+            switch_source = row["switch_source"]
         with suppress(IndexError, KeyError):
             name = row["name"]
 
@@ -46,7 +46,7 @@ class Notification:
             status=row["status"],
             created_at=row["created_at"],
             read_at=row["read_at"],
-            terminal_env=terminal_env,
+            switch_source=switch_source,
         )
 
     @property
@@ -138,14 +138,14 @@ def get_unread(conn: sqlite3.Connection) -> list[Notification]:
     return [Notification.from_row(row) for row in rows]
 
 
-def get_active(conn: sqlite3.Connection, terminal_env: str | None = None) -> list[Notification]:
+def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> list[Notification]:
     """Get active sessions (one per channel), unread first then by recency.
 
     Returns only the most recent notification per channel, excluding archived.
-    If terminal_env is provided, filters to only notifications from that environment
-    (or with NULL terminal_env for backwards compatibility).
+    If switch_source is provided, filters to only notifications from that source
+    (or with NULL switch_source for backwards compatibility).
     """
-    if terminal_env:
+    if switch_source:
         rows = conn.execute(
             """
             SELECT n.* FROM notifications n
@@ -155,12 +155,12 @@ def get_active(conn: sqlite3.Connection, terminal_env: str | None = None) -> lis
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
             WHERE n.status != 'archived'
-            AND (n.terminal_env = ? OR n.terminal_env IS NULL)
+            AND (n.switch_source = ? OR n.switch_source IS NULL)
             ORDER BY
                 CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
                 n.created_at DESC
             """,
-            (terminal_env,),
+            (switch_source,),
         ).fetchall()
     else:
         rows = conn.execute(
@@ -205,7 +205,7 @@ def add(
     name: str | None = None,
     metadata: dict[str, Any] | None = None,
     upsert: bool = True,
-    terminal_env: str | None = None,
+    switch_source: str | None = None,
 ) -> Notification:
     """Add a notification or update existing one if upsert=True.
 
@@ -222,10 +222,10 @@ def add(
             conn.execute(
                 """
                 UPDATE notifications
-                SET message = ?, name = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL, terminal_env = ?
+                SET message = ?, name = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL, switch_source = ?
                 WHERE id = ?
                 """,
-                (message, name, json.dumps(metadata), now, terminal_env, existing.id),
+                (message, name, json.dumps(metadata), now, switch_source, existing.id),
             )
             conn.commit()
             return Notification(
@@ -236,15 +236,15 @@ def add(
                 metadata=metadata,
                 status="unread",
                 created_at=now,
-                terminal_env=terminal_env,
+                switch_source=switch_source,
             )
 
     cursor = conn.execute(
         """
-        INSERT INTO notifications (channel, message, name, metadata, created_at, terminal_env)
+        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (channel, message, name, json.dumps(metadata), now, terminal_env),
+        (channel, message, name, json.dumps(metadata), now, switch_source),
     )
     conn.commit()
 
@@ -255,7 +255,7 @@ def add(
         name=name,
         metadata=metadata,
         created_at=now,
-        terminal_env=terminal_env,
+        switch_source=switch_source,
     )
 
 

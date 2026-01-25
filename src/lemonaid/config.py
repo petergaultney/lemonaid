@@ -18,13 +18,10 @@ def get_default_config() -> str:
     return """\
 # Lemonaid configuration
 
-[handlers]
-# Map channel patterns to handlers
-# Supported handlers: "wezterm", "exec:<command>"
-"claude:*" = "wezterm"
+# Switch-handlers are auto-selected based on the notification's switch-source.
+# No configuration needed for tmux/wezterm - they just work.
 
 [wezterm]
-# WezTerm handler settings
 # How to resolve pane from notification metadata
 # Options: "tty" (match TTY to pane), "metadata" (use workspace/pane_id from metadata)
 resolve_pane = "tty"
@@ -76,6 +73,7 @@ class TuiConfig:
     """Configuration for the TUI."""
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
+    show_all_sources: bool = False  # Show sessions from all sources (tmux+wezterm)
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
 
 
@@ -133,12 +131,15 @@ def _parse_config(data: dict[str, Any]) -> Config:
     keybindings_data = tui_data.get("keybindings", {})
     # Use dataclass defaults for any unspecified keybindings
     defaults = KeybindingsConfig()
-    keybindings = KeybindingsConfig(**{
-        field: keybindings_data.get(field, getattr(defaults, field))
-        for field in defaults.__dataclass_fields__
-    })
+    keybindings = KeybindingsConfig(
+        **{
+            field: keybindings_data.get(field, getattr(defaults, field))
+            for field in defaults.__dataclass_fields__
+        }
+    )
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
+        show_all_sources=tui_data.get("show_all_sources", False),
         keybindings=keybindings,
     )
 

@@ -1,3 +1,21 @@
+# 0.5.0 (2026-01-26)
+
+#### Added
+
+- **Show all sources**: New `show_all_sources = true` TUI config option shows sessions from other terminal environments (e.g., wezterm sessions when in tmux) in a separate non-interactive section below the main table. Lets you monitor all sessions without cluttering navigation.
+- **Auto-archive dead panes**: Watcher now archives notifications whose panes no longer exist, in addition to process exit detection.
+
+#### Changed
+
+- **Switch-source based handlers**: Handler selection now uses the notification's `switch_source` (where it came from) instead of channel pattern matching. Built-in handlers (tmux, wezterm) are auto-selected based on switch-source. No `[handlers]` config needed.
+- **Renamed `terminal_env` to `switch_source`**: The database column and API field are renamed to better reflect the concept: the switch-source determines which switch-handler can navigate back to the notification's origin.
+- **Renamed `detect_terminal_env()` to `detect_terminal_switch_source()`**: More explicit naming.
+- **Removed `exec:` handlers**: Will be reintroduced as hooks in a future release.
+
+#### Migration
+
+- Database migration automatically renames the `terminal_env` column to `switch_source`
+
 ## 0.4.10 (2026-01-26)
 
 #### Changed

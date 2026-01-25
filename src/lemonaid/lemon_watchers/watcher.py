@@ -143,19 +143,33 @@ def has_activity_since(
     return None
 
 
+def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
+    """Check if a pane still exists for the given TTY and switch source.
+
+    Deferred import to avoid circular dependencies.
+    """
+    if not switch_source:
+        return True  # Can't check, assume exists
+
+    from ..handlers import check_pane_exists_by_tty
+
+    return check_pane_exists_by_tty(tty, switch_source)
+
+
 def _archive_stale_sessions(
-    active: list[tuple[str, str, str, float, bool, str | None, str]],
+    active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
     log: Callable[[str], None],
 ) -> set[str]:
-    """Archive stale sessions based on TTY occupancy.
+    """Archive stale sessions based on TTY occupancy and pane existence.
 
     For each TTY:
+    - If pane no longer exists: archive immediately (most reliable check)
     - If process is running: only one session can be active, archive others
     - If process is not running: archive all sessions on that TTY
 
     Args:
-        active: List of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
+        active: List of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
         archive_channel: Callback to archive a channel
         log: Logging callback
 
@@ -164,11 +178,30 @@ def _archive_stale_sessions(
     """
     archived: set[str] = set()
 
-    # Group sessions by (tty, process_type)
-    # Process type is determined by channel prefix (claude: or codex:)
+    # First pass: archive any sessions whose panes no longer exist
+    remaining = []
+    for item in active:
+        channel, _session_id, _cwd, _created_at, _is_unread, tty, _db_message, switch_source = item
+        if tty and switch_source and not _check_pane_exists(tty, switch_source):
+            archive_channel(channel)
+            archived.add(channel)
+            log(f"archived (pane gone): {channel}")
+        else:
+            remaining.append(item)
+
+    # Second pass: group by TTY and handle duplicates/process exit
     tty_groups: dict[tuple[str, str], list[tuple[str, float]]] = {}
 
-    for channel, _session_id, _cwd, created_at, _is_unread, tty, _db_message in active:
+    for (
+        channel,
+        _session_id,
+        _cwd,
+        created_at,
+        _is_unread,
+        tty,
+        _db_message,
+        _switch_source,
+    ) in remaining:
         if not tty:
             continue
 
@@ -213,7 +246,7 @@ def _archive_stale_sessions(
 
 def unified_watch_loop(
     backends: list[WatcherBackend],
-    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str]]],
+    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
@@ -223,7 +256,7 @@ def unified_watch_loop(
 
     Args:
         backends: List of watcher backends (claude, codex, etc.)
-        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
+        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
@@ -262,7 +295,16 @@ def unified_watch_loop(
                     for k in to_remove:
                         session_cache.pop(k, None)
 
-            for channel, session_id, cwd, created_at, is_unread, _tty, _db_message in active:
+            for (
+                channel,
+                session_id,
+                cwd,
+                created_at,
+                is_unread,
+                _tty,
+                _db_message,
+                _switch_source,
+            ) in active:
                 # Find the right backend for this channel
                 backend = None
                 for prefix, b in backend_map.items():
@@ -318,7 +360,7 @@ _watcher_thread: threading.Thread | None = None
 
 def start_unified_watcher(
     backends: list[WatcherBackend],
-    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str]]],
+    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
@@ -327,7 +369,7 @@ def start_unified_watcher(
 
     Args:
         backends: List of watcher backends to monitor
-        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
+        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits

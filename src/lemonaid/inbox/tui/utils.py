@@ -16,4 +16,5 @@ def styled_cell(value: str, is_unread: bool) -> Text:
     """Style a cell value based on read/unread status."""
     if is_unread:
         return Text(value, style="bold cyan")
+
     return Text(value, style="dim")
