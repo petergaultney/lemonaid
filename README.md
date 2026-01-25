@@ -29,37 +29,6 @@ uv sync
 uv run pre-commit install
 ```
 
-## Usage
-
-```bash
-# Open the inbox TUI
-lma
-
-# Or via the full CLI
-lemonaid inbox
-
-# List notifications (non-interactive)
-lemonaid inbox list
-```
-
-### TUI Keybindings
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Open notification (switches to that session) |
-| `u` | Jump directly to earliest unread session |
-| `m` | Mark as read |
-| `a` | Archive (remove from list) |
-| `r` | Rename session (clear to revert to auto-name) |
-| `g` | Refresh |
-| `q` / `Escape` | Quit |
-
-All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).
-
-### Programmatic Access
-
-For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
-
 ## 🍋 Integrations
 
 ### Claude Code
@@ -95,6 +64,37 @@ Features: auto-dismiss via session watching, live activity updates.
 
 - **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
 - **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
+
+## Usage
+
+```bash
+# Open the inbox TUI
+lma
+
+# Or via the full CLI
+lemonaid inbox
+
+# List notifications (non-interactive)
+lemonaid inbox list
+```
+
+### TUI Keybindings
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Open notification (switches to that session) |
+| `u` | Jump directly to earliest unread session |
+| `m` | Mark as read |
+| `a` | Archive (remove from list) |
+| `r` | Rename session (clear to revert to auto-name) |
+| `g` | Refresh |
+| `q` / `Escape` | Quit |
+
+All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).
+
+### Programmatic Access
+
+For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
 
 ## Configuration
 
