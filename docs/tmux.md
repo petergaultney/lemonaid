@@ -4,16 +4,9 @@ Lemonaid integrates with tmux to switch directly to the session and pane where a
 
 ## Setup
 
-### 1. Configure lemonaid to use tmux
+Lemonaid automatically detects when notifications come from tmux and uses the tmux switch-handler. No configuration needed.
 
-In `~/.config/lemonaid/config.toml`:
-
-```toml
-[handlers]
-"claude:*" = "tmux"
-```
-
-### 2. Add a back-navigation keybinding (optional but recommended)
+### Add a back-navigation keybinding (optional but recommended)
 
 Add to your `~/.tmux.conf`:
 

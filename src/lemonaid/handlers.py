@@ -1,7 +1,6 @@
 """Notification handlers for lemonaid."""
 
 import json
-import os
 import subprocess
 from typing import Any
 
@@ -9,33 +8,45 @@ from . import tmux, wezterm
 from .config import Config, load_config
 
 
+def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool:
+    """Check if a pane still exists given its TTY and switch source.
+
+    Lower-level helper that just needs TTY. Used by watcher for auto-archive.
+    """
+    if switch_source == "tmux":
+        session, pane_id = tmux.get_pane_for_tty(tty)
+        return session is not None and pane_id is not None
+
+    elif switch_source == "wezterm":
+        workspace, pane_id = _resolve_pane_from_tty(tty)
+        return workspace is not None and pane_id is not None
+
+    return False
+
+
 def handle_notification(
-    channel: str,
     metadata: dict[str, Any] | None,
     config: Config | None = None,
+    switch_source: str | None = None,
 ) -> bool:
     """
-    Handle a notification based on config.
+    Handle a notification by switching to its source.
+
+    The switch_source determines which built-in handler to use:
+    - "tmux" -> use tmux switch-handler
+    - "wezterm" -> use wezterm switch-handler
 
     Returns True if handled successfully, False otherwise.
     """
     if config is None:
         config = load_config()
 
-    handler_name = config.get_handler(channel)
-    if handler_name is None:
-        return False
-
-    if handler_name == "wezterm":
-        return _handle_wezterm(metadata, config)
-    elif handler_name == "tmux":
+    if switch_source == "tmux":
         return _handle_tmux(metadata)
-    elif handler_name.startswith("exec:"):
-        cmd = handler_name[5:]  # Strip "exec:" prefix
-        return _handle_exec(cmd, channel, metadata)
-    else:
-        # Unknown handler - silently fail
-        return False
+    elif switch_source == "wezterm":
+        return _handle_wezterm(metadata, config)
+
+    return False
 
 
 def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
@@ -103,17 +114,3 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
         return False
 
     return tmux.switch_to_pane(session, pane_id)
-
-
-def _handle_exec(cmd: str, channel: str, metadata: dict[str, Any] | None) -> bool:
-    """Handle notification by executing a command."""
-    env = os.environ.copy()
-    env["LEMONAID_CHANNEL"] = channel
-    if metadata:
-        env["LEMONAID_METADATA"] = json.dumps(metadata)
-
-    try:
-        subprocess.run(cmd, shell=True, env=env, check=False)
-        return True
-    except Exception:
-        return False

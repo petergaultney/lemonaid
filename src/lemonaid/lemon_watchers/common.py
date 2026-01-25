@@ -55,10 +55,11 @@ def get_tty() -> str | None:
     return None
 
 
-def detect_terminal_env() -> str:
-    """Detect which terminal environment we're running in.
+def detect_terminal_switch_source() -> str:
+    """Detect the switch-source for this terminal environment.
 
-    Returns one of: 'tmux', 'wezterm', or 'unknown'.
+    The switch-source determines which switch-handler can navigate
+    back to this terminal. Returns one of: 'tmux', 'wezterm', or 'unknown'.
     """
     if os.environ.get("TMUX"):
         return "tmux"

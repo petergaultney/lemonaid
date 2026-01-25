@@ -23,7 +23,7 @@ Output:
     "status": "unread",
     "created_at": 1768578211.645825,
     "read_at": null,
-    "terminal_env": "tmux"
+    "switch_source": "tmux"
   }
 ]
 ```
@@ -60,4 +60,4 @@ lemonaid inbox add "channel-name" "Title" -m "Optional message" --metadata '{"ke
 | `status` | string | `unread`, `read`, or `archived` |
 | `created_at` | float | Unix timestamp |
 | `read_at` | float? | Unix timestamp when marked read |
-| `terminal_env` | string? | Terminal environment: `tmux`, `wezterm`, or `null` |
+| `switch_source` | string? | Switch-source: `tmux`, `wezterm`, or `null` (determines which switch-handler can navigate back) |

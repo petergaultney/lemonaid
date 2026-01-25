@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lemon_watchers import (
-    detect_terminal_env,
+    detect_terminal_switch_source,
     get_name_from_cwd,
     get_tty,
     shorten_path,
@@ -103,10 +103,9 @@ def handle_notification(
 
     if stdin_data is None:
         stdin_data = sys.stdin.read()
-        if not stdin_data.strip():
-            # Codex notify passes a single JSON argument, not stdin.
-            if len(sys.argv) > 1 and sys.argv[-1].lstrip().startswith("{"):
-                stdin_data = sys.argv[-1]
+        # Codex notify passes a single JSON argument, not stdin.
+        if not stdin_data.strip() and len(sys.argv) > 1 and sys.argv[-1].lstrip().startswith("{"):
+            stdin_data = sys.argv[-1]
 
     with open(log_file, "a") as f:
         f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_data[:200]}\n")
@@ -145,8 +144,8 @@ def handle_notification(
             or get_name_from_cwd(cwd or "")
         )
 
-    # Detect terminal environment
-    terminal_env = detect_terminal_env()
+    # Detect switch-source (which terminal environment this notification came from)
+    switch_source = detect_terminal_switch_source()
 
     # Build metadata for handler
     metadata: dict[str, str] = {}
@@ -178,7 +177,7 @@ def handle_notification(
             message=message,
             name=name,
             metadata=metadata,
-            terminal_env=terminal_env if terminal_env != "unknown" else None,
+            switch_source=switch_source if switch_source != "unknown" else None,
         )
 
     with open(log_file, "a") as f:
@@ -198,7 +197,9 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
     with db.connect() as conn:
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
-            print(f"[dismiss] marked {count} notification(s) as read for {channel}", file=sys.stderr)
+            print(
+                f"[dismiss] marked {count} notification(s) as read for {channel}", file=sys.stderr
+            )
         return count
 
 

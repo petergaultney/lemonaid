@@ -28,7 +28,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lemon_watchers import (
-    detect_terminal_env,
+    detect_terminal_switch_source,
     get_name_from_cwd,
     get_tmux_session_name,
     get_tty,
@@ -125,8 +125,8 @@ def handle_notification(stdin_data: str | None = None) -> None:
     # Look up session name: Claude name > tmux session name > cwd-derived name
     name = get_session_name(session_id, cwd) or get_tmux_session_name() or get_name_from_cwd(cwd)
 
-    # Detect terminal environment
-    terminal_env = detect_terminal_env()
+    # Detect switch-source (which terminal environment this notification came from)
+    switch_source = detect_terminal_switch_source()
 
     # Build metadata for handler
     metadata = {
@@ -155,7 +155,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
             message=message,
             name=name,
             metadata=metadata,
-            terminal_env=terminal_env if terminal_env != "unknown" else None,
+            switch_source=switch_source if switch_source != "unknown" else None,
         )
 
     with open(log_file, "a") as f:
