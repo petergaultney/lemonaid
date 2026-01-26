@@ -389,10 +389,10 @@ class LemonaidApp(App):
 
     def _get_active_for_watcher(
         self,
-    ) -> list[tuple[str, str, str, float, bool, str | None]]:
+    ) -> list[tuple[str, str, str, float, bool, str | None, str]]:
         """Get active notifications for the transcript watcher.
 
-        Returns list of (channel, session_id, cwd, created_at, is_unread, tty).
+        Returns list of (channel, session_id, cwd, created_at, is_unread, tty, message).
         """
         with db.connect() as conn:
             env_filter = self.terminal_env if self.terminal_env != "unknown" else None
@@ -405,7 +405,7 @@ class LemonaidApp(App):
             tty = n.metadata.get("tty")
             if session_id and cwd:
                 result.append(
-                    (n.channel, session_id, cwd, n.created_at, n.is_unread, tty)
+                    (n.channel, session_id, cwd, n.created_at, n.is_unread, tty, n.message)
                 )
         return result
 

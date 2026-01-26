@@ -98,8 +98,12 @@ def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
 def get_latest_activity(
     session_path: Path,
     describe_activity: Callable[[dict], str | None],
-) -> str | None:
-    """Get the most recent describable activity from a session file."""
+) -> tuple[str, str] | None:
+    """Get the most recent describable activity from a session file.
+
+    Returns (message, timestamp) tuple, or None if no activity found.
+    The timestamp can be used to detect genuinely new activity.
+    """
     lines = read_jsonl_tail(session_path)
 
     # Most recent first, limit to last 50 entries
@@ -108,7 +112,8 @@ def get_latest_activity(
             entry = json.loads(line)
             activity = describe_activity(entry)
             if activity:
-                return activity
+                ts = entry.get("timestamp", "")
+                return (activity, ts)
         except json.JSONDecodeError:
             continue
 
@@ -139,7 +144,7 @@ def has_activity_since(
 
 
 def _archive_stale_sessions(
-    active: list[tuple[str, str, str, float, bool, str | None]],
+    active: list[tuple[str, str, str, float, bool, str | None, str]],
     archive_channel: Callable[[str], None],
     log: Callable[[str], None],
 ) -> set[str]:
@@ -150,7 +155,7 @@ def _archive_stale_sessions(
     - If process is not running: archive all sessions on that TTY
 
     Args:
-        active: List of (channel, session_id, cwd, created_at, is_unread, tty)
+        active: List of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
         archive_channel: Callback to archive a channel
         log: Logging callback
 
@@ -163,7 +168,7 @@ def _archive_stale_sessions(
     # Process type is determined by channel prefix (claude: or codex:)
     tty_groups: dict[tuple[str, str], list[tuple[str, float]]] = {}
 
-    for channel, _session_id, _cwd, created_at, _is_unread, tty in active:
+    for channel, _session_id, _cwd, created_at, _is_unread, tty, _db_message in active:
         if not tty:
             continue
 
@@ -208,7 +213,7 @@ def _archive_stale_sessions(
 
 def unified_watch_loop(
     backends: list[WatcherBackend],
-    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None]]],
+    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
@@ -218,7 +223,7 @@ def unified_watch_loop(
 
     Args:
         backends: List of watcher backends (claude, codex, etc.)
-        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty)
+        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
@@ -256,7 +261,7 @@ def unified_watch_loop(
                     for k in to_remove:
                         session_cache.pop(k, None)
 
-            for channel, session_id, cwd, created_at, is_unread, _tty in active:
+            for channel, session_id, cwd, created_at, is_unread, _tty, db_message in active:
                 # Find the right backend for this channel
                 backend = None
                 for prefix, b in backend_map.items():
@@ -287,12 +292,22 @@ def unified_watch_loop(
                         mark_read(channel)
                         log(f"marked read: {channel} (trigger: {entry_type} at {entry_ts})")
 
-                # For all active notifications, update message if changed
-                message = get_latest_activity(session_path, backend.describe_activity)
-                if message and message != last_message.get(channel):
-                    update_message(channel, message)
-                    last_message[channel] = message
-                    log(f"updated {channel}: {message}")
+                # For all active notifications, update message from transcript
+                result = get_latest_activity(session_path, backend.describe_activity)
+                if result:
+                    message, entry_ts = result
+                    cached_ts = last_message.get(channel, (None, None))[1]
+
+                    if entry_ts != cached_ts:
+                        # New transcript entry - update DB
+                        update_message(channel, message)
+                        last_message[channel] = (message, entry_ts)
+                        log(f"updated {channel}: {message}")
+                    elif message != db_message:
+                        # Same transcript entry, but DB was changed (notify handler)
+                        # Restore DB to match transcript
+                        update_message(channel, message)
+                        log(f"restored {channel}: {message}")
 
         except Exception as e:
             log(f"error: {e}")
@@ -305,7 +320,7 @@ _watcher_thread: threading.Thread | None = None
 
 def start_unified_watcher(
     backends: list[WatcherBackend],
-    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None]]],
+    get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
@@ -314,7 +329,7 @@ def start_unified_watcher(
 
     Args:
         backends: List of watcher backends to monitor
-        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty)
+        get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits

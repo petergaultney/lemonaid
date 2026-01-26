@@ -1,3 +1,9 @@
+## 0.4.10 (2026-01-26)
+
+#### Fixed
+
+- **Watcher restores transcript truth**: Watcher now caches transcript entry timestamps (not just message strings). On each poll, if the DB message differs from transcript but timestamp is unchanged, the watcher restores the DB to match transcript. Fixes "Permission needed" persisting when notify handler fired late and overwrote the watcher's message.
+
 ## 0.4.9 (2026-01-26)
 
 #### Changed
