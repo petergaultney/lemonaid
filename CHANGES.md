@@ -1,3 +1,9 @@
+## 0.4.10 (2026-01-26)
+
+#### Changed
+
+- **Watcher uses transcript timestamps for caching**: Watcher now caches the timestamp of the last transcript entry processed (not just the message string). This allows proper detection of new activity vs. polling the same state. When timestamp is unchanged, watcher doesn't overwrite DB - this preserves legitimate "Permission needed" messages while still updating when Claude makes progress.
+
 ## 0.4.9 (2026-01-26)
 
 #### Changed
