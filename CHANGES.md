@@ -1,3 +1,9 @@
+## 0.4.10 (2026-01-26)
+
+#### Fixed
+
+- **Stale permission prompt filtering**: Notification handler now checks the transcript before upserting. If Claude has already moved on (has activity after the permission request), the stale notification is skipped. Fixes "Permission needed" message persisting after user responds.
+
 ## 0.4.9 (2026-01-26)
 
 #### Changed
