@@ -119,8 +119,11 @@ def has_activity_since(
     session_path: Path,
     since_time: float,
     should_dismiss: Callable[[dict], bool],
-) -> bool:
-    """Check if session has dismiss-worthy activity since given timestamp."""
+) -> dict | None:
+    """Check if session has dismiss-worthy activity since given timestamp.
+
+    Returns the triggering entry if found, None otherwise.
+    """
     lines = read_jsonl_tail(session_path)
 
     for line in reversed(lines[-50:]):
@@ -128,11 +131,11 @@ def has_activity_since(
             entry = json.loads(line)
             ts = parse_timestamp(entry.get("timestamp", ""))
             if ts and ts > since_time and should_dismiss(entry):
-                return True
+                return entry
         except json.JSONDecodeError:
             continue
 
-    return False
+    return None
 
 
 def _archive_stale_sessions(
@@ -274,11 +277,15 @@ def unified_watch_loop(
                     session_cache[cache_key] = session_path
 
                 # For unread notifications, check if we should mark as read
-                if is_unread and has_activity_since(
-                    session_path, created_at, backend.should_dismiss
-                ):
-                    mark_read(channel)
-                    log(f"marked read: {channel}")
+                if is_unread:
+                    dismiss_entry = has_activity_since(
+                        session_path, created_at, backend.should_dismiss
+                    )
+                    if dismiss_entry:
+                        entry_type = dismiss_entry.get("type", "?")
+                        entry_ts = dismiss_entry.get("timestamp", "")[:19]
+                        mark_read(channel)
+                        log(f"marked read: {channel} (trigger: {entry_type} at {entry_ts})")
 
                 # For all active notifications, update message if changed
                 message = get_latest_activity(session_path, backend.describe_activity)

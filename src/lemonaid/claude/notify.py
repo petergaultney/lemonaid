@@ -143,8 +143,12 @@ def handle_notification(stdin_data: str | None = None) -> None:
     # Channel format: claude:<session_id_prefix>
     channel = f"claude:{session_id[:8]}" if session_id else "claude:unknown"
 
-    # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
+    # Check existing state before upsert for logging
     with db.connect() as conn:
+        existing = db.get_by_channel(conn, channel, unread_only=False)
+        existing_status = existing.status if existing else None
+        existing_type = existing.metadata.get("notification_type") if existing else None
+
         db.add(
             conn,
             channel=channel,
@@ -155,9 +159,15 @@ def handle_notification(stdin_data: str | None = None) -> None:
         )
 
     with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] added: channel={channel}, type={notification_type}\n"
-        )
+        if existing:
+            f.write(
+                f"[{time.strftime('%H:%M:%S')}] upsert: channel={channel}, "
+                f"type={notification_type}, was={existing_status}/{existing_type}\n"
+            )
+        else:
+            f.write(
+                f"[{time.strftime('%H:%M:%S')}] new: channel={channel}, type={notification_type}\n"
+            )
 
 
 def dismiss_session(session_id: str, debug: bool = False) -> int:

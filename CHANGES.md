@@ -1,3 +1,9 @@
+## 0.4.9 (2026-01-26)
+
+#### Changed
+
+- **Better watcher logging**: Log entry type and timestamp when marking notifications as read. Log existing state when upserting notifications. Helps debug permission prompt flapping.
+
 ## 0.4.8 (2026-01-26)
 
 #### Fixed
