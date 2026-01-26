@@ -47,14 +47,14 @@ def read_jsonl_tail(path: Path, max_bytes: int = 64 * 1024) -> list[str]:
         file_size = path.stat().st_size
         read_size = min(file_size, max_bytes)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8", errors="replace") as f:
             if file_size > read_size:
                 f.seek(file_size - read_size)
                 f.readline()  # Skip partial line
             content = f.read()
 
         return content.strip().split("\n")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
 
 
@@ -253,7 +253,7 @@ def unified_watch_loop(
                     for k in to_remove:
                         session_cache.pop(k, None)
 
-            for channel, session_id, cwd, created_at, is_unread, tty in active:
+            for channel, session_id, cwd, created_at, is_unread, _tty in active:
                 # Find the right backend for this channel
                 backend = None
                 for prefix, b in backend_map.items():

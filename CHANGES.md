@@ -1,3 +1,10 @@
+## 0.4.8 (2026-01-26)
+
+#### Fixed
+
+- **Git worktree support**: Watcher now finds Claude session transcripts when working in git worktrees by searching parent directories for the Claude project path.
+- **Encoding resilience**: Watcher no longer crashes on malformed UTF-8 in session files.
+
 ## 0.4.7 (2026-01-24)
 
 #### Added

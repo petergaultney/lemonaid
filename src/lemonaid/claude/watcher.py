@@ -15,13 +15,22 @@ CHANNEL_PREFIX = "claude:"
 
 
 def get_session_path(session_id: str, cwd: str) -> Path | None:
-    """Construct the transcript path from cwd and session_id."""
+    """Find the transcript path, trying parent directories as fallback.
+
+    Claude may store sessions under a parent directory (like git root) rather
+    than the exact cwd. This handles git worktrees where sessions live under
+    the main repo path.
+    """
     if not cwd or not session_id:
         return None
 
-    from . import get_project_path
+    from . import find_project_path
 
-    transcript_path = get_project_path(cwd) / f"{session_id}.jsonl"
+    project_path = find_project_path(cwd)
+    if not project_path:
+        return None
+
+    transcript_path = project_path / f"{session_id}.jsonl"
     return transcript_path if transcript_path.exists() else None
 
 
