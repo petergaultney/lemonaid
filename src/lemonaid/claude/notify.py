@@ -112,29 +112,6 @@ def handle_notification(stdin_data: str | None = None) -> None:
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
     notification_type = data.get("notification_type", "idle_prompt")
-    transcript_path = data.get("transcript_path")
-
-    # Check if Claude has already moved on (activity after this notification)
-    # This handles race conditions where the hook fires but user already responded
-    if transcript_path and notification_type == "permission_prompt":
-        from ..lemon_watchers.watcher import read_jsonl_tail
-        from .watcher import should_dismiss
-
-        lines = read_jsonl_tail(Path(transcript_path), max_bytes=16 * 1024)
-        # Check last few entries for dismiss-worthy activity
-        for line in reversed(lines[-10:]):
-            try:
-                entry = json.loads(line)
-                if should_dismiss(entry):
-                    # Claude is working, skip this stale permission prompt
-                    with open(log_file, "a") as f:
-                        f.write(
-                            f"[{time.strftime('%H:%M:%S')}] skipped stale {notification_type}: "
-                            f"found {entry.get('type')} activity\n"
-                        )
-                    return
-            except json.JSONDecodeError:
-                continue
 
     # Build message based on notification type
     short_path = shorten_path(cwd)
