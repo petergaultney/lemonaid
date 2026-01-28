@@ -1,11 +1,18 @@
 [project]
 name = "lemonaid"
-version = "0.5.0"
+version = "0.6.0"
 description = "Attention inbox for managing notifications from LLMs and other background tools"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "textual>=0.89.0",
+]
+
+[project.optional-dependencies]
+# Requires macOS with Accessibility permissions granted
+macos = [
+    "pyobjc-framework-Quartz>=12.0",
+    "pyobjc-framework-ApplicationServices>=12.0",
 ]
 
 [dependency-groups]

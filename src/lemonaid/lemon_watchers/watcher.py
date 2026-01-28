@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from ..paths import get_log_path
+
 
 class WatcherBackend(Protocol):
     """Protocol for LLM-specific watcher backends."""
@@ -262,7 +264,7 @@ def unified_watch_loop(
         archive_channel: Optional callback to archive a channel when session exits
         poll_interval: How often to poll (seconds)
     """
-    log_file = Path("/tmp/lemonaid-watcher.log")
+    log_file = get_log_path("session-watcher")
 
     def log(msg: str):
         with open(log_file, "a") as f:

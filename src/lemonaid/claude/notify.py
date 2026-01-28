@@ -34,6 +34,7 @@ from ..lemon_watchers import (
     get_tty,
     shorten_path,
 )
+from ..paths import get_log_path
 
 
 def get_session_name(session_id: str, cwd: str) -> str | None:
@@ -96,7 +97,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
     """
     import time
 
-    log_file = "/tmp/lemonaid-notify.log"
+    log_file = get_log_path("claude-notify")
 
     if stdin_data is None:
         stdin_data = sys.stdin.read()
@@ -209,7 +210,7 @@ def handle_dismiss(debug: bool = False) -> None:
     import time
 
     debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
-    log_file = "/tmp/lemonaid-dismiss.log"
+    log_file = get_log_path("claude-dismiss")
 
     stdin_raw = sys.stdin.read() or "{}"
 
