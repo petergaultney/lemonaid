@@ -60,6 +60,29 @@ Features: auto-dismiss via session watching, live activity updates.
 
 **Full documentation**: [docs/codex.md](docs/codex.md)
 
+### Slack (macOS)
+
+Capture Slack notifications and deep-link directly to conversations:
+
+```bash
+# Install macOS dependencies
+uv tool install --editable ~/play/lemonaid \
+  --with pyobjc-framework-Quartz \
+  --with pyobjc-framework-ApplicationServices
+
+# Install the notification watcher daemon
+lemonaid macos install-watcher
+
+# Enable Slack in config
+echo '[slack]' >> ~/.config/lemonaid/config.toml
+```
+
+When you select a Slack notification, lemonaid opens a `slack://` deep link directly to that channel/DM.
+
+Deep linking requires a manually-exported mappings file with channel IDs. See [docs/macos.md](docs/macos.md) for the browser-based export process.
+
+**Full documentation**: [docs/macos.md](docs/macos.md)
+
 ## Terminal Setup
 
 - **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
@@ -104,9 +127,18 @@ Config file: `~/.config/lemonaid/config.toml`
 - [docs/tmux.md](docs/tmux.md) - tmux-specific options
 - [docs/wezterm.md](docs/wezterm.md) - WezTerm-specific options
 
+## Data Locations
+
+- **Database**: `~/.local/share/lemonaid/lemonaid.db`
+- **Logs**: `~/.local/state/lemonaid/logs/`
+- **Config**: `~/.config/lemonaid/config.toml`
+- **Slack mappings**: `~/.local/state/lemonaid/slack-mappings.json`
+
 ## Architecture
 
 - **inbox**: SQLite-backed notification storage with Textual TUI
-- **handlers**: Auto-selects switch-handler based on notification's switch-source (tmux, wezterm)
+- **handlers**: Auto-selects switch-handler based on notification's switch-source (tmux, wezterm, slack)
 - **claude**: Claude Code hook integration with transcript watching
 - **codex**: Codex CLI hook integration with session watching
+- **macos**: Notification Center watcher daemon using Accessibility API
+- **slack**: Deep linking to Slack channels/DMs via manually-exported channel mappings

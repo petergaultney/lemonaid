@@ -16,6 +16,7 @@ from .utils import get_sessions_root
 # Channel prefix for Codex notifications
 CHANNEL_PREFIX = "codex:"
 
+
 def get_session_path(session_id: str, cwd: str) -> Path | None:
     """Find a Codex session file by session ID.
 
@@ -69,14 +70,13 @@ def describe_activity(entry: dict) -> str | None:
         content = entry.get("content", [])
         if isinstance(content, list):
             for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") in ("output_text", "text"):
-                        text = block.get("text", "")
-                        if text.strip():
-                            first_line = text.strip().split("\n")[0][:60]
-                            if len(first_line) < len(text.strip().split("\n")[0]):
-                                first_line += "..."
-                            return first_line
+                if isinstance(block, dict) and block.get("type") in ("output_text", "text"):
+                    text = block.get("text", "")
+                    if text.strip():
+                        first_line = text.strip().split("\n")[0][:60]
+                        if len(first_line) < len(text.strip().split("\n")[0]):
+                            first_line += "..."
+                        return first_line
 
     # response_item format
     if entry_type == "response_item":

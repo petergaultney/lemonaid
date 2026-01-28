@@ -28,25 +28,32 @@ def handle_notification(
     metadata: dict[str, Any] | None,
     config: Config | None = None,
     switch_source: str | None = None,
-) -> bool:
+) -> str | None:
     """
     Handle a notification by switching to its source.
 
     The switch_source determines which built-in handler to use:
     - "tmux" -> use tmux switch-handler
     - "wezterm" -> use wezterm switch-handler
+    - "slack" -> use slack switch-handler
 
-    Returns True if handled successfully, False otherwise.
+    Returns:
+        "handled" - success, TUI decides what to do based on switch_source
+        "archive" - success, TUI should archive the notification
+        "skip" - success but TUI should not mark read or archive
+        None - failed to handle
     """
     if config is None:
         config = load_config()
 
     if switch_source == "tmux":
-        return _handle_tmux(metadata)
+        return "handled" if _handle_tmux(metadata) else None
     elif switch_source == "wezterm":
-        return _handle_wezterm(metadata, config)
+        return "handled" if _handle_wezterm(metadata, config) else None
+    elif switch_source == "slack":
+        return _handle_slack(metadata, config)
 
-    return False
+    return None
 
 
 def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
@@ -97,6 +104,39 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
         pass
 
     return None, None
+
+
+def _handle_slack(metadata: dict[str, Any] | None, config: Config) -> str | None:
+    """Handle notification by opening Slack, with deep link if possible.
+
+    Tries to construct a slack:// deep link URL to open directly to the
+    conversation. Falls back to just activating Slack if lookup fails.
+
+    Returns:
+        "archive" - opened with deep link, notification should be archived
+        "skip" - opened Slack app only, don't mark read or archive
+        None - failed to open
+    """
+    # Try to construct a deep link
+    url = None
+    if metadata:
+        workspace = metadata.get("workspace", "")
+        channel_name = metadata.get("title", "")  # title is channel/DM name
+        if workspace and channel_name:
+            result = config.slack.lookup_channel(workspace, channel_name)
+            if result:
+                team_id, channel_id = result
+                url = f"slack://channel?team={team_id}&id={channel_id}"
+
+    try:
+        if url:
+            subprocess.run(["open", url], check=True)
+            return "archive"
+        else:
+            subprocess.run(["open", "-a", "Slack"], check=True)
+            return "skip"
+    except subprocess.CalledProcessError:
+        return None
 
 
 def _handle_tmux(metadata: dict[str, Any] | None) -> bool:

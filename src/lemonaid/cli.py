@@ -11,6 +11,9 @@ from .codex import cli as codex_cli
 from .config import ensure_config_exists, get_config_path
 from .inbox import cli as inbox_cli
 from .inbox import db as inbox_db
+from .macos import cli as macos_cli
+from .paths import get_log_path
+from .slack import cli as slack_cli
 from .tmux import cli as tmux_cli
 from .wezterm import cli as wezterm_cli
 
@@ -95,6 +98,8 @@ def main() -> None:
     inbox_cli.setup_parser(subparsers)
     claude_cli.setup_parser(subparsers)
     codex_cli.setup_parser(subparsers)
+    macos_cli.setup_parser(subparsers)
+    slack_cli.setup_parser(subparsers)
     tmux_cli.setup_parser(subparsers)
     wezterm_cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
@@ -115,7 +120,7 @@ def main() -> None:
         import traceback
 
         # Log to file since Claude Code may hide stderr
-        with open("/tmp/lemonaid-errors.log", "a") as f:
+        with open(get_log_path("errors"), "a") as f:
             f.write(f"[{time.strftime('%H:%M:%S')}] {' '.join(sys.argv)}\n")
             f.write(traceback.format_exc())
             f.write("\n")

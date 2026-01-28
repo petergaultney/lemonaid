@@ -229,15 +229,31 @@ class LemonaidApp(App):
         main_table.clear()
         other_table.clear()
 
+        # App sources (like slack) always show in main table regardless of terminal
+        app_sources = {"slack"}
+
         with db.connect() as conn:
             env_filter = self.current_env if self.current_env != "unknown" else None
-            # Always get current source for main table
+            # Get current terminal source for main table
             current_notifications = db.get_active(conn, switch_source=env_filter)
-            # Get other sources if configured
+            # Also get app sources (they're always "actionable")
+            all_notifications = db.get_active(conn, switch_source=None)
+            app_notifications = [n for n in all_notifications if n.switch_source in app_sources]
+            # Merge and dedupe (in case env_filter is None and includes apps)
+            seen_ids = {n.id for n in current_notifications}
+            for n in app_notifications:
+                if n.id not in seen_ids:
+                    current_notifications.append(n)
+                    seen_ids.add(n.id)
+            # Sort: unread first, then by recency
+            current_notifications.sort(key=lambda n: (0 if n.is_unread else 1, -n.created_at))
+
+            # Get other sources if configured (excluding apps which are in main table)
             if self.config.tui.show_all_sources and env_filter:
-                all_notifications = db.get_active(conn, switch_source=None)
                 other_notifications = [
-                    n for n in all_notifications if n.switch_source != env_filter
+                    n
+                    for n in all_notifications
+                    if n.switch_source != env_filter and n.switch_source not in app_sources
                 ]
             else:
                 other_notifications = []
@@ -503,10 +519,14 @@ class LemonaidApp(App):
                 db.archive(conn, notification.id)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter on a row - switch to that session without marking as read.
+        """Handle Enter on a row - switch to that session.
 
-        The notification will be marked read when the user actually submits input
-        in that session (via the UserPromptSubmit hook).
+        For terminal sources (tmux, wezterm), the notification will be marked read
+        when the user actually submits input (via watcher hooks).
+
+        For Slack:
+        - If deep link found: archive the notification
+        - If no deep link (just opens Slack): leave unread
         """
         # Only handle events from the main table
         if event.data_table.id != "main_table":
@@ -520,11 +540,16 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
             if notification:
-                handle_notification(
+                result = handle_notification(
                     notification.metadata,
                     self.config,
                     switch_source=notification.switch_source,
                 )
+                # Handle based on handler result
+                if result == "archive":
+                    db.archive(conn, notification_id)
+                # "skip" and "handled" don't mark read - watcher handles that for terminals
+
                 # In scratch/auto-dismiss mode, hide the pane after navigation
                 if self._scratch_mode:
                     self._hide_scratch_pane()
