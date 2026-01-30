@@ -54,12 +54,29 @@ def _clear_state() -> None:
 
 
 def _pane_exists(pane_id: str) -> bool:
-    """Check if a pane still exists."""
+    """Check if the scratch pane still exists and is ours.
+
+    Verifies the pane exists AND has our marker option set. This prevents
+    latching onto a pane with the same ID that happens to exist elsewhere.
+    """
     result = subprocess.run(
-        ["tmux", "display-message", "-t", pane_id, "-p", "#{pane_id}"],
+        ["tmux", "display-message", "-t", pane_id, "-p", "#{@lemonaid_scratch}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    # Check that our marker is set
+    return result.stdout.strip() == "1"
+
+
+def _mark_pane(pane_id: str) -> None:
+    """Mark a pane as our scratch pane using a tmux option."""
+    subprocess.run(
+        ["tmux", "set-option", "-p", "-t", pane_id, "@lemonaid_scratch", "1"],
         capture_output=True,
     )
-    return result.returncode == 0
 
 
 def _get_pane_window(pane_id: str) -> str | None:
@@ -113,12 +130,40 @@ def _create_pane() -> str:
     if _session_exists():
         pane_id = _get_session_pane()
         if pane_id:
+            _mark_pane(pane_id)
             _save_state(pane_id)
             return pane_id
 
+    # Get current window dimensions to size the detached session properly
+    # (otherwise detached sessions get tiny default dimensions)
+    size_result = subprocess.run(
+        ["tmux", "display-message", "-p", "#{window_width} #{window_height}"],
+        capture_output=True,
+        text=True,
+    )
+    width, height = "200", "50"  # fallback defaults
+    if size_result.returncode == 0:
+        parts = size_result.stdout.strip().split()
+        if len(parts) == 2:
+            width, height = parts
+
     # Create a new session with lma in scratch mode
     subprocess.run(
-        ["tmux", "new-session", "-d", "-s", _SCRATCH_SESSION, "-n", "lma", "lma", "--scratch"],
+        [
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            _SCRATCH_SESSION,
+            "-x",
+            width,
+            "-y",
+            height,
+            "-n",
+            "lma",
+            "lma",
+            "--scratch",
+        ],
         check=True,
     )
     # Prevent tmux from auto-renaming the window
@@ -134,6 +179,7 @@ def _create_pane() -> str:
         check=True,
     )
     pane_id = result.stdout.strip()
+    _mark_pane(pane_id)
     _save_state(pane_id)
     return pane_id
 
