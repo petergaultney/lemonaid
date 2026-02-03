@@ -1,3 +1,12 @@
+# 0.6.0 (2026-01-27)
+
+#### Added
+
+- **macOS Notification Center integration**: Capture Slack notifications via the Accessibility API and add them to the lemonaid inbox. Install the watcher daemon with `lemonaid macos install-watcher`. Requires `uv pip install lemonaid[macos]` for PyObjC dependencies.
+- **Notification deduplication**: Notifications include macOS accessibility IDs (`ax_id`) in metadata. Once marked as read, the same notification won't resurface if macOS re-fires it.
+- **Slack deep linking**: Pressing Enter on Slack notifications opens a `slack://` deep link directly to the conversation. Add `[slack]` to your config to enable. Requires manually exporting channel mappings from Slack's browser IndexedDB (see `docs/macos.md` for instructions).
+- **Multi-workspace support**: Slack mappings support multiple workspaces. Deep links automatically use the correct team ID based on the notification's workspace.
+
 # 0.5.0 (2026-01-26)
 
 #### Added

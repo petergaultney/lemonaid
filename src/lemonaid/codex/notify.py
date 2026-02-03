@@ -14,6 +14,7 @@ from ..lemon_watchers import (
     get_tty,
     shorten_path,
 )
+from ..paths import get_log_path
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -99,7 +100,7 @@ def handle_notification(
     """
     import time
 
-    log_file = "/tmp/lemonaid-codex-notify.log"
+    log_file = get_log_path("codex-notify")
 
     if stdin_data is None:
         stdin_data = sys.stdin.read()
@@ -208,7 +209,7 @@ def handle_dismiss(debug: bool = False) -> None:
     import time
 
     debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
-    log_file = "/tmp/lemonaid-codex-dismiss.log"
+    log_file = get_log_path("codex-dismiss")
 
     stdin_raw = sys.stdin.read() or "{}"
 

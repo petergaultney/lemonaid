@@ -78,6 +78,52 @@ class TuiConfig:
 
 
 @dataclass
+class SlackConfig:
+    """Configuration for Slack deep linking.
+
+    Add [slack] to your config to enable Slack integration. Mappings are
+    auto-generated and stored in ~/.local/state/lemonaid/slack-mappings.json.
+
+    The blocklist filters out notifications from specific channels/DMs.
+    Use channel names with # prefix for channels, or user names for DMs.
+    """
+
+    enabled: bool = False  # True if [slack] section exists in config
+    blocklist: list[str] = field(default_factory=list)  # Channel/DM names to ignore
+
+    def lookup_channel(self, workspace_name: str, channel_name: str) -> tuple[str, str] | None:
+        """Look up team_id and channel_id for a workspace/channel.
+
+        Args:
+            workspace_name: Workspace name (from notification title)
+            channel_name: Channel or DM name (from notification subtitle)
+
+        Returns:
+            (team_id, channel_id) tuple, or None if not found
+        """
+        from .slack import load_mappings, lookup_channel
+
+        mappings = load_mappings()
+        result = lookup_channel(mappings, workspace_name, channel_name)
+        if result:
+            return (result.team_id, result.channel_id)
+        return None
+
+    def is_blocked(self, name: str) -> bool:
+        """Check if a channel/DM name is in the blocklist."""
+        if not self.blocklist:
+            return False
+
+        # Check exact match
+        if name in self.blocklist:
+            return True
+        # Check with/without # prefix
+        if f"#{name}" in self.blocklist:
+            return True
+        return name.startswith("#") and name[1:] in self.blocklist
+
+
+@dataclass
 class Config:
     """Lemonaid configuration."""
 
@@ -85,6 +131,7 @@ class Config:
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
+    slack: SlackConfig = field(default_factory=SlackConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -143,7 +190,17 @@ def _parse_config(data: dict[str, Any]) -> Config:
         keybindings=keybindings,
     )
 
-    return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui)
+    # Slack is enabled if [slack] section exists in config
+    slack_enabled = "slack" in data
+    slack_data = data.get("slack", {})
+    slack = SlackConfig(
+        enabled=slack_enabled,
+        blocklist=slack_data.get("blocklist", []),
+    )
+
+    return Config(
+        handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui, slack=slack
+    )
 
 
 def ensure_config_exists() -> Path:
