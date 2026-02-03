@@ -86,6 +86,45 @@ def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | None, str | None]:
+    """Find a tmux pane by its current working directory.
+
+    Optionally filter by a process running in the pane.
+    Returns (session_name, pane_id) or (None, None) if not found.
+    """
+    try:
+        # List all panes with their cwd, current command, session, and pane ID
+        result = subprocess.run(
+            [
+                "tmux",
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_current_path}|#{pane_current_command}|#{session_name}|#{pane_id}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) == 4:
+                pane_cwd, pane_cmd, session_name, pane_id = parts
+                if pane_cwd == cwd:
+                    # If process_name specified, check it matches
+                    if process_name and process_name not in pane_cmd:
+                        continue
+                    return session_name, pane_id
+
+    except subprocess.CalledProcessError:
+        pass
+
+    return None, None
+
+
 def save_back_location(session: str, pane_id: str) -> None:
     """Save a location for the 'back' command."""
     back_file = get_back_file()

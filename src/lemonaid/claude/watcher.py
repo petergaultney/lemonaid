@@ -89,6 +89,15 @@ def should_dismiss(entry: dict) -> bool:
     return False
 
 
+def needs_attention(entry: dict) -> bool:
+    """Check if an entry indicates the agent is waiting for user input.
+
+    For Claude, this is handled by the notification hooks (Stop, Notification),
+    so we always return False here - the watcher doesn't need to mark as unread.
+    """
+    return False
+
+
 def _describe_tool_use(block: dict) -> str:
     """Describe a tool_use block in human-readable form."""
     tool_name = block.get("name", "unknown")

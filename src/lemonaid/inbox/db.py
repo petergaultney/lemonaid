@@ -268,6 +268,27 @@ def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
+def mark_unread_for_channel(conn: sqlite3.Connection, channel: str) -> int:
+    """Mark all notifications for a channel as unread (needs attention).
+
+    Used when an agent finishes and is waiting for user input.
+    Also updates created_at to now, so that should_dismiss() only looks
+    at entries after this point (prevents flip-flopping).
+    Returns count of notifications marked as unread.
+    """
+    now = time.time()
+    cursor = conn.execute(
+        """
+        UPDATE notifications
+        SET status = 'unread', read_at = NULL, created_at = ?
+        WHERE channel = ? AND status = 'read'
+        """,
+        (now, channel),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
 def mark_all_read_for_channel(
     conn: sqlite3.Connection,
     channel: str,

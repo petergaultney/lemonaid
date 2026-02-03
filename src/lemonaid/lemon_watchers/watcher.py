@@ -36,6 +36,15 @@ class WatcherBackend(Protocol):
         """Check if an entry indicates the notification should be dismissed."""
         ...
 
+    @staticmethod
+    def needs_attention(entry: dict) -> bool:
+        """Check if an entry indicates the agent is waiting for user input.
+
+        Optional method - returns False by default for backends that don't need it
+        (e.g., Claude/Codex where hooks fire when attention is needed).
+        """
+        ...
+
 
 def read_jsonl_tail(path: Path, max_bytes: int = 64 * 1024) -> list[str]:
     """Read the last N bytes of a JSONL file and return lines.
@@ -117,6 +126,13 @@ def get_latest_activity(
         except json.JSONDecodeError:
             continue
 
+    # Debug: log if we found no activity in a path that exists
+    if lines:
+        with open("/tmp/lemonaid-watcher.log", "a") as f:
+            f.write(
+                f"[{time.strftime('%H:%M:%S')}] no activity found in {session_path.name} ({len(lines)} lines)\n"
+            )
+
     return None
 
 
@@ -136,6 +152,30 @@ def has_activity_since(
             entry = json.loads(line)
             ts = parse_timestamp(entry.get("timestamp", ""))
             if ts and ts > since_time and should_dismiss(entry):
+                return entry
+        except json.JSONDecodeError:
+            continue
+
+    return None
+
+
+def check_needs_attention(
+    session_path: Path,
+    since_time: float,
+    needs_attention: Callable[[dict], bool],
+) -> dict | None:
+    """Check if session has an entry indicating the agent needs user attention.
+
+    Scans recent entries for "turn complete" signals (e.g., OpenClaw's stopReason: "stop").
+    Returns the triggering entry if found, None otherwise.
+    """
+    lines = read_jsonl_tail(session_path)
+
+    for line in reversed(lines[-50:]):
+        try:
+            entry = json.loads(line)
+            ts = parse_timestamp(entry.get("timestamp", ""))
+            if ts and ts > since_time and needs_attention(entry):
                 return entry
         except json.JSONDecodeError:
             continue
@@ -205,7 +245,12 @@ def _archive_stale_sessions(
         if not tty:
             continue
 
-        process_name = "claude" if channel.startswith("claude:") else "codex"
+        if channel.startswith("claude:"):
+            process_name = "claude"
+        elif channel.startswith("openclaw:"):
+            process_name = "openclaw"
+        else:
+            process_name = "codex"
         key = (tty, process_name)
 
         if key not in tty_groups:
@@ -250,6 +295,7 @@ def unified_watch_loop(
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
+    mark_unread: Callable[[str], int] | None = None,
     poll_interval: float = 0.5,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
@@ -260,6 +306,7 @@ def unified_watch_loop(
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
+        mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
         poll_interval: How often to poll (seconds)
     """
     log_file = Path("/tmp/lemonaid-watcher.log")
@@ -275,6 +322,8 @@ def unified_watch_loop(
     # Track last observed transcript timestamp per channel (as unix float)
     # Used to detect genuinely new activity vs polling same state
     last_observed_ts: dict[str, float] = {}
+    # Track last "needs attention" timestamp per channel to avoid re-marking
+    last_attention_ts: dict[str, float] = {}
     # Cache session paths
     session_cache: dict[str, Path] = {}
 
@@ -335,6 +384,24 @@ def unified_watch_loop(
                         mark_read(channel)
                         log(f"marked read: {channel} (trigger: {entry_type} at {entry_ts})")
 
+                # For read notifications, check if agent now needs attention
+                # (only for backends that implement needs_attention, like OpenClaw)
+                if not is_unread and mark_unread:
+                    needs_attention_fn = getattr(backend, "needs_attention", None)
+                    if needs_attention_fn:
+                        # Use the last attention timestamp we processed, or created_at
+                        since_ts = last_attention_ts.get(channel, created_at)
+                        attention_entry = check_needs_attention(
+                            session_path, since_ts, needs_attention_fn
+                        )
+                        if attention_entry:
+                            entry_ts_str = attention_entry.get("timestamp", "")
+                            entry_ts = parse_timestamp(entry_ts_str)
+                            if entry_ts:
+                                last_attention_ts[channel] = entry_ts
+                            mark_unread(channel)
+                            log(f"marked unread: {channel} (agent waiting at {entry_ts_str[:19]})")
+
                 # Update message from transcript only if there's genuinely new activity.
                 # We cache the timestamp of the last entry to detect new vs same state.
                 # If timestamp unchanged, we don't write - this preserves whatever is
@@ -364,6 +431,7 @@ def start_unified_watcher(
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
+    mark_unread: Callable[[str], int] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -373,6 +441,7 @@ def start_unified_watcher(
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
+        mark_unread: Optional callback to mark a channel as needing attention
     """
     global _watcher_thread
 
@@ -381,7 +450,7 @@ def start_unified_watcher(
 
     _watcher_thread = threading.Thread(
         target=unified_watch_loop,
-        args=(backends, get_active, mark_read, update_message, archive_channel),
+        args=(backends, get_active, mark_read, update_message, archive_channel, mark_unread),
         daemon=True,
     )
     _watcher_thread.start()
