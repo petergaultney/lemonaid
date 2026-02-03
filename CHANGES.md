@@ -1,3 +1,14 @@
+# 0.6.0 (2026-02-03)
+
+#### Added
+
+- **OpenClaw integration**: New watcher backend for [OpenClaw](https://openclaw.ai/) sessions. Detects turn completion via `stopReason: "stop"` in transcripts and marks notifications as needing attention. See `docs/openclaw.md` for setup.
+- **Mark unread support**: Watcher can now mark notifications as unread when an agent completes and is waiting for user input.
+
+#### Fixed
+
+- **Flip-flop prevention**: When marking a notification as unread, `created_at` is updated to the current time. This prevents the watcher from immediately marking it read again based on old transcript entries.
+
 # 0.5.0 (2026-01-26)
 
 #### Added

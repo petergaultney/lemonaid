@@ -104,12 +104,28 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
     if metadata is None:
         return False
 
-    # Resolve pane from TTY
-    tty = metadata.get("tty")
-    if not tty:
-        return False
+    session, pane_id = None, None
 
-    session, pane_id = tmux.get_pane_for_tty(tty)
+    # Try to resolve pane from TTY first (most reliable)
+    tty = metadata.get("tty")
+    if tty:
+        session, pane_id = tmux.get_pane_for_tty(tty)
+
+    # Fallback: resolve from cwd (for hooks that run outside user's shell)
+    if session is None or pane_id is None:
+        cwd = metadata.get("cwd")
+        if cwd:
+            # Infer process name from channel prefix if available
+            channel = metadata.get("channel", "")
+            process_name = None
+            if channel.startswith("openclaw:"):
+                process_name = "openclaw"
+            elif channel.startswith("claude:"):
+                process_name = "claude"
+            elif channel.startswith("codex:"):
+                process_name = "codex"
+            session, pane_id = tmux.get_pane_for_cwd(cwd, process_name)
+
     if session is None or pane_id is None:
         return False
 

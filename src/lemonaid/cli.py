@@ -11,6 +11,7 @@ from .codex import cli as codex_cli
 from .config import ensure_config_exists, get_config_path
 from .inbox import cli as inbox_cli
 from .inbox import db as inbox_db
+from .openclaw import cli as openclaw_cli
 from .tmux import cli as tmux_cli
 from .wezterm import cli as wezterm_cli
 
@@ -95,6 +96,7 @@ def main() -> None:
     inbox_cli.setup_parser(subparsers)
     claude_cli.setup_parser(subparsers)
     codex_cli.setup_parser(subparsers)
+    openclaw_cli.setup_parser(subparsers)
     tmux_cli.setup_parser(subparsers)
     wezterm_cli.setup_parser(subparsers)
     setup_config_parser(subparsers)

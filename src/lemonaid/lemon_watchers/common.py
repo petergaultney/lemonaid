@@ -9,10 +9,15 @@ from pathlib import Path
 
 
 def get_tty() -> str | None:
-    """Get the TTY name for this process or its parent.
+    """Get the TTY name for this process or an ancestor process.
 
-    Tries stdin/stdout/stderr first, then falls back to querying ps
-    for the parent process's TTY (useful when spawned as a hook).
+    Tries stdin/stdout/stderr first, then walks up the process tree
+    looking for an ancestor with a controlling TTY. This is useful when
+    spawned as a hook (e.g., OpenClaw TypeScript hooks run in Node.js
+    which doesn't have a TTY, but an ancestor shell does).
+
+    Note: Process tree walking uses `ps` which behaves slightly differently
+    on macOS vs Linux, but the TTY detection should work on both.
     """
     # Try stdin first
     try:
@@ -38,19 +43,44 @@ def get_tty() -> str | None:
     except OSError:
         pass
 
-    # Fall back to asking ps for parent's TTY (works when spawned as hook)
-    try:
-        result = subprocess.run(
-            ["ps", "-o", "tty=", "-p", str(os.getppid())],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        tty = result.stdout.strip()
-        if tty and tty != "??" and tty != "":
-            return f"/dev/{tty}"
-    except (subprocess.CalledProcessError, OSError):
-        pass
+    # Walk up the process tree looking for an ancestor with a TTY
+    return _get_ancestor_tty()
+
+
+def _get_ancestor_tty(max_depth: int = 10) -> str | None:
+    """Walk up the process tree looking for an ancestor with a TTY.
+
+    Stops at init (PID 1) or after max_depth iterations to prevent infinite loops.
+    """
+    pid = os.getpid()
+
+    for _ in range(max_depth):
+        try:
+            # Get parent PID and TTY in one call
+            result = subprocess.run(
+                ["ps", "-o", "ppid=,tty=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            parts = result.stdout.strip().split()
+            if len(parts) < 2:
+                break
+
+            ppid_str, tty = parts[0], parts[1]
+            ppid = int(ppid_str)
+
+            # Check if this process has a real TTY
+            if tty and tty not in ("??", "-", ""):
+                return f"/dev/{tty}"
+
+            # Move to parent
+            if ppid <= 1:
+                break
+            pid = ppid
+
+        except (subprocess.CalledProcessError, OSError, ValueError):
+            break
 
     return None
 

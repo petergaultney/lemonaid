@@ -15,6 +15,7 @@ from ...codex import watcher as codex_watcher
 from ...config import load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import detect_terminal_switch_source, start_unified_watcher
+from ...openclaw import watcher as openclaw_watcher
 from .. import db
 from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
@@ -158,11 +159,12 @@ class LemonaidApp(App):
         self.set_interval(1.0, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss, message updates, and exit detection
         start_unified_watcher(
-            backends=[claude_watcher, codex_watcher],
+            backends=[claude_watcher, codex_watcher, openclaw_watcher],
             get_active=self._get_active_for_watcher,
             mark_read=self._mark_channel_read,
             update_message=self._update_channel_message,
             archive_channel=self._archive_channel,
+            mark_unread=self._mark_channel_unread,
         )
         # Check Claude patch status after initial render (reads 180MB binary)
         self.call_later(self._check_claude_patch)
@@ -490,6 +492,11 @@ class LemonaidApp(App):
         with db.connect() as conn:
             return db.mark_all_read_for_channel(conn, channel)
 
+    def _mark_channel_unread(self, channel: str) -> int:
+        """Mark all notifications for a channel as unread (needs attention)."""
+        with db.connect() as conn:
+            return db.mark_unread_for_channel(conn, channel)
+
     def _update_channel_message(self, channel: str, message: str) -> int:
         """Update the message for a channel."""
         with db.connect() as conn:
@@ -520,8 +527,10 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
             if notification:
+                # Include channel in metadata for cwd-based fallback resolution
+                metadata = {**notification.metadata, "channel": notification.channel}
                 handle_notification(
-                    notification.metadata,
+                    metadata,
                     self.config,
                     switch_source=notification.switch_source,
                 )
