@@ -68,6 +68,7 @@ DIR_COLORS: dict[str, str] = {
 
 # Special colors for known processes
 PROCESS_COLORS: dict[str, str] = {
+    "codex": "#26A34A",  # Medium green (darker than Claude)
     "emacs": "#FFB86C",  # Orange
     "emacsclient": "#E0922D",  # Darker orange
     "git": "#BB55FF",  # Purple
@@ -76,6 +77,10 @@ PROCESS_COLORS: dict[str, str] = {
     "node": "#50FA7B",  # Green
     "npm": "#50FA7B",
     "claude": "#50FA7B",  # Green
+}
+
+ACTIVE_PROCESS_COLORS: dict[str, str] = {
+    "codex": "#2FBF5A",  # Brighter for current window, still darker than Claude
 }
 
 # Shells/wrappers that shouldn't be shown (just show directory instead)
@@ -93,6 +98,7 @@ HIDDEN_PROCESSES: set[str] = {
 # These are apps where the launch directory isn't meaningful
 STANDALONE_PROCESSES: set[str] = {
     "claude",
+    "codex",
     "emacs",
     "emacsclient",
     "lma",
@@ -209,7 +215,13 @@ def extract_app_from_title(title: str | None, path: str) -> str | None:
     return first_word
 
 
-def format_process(process: str) -> str | None:
+def _get_process_color(process: str, active: bool) -> str:
+    if active:
+        return ACTIVE_PROCESS_COLORS.get(process, PROCESS_COLORS.get(process, get_color(process)))
+    return PROCESS_COLORS.get(process, get_color(process))
+
+
+def format_process(process: str, active: bool) -> str | None:
     """Format a process name with tmux color codes.
 
     Returns None if the process should be hidden (shells, wrappers).
@@ -221,11 +233,13 @@ def format_process(process: str) -> str | None:
     if re.match(r"^\d+\.\d+\.\d+$", process):
         process = "claude"
 
-    color = PROCESS_COLORS.get(process, get_color(process))
+    color = _get_process_color(process, active)
     return f"#[fg={color}]{process}#[fg=default]"
 
 
-def format_window(path: str, process: str | None = None, title: str | None = None) -> str:
+def format_window(
+    path: str, process: str | None = None, title: str | None = None, active: bool = False
+) -> str:
     """Format a window title with optional process and path.
 
     Args:
@@ -242,7 +256,7 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
 
     # Standalone apps: show ONLY the process name, no directory
     if process in STANDALONE_PROCESSES:
-        color = PROCESS_COLORS.get(process, get_color(process))
+        color = _get_process_color(process, active)
         return f"#[fg={color}]{process}#[fg=default]"
 
     # Check if this is a shell window (process will be hidden)
@@ -257,10 +271,10 @@ def format_window(path: str, process: str | None = None, title: str | None = Non
             process = app_name
             # Check again if the extracted app is a standalone process
             if process in STANDALONE_PROCESSES:
-                color = PROCESS_COLORS.get(process, get_color(process))
+                color = _get_process_color(process, active)
                 return f"#[fg={color}]{process}#[fg=default]"
 
-    formatted_process = format_process(process) if process else None
+    formatted_process = format_process(process, active) if process else None
 
     if formatted_process:
         return f"{formatted_process}: {formatted_path}"
@@ -303,11 +317,13 @@ def main() -> None:
         pane_current_path = sys.argv[2]
         process = sys.argv[3] if len(sys.argv) > 3 else None
         title = sys.argv[4] if len(sys.argv) > 4 else None
+        active_flag = sys.argv[5] if len(sys.argv) > 5 else "0"
+        active = active_flag == "1"
 
         # Prefer OSC 7 path when available (works for xonsh)
         path = pane_path if pane_path else pane_current_path
 
-        print(format_window(path, process, title))
+        print(format_window(path, process, title, active))
     else:
         print(
             "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]",
