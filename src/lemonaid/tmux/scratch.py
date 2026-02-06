@@ -193,13 +193,37 @@ def _show(pane_id: str, height: str, target_pane: str | None = None) -> bool:
     return result.returncode == 0
 
 
+def _ensure_scratch_session() -> None:
+    """Recreate the scratch session if it was destroyed.
+
+    When join-pane moves the scratch pane into the user's session,
+    _lma_scratch loses its last window and tmux destroys it. We need
+    it back so break-pane has somewhere to send the pane.
+    """
+    if not _session_exists():
+        subprocess.run(
+            ["tmux", "new-session", "-d", "-s", _SCRATCH_SESSION, "-n", "_placeholder", "sh"],
+            capture_output=True,
+        )
+
+
 def _hide(pane_id: str) -> bool:
-    """Break the scratch pane to its own window."""
+    """Break the scratch pane back to the scratch session."""
+    _ensure_scratch_session()
     result = subprocess.run(
-        ["tmux", "break-pane", "-d", "-s", pane_id],
+        ["tmux", "break-pane", "-d", "-s", pane_id, "-t", f"{_SCRATCH_SESSION}:"],
         capture_output=True,
     )
-    return result.returncode == 0
+    if result.returncode != 0:
+        return False
+
+    # Kill the placeholder window if one was created — break-pane already
+    # added a real window for the scratch pane.
+    subprocess.run(
+        ["tmux", "kill-window", "-t", f"{_SCRATCH_SESSION}:_placeholder"],
+        capture_output=True,
+    )
+    return True
 
 
 def _select_pane(pane_id: str) -> bool:
