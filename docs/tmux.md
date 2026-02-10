@@ -170,8 +170,8 @@ set-option -sa terminal-features ',xterm-256color:RGB'
 
 # Window status with colored directory names
 # Third argument is pane_title - used to show app names instead of "python3.12"
-setw -g window-status-format " " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
-setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '1') "
+setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}') "
+setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}') "
 setw -g window-status-style none
 setw -g window-status-current-style "bg=colour238,bold"
 setw -g window-status-separator "│"
