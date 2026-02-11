@@ -3,7 +3,7 @@
 Monitor progress of and switch between lemons (go on... say 'LLMs' three times fast)
 running in the terminal.
 
-<img width="998" height="184" alt="Screenshot 2026-01-24 at 6 34 01 PM" src="https://github.com/user-attachments/assets/75d591d6-1423-416a-a83f-3c3b668233ea" />
+<img width="1452" height="228" alt="Screenshot 2026-02-11 at 16 52 46" src="https://github.com/user-attachments/assets/c9dff292-2e2f-449a-9039-314865dcf7d1" />
 
 ## How It Works
 
