@@ -5,10 +5,22 @@ running in the terminal.
 
 <img width="998" height="184" alt="Screenshot 2026-01-24 at 6 34 01 PM" src="https://github.com/user-attachments/assets/75d591d6-1423-416a-a83f-3c3b668233ea" />
 
+## How It Works
+
+Lemonaid has two parts: **hooks** that fire when your lemons need attention, and a **TUI** (`lma`) that shows what's going on and lets you jump to sessions.
+
+1. You add hooks to Claude Code and/or Codex CLI (see [Integrations](#-integrations) below)
+2. When a session stops or needs input, the hook writes a notification to a local SQLite database
+3. The `lma` TUI displays active notifications, watches transcripts for live activity, and auto-archives sessions when they end
+4. Over time, archived sessions accumulate into a searchable **session history** — press `h` to browse past sessions across all projects and resume them
+
+The TUI doesn't need to be running for notifications to arrive (hooks write directly to the DB), but it does need to run for live activity updates and automatic archiving.
+
 ## Features
 
-- **Notification inbox**: Track which [Claude Code](docs/claude.md) and [Codex CLI](docs/codex.md) sessions need your attention, and what they're doing as they do it
+- **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), and [OpenClaw](docs/openclaw.md) sessions need your attention, and what they're doing as they do it
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md) and [WezTerm](docs/wezterm.md))
+- **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **Scratch pane** (`tmux`): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
@@ -20,11 +32,13 @@ running in the terminal.
 ## Installation
 
 ```bash
+git clone https://github.com/petergaultney/lemonaid.git
+cd lemonaid
+
 # Install globally with uv
-uv tool install --editable ~/play/lemonaid
+uv tool install --editable .
 
 # For development
-cd ~/play/lemonaid
 uv sync
 uv run pre-commit install
 ```
@@ -60,6 +74,18 @@ Features: auto-dismiss via session watching, live activity updates.
 
 **Full documentation**: [docs/codex.md](docs/codex.md)
 
+### OpenClaw
+
+Register from within an OpenClaw TUI session:
+
+```
+!lemonaid openclaw register
+```
+
+Features: turn-complete detection, live activity updates, auto-dismiss on user input.
+
+**Full documentation**: [docs/openclaw.md](docs/openclaw.md)
+
 ## Terminal Setup
 
 - **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
@@ -87,6 +113,9 @@ lemonaid inbox list
 | `m` | Mark as read |
 | `a` | Archive (remove from list) |
 | `r` | Rename session (clear to revert to auto-name) |
+| `h` | Toggle session history |
+| `c` | Copy resume command (in history mode) |
+| `/` | Filter history |
 | `g` | Refresh |
 | `q` / `Escape` | Quit |
 
@@ -106,7 +135,7 @@ Config file: `~/.config/lemonaid/config.toml`
 
 ## Architecture
 
-- **inbox**: SQLite-backed notification storage with Textual TUI
-- **handlers**: Auto-selects switch-handler based on notification's switch-source (tmux, wezterm)
+- **inbox**: SQLite-backed session status storage with [Textual](https://textual.textualize.io/) TUI
 - **claude**: Claude Code hook integration with transcript watching
 - **codex**: Codex CLI hook integration with session watching
+- **openclaw**: OpenClaw integration with turn-complete detection
