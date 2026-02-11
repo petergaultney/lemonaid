@@ -138,12 +138,70 @@ def shorten_path(path: str) -> str:
     return display_path
 
 
+def fish_path(path: str) -> str:
+    """Shorten a path fish-shell style: abbreviate intermediate dirs to first char.
+
+    ~/work/ds-monorepo/libs/gent -> ~/w/d/l/gent
+    /Users/peter/play/lemonaid   -> ~/p/lemonaid
+    /etc/nginx/conf.d            -> /e/n/conf.d
+    """
+    if not path:
+        return ""
+    cwd_path = Path(path)
+    home = Path.home()
+
+    if cwd_path.is_relative_to(home):
+        parts = ["~", *cwd_path.relative_to(home).parts]
+    else:
+        # Absolute path: parts[0] is "/" — drop it and rejoin with leading /
+        parts = list(cwd_path.parts[1:])
+        if len(parts) <= 1:
+            return str(cwd_path)
+
+        return "/" + "/".join(
+            [
+                *(p[0] for p in parts[:-1]),
+                parts[-1],
+            ]
+        )
+
+    if len(parts) <= 2:
+        return str(cwd_path).replace(str(home), "~")
+
+    return "/".join(
+        [
+            parts[0],
+            *(p[0] for p in parts[1:-1]),
+            parts[-1],
+        ]
+    )
+
+
 def get_name_from_cwd(cwd: str) -> str:
     """Extract a display name from the cwd path (last component)."""
     if not cwd:
         return ""
     parts = cwd.rstrip("/").split("/")
     return parts[-1] if parts else ""
+
+
+def get_git_branch(cwd: str) -> str | None:
+    """Get the current git branch for a directory. Returns None if not a git repo."""
+    if not cwd:
+        return None
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=cwd,
+        )
+        branch = result.stdout.strip()
+        return branch if branch else None
+    except (subprocess.CalledProcessError, OSError):
+        return None
 
 
 def short_filename(path: str) -> str:

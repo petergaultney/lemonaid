@@ -135,14 +135,10 @@ def read_sessions_index(agent_id: str) -> dict | None:
         return None
 
 
-def get_session_name(agent_id: str, session_id: str) -> str | None:
-    """Get the display name for a session from the sessions.json index.
+def _find_session_key(agent_id: str, session_id: str) -> str | None:
+    """Find the session key in sessions.json that matches a UUID.
 
-    OpenClaw's sessions.json uses session keys like "agent:main:testing-session"
-    as top-level keys, with optional "label" field for user-assigned names.
-    Each session object has a "sessionId" field with the UUID.
-
-    Priority: label > last segment of session key
+    Returns the full key (e.g. "agent:main:testing-session") or None.
     """
     index = read_sessions_index(agent_id)
     if not index:
@@ -154,29 +150,48 @@ def get_session_name(agent_id: str, session_id: str) -> str | None:
         if not isinstance(session_data, dict):
             continue
 
-        # Match by sessionId field (the UUID we have)
         data_id = session_data.get("sessionId") or session_data.get("id")
         if not data_id:
             continue
 
-        # Check if our session_id matches (could be full UUID or prefix)
         if (
             data_id == session_id
             or data_id.startswith(session_id)
             or session_id.startswith(data_id[:8])
         ):
-            # Priority: label > last segment of session key
-            label = session_data.get("label")
-            if label:
-                return label
-
-            # Extract last segment from session key (e.g., "testing-session" from "agent:main:testing-session")
-            if ":" in session_key:
-                return session_key.rsplit(":", 1)[-1]
-
             return session_key
 
     return None
+
+
+def get_session_key(agent_id: str, session_id: str) -> str | None:
+    """Get the session key for resuming an OpenClaw session.
+
+    Returns the full key (e.g. "agent:main:testing-session") or None.
+    """
+    return _find_session_key(agent_id, session_id)
+
+
+def get_session_name(agent_id: str, session_id: str) -> str | None:
+    """Get the display name for a session from the sessions.json index.
+
+    Priority: label > last segment of session key.
+    """
+    key = _find_session_key(agent_id, session_id)
+    if not key:
+        return None
+
+    index = read_sessions_index(agent_id)
+    if index and key in index:
+        label = index[key].get("label")
+        if label:
+            return label
+
+    # Extract last segment from session key
+    if ":" in key:
+        return key.rsplit(":", 1)[-1]
+
+    return key
 
 
 def get_last_user_message(session_path: Path, max_bytes: int = 64 * 1024) -> str | None:
@@ -351,3 +366,19 @@ def find_most_recent_session() -> tuple[Path | None, str | None, str | None, str
         return best_match[0], best_match[1], best_match[2], best_match[3]
 
     return None, None, None, None
+
+
+def build_resume_argv(metadata: dict) -> list[str]:
+    """Build argv for resuming an OpenClaw session from notification metadata.
+
+    Checks metadata for a stored session_key first, falls back to disk lookup
+    via agent_id + session_id for older notifications.
+    """
+    session_key = metadata.get("session_key", "")
+    if not session_key:
+        agent_id = metadata.get("agent_id", "")
+        session_id = metadata.get("session_id", "")
+        if agent_id and session_id:
+            session_key = get_session_key(agent_id, session_id) or ""
+
+    return ["openclaw", "--session", session_key] if session_key else []

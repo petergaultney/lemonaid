@@ -15,6 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from ..log import get_logger
+
+_log = get_logger("watcher")
+
 
 class WatcherBackend(Protocol):
     """Protocol for LLM-specific watcher backends."""
@@ -126,12 +130,8 @@ def get_latest_activity(
         except json.JSONDecodeError:
             continue
 
-    # Debug: log if we found no activity in a path that exists
     if lines:
-        with open("/tmp/lemonaid-watcher.log", "a") as f:
-            f.write(
-                f"[{time.strftime('%H:%M:%S')}] no activity found in {session_path.name} ({len(lines)} lines)\n"
-            )
+        _log.info("no activity found in %s (%d lines)", session_path.name, len(lines))
 
     return None
 
@@ -199,7 +199,6 @@ def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
-    log: Callable[[str], None],
 ) -> set[str]:
     """Archive stale sessions based on TTY occupancy and pane existence.
 
@@ -208,13 +207,7 @@ def _archive_stale_sessions(
     - If process is running: only one session can be active, archive others
     - If process is not running: archive all sessions on that TTY
 
-    Args:
-        active: List of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
-        archive_channel: Callback to archive a channel
-        log: Logging callback
-
-    Returns:
-        Set of archived channel names
+    Returns set of archived channel names.
     """
     archived: set[str] = set()
 
@@ -225,7 +218,7 @@ def _archive_stale_sessions(
         if tty and switch_source and not _check_pane_exists(tty, switch_source):
             archive_channel(channel)
             archived.add(channel)
-            log(f"archived (pane gone): {channel}")
+            _log.info("archived (pane gone): %s", channel)
         else:
             remaining.append(item)
 
@@ -265,7 +258,7 @@ def _archive_stale_sessions(
             if not is_process_running_on_tty(tty, process_name):
                 archive_channel(channel)
                 archived.add(channel)
-                log(f"archived (process exited): {channel}")
+                _log.info("archived (process exited): %s", channel)
         else:
             # Multiple sessions on same TTY - keep newest, archive rest
             # Sort by created_at descending (newest first)
@@ -278,13 +271,13 @@ def _archive_stale_sessions(
             for channel, _ in sessions[1:]:  # Skip newest
                 archive_channel(channel)
                 archived.add(channel)
-                log(f"archived (newer session on {tty}): {channel}")
+                _log.info("archived (newer session on %s): %s", tty, channel)
 
             # If process isn't running, also archive the newest
             if not process_running:
                 archive_channel(newest_channel)
                 archived.add(newest_channel)
-                log(f"archived (process exited): {newest_channel}")
+                _log.info("archived (process exited): %s", newest_channel)
 
     return archived
 
@@ -309,15 +302,9 @@ def unified_watch_loop(
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
         poll_interval: How often to poll (seconds)
     """
-    log_file = Path("/tmp/lemonaid-watcher.log")
-
-    def log(msg: str):
-        with open(log_file, "a") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-
     # Build prefix -> backend mapping
     backend_map = {b.CHANNEL_PREFIX: b for b in backends}
-    log(f"watcher started with backends: {list(backend_map.keys())}")
+    _log.info("watcher started with backends: %s", list(backend_map.keys()))
 
     # Track last observed transcript timestamp per channel (as unix float)
     # Used to detect genuinely new activity vs polling same state
@@ -333,7 +320,7 @@ def unified_watch_loop(
 
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
-                archived_channels = _archive_stale_sessions(active, archive_channel, log)
+                archived_channels = _archive_stale_sessions(active, archive_channel)
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
                 # Clean up caches for archived channels
@@ -382,7 +369,9 @@ def unified_watch_loop(
                         entry_type = dismiss_entry.get("type", "?")
                         entry_ts = dismiss_entry.get("timestamp", "")[:19]
                         mark_read(channel)
-                        log(f"marked read: {channel} (trigger: {entry_type} at {entry_ts})")
+                        _log.info(
+                            "marked read: %s (trigger: %s at %s)", channel, entry_type, entry_ts
+                        )
 
                 # For read notifications, check if agent now needs attention
                 # (only for backends that implement needs_attention, like OpenClaw)
@@ -400,7 +389,11 @@ def unified_watch_loop(
                             if entry_ts:
                                 last_attention_ts[channel] = entry_ts
                             mark_unread(channel)
-                            log(f"marked unread: {channel} (agent waiting at {entry_ts_str[:19]})")
+                            _log.info(
+                                "marked unread: %s (agent waiting at %s)",
+                                channel,
+                                entry_ts_str[:19],
+                            )
 
                 # Update message from transcript only if there's genuinely new activity.
                 # We cache the timestamp of the last entry to detect new vs same state.
@@ -414,10 +407,10 @@ def unified_watch_loop(
                     if entry_ts and entry_ts != last_observed_ts.get(channel):
                         update_message(channel, message)
                         last_observed_ts[channel] = entry_ts
-                        log(f"updated {channel}: {message}")
+                        _log.info("updated %s: %s", channel, message)
 
         except Exception as e:
-            log(f"error: {e}")
+            _log.error("error: %s", e, exc_info=True)
 
         time.sleep(poll_interval)
 

@@ -127,6 +127,7 @@ def main() -> None:
 def inbox_main() -> None:
     """Direct entry point for `lma` alias - goes straight to inbox TUI."""
     import argparse
+    import os
 
     from .inbox.tui import LemonaidApp, set_terminal_title
 
@@ -141,6 +142,12 @@ def inbox_main() -> None:
     set_terminal_title("lma")
     app = LemonaidApp(scratch_mode=args.scratch)
     app.run()
+
+    # If the user chose to resume a session, exec it in this terminal
+    if app._exec_on_exit:
+        cwd, argv = app._exec_on_exit
+        os.chdir(cwd)
+        os.execvp(argv[0], argv)
 
 
 if __name__ == "__main__":

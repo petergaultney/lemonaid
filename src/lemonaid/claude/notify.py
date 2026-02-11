@@ -29,11 +29,15 @@ from pathlib import Path
 from ..inbox import db
 from ..lemon_watchers import (
     detect_terminal_switch_source,
+    get_git_branch,
     get_name_from_cwd,
     get_tmux_session_name,
     get_tty,
     shorten_path,
 )
+from ..log import get_logger
+
+_log = get_logger("claude.notify")
 
 
 def get_session_name(session_id: str, cwd: str) -> str | None:
@@ -94,15 +98,10 @@ def handle_notification(stdin_data: str | None = None) -> None:
     Reads JSON from stdin (as provided by Claude Code hooks) and adds
     a notification to the lemonaid inbox.
     """
-    import time
-
-    log_file = "/tmp/lemonaid-notify.log"
-
     if stdin_data is None:
         stdin_data = sys.stdin.read()
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_data}\n")
+    _log.info("stdin: %s", stdin_data)
 
     try:
         data = json.loads(stdin_data) if stdin_data else {}
@@ -135,6 +134,10 @@ def handle_notification(stdin_data: str | None = None) -> None:
         "notification_type": notification_type,
     }
 
+    branch = get_git_branch(cwd)
+    if branch:
+        metadata["git_branch"] = branch
+
     # Try to get TTY for pane matching
     tty = get_tty()
     if tty:
@@ -158,16 +161,16 @@ def handle_notification(stdin_data: str | None = None) -> None:
             switch_source=switch_source if switch_source != "unknown" else None,
         )
 
-    with open(log_file, "a") as f:
-        if existing:
-            f.write(
-                f"[{time.strftime('%H:%M:%S')}] upsert: channel={channel}, "
-                f"type={notification_type}, was={existing_status}/{existing_type}\n"
-            )
-        else:
-            f.write(
-                f"[{time.strftime('%H:%M:%S')}] new: channel={channel}, type={notification_type}\n"
-            )
+    if existing:
+        _log.info(
+            "upsert: channel=%s, type=%s, was=%s/%s",
+            channel,
+            notification_type,
+            existing_status,
+            existing_type,
+        )
+    else:
+        _log.info("new: channel=%s, type=%s", channel, notification_type)
 
 
 def dismiss_session(session_id: str, debug: bool = False) -> int:
@@ -206,15 +209,11 @@ def handle_dismiss(debug: bool = False) -> None:
     Set LEMONAID_DEBUG=1 environment variable to enable debug output.
     Set LEMONAID_LOG_FILE to a path to write debug logs to a file.
     """
-    import time
-
     debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
-    log_file = "/tmp/lemonaid-dismiss.log"
 
     stdin_raw = sys.stdin.read() or "{}"
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_raw[:100]}\n")
+    _log.info("dismiss stdin: %s", stdin_raw[:100])
 
     try:
         data = json.loads(stdin_raw)
@@ -224,7 +223,4 @@ def handle_dismiss(debug: bool = False) -> None:
     session_id = data.get("session_id", "")
     count = dismiss_session(session_id, debug=debug)
 
-    with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] session_id={session_id[:8] if session_id else 'NONE'}, marked={count}\n"
-        )
+    _log.info("dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count)

@@ -137,3 +137,62 @@ open "$URL"
 2. [x] **Rename and simplify** - `terminal_env` → `switch_source`, auto-select handler
 3. [x] **Actionability check** - Verify pane exists before marking as actionable
 4. [ ] **Custom handlers** - Support external scripts for non-terminal sources
+
+## app.py Is Too Big
+
+`inbox/tui/app.py` has grown well past 900 lines. It owns table setup, refresh logic, history mode, resume command building, keybinding wiring, patch checking, column stretching, and all the action handlers. This is a sign of coupling — the file is the junction point where every feature lands because there's no separation between the TUI shell and the domain logic it orchestrates.
+
+Splitting opportunities:
+- **`_build_resume_command`** belongs in a backend registry (see below), not the TUI
+- **History mode** (refresh, filter, resume) could be its own module or Screen
+- **Column/table setup** and `_stretch_columns` could be extracted to a table helpers module
+- **Patch checking** is Claude-specific and could live closer to `claude/patcher.py`
+
+This is related to both the Backend Plugin Architecture and the general principle that the TUI should be a thin shell dispatching to domain logic.
+
+## Backend Plugin Architecture
+
+### The Problem
+
+Backend-specific knowledge (claude, codex, openclaw) is leaking into generic code. `_build_resume_command` in `app.py` dispatches on channel prefix with hardcoded branches. Similar patterns exist in the watcher layer and notification handling. Every new backend means touching multiple generic modules.
+
+### Direction
+
+Channel prefixes (`claude:`, `codex:`, `openclaw:`) are the natural dispatch key. Each backend should register capabilities against its prefix:
+
+- **`build_resume_argv(metadata) -> list[str]`** — how to resume a session
+- **`parse_transcript_activity(entry) -> str | None`** — extract live activity description
+- **`detect_turn_complete(entry) -> bool`** — whether the agent finished and is waiting
+
+The TUI and watcher work against these interfaces. Adding a new backend means dropping a module into the right place and registering its prefix — no changes to `app.py` or watcher core.
+
+### Current State
+
+- `openclaw/utils.py` already has `build_resume_argv(metadata)` — extracted as first step
+- claude/codex resume commands are still inline in `app.py` (one-liners, but still hardcoded)
+- Watcher backends are already somewhat separated (`claude/watcher.py`, `codex/watcher.py`, `openclaw/watcher.py`) but share no formal interface
+
+### Next Steps
+
+1. [ ] Define a `Backend` protocol/registry keyed by channel prefix
+2. [ ] Move claude/codex resume logic into their respective modules
+3. [ ] Unify watcher backends behind a common interface
+4. [ ] TUI dispatches via registry lookup instead of `if channel.startswith(...)` chains
+
+## Customizable TUI Columns
+
+Users should be able to configure column order, visibility, and sizing in `config.toml`. The current layout (Time, Name, Branch, CWD, Message, TTY) works for most cases, but power users may want to hide TTY, reorder columns, or adjust flex weights. Something like:
+
+```toml
+[tui.columns]
+order = ["time", "name", "branch", "cwd", "message"]
+# Each column can specify base width and flex weight
+[tui.columns.name]
+width = 14
+flex = 0.10
+[tui.columns.message]
+width = 25
+flex = 0.50
+```
+
+Keep the current hardcoded layout as the default — this is a nice-to-have, not urgent.

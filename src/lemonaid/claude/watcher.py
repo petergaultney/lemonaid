@@ -59,7 +59,7 @@ def describe_activity(entry: dict) -> str | None:
             if isinstance(block, dict) and block.get("type") == "text":
                 text = block.get("text", "")
                 if text.strip():
-                    first_line = text.strip().split("\n")[0][:60]
+                    first_line = text.strip().split("\n")[0][:200]
                     if len(first_line) < len(text.strip().split("\n")[0]):
                         first_line += "..."
                     return first_line
@@ -121,13 +121,13 @@ def _describe_tool_use(block: dict) -> str:
     if tool_name in ("Grep", "Glob"):
         pattern = tool_input.get("pattern", "")
         if pattern:
-            return f"Searching for {pattern[:30]}"
+            return f"Searching for {pattern[:80]}"
         return "Searching"
 
     if tool_name == "Task":
         desc = tool_input.get("description", "")
         if desc:
-            return f"Task: {desc[:40]}"
+            return f"Task: {desc[:80]}"
         return "Running task"
 
     if tool_name == "WebFetch":
@@ -136,7 +136,7 @@ def _describe_tool_use(block: dict) -> str:
     if tool_name == "WebSearch":
         query = tool_input.get("query", "")
         if query:
-            return f"Searching: {query[:30]}"
+            return f"Searching: {query[:80]}"
         return "Web search"
 
     return f"Using {tool_name}"

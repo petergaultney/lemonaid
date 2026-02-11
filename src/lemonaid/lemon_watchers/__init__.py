@@ -2,6 +2,8 @@
 
 from .common import (
     detect_terminal_switch_source,
+    fish_path,
+    get_git_branch,
     get_name_from_cwd,
     get_tmux_session_name,
     get_tty,
@@ -20,7 +22,9 @@ from .watcher import (
 __all__ = [
     "WatcherBackend",
     "detect_terminal_switch_source",
+    "fish_path",
     "get_latest_activity",
+    "get_git_branch",
     "get_name_from_cwd",
     "get_tmux_session_name",
     "get_tty",

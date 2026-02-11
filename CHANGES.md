@@ -1,3 +1,18 @@
+# 0.7.0 (2026-02-11)
+
+#### Added
+
+- **Session history**: Press `h` to browse archived sessions. Filter with `/`, resume with Enter. In non-scratch mode, Enter replaces the current terminal with the resumed session (`claude --resume`). In scratch mode or with `c`, the command is copied to clipboard.
+- **Git branch in metadata**: Notification hooks now record the git branch, displayed in the history view.
+- **CWD and branch columns**: Both main and history views now show CWD (fish-shell style abbreviation) and git branch.
+- **Purge command**: `lemonaid inbox purge [--older-than DAYS]` for manual cleanup of old sessions (default 90 days).
+
+#### Improved
+
+- **DataTable full-width**: Tables now stretch to fill the terminal width with proportional flex columns.
+- **Unified column layout**: Main and history views share the same columns — no visual jumping on toggle.
+- **Logging**: Switched to Python `logging` module; all components write to `/tmp/lemonaid.log` with hierarchical logger names.
+
 # 0.6.2 (2026-02-11)
 
 #### Fixed

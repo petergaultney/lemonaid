@@ -13,15 +13,25 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
-from ..lemon_watchers import detect_terminal_switch_source, get_name_from_cwd, get_tty, shorten_path
+from ..lemon_watchers import (
+    detect_terminal_switch_source,
+    get_git_branch,
+    get_name_from_cwd,
+    get_tty,
+    shorten_path,
+)
+from ..log import get_logger
 from .utils import (
     extract_session_id_from_filename,
     find_most_recent_session,
     find_session_path,
     get_last_user_message,
+    get_session_key,
     get_session_name,
     read_session_header,
 )
+
+_log = get_logger("openclaw.notify")
 
 
 def _extract_session_id(data: dict, session_path: Path | None) -> str | None:
@@ -87,15 +97,10 @@ def handle_notification(
     Can be triggered by a hook or manually. Reads JSON from stdin
     and adds a notification to the lemonaid inbox.
     """
-    import time
-
-    log_file = "/tmp/lemonaid-openclaw-notify.log"
-
     if stdin_data is None:
         stdin_data = sys.stdin.read() if not sys.stdin.isatty() else ""
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_data[:200]}\n")
+    _log.info("stdin: %s", stdin_data[:200])
 
     try:
         data = json.loads(stdin_data) if stdin_data else {}
@@ -140,6 +145,13 @@ def handle_notification(
     if session_path_obj:
         metadata["session_path"] = str(session_path_obj)
 
+    branch = get_git_branch(cwd or "")
+    if branch:
+        metadata["git_branch"] = branch
+    if agent_id and session_id:
+        session_key = get_session_key(agent_id, session_id)
+        if session_key:
+            metadata["session_key"] = session_key
     tty = get_tty()
     if tty:
         metadata["tty"] = tty
@@ -157,10 +169,7 @@ def handle_notification(
             switch_source=switch_source if switch_source != "unknown" else None,
         )
 
-    with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] added: channel={channel}, type={notification_type}\n"
-        )
+    _log.info("added: channel=%s, type=%s", channel, notification_type)
 
 
 def dismiss_session(session_id: str, debug: bool = False) -> int:
@@ -182,18 +191,12 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
 def handle_dismiss(debug: bool = False) -> None:
     """Dismiss (mark as read) the notification for this OpenClaw session."""
-    import time
-
-    if debug or os.environ.get("LEMONAID_DEBUG") == "1":
-        log_file = "/tmp/lemonaid-openclaw-dismiss.log"
-    else:
-        log_file = None
+    _debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
 
     stdin_raw = (sys.stdin.read() if not sys.stdin.isatty() else "{}") or "{}"
 
-    if log_file:
-        with open(log_file, "a") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_raw[:100]}\n")
+    if _debug:
+        _log.info("dismiss stdin: %s", stdin_raw[:100])
 
     try:
         data = json.loads(stdin_raw)
@@ -203,11 +206,10 @@ def handle_dismiss(debug: bool = False) -> None:
     session_id = _extract_session_id(data, None)
     count = dismiss_session(session_id or "", debug=debug)
 
-    if log_file:
-        with open(log_file, "a") as f:
-            f.write(
-                f"[{time.strftime('%H:%M:%S')}] session_id={session_id[:8] if session_id else 'NONE'}, marked={count}\n"
-            )
+    if _debug:
+        _log.info(
+            "dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count
+        )
 
 
 def handle_register(session_id: str | None = None, cwd: str | None = None) -> bool:
@@ -221,15 +223,10 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
 
     Returns True if successful, False otherwise.
     """
-    import time
-
-    log_file = "/tmp/lemonaid-openclaw-register.log"
-
     # Get TTY - should inherit from TUI process
     tty = get_tty()
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] register: session_id={session_id}, tty={tty}\n")
+    _log.info("register: session_id=%s, tty=%s", session_id, tty)
 
     if not tty:
         print("Warning: Could not detect TTY. Notification will use cwd-based matching.")
@@ -251,15 +248,10 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
             print(f"Session not found: {session_id}")
         else:
             print("No OpenClaw session found")
-        with open(log_file, "a") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] no session found\n")
+        _log.info("no session found")
         return False
 
-    with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] found session: {session_id[:8]}, "
-            f"agent={agent_id}, cwd={session_cwd}\n"
-        )
+    _log.info("found session: %s, agent=%s, cwd=%s", session_id[:8], agent_id, session_cwd)
 
     # Use session's cwd (from header), not the TUI's working directory
     cwd = session_cwd or cwd or os.getcwd()
@@ -282,6 +274,9 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     }
     if agent_id:
         metadata["agent_id"] = agent_id
+        session_key = get_session_key(agent_id, session_id)
+        if session_key:
+            metadata["session_key"] = session_key
     if tty:
         metadata["tty"] = tty
 
@@ -338,7 +333,6 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     print()
     print("If this is the wrong session, use: lemonaid openclaw register --session-id <id>")
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] {action}: {channel}, tty={tty}\n")
+    _log.info("%s: %s, tty=%s", action, channel, tty)
 
     return True

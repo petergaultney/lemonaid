@@ -73,7 +73,7 @@ def describe_activity(entry: dict) -> str | None:
                 if isinstance(block, dict) and block.get("type") in ("output_text", "text"):
                     text = block.get("text", "")
                     if text.strip():
-                        first_line = text.strip().split("\n")[0][:60]
+                        first_line = text.strip().split("\n")[0][:200]
                         if len(first_line) < len(text.strip().split("\n")[0]):
                             first_line += "..."
                         return first_line
@@ -91,7 +91,7 @@ def describe_activity(entry: dict) -> str | None:
             if isinstance(action, dict):
                 query = action.get("query")
                 if isinstance(query, str) and query:
-                    return f"Searching: {query[:30]}"
+                    return f"Searching: {query[:80]}"
             return "Web search"
 
         if payload_type == "message":
@@ -103,7 +103,7 @@ def describe_activity(entry: dict) -> str | None:
                         if isinstance(block, dict) and block.get("type") == "output_text":
                             text = block.get("text", "")
                             if text.strip():
-                                first_line = text.strip().split("\n")[0][:60]
+                                first_line = text.strip().split("\n")[0][:200]
                                 if len(first_line) < len(text.strip().split("\n")[0]):
                                     first_line += "..."
                                 return first_line
@@ -169,8 +169,8 @@ def _describe_command(cmd: str) -> str:
         return "Running command"
 
     cmd = cmd.strip()
-    if len(cmd) > 50:
-        return f"Running: {cmd[:47]}..."
+    if len(cmd) > 120:
+        return f"Running: {cmd[:117]}..."
     return f"Running: {cmd}"
 
 
@@ -198,7 +198,7 @@ def _describe_function_call(payload: dict) -> str:
         if isinstance(args, dict):
             uri = args.get("uri", "") or ""
         if uri:
-            return f"Reading {uri[:30]}"
+            return f"Reading {uri[:80]}"
         return "Reading resource"
 
     return f"Using {name}"
