@@ -218,6 +218,12 @@ def add(
         # Look for any existing notification for this channel (including read/archived)
         existing = get_by_channel(conn, channel, unread_only=False)
         if existing:
+            # Preserve user-set name: if auto_name is in existing metadata,
+            # the user renamed this session — keep their name and carry forward auto_name.
+            if "auto_name" in existing.metadata:
+                metadata["auto_name"] = existing.metadata["auto_name"]
+                name = existing.name
+
             conn.execute(
                 """
                 UPDATE notifications
