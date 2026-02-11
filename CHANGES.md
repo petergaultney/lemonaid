@@ -1,3 +1,9 @@
+# 0.6.2 (2026-02-11)
+
+#### Fixed
+
+- **Rename persistence**: User-set session names via the TUI rename action now survive notification upserts. Previously, every hook firing (idle, turn-complete, etc.) would overwrite the custom name with the auto-detected one.
+
 # 0.6.1 (2026-02-11)
 
 #### Fixed
