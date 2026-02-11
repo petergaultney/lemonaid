@@ -1,3 +1,16 @@
+# 0.6.1 (2026-02-11)
+
+#### Fixed
+
+- **Non-switchable sessions in lower pane**: Sessions without a matching `switch_source` (NULL or different env) now always appear in a separate non-switchable section instead of mixing into the main table. Replaces the `show_all_sources` config option.
+- **Stale session cleanup across all sources**: Watcher now checks all sessions for dead panes/processes, not just those matching the current environment.
+- **Navigable non-switchable pane**: Arrow keys flow between main and non-switchable tables; archive/mark-read work on both, but Enter/select is blocked on non-switchable sessions.
+- **Smart timestamps**: Sessions older than 24 hours show date instead of time.
+
+#### Removed
+
+- `show_all_sources` TUI config option (non-switchable sessions are now always shown)
+
 # 0.6.0 (2026-02-03)
 
 #### Added

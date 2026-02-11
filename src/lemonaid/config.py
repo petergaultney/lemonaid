@@ -73,7 +73,6 @@ class TuiConfig:
     """Configuration for the TUI."""
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
-    show_all_sources: bool = False  # Show sessions from all sources (tmux+wezterm)
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
 
 
@@ -139,7 +138,6 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
-        show_all_sources=tui_data.get("show_all_sources", False),
         keybindings=keybindings,
     )
 

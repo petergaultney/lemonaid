@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import time
 from datetime import datetime
 
 from rich.text import Text
@@ -19,6 +20,15 @@ from ...openclaw import watcher as openclaw_watcher
 from .. import db
 from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
+
+_DAY_SECONDS = 86400
+
+
+def _format_timestamp(ts: float) -> str:
+    dt = datetime.fromtimestamp(ts)
+    if time.time() - ts < _DAY_SECONDS:
+        return dt.strftime("%H:%M:%S")
+    return dt.strftime("%Y-%m-%d")
 
 
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
@@ -148,7 +158,6 @@ class LemonaidApp(App):
         self._setup_table(self.query_one("#main_table", DataTable))
         other_table = self.query_one("#other_sources_table", DataTable)
         self._setup_table(other_table)
-        other_table.can_focus = False
 
         # Hide other sources section initially
         self.query_one("#other_sources_label", Static).display = False
@@ -224,19 +233,21 @@ class LemonaidApp(App):
         other_table = self.query_one("#other_sources_table", DataTable)
         other_label = self.query_one("#other_sources_label", Static)
 
-        # Remember current selection (both key and index)
+        # Remember current selection (both key and index) for both tables
         current_key = self._get_current_row_key()
         current_index = self._get_current_row_index()
+        other_index = other_table.cursor_coordinate.row if other_table.row_count > 0 else 0
+        focused_on_other = self.focused is other_table
 
         main_table.clear()
         other_table.clear()
 
         with db.connect() as conn:
             env_filter = self.current_env if self.current_env != "unknown" else None
-            # Always get current source for main table
+            # Main table: only sessions switchable from the current environment
             current_notifications = db.get_active(conn, switch_source=env_filter)
-            # Get other sources if configured
-            if self.config.tui.show_all_sources and env_filter:
+            # Lower pane: everything we can't switch to
+            if env_filter:
                 all_notifications = db.get_active(conn, switch_source=None)
                 other_notifications = [
                     n for n in all_notifications if n.switch_source != env_filter
@@ -247,7 +258,7 @@ class LemonaidApp(App):
         unread_count = 0
 
         for n in current_notifications:
-            created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
+            created = _format_timestamp(n.created_at)
             tty = n.metadata.get("tty", "")
             if tty:
                 tty = tty.replace("/dev/", "")
@@ -269,16 +280,14 @@ class LemonaidApp(App):
                 key=str(n.id),
             )
 
-        # Populate other sources table (always dim, not interactive)
+        # Populate non-switchable table (always dim, not interactive)
         if other_notifications:
-            # Group by source for the label
-            other_sources = set(n.switch_source for n in other_notifications if n.switch_source)
-            other_label.update(f"── {', '.join(sorted(other_sources))} ──")
+            other_label.update("── non-switchable ──")
             other_label.display = True
             other_table.display = True
 
             for n in other_notifications:
-                created = datetime.fromtimestamp(n.created_at).strftime("%H:%M:%S")
+                created = _format_timestamp(n.created_at)
                 tty = n.metadata.get("tty", "")
                 if tty:
                     tty = tty.replace("/dev/", "")
@@ -298,6 +307,12 @@ class LemonaidApp(App):
         else:
             other_label.display = False
             other_table.display = False
+            if focused_on_other:
+                self.query_one("#main_table", DataTable).focus()
+
+        # Restore other table cursor
+        if other_table.row_count > 0:
+            other_table.move_cursor(row=min(other_index, other_table.row_count - 1))
 
         # Restore cursor position
         if main_table.row_count > 0:
@@ -337,23 +352,45 @@ class LemonaidApp(App):
         else:
             self.exit()
 
+    def _focused_table(self) -> DataTable:
+        focused = self.focused
+        if isinstance(focused, DataTable):
+            return focused
+        return self.query_one("#main_table", DataTable)
+
     def action_cursor_up(self) -> None:
-        """Move cursor up in the table."""
-        self.query_one("#main_table", DataTable).action_cursor_up()
+        """Move cursor up, jumping to main table from other table when at top."""
+        table = self._focused_table()
+        if table.id == "other_sources_table" and table.cursor_coordinate.row == 0:
+            main = self.query_one("#main_table", DataTable)
+            main.focus()
+            if main.row_count > 0:
+                main.move_cursor(row=main.row_count - 1)
+        else:
+            table.action_cursor_up()
 
     def action_cursor_down(self) -> None:
-        """Move cursor down in the table."""
-        self.query_one("#main_table", DataTable).action_cursor_down()
+        """Move cursor down, jumping to other table from main table when at bottom."""
+        table = self._focused_table()
+        if table.id == "main_table" and table.cursor_coordinate.row >= table.row_count - 1:
+            other = self.query_one("#other_sources_table", DataTable)
+            if other.display and other.row_count > 0:
+                other.focus()
+                other.move_cursor(row=0)
+                return
+
+        table.action_cursor_down()
 
     def action_select(self) -> None:
-        """Select the current row (same as Enter)."""
-        self.query_one("#main_table", DataTable).action_select_cursor()
+        """Select the current row (same as Enter). No-op on non-switchable table."""
+        if self._focused_table().id == "main_table":
+            self.query_one("#main_table", DataTable).action_select_cursor()
 
     def action_refresh(self) -> None:
         self._refresh_notifications()
 
     def action_mark_read(self) -> None:
-        table = self.query_one("#main_table", DataTable)
+        table = self._focused_table()
         if table.row_count == 0:
             return
 
@@ -367,7 +404,7 @@ class LemonaidApp(App):
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
-        table = self.query_one("#main_table", DataTable)
+        table = self._focused_table()
         if table.row_count == 0:
             return
 
@@ -461,11 +498,13 @@ class LemonaidApp(App):
     ) -> list[tuple[str, str, str, float, bool, str | None, str, str | None]]:
         """Get active notifications for the transcript watcher.
 
+        Returns all sessions (not just switchable) so stale cleanup can
+        archive dead sessions regardless of switch_source.
+
         Returns list of (channel, session_id, cwd, created_at, is_unread, tty, message, switch_source).
         """
         with db.connect() as conn:
-            env_filter = self.current_env if self.current_env != "unknown" else None
-            notifications = db.get_active(conn, switch_source=env_filter)
+            notifications = db.get_active(conn, switch_source=None)
 
         result = []
         for n in notifications:
