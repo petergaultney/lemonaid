@@ -142,8 +142,7 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
     """Get active sessions (one per channel), unread first then by recency.
 
     Returns only the most recent notification per channel, excluding archived.
-    If switch_source is provided, filters to only notifications from that source
-    (or with NULL switch_source for backwards compatibility).
+    If switch_source is provided, filters to only notifications with that exact source.
     """
     if switch_source:
         rows = conn.execute(
@@ -155,7 +154,7 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
             WHERE n.status != 'archived'
-            AND (n.switch_source = ? OR n.switch_source IS NULL)
+            AND n.switch_source = ?
             ORDER BY
                 CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
                 n.created_at DESC
