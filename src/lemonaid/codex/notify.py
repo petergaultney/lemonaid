@@ -10,16 +10,20 @@ from pathlib import Path
 from ..inbox import db
 from ..lemon_watchers import (
     detect_terminal_switch_source,
+    get_git_branch,
     get_name_from_cwd,
     get_tty,
     shorten_path,
 )
+from ..log import get_logger
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
     find_session_path,
     read_session_meta,
 )
+
+_log = get_logger("codex.notify")
 
 
 def _parse_input_messages(data: dict) -> str | None:
@@ -97,18 +101,13 @@ def handle_notification(
     Reads JSON from stdin (as provided by Codex notify) and adds
     a notification to the lemonaid inbox.
     """
-    import time
-
-    log_file = "/tmp/lemonaid-codex-notify.log"
-
     if stdin_data is None:
         stdin_data = sys.stdin.read()
         # Codex notify passes a single JSON argument, not stdin.
         if not stdin_data.strip() and len(sys.argv) > 1 and sys.argv[-1].lstrip().startswith("{"):
             stdin_data = sys.argv[-1]
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_data[:200]}\n")
+    _log.info("stdin: %s", stdin_data[:200])
 
     try:
         data = json.loads(stdin_data) if stdin_data else {}
@@ -160,6 +159,9 @@ def handle_notification(
     thread_id = data.get("thread_id") or data.get("thread-id") or data.get("threadId")
     if isinstance(thread_id, str) and thread_id:
         metadata["thread_id"] = thread_id
+    branch = get_git_branch(cwd or "")
+    if branch:
+        metadata["git_branch"] = branch
 
     # Try to get TTY for pane matching
     tty = get_tty()
@@ -180,10 +182,7 @@ def handle_notification(
             switch_source=switch_source if switch_source != "unknown" else None,
         )
 
-    with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] added: channel={channel}, type={notification_type}\n"
-        )
+    _log.info("added: channel=%s, type=%s", channel, notification_type)
 
 
 def dismiss_session(session_id: str, debug: bool = False) -> int:
@@ -205,15 +204,11 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
 def handle_dismiss(debug: bool = False) -> None:
     """Dismiss (mark as read) the notification for this Codex session."""
-    import time
-
     debug = debug or os.environ.get("LEMONAID_DEBUG") == "1"
-    log_file = "/tmp/lemonaid-codex-dismiss.log"
 
     stdin_raw = sys.stdin.read() or "{}"
 
-    with open(log_file, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] stdin: {stdin_raw[:100]}\n")
+    _log.info("dismiss stdin: %s", stdin_raw[:100])
 
     try:
         data = json.loads(stdin_raw)
@@ -223,7 +218,4 @@ def handle_dismiss(debug: bool = False) -> None:
     session_id = _extract_session_id(data, None)
     count = dismiss_session(session_id or "", debug=debug)
 
-    with open(log_file, "a") as f:
-        f.write(
-            f"[{time.strftime('%H:%M:%S')}] session_id={session_id[:8] if session_id else 'NONE'}, marked={count}\n"
-        )
+    _log.info("dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count)

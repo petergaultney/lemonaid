@@ -1,21 +1,29 @@
 """Main Lemonaid TUI application."""
 
 import contextlib
+import dataclasses
 import os
+import shlex
+import subprocess
 import time
 from datetime import datetime
 
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from ...claude import watcher as claude_watcher
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...codex import watcher as codex_watcher
 from ...config import load_config
 from ...handlers import handle_notification
-from ...lemon_watchers import detect_terminal_switch_source, start_unified_watcher
+from ...lemon_watchers import (
+    detect_terminal_switch_source,
+    fish_path,
+    start_unified_watcher,
+)
+from ...log import get_logger
 from ...openclaw import watcher as openclaw_watcher
 from .. import db
 from .screens import RenameScreen
@@ -24,11 +32,48 @@ from .utils import set_terminal_title, styled_cell
 _DAY_SECONDS = 86400
 
 
+_log = get_logger("tui")
+
+
 def _format_timestamp(ts: float) -> str:
     dt = datetime.fromtimestamp(ts)
     if time.time() - ts < _DAY_SECONDS:
         return dt.strftime("%H:%M:%S")
     return dt.strftime("%Y-%m-%d")
+
+
+_BACKEND_ICONS = {"claude": "🔶", "codex": "📜", "openclaw": "🦞"}
+
+
+def _backend_icon(channel: str) -> str:
+    prefix = channel.split(":")[0] if ":" in channel else channel
+    return _BACKEND_ICONS.get(prefix, "?")
+
+
+def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]] | None:
+    """Build a (cwd, shell_command_string) for resuming a session.
+
+    Returns None if there's not enough metadata to build a useful command.
+    """
+    cwd = notification.metadata.get("cwd")
+    if not cwd:
+        return None
+
+    session_id = notification.metadata.get("session_id", "")
+    if notification.channel.startswith("claude:") and session_id:
+        return (cwd, ["claude", "--resume", session_id])
+
+    if notification.channel.startswith("codex:") and session_id:
+        return (cwd, ["codex", "resume", session_id])
+
+    if notification.channel.startswith("openclaw:"):
+        from ...openclaw.utils import build_resume_argv
+
+        argv = build_resume_argv(notification.metadata)
+        if argv:
+            return (cwd, argv)
+
+    return None
 
 
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
@@ -55,6 +100,37 @@ def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> li
         bindings.append(Binding(key, action, label, show=False))
 
     return bindings
+
+
+def _stretch_columns(
+    table: DataTable,
+    flex_specs: list[tuple[int, int, float]],
+    total_width: int,
+) -> None:
+    """Distribute remaining table width among flex columns.
+
+    Textual DataTable doesn't natively expand columns to fill available width.
+    Each flex_spec is (column_index, min_width, weight).
+    Remaining space after fixed columns is divided proportionally by weight,
+    with a minimum floor of min_width.
+    """
+    if not flex_specs or not table.columns or total_width <= 0:
+        return
+
+    columns = list(table.columns.values())
+    flex_indices = {idx for idx, _, _ in flex_specs}
+    padding_total = 2 * table.cell_padding * len(columns) + 1
+    fixed_total = sum(c.width for i, c in enumerate(columns) if i not in flex_indices)
+    remaining = total_width - fixed_total - padding_total
+    if remaining <= 0:
+        return
+
+    total_weight = sum(frac for _, _, frac in flex_specs)
+    for idx, min_w, frac in flex_specs:
+        if idx < len(columns):
+            share = int(remaining * frac / total_weight) if total_weight else min_w
+            columns[idx].auto_width = False
+            columns[idx].width = max(share, min_w)
 
 
 class LemonaidApp(App):
@@ -85,6 +161,15 @@ class LemonaidApp(App):
         color: $text-muted;
         padding: 0 1;
     }
+
+    #history_filter {
+        height: 3;
+        border: solid $accent;
+    }
+
+    #history_table {
+        height: 1fr;
+    }
     """
 
     def __init__(self, scratch_mode: bool = False) -> None:
@@ -95,6 +180,9 @@ class LemonaidApp(App):
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
+        self._history_mode = False
+        self._history_filter = ""
+        self._exec_on_exit: tuple[str, list[str]] | None = None
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -110,7 +198,7 @@ class LemonaidApp(App):
         self.bind("escape", "quit", description="Quit", show=False)
 
         # Select row (Enter always works via DataTable, these are additional keys)
-        for b in _build_bindings(kb.select, "select", "Select", show=False):
+        for b in _build_bindings(kb.select, "select", "Switch"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.refresh, "refresh", "Refresh", show=False):
@@ -128,6 +216,14 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.rename, "rename", "Rename"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
+        for b in _build_bindings(kb.history, "toggle_history", "History"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
+            self.bind(b.key, b.action, description=b.description, show=False)
+
+        self.bind("slash", "filter_history", description="Filter", show=False)
+
         # Patch Claude (always hidden, always 'P')
         self.bind("P", "patch_claude", description="Patch Claude", show=False)
 
@@ -142,6 +238,8 @@ class LemonaidApp(App):
         yield DataTable(id="main_table")
         yield Static("", id="other_sources_label")
         yield DataTable(id="other_sources_table", show_header=False)
+        yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
+        yield DataTable(id="history_table")
         yield Static("", id="status")
         yield Footer()
 
@@ -154,17 +252,22 @@ class LemonaidApp(App):
             self.screen.styles.background = "transparent"
             self.query_one("#main_table", DataTable).styles.background = "transparent"
             self.query_one("#other_sources_table", DataTable).styles.background = "transparent"
+            self.query_one("#history_table", DataTable).styles.background = "transparent"
 
         self._setup_table(self.query_one("#main_table", DataTable))
         other_table = self.query_one("#other_sources_table", DataTable)
         self._setup_table(other_table)
 
-        # Hide other sources section initially
+        history_table = self.query_one("#history_table", DataTable)
+        self._setup_table(history_table)
+
+        # Hide other sources section and history initially
         self.query_one("#other_sources_label", Static).display = False
         other_table.display = False
+        history_table.display = False
+        self.query_one("#history_filter", Input).display = False
 
         self._refresh_notifications()
-        # Auto-refresh every 2 seconds
         self.set_interval(1.0, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss, message updates, and exit detection
         start_unified_watcher(
@@ -175,20 +278,34 @@ class LemonaidApp(App):
             archive_channel=self._archive_channel,
             mark_unread=self._mark_channel_unread,
         )
-        # Check Claude patch status after initial render (reads 180MB binary)
         self.call_later(self._check_claude_patch)
+        self.call_later(self._stretch_all_tables)
+        # Kick Footer to pick up dynamically-bound keys
+        self.refresh_bindings()
 
     def _check_claude_patch(self) -> None:
-        """Check Claude Code patch status in a background thread."""
+        """Check Claude Code patch status in a child process (avoids GIL stall).
+
+        The check does regex over a ~180MB binary. Running it in-process
+        via a thread starves the Textual event loop because CPython's re
+        module holds the GIL for the entire scan. A separate process has
+        its own GIL.
+        """
         if not self._claude_binary:
             self._claude_patch_status = None
             return
 
         import threading
+        from concurrent.futures import ProcessPoolExecutor
+
+        binary = self._claude_binary
 
         def check():
-            status = check_status(self._claude_binary)
-            # Schedule UI update back on main thread
+            try:
+                with ProcessPoolExecutor(max_workers=1) as pool:
+                    status = pool.submit(check_status, binary).result(timeout=10)
+            except Exception:
+                status = "unknown"
             self.call_from_thread(self._set_patch_status, status)
 
         threading.Thread(target=check, daemon=True).start()
@@ -202,15 +319,31 @@ class LemonaidApp(App):
         """Refresh when the app regains focus."""
         self._refresh_notifications()
 
+    def on_resize(self) -> None:
+        self._stretch_all_tables()
+
+    def _stretch_all_tables(self) -> None:
+        w = self.size.width
+        if w <= 0:
+            return
+
+        # (column_index, min_width, weight) — same layout for all tables
+        # Name(3), Branch(4), CWD(5), Message(6) are flexible
+        flex = [(3, 12, 0.10), (4, 12, 0.12), (5, 15, 0.15), (6, 25, 0.50)]
+        _stretch_columns(self.query_one("#main_table", DataTable), flex, w)
+        _stretch_columns(self.query_one("#other_sources_table", DataTable), flex, w)
+        _stretch_columns(self.query_one("#history_table", DataTable), flex, w)
+
     def _setup_table(self, table: DataTable) -> None:
         table.cursor_type = "row"
         table.add_column("Time", width=10)
         table.add_column("", width=1)  # Unread indicator
-        table.add_column("Name", width=20)
-        table.add_column("Message")  # No width = expands to fill
-        table.add_column("Channel", width=15)
-        table.add_column("ID", width=5)
-        table.add_column("TTY", width=12)
+        table.add_column("", width=3)  # Backend icon
+        table.add_column("Name", width=14)
+        table.add_column("Branch", width=14)
+        table.add_column("CWD", width=25)
+        table.add_column("Message", width=30)  # Stretched on resize
+        table.add_column("TTY", width=10)
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
@@ -229,6 +362,10 @@ class LemonaidApp(App):
         return table.cursor_coordinate.row
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
+        # Don't refresh the active inbox while in history mode
+        if self._history_mode:
+            return
+
         main_table = self.query_one("#main_table", DataTable)
         other_table = self.query_one("#other_sources_table", DataTable)
         other_label = self.query_one("#other_sources_label", Static)
@@ -269,19 +406,30 @@ class LemonaidApp(App):
 
             indicator = Text("●", style="bold cyan") if is_unread else Text("")
 
+            cwd = fish_path(n.metadata.get("cwd", ""))
+            branch = n.metadata.get("git_branch", "")
+
             main_table.add_row(
                 styled_cell(created, is_unread),
                 indicator,
+                styled_cell(_backend_icon(n.channel), is_unread),
                 styled_cell(n.name or "", is_unread),
+                styled_cell(branch, is_unread),
+                styled_cell(cwd, is_unread),
                 styled_cell(n.message, is_unread),
-                styled_cell(n.channel, is_unread),
-                styled_cell(str(n.id), is_unread),
                 styled_cell(tty, is_unread),
                 key=str(n.id),
             )
 
-        # Populate non-switchable table (always dim, not interactive)
-        if other_notifications:
+        # Populate non-switchable table (always dim, not interactive).
+        # Hide it if the terminal is too short — main table gets priority.
+        _MIN_MAIN_ROWS = 5
+        chrome = 4  # header + status + footer + other_label
+        other_height = min(len(other_notifications), 8)
+        room_for_main = self.size.height - chrome - other_height
+        show_other = other_notifications and room_for_main >= _MIN_MAIN_ROWS
+
+        if show_other:
             other_label.update("── non-switchable ──")
             other_label.display = True
             other_table.display = True
@@ -294,13 +442,17 @@ class LemonaidApp(App):
 
                 indicator = Text("○", style="dim") if n.is_unread else Text("")
 
+                cwd = fish_path(n.metadata.get("cwd", ""))
+                branch = n.metadata.get("git_branch", "")
+
                 other_table.add_row(
                     Text(created, style="dim"),
                     indicator,
+                    Text(_backend_icon(n.channel), style="dim"),
                     Text(n.name or "", style="dim"),
+                    Text(branch, style="dim cyan"),
+                    Text(cwd, style="dim"),
                     Text(n.message, style="dim"),
-                    Text(n.channel, style="dim"),
-                    Text(str(n.id), style="dim"),
                     Text(tty, style="dim"),
                     key=str(n.id),
                 )
@@ -346,11 +498,220 @@ class LemonaidApp(App):
         status.update(status_text)
 
     def action_quit(self) -> None:
-        """Quit the app, or just hide the pane in scratch mode."""
+        """Quit the app, or just hide the pane in scratch mode.
+
+        In history mode, q quits directly (use h to return to active view).
+        """
         if self._scratch_mode:
             self._hide_scratch_pane()
         else:
             self.exit()
+
+    def action_toggle_history(self) -> None:
+        self._set_history_mode(not self._history_mode)
+
+    def _set_binding_footer(
+        self, action: str, *, show: bool | None = None, label: str | None = None
+    ) -> None:
+        """Toggle visibility or label of the primary binding for an action."""
+        found = False
+        for key, bindings in self._bindings.key_to_bindings.items():
+            for i, binding in enumerate(bindings):
+                if binding.action != action:
+                    continue
+
+                replacements: dict = {}
+                if not found and show is not None:
+                    replacements["show"] = show
+                if label is not None:
+                    replacements["description"] = label
+                if replacements:
+                    self._bindings.key_to_bindings[key][i] = dataclasses.replace(
+                        binding, **replacements
+                    )
+                found = True
+
+    def _set_history_mode(self, enabled: bool) -> None:
+        self._history_mode = enabled
+        self._history_filter = ""
+
+        main_table = self.query_one("#main_table", DataTable)
+        other_label = self.query_one("#other_sources_label", Static)
+        other_table = self.query_one("#other_sources_table", DataTable)
+        history_table = self.query_one("#history_table", DataTable)
+        history_filter = self.query_one("#history_filter", Input)
+
+        # Inbox-only actions
+        for action in ("jump_unread", "mark_read", "archive", "rename"):
+            self._set_binding_footer(action, show=not enabled)
+
+        # History-only actions
+        for action in ("copy_resume", "filter_history"):
+            self._set_binding_footer(action, show=enabled)
+
+        # Relabel contextual actions
+        self._set_binding_footer(
+            "toggle_history",
+            label="Exit History" if enabled else "History",
+        )
+        self._set_binding_footer(
+            "select",
+            label="Resume" if enabled else "Switch",
+        )
+        self.refresh_bindings()
+
+        if enabled:
+            self.sub_title = "session history"
+            main_table.display = False
+            other_label.display = False
+            other_table.display = False
+            history_table.display = True
+            history_filter.display = False
+            history_filter.value = ""
+            self._refresh_history()
+            history_table.focus()
+        else:
+            self.sub_title = "attention inbox"
+            main_table.display = True
+            history_table.display = False
+            history_filter.display = False
+            self._refresh_notifications()
+            main_table.focus()
+
+    def _refresh_history(self) -> None:
+        history_table = self.query_one("#history_table", DataTable)
+        current_row = history_table.cursor_coordinate.row if history_table.row_count > 0 else 0
+
+        history_table.clear()
+
+        with db.connect() as conn:
+            notifications = db.get_history(conn, search=self._history_filter)
+
+        for n in notifications:
+            # Only show sessions from backends that support resume
+            if not any(n.channel.startswith(f"{b}:") for b in _BACKEND_ICONS):
+                continue
+
+            created = _format_timestamp(n.created_at)
+            cwd = fish_path(n.metadata.get("cwd", ""))
+            branch = n.metadata.get("git_branch", "")
+
+            history_table.add_row(
+                Text(created, style="dim"),
+                Text(""),  # No unread indicator for archived
+                Text(_backend_icon(n.channel), style="dim"),
+                Text(n.name or "", style=""),
+                Text(branch, style="dim cyan"),
+                Text(cwd, style="dim"),
+                Text(n.message, style="dim"),
+                Text("", style="dim"),  # No TTY for archived
+                key=str(n.id),
+            )
+
+        if history_table.row_count > 0:
+            history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
+
+        status = self.query_one("#status", Static)
+        count = history_table.row_count
+        status.update(f"{count} archived session{'s' if count != 1 else ''}")
+
+    def _resume_session(self, *, copy_only: bool = False) -> None:
+        """Resume the selected history session."""
+        history_table = self.query_one("#history_table", DataTable)
+        if history_table.row_count == 0:
+            return
+
+        row_key, _ = history_table.coordinate_to_cell_key(history_table.cursor_coordinate)
+        if not row_key:
+            return
+
+        notification_id = int(row_key.value)
+        with db.connect() as conn:
+            notification = db.get(conn, notification_id)
+
+        if not notification:
+            return
+
+        resume = _build_resume_command(notification)
+        if not resume:
+            self.notify("No cwd metadata — can't build resume command", severity="warning")
+            return
+
+        cwd, argv = resume
+        quoted_argv = [shlex.quote(a) for a in argv]
+        cmd_str = (
+            f"cd {shlex.quote(cwd)} && {' '.join(quoted_argv)}"
+            if argv
+            else f"cd {shlex.quote(cwd)}"
+        )
+        mode = "copy" if copy_only else ("scratch-copy" if self._scratch_mode else "exec")
+        _log.info("resume: %s (%s) -> %s", notification.channel, mode, cmd_str)
+
+        # Unarchive so the session appears in the main inbox immediately
+        with db.connect() as conn:
+            conn.execute(
+                "UPDATE notifications SET status = 'unread', read_at = NULL, created_at = ? WHERE id = ?",
+                (time.time(), notification.id),
+            )
+            conn.commit()
+
+        # Non-scratch, non-copy: exec in the current terminal
+        if not copy_only and not self._scratch_mode and argv:
+            self._exec_on_exit = (cwd, argv)
+            self.exit()
+            return
+
+        # Copy to clipboard
+        try:
+            subprocess.run(["pbcopy"], input=cmd_str.encode(), check=True)
+            self.notify(f"Copied: {cmd_str}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.notify(f"Resume: {cmd_str}", severity="information")
+
+        if self._scratch_mode and not copy_only:
+            self._hide_scratch_pane()
+
+    def action_copy_resume(self) -> None:
+        """Copy the resume command for the selected history session."""
+        if not self._history_mode:
+            return
+        self._resume_session(copy_only=True)
+
+    def action_filter_history(self) -> None:
+        """Show the filter input in history mode."""
+        if not self._history_mode:
+            return
+        history_filter = self.query_one("#history_filter", Input)
+        history_filter.display = True
+        history_filter.focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "history_filter":
+            self._history_filter = event.value
+            self._refresh_history()
+
+    def on_key(self, event) -> None:
+        """Handle special keys in the filter input."""
+        if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
+            return
+
+        # Down/Enter: keep filter active, move focus to table for navigation
+        if event.key in ("down", "enter"):
+            event.prevent_default()
+            event.stop()
+            self.query_one("#history_table", DataTable).focus()
+            return
+
+        # Escape: clear filter, hide it, focus table
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self._history_filter = ""
+            history_filter = self.query_one("#history_filter", Input)
+            history_filter.value = ""
+            history_filter.display = False
+            self._refresh_history()
+            self.query_one("#history_table", DataTable).focus()
 
     def _focused_table(self) -> DataTable:
         focused = self.focused
@@ -383,8 +744,11 @@ class LemonaidApp(App):
 
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
-        if self._focused_table().id == "main_table":
-            self.query_one("#main_table", DataTable).action_select_cursor()
+        table = self._focused_table()
+        if self._history_mode and table.id == "history_table":
+            self._resume_session()
+        elif table.id == "main_table":
+            table.action_select_cursor()
 
     def action_refresh(self) -> None:
         self._refresh_notifications()
@@ -398,7 +762,10 @@ class LemonaidApp(App):
         if row_key:
             notification_id = int(row_key.value)
             with db.connect() as conn:
+                n = db.get(conn, notification_id)
                 db.mark_read(conn, notification_id)
+            if n:
+                _log.info("mark_read: %s", n.channel)
             # Keep cursor on unread items when possible
             self._refresh_notifications(stay_on_unread=True)
 
@@ -484,8 +851,6 @@ class LemonaidApp(App):
 
     def _hide_scratch_pane(self) -> None:
         """Hide this pane by breaking it to a new window (for scratch mode)."""
-        import subprocess
-
         pane_id = os.environ.get("TMUX_PANE")
         if pane_id:
             subprocess.run(
@@ -544,17 +909,21 @@ class LemonaidApp(App):
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""
         with db.connect() as conn:
-            notification = db.get_by_channel(conn, channel, unread_only=False)
-            if notification:
-                db.archive(conn, notification.id)
+            conn.execute(
+                "UPDATE notifications SET status = 'archived' WHERE channel = ?",
+                (channel,),
+            )
+            conn.commit()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter on a row - switch to that session without marking as read.
+        """Handle Enter on a row.
 
-        The notification will be marked read when the user actually submits input
-        in that session (via the UserPromptSubmit hook).
+        Main table: switch to session. History table: resume session.
         """
-        # Only handle events from the main table
+        if event.data_table.id == "history_table":
+            self._resume_session()
+            return
+
         if event.data_table.id != "main_table":
             return
 

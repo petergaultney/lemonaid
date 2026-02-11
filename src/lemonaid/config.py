@@ -65,6 +65,8 @@ class KeybindingsConfig:
     mark_read: str = "m"
     archive: str = "a"
     rename: str = "r"
+    history: str = "h"  # Toggle history view
+    copy_resume: str = "c"  # Copy resume command to clipboard
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 

@@ -13,6 +13,8 @@ def test_keybindings_defaults():
     assert kb.mark_read == "m"
     assert kb.archive == "a"
     assert kb.rename == "r"
+    assert kb.history == "h"
+    assert kb.copy_resume == "c"
     assert kb.up_down == ""
 
 

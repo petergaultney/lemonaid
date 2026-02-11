@@ -34,9 +34,7 @@ def test_describe_activity_tool_use_bash():
     entry = {
         "type": "assistant",
         "message": {
-            "content": [
-                {"type": "tool_use", "name": "Bash", "input": {"command": "pytest tests/"}}
-            ]
+            "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "pytest tests/"}}]
         },
     }
     assert describe_activity(entry) == "Running pytest"
@@ -47,9 +45,7 @@ def test_describe_activity_tool_use_grep():
     entry = {
         "type": "assistant",
         "message": {
-            "content": [
-                {"type": "tool_use", "name": "Grep", "input": {"pattern": "def main"}}
-            ]
+            "content": [{"type": "tool_use", "name": "Grep", "input": {"pattern": "def main"}}]
         },
     }
     assert describe_activity(entry) == "Searching for def main"
@@ -77,26 +73,20 @@ def test_describe_activity_text_response():
     entry = {
         "type": "assistant",
         "message": {
-            "content": [
-                {"type": "text", "text": "Here's the solution:\n\nFirst, we need to..."}
-            ]
+            "content": [{"type": "text", "text": "Here's the solution:\n\nFirst, we need to..."}]
         },
     }
     assert describe_activity(entry) == "Here's the solution:"
 
 
 def test_describe_activity_text_truncation():
-    """describe_activity should truncate long text."""
+    """describe_activity should truncate very long text."""
     entry = {
         "type": "assistant",
-        "message": {
-            "content": [
-                {"type": "text", "text": "A" * 100}  # Very long first line
-            ]
-        },
+        "message": {"content": [{"type": "text", "text": "A" * 300}]},
     }
     result = describe_activity(entry)
-    assert len(result) <= 63  # 60 chars + "..."
+    assert len(result) <= 203  # 200 chars + "..."
     assert result.endswith("...")
 
 
@@ -133,9 +123,7 @@ def test_describe_activity_thinking_only():
     """describe_activity should return None for thinking-only entries."""
     entry = {
         "type": "assistant",
-        "message": {
-            "content": [{"type": "thinking", "thinking": "Let me think about this..."}]
-        },
+        "message": {"content": [{"type": "thinking", "thinking": "Let me think about this..."}]},
     }
     # Thinking-only entries return None so we keep looking for better messages
     assert describe_activity(entry) is None

@@ -87,6 +87,16 @@ def cmd_read(args: argparse.Namespace) -> None:
     print(f"Marked notification {args.id} as read")
 
 
+def cmd_purge(args: argparse.Namespace) -> None:
+    """Delete old archived/read notifications."""
+    with db.connect() as conn:
+        count = db.clear_old(conn, days=args.older_than)
+    if count > 0:
+        print(f"Purged {count} notification(s) older than {args.older_than} days")
+    else:
+        print("Nothing to purge")
+
+
 def cmd_tui(args: argparse.Namespace) -> None:
     """Launch the inbox TUI."""
     from .tui import LemonaidApp
@@ -128,6 +138,15 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser = inbox_subparsers.add_parser("read", help="Mark notification as read")
     read_parser.add_argument("id", type=int, help="Notification ID")
     read_parser.set_defaults(func=cmd_read)
+
+    # inbox purge
+    purge_parser = inbox_subparsers.add_parser(
+        "purge", help="Delete old archived/read notifications"
+    )
+    purge_parser.add_argument(
+        "--older-than", type=int, default=90, help="Days threshold (default: 90)"
+    )
+    purge_parser.set_defaults(func=cmd_purge)
 
     # Default for bare "lemonaid inbox" is TUI
     inbox_parser.set_defaults(func=cmd_tui, inbox_command=None)

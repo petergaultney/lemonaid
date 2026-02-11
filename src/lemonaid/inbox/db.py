@@ -151,6 +151,7 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
             INNER JOIN (
                 SELECT channel, MAX(id) as max_id
                 FROM notifications
+                WHERE status != 'archived'
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
             WHERE n.status != 'archived'
@@ -168,6 +169,7 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
             INNER JOIN (
                 SELECT channel, MAX(id) as max_id
                 FROM notifications
+                WHERE status != 'archived'
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
             WHERE n.status != 'archived'
@@ -175,6 +177,59 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
                 CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
                 n.created_at DESC
             """
+        ).fetchall()
+    return [Notification.from_row(row) for row in rows]
+
+
+def get_history(
+    conn: sqlite3.Connection,
+    limit: int = 200,
+    search: str = "",
+) -> list[Notification]:
+    """Get archived/read sessions for the history view, newest first.
+
+    Optionally filters by substring match on name, message, channel, cwd, or git_branch.
+    Returns only the most recent notification per channel.
+    """
+    if search:
+        pattern = f"%{search}%"
+        rows = conn.execute(
+            """
+            SELECT n.* FROM notifications n
+            INNER JOIN (
+                SELECT channel, MAX(id) as max_id
+                FROM notifications
+                WHERE status IN ('archived', 'read')
+                GROUP BY channel
+            ) latest ON n.id = latest.max_id
+            WHERE n.status IN ('archived', 'read')
+            AND (
+                n.name LIKE ?
+                OR n.message LIKE ?
+                OR n.channel LIKE ?
+                OR json_extract(n.metadata, '$.cwd') LIKE ?
+                OR json_extract(n.metadata, '$.git_branch') LIKE ?
+            )
+            ORDER BY n.created_at DESC
+            LIMIT ?
+            """,
+            (pattern, pattern, pattern, pattern, pattern, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT n.* FROM notifications n
+            INNER JOIN (
+                SELECT channel, MAX(id) as max_id
+                FROM notifications
+                WHERE status IN ('archived', 'read')
+                GROUP BY channel
+            ) latest ON n.id = latest.max_id
+            WHERE n.status IN ('archived', 'read')
+            ORDER BY n.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
         ).fetchall()
     return [Notification.from_row(row) for row in rows]
 
@@ -405,11 +460,20 @@ def mark_read_by_tty(conn: sqlite3.Connection, tty: str) -> int:
 
 
 def archive(conn: sqlite3.Connection, notification_id: int) -> None:
-    """Archive a notification (session ended or no longer relevant)."""
-    conn.execute(
-        "UPDATE notifications SET status = 'archived' WHERE id = ?",
-        (notification_id,),
-    )
+    """Archive a notification and all other rows sharing its channel."""
+    row = conn.execute(
+        "SELECT channel FROM notifications WHERE id = ?", (notification_id,)
+    ).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE notifications SET status = 'archived' WHERE channel = ?",
+            (row["channel"],),
+        )
+    else:
+        conn.execute(
+            "UPDATE notifications SET status = 'archived' WHERE id = ?",
+            (notification_id,),
+        )
     conn.commit()
 
 

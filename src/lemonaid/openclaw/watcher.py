@@ -112,7 +112,7 @@ def _describe_content(content: list | str) -> str | None:
     """Describe content from a message entry."""
     if isinstance(content, str):
         if content.strip():
-            first_line = content.strip().split("\n")[0][:60]
+            first_line = content.strip().split("\n")[0][:200]
             if len(first_line) < len(content.strip().split("\n")[0]):
                 first_line += "..."
             return first_line
@@ -134,7 +134,7 @@ def _describe_content(content: list | str) -> str | None:
         if block_type in ("text", "output_text"):
             text = block.get("text", "")
             if text.strip():
-                first_line = text.strip().split("\n")[0][:60]
+                first_line = text.strip().split("\n")[0][:200]
                 if len(first_line) < len(text.strip().split("\n")[0]):
                     first_line += "..."
                 return first_line
@@ -172,33 +172,33 @@ def _describe_tool_use(block: dict) -> str:
     if name in ("Bash", "shell", "shell_command"):
         cmd = input_data.get("command", "")
         if cmd:
-            if len(cmd) > 40:
-                return f"Running: {cmd[:37]}..."
+            if len(cmd) > 120:
+                return f"Running: {cmd[:117]}..."
             return f"Running: {cmd}"
         return "Running command"
 
     if name in ("Grep", "search", "grep"):
         pattern = input_data.get("pattern", input_data.get("query", ""))
         if pattern:
-            return f"Searching: {pattern[:30]}"
+            return f"Searching: {pattern[:80]}"
         return "Searching"
 
     if name in ("Glob", "find_files"):
         pattern = input_data.get("pattern", "")
         if pattern:
-            return f"Finding: {pattern[:30]}"
+            return f"Finding: {pattern[:80]}"
         return "Finding files"
 
     if name in ("WebFetch", "web_fetch", "fetch"):
         url = input_data.get("url", "")
         if url:
-            return f"Fetching: {url[:30]}"
+            return f"Fetching: {url[:80]}"
         return "Fetching URL"
 
     if name in ("WebSearch", "web_search"):
         query = input_data.get("query", "")
         if query:
-            return f"Searching: {query[:30]}"
+            return f"Searching: {query[:80]}"
         return "Web search"
 
     return f"Using {name}"
