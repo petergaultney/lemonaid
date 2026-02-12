@@ -1,3 +1,10 @@
+# 0.7.1 (2026-02-12)
+
+#### Changed
+
+- **Configurable backend labels**: The emoji icons for Claude/Codex/OpenClaw in the TUI are replaced with text labels. Defaults to the backend name; override via `[tui.backend_labels]` in config.
+- **Config reference doc**: Added `docs/config.md` as a central index of all config options.
+
 # 0.7.0 (2026-02-11)
 
 #### Added

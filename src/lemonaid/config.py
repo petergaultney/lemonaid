@@ -76,6 +76,10 @@ class TuiConfig:
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
+    # Override the label shown for each backend in the TUI.
+    # Keys are channel prefixes (claude, codex, openclaw); values are display strings.
+    # Unset backends default to their channel prefix.
+    backend_labels: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -141,6 +145,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
         keybindings=keybindings,
+        backend_labels=tui_data.get("backend_labels", {}),
     )
 
     return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui)

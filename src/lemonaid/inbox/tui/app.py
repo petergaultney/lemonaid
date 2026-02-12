@@ -42,12 +42,12 @@ def _format_timestamp(ts: float) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
-_BACKEND_ICONS = {"claude": "🔶", "codex": "📜", "openclaw": "🦞"}
+_RESUMABLE_BACKENDS = {"claude", "codex", "openclaw"}
 
 
-def _backend_icon(channel: str) -> str:
+def _backend_label(channel: str, overrides: dict[str, str]) -> str:
     prefix = channel.split(":")[0] if ":" in channel else channel
-    return _BACKEND_ICONS.get(prefix, "?")
+    return overrides.get(prefix, prefix)
 
 
 def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]] | None:
@@ -412,7 +412,7 @@ class LemonaidApp(App):
             main_table.add_row(
                 styled_cell(created, is_unread),
                 indicator,
-                styled_cell(_backend_icon(n.channel), is_unread),
+                styled_cell(_backend_label(n.channel, self.config.tui.backend_labels), is_unread),
                 styled_cell(n.name or "", is_unread),
                 styled_cell(branch, is_unread),
                 styled_cell(cwd, is_unread),
@@ -448,7 +448,7 @@ class LemonaidApp(App):
                 other_table.add_row(
                     Text(created, style="dim"),
                     indicator,
-                    Text(_backend_icon(n.channel), style="dim"),
+                    Text(_backend_label(n.channel, self.config.tui.backend_labels), style="dim"),
                     Text(n.name or "", style="dim"),
                     Text(branch, style="dim cyan"),
                     Text(cwd, style="dim"),
@@ -589,7 +589,7 @@ class LemonaidApp(App):
 
         for n in notifications:
             # Only show sessions from backends that support resume
-            if not any(n.channel.startswith(f"{b}:") for b in _BACKEND_ICONS):
+            if not any(n.channel.startswith(f"{b}:") for b in _RESUMABLE_BACKENDS):
                 continue
 
             created = _format_timestamp(n.created_at)
@@ -599,7 +599,7 @@ class LemonaidApp(App):
             history_table.add_row(
                 Text(created, style="dim"),
                 Text(""),  # No unread indicator for archived
-                Text(_backend_icon(n.channel), style="dim"),
+                Text(_backend_label(n.channel, self.config.tui.backend_labels), style="dim"),
                 Text(n.name or "", style=""),
                 Text(branch, style="dim cyan"),
                 Text(cwd, style="dim"),

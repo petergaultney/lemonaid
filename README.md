@@ -127,11 +127,11 @@ For JSON output and programmatic access (useful for lemons), see [docs/for-lemon
 
 ## Configuration
 
-Config file: `~/.config/lemonaid/config.toml`
+Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/config.md) for the full reference.
 
 - [docs/keybindings.md](docs/keybindings.md) - Customize TUI keybindings
-- [docs/tmux.md](docs/tmux.md) - tmux-specific options
-- [docs/wezterm.md](docs/wezterm.md) - WezTerm-specific options
+- [docs/tmux.md](docs/tmux.md) - tmux integration and session templates
+- [docs/wezterm.md](docs/wezterm.md) - WezTerm integration
 
 ## Architecture
 

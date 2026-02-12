@@ -4,7 +4,7 @@
 
 1. **Bump the version** in `pyproject.toml` if adding features or fixes
 2. **Update CHANGES.md** with a brief description of what changed
-3. **Update docs/** if the change affects user-facing behavior
+3. **Update docs/** if the change affects user-facing behavior (new config options go in `docs/config.md`)
 4. **Update README.md** if adding significant features (add to Features list)
 
 ## Version Scheme
