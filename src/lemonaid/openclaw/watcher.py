@@ -1,7 +1,8 @@
 """OpenClaw session watcher backend.
 
 Provides OpenClaw-specific functions for the unified watcher:
-- get_session_path: Find session files
+- get_session_path: Find session files (local or remote via DB lookup)
+- read_lines: Read session lines (local or remote via SSH)
 - describe_activity: Describe what OpenClaw is doing
 - should_dismiss: Detect when to auto-dismiss notifications
 
@@ -15,22 +16,78 @@ OpenClaw session entries have these types:
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
+from ..config import load_config
+from ..inbox import db
+from ..lemon_watchers.watcher import read_jsonl_tail
+from ..log import get_logger
 from .utils import find_session_path as _find_session_path
 
+_log = get_logger("openclaw.watcher")
+
 CHANNEL_PREFIX = "openclaw:"
+
+
+def _read_jsonl_tail_ssh(host: str, path: str, max_bytes: int = 64 * 1024) -> list[str]:
+    """Read the last N bytes of a remote JSONL file via SSH.
+
+    Uses `tail -c` on the remote host. Skips the first line since it may
+    be a partial line from a mid-file seek. Relies on the user's SSH config
+    for ControlMaster connection reuse.
+    """
+    try:
+        result = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", host, f"tail -c {max_bytes} '{path}'"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            _log.debug("ssh tail failed for %s:%s: %s", host, path, result.stderr.strip())
+            return []
+        content = result.stdout.strip()
+        if not content:
+            return []
+        lines = content.split("\n")
+        # Skip first line (likely partial from mid-file read)
+        return lines[1:] if len(lines) > 1 else lines
+    except subprocess.TimeoutExpired:
+        _log.warning("ssh tail timed out for %s:%s", host, path)
+        return []
+    except OSError as e:
+        _log.warning("ssh tail error for %s:%s: %s", host, path, e)
+        return []
+
+
+def read_lines(session_path: Path) -> list[str]:
+    """Read recent lines from a session file, dispatching local or SSH.
+
+    Checks config for remote_host; if set, reads via SSH.
+    Otherwise falls back to local read_jsonl_tail.
+    """
+    config = load_config()
+    if config.openclaw.remote_host:
+        return _read_jsonl_tail_ssh(config.openclaw.remote_host, str(session_path))
+    return read_jsonl_tail(session_path)
 
 
 def get_session_path(session_id: str, cwd: str) -> Path | None:
     """Find an OpenClaw session file by session ID.
 
-    OpenClaw stores sessions in ~/.openclaw/agents/<agentId>/sessions/
-    with filenames like: <sessionId>.jsonl
-
-    Note: The cwd parameter is provided for API compatibility but OpenClaw
-    organizes by agent, not cwd. We search all agents.
+    For remote hosts (config.openclaw.remote_host), looks up the session path
+    stored in notification metadata at registration time.
+    For local hosts, searches ~/.openclaw/agents/<agentId>/sessions/.
     """
+    config = load_config()
+    if config.openclaw.remote_host:
+        channel = f"openclaw:{session_id[:8]}"
+        with db.connect() as conn:
+            n = db.get_by_channel(conn, channel, unread_only=False)
+            if n and n.metadata.get("session_path"):
+                return Path(n.metadata["session_path"])
+        return None
     return _find_session_path(session_id)
 
 

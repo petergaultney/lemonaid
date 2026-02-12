@@ -83,6 +83,13 @@ class TuiConfig:
 
 
 @dataclass
+class OpenclawConfig:
+    """Configuration for OpenClaw integration."""
+
+    remote_host: str | None = None  # SSH host for remote session files
+
+
+@dataclass
 class Config:
     """Lemonaid configuration."""
 
@@ -90,6 +97,7 @@ class Config:
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
+    openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -148,7 +156,14 @@ def _parse_config(data: dict[str, Any]) -> Config:
         backend_labels=tui_data.get("backend_labels", {}),
     )
 
-    return Config(handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui)
+    openclaw_data = data.get("openclaw", {})
+    openclaw = OpenclawConfig(
+        remote_host=openclaw_data.get("remote_host"),
+    )
+
+    return Config(
+        handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui, openclaw=openclaw
+    )
 
 
 def ensure_config_exists() -> Path:

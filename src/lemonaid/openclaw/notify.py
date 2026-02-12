@@ -12,6 +12,7 @@ import os
 import sys
 from pathlib import Path
 
+from ..config import load_config
 from ..inbox import db
 from ..lemon_watchers import (
     detect_terminal_switch_source,
@@ -21,6 +22,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
+from . import ssh as openclaw_ssh
 from .utils import (
     extract_session_id_from_filename,
     find_most_recent_session,
@@ -221,25 +223,38 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     If session_id is provided, registers that specific session.
     Otherwise, finds the most recently modified session.
 
+    When config has [openclaw] remote_host, discovers sessions via SSH.
+
     Returns True if successful, False otherwise.
     """
+    config = load_config()
+    remote_host = config.openclaw.remote_host
+
     # Get TTY - should inherit from TUI process
     tty = get_tty()
 
-    _log.info("register: session_id=%s, tty=%s", session_id, tty)
+    _log.info("register: session_id=%s, tty=%s, remote=%s", session_id, tty, remote_host)
 
     if not tty:
         print("Warning: Could not detect TTY. Notification will use cwd-based matching.")
 
-    # Find session - either by ID or most recent
-    if session_id:
+    # Find session - local or remote
+    session_path: Path | str | None = None
+    agent_id: str | None = None
+    session_cwd: str | None = None
+
+    if remote_host:
+        session_path, session_id, agent_id, session_cwd = _find_session_remote(
+            remote_host, session_id
+        )
+    elif session_id:
         session_path = find_session_path(session_id)
         if session_path:
             header = read_session_header(session_path)
             agent_id = session_path.parent.parent.name if session_path else None
             session_cwd = header.get("cwd") if header else None
         else:
-            session_path, agent_id, session_cwd = None, None, None
+            agent_id, session_cwd = None, None
     else:
         session_path, session_id, agent_id, session_cwd = find_most_recent_session()
 
@@ -247,7 +262,8 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
         if session_id:
             print(f"Session not found: {session_id}")
         else:
-            print("No OpenClaw session found")
+            location = f" on {remote_host}" if remote_host else ""
+            print(f"No OpenClaw session found{location}")
         _log.info("no session found")
         return False
 
@@ -261,7 +277,10 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     # Get session name: label > session key segment > cwd folder name
     name = None
     if agent_id:
-        name = get_session_name(agent_id, session_id)
+        if remote_host:
+            name = openclaw_ssh.get_session_name(remote_host, agent_id, session_id)
+        else:
+            name = get_session_name(agent_id, session_id)
     if not name:
         name = get_name_from_cwd(cwd)
     short_path = shorten_path(cwd)
@@ -274,11 +293,18 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     }
     if agent_id:
         metadata["agent_id"] = agent_id
-        session_key = get_session_key(agent_id, session_id)
+        if remote_host:
+            session_key = openclaw_ssh.get_session_key(remote_host, agent_id, session_id)
+        else:
+            session_key = get_session_key(agent_id, session_id)
         if session_key:
             metadata["session_key"] = session_key
     if tty:
         metadata["tty"] = tty
+
+    branch = get_git_branch(cwd)
+    if branch:
+        metadata["git_branch"] = branch
 
     channel = f"openclaw:{session_id[:8]}"
 
@@ -318,12 +344,20 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     # Get session info for confirmation
     session_name = None
     if agent_id:
-        session_name = get_session_name(agent_id, session_id)
-    last_message = get_last_user_message(session_path)
+        if remote_host:
+            session_name = openclaw_ssh.get_session_name(remote_host, agent_id, session_id)
+        else:
+            session_name = get_session_name(agent_id, session_id)
+
+    if remote_host:
+        last_message = openclaw_ssh.get_last_user_message(remote_host, str(session_path))
+    else:
+        last_message = get_last_user_message(Path(str(session_path)))
 
     # Print confirmation with enough info to verify correct session
     tty_display = tty.replace("/dev/", "") if tty else "none"
-    print(f"Registered most recent session (tty: {tty_display})")
+    location = f" on {remote_host}" if remote_host else ""
+    print(f"Registered most recent session{location} (tty: {tty_display})")
     print(f"  Channel: {channel}")
     print(f"  Cwd: {cwd}")
     if session_name:
@@ -336,3 +370,21 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     _log.info("%s: %s, tty=%s", action, channel, tty)
 
     return True
+
+
+def _find_session_remote(
+    host: str, session_id: str | None
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Find a session on a remote host via SSH.
+
+    Returns (session_path, session_id, agent_id, cwd) or all Nones.
+    """
+    if session_id:
+        # TODO(openclaw-remote): Support explicit --session-id lookup over SSH.
+        # Suggested approach:
+        # 1) Try exact UUID filename match under ~/.openclaw/agents/*/sessions/*.jsonl
+        # 2) Fall back to sessions.json mapping (session key -> sessionId/id) to resolve path
+        # 3) Return a clear "not found" / "ambiguous" outcome for callers
+        # TODO: SSH-based find by session_id (not yet needed — most recent is the common case)
+        _log.warning("--session-id with remote_host not yet supported, finding most recent")
+    return openclaw_ssh.find_most_recent_session(host)

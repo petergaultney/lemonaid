@@ -196,3 +196,20 @@ flex = 0.50
 ```
 
 Keep the current hardcoded layout as the default — this is a nice-to-have, not urgent.
+
+## OpenClaw Auto-Discovery
+
+### The Problem
+
+Every time you start a new OpenClaw session, you have to remember to run `!lemonaid openclaw register` from the TUI. This is easy to forget, and the session is invisible to lemonaid until you do.
+
+### Direction
+
+The watcher could periodically scan for new/active sessions and auto-register them. For remote hosts this means SSHing to check for recently-modified session files. The challenge is associating a discovered session with the correct local TTY/pane — without the `!` command running as a child of the TUI process, there's no way to walk the process tree to find the TTY.
+
+Possible approaches:
+- **Polling remote for new sessions**: Watcher SSHes periodically (e.g., every 30s) to `ls -t` session files, auto-registers any that are newer than the last check. TTY would be unknown — relies on cwd-based pane matching or manual `!lreg` to add TTY later.
+- **OpenClaw hook on the gateway**: A hook fires on `agent:bootstrap` or session start, pushes a notification to lemonaid (via SSH back to local, or a webhook). Still no TTY.
+- **Filesystem watch on remote**: `inotifywait` or similar on the remote, triggers registration. Overkill for now.
+
+The TTY problem is the main blocker for a fully automatic experience. Without it, auto-discovered sessions can't be switched to via tmux — they'd show up in the non-switchable section until manually registered with `!lreg`.

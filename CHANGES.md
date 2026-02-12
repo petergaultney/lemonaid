@@ -1,3 +1,10 @@
+# 0.8.0 (2026-02-11)
+
+#### Added
+
+- **Remote OpenClaw sessions via SSH**: Session files on a remote host can now be monitored by setting `[openclaw] remote_host` in config. The watcher reads session tails via SSH; registration discovers sessions on the remote host. Recommend SSH ControlMaster for connection reuse. See `docs/openclaw.md`.
+- **Backend-provided reader**: Watcher backends can now override `read_lines()` to customize how session files are read (used by OpenClaw for SSH).
+
 # 0.7.1 (2026-02-12)
 
 #### Changed

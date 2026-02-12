@@ -83,19 +83,62 @@ lemonaid openclaw notify --session-id <id> --cwd /path/to/project
 lemonaid openclaw dismiss --session-id <id>
 ```
 
-### Shell Alias
+### Shell Shortcut
 
-OpenClaw's `!` commands run in `/bin/sh`, not your normal shell, so aliases won't work. Create a script instead:
+OpenClaw's `!` commands run in `/bin/sh`, not your normal shell, so aliases won't work. If `!lemonaid openclaw register` is too long to type, create a short wrapper script:
 
 ```bash
-mkdir -p ~/sw/bin && cat > ~/sw/bin/lreg << 'EOF'
+mkdir -p ~/bin && cat > ~/bin/lreg << 'EOF'
 #!/bin/sh
 exec lemonaid openclaw register "$@"
 EOF
-chmod +x ~/sw/bin/lreg
+chmod +x ~/bin/lreg
 ```
 
-Make sure `~/sw/bin` is in your PATH, then from OpenClaw TUI: `!lreg`
+Make sure `~/bin` is in your PATH, then from the OpenClaw TUI: `!lreg`
+
+## Remote Sessions (SSH)
+
+If OpenClaw runs on a remote machine (e.g., sessions stored on a gateway server), lemonaid can read session files via SSH.
+
+### Setup
+
+Add to `~/.config/lemonaid/config.toml`:
+
+```toml
+[openclaw]
+remote_host = "lemon-grove"  # SSH host where session files live
+```
+
+The value is passed directly to `ssh`, so it supports `user@host` format (e.g., `"lemonlime@lemon-grove"`). You can also configure the user in `~/.ssh/config` instead:
+
+```
+Host lemon-grove
+    User lemonlime
+```
+
+Current limitation: with `remote_host` enabled, `lemonaid openclaw register --session-id ...` is not yet supported; registration always picks the most recently modified remote session.
+
+### SSH ControlMaster (Recommended)
+
+The watcher polls every 0.5s. To avoid opening a new SSH connection each time, configure connection multiplexing in `~/.ssh/config`:
+
+```
+Host lemon-grove
+    ControlMaster auto
+    ControlPath ~/.ssh/sockets/%r@%h-%p
+    ControlPersist 600
+```
+
+Create the sockets directory: `mkdir -p ~/.ssh/sockets`
+
+The first `ssh lemon-grove` opens a real connection. Subsequent ones reuse the socket (near-instant).
+
+### How It Works
+
+- **Registration**: `!lemonaid openclaw register` SSHes to the remote host to find the most recent session file and read its metadata.
+- **Polling**: The watcher reads session file tails via `ssh <host> "tail -c 65536 '<path>'"` each cycle.
+- **TTY/pane switching**: Still works because the TUI runs locally — only the session files are remote.
 
 ## Troubleshooting
 
@@ -103,18 +146,26 @@ Make sure `~/sw/bin` is in your PATH, then from OpenClaw TUI: `!lreg`
 
 1. Check OpenClaw is storing sessions in `~/.openclaw/agents/`
 2. Verify session files exist with `ls ~/.openclaw/agents/*/sessions/*.jsonl`
-3. Check watcher logs: `tail -f /tmp/lemonaid-watcher.log`
+3. For remote: `ssh lemon-grove "ls ~/.openclaw/agents/*/sessions/*.jsonl"`
+4. Check watcher logs: `grep openclaw /tmp/lemonaid.log`
 
-### Activity not updating
+### Activity not updating (local)
 
 The watcher reads the last 64KB of each session file. If sessions are very large, activity detection may lag.
+
+### Activity not updating (remote)
+
+1. Verify SSH works: `ssh lemon-grove "tail -c 100 ~/.openclaw/agents/*/sessions/*.jsonl"`
+2. Check for SSH timeouts in logs: `grep "ssh.*timed out" /tmp/lemonaid.log`
+3. Ensure ControlMaster is configured (see above) to avoid connection overhead
 
 ## Technical Notes
 
 - Channel format: `openclaw:<session_id_prefix>`
 - Entry types watched: `message`, `custom_message`, `compaction`
-- Dismissal triggers: user messages, assistant activity
+- Dismissal triggers: user messages
 - Turn-complete detection: `stopReason: "stop"` in assistant messages marks notification as needing attention
+- Logs: `grep openclaw /tmp/lemonaid.log` (uses `openclaw.watcher`, `openclaw.notify`, `openclaw.ssh` logger names)
 
 ### TTY Detection
 

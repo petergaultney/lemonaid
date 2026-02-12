@@ -49,6 +49,10 @@ class WatcherBackend(Protocol):
         """
         ...
 
+    # Optional: backends can define read_lines(session_path: Path) -> list[str]
+    # to override the default local file reader (e.g., for SSH).
+    # Resolved via getattr() in the watch loop, falling back to read_jsonl_tail.
+
 
 def read_jsonl_tail(path: Path, max_bytes: int = 64 * 1024) -> list[str]:
     """Read the last N bytes of a JSONL file and return lines.
@@ -111,13 +115,14 @@ def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
 def get_latest_activity(
     session_path: Path,
     describe_activity: Callable[[dict], str | None],
+    read_lines: Callable[[Path], list[str]] = read_jsonl_tail,
 ) -> tuple[str, str] | None:
     """Get the most recent describable activity from a session file.
 
     Returns (message, timestamp) tuple, or None if no activity found.
     The timestamp can be used to detect genuinely new activity.
     """
-    lines = read_jsonl_tail(session_path)
+    lines = read_lines(session_path)
 
     # Most recent first, limit to last 50 entries
     for line in reversed(lines[-50:]):
@@ -140,12 +145,13 @@ def has_activity_since(
     session_path: Path,
     since_time: float,
     should_dismiss: Callable[[dict], bool],
+    read_lines: Callable[[Path], list[str]] = read_jsonl_tail,
 ) -> dict | None:
     """Check if session has dismiss-worthy activity since given timestamp.
 
     Returns the triggering entry if found, None otherwise.
     """
-    lines = read_jsonl_tail(session_path)
+    lines = read_lines(session_path)
 
     for line in reversed(lines[-50:]):
         try:
@@ -163,13 +169,14 @@ def check_needs_attention(
     session_path: Path,
     since_time: float,
     needs_attention: Callable[[dict], bool],
+    read_lines: Callable[[Path], list[str]] = read_jsonl_tail,
 ) -> dict | None:
     """Check if session has an entry indicating the agent needs user attention.
 
     Scans recent entries for "turn complete" signals (e.g., OpenClaw's stopReason: "stop").
     Returns the triggering entry if found, None otherwise.
     """
-    lines = read_jsonl_tail(session_path)
+    lines = read_lines(session_path)
 
     for line in reversed(lines[-50:]):
         try:
@@ -351,10 +358,13 @@ def unified_watch_loop(
                 if not backend:
                     continue
 
+                # Resolve reader: backends can override for remote reading (e.g., SSH)
+                read_fn = getattr(backend, "read_lines", read_jsonl_tail)
+
                 # Get session path (with caching)
                 cache_key = f"{channel}:{session_id}"
                 session_path = session_cache.get(cache_key)
-                if not session_path or not session_path.exists():
+                if not session_path:
                     session_path = backend.get_session_path(session_id, cwd)
                     if not session_path:
                         continue
@@ -363,7 +373,7 @@ def unified_watch_loop(
                 # For unread notifications, check if we should mark as read
                 if is_unread:
                     dismiss_entry = has_activity_since(
-                        session_path, created_at, backend.should_dismiss
+                        session_path, created_at, backend.should_dismiss, read_fn
                     )
                     if dismiss_entry:
                         entry_type = dismiss_entry.get("type", "?")
@@ -381,7 +391,7 @@ def unified_watch_loop(
                         # Use the last attention timestamp we processed, or created_at
                         since_ts = last_attention_ts.get(channel, created_at)
                         attention_entry = check_needs_attention(
-                            session_path, since_ts, needs_attention_fn
+                            session_path, since_ts, needs_attention_fn, read_fn
                         )
                         if attention_entry:
                             entry_ts_str = attention_entry.get("timestamp", "")
@@ -400,7 +410,7 @@ def unified_watch_loop(
                 # If timestamp unchanged, we don't write - this preserves whatever is
                 # in the DB (e.g., a late "Permission needed" from notify handler).
                 # When Claude makes progress, new entries arrive with new timestamps.
-                result = get_latest_activity(session_path, backend.describe_activity)
+                result = get_latest_activity(session_path, backend.describe_activity, read_fn)
                 if result:
                     message, entry_ts_str = result
                     entry_ts = parse_timestamp(entry_ts_str)
