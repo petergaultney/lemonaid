@@ -29,7 +29,7 @@ notify = ["lemonaid", "codex", "notify"]
 
 ### Auto-dismiss
 
-The Codex watcher monitors `~/.codex/sessions/*.jsonl` files for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read.
+The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read.
 
 ### Live activity updates
 
@@ -88,19 +88,19 @@ Each line is a JSON entry with `type` and `payload` fields. The watcher reads th
 
 3. **Check logs**:
    ```bash
-   cat /tmp/lemonaid-codex-notify.log
+   rg 'lemonaid\\.codex' /tmp/lemonaid.log
    ```
 
 ### Notifications not auto-dismissing
 
 1. **Check watcher logs**:
    ```bash
-   cat /tmp/lemonaid-codex-watcher.log
+   rg 'lemonaid\\.(watcher|codex)' /tmp/lemonaid.log
    ```
 
 2. **Verify session file exists**:
    ```bash
-   ls -la ~/.codex/sessions/*.jsonl
+   find ~/.codex/sessions -name '*.jsonl' -maxdepth 5
    ```
 
 3. **Check notification metadata** has `session_id` and `cwd`:
@@ -110,6 +110,6 @@ Each line is a JSON entry with `type` and `payload` fields. The watcher reads th
 
 ### Switching to pane doesn't work
 
-1. **Check handler config**: Make sure `"codex:*"` is mapped in `~/.config/lemonaid/config.toml`
+1. **Check switch-source**: Codex pane switching is auto-selected from notification `switch_source` (`tmux`/`wezterm`), no `[handlers]` mapping required
 
 2. **Verify TTY metadata**: The notification needs a `tty` in metadata for pane switching to work

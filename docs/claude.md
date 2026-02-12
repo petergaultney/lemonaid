@@ -51,7 +51,7 @@ This gives you:
 
 ### Auto-dismiss via transcript watching
 
-Lemonaid monitors Claude's transcript files (`~/.claude/projects/<dir>/transcript.jsonl`) to detect when you provide input. When Claude starts working (thinking, running tools), the notification is dismissed automatically.
+Lemonaid monitors Claude transcript files in `~/.claude/projects/<encoded-cwd>/<session_id>.jsonl` to detect when you provide input. For git worktrees, it also checks parent directories to find the matching Claude project path. When Claude starts working (thinking, running tools), the notification is dismissed automatically.
 
 This is more reliable than hook-based dismiss because:
 - No race conditions with the Stop hook
@@ -144,9 +144,7 @@ Claude stores session data in `~/.claude/projects/<encoded_dir>/`:
 ```
 ~/.claude/projects/-Users-peter-play-lemonaid/
   sessions-index.json    # Maps session IDs to names
-  sessions/
-    <session_id>/
-      transcript.jsonl   # Full conversation history
+  <session_id>.jsonl     # Full conversation history for a session
 ```
 
 The transcript watcher reads these to detect activity and extract tool usage.
@@ -162,7 +160,7 @@ The transcript watcher reads these to detect activity and extract tool usage.
 
 2. **Test manually** (you can't easily test the hook, but check logs):
    ```bash
-   cat /tmp/lemonaid-claude-notify.log
+   rg 'lemonaid\\.claude' /tmp/lemonaid.log
    ```
 
 3. **Verify Claude Code is using hooks**: Look for hook execution messages in Claude's output
@@ -181,12 +179,12 @@ See [claude-patch.md](claude-patch.md) for details.
 
 1. **Check watcher logs**:
    ```bash
-   cat /tmp/lemonaid-claude-watcher.log
+   rg 'lemonaid\\.(watcher|claude)' /tmp/lemonaid.log
    ```
 
 2. **Verify transcript file exists**:
    ```bash
-   ls ~/.claude/projects/*/sessions/*/transcript.jsonl
+   ls ~/.claude/projects/*/*.jsonl
    ```
 
 3. **Check notification metadata** has `session_id` and `cwd`:
