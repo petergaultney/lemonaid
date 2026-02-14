@@ -66,36 +66,57 @@ def find_most_recent_session(
 
     Returns (session_path, session_id, agent_id, cwd) or all Nones.
     """
-    output = _ssh_run(host, "ls -t ~/.openclaw/agents/*/sessions/*.jsonl 2>/dev/null | head -1")
+    recent = list_recent_sessions(host, limit=1)
+    if recent:
+        return recent[0]
+    return None, None, None, None
+
+
+def list_recent_sessions(
+    host: str, limit: int = 20
+) -> list[tuple[str, str, str | None, str | None]]:
+    """List recent remote sessions, newest first.
+
+    Returns list of (session_path, session_id, agent_id, cwd).
+    """
+    if limit <= 0:
+        return []
+
+    output = _ssh_run(
+        host, f"ls -t ~/.openclaw/agents/*/sessions/*.jsonl 2>/dev/null | head -n {limit}"
+    )
     if not output:
         _log.info("no sessions found on %s", host)
-        return None, None, None, None
+        return []
 
-    session_path = output.strip()
-    _log.info("most recent session on %s: %s", host, session_path)
+    sessions: list[tuple[str, str, str | None, str | None]] = []
 
-    # Extract agent_id from path: .../agents/<agent_id>/sessions/<file>.jsonl
-    parts = session_path.split("/")
-    agent_id = None
-    for i, part in enumerate(parts):
-        if part == "agents" and i + 1 < len(parts):
-            agent_id = parts[i + 1]
-            break
+    for raw_path in output.splitlines():
+        session_path = raw_path.strip()
+        if not session_path:
+            continue
 
-    # Extract session_id from filename
-    filename = parts[-1] if parts else ""
-    match = _UUID_RE.search(filename)
-    session_id = match.group(1) if match else None
+        parts = session_path.split("/")
+        agent_id = None
+        for i, part in enumerate(parts):
+            if part == "agents" and i + 1 < len(parts):
+                agent_id = parts[i + 1]
+                break
 
-    if not session_id:
-        _log.warning("could not extract session_id from %s", filename)
-        return None, None, None, None
+        filename = parts[-1] if parts else ""
+        match = _UUID_RE.search(filename)
+        session_id = match.group(1) if match else None
+        if not session_id:
+            _log.warning("could not extract session_id from %s", filename)
+            continue
 
-    # Read header for cwd
-    header = read_session_header(host, session_path)
-    session_cwd = header.get("cwd") if header else None
+        header = read_session_header(host, session_path)
+        session_cwd = header.get("cwd") if header else None
+        sessions.append((session_path, session_id, agent_id, session_cwd))
 
-    return session_path, session_id, agent_id, session_cwd
+    if sessions:
+        _log.info("recent sessions on %s: %d", host, len(sessions))
+    return sessions
 
 
 def get_session_name(host: str, agent_id: str, session_id: str) -> str | None:
