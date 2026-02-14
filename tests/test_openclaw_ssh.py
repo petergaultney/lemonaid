@@ -6,6 +6,7 @@ All tests mock subprocess.run to avoid real SSH calls.
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from unittest.mock import patch
 
@@ -83,6 +84,14 @@ def test_read_session_header_invalid_json(mock_run):
 def test_read_session_header_ssh_failure(mock_run):
     mock_run.return_value = _mock_run(returncode=1)
     assert read_session_header("host", "/path") is None
+
+
+@patch("lemonaid.openclaw.ssh._ssh_run")
+def test_read_session_header_shell_escapes_path(mock_ssh):
+    mock_ssh.return_value = None
+    path = "/tmp/it's bad; echo pwned.jsonl"
+    read_session_header("host", path)
+    assert mock_ssh.call_args[0][1] == f"head -n 1 -- {shlex.quote(path)}"
 
 
 # --- find_most_recent_session ---
@@ -204,6 +213,15 @@ def test_get_session_name_invalid_json(mock_ssh):
     assert get_session_name("host", "agent-1", "abc") is None
 
 
+@patch("lemonaid.openclaw.ssh._ssh_run")
+def test_get_session_name_shell_escapes_agent_id(mock_ssh):
+    mock_ssh.return_value = None
+    agent_id = "agent'bad;whoami"
+    get_session_name("host", agent_id, "abc")
+    expected = f"cat -- ~/.openclaw/agents/{shlex.quote(agent_id)}/sessions/sessions.json"
+    assert mock_ssh.call_args[0][1] == expected
+
+
 # --- get_session_key ---
 
 
@@ -289,3 +307,11 @@ def test_get_last_user_message_string_content(mock_ssh):
     ]
     mock_ssh.return_value = "\n".join(lines)
     assert get_last_user_message("host", "/path") == "Just a string"
+
+
+@patch("lemonaid.openclaw.ssh._ssh_run")
+def test_get_last_user_message_shell_escapes_path(mock_ssh):
+    mock_ssh.return_value = None
+    path = "/tmp/one'two;echo hi.jsonl"
+    get_last_user_message("host", path)
+    assert mock_ssh.call_args[0][1] == f"tail -c 65536 -- {shlex.quote(path)}"

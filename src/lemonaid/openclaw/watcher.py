@@ -16,6 +16,8 @@ OpenClaw session entries have these types:
 
 from __future__ import annotations
 
+import functools
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -30,6 +32,12 @@ _log = get_logger("openclaw.watcher")
 CHANNEL_PREFIX = "openclaw:"
 
 
+@functools.lru_cache(maxsize=1)
+def _get_remote_host() -> str | None:
+    """Cache remote_host lookup to avoid reloading TOML in the polling hot path."""
+    return load_config().openclaw.remote_host
+
+
 def _read_jsonl_tail_ssh(host: str, path: str, max_bytes: int = 64 * 1024) -> list[str]:
     """Read the last N bytes of a remote JSONL file via SSH.
 
@@ -38,8 +46,9 @@ def _read_jsonl_tail_ssh(host: str, path: str, max_bytes: int = 64 * 1024) -> li
     for ControlMaster connection reuse.
     """
     try:
+        quoted_path = shlex.quote(path)
         result = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", host, f"tail -c {max_bytes} '{path}'"],
+            ["ssh", "-o", "BatchMode=yes", host, f"tail -c {max_bytes} -- {quoted_path}"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -67,9 +76,9 @@ def read_lines(session_path: Path) -> list[str]:
     Checks config for remote_host; if set, reads via SSH.
     Otherwise falls back to local read_jsonl_tail.
     """
-    config = load_config()
-    if config.openclaw.remote_host:
-        return _read_jsonl_tail_ssh(config.openclaw.remote_host, str(session_path))
+    remote_host = _get_remote_host()
+    if remote_host:
+        return _read_jsonl_tail_ssh(remote_host, str(session_path))
     return read_jsonl_tail(session_path)
 
 
@@ -80,8 +89,8 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
     stored in notification metadata at registration time.
     For local hosts, searches ~/.openclaw/agents/<agentId>/sessions/.
     """
-    config = load_config()
-    if config.openclaw.remote_host:
+    remote_host = _get_remote_host()
+    if remote_host:
         channel = f"openclaw:{session_id[:8]}"
         with db.connect() as conn:
             n = db.get_by_channel(conn, channel, unread_only=False)

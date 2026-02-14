@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import subprocess
 
 from ..log import get_logger
@@ -39,9 +40,14 @@ def _ssh_run(host: str, command: str, timeout: int = 10) -> str | None:
         return None
 
 
+def _quote(value: str) -> str:
+    """Shell-escape a value for a remote command segment."""
+    return shlex.quote(value)
+
+
 def read_session_header(host: str, path: str) -> dict | None:
     """Read the session header (first line) from a remote session file."""
-    output = _ssh_run(host, f"head -1 '{path}'")
+    output = _ssh_run(host, f"head -n 1 -- {_quote(path)}")
     if not output:
         return None
     try:
@@ -97,7 +103,7 @@ def get_session_name(host: str, agent_id: str, session_id: str) -> str | None:
 
     Priority: label > last segment of session key.
     """
-    output = _ssh_run(host, f"cat ~/.openclaw/agents/{agent_id}/sessions/sessions.json")
+    output = _ssh_run(host, f"cat -- ~/.openclaw/agents/{_quote(agent_id)}/sessions/sessions.json")
     if not output:
         return None
 
@@ -131,7 +137,7 @@ def get_session_name(host: str, agent_id: str, session_id: str) -> str | None:
 
 def get_session_key(host: str, agent_id: str, session_id: str) -> str | None:
     """Get the session key for resuming from the remote sessions.json index."""
-    output = _ssh_run(host, f"cat ~/.openclaw/agents/{agent_id}/sessions/sessions.json")
+    output = _ssh_run(host, f"cat -- ~/.openclaw/agents/{_quote(agent_id)}/sessions/sessions.json")
     if not output:
         return None
 
@@ -158,7 +164,7 @@ def get_session_key(host: str, agent_id: str, session_id: str) -> str | None:
 
 def get_last_user_message(host: str, path: str, max_bytes: int = 64 * 1024) -> str | None:
     """Get the last user message from a remote session file."""
-    output = _ssh_run(host, f"tail -c {max_bytes} '{path}'")
+    output = _ssh_run(host, f"tail -c {max_bytes} -- {_quote(path)}")
     if not output:
         return None
 

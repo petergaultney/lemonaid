@@ -1,8 +1,15 @@
 """Tests for openclaw.watcher — activity detection, dismiss, and attention logic."""
 
+import shlex
+import subprocess
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from lemonaid.openclaw import watcher as openclaw_watcher
 from lemonaid.openclaw.watcher import (
     describe_activity,
     needs_attention,
+    read_lines,
     should_dismiss,
 )
 
@@ -292,3 +299,27 @@ def test_attention_user_with_stop_reason():
 def test_attention_non_message():
     assert needs_attention({"type": "compaction"}) is False
     assert needs_attention({}) is False
+
+
+@patch("lemonaid.openclaw.watcher.subprocess.run")
+def test_read_jsonl_tail_ssh_shell_escapes_path(mock_run):
+    path = "/tmp/it's bad; echo pwned.jsonl"
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout='{"ok": true}\n', stderr=""
+    )
+    openclaw_watcher._read_jsonl_tail_ssh("remote", path, max_bytes=32)
+    call_args = mock_run.call_args[0][0]
+    assert call_args[-1] == f"tail -c 32 -- {shlex.quote(path)}"
+
+
+def test_read_lines_caches_remote_host_config_lookup():
+    openclaw_watcher._get_remote_host.cache_clear()
+    fake_config = SimpleNamespace(openclaw=SimpleNamespace(remote_host="remote"))
+    with (
+        patch("lemonaid.openclaw.watcher.load_config", return_value=fake_config) as mock_load,
+        patch("lemonaid.openclaw.watcher._read_jsonl_tail_ssh", return_value=[]),
+    ):
+        read_lines(openclaw_watcher.Path("/tmp/session.jsonl"))
+        read_lines(openclaw_watcher.Path("/tmp/session.jsonl"))
+    assert mock_load.call_count == 1
+    openclaw_watcher._get_remote_host.cache_clear()
