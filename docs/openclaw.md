@@ -117,7 +117,9 @@ Host lemon-grove
     User lemonlime
 ```
 
-Current limitation: with `remote_host` enabled, `lemonaid openclaw register --session-id ...` is not yet supported; registration always picks the most recently modified remote session.
+With `remote_host` enabled, registration prefers the most recent remote session that is not
+already registered to a different OpenClaw TTY. You can also target a specific session with
+`lemonaid openclaw register --session-id <id_or_prefix>`.
 
 ### SSH ControlMaster (Recommended)
 
@@ -136,7 +138,7 @@ The first `ssh lemon-grove` opens a real connection. Subsequent ones reuse the s
 
 ### How It Works
 
-- **Registration**: `!lemonaid openclaw register` SSHes to the remote host to find the most recent session file and read its metadata.
+- **Registration**: `!lemonaid openclaw register` SSHes to the remote host, lists recent sessions, and picks the best candidate for the current TTY.
 - **Polling**: The watcher reads session file tails via `ssh <host> "tail -c 65536 '<path>'"` each cycle.
 - **TTY/pane switching**: Still works because the TUI runs locally — only the session files are remote.
 
@@ -163,7 +165,7 @@ The watcher reads the last 64KB of each session file. If sessions are very large
 
 - Channel format: `openclaw:<session_id_prefix>`
 - Entry types watched: `message`, `custom_message`, `compaction`
-- Dismissal triggers: user messages
+- Dismissal triggers: assistant/user messages, `custom_message`, and `compaction`
 - Turn-complete detection: `stopReason: "stop"` in assistant messages marks notification as needing attention
 - Logs: `grep openclaw /tmp/lemonaid.log` (uses `openclaw.watcher`, `openclaw.notify`, `openclaw.ssh` logger names)
 

@@ -25,12 +25,14 @@ from ..log import get_logger
 from . import ssh as openclaw_ssh
 from .utils import (
     extract_session_id_from_filename,
-    find_most_recent_session,
     find_session_path,
     get_last_user_message,
     get_session_key,
     get_session_name,
     read_session_header,
+)
+from .utils import (
+    list_recent_sessions as list_recent_local_sessions,
 )
 
 _log = get_logger("openclaw.notify")
@@ -242,10 +244,11 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     session_path: Path | str | None = None
     agent_id: str | None = None
     session_cwd: str | None = None
+    excluded_session_ids = _get_registered_session_ids_for_other_ttys(tty)
 
     if remote_host:
         session_path, session_id, agent_id, session_cwd = _find_session_remote(
-            remote_host, session_id
+            remote_host, session_id, excluded_session_ids
         )
     elif session_id:
         session_path = find_session_path(session_id)
@@ -256,7 +259,10 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
         else:
             agent_id, session_cwd = None, None
     else:
-        session_path, session_id, agent_id, session_cwd = find_most_recent_session()
+        candidates = list_recent_local_sessions(limit=30)
+        session_path, session_id, agent_id, session_cwd = _pick_session_candidate(
+            candidates, requested_session_id=None, excluded_session_ids=excluded_session_ids
+        )
 
     if not session_path or not session_id:
         if session_id:
@@ -357,7 +363,10 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     # Print confirmation with enough info to verify correct session
     tty_display = tty.replace("/dev/", "") if tty else "none"
     location = f" on {remote_host}" if remote_host else ""
-    print(f"Registered most recent session{location} (tty: {tty_display})")
+    selected_label = "session"
+    if session_id:
+        selected_label = f"session {session_id[:8]}"
+    print(f"Registered {selected_label}{location} (tty: {tty_display})")
     print(f"  Channel: {channel}")
     print(f"  Cwd: {cwd}")
     if session_name:
@@ -373,18 +382,60 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
 
 
 def _find_session_remote(
-    host: str, session_id: str | None
+    host: str, session_id: str | None, excluded_session_ids: set[str]
 ) -> tuple[str | None, str | None, str | None, str | None]:
     """Find a session on a remote host via SSH.
 
     Returns (session_path, session_id, agent_id, cwd) or all Nones.
     """
-    if session_id:
-        # TODO(openclaw-remote): Support explicit --session-id lookup over SSH.
-        # Suggested approach:
-        # 1) Try exact UUID filename match under ~/.openclaw/agents/*/sessions/*.jsonl
-        # 2) Fall back to sessions.json mapping (session key -> sessionId/id) to resolve path
-        # 3) Return a clear "not found" / "ambiguous" outcome for callers
-        # TODO: SSH-based find by session_id (not yet needed — most recent is the common case)
-        _log.warning("--session-id with remote_host not yet supported, finding most recent")
-    return openclaw_ssh.find_most_recent_session(host)
+    candidates = openclaw_ssh.list_recent_sessions(host, limit=30)
+    return _pick_session_candidate(
+        candidates, requested_session_id=session_id, excluded_session_ids=excluded_session_ids
+    )
+
+
+def _get_registered_session_ids_for_other_ttys(current_tty: str | None) -> set[str]:
+    """Get OpenClaw session IDs currently registered to different TTYs."""
+    excluded: set[str] = set()
+    with db.connect() as conn:
+        for n in db.get_active(conn, switch_source=None):
+            if not n.channel.startswith("openclaw:"):
+                continue
+            existing_tty = n.metadata.get("tty")
+            session_id = n.metadata.get("session_id")
+            if not session_id:
+                continue
+            if current_tty and existing_tty == current_tty:
+                continue
+            excluded.add(session_id)
+    return excluded
+
+
+def _session_id_matches(requested_session_id: str, session_id: str) -> bool:
+    """Check if session IDs match exactly or by standard short-prefix semantics."""
+    if requested_session_id == session_id:
+        return True
+    if session_id.startswith(requested_session_id):
+        return True
+    return requested_session_id.startswith(session_id[:8])
+
+
+def _pick_session_candidate(
+    candidates: list[tuple[Path | str, str, str | None, str | None]],
+    requested_session_id: str | None,
+    excluded_session_ids: set[str],
+) -> tuple[Path | str | None, str | None, str | None, str | None]:
+    """Pick best session candidate with explicit-id and TTY-aware disambiguation."""
+    if requested_session_id:
+        for session_path, session_id, agent_id, session_cwd in candidates:
+            if _session_id_matches(requested_session_id, session_id):
+                return session_path, session_id, agent_id, session_cwd
+        return None, None, None, None
+
+    for session_path, session_id, agent_id, session_cwd in candidates:
+        if session_id not in excluded_session_ids:
+            return session_path, session_id, agent_id, session_cwd
+
+    if candidates:
+        return candidates[0]
+    return None, None, None, None

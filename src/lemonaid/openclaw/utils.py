@@ -321,16 +321,16 @@ def find_recent_session_for_cwd(cwd: str) -> tuple[Path | None, str | None, str 
     return None, None, None
 
 
-def find_most_recent_session() -> tuple[Path | None, str | None, str | None, str | None]:
-    """Find the most recently modified session file across all agents.
+def list_recent_sessions(limit: int = 20) -> list[tuple[Path, str, str, str]]:
+    """List recent session files across all agents, newest first.
 
-    Returns (session_path, session_id, agent_id, cwd) or (None, None, None, None).
+    Returns list of (session_path, session_id, agent_id, cwd).
     """
     agents_root = get_agents_root()
-    if not agents_root.exists():
-        return None, None, None, None
+    if not agents_root.exists() or limit <= 0:
+        return []
 
-    best_match: tuple[Path, str, str, str, float] | None = None
+    candidates: list[tuple[float, Path, str, str, str]] = []
 
     for agent_dir in agents_root.iterdir():
         if not agent_dir.is_dir():
@@ -344,27 +344,38 @@ def find_most_recent_session() -> tuple[Path | None, str | None, str | None, str
             if not session_path.is_file():
                 continue
 
-            # Get modification time
-            mtime = session_path.stat().st_mtime
+            try:
+                mtime = session_path.stat().st_mtime
+            except OSError:
+                continue
 
-            # Read header
             header = read_session_header(session_path)
             if not header:
                 continue
 
-            # Extract session ID
             session_id = header.get("id") or extract_session_id_from_filename(session_path.name)
             if not session_id:
                 continue
 
             session_cwd = header.get("cwd", "")
+            candidates.append((mtime, session_path, session_id, agent_dir.name, session_cwd))
 
-            if best_match is None or mtime > best_match[4]:
-                best_match = (session_path, session_id, agent_dir.name, session_cwd, mtime)
+    if not candidates:
+        return []
 
-    if best_match:
-        return best_match[0], best_match[1], best_match[2], best_match[3]
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return [(p, sid, agent, cwd) for _, p, sid, agent, cwd in candidates[:limit]]
 
+
+def find_most_recent_session() -> tuple[Path | None, str | None, str | None, str | None]:
+    """Find the most recently modified session file across all agents.
+
+    Returns (session_path, session_id, agent_id, cwd) or (None, None, None, None).
+    """
+    recent = list_recent_sessions(limit=1)
+    if recent:
+        path, session_id, agent_id, cwd = recent[0]
+        return path, session_id, agent_id, cwd
     return None, None, None, None
 
 

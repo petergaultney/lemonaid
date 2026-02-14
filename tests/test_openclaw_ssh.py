@@ -16,6 +16,7 @@ from lemonaid.openclaw.ssh import (
     get_last_user_message,
     get_session_key,
     get_session_name,
+    list_recent_sessions,
     read_session_header,
 )
 
@@ -149,6 +150,21 @@ def test_find_most_recent_session_extracts_agent_id(mock_ssh):
 
     _, _, agent_id, _ = find_most_recent_session("host")
     assert agent_id == "my-fancy-agent"
+
+
+@patch("lemonaid.openclaw.ssh._ssh_run")
+def test_list_recent_sessions_returns_multiple(mock_ssh):
+    path_1 = "/home/.openclaw/agents/a1/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl"
+    path_2 = "/home/.openclaw/agents/a2/sessions/b1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl"
+    mock_ssh.side_effect = [
+        f"{path_1}\n{path_2}",
+        json.dumps({"type": "session", "cwd": "/tmp/one"}),
+        json.dumps({"type": "session", "cwd": "/tmp/two"}),
+    ]
+    sessions = list_recent_sessions("host", limit=2)
+    assert len(sessions) == 2
+    assert sessions[0][1] == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    assert sessions[1][1] == "b1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 
 # --- get_session_name ---
