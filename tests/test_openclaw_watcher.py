@@ -242,11 +242,12 @@ def test_dismiss_assistant_message():
         "type": "message",
         "message": {"role": "assistant", "content": "Done!"},
     }
-    assert should_dismiss(entry) is False
+    assert should_dismiss(entry) is True
 
 
 def test_dismiss_non_message():
-    assert should_dismiss({"type": "compaction"}) is False
+    assert should_dismiss({"type": "compaction"}) is True
+    assert should_dismiss({"type": "custom_message"}) is True
     assert should_dismiss({"type": "custom"}) is False
     assert should_dismiss({}) is False
 

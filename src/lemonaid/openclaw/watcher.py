@@ -127,19 +127,22 @@ def describe_activity(entry: dict) -> str | None:
 def should_dismiss(entry: dict) -> bool:
     """Check if a session entry indicates we should dismiss the notification.
 
-    Dismiss (mark as read) when the user provides input.
+    Dismiss (mark as read) when there is active session progress.
+
+    For OpenClaw, this includes:
+    - assistant/user message entries
+    - custom_message entries (extension-injected message content)
+    - compaction events (clear evidence of active processing)
     """
     entry_type = entry.get("type")
 
     if entry_type == "message":
         msg = entry.get("message", {})
         role = entry.get("role") or msg.get("role")
-
-        # User input = dismiss
-        if role == "user":
+        if role in ("assistant", "user"):
             return True
 
-    return False
+    return entry_type in ("custom_message", "compaction")
 
 
 def needs_attention(entry: dict) -> bool:
