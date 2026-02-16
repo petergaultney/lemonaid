@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
+from ..inbox.channel import channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -168,8 +169,7 @@ def handle_notification(
     if tty:
         metadata["tty"] = tty
 
-    # Channel format: codex:<session_id_prefix>
-    channel = f"codex:{session_id[:8]}" if session_id else "codex:unknown"
+    channel = channel_id("codex", session_id)
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
     with db.connect() as conn:
@@ -192,7 +192,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
             print("[dismiss] no session_id provided", file=sys.stderr)
         return 0
 
-    channel = f"codex:{session_id[:8]}"
+    channel = channel_id("codex", session_id)
     with db.connect() as conn:
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
