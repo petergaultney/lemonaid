@@ -260,13 +260,15 @@ def add(
     metadata: dict[str, Any] | None = None,
     upsert: bool = True,
     switch_source: str | None = None,
+    created_at: float | None = None,
+    status: str = "unread",
 ) -> Notification:
     """Add a notification or update existing one if upsert=True.
 
     If upsert=True and a notification exists for the channel (even if read or archived),
     it will be updated and set back to unread status.
     """
-    now = time.time()
+    now = created_at if created_at is not None else time.time()
     metadata = metadata or {}
 
     if upsert:
@@ -301,10 +303,10 @@ def add(
 
     cursor = conn.execute(
         """
-        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (channel, message, name, json.dumps(metadata), now, switch_source),
+        (channel, message, name, json.dumps(metadata), now, switch_source, status),
     )
     conn.commit()
 
@@ -314,6 +316,7 @@ def add(
         message=message,
         name=name,
         metadata=metadata,
+        status=status,
         created_at=now,
         switch_source=switch_source,
     )

@@ -1,3 +1,9 @@
+# 0.9.0 (2026-02-16)
+
+#### Added
+
+- **Bootstrap command**: `lemonaid claude bootstrap` retroactively imports historical Claude sessions (from before lemonaid was installed) into the archive. Scans `~/.claude/projects/*/sessions-index.json` and imports sessions with their original timestamps, names, and metadata. Use `--dry-run` to preview.
+
 # 0.8.0 (2026-02-11)
 
 #### Added

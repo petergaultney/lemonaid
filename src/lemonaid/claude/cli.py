@@ -2,6 +2,7 @@
 
 import argparse
 
+from .bootstrap import run_bootstrap
 from .notify import dismiss_session, handle_dismiss, handle_notification
 from .patcher import apply_patch, check_status, find_binary, restore_backup
 
@@ -58,6 +59,27 @@ def cmd_patch_status(args: argparse.Namespace) -> None:
     print(f"Binary: {binary}")
     status = check_status(binary)
     print(f"Status: {status}")
+
+
+def cmd_bootstrap(args: argparse.Namespace) -> None:
+    """Import historical Claude sessions into the lemonaid archive."""
+    result = run_bootstrap(dry_run=args.dry_run)
+    n_imported = len(result.imported)
+
+    log_msg = (
+        f"Would import {n_imported} sessions into archive"
+        if args.dry_run
+        else f"Imported {n_imported} sessions into archive"
+    )
+
+    skipped = [
+        f"{result.skipped_existing} already tracked" if result.skipped_existing else None,
+        f"{result.skipped_sidechain} sidechains" if result.skipped_sidechain else None,
+    ]
+    if skipped := list(filter(None, skipped)):
+        log_msg += f" (skipped {', '.join(skipped)})"
+
+    print("".join(log_msg))
 
 
 def cmd_patch_restore(args: argparse.Namespace) -> None:
@@ -126,5 +148,17 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Restore Claude Code from backup",
     )
     patch_restore_parser.set_defaults(func=cmd_patch_restore)
+
+    # claude bootstrap
+    bootstrap_parser = claude_subparsers.add_parser(
+        "bootstrap",
+        help="Import historical Claude sessions into the lemonaid archive",
+    )
+    bootstrap_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be imported without writing to the database",
+    )
+    bootstrap_parser.set_defaults(func=cmd_bootstrap)
 
     claude_parser.set_defaults(func=lambda a: claude_parser.print_help())
