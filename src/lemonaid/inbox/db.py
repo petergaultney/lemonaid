@@ -412,11 +412,13 @@ def update_name(
     conn: sqlite3.Connection,
     notification_id: int,
     name: str | None,
+    extra_metadata: dict[str, Any] | None = None,
 ) -> bool:
     """Update (or clear) the user-override name for a notification.
 
     When setting a name, preserves the current auto-detected name in metadata.
     When clearing (name=None), restores the auto-detected name if available.
+    If extra_metadata is provided, those keys are merged into metadata.
 
     Returns True if a row was updated.
     """
@@ -434,6 +436,9 @@ def update_name(
     else:
         # Clearing - restore auto_name if we have one
         final_name = metadata.pop("auto_name", None)
+
+    if extra_metadata:
+        metadata.update(extra_metadata)
 
     cursor = conn.execute(
         """

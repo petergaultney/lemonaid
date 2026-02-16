@@ -5,6 +5,7 @@ import argparse
 from .bootstrap import run_bootstrap
 from .notify import dismiss_session, handle_dismiss, handle_notification
 from .patcher import apply_patch, check_status, find_binary, restore_backup
+from .summarize import run_summarize
 
 
 def cmd_notify(args: argparse.Namespace) -> None:
@@ -80,6 +81,22 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
         log_msg += f" (skipped {', '.join(skipped)})"
 
     print("".join(log_msg))
+
+
+def cmd_summarize(args: argparse.Namespace) -> None:
+    """Summarize sessions with poor names using Claude."""
+    result = run_summarize(dry_run=args.dry_run)
+
+    if args.dry_run:
+        print(f"Found {result.summarized} sessions needing summary")
+        return
+
+    parts = [f"Summarized {result.summarized} sessions"]
+    if result.skipped_no_transcript:
+        parts.append(f"{result.skipped_no_transcript} missing transcripts")
+    if result.failed:
+        parts.append(f"{result.failed} failures")
+    print(" (".join(parts) + ")" if len(parts) > 1 else parts[0])
 
 
 def cmd_patch_restore(args: argparse.Namespace) -> None:
@@ -160,5 +177,17 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show what would be imported without writing to the database",
     )
     bootstrap_parser.set_defaults(func=cmd_bootstrap)
+
+    # claude summarize
+    summarize_parser = claude_subparsers.add_parser(
+        "summarize",
+        help="Summarize sessions with poor names using Claude",
+    )
+    summarize_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show how many sessions need summarization without running",
+    )
+    summarize_parser.set_defaults(func=cmd_summarize)
 
     claude_parser.set_defaults(func=lambda a: claude_parser.print_help())
