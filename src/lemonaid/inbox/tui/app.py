@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Input, Static
@@ -690,7 +691,7 @@ class LemonaidApp(App):
             self._history_filter = event.value
             self._refresh_history()
 
-    def on_key(self, event) -> None:
+    def on_key(self, event: events.Key) -> None:
         """Handle special keys in the filter input."""
         if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
             return

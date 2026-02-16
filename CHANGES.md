@@ -3,6 +3,7 @@
 #### Added
 
 - **Bootstrap command**: `lemonaid claude bootstrap` retroactively imports historical Claude sessions (from before lemonaid was installed) into the archive. Scans `~/.claude/projects/*/sessions-index.json` and imports sessions with their original timestamps, names, and metadata. Use `--dry-run` to preview.
+- **Summarize command**: `lemonaid claude summarize` generates concise names for sessions with poor names (truncated first prompts) using `claude -p --model haiku`. Reads the first few transcript messages for context. Runs in parallel for batch operations.
 
 # 0.8.0 (2026-02-11)
 
