@@ -1,7 +1,7 @@
 """Channel ID construction for lemonaid notifications."""
 
 
-def channel_id(backend: str, session_id: str) -> str:
+def channel_id(backend: str, session_id: str | None) -> str:
     """Build a channel identifier from a backend name and session ID.
 
     Returns e.g. ``"claude:a1b2c3d4"`` or ``"claude:unknown"`` when
