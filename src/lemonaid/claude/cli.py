@@ -80,7 +80,7 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     if skipped := list(filter(None, skipped)):
         log_msg += f" (skipped {', '.join(skipped)})"
 
-    print("".join(log_msg))
+    print(log_msg)
 
 
 def cmd_summarize(args: argparse.Namespace) -> None:
@@ -91,12 +91,17 @@ def cmd_summarize(args: argparse.Namespace) -> None:
         print(f"Found {result.summarized} sessions needing summary")
         return
 
-    parts = [f"Summarized {result.summarized} sessions"]
+    log_msg = f"Summarized {result.summarized} sessions"
+
+    not_summarized = []
     if result.skipped_no_transcript:
-        parts.append(f"{result.skipped_no_transcript} missing transcripts")
+        not_summarized.append(f"skipped {result.skipped_no_transcript} missing transcripts")
     if result.failed:
-        parts.append(f"{result.failed} failures")
-    print(" (".join(parts) + ")" if len(parts) > 1 else parts[0])
+        not_summarized.append(f"{result.failed} failures")
+    if not_summarized:
+        log_msg += f"({', '.join(not_summarized)})"
+
+    print(log_msg)
 
 
 def cmd_patch_restore(args: argparse.Namespace) -> None:

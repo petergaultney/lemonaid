@@ -38,6 +38,19 @@ def test_add_creates_notification():
             assert notification.metadata == {"key": "value"}
             assert notification.status == "unread"
 
+            # you can add already-archived notifications, too
+            t = 42
+            notification = db.add(
+                conn,
+                channel="test:456",
+                message="Test notification",
+                created_at=t,
+                status="archived",
+            )
+
+            assert notification.created_at == t
+            assert notification.status == "archived"
+
 
 def test_add_upsert_updates_existing():
     """add() with upsert=True should update existing unread notification."""
@@ -136,9 +149,7 @@ def test_mark_all_read_for_channel_with_message():
         with db.connect(db_path) as conn:
             n = db.add(conn, channel="test:123", message="Waiting...")
 
-            count = db.mark_all_read_for_channel(
-                conn, "test:123", message="Reading file.py"
-            )
+            count = db.mark_all_read_for_channel(conn, "test:123", message="Reading file.py")
             assert count == 1
 
             updated = db.get(conn, n.id)

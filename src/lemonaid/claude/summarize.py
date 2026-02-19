@@ -120,6 +120,7 @@ def _get_sessions_needing_summary(conn: db.sqlite3.Connection) -> list[db.Notifi
         SELECT * FROM notifications
         WHERE status IN ('archived', 'read')
         AND json_extract(metadata, '$.name_source') = 'first_prompt'
+        AND channel LIKE 'claude:%'
         ORDER BY created_at DESC
         """
     ).fetchall()
