@@ -77,7 +77,7 @@ class TuiConfig:
     transparent: bool = False  # Use ANSI colors for terminal transparency
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
-    # Keys are channel prefixes (claude, codex, openclaw); values are display strings.
+    # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
     # Unset backends default to their channel prefix.
     backend_labels: dict[str, str] = field(default_factory=dict)
 

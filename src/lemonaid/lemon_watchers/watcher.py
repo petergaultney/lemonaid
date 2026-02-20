@@ -4,8 +4,6 @@ Provides shared watcher loop logic that can be used by multiple backends
 (Claude, Codex, etc.) to monitor session files for activity.
 """
 
-from __future__ import annotations
-
 import json
 import subprocess
 import threading
@@ -249,6 +247,8 @@ def _archive_stale_sessions(
             process_name = "claude"
         elif channel.startswith("openclaw:"):
             process_name = "openclaw"
+        elif channel.startswith("opencode:"):
+            process_name = "opencode"
         else:
             process_name = "codex"
         key = (tty, process_name)

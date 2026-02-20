@@ -3,8 +3,6 @@
 All tests mock subprocess.run to avoid real SSH calls.
 """
 
-from __future__ import annotations
-
 import json
 import shlex
 import subprocess
@@ -124,7 +122,7 @@ def test_find_most_recent_session_success(mock_ssh):
 @patch("lemonaid.openclaw.ssh._ssh_run")
 def test_find_most_recent_session_no_files(mock_ssh):
     mock_ssh.return_value = None
-    path, session_id, agent_id, cwd = find_most_recent_session("host")
+    path, session_id, _agent_id, _cwd = find_most_recent_session("host")
     assert path is None
     assert session_id is None
 
@@ -135,7 +133,7 @@ def test_find_most_recent_session_no_uuid(mock_ssh):
     mock_ssh.side_effect = [
         "/home/.openclaw/agents/a1/sessions/no-uuid-here.jsonl",  # ls
     ]
-    path, session_id, agent_id, cwd = find_most_recent_session("host")
+    path, _session_id, _agent_id, _cwd = find_most_recent_session("host")
     assert path is None
 
 

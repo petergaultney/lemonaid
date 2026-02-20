@@ -5,8 +5,6 @@ are invisible to lemonaid's history view. This module scans Claude's
 sessions-index.json files and imports them as archived notifications.
 """
 
-from __future__ import annotations
-
 import json
 import typing as ty
 from pathlib import Path

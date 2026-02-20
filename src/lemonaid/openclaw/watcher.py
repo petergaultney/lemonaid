@@ -14,8 +14,6 @@ OpenClaw session entries have these types:
 - branch_summary: persisted summary when navigating trees
 """
 
-from __future__ import annotations
-
 import functools
 import shlex
 import subprocess

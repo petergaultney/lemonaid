@@ -5,8 +5,6 @@ sessions on a remote host. They are NOT called in the hot polling
 loop — the watcher uses _read_jsonl_tail_ssh in watcher.py instead.
 """
 
-from __future__ import annotations
-
 import json
 import re
 import shlex

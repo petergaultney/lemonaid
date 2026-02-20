@@ -5,8 +5,6 @@ this module provides the handler infrastructure in case hooks are added
 or for manual triggering.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys

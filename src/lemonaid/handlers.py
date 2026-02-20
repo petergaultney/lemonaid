@@ -124,6 +124,8 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
                 process_name = "claude"
             elif channel.startswith("codex:"):
                 process_name = "codex"
+            elif channel.startswith("opencode:"):
+                process_name = "opencode"
             session, pane_id = tmux.get_pane_for_cwd(cwd, process_name)
 
     if session is None or pane_id is None:

@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import time
 from datetime import datetime
+from typing import cast
 
 from rich.text import Text
 from textual import events
@@ -26,6 +27,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...openclaw import watcher as openclaw_watcher
+from ...opencode import watcher as opencode_watcher
 from .. import db
 from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
@@ -43,7 +45,7 @@ def _format_timestamp(ts: float) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
-_RESUMABLE_BACKENDS = {"claude", "codex", "openclaw"}
+_RESUMABLE_BACKENDS = {"claude", "codex", "openclaw", "opencode"}
 
 
 def _backend_label(channel: str, overrides: dict[str, str]) -> str:
@@ -73,6 +75,9 @@ def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]
         argv = build_resume_argv(notification.metadata)
         if argv:
             return (cwd, argv)
+
+    if notification.channel.startswith("opencode:") and session_id:
+        return (cwd, ["opencode", "--session", session_id])
 
     return None
 
@@ -272,7 +277,10 @@ class LemonaidApp(App):
         self.set_interval(1.0, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss, message updates, and exit detection
         start_unified_watcher(
-            backends=[claude_watcher, codex_watcher, openclaw_watcher],
+            backends=cast(
+                list,
+                [claude_watcher, codex_watcher, openclaw_watcher, opencode_watcher],
+            ),
             get_active=self._get_active_for_watcher,
             mark_read=self._mark_channel_read,
             update_message=self._update_channel_message,

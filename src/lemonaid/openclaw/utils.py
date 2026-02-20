@@ -1,7 +1,5 @@
 """OpenClaw session utilities."""
 
-from __future__ import annotations
-
 import json
 import re
 from pathlib import Path

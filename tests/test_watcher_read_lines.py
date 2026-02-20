@@ -6,8 +6,6 @@ Verifies that:
 - Backends without read_lines fall back to read_jsonl_tail
 """
 
-from __future__ import annotations
-
 import json
 from datetime import UTC, datetime
 from pathlib import Path

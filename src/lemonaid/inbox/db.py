@@ -1,7 +1,5 @@
 """SQLite database for lemonaid notifications."""
 
-from __future__ import annotations
-
 import json
 import sqlite3
 import time
@@ -9,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 
 @dataclass(frozen=True)
@@ -27,7 +25,7 @@ class Notification:
     switch_source: str | None = None
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> Notification:
+    def from_row(cls, row: sqlite3.Row) -> Self:
         """Create a Notification from a database row."""
         # Handle columns which may not exist in older DBs
         switch_source = None

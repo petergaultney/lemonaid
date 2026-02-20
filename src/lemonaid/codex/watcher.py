@@ -6,8 +6,6 @@ Provides Codex-specific functions for the unified watcher:
 - should_dismiss: Detect when to auto-dismiss notifications
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
