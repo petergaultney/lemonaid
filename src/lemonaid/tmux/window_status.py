@@ -77,10 +77,12 @@ PROCESS_COLORS: dict[str, str] = {
     "node": "#50FA7B",  # Green
     "npm": "#50FA7B",
     "claude": "#50FA7B",  # Green
+    "opencode": "#7DCFFF",  # Sky blue
 }
 
 ACTIVE_PROCESS_COLORS: dict[str, str] = {
     "codex": "#2FBF5A",  # Brighter for current window, still darker than Claude
+    "opencode": "#9AEDFE",  # Brighter sky blue
 }
 
 # Shells/wrappers that shouldn't be shown (just show directory instead)
@@ -99,6 +101,7 @@ HIDDEN_PROCESSES: set[str] = {
 STANDALONE_PROCESSES: set[str] = {
     "claude",
     "codex",
+    "opencode",
     "emacs",
     "emacsclient",
     "lma",

@@ -1,7 +1,5 @@
 """Summarize Claude sessions with poor names using claude -p --model haiku."""
 
-from __future__ import annotations
-
 import json
 import subprocess
 import typing as ty

@@ -1,3 +1,11 @@
+# 0.10.0 (2026-02-19)
+
+#### Added
+
+- **OpenCode integration**: Added first-class OpenCode support with `lemonaid opencode notify` / `dismiss`, OpenCode docs, tmux process labels, and TUI resume support (`opencode --session ...`).
+- **OpenCode watcher behavior**: Notifications now auto-transition based on activity: unread on turn completion (`step-finish` with `reason: "stop"`) and read when session activity resumes.
+- **OpenCode channeling**: OpenCode notifications now key by full session ID (`opencode:<full_session_id>`) to avoid collisions between sessions sharing the same ID prefix.
+
 # 0.9.0 (2026-02-16)
 
 #### Added

@@ -18,7 +18,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ## Features
 
-- **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), and [OpenClaw](docs/openclaw.md) sessions need your attention, and what they're doing as they do it
+- **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md) and [WezTerm](docs/wezterm.md))
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
@@ -87,6 +87,24 @@ Features: turn-complete detection, live activity updates, auto-dismiss on user i
 
 **Full documentation**: [docs/openclaw.md](docs/openclaw.md)
 
+### OpenCode
+
+Add this plugin at `~/.config/opencode/plugins/lemonaid.js` (or `.opencode/plugins/lemonaid.js` in a project):
+
+```javascript
+export const LemonaidPlugin = async ({ $ }) => ({
+  event: async ({ event }) => {
+    if (event.type === "session.idle" || event.type === "permission.asked") {
+      await $`lemonaid opencode notify ${JSON.stringify(event)}`
+    }
+  },
+})
+```
+
+Features: idle/permission notifications via plugin hooks, auto-dismiss via session DB watching, live activity updates.
+
+**Full documentation**: [docs/opencode.md](docs/opencode.md)
+
 ## Terminal Setup
 
 - **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
@@ -140,3 +158,4 @@ Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/conf
 - **claude**: Claude Code hook integration with transcript watching
 - **codex**: Codex CLI hook integration with session watching
 - **openclaw**: OpenClaw integration with turn-complete detection
+- **opencode**: OpenCode integration with plugin events and live activity watching
