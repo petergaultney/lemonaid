@@ -12,7 +12,8 @@ Lemonaid has two parts: **hooks** that fire when your lemons need attention, and
 1. You add hooks to Claude Code, Codex CLI, and/or OpenCode (see [Integrations](#-integrations) below)
 2. When a session stops or needs input, the hook writes a notification to a local SQLite database
 3. The `lma` TUI displays active notifications, watches transcripts for live activity, and auto-archives sessions when they end
-4. Over time, archived sessions accumulate into a searchable **session history** — press `h` to browse past sessions across all projects and resume them
+4. When you select an active session, you are taken directly to that pane/tab in `tmux`/WezTerm
+5. Over time, archived sessions accumulate into a searchable **session history** — press `h` to browse past sessions across all projects and resume them
 
 The TUI doesn't need to be running for notifications to arrive (hooks write directly to the DB), but it does need to run for live activity updates and automatic archiving.
 
