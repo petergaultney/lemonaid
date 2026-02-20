@@ -9,7 +9,7 @@ running in the terminal.
 
 Lemonaid has two parts: **hooks** that fire when your lemons need attention, and a **TUI** (`lma`) that shows what's going on and lets you jump to sessions.
 
-1. You add hooks to Claude Code and/or Codex CLI (see [Integrations](#-integrations) below)
+1. You add hooks to Claude Code, Codex CLI, and/or OpenCode (see [Integrations](#-integrations) below)
 2. When a session stops or needs input, the hook writes a notification to a local SQLite database
 3. The `lma` TUI displays active notifications, watches transcripts for live activity, and auto-archives sessions when they end
 4. Over time, archived sessions accumulate into a searchable **session history** — press `h` to browse past sessions across all projects and resume them
@@ -27,7 +27,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ### Assorted helpers
 - **Claude statusline**: Colorful statusline showing time, elapsed, git branch, context %, vim mode
-- **`tmux` session templates**: Spin up new Claude workspaces with a predefined window layout
+- **`tmux` session templates**: Spin up new named workspaces with a predefined window layout
 - **`tmux` window status formatting**: An optional `tmux` integration to keep your status bar sane
 
 ## Installation
