@@ -1,3 +1,9 @@
+# 0.10.1 (2026-02-23)
+
+#### Changed
+
+- **`tmux new` auto-naming**: Session name is now auto-derived from the last one or two directory components (e.g. `~/play/lemonaid` → `play-lemonaid`). The positional name argument is replaced with `-s` flag, matching tmux's own convention.
+
 # 0.10.0 (2026-02-19)
 
 #### Added

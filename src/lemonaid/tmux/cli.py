@@ -38,6 +38,27 @@ def cmd_scratch(args: argparse.Namespace) -> None:
         print(result)
 
 
+def _auto_session_name(directory: Path, max_len: int = 15) -> str:
+    """Derive a tmux session name from the directory path.
+
+    Uses the last one or two path components, joined by '-', trimmed to
+    roughly *max_len* characters.  A single final component is never
+    truncated; two components are used only when they fit.
+    """
+    parts = directory.resolve().parts  # absolute, no trailing slash quirks
+    if len(parts) <= 1:
+        return parts[-1] if parts else "tmux"
+
+    last = parts[-1]
+    penultimate = parts[-2]
+    candidate = f"{penultimate}-{last}"
+    if len(candidate) <= max_len:
+        return candidate
+
+    # two components don't fit - just use the last one
+    return last
+
+
 def cmd_new(args: argparse.Namespace) -> None:
     """Create a new tmux session from a template."""
     config = load_config()
@@ -54,7 +75,7 @@ def cmd_new(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     directory = Path(args.dir) if args.dir else Path.cwd()
-    session_name = args.name or directory.name
+    session_name = args.session_name or _auto_session_name(directory)
 
     success = create_session(
         name=session_name,
@@ -117,9 +138,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Create a new tmux session from a template",
     )
     new_parser.add_argument(
-        "name",
-        nargs="?",
-        help="Session name (defaults to directory name)",
+        "-s",
+        dest="session_name",
+        help="Session name (default: auto-derived from directory path)",
     )
     new_parser.add_argument(
         "--from",
