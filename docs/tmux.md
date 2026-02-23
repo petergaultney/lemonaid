@@ -54,7 +54,7 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 - `lemonaid tmux back` - Switch to the saved back location
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
 - `lemonaid tmux scratch` - Toggle the scratch lma pane (see below)
-- `lemonaid tmux new [name]` - Create a new tmux session from a template
+- `lemonaid tmux new [-s name]` - Create a new tmux session from a template
 
 ## Scratch Pane
 
@@ -129,11 +129,12 @@ Each entry in the list creates a window. Empty string means just a shell.
 ### Usage
 
 ```bash
-# Create session named after current directory, using "default" template
+# Create session with auto-derived name from directory path
+# e.g. ~/play/lemonaid -> "play-lemonaid", ~/work/project -> "work-project"
 lemonaid tmux new
 
-# Create session with explicit name
-lemonaid tmux new my-feature
+# Create session with explicit name (like tmux's -s flag)
+lemonaid tmux new -s my-feature
 
 # Use a different template
 lemonaid tmux new --from no-emacs
