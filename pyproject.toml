@@ -1,6 +1,6 @@
 [project]
 name = "lemonaid"
-version = "0.10.1"
+version = "0.10.2"
 description = "Attention inbox for managing notifications from lemons and other background tools"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -233,7 +233,11 @@ class LemonaidApp(App):
         # Patch Claude (always hidden, always 'P')
         self.bind("P", "patch_claude", description="Patch Claude", show=False)
 
-        # Arrow key alternatives (if configured)
+        # Cross-table arrow navigation (always active)
+        self.bind("up", "cursor_up", description="Up", show=False)
+        self.bind("down", "cursor_down", description="Down", show=False)
+
+        # Additional up/down keys (vim-style, if configured)
         if len(kb.up_down) == 2:
             up, down = kb.up_down
             self.bind(up, "cursor_up", description="Up", show=False)

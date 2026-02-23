@@ -1,3 +1,9 @@
+# 0.10.2 (2026-02-23)
+
+#### Fixed
+
+- **Arrow keys now navigate into non-switchable table**: Cross-table jumping (arrow down from main → non-switchable, arrow up back) was only wired to custom vim-style keys, not the actual arrow keys.
+
 # 0.10.1 (2026-02-23)
 
 #### Changed
