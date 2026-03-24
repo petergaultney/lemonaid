@@ -40,6 +40,9 @@ class TmuxSessionConfig:
     """Configuration for tmux session templates."""
 
     templates: dict[str, list[str]] = field(default_factory=dict)
+    # 0-based index into the template window list: which window to replace
+    # with the resume command when spawning a session from history.
+    resume_window: int = 0
 
     def get_template(self, name: str) -> list[str] | None:
         """Get a template by name."""
@@ -67,6 +70,7 @@ class KeybindingsConfig:
     rename: str = "r"
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
+    tmux_resume: str = "T"  # Spawn tmux session around a history entry
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 
@@ -138,6 +142,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tmux_session_data = data.get("tmux-session", {})
     tmux_session = TmuxSessionConfig(
         templates=tmux_session_data.get("templates", {}),
+        resume_window=tmux_session_data.get("resume_window", 0),
     )
 
     tui_data = data.get("tui", {})

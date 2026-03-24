@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import cast
 
 from rich.text import Text
@@ -226,6 +227,9 @@ class LemonaidApp(App):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
+            self.bind(b.key, b.action, description=b.description, show=False)
+
+        for b in _build_bindings(kb.tmux_resume, "tmux_resume", "Tmux"):
             self.bind(b.key, b.action, description=b.description, show=False)
 
         self.bind("slash", "filter_history", description="Filter", show=False)
@@ -559,7 +563,7 @@ class LemonaidApp(App):
             self._set_binding_footer(action, show=not enabled)
 
         # History-only actions
-        for action in ("copy_resume", "filter_history"):
+        for action in ("copy_resume", "filter_history", "tmux_resume"):
             self._set_binding_footer(action, show=enabled)
 
         # Relabel contextual actions
@@ -689,6 +693,68 @@ class LemonaidApp(App):
         if not self._history_mode:
             return
         self._resume_session(copy_only=True)
+
+    def action_tmux_resume(self) -> None:
+        """Spawn a new tmux session around the selected history entry."""
+        if not self._history_mode:
+            return
+
+        history_table = self.query_one("#history_table", DataTable)
+        if history_table.row_count == 0:
+            return
+
+        row_key, _ = history_table.coordinate_to_cell_key(history_table.cursor_coordinate)
+        if not row_key:
+            return
+
+        notification_id = int(row_key.value)
+        with db.connect() as conn:
+            notification = db.get(conn, notification_id)
+
+        if not notification:
+            return
+
+        resume = _build_resume_command(notification)
+        if not resume:
+            self.notify("No cwd metadata — can't build resume command", severity="warning")
+            return
+
+        cwd, argv = resume
+        resume_cmd = " ".join(shlex.quote(a) for a in argv)
+
+        from ...tmux.cli import _auto_session_name
+        from ...tmux.session import create_session
+
+        template_name = "default"
+        windows = self.config.tmux_session.get_template(template_name)
+        if not windows:
+            self.notify(f"No tmux-session template '{template_name}' in config", severity="warning")
+            return
+
+        # Replace the configured window with the resume command
+        idx = self.config.tmux_session.resume_window
+        idx = min(idx, len(windows) - 1)
+        session_windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
+        session_name = _auto_session_name(Path(cwd))
+
+        # Unarchive so the session appears in the inbox once it starts
+        with db.connect() as conn:
+            conn.execute(
+                "UPDATE notifications SET status = 'unread', read_at = NULL, created_at = ? WHERE id = ?",
+                (time.time(), notification.id),
+            )
+            conn.commit()
+
+        _log.info("tmux_resume: %s -> session '%s' in %s", notification.channel, session_name, cwd)
+
+        success = create_session(
+            name=session_name,
+            windows=session_windows,
+            directory=cwd,
+            attach=True,
+        )
+        if not success:
+            self.notify("Failed to create tmux session", severity="error")
 
     def action_filter_history(self) -> None:
         """Show the filter input in history mode."""

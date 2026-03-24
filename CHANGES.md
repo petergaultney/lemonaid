@@ -1,3 +1,14 @@
+# 0.11.0 (2026-03-24)
+
+#### Added
+
+- **Tmux session from history** (`T`): In history mode, press `T` to spawn a full tmux session around a historical lemon session. Uses the configured session template with the resume command replacing one window (configurable via `resume_window` in `[tmux-session]`, default 0). Keybinding configurable via `tmux_resume` in `[tui.keybindings]`.
+
+#### Fixed
+
+- **`tmux new` on fresh boot**: `base-index` is now queried after session creation so the tmux server exists. Previously, if `~/.tmux.conf` set `base-index = 1` and no tmux server was running, lemonaid would target window 0 (which doesn't exist).
+- **`send-keys` failures non-fatal**: If sending a command to a window fails (e.g. wrong index), session creation continues instead of aborting — the session and remaining windows are still set up and attached.
+
 # 0.10.2 (2026-02-23)
 
 #### Fixed
