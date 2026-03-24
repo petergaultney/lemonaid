@@ -5,8 +5,9 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 """
 
 import argparse
+import sys
 
-from .claude import cli as claude_cli
+from . import claude
 from .codex import cli as codex_cli
 from .config import ensure_config_exists, get_config_path
 from .inbox import cli as inbox_cli
@@ -95,7 +96,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     inbox_cli.setup_parser(subparsers)
-    claude_cli.setup_parser(subparsers)
+    claude.cli.setup_parser(subparsers)
     codex_cli.setup_parser(subparsers)
     openclaw_cli.setup_parser(subparsers)
     opencode_cli.setup_parser(subparsers)
@@ -103,6 +104,11 @@ def main() -> None:
     wezterm_cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
+
+    # Forward `lemonaid claude --flag ...` to the real claude CLI.
+    # Argparse can't forward unknown flags through a subparser, so this
+    # intercepts before parse_args when the first arg after "claude" is a flag.
+    claude.resume.maybe_intercept(sys.argv[1:])
 
     args = parser.parse_args()
 
@@ -114,7 +120,6 @@ def main() -> None:
         else:
             parser.print_help()
     except Exception:
-        import sys
         import time
         import traceback
 

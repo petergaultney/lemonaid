@@ -7,7 +7,6 @@ import shlex
 import subprocess
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import cast
 
 from rich.text import Text
@@ -29,6 +28,7 @@ from ...lemon_watchers import (
 from ...log import get_logger
 from ...openclaw import watcher as openclaw_watcher
 from ...opencode import watcher as opencode_watcher
+from ...tmux.session import spawn_session_for_resume
 from .. import db
 from .screens import RenameScreen
 from .utils import set_terminal_title, styled_cell
@@ -65,7 +65,9 @@ def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]
 
     session_id = notification.metadata.get("session_id", "")
     if notification.channel.startswith("claude:") and session_id:
-        return (cwd, ["claude", "--resume", session_id])
+        # Use lemonaid's resume wrapper — it looks up the correct project
+        # directory from Claude's history.jsonl, avoiding cwd mismatch.
+        return (cwd, ["lemonaid", "claude", "resume", session_id])
 
     if notification.channel.startswith("codex:") and session_id:
         return (cwd, ["codex", "resume", session_id])
@@ -720,22 +722,6 @@ class LemonaidApp(App):
             return
 
         cwd, argv = resume
-        resume_cmd = " ".join(shlex.quote(a) for a in argv)
-
-        from ...tmux.cli import _auto_session_name
-        from ...tmux.session import create_session
-
-        template_name = "default"
-        windows = self.config.tmux_session.get_template(template_name)
-        if not windows:
-            self.notify(f"No tmux-session template '{template_name}' in config", severity="warning")
-            return
-
-        # Replace the configured window with the resume command
-        idx = self.config.tmux_session.resume_window
-        idx = min(idx, len(windows) - 1)
-        session_windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
-        session_name = _auto_session_name(Path(cwd))
 
         # Unarchive so the session appears in the inbox once it starts
         with db.connect() as conn:
@@ -745,16 +731,15 @@ class LemonaidApp(App):
             )
             conn.commit()
 
-        _log.info("tmux_resume: %s -> session '%s' in %s", notification.channel, session_name, cwd)
-
-        success = create_session(
-            name=session_name,
-            windows=session_windows,
-            directory=cwd,
-            attach=True,
+        error = spawn_session_for_resume(
+            resume_argv=argv,
+            cwd=cwd,
+            config=self.config.tmux_session,
+            channel=notification.channel,
+            session_metadata=notification.metadata,
         )
-        if not success:
-            self.notify("Failed to create tmux session", severity="error")
+        if error:
+            self.notify(error, severity="error")
 
     def action_filter_history(self) -> None:
         """Show the filter input in history mode."""

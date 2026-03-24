@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..log import get_logger
-from . import find_project_path
+from .projects import find_project_path
 
 _log = get_logger("claude.summarize")
 

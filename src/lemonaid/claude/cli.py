@@ -5,6 +5,7 @@ import argparse
 from .bootstrap import run_bootstrap
 from .notify import dismiss_session, handle_dismiss, handle_notification
 from .patcher import apply_patch, check_status, find_binary, restore_backup
+from .resume import resume_session
 from .summarize import run_summarize
 
 
@@ -117,6 +118,11 @@ def cmd_patch_restore(args: argparse.Namespace) -> None:
         print("No backup found")
 
 
+def cmd_resume(args: argparse.Namespace) -> None:
+    """Resume a Claude Code session, auto-discovering the correct project directory."""
+    resume_session(args.session_id)
+
+
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the claude subcommand."""
     claude_parser = subparsers.add_parser(
@@ -124,6 +130,14 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Claude Code integration",
     )
     claude_subparsers = claude_parser.add_subparsers(dest="claude_command")
+
+    # claude resume (subcommand form)
+    resume_parser = claude_subparsers.add_parser(
+        "resume",
+        help="Resume a session, auto-discovering the correct project directory",
+    )
+    resume_parser.add_argument("session_id", help="Claude session ID (UUID)")
+    resume_parser.set_defaults(func=cmd_resume)
 
     # claude notify
     notify_parser = claude_subparsers.add_parser(
