@@ -11,7 +11,7 @@ import json
 import os
 import subprocess
 
-from . import get_state_path
+from .navigation import get_state_path
 
 _SCRATCH_SESSION = "_lma_scratch"
 

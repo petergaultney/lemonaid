@@ -14,7 +14,7 @@ def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool:
     Lower-level helper that just needs TTY. Used by watcher for auto-archive.
     """
     if switch_source == "tmux":
-        session, pane_id = tmux.get_pane_for_tty(tty)
+        session, pane_id = tmux.navigation.get_pane_for_tty(tty)
         return session is not None and pane_id is not None
 
     elif switch_source == "wezterm":
@@ -75,7 +75,7 @@ def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
     if workspace is None or pane_id is None:
         return False
 
-    return wezterm.switch_to_pane(workspace, pane_id)
+    return wezterm.navigation.switch_to_pane(workspace, pane_id)
 
 
 def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
@@ -109,7 +109,7 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
     # Try to resolve pane from TTY first (most reliable)
     tty = metadata.get("tty")
     if tty:
-        session, pane_id = tmux.get_pane_for_tty(tty)
+        session, pane_id = tmux.navigation.get_pane_for_tty(tty)
 
     # Fallback: resolve from cwd (for hooks that run outside user's shell)
     if session is None or pane_id is None:
@@ -126,9 +126,9 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
                 process_name = "codex"
             elif channel.startswith("opencode:"):
                 process_name = "opencode"
-            session, pane_id = tmux.get_pane_for_cwd(cwd, process_name)
+            session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, process_name)
 
     if session is None or pane_id is None:
         return False
 
-    return tmux.switch_to_pane(session, pane_id)
+    return tmux.navigation.switch_to_pane(session, pane_id)

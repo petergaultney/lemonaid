@@ -15,9 +15,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from ...claude import watcher as claude_watcher
+from ... import claude, codex, openclaw, opencode
 from ...claude.patcher import apply_patch, check_status, find_binary
-from ...codex import watcher as codex_watcher
 from ...config import load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
@@ -26,8 +25,6 @@ from ...lemon_watchers import (
     start_unified_watcher,
 )
 from ...log import get_logger
-from ...openclaw import watcher as openclaw_watcher
-from ...opencode import watcher as opencode_watcher
 from ...tmux.session import spawn_session_for_resume
 from .. import db
 from .screens import RenameScreen
@@ -73,9 +70,7 @@ def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]
         return (cwd, ["codex", "resume", session_id])
 
     if notification.channel.startswith("openclaw:"):
-        from ...openclaw.utils import build_resume_argv
-
-        argv = build_resume_argv(notification.metadata)
+        argv = openclaw.utils.build_resume_argv(notification.metadata)
         if argv:
             return (cwd, argv)
 
@@ -289,7 +284,7 @@ class LemonaidApp(App):
         start_unified_watcher(
             backends=cast(
                 list,
-                [claude_watcher, codex_watcher, openclaw_watcher, opencode_watcher],
+                [claude.watcher, codex.watcher, openclaw.watcher, opencode.watcher],
             ),
             get_active=self._get_active_for_watcher,
             mark_read=self._mark_channel_read,

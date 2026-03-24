@@ -23,7 +23,7 @@ from ..config import load_config
 from ..inbox import db
 from ..lemon_watchers.watcher import read_jsonl_tail
 from ..log import get_logger
-from .utils import find_session_path as _find_session_path
+from .utils import find_session_path
 
 _log = get_logger("openclaw.watcher")
 
@@ -95,7 +95,7 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
             if n and n.metadata.get("session_path"):
                 return Path(n.metadata["session_path"])
         return None
-    return _find_session_path(session_id)
+    return find_session_path(session_id)
 
 
 def describe_activity(entry: dict) -> str | None:
