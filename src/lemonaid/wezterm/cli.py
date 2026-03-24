@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from . import go_back, swap_back_location
+from .navigation import go_back, swap_back_location
 
 
 def cmd_back(args: argparse.Namespace) -> None:

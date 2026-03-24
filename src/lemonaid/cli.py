@@ -7,15 +7,8 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
-from . import claude
-from .codex import cli as codex_cli
+from . import claude, codex, inbox, openclaw, opencode, tmux, wezterm
 from .config import ensure_config_exists, get_config_path
-from .inbox import cli as inbox_cli
-from .inbox import db as inbox_db
-from .openclaw import cli as openclaw_cli
-from .opencode import cli as opencode_cli
-from .tmux import cli as tmux_cli
-from .wezterm import cli as wezterm_cli
 
 
 # Config commands (kept here since config isn't a package)
@@ -42,8 +35,8 @@ def cmd_config_show(args: argparse.Namespace) -> None:
 
 def cmd_mark_read(args: argparse.Namespace) -> None:
     """Mark notifications as read by TTY."""
-    with inbox_db.connect() as conn:
-        count = inbox_db.mark_read_by_tty(conn, args.tty)
+    with inbox.db.connect() as conn:
+        count = inbox.db.mark_read_by_tty(conn, args.tty)
     if count > 0:
         print(f"Marked {count} notification(s) as read")
     else:
@@ -95,13 +88,13 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    inbox_cli.setup_parser(subparsers)
+    inbox.cli.setup_parser(subparsers)
     claude.cli.setup_parser(subparsers)
-    codex_cli.setup_parser(subparsers)
-    openclaw_cli.setup_parser(subparsers)
-    opencode_cli.setup_parser(subparsers)
-    tmux_cli.setup_parser(subparsers)
-    wezterm_cli.setup_parser(subparsers)
+    codex.cli.setup_parser(subparsers)
+    openclaw.cli.setup_parser(subparsers)
+    opencode.cli.setup_parser(subparsers)
+    tmux.cli.setup_parser(subparsers)
+    wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
 

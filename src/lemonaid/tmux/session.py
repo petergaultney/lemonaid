@@ -6,9 +6,10 @@ import sys
 import time
 from pathlib import Path
 
+from ..claude.projects import find_session_project
 from ..config import TmuxSessionConfig
 from ..log import get_logger
-from . import is_inside_tmux
+from .navigation import is_inside_tmux
 
 _log = get_logger("tmux.session")
 
@@ -156,8 +157,6 @@ def spawn_session_for_resume(
 
     # For Claude sessions, prefer the history-derived project dir
     if channel.startswith("claude:") and session_metadata:
-        from ..claude.projects import find_session_project
-
         session_id = session_metadata.get("session_id", "")
         if session_id:
             project_dir = find_session_project(session_id)

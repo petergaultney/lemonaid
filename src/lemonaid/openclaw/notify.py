@@ -21,7 +21,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import ssh as openclaw_ssh
+from . import ssh
 from .utils import (
     extract_session_id_from_filename,
     find_session_path,
@@ -282,7 +282,7 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     name = None
     if agent_id:
         if remote_host:
-            name = openclaw_ssh.get_session_name(remote_host, agent_id, session_id)
+            name = ssh.get_session_name(remote_host, agent_id, session_id)
         else:
             name = get_session_name(agent_id, session_id)
     if not name:
@@ -298,7 +298,7 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     if agent_id:
         metadata["agent_id"] = agent_id
         if remote_host:
-            session_key = openclaw_ssh.get_session_key(remote_host, agent_id, session_id)
+            session_key = ssh.get_session_key(remote_host, agent_id, session_id)
         else:
             session_key = get_session_key(agent_id, session_id)
         if session_key:
@@ -349,12 +349,12 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     session_name = None
     if agent_id:
         if remote_host:
-            session_name = openclaw_ssh.get_session_name(remote_host, agent_id, session_id)
+            session_name = ssh.get_session_name(remote_host, agent_id, session_id)
         else:
             session_name = get_session_name(agent_id, session_id)
 
     if remote_host:
-        last_message = openclaw_ssh.get_last_user_message(remote_host, str(session_path))
+        last_message = ssh.get_last_user_message(remote_host, str(session_path))
     else:
         last_message = get_last_user_message(Path(str(session_path)))
 
@@ -386,7 +386,7 @@ def _find_session_remote(
 
     Returns (session_path, session_id, agent_id, cwd) or all Nones.
     """
-    candidates = openclaw_ssh.list_recent_sessions(host, limit=30)
+    candidates = ssh.list_recent_sessions(host, limit=30)
     return _pick_session_candidate(
         candidates, requested_session_id=session_id, excluded_session_ids=excluded_session_ids
     )

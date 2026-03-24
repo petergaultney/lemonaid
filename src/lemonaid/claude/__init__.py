@@ -1,3 +1,3 @@
 """Lemonaid Claude Code integration."""
 
-from . import cli, resume  # noqa: F401
+from . import cli, resume, watcher  # noqa: F401

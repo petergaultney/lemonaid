@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from . import go_back, swap_back_location
+from .navigation import go_back, swap_back_location
 from .scratch import toggle_scratch
 from .session import create_session
 
