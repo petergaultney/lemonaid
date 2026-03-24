@@ -1,11 +1,16 @@
 """tmux session creation and management."""
 
+import shlex
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from ..config import TmuxSessionConfig
+from ..log import get_logger
 from . import is_inside_tmux
+
+_log = get_logger("tmux.session")
 
 
 def get_base_index() -> int:
@@ -124,3 +129,48 @@ def create_session(
         if e.stderr:
             print(f"tmux error: {e.stderr.decode().strip()}", file=sys.stderr)
         return False
+
+
+def spawn_session_for_resume(
+    resume_argv: list[str],
+    cwd: str,
+    config: TmuxSessionConfig,
+    channel: str = "",
+    session_metadata: dict | None = None,
+) -> str | None:
+    """Create a tmux session from the default template with a resume command.
+
+    Replaces the window at `config.resume_window` with the resume command.
+    For Claude sessions, resolves the project directory from history.jsonl
+    to use as the session root.
+
+    Returns an error message string on failure, or None on success.
+    """
+    from .cli import _auto_session_name
+
+    windows = config.get_template("default")
+    if not windows:
+        return "No tmux-session template 'default' in config"
+
+    resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
+
+    # For Claude sessions, prefer the history-derived project dir
+    if channel.startswith("claude:") and session_metadata:
+        from ..claude.projects import find_session_project
+
+        session_id = session_metadata.get("session_id", "")
+        if session_id:
+            project_dir = find_session_project(session_id)
+            if project_dir:
+                cwd = project_dir
+
+    idx = min(config.resume_window, len(windows) - 1)
+    session_windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
+    session_name = _auto_session_name(Path(cwd))
+
+    _log.info("spawn_session_for_resume: %s -> session '%s' in %s", channel, session_name, cwd)
+
+    if not create_session(name=session_name, windows=session_windows, directory=cwd, attach=True):
+        return "Failed to create tmux session"
+
+    return None

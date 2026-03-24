@@ -2,7 +2,9 @@
 
 #### Added
 
-- **Tmux session from history** (`T`): In history mode, press `T` to spawn a full tmux session around a historical lemon session. Uses the configured session template with the resume command replacing one window (configurable via `resume_window` in `[tmux-session]`, default 0). Keybinding configurable via `tmux_resume` in `[tui.keybindings]`.
+- **`lemonaid claude resume <session-id>`**: Resumes a Claude session from any directory. Looks up the correct project directory from `~/.claude/history.jsonl` and `cd`s there before calling `claude --resume`. Solves the longstanding issue where `--resume` fails with "No conversation found" when run from a different directory than the original session. Also available as `lemonaid claude --resume <id>` so you can prepend `lemonaid` to a failing `claude` command. Extra flags like `--dangerously-skip-permissions` are forwarded. All TUI resume paths (Enter, `c`, `T`) now use this wrapper for Claude sessions.
+- **Tmux session from history** (`T`): In history mode, press `T` to spawn a full tmux session around a historical lemon session. Uses the configured session template with the resume command replacing one window (configurable via `resume_window` in `[tmux-session]`, default 0). For Claude sessions, the tmux session roots at the correct project directory from history. Keybinding configurable via `tmux_resume` in `[tui.keybindings]`.
+- **cwd drift warning**: The notify hook now logs a warning when Claude reports a different `cwd` than what's stored for an existing session, helping diagnose metadata mismatches.
 
 #### Fixed
 

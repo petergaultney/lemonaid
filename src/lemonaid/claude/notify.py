@@ -52,7 +52,7 @@ def get_session_name(session_id: str, cwd: str) -> str | None:
     if not session_id or not cwd:
         return None
 
-    from . import get_project_path
+    from .projects import get_project_path
 
     # Try sessions-index.json first
     sessions_index_path = get_project_path(cwd) / "sessions-index.json"
@@ -151,6 +151,16 @@ def handle_notification(stdin_data: str | None = None) -> None:
         existing = db.get_by_channel(conn, channel, unread_only=False)
         existing_status = existing.status if existing else None
         existing_type = existing.metadata.get("notification_type") if existing else None
+
+        if existing:
+            prev_cwd = existing.metadata.get("cwd")
+            if prev_cwd and prev_cwd != cwd:
+                _log.warning(
+                    "cwd changed for %s: %s -> %s",
+                    channel,
+                    prev_cwd,
+                    cwd,
+                )
 
         db.add(
             conn,

@@ -24,7 +24,7 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
     if not cwd or not session_id:
         return None
 
-    from . import find_project_path
+    from .projects import find_project_path
 
     project_path = find_project_path(cwd)
     if not project_path:
