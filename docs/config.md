@@ -8,7 +8,13 @@ Created automatically on first run, or with `lemonaid init`.
 
 See [wezterm.md](wezterm.md).
 
-## `[tmux-session.templates]`
+## `[tmux-session]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `resume_window` | `0` | 0-based index into the template window list: which window to replace with the resume command when spawning a tmux session from history (`T`). Set to `1` if your lemon is in the second tab. |
+
+### `[tmux-session.templates]`
 
 See [tmux.md](tmux.md).
 

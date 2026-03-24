@@ -44,8 +44,6 @@ def create_session(
         directory = Path.cwd()
     directory = str(directory)
 
-    base_index = get_base_index()
-
     # Create session with first window
     try:
         first_cmd = windows[0] if windows else ""
@@ -55,11 +53,16 @@ def create_session(
             capture_output=True,
         )
 
-        # Send command to first window if specified
+        # Query base-index after new-session so the server is guaranteed to exist.
+        # On a fresh boot with no tmux server, querying before would fall back to 0
+        # even if ~/.tmux.conf sets base-index to 1.
+        base_index = get_base_index()
+
+        # Send command to first window if specified.
+        # send-keys failures are non-fatal — the session/windows are already created.
         if first_cmd:
             subprocess.run(
                 ["tmux", "send-keys", "-t", f"{name}:{base_index}", first_cmd, "Enter"],
-                check=True,
                 capture_output=True,
             )
 
@@ -74,7 +77,6 @@ def create_session(
             if cmd:
                 subprocess.run(
                     ["tmux", "send-keys", "-t", f"{name}:{win_idx}", cmd, "Enter"],
-                    check=True,
                     capture_output=True,
                 )
 

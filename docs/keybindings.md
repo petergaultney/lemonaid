@@ -11,9 +11,20 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `m` | Mark as read |
 | `a` | Archive (remove from list) |
 | `r` | Rename session (clear to revert to auto-name) |
+| `h` | Toggle history view |
 | `g` | Refresh |
 | `q` / `Escape` | Quit |
 | `↑` / `↓` | Navigate list |
+
+### History mode
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Resume selected session (replaces current terminal) |
+| `c` | Copy resume command to clipboard |
+| `T` | Spawn a tmux session around the selected session |
+| `/` | Filter by name, cwd, branch |
+| `h` | Exit history |
 
 ## Configuration
 
@@ -28,6 +39,7 @@ jump_unread = "u"
 mark_read = "m"
 archive = "a"
 rename = "r"
+tmux_resume = "T"  # spawn tmux session from history
 up_down = ""  # arrow key alternatives (see below)
 ```
 
