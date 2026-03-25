@@ -119,7 +119,6 @@ Add templates to `~/.config/lemonaid/config.toml`:
 default = [
     "emacsclient -nw .",
     "claude",
-    "lma",
     "",
 ]
 ```
