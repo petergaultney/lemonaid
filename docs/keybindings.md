@@ -14,6 +14,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `S` | Toggle snoozed view |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
+| `H` | Save scratch pane height (follow mode, only when height has drifted) |
 | `h` | Toggle history view |
 | `g` | Refresh |
 | `?` | Toggle the key hints (see below) |
@@ -86,6 +87,7 @@ snoozed_list = "S"
 undo = "z"
 rename = "r"
 tmux_resume = "T"  # spawn tmux session from history
+save_height = "H"  # save scratch pane height (follow mode)
 up_down = ""  # arrow key alternatives (see below)
 ```
 

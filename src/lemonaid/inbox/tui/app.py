@@ -29,6 +29,13 @@ from ...lemon_watchers import (
     start_unified_watcher,
 )
 from ...log import get_logger
+from ...tmux.scratch import (
+    _clear_state,
+    _hide,
+    height_has_drifted,
+    is_follow_enabled,
+    save_current_height,
+)
 from ...tmux.session import spawn_session
 from .. import db, undo
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
@@ -336,6 +343,9 @@ class LemonaidApp(App):
         # rather than a permanent fixture. Hidden from the footer it controls.
         self.bind("question_mark", "toggle_keys", description="Keys", show=False)
 
+        for b in _build_bindings(kb.save_height, "save_scratch_height", "Save Height", show=False):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
         # Cross-table arrow navigation (always active)
         self.bind("up", "cursor_up", description="Up", show=False)
         self.bind("down", "cursor_down", description="Down", show=False)
@@ -386,7 +396,7 @@ class LemonaidApp(App):
         self.query_one("#history_filter", Input).display = False
 
         self._refresh_notifications()
-        self.set_interval(1.0, self._refresh_notifications)
+        self.set_interval(self.config.tui.refresh_interval, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss, message updates, and exit detection
         start_unified_watcher(
             backends=cast(
@@ -644,6 +654,11 @@ class LemonaidApp(App):
         # Add patch warning if Claude is unpatched
         if self._claude_patch_status == "unpatched":
             status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
+
+        if self._scratch_mode and is_follow_enabled() and height_has_drifted():
+            status_text += (
+                f"  |  [bold cyan]{self.config.tui.keybindings.save_height}[/] save pane height"
+            )
 
         self._set_status(status_text)
 
@@ -1001,7 +1016,7 @@ class LemonaidApp(App):
         except (subprocess.CalledProcessError, FileNotFoundError):
             self.notify(f"Resume: {cmd_str}", severity="information")
 
-        if self._scratch_mode and not copy_only:
+        if self._scratch_mode and not copy_only and not is_follow_enabled():
             self._hide_scratch_pane()
 
     def action_copy_resume(self) -> None:
@@ -1330,14 +1345,25 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
+    def action_save_scratch_height(self) -> None:
+        """Save the current scratch pane height for follow mode."""
+        if not self._scratch_mode:
+            return
+
+        save_current_height()
+        self.notify("Pane height saved")
+        self._refresh_notifications()
+
     def _hide_scratch_pane(self) -> None:
-        """Hide this pane by breaking it to a new window (for scratch mode)."""
+        """Hide the scratch pane back to its holding session.
+
+        Clears the pane state file so follow hooks become no-ops until
+        the user re-opens with prefix+l (which rewrites the state file).
+        """
         pane_id = os.environ.get("TMUX_PANE")
         if pane_id:
-            subprocess.run(
-                ["tmux", "break-pane", "-d", "-s", pane_id],
-                capture_output=True,
-            )
+            _clear_state()
+            _hide(pane_id)
 
     def _get_active_for_watcher(
         self,
@@ -1435,8 +1461,9 @@ class LemonaidApp(App):
                     self.notify("Could not switch to or recreate that session", severity="warning")
                     return
 
-                # In scratch/auto-dismiss mode, hide the pane after navigation
-                if self._scratch_mode:
+                # In scratch mode the pane hides after navigation, unless follow
+                # mode is on - there the hook re-shows it in the target window.
+                if self._scratch_mode and not is_follow_enabled():
                     self._hide_scratch_pane()
 
 
