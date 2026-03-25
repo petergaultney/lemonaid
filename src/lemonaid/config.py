@@ -43,6 +43,10 @@ class TmuxSessionConfig:
     # 0-based index into the template window list: which window to replace
     # with the resume command when spawning a session from history.
     resume_window: int = 0
+    # Height of the scratch pane, in rows.
+    scratch_height: str = "10"
+    # When true, the scratch pane follows across window/session switches.
+    follow_scratch: bool = False
 
     def get_template(self, name: str) -> list[str] | None:
         """Get a template by name."""
@@ -74,6 +78,7 @@ class KeybindingsConfig:
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
+    save_height: str = "H"  # Save the scratch pane height (follow mode only)
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 
@@ -82,6 +87,7 @@ class TuiConfig:
     """Configuration for the TUI."""
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
+    refresh_interval: float = 0.33  # Seconds between TUI refreshes
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -225,9 +231,12 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
 
     tmux_session_data = data.get("tmux-session", {})
+    defaults_height = TmuxSessionConfig().scratch_height
     tmux_session = TmuxSessionConfig(
         templates=tmux_session_data.get("templates", {}),
         resume_window=tmux_session_data.get("resume_window", 0),
+        scratch_height=tmux_session_data.get("scratch_height", defaults_height),
+        follow_scratch=tmux_session_data.get("follow_scratch", False),
     )
 
     tui_data = data.get("tui", {})
@@ -242,6 +251,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
+        refresh_interval=tui_data.get("refresh_interval", 0.33),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),
     )

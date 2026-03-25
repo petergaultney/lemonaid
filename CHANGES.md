@@ -1,3 +1,21 @@
+# 0.16.0 (unreleased)
+
+#### Added
+
+- **Follow mode for the scratch pane**: the pane can stay visible across every window and session switch, so the inbox is ambient rather than something you summon. Enable with `lemonaid tmux scratch --follow`, which prints the `set-hook` lines to add to `.tmux.conf`; `--unfollow` disables it. The hooks are shell, not Python, so a switch costs ~5ms.
+
+  In follow mode `prefix+l` toggles focus between the scratch pane and your work rather than hiding it, and selecting a notification no longer dismisses the pane. `q` parks it until the next `prefix+l`.
+
+  Pane height survives switches: resize it and press `H` to save, and the status row offers that only once your height has actually drifted from the saved one.
+
+- **`scratch_height` and `follow_scratch` config** in `[tmux-session]`: the pane height in rows (default `10`), and whether new tmux servers get follow mode on first scratch-pane creation.
+
+#### Changed
+
+- **Scratch pane height is rows, not a percentage.** The pane's saved height has always been read back from tmux as a row count, so a percentage could only ever be the initial default and the first save replaced it. Drift detection declined to compare percentages, which meant a percentage silently disabled the save-height hint. `--height` and `scratch_height` now mean rows.
+
+- **Scratch pane state files renamed**: `scratch-pane-<server>.json` is now `tmux-scratch-<server>-pane` (plain text). Legacy files are cleaned up on first use.
+
 # 0.15.0 (2026-08-07)
 
 #### Added
