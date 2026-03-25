@@ -23,7 +23,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md) and [WezTerm](docs/wezterm.md))
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
-- **Scratch pane** (`tmux`): Toggle an always-on inbox with a keybinding - no startup delay, auto-hides after selection
+- **Scratch pane** (`tmux`): Toggle an always-on inbox with a keybinding — no startup delay. Optional **follow mode** keeps the pane visible across all window/session switches
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers
