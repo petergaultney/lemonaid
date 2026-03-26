@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..config import load_config
 from .navigation import go_back, swap_back_location
-from .scratch import toggle_scratch
+from .scratch import ensure_scratch, set_follow, toggle_scratch
 from .session import create_session
 
 
@@ -32,8 +32,16 @@ def cmd_swap(args: argparse.Namespace) -> None:
 
 def cmd_scratch(args: argparse.Namespace) -> None:
     """Toggle the scratch lma pane."""
-    result = toggle_scratch(height=args.height)
-    # Optionally print result for debugging
+    config = load_config()
+    height = args.height or config.tmux_session.scratch_height
+
+    if args.follow is not None:
+        result = set_follow(height=height, enable=args.follow)
+    elif args.ensure:
+        result = ensure_scratch(height=height)
+    else:
+        result = toggle_scratch(height=height, follow_default=config.tmux_session.follow_scratch)
+
     if args.verbose:
         print(result)
 
@@ -121,8 +129,28 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     scratch_parser.add_argument(
         "--height",
-        default="30%",
-        help="Height of the scratch pane when shown (default: 30%%)",
+        default=None,
+        help="Height of the scratch pane (default: from config, or 10%%)",
+    )
+    scratch_parser.add_argument(
+        "--ensure",
+        action="store_true",
+        help="Show the scratch pane if hidden, but never hide it (for hooks)",
+    )
+    follow_group = scratch_parser.add_mutually_exclusive_group()
+    follow_group.add_argument(
+        "--follow",
+        action="store_const",
+        const=True,
+        default=None,
+        help="Keep the scratch pane visible across all windows (installs tmux hooks)",
+    )
+    follow_group.add_argument(
+        "--unfollow",
+        dest="follow",
+        action="store_const",
+        const=False,
+        help="Stop following across windows (removes tmux hooks)",
     )
     scratch_parser.add_argument(
         "-v",

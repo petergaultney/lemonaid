@@ -69,41 +69,89 @@ Add to your `~/.tmux.conf`:
 bind-key l run-shell 'lemonaid tmux scratch'
 ```
 
-Reload tmux config:
-
-```bash
-tmux source-file ~/.tmux.conf
-```
-
 ### Usage
 
 1. Press `prefix + l` to show the lma inbox as a split at the top of your current window
-2. Select a notification with Enter - you'll switch to that session and the lma pane auto-hides
+2. Select a notification with Enter — you'll switch to that session and the lma pane auto-hides
 3. Press `prefix + l` again to bring it back
 
 The keybinding is "idempotent" in that pressing it always gets you to the scratch pane:
 
 - If the pane is hidden → show it
-- If the pane is visible but not focused → select it
+- If the pane is visible but not focused → focus it
 - If the pane is visible and focused → hide it
 
 ### How it works
 
 1. First toggle creates a tmux session (`_lma_scratch`) running `lma --scratch`
-2. The pane is joined into your current window as a 30% top split
+2. The pane is joined into your current window as a top split
 3. When you select a notification, lma auto-dismisses by breaking the pane to its own window
 4. Subsequent toggles show/select/hide the same pane (no restart, instant response)
 
-State is tracked per tmux server in `~/.local/state/lemonaid/scratch-pane-<server>.json`, so multiple tmux servers won't conflict.
+State is tracked per tmux server in `~/.local/state/lemonaid/`, so multiple tmux servers won't conflict.
+
+### Follow mode
+
+Follow mode keeps the scratch pane visible across window and session switches — it follows you everywhere, giving a persistent bird's-eye view of your lemon sessions.
+
+#### Enabling follow
+
+```bash
+lemonaid tmux scratch --follow
+```
+
+This enables follow for the current tmux server and prints `set-hook` lines to add to `.tmux.conf` for persistence across tmux restarts:
+
+```tmux
+set-hook -g after-select-window[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
+set-hook -g session-window-changed[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
+set-hook -g client-session-changed[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
+```
+
+The hooks run a shell script (~5ms per switch, no Python) that moves the scratch pane into your current window.
+
+#### Behavior in follow mode
+
+- **Switching sessions/windows**: The scratch pane follows automatically, preserving its height
+- **`prefix + l`**: Toggles focus between the scratch pane and your main pane (never hides)
+- **`q` in lma**: Temporarily parks the pane. The next `prefix + l` brings it back with follow still active
+- **Selecting a notification**: Switches to that session; the scratch pane follows via the hook
+- **Resizing**: Manual resizes are preserved across switches
+
+#### Disabling follow
+
+```bash
+lemonaid tmux scratch --unfollow
+```
+
+This disables follow for the current tmux server session. The hooks in `.tmux.conf` remain but become no-ops. Re-run `--follow` to re-enable.
+
+#### Config bootstrap
+
+To have follow enabled by default for new tmux servers:
+
+```toml
+[tmux-session]
+follow_scratch = true
+```
+
+When the scratch pane is first toggled on a new server, the follow state file is bootstrapped from this config value. After that, `--follow` / `--unfollow` controls the per-server state independently.
 
 ### Options
 
-```bash
-# Customize the pane height
-lemonaid tmux scratch --height 40%
+The default scratch pane height (in rows) is configurable:
 
-# See what action was taken
-lemonaid tmux scratch -v  # prints: created, shown, or hidden
+```toml
+[tmux-session]
+scratch_height = "12"
+```
+
+In follow mode, if you manually resize the pane (drag the border), a `Save pane height` hint appears in the status bar. Press `S` to persist the new height.
+
+The `--height` CLI flag overrides the config for a single invocation:
+
+```bash
+lemonaid tmux scratch --height 15
 ```
 
 ## Session Templates

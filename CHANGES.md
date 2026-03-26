@@ -1,3 +1,15 @@
+# 0.12.0 (2026-03-25)
+
+#### Added
+
+- **Follow mode for scratch pane**: The scratch pane can now follow across window and session switches, keeping a persistent bird's-eye view of lemon sessions. Enable with `lemonaid tmux scratch --follow`. Uses shell-based tmux hooks (~5ms per switch, no Python on the hot path). Height is preserved across switches. `prefix+l` toggles focus instead of hiding. `q` temporarily parks the pane until next `prefix+l`.
+- **`scratch_height` config**: Default scratch pane height is now configurable via `scratch_height` in `[tmux-session]` (default `"10%"`). No more `--height` flag needed in tmux keybindings.
+- **`follow_scratch` config**: Set `follow_scratch = true` in `[tmux-session]` to auto-enable follow for new tmux servers on first scratch pane creation.
+
+#### Changed
+
+- **Scratch pane state files renamed**: `scratch-pane-<server>.json` → `tmux-scratch-<server>-pane` (plain text). Legacy files are cleaned up automatically on first use.
+
 # 0.11.0 (2026-03-24)
 
 #### Added
