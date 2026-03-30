@@ -109,7 +109,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Swap back location (for tmux keybinding integration)",
     )
     swap_parser.add_argument("session", help="Current session name")
-    swap_parser.add_argument("pane_id", help="Current pane ID (e.g., %5)")
+    swap_parser.add_argument("pane_id", help="Current pane ID (e.g., %%5)")
     swap_parser.set_defaults(func=cmd_swap)
 
     # tmux scratch - toggle scratch pane
