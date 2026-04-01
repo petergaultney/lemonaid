@@ -1,3 +1,9 @@
+# 0.11.1 (2026-03-31)
+
+#### Fixed
+
+- **Versioned Python in tmux window titles**: Replaced enumerated `python3.10`–`python3.13` entries with a regex, so new Python versions (e.g. 3.14 for xonsh) are recognized without code changes. Versioned interpreters with no meaningful pane title (i.e. acting as a shell) now hide correctly instead of showing "python3.14".
+
 # 0.11.0 (2026-03-24)
 
 #### Added

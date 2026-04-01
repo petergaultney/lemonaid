@@ -111,18 +111,16 @@ STANDALONE_PROCESSES: set[str] = {
     "top",
 }
 
-# Interpreters where we prefer pane_title over the interpreter name
+# Interpreters where we prefer pane_title over the interpreter name.
+# Exact names checked first; _INTERPRETER_RE covers versioned variants (python3.14, etc.)
 INTERPRETER_PROCESSES: set[str] = {
     "python",
     "python3",
-    "python3.10",
-    "python3.11",
-    "python3.12",
-    "python3.13",
     "node",
     "ruby",
     "perl",
 }
+_INTERPRETER_RE = re.compile(r"^(?:python\d+(?:\.\d+)?|node\d+(?:\.\d+)?)$")
 
 
 def djb2(s: str) -> int:
@@ -268,7 +266,7 @@ def format_window(
     formatted_path = format_path(path)
 
     # If we have a meaningful title and process is an interpreter, prefer title
-    if process in INTERPRETER_PROCESSES:
+    if process in INTERPRETER_PROCESSES or (process and _INTERPRETER_RE.match(process)):
         app_name = extract_app_from_title(title, path)
         if app_name:
             process = app_name
@@ -276,6 +274,11 @@ def format_window(
             if process in STANDALONE_PROCESSES:
                 color = _get_process_color(process, active)
                 return f"#[fg={color}]{process}#[fg=default]"
+        else:
+            # No meaningful title — interpreter is likely acting as a shell
+            # (e.g. python3.14 running xonsh). Treat as hidden.
+            is_shell = True
+            process = None
 
     formatted_process = format_process(process, active) if process else None
 
