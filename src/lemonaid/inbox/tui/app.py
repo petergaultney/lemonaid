@@ -16,6 +16,7 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from ... import claude, codex, openclaw, opencode
+from ... import resume as resume_mod
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
 from ...handlers import handle_notification
@@ -43,41 +44,9 @@ def _format_timestamp(ts: float) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
-_RESUMABLE_BACKENDS = {"claude", "codex", "openclaw", "opencode"}
-
-
 def _backend_label(channel: str, overrides: dict[str, str]) -> str:
     prefix = channel.split(":")[0] if ":" in channel else channel
     return overrides.get(prefix, prefix)
-
-
-def _build_resume_command(notification: db.Notification) -> tuple[str, list[str]] | None:
-    """Build a (cwd, shell_command_string) for resuming a session.
-
-    Returns None if there's not enough metadata to build a useful command.
-    """
-    cwd = notification.metadata.get("cwd")
-    if not cwd:
-        return None
-
-    session_id = notification.metadata.get("session_id", "")
-    if notification.channel.startswith("claude:") and session_id:
-        # Use lemonaid's resume wrapper — it looks up the correct project
-        # directory from Claude's history.jsonl, avoiding cwd mismatch.
-        return (cwd, ["lemonaid", "claude", "resume", session_id])
-
-    if notification.channel.startswith("codex:") and session_id:
-        return (cwd, ["codex", "resume", session_id])
-
-    if notification.channel.startswith("openclaw:"):
-        argv = openclaw.utils.build_resume_argv(notification.metadata)
-        if argv:
-            return (cwd, argv)
-
-    if notification.channel.startswith("opencode:") and session_id:
-        return (cwd, ["opencode", "--session", session_id])
-
-    return None
 
 
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
@@ -361,7 +330,8 @@ class LemonaidApp(App):
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
-        table = self.query_one("#main_table", DataTable)
+        table_id = "#history_table" if self._history_mode else "#main_table"
+        table = self.query_one(table_id, DataTable)
         if table.row_count == 0:
             return None
         try:
@@ -556,7 +526,7 @@ class LemonaidApp(App):
         history_filter = self.query_one("#history_filter", Input)
 
         # Inbox-only actions
-        for action in ("jump_unread", "mark_read", "archive", "rename"):
+        for action in ("jump_unread", "mark_read", "archive"):
             self._set_binding_footer(action, show=not enabled)
 
         # History-only actions
@@ -602,8 +572,7 @@ class LemonaidApp(App):
             notifications = db.get_history(conn, search=self._history_filter)
 
         for n in notifications:
-            # Only show sessions from backends that support resume
-            if not any(n.channel.startswith(f"{b}:") for b in _RESUMABLE_BACKENDS):
+            if not resume_mod.has_resume_command(self.config, n.channel):
                 continue
 
             created = _format_timestamp(n.created_at)
@@ -646,7 +615,7 @@ class LemonaidApp(App):
         if not notification:
             return
 
-        resume = _build_resume_command(notification)
+        resume = resume_mod.build_resume_command(self.config, notification.channel, notification.metadata)
         if not resume:
             self.notify("No cwd metadata — can't build resume command", severity="warning")
             return
@@ -711,7 +680,7 @@ class LemonaidApp(App):
         if not notification:
             return
 
-        resume = _build_resume_command(notification)
+        resume = resume_mod.build_resume_command(self.config, notification.channel, notification.metadata)
         if not resume:
             self.notify("No cwd metadata — can't build resume command", severity="warning")
             return
@@ -732,8 +701,10 @@ class LemonaidApp(App):
             config=self.config.tmux_session,
             channel=notification.channel,
             session_metadata=notification.metadata,
+            session_name=notification.name or "",
         )
         if error:
+            _log.warning("tmux_resume failed: %s", error)
             self.notify(error, severity="error")
 
     def action_filter_history(self) -> None:
@@ -843,10 +814,6 @@ class LemonaidApp(App):
 
     def action_rename(self) -> None:
         """Rename the selected session."""
-        table = self.query_one("#main_table", DataTable)
-        if table.row_count == 0:
-            return
-
         row_key = self._get_current_row_key()
         if not row_key:
             return
@@ -860,13 +827,15 @@ class LemonaidApp(App):
 
         def handle_rename(new_name: str | None) -> None:
             if new_name is None:
-                # User cancelled
                 return
-            # Empty string means clear override, otherwise set the name
+
             name_to_set = new_name.strip() if new_name.strip() else None
             with db.connect() as conn:
                 db.update_name(conn, notification_id, name_to_set)
-            self._refresh_notifications()
+            if self._history_mode:
+                self._refresh_history()
+            else:
+                self._refresh_notifications()
 
         self.push_screen(
             RenameScreen(current_name=notification.name or ""),

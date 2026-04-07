@@ -126,10 +126,17 @@ def create_session(
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Failed to create session: {e}", file=sys.stderr)
-        if e.stderr:
-            print(f"tmux error: {e.stderr.decode().strip()}", file=sys.stderr)
+        stderr_msg = e.stderr.decode().strip() if e.stderr else ""
+        _log.warning("create_session failed: %s — %s", e, stderr_msg)
         return False
+
+
+def _sanitize_session_name(name: str) -> str:
+    """Make a string safe for use as a tmux session name.
+
+    tmux forbids dots and colons in session names.
+    """
+    return name.replace(".", "-").replace(":", "-").strip()
 
 
 def spawn_session_for_resume(
@@ -138,6 +145,7 @@ def spawn_session_for_resume(
     config: TmuxSessionConfig,
     channel: str = "",
     session_metadata: dict | None = None,
+    session_name: str = "",
 ) -> str | None:
     """Create a tmux session from the default template with a resume command.
 
@@ -165,11 +173,13 @@ def spawn_session_for_resume(
 
     idx = min(config.resume_window, len(windows) - 1)
     session_windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
-    session_name = _auto_session_name(Path(cwd))
+    if not session_name:
+        session_name = _auto_session_name(Path(cwd))
+    session_name = _sanitize_session_name(session_name)
 
     _log.info("spawn_session_for_resume: %s -> session '%s' in %s", channel, session_name, cwd)
 
     if not create_session(name=session_name, windows=session_windows, directory=cwd, attach=True):
-        return "Failed to create tmux session"
+        return f"Failed to create tmux session '{session_name}' (name may already exist)"
 
     return None

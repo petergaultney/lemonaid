@@ -94,6 +94,13 @@ class OpenclawConfig:
 
 
 @dataclass
+class BackendConfig:
+    """Configuration for a lemon backend (claude, codex, etc)."""
+
+    resume_command: str = ""
+
+
+@dataclass
 class Config:
     """Lemonaid configuration."""
 
@@ -102,6 +109,7 @@ class Config:
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
+    backends: dict[str, BackendConfig] = field(default_factory=dict)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -166,8 +174,20 @@ def _parse_config(data: dict[str, Any]) -> Config:
         remote_host=openclaw_data.get("remote_host"),
     )
 
+    backends_data = data.get("backends", {})
+    backends = {
+        name: BackendConfig(resume_command=bd.get("resume_command", ""))
+        for name, bd in backends_data.items()
+        if isinstance(bd, dict)
+    }
+
     return Config(
-        handlers=handlers, wezterm=wezterm, tmux_session=tmux_session, tui=tui, openclaw=openclaw
+        handlers=handlers,
+        wezterm=wezterm,
+        tmux_session=tmux_session,
+        tui=tui,
+        openclaw=openclaw,
+        backends=backends,
     )
 
 

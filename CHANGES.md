@@ -1,3 +1,14 @@
+# 0.11.2 (2026-04-07)
+
+#### Added
+
+- **Configurable resume commands per backend**: `[backends.<name>]` section in config.toml with a `resume_command` template. Placeholders like `{session_id}` are filled from notification metadata. Built-in defaults for claude, codex, openclaw, and opencode so existing configs work unchanged. Fixes the issue where `T` resume didn't pick up session-level flags like `--allow-dangerously-skip-permissions`.
+
+#### Fixed
+
+- **Tmux session naming from `T`**: Uses the notification/session name instead of deriving from the working directory. Avoids collisions when multiple sessions share a cwd.
+- **Rename works in history mode**: The rename action (`n`) now operates on the selected history entry instead of silently targeting the hidden inbox table.
+
 # 0.11.1 (2026-03-31)
 
 #### Fixed

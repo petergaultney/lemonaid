@@ -4,6 +4,30 @@ Config file: `~/.config/lemonaid/config.toml`
 
 Created automatically on first run, or with `lemonaid init`.
 
+## `[backends.<name>]`
+
+Per-backend configuration. `<name>` is the backend prefix (`claude`, `codex`, `openclaw`, `opencode`, or any custom backend).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `resume_command` | *(built-in per backend)* | Shell command template for resuming a session. Placeholders like `{session_id}` are filled from notification metadata, then the result is `shlex.split` into argv. |
+
+Built-in defaults (used when no `resume_command` is configured):
+
+| Backend | Default |
+|---------|---------|
+| `claude` | `lemonaid claude resume {session_id}` |
+| `codex` | `codex resume {session_id}` |
+| `openclaw` | `openclaw --session {session_key}` |
+| `opencode` | `opencode --session {session_id}` |
+
+To add flags to Claude resumes:
+
+```toml
+[backends.claude]
+resume_command = "lemonaid claude --allow-dangerously-skip-permissions --resume {session_id}"
+```
+
 ## `[wezterm]`
 
 See [wezterm.md](wezterm.md).
