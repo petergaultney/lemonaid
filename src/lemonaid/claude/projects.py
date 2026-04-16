@@ -58,11 +58,23 @@ def find_project_path(cwd: str) -> Path | None:
 
 
 def find_session_project(session_id: str) -> str | None:
-    """Look up the project directory for a session via ~/.claude/history.jsonl.
+    """Look up the project directory for a session.
+
+    First tries ~/.claude/history.jsonl (fast, covers interactive sessions).
+    Falls back to scanning ~/.claude/projects/*/<session_id>.jsonl — needed
+    for sessions started by remote agents / scheduled triggers, which never
+    log to history.jsonl.
 
     Returns the project path string, or None if not found.
-    Multiple history entries may exist per session; we take the last one.
     """
+    from_history = _find_in_history(session_id)
+    if from_history:
+        return from_history
+
+    return _find_in_projects(session_id)
+
+
+def _find_in_history(session_id: str) -> str | None:
     if not _HISTORY_PATH.exists():
         _log.warning("history.jsonl not found at %s", _HISTORY_PATH)
         return None
@@ -82,3 +94,39 @@ def find_session_project(session_id: str) -> str | None:
         _log.warning("failed to read history.jsonl: %s", e)
 
     return project
+
+
+def _find_in_projects(session_id: str) -> str | None:
+    """Scan ~/.claude/projects/*/<session_id>.jsonl and read cwd from the transcript.
+
+    The directory name encoding (/ and . both collapse to -) is lossy, so we
+    read the actual cwd from a transcript entry rather than trying to decode.
+    """
+    projects_dir = Path.home() / ".claude" / "projects"
+    if not projects_dir.exists():
+        return None
+
+    for transcript in projects_dir.glob(f"*/{session_id}.jsonl"):
+        cwd = _read_cwd_from_transcript(transcript)
+        if cwd:
+            return cwd
+
+    return None
+
+
+def _read_cwd_from_transcript(transcript: Path) -> str | None:
+    try:
+        with open(transcript) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                cwd = entry.get("cwd")
+                if cwd:
+                    return cwd
+    except OSError as e:
+        _log.warning("failed to read transcript %s: %s", transcript, e)
+
+    return None
