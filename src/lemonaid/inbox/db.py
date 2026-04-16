@@ -184,23 +184,28 @@ def get_history(
     limit: int = 200,
     search: str = "",
 ) -> list[Notification]:
-    """Get archived/read sessions for the history view, newest first.
+    """Get resumable sessions for the history view, newest first.
 
-    Optionally filters by substring match on name, message, channel, cwd, or git_branch.
-    Returns only the most recent notification per channel.
+    Includes archived/read sessions plus headless sessions (switch_source IS NULL)
+    regardless of status — headless sessions have no tmux/wezterm to switch to,
+    so they're only reachable via history. Optionally filters by substring match
+    on name, message, channel, cwd, or git_branch. Returns only the most recent
+    notification per channel.
     """
+    status_cond = "(n.status IN ('archived', 'read') OR n.switch_source IS NULL)"
+    latest_cond = "(status IN ('archived', 'read') OR switch_source IS NULL)"
     if search:
         pattern = f"%{search}%"
         rows = conn.execute(
-            """
+            f"""
             SELECT n.* FROM notifications n
             INNER JOIN (
                 SELECT channel, MAX(id) as max_id
                 FROM notifications
-                WHERE status IN ('archived', 'read')
+                WHERE {latest_cond}
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
-            WHERE n.status IN ('archived', 'read')
+            WHERE {status_cond}
             AND (
                 n.name LIKE ?
                 OR n.message LIKE ?
@@ -215,15 +220,15 @@ def get_history(
         ).fetchall()
     else:
         rows = conn.execute(
-            """
+            f"""
             SELECT n.* FROM notifications n
             INNER JOIN (
                 SELECT channel, MAX(id) as max_id
                 FROM notifications
-                WHERE status IN ('archived', 'read')
+                WHERE {latest_cond}
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
-            WHERE n.status IN ('archived', 'read')
+            WHERE {status_cond}
             ORDER BY n.created_at DESC
             LIMIT ?
             """,
