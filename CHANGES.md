@@ -1,3 +1,10 @@
+# 0.11.3 (2026-04-16)
+
+#### Fixed
+
+- **Resume headless and remote-agent sessions**: Sessions started outside tmux/wezterm (e.g. via the Signal bridge, scheduled triggers, remote agents) now surface in the history view (`h`) regardless of read status, since they have no terminal to switch back to. Previously they were stranded in the non-switchable panel with no resume path.
+- **Resume from any directory for agent-started sessions**: `find_session_project` now falls back to scanning `~/.claude/projects/` when a session isn't in `~/.claude/history.jsonl`. Sessions started by remote agents or scheduled triggers never touch history.jsonl, so both lemonaid and `claude --resume` itself couldn't locate them from another cwd.
+
 # 0.11.2 (2026-04-07)
 
 #### Added

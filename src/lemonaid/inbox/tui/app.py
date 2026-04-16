@@ -367,11 +367,14 @@ class LemonaidApp(App):
             env_filter = self.current_env if self.current_env != "unknown" else None
             # Main table: only sessions switchable from the current environment
             current_notifications = db.get_active(conn, switch_source=env_filter)
-            # Lower pane: everything we can't switch to
+            # Lower pane: live sessions from other switchable terminals.
+            # Headless sessions (switch_source IS NULL) are excluded — they can't be
+            # switched to from anywhere, so they belong in history instead.
             if env_filter:
                 all_notifications = db.get_active(conn, switch_source=None)
                 other_notifications = [
-                    n for n in all_notifications if n.switch_source != env_filter
+                    n for n in all_notifications
+                    if n.switch_source is not None and n.switch_source != env_filter
                 ]
             else:
                 other_notifications = []
