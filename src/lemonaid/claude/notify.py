@@ -92,6 +92,70 @@ def get_session_name(session_id: str, cwd: str) -> str | None:
     return None
 
 
+def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str, str | None, dict]:
+    """Resolve the inbox fields shared by the notify and submit hooks.
+
+    Returns (channel, session_id, name, switch_source, metadata).
+    """
+    cwd = data.get("cwd", "unknown")
+    session_id = data.get("session_id", "")
+
+    # Look up session name: Claude name > tmux session name > cwd-derived name
+    name = get_session_name(session_id, cwd) or get_tmux_session_name() or get_name_from_cwd(cwd)
+
+    # Detect switch-source (which terminal environment this notification came from)
+    switch_source = detect_terminal_switch_source()
+
+    metadata = {
+        "cwd": cwd,
+        "session_id": session_id,
+        "notification_type": notification_type,
+    }
+
+    branch = get_git_branch(cwd)
+    if branch:
+        metadata["git_branch"] = branch
+
+    tty = get_tty()  # for pane matching
+    if tty:
+        metadata["tty"] = tty
+
+    return channel_id("claude", session_id), session_id, name, switch_source, metadata
+
+
+def handle_submit(stdin_data: str | None = None) -> None:
+    """Register a session as working in response to a UserPromptSubmit hook.
+
+    Surfaces the session in the inbox the moment a prompt is submitted, as a
+    read/working entry (not flagged for attention). The Stop and Notification
+    hooks flip it to unread when it actually wants the user.
+    """
+    if stdin_data is None:
+        stdin_data = sys.stdin.read()
+
+    _log.info("submit stdin: %s", stdin_data[:200])
+
+    try:
+        data = json.loads(stdin_data) if stdin_data else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    channel, session_id, name, switch_source, metadata = _resolve_session(data, "working")
+    message = f"Working in {shorten_path(data.get('cwd', 'unknown'))}"
+
+    with db.connect() as conn:
+        db.register_working(
+            conn,
+            channel=channel,
+            message=message,
+            name=name,
+            metadata=metadata,
+            switch_source=switch_source if switch_source != "unknown" else None,
+        )
+
+    _log.info("working: channel=%s", channel)
+
+
 def handle_notification(stdin_data: str | None = None) -> None:
     """
     Handle a Claude Code notification from stdin.
@@ -110,7 +174,6 @@ def handle_notification(stdin_data: str | None = None) -> None:
         data = {}
 
     cwd = data.get("cwd", "unknown")
-    session_id = data.get("session_id", "")
     notification_type = data.get("notification_type", "idle_prompt")
 
     # Build message based on notification type
@@ -122,29 +185,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
     else:
         message = f"{notification_type} in {short_path}"
 
-    # Look up session name: Claude name > tmux session name > cwd-derived name
-    name = get_session_name(session_id, cwd) or get_tmux_session_name() or get_name_from_cwd(cwd)
-
-    # Detect switch-source (which terminal environment this notification came from)
-    switch_source = detect_terminal_switch_source()
-
-    # Build metadata for handler
-    metadata = {
-        "cwd": cwd,
-        "session_id": session_id,
-        "notification_type": notification_type,
-    }
-
-    branch = get_git_branch(cwd)
-    if branch:
-        metadata["git_branch"] = branch
-
-    # Try to get TTY for pane matching
-    tty = get_tty()
-    if tty:
-        metadata["tty"] = tty
-
-    channel = channel_id("claude", session_id)
+    channel, session_id, name, switch_source, metadata = _resolve_session(data, notification_type)
 
     # Check existing state before upsert for logging
     with db.connect() as conn:

@@ -11,6 +11,16 @@ Add to `~/.claude/settings.json`:
 ```json
 {
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid claude submit"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -37,17 +47,22 @@ Add to `~/.claude/settings.json`:
 ```
 
 This gives you:
+- **UserPromptSubmit hook**: Registers the session in the inbox the moment you submit a prompt, as a read/working entry (not flagged for attention). This is what makes a session appear while it's still working, rather than only once it stops.
 - **Stop hook**: Notification when Claude finishes responding and is waiting for input
 - **Notification hook**: Notification when Claude needs permission
+
+A session enters the inbox only when a hook fires. Without the `UserPromptSubmit` hook, a session is invisible until its first `Stop` or permission prompt — so a long-running turn (especially in auto-accept mode, where permission prompts never fire) won't show up until it pauses.
 
 ## How it works
 
 ### Notification flow
 
-1. Claude finishes a response (or needs permission)
-2. Claude Code runs `lemonaid claude notify` with session data via stdin
-3. Lemonaid extracts session ID, cwd, and notification type
-4. Notification appears in `lma` inbox with channel `claude:<session_id_prefix>`
+1. You submit a prompt -> Claude Code runs `lemonaid claude submit`, which registers the session as read/working (it appears in the inbox immediately, without being flagged for attention)
+2. Claude finishes a response (or needs permission) -> Claude Code runs `lemonaid claude notify` with session data via stdin
+3. Lemonaid extracts session ID, cwd, and notification type, and flips the session to unread (needs attention)
+4. The notification appears in `lma` inbox with channel `claude:<session_id_prefix>`
+
+The working registration never reorders or re-flags an existing session: a session you're actively driving holds a stable position, and `created_at` (its birth time) is never overwritten. A prompt to an archived session brings it back as a working entry.
 
 ### Auto-dismiss via transcript watching
 
@@ -122,6 +137,8 @@ Add to `~/.claude/settings.json`:
 ```
 
 The `UserPromptSubmit` hook records when you send a message, enabling the elapsed time display. Without this hook, elapsed time won't be shown but everything else still works.
+
+If you also use the `lemonaid claude submit` working-registration hook (above), both commands go in the same `UserPromptSubmit` array as separate entries — they both fire on each submit.
 
 ## Faster notifications
 

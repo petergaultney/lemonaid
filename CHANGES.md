@@ -1,3 +1,9 @@
+# 0.12.0 (2026-06-08)
+
+#### Added
+
+- **Sessions appear while working**: a new `lemonaid claude submit` hook (wired to Claude Code's `UserPromptSubmit`) registers a session in the inbox the moment you submit a prompt, as a read/working entry. Previously a session was invisible until its first `Stop` or permission prompt, so a long-running turn — especially in auto-accept mode, where permission prompts never fire — wouldn't show up until it paused for input. The registration never reorders or re-flags an existing session (`created_at` is preserved), and a prompt to an archived session brings it back as working.
+
 # 0.11.3 (2026-04-16)
 
 #### Fixed

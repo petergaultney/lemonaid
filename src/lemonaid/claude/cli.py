@@ -3,7 +3,7 @@
 import argparse
 
 from .bootstrap import run_bootstrap
-from .notify import dismiss_session, handle_dismiss, handle_notification
+from .notify import dismiss_session, handle_dismiss, handle_notification, handle_submit
 from .patcher import apply_patch, check_status, find_binary, restore_backup
 from .resume import resume_session
 from .summarize import run_summarize
@@ -12,6 +12,11 @@ from .summarize import run_summarize
 def cmd_notify(args: argparse.Namespace) -> None:
     """Handle Claude Code notification hook."""
     handle_notification()
+
+
+def cmd_submit(args: argparse.Namespace) -> None:
+    """Handle Claude Code UserPromptSubmit hook (register session as working)."""
+    handle_submit()
 
 
 def cmd_dismiss(args: argparse.Namespace) -> None:
@@ -145,6 +150,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Handle notification from Claude Code hook (reads JSON from stdin)",
     )
     notify_parser.set_defaults(func=cmd_notify)
+
+    # claude submit
+    submit_parser = claude_subparsers.add_parser(
+        "submit",
+        help="Register a session as working from a UserPromptSubmit hook (reads JSON from stdin)",
+    )
+    submit_parser.set_defaults(func=cmd_submit)
 
     # claude dismiss
     dismiss_parser = claude_subparsers.add_parser(

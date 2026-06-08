@@ -325,6 +325,77 @@ def add(
     )
 
 
+def register_working(
+    conn: sqlite3.Connection,
+    channel: str,
+    message: str,
+    name: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    switch_source: str | None = None,
+) -> Notification:
+    """Register a session that has started working (e.g. on prompt submit).
+
+    Unlike add(), this never flags the session for attention: a brand-new
+    session is inserted as 'read', and an existing session keeps its current
+    status (so a session already 'unread' from a Stop/Notification hook is not
+    silently dismissed, and a 'read' working session is not re-flagged).
+
+    created_at is the session's birth time and is never overwritten on update,
+    so actively-driven sessions hold a stable position rather than churning to
+    the top of the active list on every turn. An archived session reappears as
+    'read' (you're driving it again) but keeps its original created_at.
+    """
+    metadata = metadata or {}
+    existing = get_by_channel(conn, channel, unread_only=False)
+
+    if existing:
+        # Preserve a user-set name the same way add() does.
+        if "auto_name" in existing.metadata:
+            metadata["auto_name"] = existing.metadata["auto_name"]
+            name = existing.name
+
+        new_status = "read" if existing.is_archived else existing.status
+        conn.execute(
+            """
+            UPDATE notifications
+            SET message = ?, name = ?, metadata = ?, switch_source = ?, status = ?
+            WHERE id = ?
+            """,
+            (message, name, json.dumps(metadata), switch_source, new_status, existing.id),
+        )
+        conn.commit()
+        return Notification(
+            id=existing.id,
+            channel=channel,
+            message=message,
+            name=name,
+            metadata=metadata,
+            status=new_status,
+            created_at=existing.created_at,
+            switch_source=switch_source,
+        )
+
+    now = time.time()
+    cursor = conn.execute(
+        """
+        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'read')
+        """,
+        (channel, message, name, json.dumps(metadata), now, switch_source),
+    )
+    conn.commit()
+    return Notification(
+        id=cursor.lastrowid or 0,
+        channel=channel,
+        message=message,
+        name=name,
+        metadata=metadata,
+        status="read",
+        created_at=now,
+        switch_source=switch_source,
+    )
+
+
 def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     """Mark a notification as read."""
     conn.execute(
