@@ -178,3 +178,61 @@ def test_notification_from_row():
             assert notification.message == "Test"
             assert notification.name == "my-session"
             assert notification.metadata == {"tty": "/dev/ttys001"}
+
+
+def test_register_working_new_session_is_read():
+    """register_working() inserts a brand-new session as read/working."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        n = db.register_working(
+            conn,
+            channel="claude:abc",
+            message="Working in ~/proj",
+            name="proj",
+            switch_source="tmux",
+        )
+        assert n.id > 0
+        assert n.status == "read"
+        assert n.switch_source == "tmux"
+
+
+def test_register_working_preserves_unread_status():
+    """A session already unread (from a Stop hook) is not dismissed by a submit."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        db.add(conn, channel="claude:abc", message="Waiting")  # unread
+        n = db.register_working(conn, channel="claude:abc", message="Working")
+        assert n.status == "unread"
+        assert n.message == "Working"
+
+
+def test_register_working_does_not_bump_created_at():
+    """Updating an existing session must not reorder it (created_at unchanged)."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        first = db.register_working(conn, channel="claude:abc", message="Working")
+        second = db.register_working(conn, channel="claude:abc", message="Still working")
+        assert second.created_at == first.created_at
+
+
+def test_register_working_unarchives_to_read():
+    """A submit to an archived session brings it back as read, keeping created_at."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        created = db.add(
+            conn, channel="claude:abc", message="old", created_at=42, status="archived"
+        )
+        n = db.register_working(conn, channel="claude:abc", message="Working")
+        assert n.status == "read"
+        assert n.created_at == created.created_at == 42
+
+
+def test_register_working_preserves_user_name():
+    """A user-renamed session keeps its name through a working update."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        db.add(
+            conn,
+            channel="claude:abc",
+            message="x",
+            name="my-name",
+            metadata={"auto_name": "auto"},
+        )
+        n = db.register_working(conn, channel="claude:abc", message="Working", name="ignored")
+        assert n.name == "my-name"
+        assert n.metadata["auto_name"] == "auto"

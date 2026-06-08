@@ -54,13 +54,14 @@ Add hooks to `~/.claude/settings.json`:
 ```json
 {
   "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "lemonaid claude submit" }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }],
     "Notification": [{ "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }]
   }
 }
 ```
 
-Features: auto-dismiss via transcript watching, live activity updates, binary patch for faster notifications.
+Features: sessions appear in the inbox the moment a prompt is submitted (`UserPromptSubmit`), auto-dismiss via transcript watching, live activity updates, binary patch for faster notifications.
 
 **Full documentation**: [docs/claude.md](docs/claude.md) | [Binary patch](docs/claude-patch.md)
 
