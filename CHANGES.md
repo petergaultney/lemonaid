@@ -1,3 +1,9 @@
+# 0.12.1 (2026-06-08)
+
+#### Changed
+
+- **Working sessions bump to the top on each prompt**: `lemonaid claude submit` now refreshes a session's `created_at` on every submit, so the session you just typed into rises to the top of the active list (and a re-engaged or un-archived session surfaces at its re-engagement time). This matches `add()`'s existing behavior, where `created_at` doubles as the activity cutoff the transcript watcher scans from. Supersedes the 0.12.0 note that submits never reorder.
+
 # 0.12.0 (2026-06-08)
 
 #### Added

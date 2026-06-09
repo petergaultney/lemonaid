@@ -204,23 +204,21 @@ def test_register_working_preserves_unread_status():
         assert n.message == "Working"
 
 
-def test_register_working_does_not_bump_created_at():
-    """Updating an existing session must not reorder it (created_at unchanged)."""
+def test_register_working_bumps_created_at():
+    """A submit bumps created_at so the touched session sorts to the top."""
     with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
-        first = db.register_working(conn, channel="claude:abc", message="Working")
-        second = db.register_working(conn, channel="claude:abc", message="Still working")
-        assert second.created_at == first.created_at
+        db.add(conn, channel="claude:abc", message="old", created_at=42)  # stale timestamp
+        bumped = db.register_working(conn, channel="claude:abc", message="Working")
+        assert bumped.created_at > 42
 
 
 def test_register_working_unarchives_to_read():
-    """A submit to an archived session brings it back as read, keeping created_at."""
+    """A submit to an archived session brings it back as read with a fresh created_at."""
     with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
-        created = db.add(
-            conn, channel="claude:abc", message="old", created_at=42, status="archived"
-        )
+        db.add(conn, channel="claude:abc", message="old", created_at=42, status="archived")
         n = db.register_working(conn, channel="claude:abc", message="Working")
         assert n.status == "read"
-        assert n.created_at == created.created_at == 42
+        assert n.created_at > 42
 
 
 def test_register_working_preserves_user_name():

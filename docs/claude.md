@@ -62,7 +62,7 @@ A session enters the inbox only when a hook fires. Without the `UserPromptSubmit
 3. Lemonaid extracts session ID, cwd, and notification type, and flips the session to unread (needs attention)
 4. The notification appears in `lma` inbox with channel `claude:<session_id_prefix>`
 
-The working registration never reorders or re-flags an existing session: a session you're actively driving holds a stable position, and `created_at` (its birth time) is never overwritten. A prompt to an archived session brings it back as a working entry.
+The working registration never re-flags a session for attention (it won't dismiss an unread session or mark a working one unread), but it does refresh the session's timestamp on each submit, so the session you just typed into moves to the top of the active list. A prompt to an archived session brings it back as a working entry.
 
 ### Auto-dismiss via transcript watching
 

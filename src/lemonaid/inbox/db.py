@@ -338,14 +338,16 @@ def register_working(
     Unlike add(), this never flags the session for attention: a brand-new
     session is inserted as 'read', and an existing session keeps its current
     status (so a session already 'unread' from a Stop/Notification hook is not
-    silently dismissed, and a 'read' working session is not re-flagged).
+    silently dismissed, and a 'read' working session is not re-flagged). An
+    archived session reappears as 'read' — you're driving it again.
 
-    created_at is the session's birth time and is never overwritten on update,
-    so actively-driven sessions hold a stable position rather than churning to
-    the top of the active list on every turn. An archived session reappears as
-    'read' (you're driving it again) but keeps its original created_at.
+    created_at is bumped to now on every submit. It doubles as the activity
+    cutoff the watcher's should_dismiss() scans from (see add() and
+    mark_unread_for_channel), so it must track the latest input; bumping it
+    also moves the session you just touched to the top of the active list.
     """
     metadata = metadata or {}
+    now = time.time()
     existing = get_by_channel(conn, channel, unread_only=False)
 
     if existing:
@@ -358,10 +360,10 @@ def register_working(
         conn.execute(
             """
             UPDATE notifications
-            SET message = ?, name = ?, metadata = ?, switch_source = ?, status = ?
+            SET message = ?, name = ?, metadata = ?, switch_source = ?, status = ?, created_at = ?
             WHERE id = ?
             """,
-            (message, name, json.dumps(metadata), switch_source, new_status, existing.id),
+            (message, name, json.dumps(metadata), switch_source, new_status, now, existing.id),
         )
         conn.commit()
         return Notification(
@@ -371,11 +373,10 @@ def register_working(
             name=name,
             metadata=metadata,
             status=new_status,
-            created_at=existing.created_at,
+            created_at=now,
             switch_source=switch_source,
         )
 
-    now = time.time()
     cursor = conn.execute(
         """
         INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source, status)
