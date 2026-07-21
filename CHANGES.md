@@ -1,10 +1,20 @@
+# 0.12.2 (2026-07-21)
+
+#### Added
+
+- **AI-generated session names in TUI**: the notify and submit hooks now read `session_name` from Claude Code's hook JSON (the AI-generated conversation title) and use it as a fallback when no custom title or `firstPrompt` is available. Sessions on `main` with generic cwd-derived names now get descriptive titles in the inbox.
+
+#### Changed
+
+- **Statusline: session name no longer truncated**: removed the 30-char truncation on session name display.
+
 # 0.12.1 (2026-07-21)
 
 #### Added
 
 - **Statusline: model name**: shows the current model's display name (e.g. "Opus") dimmed after the context percentage.
 - **Statusline: git dirty indicator**: appends `*` to the branch name when there are uncommitted changes to tracked files.
-- **Statusline: session name**: shows the AI-generated or custom session name (truncated to 30 chars) in dimmed parens at the end.
+- **Statusline: session name**: shows the AI-generated or custom session name in dimmed parens at the end.
 
 # 0.12.0 (2026-06-08)
 

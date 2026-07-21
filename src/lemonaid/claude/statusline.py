@@ -224,8 +224,6 @@ def render_statusline(data: dict) -> None:
 
     # Session name (custom or AI-generated; absent for default display names)
     session_name = data.get("session_name", "")
-    if session_name and len(session_name) > 30:
-        session_name = session_name[:29] + "..."
     session_part = f" {DIM}({session_name}){RESET}" if session_name else ""
 
     # Build and print status line

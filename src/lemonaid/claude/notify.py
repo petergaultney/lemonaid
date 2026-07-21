@@ -100,8 +100,13 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
 
-    # Look up session name: Claude name > tmux session name > cwd-derived name
-    name = get_session_name(session_id, cwd) or get_tmux_session_name() or get_name_from_cwd(cwd)
+    # Look up session name: Claude name > AI-generated title > tmux session name > cwd-derived name
+    name = (
+        get_session_name(session_id, cwd)
+        or data.get("session_name")
+        or get_tmux_session_name()
+        or get_name_from_cwd(cwd)
+    )
 
     # Detect switch-source (which terminal environment this notification came from)
     switch_source = detect_terminal_switch_source()
