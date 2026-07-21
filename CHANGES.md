@@ -1,3 +1,11 @@
+# 0.12.1 (2026-07-21)
+
+#### Added
+
+- **Statusline: model name**: shows the current model's display name (e.g. "Opus") dimmed after the context percentage.
+- **Statusline: git dirty indicator**: appends `*` to the branch name when there are uncommitted changes to tracked files.
+- **Statusline: session name**: shows the AI-generated or custom session name (truncated to 30 chars) in dimmed parens at the end.
+
 # 0.12.0 (2026-06-08)
 
 #### Added

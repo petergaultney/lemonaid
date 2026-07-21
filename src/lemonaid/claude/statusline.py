@@ -4,8 +4,10 @@
 This is an optional addon that provides a colorful statusline showing:
 - Current time with elapsed time since last message
 - Working directory (basename)
-- Git branch
+- Git branch with dirty indicator (*)
 - Context window usage percentage (with color gradient)
+- Model name
+- Session name (truncated)
 - Vim mode indicator
 
 Usage in ~/.claude/settings.json:
@@ -42,6 +44,7 @@ ORANGE = "\033[38;5;214m"  # #ffaf00
 CYAN = "\033[38;5;80m"  # #5dd8c8
 BLUE = "\033[1;34m"  # bold blue
 RED = "\033[31m"  # red for elapsed time
+DIM = "\033[2m"
 RESET = "\033[0m"
 
 # Context percentage color gradient control points (indigo → blue → green → yellow → red → magenta)
@@ -90,8 +93,11 @@ def get_session_timestamp_file(data: dict) -> Path | None:
     return None
 
 
-def get_git_branch(cwd: str) -> str:
-    """Get current git branch, or empty string if not in a git repo."""
+def get_git_info(cwd: str) -> tuple[str, str]:
+    """Get current git branch and dirty indicator.
+
+    Returns (branch, dirty) where dirty is a short marker like "*" or "".
+    """
     try:
         result = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--git-dir"],
@@ -100,7 +106,7 @@ def get_git_branch(cwd: str) -> str:
             timeout=2,
         )
         if result.returncode != 0:
-            return ""
+            return "", ""
 
         result = subprocess.run(
             ["git", "-C", cwd, "--no-optional-locks", "branch", "--show-current"],
@@ -109,9 +115,19 @@ def get_git_branch(cwd: str) -> str:
             timeout=2,
         )
         branch = result.stdout.strip()
-        return f" {branch}" if branch else ""
+
+        result = subprocess.run(
+            ["git", "-C", cwd, "--no-optional-locks", "status", "--porcelain", "-uno"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        dirty = "*" if result.stdout.strip() else ""
+
+        branch_str = f" {branch}{dirty}" if branch else ""
+        return branch_str, dirty
     except (subprocess.TimeoutExpired, Exception):
-        return ""
+        return "", ""
 
 
 def get_elapsed_since_last_message(timestamp_file: Path | None) -> str:
@@ -169,6 +185,11 @@ def get_vim_indicator(vim_mode: str) -> str:
     return " [I]"
 
 
+def get_model_name(data: dict) -> str:
+    """Extract short model display name."""
+    return data.get("model", {}).get("display_name", "")
+
+
 def render_statusline(data: dict) -> None:
     """Render the statusline to stdout."""
     # Extract values from JSON
@@ -178,8 +199,8 @@ def render_statusline(data: dict) -> None:
     # Get short cwd (basename)
     short_cwd = os.path.basename(cwd) if cwd else ""
 
-    # Get git branch
-    branch = get_git_branch(cwd) if cwd else ""
+    # Get git branch + dirty state
+    branch, _dirty = get_git_info(cwd) if cwd else ("", "")
 
     # Get current time
     current_time = time.strftime("%H:%M:%S")
@@ -197,13 +218,24 @@ def render_statusline(data: dict) -> None:
     # Build elapsed part (with space prefix if present)
     elapsed_part = f" {elapsed}" if elapsed else ""
 
+    # Model name
+    model_name = get_model_name(data)
+    model_part = f" {DIM}{model_name}{RESET}" if model_name else ""
+
+    # Session name (custom or AI-generated; absent for default display names)
+    session_name = data.get("session_name", "")
+    if session_name and len(session_name) > 30:
+        session_name = session_name[:29] + "..."
+    session_part = f" {DIM}({session_name}){RESET}" if session_name else ""
+
     # Build and print status line
-    # Format: <time elapsed> short_cwd branch context_pct vim_mode
     print(
         f"{ORANGE}<{current_time}{elapsed_part}>{RESET} "
         f"{BLUE}{short_cwd}{RESET}"
         f"{CYAN}{branch}{RESET}"
         f"{context_pct}"
+        f"{model_part}"
+        f"{session_part}"
         f"{vim_indicator}",
         end="",
     )
