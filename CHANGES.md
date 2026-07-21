@@ -1,3 +1,9 @@
+# 0.12.3 (2026-07-21)
+
+#### Added
+
+- **Statusline: worktree branch mismatch warning**: branch name renders bold red when the current branch doesn't match the worktree it was created for. Detects mismatch by comparing the branch against the worktree metadata directory name from `git rev-parse --git-dir` (zero additional subprocess calls). Non-worktree repos are unaffected.
+
 # 0.12.2 (2026-07-21)
 
 #### Added

@@ -43,7 +43,8 @@ from pathlib import Path
 ORANGE = "\033[38;5;214m"  # #ffaf00
 CYAN = "\033[38;5;80m"  # #5dd8c8
 BLUE = "\033[1;34m"  # bold blue
-RED = "\033[31m"  # red for elapsed time
+RED = "\033[31m"
+RED_BOLD = "\033[1;31m"
 DIM = "\033[2m"
 RESET = "\033[0m"
 
@@ -93,10 +94,22 @@ def get_session_timestamp_file(data: dict) -> Path | None:
     return None
 
 
-def get_git_info(cwd: str) -> tuple[str, str]:
-    """Get current git branch and dirty indicator.
+def _worktree_name(git_dir: str) -> str:
+    """Extract the worktree name from a git-dir path, or "" if not a worktree."""
+    parts = Path(git_dir).parts
+    try:
+        idx = parts.index("worktrees")
+        return parts[idx + 1] if idx + 1 < len(parts) else ""
+    except ValueError:
+        return ""
 
-    Returns (branch, dirty) where dirty is a short marker like "*" or "".
+
+def get_git_info(cwd: str) -> tuple[str, bool]:
+    """Get formatted branch string and worktree-mismatch flag.
+
+    Returns (branch_str, wt_mismatch) where branch_str includes the dirty
+    marker and wt_mismatch is True when the current branch doesn't match
+    the worktree it was created for.
     """
     try:
         result = subprocess.run(
@@ -106,7 +119,9 @@ def get_git_info(cwd: str) -> tuple[str, str]:
             timeout=2,
         )
         if result.returncode != 0:
-            return "", ""
+            return "", False
+
+        git_dir = result.stdout.strip()
 
         result = subprocess.run(
             ["git", "-C", cwd, "--no-optional-locks", "branch", "--show-current"],
@@ -124,10 +139,13 @@ def get_git_info(cwd: str) -> tuple[str, str]:
         )
         dirty = "*" if result.stdout.strip() else ""
 
+        wt_name = _worktree_name(git_dir)
+        wt_mismatch = bool(wt_name and branch and not branch.endswith(wt_name))
+
         branch_str = f" {branch}{dirty}" if branch else ""
-        return branch_str, dirty
+        return branch_str, wt_mismatch
     except (subprocess.TimeoutExpired, Exception):
-        return "", ""
+        return "", False
 
 
 def get_elapsed_since_last_message(timestamp_file: Path | None) -> str:
@@ -199,8 +217,9 @@ def render_statusline(data: dict) -> None:
     # Get short cwd (basename)
     short_cwd = os.path.basename(cwd) if cwd else ""
 
-    # Get git branch + dirty state
-    branch, _dirty = get_git_info(cwd) if cwd else ("", "")
+    # Get git branch + dirty state + worktree mismatch
+    branch, wt_mismatch = get_git_info(cwd) if cwd else ("", False)
+    branch_color = RED_BOLD if wt_mismatch else CYAN
 
     # Get current time
     current_time = time.strftime("%H:%M:%S")
@@ -230,7 +249,7 @@ def render_statusline(data: dict) -> None:
     print(
         f"{ORANGE}<{current_time}{elapsed_part}>{RESET} "
         f"{BLUE}{short_cwd}{RESET}"
-        f"{CYAN}{branch}{RESET}"
+        f"{branch_color}{branch}{RESET}"
         f"{context_pct}"
         f"{model_part}"
         f"{session_part}"
