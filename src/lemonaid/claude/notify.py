@@ -41,13 +41,17 @@ from ..log import get_logger
 _log = get_logger("claude.notify")
 
 
-def get_session_name(session_id: str, cwd: str) -> str | None:
+def get_session_name(
+    session_id: str, cwd: str, skip_first_prompt: bool = False
+) -> str | None:
     """Look up the session name from Claude Code's data files.
 
     Checks sessions-index.json first, then falls back to history.jsonl
     for sessions that haven't been indexed yet.
 
-    Returns customTitle if set, otherwise firstPrompt, otherwise None.
+    When skip_first_prompt is True, only returns customTitle or /rename
+    names (not firstPrompt). This lets callers prefer a better source
+    (like the AI-generated title) over the truncated first prompt.
     """
     if not session_id or not cwd:
         return None
@@ -63,8 +67,11 @@ def get_session_name(session_id: str, cwd: str) -> str | None:
 
             for entry in entries:
                 if entry.get("sessionId") == session_id:
-                    # Prefer customTitle, fall back to firstPrompt
-                    return entry.get("customTitle") or entry.get("firstPrompt")
+                    custom = entry.get("customTitle")
+                    if custom:
+                        return custom
+                    if not skip_first_prompt:
+                        return entry.get("firstPrompt")
 
         except (json.JSONDecodeError, OSError):
             pass
@@ -100,10 +107,17 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
 
-    # Look up session name: Claude name > AI-generated title > tmux session name > cwd-derived name
+    # Look up session name, best source first:
+    # 1. User-set custom title or /rename (from sessions-index / history.jsonl)
+    # 2. AI-generated conversation title (from hook JSON)
+    # 3. firstPrompt (from sessions-index)
+    # 4. tmux session name
+    # 5. cwd-derived name
+    ai_title = data.get("session_name")
     name = (
-        get_session_name(session_id, cwd)
-        or data.get("session_name")
+        get_session_name(session_id, cwd, skip_first_prompt=bool(ai_title))
+        or ai_title
+        or get_session_name(session_id, cwd)
         or get_tmux_session_name()
         or get_name_from_cwd(cwd)
     )
