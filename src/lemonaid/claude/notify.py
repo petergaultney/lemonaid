@@ -179,14 +179,15 @@ def handle_notification(stdin_data: str | None = None) -> None:
         data = {}
 
     cwd = data.get("cwd", "unknown")
-    notification_type = data.get("notification_type", "idle_prompt")
+    notification_type = data.get("notification_type") or data.get("hook_event_name") or "idle_prompt"
 
-    # Build message based on notification type
     short_path = shorten_path(cwd)
     if notification_type == "idle_prompt":
         message = f"Waiting in {short_path}"
     elif notification_type == "permission_prompt":
         message = f"Permission needed in {short_path}"
+    elif notification_type == "PermissionRequest":
+        message = f"Question in {short_path}"
     else:
         message = f"{notification_type} in {short_path}"
 
