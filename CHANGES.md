@@ -1,3 +1,9 @@
+# 0.12.4 (2026-07-22)
+
+#### Added
+
+- **AskUserQuestion hook support**: the notify handler now recognizes `PermissionRequest` events (via `hook_event_name` fallback) and shows "Question in <path>" when Claude asks an interactive question mid-turn. Previously these went unnoticed since `Stop` doesn't fire for mid-turn questions. Documented recommended hook config with `PermissionRequest`/`AskUserQuestion` matcher.
+
 # 0.12.3 (2026-07-21)
 
 #### Added

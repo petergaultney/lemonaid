@@ -31,6 +31,17 @@ Add to `~/.claude/settings.json`:
         ]
       }
     ],
+    "PermissionRequest": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid claude notify"
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "matcher": "permission_prompt",
@@ -49,9 +60,10 @@ Add to `~/.claude/settings.json`:
 This gives you:
 - **UserPromptSubmit hook**: Registers the session in the inbox the moment you submit a prompt, as a read/working entry (not flagged for attention). This is what makes a session appear while it's still working, rather than only once it stops.
 - **Stop hook**: Notification when Claude finishes responding and is waiting for input
-- **Notification hook**: Notification when Claude needs permission
+- **PermissionRequest hook**: Notification when Claude asks a question mid-turn via the `AskUserQuestion` tool (the interactive picker). Without this, questions go unnoticed if you've tabbed away - `Stop` doesn't fire because Claude hasn't finished its turn.
+- **Notification hook**: Notification when Claude needs tool permission
 
-A session enters the inbox only when a hook fires. Without the `UserPromptSubmit` hook, a session is invisible until its first `Stop` or permission prompt — so a long-running turn (especially in auto-accept mode, where permission prompts never fire) won't show up until it pauses.
+A session enters the inbox only when a hook fires. Without the `UserPromptSubmit` hook, a session is invisible until its first `Stop` or permission prompt - so a long-running turn (especially in auto-accept mode, where permission prompts never fire) won't show up until it pauses.
 
 ## How it works
 
