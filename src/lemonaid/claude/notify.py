@@ -24,6 +24,7 @@ Usage in Claude Code settings.json:
 import json
 import os
 import sys
+import typing as ty
 from pathlib import Path
 
 from ..inbox import db
@@ -41,55 +42,159 @@ from ..log import get_logger
 _log = get_logger("claude.notify")
 
 
-def get_session_name(session_id: str, cwd: str) -> str | None:
-    """Look up the session name from Claude Code's data files.
+_NAME_MAX_LEN = 80
 
-    Checks sessions-index.json first, then falls back to history.jsonl
-    for sessions that haven't been indexed yet.
 
-    Returns customTitle if set, otherwise firstPrompt, otherwise None.
+def _index_entry(session_id: str, cwd: str) -> dict | None:
+    """Find this session's entry in Claude's sessions-index.json.
+
+    Tries the cwd-derived project dir first, then falls back to the parent-path
+    search, which is what finds worktree sessions filed under the main repo.
+    """
+    from .projects import find_project_path, get_project_path
+
+    for project_dir in (get_project_path(cwd), find_project_path(cwd)):
+        if project_dir is None:
+            continue
+
+        index_path = project_dir / "sessions-index.json"
+        if not index_path.exists():
+            continue
+
+        try:
+            data = json.loads(index_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        for entry in data.get("entries", []):
+            if entry.get("sessionId") == session_id:
+                return entry
+
+    return None
+
+
+RENAME_SOURCE = "claude_rename"  # a /rename; final, nothing supersedes it
+TITLE_SOURCE = "claude_index"  # an AI-generated title; a later /rename can win
+
+
+class SessionName(ty.NamedTuple):
+    name: str
+    source: str
+
+
+def _transcript_titles(session_id: str, cwd: str) -> tuple[str | None, str | None]:
+    """Read the newest (customTitle, aiTitle) out of a session's transcript.
+
+    Current Claude versions record the AI-generated conversation name as
+    `type: "ai-title"` entries (field `aiTitle`) in the JSONL transcript, and a
+    `/rename` as `customTitle`. Both are appended as the session progresses, so
+    the last occurrence of each wins and neither exists at first-prompt time.
+
+    sessions-index.json is not consulted here: Claude stopped maintaining it,
+    so it only covers sessions from before that change.
+    """
+    from .projects import find_project_path, get_project_path
+
+    for project_dir in (get_project_path(cwd), find_project_path(cwd)):
+        if project_dir is None:
+            continue
+
+        transcript = project_dir / f"{session_id}.jsonl"
+        if not transcript.exists():
+            continue
+
+        ai_title = None
+        custom_title = None
+        try:
+            with open(transcript, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    # Cheap reject before paying for a JSON parse; these fields
+                    # appear in a small minority of a large transcript's lines.
+                    if "aiTitle" not in line and "customTitle" not in line:
+                        continue
+
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if title := entry.get("aiTitle"):
+                        ai_title = title
+                    if title := entry.get("customTitle"):
+                        custom_title = title
+        except OSError:
+            continue
+
+        if custom_title or ai_title:
+            return custom_title, ai_title
+
+    return None, None
+
+
+def _history_rename(session_id: str) -> str | None:
+    """Find the most recent `/rename` for a session in history.jsonl."""
+    history_path = Path.home() / ".claude" / "history.jsonl"
+    if not history_path.exists():
+        return None
+
+    rename_name = None
+    try:
+        for line in history_path.read_text().splitlines():
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if entry.get("sessionId") == session_id:
+                display = entry.get("display", "")
+                if display.startswith("/rename "):
+                    rename_name = display[8:].strip()
+    except OSError:
+        return None
+
+    return rename_name
+
+
+def resolve_session_name(session_id: str, cwd: str) -> SessionName | None:
+    """Find the name Claude holds for a session, and say where it came from.
+
+    A `/rename` always wins over the AI-generated title, whenever it happened —
+    including on a session that was already auto-titled. The source is reported
+    so callers can tell a settled name from one an later rename may still
+    supersede.
     """
     if not session_id or not cwd:
         return None
 
-    from .projects import get_project_path
+    custom_title, ai_title = _transcript_titles(session_id, cwd)
+    if custom_title:
+        return SessionName(custom_title, RENAME_SOURCE)
 
-    # Try sessions-index.json first
-    sessions_index_path = get_project_path(cwd) / "sessions-index.json"
-    if sessions_index_path.exists():
-        try:
-            data = json.loads(sessions_index_path.read_text())
-            entries = data.get("entries", [])
+    if rename := _history_rename(session_id):
+        return SessionName(rename, RENAME_SOURCE)
 
-            for entry in entries:
-                if entry.get("sessionId") == session_id:
-                    # Prefer customTitle, fall back to firstPrompt
-                    return entry.get("customTitle") or entry.get("firstPrompt")
+    if ai_title:
+        return SessionName(ai_title, TITLE_SOURCE)
 
-        except (json.JSONDecodeError, OSError):
-            pass
+    entry = _index_entry(session_id, cwd)
+    if entry:
+        if title := entry.get("customTitle"):
+            return SessionName(title, RENAME_SOURCE)
 
-    # Fall back to history.jsonl for sessions not yet indexed
-    # Look for most recent /rename command for this session
-    history_path = Path.home() / ".claude" / "history.jsonl"
-    if history_path.exists():
-        try:
-            rename_name = None
-            for line in history_path.read_text().splitlines():
-                try:
-                    entry = json.loads(line)
-                    if entry.get("sessionId") == session_id:
-                        display = entry.get("display", "")
-                        if display.startswith("/rename "):
-                            rename_name = display[8:].strip()  # Get name after "/rename "
-                except json.JSONDecodeError:
-                    continue
-            if rename_name:
-                return rename_name
-        except OSError:
-            pass
+        if summary := entry.get("summary"):
+            return SessionName(summary, TITLE_SOURCE)
+
+        if prompt := entry.get("firstPrompt"):
+            truncated = prompt[:_NAME_MAX_LEN] + ("..." if len(prompt) > _NAME_MAX_LEN else "")
+            return SessionName(truncated, TITLE_SOURCE)
 
     return None
+
+
+def get_session_name(session_id: str, cwd: str) -> str | None:
+    """The name Claude holds for a session, or None if it has none yet."""
+    resolved = resolve_session_name(session_id, cwd)
+    return resolved.name if resolved else None
 
 
 def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str, str | None, dict]:
@@ -100,13 +205,11 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
 
-    # Look up session name: Claude name > AI-generated title > tmux session name > cwd-derived name
-    name = (
-        get_session_name(session_id, cwd)
-        or data.get("session_name")
-        or get_tmux_session_name()
-        or get_name_from_cwd(cwd)
-    )
+    # Claude's own name for the session beats anything we can derive from the
+    # environment; the tmux/cwd names are placeholders until it exists.
+    resolved = resolve_session_name(session_id, cwd)
+    name = resolved.name if resolved else (get_tmux_session_name() or get_name_from_cwd(cwd))
+    name_source = resolved.source if resolved else "environment"
 
     # Detect switch-source (which terminal environment this notification came from)
     switch_source = detect_terminal_switch_source()
@@ -115,6 +218,7 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
         "cwd": cwd,
         "session_id": session_id,
         "notification_type": notification_type,
+        "name_source": name_source,
     }
 
     branch = get_git_branch(cwd)
@@ -179,7 +283,9 @@ def handle_notification(stdin_data: str | None = None) -> None:
         data = {}
 
     cwd = data.get("cwd", "unknown")
-    notification_type = data.get("notification_type") or data.get("hook_event_name") or "idle_prompt"
+    notification_type = (
+        data.get("notification_type") or data.get("hook_event_name") or "idle_prompt"
+    )
 
     short_path = shorten_path(cwd)
     if notification_type == "idle_prompt":

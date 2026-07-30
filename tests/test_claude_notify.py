@@ -16,7 +16,10 @@ def test_handle_submit_registers_working():
 
     with (
         patch("lemonaid.claude.notify.db.connect", _fake_connect),
-        patch("lemonaid.claude.notify.get_session_name", return_value="Test Session"),
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("Test Session", notify.TITLE_SOURCE),
+        ),
         patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
         patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys001"),
         patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
@@ -39,7 +42,7 @@ def test_handle_submit_headless_has_no_switch_source():
 
     with (
         patch("lemonaid.claude.notify.db.connect", _fake_connect),
-        patch("lemonaid.claude.notify.get_session_name", return_value=None),
+        patch("lemonaid.claude.notify.resolve_session_name", return_value=None),
         patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
         patch("lemonaid.claude.notify.get_name_from_cwd", return_value="project"),
         patch("lemonaid.claude.notify.get_tty", return_value=None),
