@@ -10,6 +10,9 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `u` | Jump directly to earliest unread session |
 | `m` | Mark as read |
 | `a` | Archive (remove from list) |
+| `s` | Snooze session (pick a duration) |
+| `S` | Toggle snoozed view |
+| `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
 | `h` | Toggle history view |
 | `g` | Refresh |
@@ -26,6 +29,41 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `/` | Filter by name, cwd, branch |
 | `h` | Exit history |
 
+### Snoozed mode
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Wake the selected session now (returns it to the inbox) |
+| `S` / `q` | Back to the inbox |
+
+## Snooze
+
+`s` holds a session out of the inbox until a time you pick: 15 minutes, 1 hour,
+4 hours, tomorrow morning (9am), or a custom duration (`45m`, `2h`, `3d` — a bare
+number means minutes).
+
+When the timer expires the session returns with the status it had when you
+snoozed it: one that was demanding attention comes back unread, one that was
+merely idle comes back read. Nothing is ever hidden permanently — `S` lists
+every snoozed session with its wake time, and `lemonaid inbox snoozed` shows the
+same list from the shell.
+
+New agent output cancels a snooze early. Snoozing means "not this state, not
+yet"; if the session produces something new, it wants you again.
+
+## Undo
+
+`z` reverses the last change you made to the inbox, and keeps going back through
+earlier ones. Actions that only change a session's state are undoable — archive,
+mark-read, snooze, rename. Actions that reach outside the inbox are not:
+switching to a session and resuming one both do something to your terminal that
+restoring a database row wouldn't take back.
+
+Each undoable action shows a toast naming what it did, so an accidental archive
+tells you what just disappeared instead of leaving you to guess. Undo history
+lives for the lifetime of the TUI session and is not persisted, since a snapshot
+stops being meaningful once other processes have written to the same rows.
+
 ## Configuration
 
 Add a `[tui.keybindings]` section to your config:
@@ -38,6 +76,9 @@ refresh = "g"
 jump_unread = "u"
 mark_read = "m"
 archive = "a"
+snooze = "s"
+snoozed_list = "S"
+undo = "z"
 rename = "r"
 tmux_resume = "T"  # spawn tmux session from history
 up_down = ""  # arrow key alternatives (see below)

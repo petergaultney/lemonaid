@@ -87,6 +87,30 @@ def cmd_read(args: argparse.Namespace) -> None:
     print(f"Marked notification {args.id} as read")
 
 
+def cmd_snoozed(args: argparse.Namespace) -> None:
+    """List snoozed sessions and their wake times."""
+    with db.connect() as conn:
+        db.wake_expired(conn)
+        notifications = db.get_snoozed(conn)
+
+    if getattr(args, "json", False):
+        print(json.dumps([_notification_to_json(n) for n in notifications]))
+        return
+
+    if not notifications:
+        print("No snoozed sessions.")
+        return
+
+    for n in notifications:
+        wakes = (
+            datetime.fromtimestamp(n.snooze_until).strftime("%Y-%m-%d %H:%M")
+            if n.snooze_until
+            else "unknown"
+        )
+        name_part = f" ({n.name})" if n.name else ""
+        print(f"[{n.id}] wakes {wakes} | {n.channel}{name_part} | {n.message}")
+
+
 def cmd_purge(args: argparse.Namespace) -> None:
     """Delete old archived/read notifications."""
     with db.connect() as conn:
@@ -138,6 +162,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser = inbox_subparsers.add_parser("read", help="Mark notification as read")
     read_parser.add_argument("id", type=int, help="Notification ID")
     read_parser.set_defaults(func=cmd_read)
+
+    # inbox snoozed
+    snoozed_parser = inbox_subparsers.add_parser(
+        "snoozed", help="List snoozed sessions and when they wake"
+    )
+    snoozed_parser.add_argument("--json", action="store_true", help="Output as JSON (for lemons)")
+    snoozed_parser.set_defaults(func=cmd_snoozed)
 
     # inbox purge
     purge_parser = inbox_subparsers.add_parser(
