@@ -68,6 +68,9 @@ class KeybindingsConfig:
     mark_read: str = "m"
     archive: str = "a"
     rename: str = "r"
+    snooze: str = "s"  # Snooze a session out of the inbox for a while
+    snoozed_list: str = "S"  # Toggle the snoozed-sessions view
+    undo: str = "z"  # Undo the last inbox state change
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
