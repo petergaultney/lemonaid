@@ -160,11 +160,28 @@ See [claude-patch.md](claude-patch.md) for details.
 
 ## Session naming
 
-Claude Code sessions can be named with `/rename`. This name appears in the lemonaid inbox. If unnamed, lemonaid derives a name from:
+Claude names a conversation itself once it has some content, writing the name
+into the session transcript as `type: "ai-title"` entries (field `aiTitle`). A
+`/rename` is recorded the same way as `customTitle`. Lemonaid reads the
+transcript and prefers, in order:
 
-1. The session name from `sessions-index.json`
-2. The first user message (truncated)
-3. The working directory name
+1. `customTitle` — your own `/rename`
+2. `aiTitle` — Claude's generated conversation title
+3. A `summary` or `firstPrompt` from `sessions-index.json`, for older sessions
+4. The tmux session name, or the working directory name
+
+None of the first three exist when a session starts, so a new session shows a
+tmux/cwd placeholder and is renamed in place once Claude assigns a title. The TUI
+re-checks unnamed sessions periodically (on a background thread), so a
+long-running session picks up its real name without needing another hook to fire.
+
+A name you set yourself always wins and is never overwritten. Clearing a rename
+(`r`, then empty) restores the latest title Claude has assigned, not the original
+placeholder.
+
+Note on `sessions-index.json`: current Claude versions no longer maintain this
+file, so it only covers sessions from before that change. It remains the source
+for `lemonaid claude bootstrap`, which imports historical sessions.
 
 ## Session files
 
@@ -172,8 +189,8 @@ Claude stores session data in `~/.claude/projects/<encoded_dir>/`:
 
 ```
 ~/.claude/projects/-Users-peter-play-lemonaid/
-  sessions-index.json    # Maps session IDs to names
-  <session_id>.jsonl     # Full conversation history for a session
+  sessions-index.json    # Legacy session index (no longer written by current versions)
+  <session_id>.jsonl     # Full conversation history, including ai-title entries
 ```
 
 The transcript watcher reads these to detect activity and extract tool usage.
