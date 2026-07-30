@@ -1,3 +1,22 @@
+# 0.13.0 (2026-07-30)
+
+#### Added
+
+- **Snooze** (`s`): hold a session out of the inbox until a chosen time - 15 minutes, 1 hour, 4 hours, tomorrow at 9am, or a custom duration (`45m`, `2h`, `3d`; a bare number is minutes). On expiry the session returns with the status it had when snoozed, so snoozing an idle session doesn't manufacture a notification. New agent output cancels a snooze early. `S` opens a snoozed view listing every snoozed session with its wake time; `lemonaid inbox snoozed` shows the same list from the shell.
+- **Undo** (`z`): multi-level undo for inbox state changes - archive, mark-read, snooze, rename. Each action shows a toast naming the affected session, so an accidental archive says what it archived instead of silently removing a row. Actions with effects outside the inbox (switching to a session, resuming one) are deliberately not undoable. History is per-TUI-session and not persisted.
+
+#### Fixed
+
+- **No more scroll flash on refresh**. The inbox rebuilt every row on each one-second tick, which reset the cursor and scroll offset before restoring them a moment later - presenting as the list flashing to the top. Rows are now updated in place when the row set and its order are unchanged (the common case, where only a message or status moved), so the cursor and scroll position never move. A genuine row-set change still rebuilds, and keeps the cursor on its own row by key.
+
+- **Name column sized for real titles**. Now that sessions carry sentence-shaped names, the fixed 14-char Name column truncated nearly all of them. Column widths are responsive: Name takes the largest share of flex space, and narrower terminals drop the columns that earn it least (TTY, then Branch and Message, which CWD largely duplicates) rather than starving Name. At 80 columns Name went from 14 to 39 characters. Rows now fill the terminal width exactly instead of overflowing horizontally.
+
+- **Session names now use Claude's own conversation title**. Claude records the AI-generated name as `type: "ai-title"` entries in the session transcript (and `/rename` as `customTitle`), which lemonaid never read - so sessions kept the tmux worktree or cwd placeholder they were given at first prompt. Two things were wrong: the lookup only consulted `sessions-index.json`, which current Claude versions stopped maintaining (16 of 73 project dirs had one locally, none written in ~6 months), and the stored name was pinned at first sight and never revisited. The lookup now reads the transcript, and a placeholder is upgraded in place once a title exists - both when a hook fires and via a periodic background re-check in the TUI, since titles appear well after a session starts. A user rename still always wins; clearing it restores the newest title rather than the original placeholder.
+
+  A Claude `/rename` takes precedence over the auto-generated title whenever it happened, including on a session that was already auto-titled - the two are now tracked separately, so a rename is recognized rather than being masked by an existing AI title. A name set inside lemonaid (`r`) still outranks both.
+
+  The prior `session_name` hook-payload fallback (0.12.2) was dead code - that field is not present in Claude's hook JSON - and has been removed.
+
 # 0.12.4 (2026-07-22)
 
 #### Added
