@@ -143,7 +143,8 @@ def test_no_horizontal_scrollbar_steals_a_row():
         for height in (12, 14, 20):
             hbar, content_height = asyncio.run(run(width, height))
             assert not hbar, (width, height)
-            assert content_height == height - 3, (width, height, content_height)
+            # Header, and the row the status text shares with the footer.
+            assert content_height == height - 2, (width, height, content_height)
 
 
 def test_snoozed_table_keeps_its_wake_column_when_narrow():

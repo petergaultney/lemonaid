@@ -16,8 +16,13 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `r` | Rename session (clear to revert to auto-name) |
 | `h` | Toggle history view |
 | `g` | Refresh |
+| `?` | Toggle the key hints (see below) |
 | `q` / `Escape` | Quit |
 | `↑` / `↓` | Navigate list |
+
+The key hints occupy the bottom row for the first 10 seconds, then hand it back to
+the unread/read counts. `?` brings them up again and cancels that timeout, so they
+stay until you press `?` a second time. `?` is not configurable.
 
 ### History mode
 

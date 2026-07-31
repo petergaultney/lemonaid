@@ -1,4 +1,10 @@
-# 0.13.1 (2026-07-31)
+# 0.14.0 (2026-07-31)
+
+#### Changed
+
+- **The counts moved into the footer row.** "3 unread, 10 read" had its own row above the key hints, costing a row of list height for one short line. The key hints now show for 10 seconds at startup and then step aside, and the counts take that row. `?` toggles the hints back, and pressing it cancels the startup timeout so they stay up. Both use the same row, so the list is two rows taller than before.
+
+  The patch-Claude hint and the history/snoozed counts share that slot, since they already replaced the same text.
 
 #### Fixed
 
