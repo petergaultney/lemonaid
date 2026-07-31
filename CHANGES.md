@@ -1,3 +1,9 @@
+# 0.13.1 (2026-07-31)
+
+#### Fixed
+
+- **Blank line under the last session**. The responsive column sizing in 0.13.0 filled rows to the full terminal width, but a table long enough to scroll spends two of those columns on its vertical scrollbar. Rows came out one cell too wide for the space left over, and DataTable answered that overflow with a horizontal scrollbar - which rendered as an empty row between the list and the status bar and cost a row of list height, hiding a session. Column widths are now budgeted against the width the table can actually paint into, and reconciled against Textual's own measurement rather than an independent estimate of it.
+
 # 0.13.0 (2026-07-30)
 
 #### Added
