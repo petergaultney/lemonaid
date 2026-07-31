@@ -2,10 +2,14 @@
 
 import json
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from . import tmux, wezterm
 from .config import Config, load_config
+from .log import get_logger
+
+_log = get_logger("handlers")
 
 
 def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool:
@@ -42,7 +46,7 @@ def handle_notification(
         config = load_config()
 
     if switch_source == "tmux":
-        return _handle_tmux(metadata)
+        return _handle_tmux(metadata, config)
     elif switch_source == "wezterm":
         return _handle_wezterm(metadata, config)
 
@@ -99,8 +103,34 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
     return None, None
 
 
-def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
-    """Handle notification by switching to tmux session/pane."""
+def _recreate_tmux_session(metadata: dict[str, Any], config: Config) -> bool:
+    """Spawn a session rooted at the notification's cwd, for a session that has ended.
+
+    Selecting a session whose pane is gone used to be a dead end. Recreating it
+    in the same directory is what was wanted either way, and it lets the archive
+    serve as a list of places to pick work back up rather than only a record of
+    where it happened.
+    """
+    cwd = metadata.get("cwd")
+    if not cwd or not Path(cwd).is_dir():
+        return False
+
+    error = tmux.session.spawn_session(
+        cwd=cwd,
+        config=config.tmux_session,
+        channel=metadata.get("channel", ""),
+        session_metadata=metadata,
+        session_name=metadata.get("name", ""),
+    )
+    if error:
+        _log.warning("could not recreate a session in %s: %s", cwd, error)
+        return False
+
+    return True
+
+
+def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
+    """Handle notification by switching to its pane, or recreating a dead session."""
     if metadata is None:
         return False
 
@@ -129,6 +159,6 @@ def _handle_tmux(metadata: dict[str, Any] | None) -> bool:
             session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, process_name)
 
     if session is None or pane_id is None:
-        return False
+        return _recreate_tmux_session(metadata, config)
 
     return tmux.navigation.switch_to_pane(session, pane_id)
