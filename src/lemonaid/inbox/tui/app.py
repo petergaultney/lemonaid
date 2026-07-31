@@ -29,7 +29,7 @@ from ...lemon_watchers import (
     start_unified_watcher,
 )
 from ...log import get_logger
-from ...tmux.session import spawn_session_for_resume
+from ...tmux.session import spawn_session
 from .. import db, undo
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .utils import set_terminal_title, styled_cell
@@ -204,9 +204,7 @@ def _stretch_columns(
     # to a horizontal scrollbar. Trim the widest column first and Name last.
     overflow = _rendered_width(table) - total_width
     while overflow > 0:
-        trimmable = [
-            idx for idx, _, _ in flex_specs if idx < len(columns) and columns[idx].width
-        ]
+        trimmable = [idx for idx, _, _ in flex_specs if idx < len(columns) and columns[idx].width]
         if not trimmable:
             break
 
@@ -1049,10 +1047,10 @@ class LemonaidApp(App):
             )
             conn.commit()
 
-        error = spawn_session_for_resume(
-            resume_argv=argv,
+        error = spawn_session(
             cwd=cwd,
             config=self.config.tmux_session,
+            resume_argv=argv,
             channel=notification.channel,
             session_metadata=notification.metadata,
             session_name=notification.name or "",
@@ -1422,13 +1420,21 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
             if notification:
-                # Include channel in metadata for cwd-based fallback resolution
-                metadata = {**notification.metadata, "channel": notification.channel}
-                handle_notification(
+                # Channel drives cwd-based fallback resolution; name is the
+                # session name to reuse if the pane is gone and we respawn.
+                metadata = {
+                    **notification.metadata,
+                    "channel": notification.channel,
+                    "name": notification.name or "",
+                }
+                if not handle_notification(
                     metadata,
                     self.config,
                     switch_source=notification.switch_source,
-                )
+                ):
+                    self.notify("Could not switch to or recreate that session", severity="warning")
+                    return
+
                 # In scratch/auto-dismiss mode, hide the pane after navigation
                 if self._scratch_mode:
                     self._hide_scratch_pane()
