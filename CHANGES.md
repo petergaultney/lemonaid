@@ -1,3 +1,15 @@
+# 0.15.0 (2026-07-31)
+
+#### Changed
+
+- **Enter on a session whose pane is gone now recreates it instead of doing nothing.** A tmux session dies for all sorts of ordinary reasons - `:kill-session`, a closed window, a reboot - and selecting one afterward used to silently fail, because the handler resolves a pane by TTY and gave up when nothing matched. The archive still records where that work was happening, so the session is now respawned from the `default` template in the same directory and switched to.
+
+  This makes the inbox and history usable as a list of *places to pick work back up*, not only a record of where it happened. A dead session and a live one answer to the same key.
+
+  Nothing is recreated if the directory itself is gone - a removed worktree, say. That reports a failure rather than spawning a session somewhere useless. Failures now raise a toast; the return value used to be discarded.
+
+- `spawn_session_for_resume` is now `spawn_session`, with `resume_argv` optional: passing it replaces the window at `resume_window` as before, omitting it uses the template unchanged. `_auto_session_name` moved from `tmux/cli.py` to `tmux/session.py` as `auto_session_name`, removing a deferred cross-module import of a private name.
+
 # 0.14.0 (2026-07-31)
 
 #### Changed

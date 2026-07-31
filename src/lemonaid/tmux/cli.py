@@ -7,7 +7,7 @@ from pathlib import Path
 from ..config import load_config
 from .navigation import go_back, swap_back_location
 from .scratch import toggle_scratch
-from .session import create_session
+from .session import auto_session_name, create_session
 
 
 def cmd_back(args: argparse.Namespace) -> None:
@@ -38,27 +38,6 @@ def cmd_scratch(args: argparse.Namespace) -> None:
         print(result)
 
 
-def _auto_session_name(directory: Path, max_len: int = 15) -> str:
-    """Derive a tmux session name from the directory path.
-
-    Uses the last one or two path components, joined by '-', trimmed to
-    roughly *max_len* characters.  A single final component is never
-    truncated; two components are used only when they fit.
-    """
-    parts = directory.resolve().parts  # absolute, no trailing slash quirks
-    if len(parts) <= 1:
-        return parts[-1] if parts else "tmux"
-
-    last = parts[-1]
-    penultimate = parts[-2]
-    candidate = f"{penultimate}-{last}"
-    if len(candidate) <= max_len:
-        return candidate
-
-    # two components don't fit - just use the last one
-    return last
-
-
 def cmd_new(args: argparse.Namespace) -> None:
     """Create a new tmux session from a template."""
     config = load_config()
@@ -75,7 +54,7 @@ def cmd_new(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     directory = Path(args.dir) if args.dir else Path.cwd()
-    session_name = args.session_name or _auto_session_name(directory)
+    session_name = args.session_name or auto_session_name(directory)
 
     success = create_session(
         name=session_name,

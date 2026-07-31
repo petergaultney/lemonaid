@@ -2,7 +2,6 @@
 
 import shlex
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -139,29 +138,48 @@ def _sanitize_session_name(name: str) -> str:
     return name.replace(".", "-").replace(":", "-").strip()
 
 
-def spawn_session_for_resume(
-    resume_argv: list[str],
+def auto_session_name(directory: Path, max_len: int = 15) -> str:
+    """Derive a tmux session name from the directory path.
+
+    Uses the last one or two path components, joined by '-', trimmed to
+    roughly *max_len* characters.  A single final component is never
+    truncated; two components are used only when they fit.
+    """
+    parts = directory.resolve().parts  # absolute, no trailing slash quirks
+    if len(parts) <= 1:
+        return parts[-1] if parts else "tmux"
+
+    last = parts[-1]
+    candidate = f"{parts[-2]}-{last}"
+    if len(candidate) <= max_len:
+        return candidate
+
+    # two components don't fit - just use the last one
+    return last
+
+
+def spawn_session(
     cwd: str,
     config: TmuxSessionConfig,
+    resume_argv: list[str] | None = None,
     channel: str = "",
     session_metadata: dict | None = None,
     session_name: str = "",
 ) -> str | None:
-    """Create a tmux session from the default template with a resume command.
+    """Create a tmux session from the default template, rooted at *cwd*.
 
-    Replaces the window at `config.resume_window` with the resume command.
-    For Claude sessions, resolves the project directory from history.jsonl
-    to use as the session root.
+    With *resume_argv*, the window at `config.resume_window` is replaced by that
+    command; without it the template is used as-is, which is what recreating a
+    session for a directory that no longer has one needs.
+
+    For Claude sessions, resolves the project directory from history.jsonl to
+    use as the session root.
 
     Returns an error message string on failure, or None on success.
     """
-    from .cli import _auto_session_name
-
     windows = config.get_template("default")
     if not windows:
         return "No tmux-session template 'default' in config"
-
-    resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
 
     # For Claude sessions, prefer the history-derived project dir
     if channel.startswith("claude:") and session_metadata:
@@ -171,15 +189,16 @@ def spawn_session_for_resume(
             if project_dir:
                 cwd = project_dir
 
-    idx = min(config.resume_window, len(windows) - 1)
-    session_windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
-    if not session_name:
-        session_name = _auto_session_name(Path(cwd))
-    session_name = _sanitize_session_name(session_name)
+    if resume_argv:
+        idx = min(config.resume_window, len(windows) - 1)
+        resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
+        windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
 
-    _log.info("spawn_session_for_resume: %s -> session '%s' in %s", channel, session_name, cwd)
+    session_name = _sanitize_session_name(session_name or auto_session_name(Path(cwd)))
 
-    if not create_session(name=session_name, windows=session_windows, directory=cwd, attach=True):
+    _log.info("spawn_session: %s -> session '%s' in %s", channel or "no channel", session_name, cwd)
+
+    if not create_session(name=session_name, windows=windows, directory=cwd, attach=True):
         return f"Failed to create tmux session '{session_name}' (name may already exist)"
 
     return None
