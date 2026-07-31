@@ -165,6 +165,7 @@ def spawn_session(
     channel: str = "",
     session_metadata: dict | None = None,
     session_name: str = "",
+    attach: bool = True,
 ) -> str | None:
     """Create a tmux session from the default template, rooted at *cwd*.
 
@@ -198,7 +199,7 @@ def spawn_session(
 
     _log.info("spawn_session: %s -> session '%s' in %s", channel or "no channel", session_name, cwd)
 
-    if not create_session(name=session_name, windows=windows, directory=cwd, attach=True):
+    if not create_session(name=session_name, windows=windows, directory=cwd, attach=attach):
         return f"Failed to create tmux session '{session_name}' (name may already exist)"
 
     return None

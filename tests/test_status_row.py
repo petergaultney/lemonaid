@@ -50,7 +50,9 @@ def test_status_and_footer_share_the_bottom_row():
     async def steps(app, pilot):
         table_heights, rows = [], []
         for _ in range(2):
-            visible = [w for w in (app.query_one(Footer), app.query_one("#status", Static)) if w.display]
+            visible = [
+                w for w in (app.query_one(Footer), app.query_one("#status", Static)) if w.display
+            ]
             assert len(visible) == 1, visible
             rows.append(visible[0].region.y)
             table_heights.append(app.query_one("#main_table").region.height)

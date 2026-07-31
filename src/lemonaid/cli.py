@@ -7,7 +7,7 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
-from . import claude, codex, inbox, openclaw, opencode, tmux, wezterm
+from . import claude, codex, inbox, openclaw, opencode, places, tmux, wezterm
 from .config import ensure_config_exists, get_config_path
 
 
@@ -93,6 +93,7 @@ def main() -> None:
     codex.cli.setup_parser(subparsers)
     openclaw.cli.setup_parser(subparsers)
     opencode.cli.setup_parser(subparsers)
+    places.cli.setup_parser(subparsers)
     tmux.cli.setup_parser(subparsers)
     wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
