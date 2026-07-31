@@ -36,6 +36,7 @@ from .utils import set_terminal_title, styled_cell
 _DAY_SECONDS = 86400
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 
+_NAME_COLUMN = 3
 _BRANCH_COLUMN = 4
 _MESSAGE_COLUMN = 6
 _TTY_COLUMN = 7
@@ -128,6 +129,27 @@ def _hide_columns(table: DataTable, indices: abc.Container[int], labels: dict[in
             column.width = 0
 
 
+def _rendered_width(table: DataTable) -> int:
+    """The row width DataTable will report as its virtual width.
+
+    Mirrors Column.get_render_width, which adds cell padding on both sides of every
+    column — including one collapsed to zero width, which still costs its padding.
+    """
+    return sum(c.width + 2 * table.cell_padding for c in table.columns.values())
+
+
+def _vertical_scrollbar_width(table: DataTable) -> int:
+    """Width to hold back for the vertical scrollbar, whether or not it's showing.
+
+    Reserved unconditionally rather than keyed on `show_vertical_scrollbar`: the two
+    scrollbars are mutually dependent (narrower columns can retract the horizontal
+    bar, which grows the viewport, which can retract the vertical one), so reading
+    the live flag oscillates between two layouts. Costs two columns of flex width on
+    a list short enough not to scroll.
+    """
+    return int(table.styles.scrollbar_size_vertical or 0)
+
+
 def _stretch_columns(
     table: DataTable,
     flex_specs: list[tuple[int, int, float]],
@@ -174,6 +196,23 @@ def _stretch_columns(
         columns[idx].auto_width = False
         columns[idx].width = min(width, budget)
         budget -= columns[idx].width
+
+    # `padding_total` only approximates what DataTable will charge, so reconcile
+    # against the real measure: overshooting by one cell costs a whole row of height
+    # to a horizontal scrollbar. Trim the widest column first and Name last.
+    overflow = _rendered_width(table) - total_width
+    while overflow > 0:
+        trimmable = [
+            idx for idx, _, _ in flex_specs if idx < len(columns) and columns[idx].width
+        ]
+        if not trimmable:
+            break
+
+        # Name only gives up cells once nothing else has any left to give.
+        candidates = [idx for idx in trimmable if idx != _NAME_COLUMN] or trimmable
+        widest = max(candidates, key=lambda idx: columns[idx].width)
+        columns[widest].width -= 1
+        overflow -= 1
 
 
 class LemonaidApp(App):
@@ -422,7 +461,10 @@ class LemonaidApp(App):
             # the whole point of that view — never hide it.
             table_hidden = hidden - {_TTY_COLUMN} if table_id == "#snoozed_table" else hidden
             _hide_columns(table, table_hidden, self._column_labels(table_id))
-            _stretch_columns(table, flex, w)
+            # Which columns to show keys off the terminal width, so the layout doesn't
+            # reshuffle when a scrollbar appears; how wide to draw them keys off what
+            # the table can actually paint into.
+            _stretch_columns(table, flex, w - _vertical_scrollbar_width(table))
 
     def _column_labels(self, table_id: str) -> dict[int, str]:
         return {
