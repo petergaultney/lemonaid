@@ -1,5 +1,25 @@
 # 0.15.0 (2026-08-07)
 
+#### Added
+
+- **[Places](docs/places.md)**: `lemonaid place open <key>` gets you a session for something, acquiring its directory first if it doesn't exist yet; `lemonaid place toss` kills a session and releases the places it occupies. One command each way instead of two.
+
+  `place open` is idempotent in the same spirit as `wt co` - it creates only when it has to, switches to an existing session rather than duplicating one, and neither case is an error - so you never have to know which situation you're in.
+
+  What "acquire" and "release" mean is a shell command you declare per repo root (`create`, `destroy`, `path_of`, `list`, `inspect`), so lemonaid still only knows about directories and terminals — it has no notion of a git worktree or any other scheme. Every hook is optional, so a plain clone coexists with a worktree repo and nothing has to detect which is which. The protocol is lines, not JSON, which is why `list` can be plain `git worktree list` piped through `sed`.
+
+  **Teardown works on a session and everything it occupies.** Deleting a worktree and killing a session were each already one command; what was missing was anything that knew the two went together, so cleanup got put off until the context needed to do it well was gone. `place toss <key>` names the session sitting in that place and `place toss` uses the one you're attached to, but both resolve to the same set - so there is no form that kills a session while stranding a place it owned. The set is listed and confirmed before anything happens, which is where you decide whether the second worktree goes too. A session with no managed places is ordinary; tossing it just closes the session.
+
+  Ownership is derived from `tmux list-panes` when you ask, never recorded, so nothing can drift and a worktree an agent created resolves like any other. tmux keeps reporting a pane's original path after the directory is deleted, so a session that outlived its worktree still resolves and can still be closed.
+
+  Two kinds of protection, neither overridable by `--force`. A root's `protected` keys (`main` and `master` by default) are never released, and never count as owned - everyone passes through the trunk worktree, and a confirmation line that can never be acted on is one you learn to skip past. `protected_sessions` under `[places]` refuses teardown of a session outright, for long-lived catchalls that aren't tied to one piece of work; it's global rather than per-root, since a session name isn't repo-scoped and the one you want to guard may not sit in a managed directory at all.
+
+  `--yes` skips the confirmation, `--force` overrides an `inspect` hook reporting unpushed work - separate flags, so an agent can tear down unattended without also being able to discard commits.
+
+  Teardown switches you out before destroying anything and does the slow part detached, logging to `~/.local/state/lemonaid/reap.log`. The session is killed before any directory is released, since a process holding a file there can make the removal fail.
+
+  `place list --json` reports each place's key and its live tmux session name (empty when nothing runs there), so a caller can act on a listed place without deriving a key itself. Every command takes `--json`, so the same verbs serve a person at a prompt and an agent driving them. [docs/for-lemons.md](docs/for-lemons.md) documents the programmatic surface.
+
 #### Changed
 
 - **Enter on a session whose pane is gone now recreates it instead of doing nothing.** A tmux session dies for all sorts of ordinary reasons - `:kill-session`, a closed window, a reboot - and selecting one afterward used to silently fail, because the handler resolves a pane by TTY and gave up when nothing matched. The archive still records where that work was happening, so the session is now respawned from the `default` template in the same directory and switched to.
