@@ -15,6 +15,7 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from ... import claude, codex, openclaw, opencode
@@ -35,6 +36,7 @@ from .utils import set_terminal_title, styled_cell
 
 _DAY_SECONDS = 86400
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
+_KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
 _NAME_COLUMN = 3
 _BRANCH_COLUMN = 4
@@ -237,6 +239,8 @@ class LemonaidApp(App):
         color: $text-muted;
     }
 
+    /* Only ever displayed while the Footer is hidden, so it takes the Footer's
+       row rather than costing the list a second one. */
     #status {
         height: 1;
         background: $surface;
@@ -272,6 +276,8 @@ class LemonaidApp(App):
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
         self._exec_on_exit: tuple[str, list[str]] | None = None
+        self._keys_shown = True
+        self._hint_timer: Timer | None = None
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -327,6 +333,10 @@ class LemonaidApp(App):
 
         # Patch Claude (always hidden, always 'P')
         self.bind("P", "patch_claude", description="Patch Claude", show=False)
+
+        # Key hints share the bottom row with the status text, so they're a toggle
+        # rather than a permanent fixture. Hidden from the footer it controls.
+        self.bind("question_mark", "toggle_keys", description="Keys", show=False)
 
         # Cross-table arrow navigation (always active)
         self.bind("up", "cursor_up", description="Up", show=False)
@@ -395,6 +405,8 @@ class LemonaidApp(App):
         self.call_later(self._stretch_all_tables)
         # Kick Footer to pick up dynamically-bound keys
         self.refresh_bindings()
+        self._show_keys(True)
+        self._hint_timer = self.set_timer(_KEY_HINT_SECONDS, lambda: self._show_keys(False))
 
     def _check_claude_patch(self) -> None:
         """Check Claude Code patch status in a child process (avoids GIL stall).
@@ -585,7 +597,7 @@ class LemonaidApp(App):
         # Populate non-switchable table (always dim, not interactive).
         # Hide it if the terminal is too short — main table gets priority.
         _MIN_MAIN_ROWS = 5
-        chrome = 4  # header + status + footer + other_label
+        chrome = 3  # header + other_label + the shared status/footer row
         other_height = min(len(other_notifications), 8)
         room_for_main = self.size.height - chrome - other_height
         show_other = other_notifications and room_for_main >= _MIN_MAIN_ROWS
@@ -627,9 +639,7 @@ class LemonaidApp(App):
                     target_index = min(current_index, main_table.row_count - 1)
             main_table.move_cursor(row=target_index)
 
-        status = self.query_one("#status", Static)
-        displayed = main_table.row_count
-        read_count = displayed - unread_count
+        read_count = main_table.row_count - unread_count
         env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
 
@@ -637,7 +647,7 @@ class LemonaidApp(App):
         if self._claude_patch_status == "unpatched":
             status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
 
-        status.update(status_text)
+        self._set_status(status_text)
 
     def action_quit(self) -> None:
         """Quit the app, or just hide the pane in scratch mode.
@@ -663,6 +673,23 @@ class LemonaidApp(App):
         if self._history_mode:
             self._set_history_mode(False)
         self._set_snoozed_mode(not self._snoozed_mode)
+
+    def action_toggle_keys(self) -> None:
+        # An explicit toggle outranks the startup timer, which would otherwise
+        # hide the hints part-way through the user reading them.
+        if self._hint_timer is not None:
+            self._hint_timer.stop()
+            self._hint_timer = None
+
+        self._show_keys(not self._keys_shown)
+
+    def _show_keys(self, shown: bool) -> None:
+        self._keys_shown = shown
+        self.query_one(Footer).display = shown
+        self.query_one("#status", Static).display = not shown
+
+    def _set_status(self, text: str) -> None:
+        self.query_one("#status", Static).update(text)
 
     def _refresh_session_names(self) -> None:
         """Pull newly-available backend titles into the inbox.
@@ -820,9 +847,8 @@ class LemonaidApp(App):
         if history_table.row_count > 0:
             history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
 
-        status = self.query_one("#status", Static)
         count = history_table.row_count
-        status.update(f"{count} archived session{'s' if count != 1 else ''}")
+        self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
 
     def _set_snoozed_mode(self, enabled: bool) -> None:
         self._snoozed_mode = enabled
@@ -894,7 +920,7 @@ class LemonaidApp(App):
             snoozed_table.move_cursor(row=min(current_row, snoozed_table.row_count - 1))
 
         count = snoozed_table.row_count
-        self.query_one("#status", Static).update(
+        self._set_status(
             f"{count} snoozed session{'s' if count != 1 else ''}  |  Enter to wake now"
         )
 
