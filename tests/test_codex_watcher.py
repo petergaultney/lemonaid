@@ -14,7 +14,7 @@ def test_describe_activity_response_item_function_call_shell_command():
         "payload": {
             "type": "function_call",
             "name": "shell_command",
-            "arguments": "{\"command\":\"rg -n test\"}",
+            "arguments": '{"command":"rg -n test"}',
         },
     }
     assert watcher.describe_activity(entry) == "Running: rg -n test"

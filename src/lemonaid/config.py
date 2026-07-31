@@ -103,6 +103,59 @@ class BackendConfig:
     resume_command: str = ""
 
 
+@dataclass(frozen=True)
+class PlaceRoot:
+    """Shell commands for acquiring and releasing directories under one root.
+
+    lemonaid knows about directories and terminals; it does not know what a
+    worktree is. A root that manages its directories with some external tool
+    declares that tool here, and lemonaid substitutes and runs it.
+
+    `{key}` is opaque - whatever the configured tool names directories by. For a
+    git-worktree tool it is a branch name; lemonaid neither knows nor checks
+    that. `{dir}` is an absolute path.
+
+    Every command is optional. Unset means that capability no-ops for this root,
+    which is how a plain clone (nothing to list, create, or destroy) coexists
+    with a worktree repo.
+    """
+
+    path: Path
+    list: str = ""  # candidate directories, one absolute path per line
+    path_of: str = ""  # {key} -> the directory for that key
+    create: str = ""  # acquire a directory for {key}
+    destroy: str = ""  # release the directory for {key}
+    inspect: str = ""  # one short display line about {dir}
+    # Keys that must never be destroyed, no matter how they are asked for. A
+    # worktree repo usually has one directory the others are branched from, and
+    # losing it is not the sort of mistake a --force flag should be able to make.
+    protected: tuple[str, ...] = ("main", "master")
+
+    def is_protected(self, key: str) -> bool:
+        return key in self.protected
+
+
+@dataclass
+class PlacesConfig:
+    roots: list[PlaceRoot] = field(default_factory=list)
+    # Sessions that must never be torn down. Separate from a root's `protected`
+    # keys: that guards a directory, this guards a session, and a long-lived
+    # catchall session often isn't tied to any one managed directory.
+    protected_sessions: tuple[str, ...] = ()
+
+    def is_protected_session(self, session: str) -> bool:
+        return session in self.protected_sessions
+
+    def root_for(self, directory: str | Path) -> PlaceRoot | None:
+        """The configured root that *directory* lives under, innermost first."""
+        resolved = Path(directory).expanduser().resolve()
+        return max(
+            (root for root in self.roots if resolved == root.path or root.path in resolved.parents),
+            key=lambda root: len(root.path.parts),
+            default=None,
+        )
+
+
 @dataclass
 class Config:
     """Lemonaid configuration."""
@@ -113,6 +166,7 @@ class Config:
     tui: TuiConfig = field(default_factory=TuiConfig)
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
     backends: dict[str, BackendConfig] = field(default_factory=dict)
+    places: PlacesConfig = field(default_factory=PlacesConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -184,6 +238,24 @@ def _parse_config(data: dict[str, Any]) -> Config:
         if isinstance(bd, dict)
     }
 
+    places_data = data.get("places", {})
+    places = PlacesConfig(
+        protected_sessions=tuple(places_data.get("protected_sessions", ())),
+        roots=[
+            PlaceRoot(
+                path=Path(rd["path"]).expanduser(),
+                list=rd.get("list", ""),
+                path_of=rd.get("path_of", ""),
+                create=rd.get("create", ""),
+                destroy=rd.get("destroy", ""),
+                inspect=rd.get("inspect", ""),
+                protected=tuple(rd["protected"]) if "protected" in rd else PlaceRoot.protected,
+            )
+            for rd in places_data.get("roots", [])
+            if isinstance(rd, dict) and rd.get("path")
+        ],
+    )
+
     return Config(
         handlers=handlers,
         wezterm=wezterm,
@@ -191,6 +263,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         tui=tui,
         openclaw=openclaw,
         backends=backends,
+        places=places,
     )
 
 
