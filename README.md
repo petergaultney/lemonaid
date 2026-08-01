@@ -147,7 +147,8 @@ All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md)
 
 ### Programmatic Access
 
-For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md).
+For JSON output and programmatic access (useful for lemons), see [docs/for-lemons.md](docs/for-lemons.md)
+— or run `lemonaid for-lemons`, which prints the same guide from any install.
 
 ## Configuration
 

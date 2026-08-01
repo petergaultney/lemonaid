@@ -2,6 +2,9 @@
 
 Programmatic access to lemonaid for LLMs and other automated tools.
 
+Print this guide from anywhere with `lemonaid for-lemons` — it ships with the package, so you
+don't need to know where a checkout lives. Every command below also has `--help`.
+
 ## Inbox Commands
 
 ### List notifications
