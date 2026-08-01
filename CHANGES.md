@@ -2,6 +2,8 @@
 
 #### Added
 
+- **`lemonaid for-lemons`** prints the guide for automated callers. An agent reaches lemonaid through the CLI and has no reason to know where a markdown file lives in a checkout it may not be sitting in, so the guide is installed alongside the package and reachable by command. `--path` prints its location instead. It is the same `docs/for-lemons.md` humans read, not a copy that can drift.
+
 - **[Places](docs/places.md)**: `lemonaid place open <key>` gets you a session for something, acquiring its directory first if it doesn't exist yet; `lemonaid place toss` kills a session and releases the places it occupies. One command each way instead of two.
 
   `place open` is idempotent in the same spirit as `wt co` - it creates only when it has to, switches to an existing session rather than duplicating one, and neither case is an error - so you never have to know which situation you're in.

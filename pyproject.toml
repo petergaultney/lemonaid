@@ -23,6 +23,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/lemonaid"]
 
+# Installed alongside the package so `lemonaid for-lemons` works from any
+# install, not only an editable one pointing back at a checkout.
+[tool.hatch.build.targets.wheel.force-include]
+"docs/for-lemons.md" = "lemonaid/docs/for-lemons.md"
+
 [tool.ruff]
 line-length = 100
 src = ["src"]

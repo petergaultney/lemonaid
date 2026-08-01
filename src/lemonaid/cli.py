@@ -7,7 +7,7 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
-from . import claude, codex, inbox, openclaw, opencode, places, tmux, wezterm
+from . import claude, codex, for_lemons, inbox, openclaw, opencode, places, tmux, wezterm
 from .config import ensure_config_exists, get_config_path
 
 
@@ -98,6 +98,7 @@ def main() -> None:
     wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
+    for_lemons.setup_parser(subparsers)
 
     # Forward `lemonaid claude --flag ...` to the real claude CLI.
     # Argparse can't forward unknown flags through a subparser, so this
