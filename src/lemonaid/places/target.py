@@ -53,9 +53,20 @@ def _named(config: Config, key: str) -> tuple[TossTarget | None, str]:
     if place is None:
         return None, f"No configured root has a directory for {key!r}"
 
-    session = ownership.session_holding(place.directory)
-    if not session:
+    holding = ownership.sessions_holding(place.directory)
+    if not holding:
         return None, f"No tmux session is in {place.directory}; nothing to tear down"
+
+    if len(holding) > 1:
+        return None, (
+            f"{len(holding)} sessions have a window in {place.directory}: "
+            + ", ".join(repr(s) for s in holding)
+            + f". A key names a session, and {key!r} does not say which - so tearing "
+            "one down here would be a guess. Attach to the one you mean and run "
+            "`place toss` with no key."
+        )
+
+    session = holding[0]
 
     if refusal := _refusal(config, session):
         return None, refusal
