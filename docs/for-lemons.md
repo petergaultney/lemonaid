@@ -117,6 +117,26 @@ actual name.
 Acquiring a directory can take minutes — it may install dependencies. Don't set a short
 timeout and don't retry on a timeout; a second call would just wait on the same work.
 
+### A session where there is no place
+
+Run from a directory no configured root manages the names of, there is no key to resolve,
+so the name is simply a session opened in the current directory. Nothing is acquired, and
+the JSON reports `"root": null`.
+
+```bash
+cd ~/somewhere-unmanaged && lemonaid place open notes --detach --json
+# {"key": "notes", "dir": "/home/me/somewhere-unmanaged", "root": null, "error": null}
+```
+
+This is not a fallback for a key that failed to resolve. Inside a root with a key
+vocabulary the name is always a key, and a name that doesn't resolve is acquired — so a
+mistyped key creates a directory rather than a bare session. Check `place hooks --json` if
+you need to know which roots have one: a root with no `list` and no `path_of` claims no
+names.
+
+Identity here is the name, not the directory, so several differently-named sessions in one
+directory are fine. `place list` does not report these — they are sessions, not places.
+
 ### Listing places
 
 ```bash

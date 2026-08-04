@@ -68,6 +68,20 @@ it's missing, switches to its session only if there isn't one, and neither case 
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
 
+Outside every root that has a key vocabulary, there's no key to resolve, so `place open
+<name>` is just a named session in the current directory — the same thing `tmux new -s` gets
+you, by way of your session template. Nothing is acquired.
+
+That's decided by where you are, not by whether a lookup succeeded. Inside a root with a
+vocabulary the name is always a key, so a mistyped one acquires a directory rather than
+silently becoming an empty session. A root with no `list` and no `path_of` has no vocabulary
+to speak of — it's there so `place list` reports the directory — so being inside one is the
+same as being outside every root.
+
+For these sessions the name is the identity, not the directory, so two differently-named
+sessions in one directory are fine. `place list` won't show them; they're sessions, not
+places.
+
 Add `--detach` to skip switching to it, and `--json` to any of these for machine-readable
 output. `list --json` includes each place's key and its live tmux session name (empty when
 nothing is running there), which is what an agent needs to act on a listed place. See
