@@ -5,6 +5,16 @@ import os
 import subprocess
 from pathlib import Path
 
+from ..log import get_logger
+
+_log = get_logger("tmux.navigation")
+
+# Returned as the session when a cwd matches panes in more than one session.
+# Distinct from "no match" because the responses differ: nothing found means the
+# session is gone and may be recreated, while several found means one of them is
+# the right one and spawning another would add to the confusion.
+AMBIGUOUS = "?ambiguous"
+
 
 def get_state_path() -> Path:
     """Get the path to the lemonaid state directory."""
@@ -91,6 +101,18 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
 
     Optionally filter by a process running in the pane.
     Returns (session_name, pane_id) or (None, None) if not found.
+
+    A directory does not identify a session: two agents started in one worktree
+    at different times both match, as do a worktree's own session and any other
+    that has a window open there. Rather than take whichever tmux happens to list
+    first - which sends you somewhere unrelated and looks like a switching bug -
+    that returns `(AMBIGUOUS, None)` and names the candidates in the log.
+
+    *process_name* is matched against `pane_current_command`, which is the process
+    title and not necessarily the command you launched: Claude sets its title to
+    its version (`2.1.220`), so passing "claude" matches nothing and every
+    candidate is discarded. Callers relying on this filter to find an agent pane
+    should expect it to find none.
     """
     try:
         # List all panes with their cwd, current command, session, and pane ID
@@ -106,23 +128,34 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
             text=True,
             check=True,
         )
+    except subprocess.CalledProcessError as e:
+        _log.warning("could not list panes to resolve %s: %s", cwd, e)
+        return None, None
 
-        for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
-            parts = line.split("|")
-            if len(parts) == 4:
-                pane_cwd, pane_cmd, session_name, pane_id = parts
-                if pane_cwd == cwd:
-                    # If process_name specified, check it matches
-                    if process_name and process_name not in pane_cmd:
-                        continue
-                    return session_name, pane_id
+    matches: list[tuple[str, str]] = []
+    for line in result.stdout.strip().split("\n"):
+        parts = line.split("|")
+        if len(parts) != 4:
+            continue
 
-    except subprocess.CalledProcessError:
-        pass
+        pane_cwd, pane_cmd, session_name, pane_id = parts
+        if pane_cwd == cwd and (not process_name or process_name in pane_cmd):
+            matches.append((session_name, pane_id))
 
-    return None, None
+    if not matches:
+        return None, None
+
+    sessions = {session for session, _ in matches}
+    if len(sessions) > 1:
+        _log.warning(
+            "%s is the cwd of panes in %d sessions (%s); not guessing which one was meant",
+            cwd,
+            len(sessions),
+            ", ".join(sorted(sessions)),
+        )
+        return AMBIGUOUS, None
+
+    return matches[0]
 
 
 def get_pane_for_session(session: str) -> tuple[str | None, str | None]:

@@ -5,6 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from ..log import get_logger
+
+_log = get_logger("lemon_watchers.common")
+
+_ANCESTOR_DEPTH = 10
+_PS_TIMEOUT_SECONDS = 5
+
 
 def get_tty() -> str | None:
     """Get the TTY name for this process or an ancestor process.
@@ -16,6 +23,13 @@ def get_tty() -> str | None:
 
     Note: Process tree walking uses `ps` which behaves slightly differently
     on macOS vs Linux, but the TTY detection should work on both.
+
+    Returning None is consequential and hard to notice later: the tty is what
+    the watcher keys auto-archiving on and what switching resolves a pane by, so
+    a notification without one is never garbage-collected and falls back to
+    matching on cwd, which several sessions can share. It is logged for that
+    reason - roughly 5% of recorded notifications have historically lacked one,
+    with no trace of why.
     """
     # Try stdin first
     try:
@@ -42,13 +56,27 @@ def get_tty() -> str | None:
         pass
 
     # Walk up the process tree looking for an ancestor with a TTY
-    return _get_ancestor_tty()
+    from_ancestor = _get_ancestor_tty()
+    if not from_ancestor:
+        _log.warning(
+            "no tty for pid %d via stdin/stdout/stderr or %d ancestors; "
+            "this notification will not be auto-archived and can only be switched to by cwd",
+            os.getpid(),
+            _ANCESTOR_DEPTH,
+        )
+
+    return from_ancestor
 
 
-def _get_ancestor_tty(max_depth: int = 10) -> str | None:
+def _get_ancestor_tty(max_depth: int = _ANCESTOR_DEPTH) -> str | None:
     """Walk up the process tree looking for an ancestor with a TTY.
 
     Stops at init (PID 1) or after max_depth iterations to prevent infinite loops.
+
+    Each way of giving up is logged distinctly. A `ps` that fails and a tree with
+    genuinely no terminal in it produce the same None, and telling them apart
+    afterward is the whole difficulty in diagnosing a notification that arrived
+    without a tty.
     """
     pid = os.getpid()
 
@@ -60,25 +88,34 @@ def _get_ancestor_tty(max_depth: int = 10) -> str | None:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=_PS_TIMEOUT_SECONDS,
             )
-            parts = result.stdout.strip().split()
-            if len(parts) < 2:
-                break
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            _log.warning("ps failed walking up from pid %d: %s", pid, e)
+            return None
 
-            ppid_str, tty = parts[0], parts[1]
-            ppid = int(ppid_str)
+        parts = result.stdout.strip().split()
+        if len(parts) < 2:
+            _log.warning("ps gave no ppid/tty for pid %d: %r", pid, result.stdout)
+            return None
 
-            # Check if this process has a real TTY
-            if tty and tty not in ("??", "-", ""):
-                return f"/dev/{tty}"
+        try:
+            ppid = int(parts[0])
+        except ValueError:
+            _log.warning("ps gave an unparseable ppid for pid %d: %r", pid, parts[0])
+            return None
 
-            # Move to parent
-            if ppid <= 1:
-                break
-            pid = ppid
+        tty = parts[1]
+        if tty and tty not in ("??", "-", ""):
+            return f"/dev/{tty}"
 
-        except (subprocess.CalledProcessError, OSError, ValueError):
-            break
+        if ppid <= 1:
+            _log.info("reached pid %d with no tty in the tree above pid %d", ppid, os.getpid())
+            return None
+
+        pid = ppid
+
+    _log.warning("gave up after %d ancestors looking for a tty", max_depth)
 
     return None
 
