@@ -92,6 +92,43 @@ def test_protected_sessions_coexist_with_roots():
     assert len(config.places.roots) == 1
 
 
+def test_a_root_with_hooks_has_a_namespace(tmp_path):
+    config = _parse_config(
+        {"places": {"roots": [{"path": str(tmp_path), "path_of": "wt path {key}"}]}}
+    )
+
+    assert config.places.roots[0].has_namespace()
+    assert config.places.namespaced_root_for(tmp_path / "inner") is not None
+
+
+def test_listing_alone_is_a_namespace():
+    config = _parse_config({"places": {"roots": [{"path": "/tmp/x", "list": "git worktree list"}]}})
+
+    assert config.places.roots[0].has_namespace()
+
+
+def test_a_hookless_root_has_no_namespace(tmp_path):
+    """It exists so `place list` reports the directory, not to claim names in it."""
+    config = _parse_config({"places": {"roots": [{"path": str(tmp_path)}]}})
+
+    assert not config.places.roots[0].has_namespace()
+    assert config.places.root_for(tmp_path) is not None
+    assert config.places.namespaced_root_for(tmp_path) is None
+
+
+def test_create_alone_is_not_a_namespace():
+    """Without list or path_of there is no way to read a name as a directory."""
+    config = _parse_config({"places": {"roots": [{"path": "/tmp/x", "create": "mk {key}"}]}})
+
+    assert not config.places.roots[0].has_namespace()
+
+
+def test_no_namespace_outside_every_root():
+    config = _parse_config({"places": {"roots": [{"path": "/tmp/x", "path_of": "p {key}"}]}})
+
+    assert config.places.namespaced_root_for("/tmp/elsewhere") is None
+
+
 def test_no_places_section_at_all():
     config = _parse_config({})
 

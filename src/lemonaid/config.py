@@ -134,6 +134,16 @@ class PlaceRoot:
     def is_protected(self, key: str) -> bool:
         return key in self.protected
 
+    def has_namespace(self) -> bool:
+        """Whether keys mean anything here.
+
+        Without a way to either list directories or resolve one from a key, a
+        root has no vocabulary of its own - a name handed to it could not have
+        referred to a directory it manages. Such a root exists so `place list`
+        reports its directory; it does not claim the names used inside it.
+        """
+        return bool(self.list or self.path_of)
+
 
 @dataclass
 class PlacesConfig:
@@ -154,6 +164,16 @@ class PlacesConfig:
             key=lambda root: len(root.path.parts),
             default=None,
         )
+
+    def namespaced_root_for(self, directory: str | Path) -> PlaceRoot | None:
+        """The root whose key vocabulary applies in *directory*, if any.
+
+        This decides how a name is read: inside such a root a name is a key, and
+        failing to resolve one means create-or-typo. Outside every one of them,
+        no root could have meant it, so it is free to mean something else.
+        """
+        root = self.root_for(directory)
+        return root if root is not None and root.has_namespace() else None
 
 
 @dataclass

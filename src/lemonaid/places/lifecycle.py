@@ -45,6 +45,31 @@ def open_place(
     )
 
 
+def open_session(name: str, directory: Path, config: Config, attach: bool = True) -> str | None:
+    """Get a session called *name* sitting in *directory*, acquiring nothing.
+
+    For directories no root claims the names of, where a name can only have meant
+    a session. Nothing is created or released on disk.
+
+    Identity is the name, not the directory - unlike a place, where one directory
+    means one session. Several differently-named sessions in the same directory is
+    a normal thing to want here.
+    """
+    session, pane_id = tmux.navigation.get_pane_for_session(tmux.session.sanitize_name(name))
+    if session and pane_id:
+        if not attach:
+            return None
+
+        if not tmux.navigation.switch_to_pane(session, pane_id):
+            return f"Could not switch to existing session '{session}'"
+
+        return None
+
+    return tmux.session.spawn_session(
+        cwd=str(directory), config=config.tmux_session, session_name=name, attach=attach
+    )
+
+
 def open_key(
     key: str, config: Config, root: PlaceRoot, attach: bool = True
 ) -> tuple[Path | None, str | None]:
