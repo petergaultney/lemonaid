@@ -158,6 +158,15 @@ def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
                 process_name = "opencode"
             session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, process_name)
 
+    if session == tmux.navigation.AMBIGUOUS:
+        # One of the matches is the right session, so recreating would add a
+        # duplicate to a directory that already has too many.
+        _log.warning(
+            "not switching to %s: its directory belongs to several sessions",
+            metadata.get("cwd"),
+        )
+        return False
+
     if session is None or pane_id is None:
         return _recreate_tmux_session(metadata, config)
 

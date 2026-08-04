@@ -28,6 +28,14 @@ def open_place(
     Returns an error message on failure, or None on success.
     """
     session, pane_id = tmux.navigation.get_pane_for_cwd(str(directory))
+
+    if session == tmux.navigation.AMBIGUOUS:
+        return (
+            f"Several tmux sessions have a window in {directory}; "
+            "not guessing which one you meant. Switch to it yourself, or close "
+            "the ones that aren't the session working there."
+        )
+
     if session and pane_id:
         if not attach:
             return None  # it already exists; nothing to do but say so

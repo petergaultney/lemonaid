@@ -201,3 +201,22 @@ def test_detached_open_does_not_switch(monkeypatch, tmp_path):
     lifecycle.open_place(tmp_path, _CONFIG, attach=False)
 
     assert spawned[0]["attach"] is False
+
+
+def test_open_place_refuses_an_ambiguous_directory(monkeypatch, tmp_path):
+    """Two sessions with a window there means one of them is the one wanted.
+
+    Spawning a third would be the opposite of resolving it, and `session` is a
+    truthy sentinel here - the pane check alone would fall through to spawning.
+    """
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation,
+        "get_pane_for_cwd",
+        lambda cwd, process=None: (lifecycle.tmux.navigation.AMBIGUOUS, None),
+    )
+    spawned = _spawns_into(monkeypatch)
+
+    error = lifecycle.open_place(tmp_path, _CONFIG)
+
+    assert error and "not guessing" in error
+    assert not spawned

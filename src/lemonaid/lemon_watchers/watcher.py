@@ -241,6 +241,11 @@ def _archive_stale_sessions(
         _switch_source,
     ) in remaining:
         if not tty:
+            # Every check here keys on the tty, so a row without one is never
+            # archived automatically - it survives any number of session kills.
+            # Logged because that presents as the archiver being broken rather
+            # than as a field being absent.
+            _log.warning("%s has no tty recorded; cannot auto-archive it", channel)
             continue
 
         if channel.startswith("claude:"):
