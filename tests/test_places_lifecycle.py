@@ -114,6 +114,86 @@ def test_open_key_passes_the_spawn_error_through(monkeypatch, tmp_path):
     assert error == "name already exists"
 
 
+def _no_session_named(monkeypatch) -> None:
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation, "get_pane_for_session", lambda session: (None, None)
+    )
+
+
+def test_open_session_spawns_in_the_given_directory(monkeypatch, tmp_path):
+    _no_session_named(monkeypatch)
+    spawned = _spawns_into(monkeypatch)
+
+    assert lifecycle.open_session("notes", tmp_path, _CONFIG) is None
+    assert spawned[0]["cwd"] == str(tmp_path)
+    assert spawned[0]["session_name"] == "notes"
+
+
+def test_open_session_acquires_nothing(monkeypatch, tmp_path):
+    """There is no root to create under; the directory is taken as given."""
+    _no_session_named(monkeypatch)
+    _spawns_into(monkeypatch)
+
+    lifecycle.open_session("notes", tmp_path / "does-not-exist", _CONFIG)
+
+    assert not (tmp_path / "does-not-exist").exists()
+
+
+def test_open_session_reuses_by_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation, "get_pane_for_session", lambda session: ("notes", "%7")
+    )
+    switched = []
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation,
+        "switch_to_pane",
+        lambda session, pane, save_current=True: switched.append((session, pane)) or True,
+    )
+    spawned = _spawns_into(monkeypatch)
+
+    assert lifecycle.open_session("notes", tmp_path, _CONFIG) is None
+    assert switched == [("notes", "%7")]
+    assert not spawned
+
+
+def test_open_session_distinguishes_names_in_one_directory(monkeypatch, tmp_path):
+    """Unlike a place, the directory is not the identity - the name is.
+
+    Two named sessions in the same directory is normal here, so an existing
+    session elsewhere in that directory must not be handed back.
+    """
+    asked: list[str] = []
+
+    def _by_name(session):
+        asked.append(session)
+        return ("notes", "%7") if session == "notes" else (None, None)
+
+    monkeypatch.setattr(lifecycle.tmux.navigation, "get_pane_for_session", _by_name)
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation, "get_pane_for_cwd", lambda cwd, process=None: ("notes", "%7")
+    )
+    spawned = _spawns_into(monkeypatch)
+
+    assert lifecycle.open_session("scratch", tmp_path, _CONFIG) is None
+    assert asked == ["scratch"]
+    assert spawned[0]["session_name"] == "scratch"
+
+
+def test_open_session_looks_up_the_sanitized_name(monkeypatch, tmp_path):
+    """tmux never sees the dots, so neither can the lookup that matches them."""
+    asked: list[str] = []
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation,
+        "get_pane_for_session",
+        lambda session: (asked.append(session), (None, None))[1],
+    )
+    _spawns_into(monkeypatch)
+
+    lifecycle.open_session("v1.2:beta", tmp_path, _CONFIG)
+
+    assert asked == ["v1-2-beta"]
+
+
 def test_detached_open_does_not_switch(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     spawned = _spawns_into(monkeypatch)

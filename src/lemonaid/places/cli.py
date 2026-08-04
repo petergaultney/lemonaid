@@ -26,9 +26,20 @@ def root_or_exit(config: Config, directory: str | Path) -> PlaceRoot:
 def cmd_open(args: argparse.Namespace) -> None:
     """Get a session for a key, acquiring its directory if it doesn't exist yet."""
     config = load_config()
-    root = root_or_exit(config, args.root or Path.cwd())
 
-    directory, error = lifecycle.open_key(args.key, config, root, attach=not args.detach)
+    # Naming a root asks for its vocabulary explicitly, so an unusable one is an
+    # error rather than something to read another way.
+    root = (
+        root_or_exit(config, args.root)
+        if args.root
+        else config.places.namespaced_root_for(Path.cwd())
+    )
+
+    if root is None:
+        directory = Path.cwd()
+        error = lifecycle.open_session(args.key, directory, config, attach=not args.detach)
+    else:
+        directory, error = lifecycle.open_key(args.key, config, root, attach=not args.detach)
 
     if args.json:
         print(
@@ -36,7 +47,7 @@ def cmd_open(args: argparse.Namespace) -> None:
                 {
                     "key": args.key,
                     "dir": str(directory) if directory else None,
-                    "root": str(root.path),
+                    "root": str(root.path) if root else None,
                     "error": error,
                 }
             )
@@ -130,9 +141,16 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Get a session for a key, acquiring its directory if needed",
         description="Acquires the directory only if it doesn't exist, and switches "
         "to its session only if there isn't one. Neither case is an error, so this "
-        "is always safe to run without checking first.",
+        "is always safe to run without checking first.\n\n"
+        "Run from a directory no configured root manages the names of, there is no "
+        "key to resolve, so the name is simply a session opened in the current "
+        "directory - nothing is acquired. Passing --root asks for that root's "
+        "vocabulary explicitly and fails if it has none.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    open_parser.add_argument("key", help="What the root's tool names directories by")
+    open_parser.add_argument(
+        "key", help="What the root's tool names directories by, or a session name outside one"
+    )
     open_parser.add_argument(
         "--root", help="Root to acquire under (default: the one containing cwd)"
     )

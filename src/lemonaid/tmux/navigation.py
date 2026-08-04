@@ -125,6 +125,31 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
     return None, None
 
 
+def get_pane_for_session(session: str) -> tuple[str | None, str | None]:
+    """Find the active pane of a session by name.
+
+    Returns (session_name, pane_id) or (None, None) if no such session.
+    """
+    try:
+        result = subprocess.run(
+            ["tmux", "list-panes", "-t", session, "-F", "#{session_name}|#{pane_id}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        return None, None  # tmux errors rather than returning empty for an unknown target
+
+    for line in result.stdout.strip().split("\n"):
+        parts = line.split("|")
+        # An exact match only: `-t` accepts prefixes, so asking for 'notes' would
+        # otherwise resolve to a session called 'notes-old'.
+        if len(parts) == 2 and parts[0] == session:
+            return parts[0], parts[1]
+
+    return None, None
+
+
 def save_back_location(session: str, pane_id: str) -> None:
     """Save a location for the 'back' command."""
     back_file = get_back_file()

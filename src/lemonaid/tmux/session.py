@@ -130,7 +130,7 @@ def create_session(
         return False
 
 
-def _sanitize_session_name(name: str) -> str:
+def sanitize_name(name: str) -> str:
     """Make a string safe for use as a tmux session name.
 
     tmux forbids dots and colons in session names.
@@ -195,7 +195,7 @@ def spawn_session(
         resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
         windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
 
-    session_name = _sanitize_session_name(session_name or auto_session_name(Path(cwd)))
+    session_name = sanitize_name(session_name or auto_session_name(Path(cwd)))
 
     _log.info("spawn_session: %s -> session '%s' in %s", channel or "no channel", session_name, cwd)
 
