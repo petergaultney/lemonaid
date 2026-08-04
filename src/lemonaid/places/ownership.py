@@ -1,10 +1,9 @@
 """Which places a tmux session occupies.
 
-Derived from tmux at the moment it's asked, never recorded. A session's panes
-have working directories; the managed ones among those are what that session
-owns. Nothing has to be written down when a place is opened, which means nothing
-can drift - a directory acquired by hand, by `place open`, or by an agent all
-look the same afterward.
+Derived from tmux at the moment it's asked, never recorded. A session owns the
+managed directories its panes sit at. Nothing has to be written down when a place
+is opened, which means nothing can drift - a directory acquired by hand, by
+`place open`, or by an agent all look the same afterward.
 
 tmux keeps reporting a pane's original path after that directory is deleted, so
 a session whose place is already gone still resolves rather than becoming
@@ -72,23 +71,17 @@ def managed_places(config: Config) -> list[Place]:
     ]
 
 
-def _place_containing(places: abc.Sequence[Place], path: Path) -> Place | None:
-    """The innermost place *path* sits in, or None.
-
-    A pane deep inside a place still counts as being in that place. Innermost
-    wins so a place nested inside another resolves to the one you're actually in.
-    """
-    return max(
-        (place for place in places if path == place.directory or place.directory in path.parents),
-        key=lambda place: len(place.directory.parts),
-        default=None,
-    )
-
-
 def places_of(
     session: str, config: Config, places: abc.Sequence[Place] | None = None
 ) -> list[Place]:
-    """The places *session* occupies, innermost per pane, deduplicated.
+    """The places *session* occupies: panes sitting at a place's own directory.
+
+    A pane must be *at* the directory, not below it. Working in a place and
+    having wandered into one are indistinguishable by path, and only one of them
+    should put a worktree on a teardown list - so a pane deep inside a tree
+    doesn't claim it. Sessions keep a pane at the root in practice, which is why
+    this loses nothing: a session working in a place has such a pane, while one
+    that merely visited another's worktree does not.
 
     Protected places are excluded. They can never be released, so counting one
     as owned would list it in every teardown confirmation - and a line you learn
@@ -98,35 +91,33 @@ def places_of(
     Pass *places* to avoid re-listing when resolving several sessions.
     """
     known = managed_places(config) if places is None else places
-    paths = pane_paths().get(session, [])
+    at_directory = {place.directory: place for place in known}
 
     found = {
         place.directory: place
-        for place in (_place_containing(known, path) for path in paths)
+        for place in (at_directory.get(path) for path in pane_paths().get(session, []))
         if place is not None and not place.root.is_protected(place.key)
     }
 
     return sorted(found.values(), key=lambda place: place.key)
 
 
-def session_holding(directory: Path) -> str:
-    """The session with a pane in *directory* (or below it), if any.
+def sessions_holding(directory: Path) -> list[str]:
+    """Every session with a pane at *directory*.
 
-    Used to go from a named key back to the session that owns it. Prefers an
-    exact match, since a session sitting in a subdirectory of another place's
-    directory is the weaker claim.
+    The reverse of `places_of`, and exact for the same reason: a session that
+    wandered into this directory is not the one to tear down when it is named.
+
+    More than one is normal - a second session can have a window open at a place
+    another one is working in - so this reports all of them rather than picking.
+    Choosing arbitrarily would mean a named key sometimes tears down a session
+    that has nothing to do with it.
     """
     resolved = directory.resolve()
-    candidates = [
-        (session, path)
-        for session, paths in pane_paths().items()
-        for path in paths
-        if path == resolved or resolved in path.parents or resolved == path
-    ]
 
-    exact = next((session for session, path in candidates if path == resolved), "")
-
-    return exact or next((session for session, _ in candidates), "")
+    return sorted(
+        {session for session, paths in pane_paths().items() for path in paths if path == resolved}
+    )
 
 
 def find_place(config: Config, key: str) -> Place | None:

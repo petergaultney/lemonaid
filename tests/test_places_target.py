@@ -262,3 +262,35 @@ def test_place_exists_reflects_the_directory(tmp_path):
     assert place.exists is False
     (tmp_path / "gone").mkdir()
     assert place.exists is True
+
+
+def test_a_key_two_sessions_share_is_refused(monkeypatch, tmp_path):
+    """A key names a session; when it names two, tearing one down is a guess.
+
+    This is reachable in ordinary use - a second session with a window open at a
+    place another one is working in - so it refuses rather than picking.
+    """
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, worker=[tmp_path / "feat"], onlooker=[tmp_path / "feat"])
+    _attached_to(monkeypatch, None)
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "feat")
+
+    assert doomed is None
+    assert "2 sessions" in why_not
+    assert "'onlooker'" in why_not and "'worker'" in why_not
+    assert "place toss" in why_not  # says what to do instead
+
+
+def test_unnamed_toss_is_unaffected_by_a_shared_place(monkeypatch, tmp_path):
+    """Attached, there is no ambiguity about which session is meant."""
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, worker=[tmp_path / "feat"], onlooker=[tmp_path / "feat"])
+    _attached_to(monkeypatch, "worker")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
+
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == "worker"
+    assert [p.key for p in doomed.places] == ["feat"]

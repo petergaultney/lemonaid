@@ -43,18 +43,34 @@ def test_a_session_owns_the_place_its_pane_sits_in(monkeypatch, tmp_path):
     assert [p.key for p in places] == ["feat"]
 
 
-def test_a_pane_deep_inside_still_counts_as_the_place(monkeypatch, tmp_path):
+def test_a_pane_deep_inside_does_not_claim_the_place(monkeypatch, tmp_path):
+    """Visiting a directory and working in it are the same thing by path.
+
+    Only one of them should put a worktree on a teardown list, and a session
+    working in a place keeps a pane at its root - so requiring an exact match
+    drops the visitors and keeps the workers.
+    """
     _managed(tmp_path, "feat")
     (tmp_path / "feat" / "libs" / "thing").mkdir(parents=True)
-    _panes(monkeypatch, work=[tmp_path / "feat" / "libs" / "thing"])
+    _panes(monkeypatch, visitor=[tmp_path / "feat" / "libs" / "thing"])
 
-    assert [p.key for p in ownership.places_of("work", _config(_root(tmp_path)))] == ["feat"]
+    assert ownership.places_of("visitor", _config(_root(tmp_path))) == []
+
+
+def test_a_visitor_does_not_take_a_place_from_its_own_session(monkeypatch, tmp_path):
+    """The case that made this matter: one session cd-ed into another's worktree."""
+    _managed(tmp_path, "feat")
+    (tmp_path / "feat" / "sub").mkdir()
+    _panes(monkeypatch, feat=[tmp_path / "feat"], visitor=[tmp_path / "feat" / "sub"])
+    config = _config(_root(tmp_path))
+
+    assert [p.key for p in ownership.places_of("feat", config)] == ["feat"]
+    assert ownership.places_of("visitor", config) == []
 
 
 def test_several_panes_in_one_place_report_it_once(monkeypatch, tmp_path):
     _managed(tmp_path, "feat")
-    _panes(monkeypatch, work=[tmp_path / "feat", tmp_path / "feat", tmp_path / "feat" / "sub"])
-    (tmp_path / "feat" / "sub").mkdir()
+    _panes(monkeypatch, work=[tmp_path / "feat", tmp_path / "feat", tmp_path / "feat"])
 
     assert [p.key for p in ownership.places_of("work", _config(_root(tmp_path)))] == ["feat"]
 
@@ -85,7 +101,8 @@ def test_only_this_sessions_panes_count(monkeypatch, tmp_path):
     assert [p.key for p in ownership.places_of("mine", _config(_root(tmp_path)))] == ["mine"]
 
 
-def test_the_innermost_place_wins(monkeypatch, tmp_path):
+def test_a_nested_place_claims_only_itself(monkeypatch, tmp_path):
+    """A pane at the inner place does not also count as occupying the outer one."""
     _managed(tmp_path, "outer", "outer/inner")
     _panes(monkeypatch, work=[tmp_path / "outer" / "inner"])
 
@@ -125,26 +142,45 @@ def test_places_span_roots(monkeypatch, tmp_path):
     assert [p.key for p in places] == ["a", "b"]
 
 
-def test_session_holding_finds_the_session_in_a_directory(monkeypatch, tmp_path):
+def test_sessions_holding_finds_the_session_in_a_directory(monkeypatch, tmp_path):
     _panes(monkeypatch, mine=[tmp_path / "here"])
     (tmp_path / "here").mkdir()
 
-    assert ownership.session_holding(tmp_path / "here") == "mine"
+    assert ownership.sessions_holding(tmp_path / "here") == ["mine"]
 
 
-def test_session_holding_prefers_an_exact_match(monkeypatch, tmp_path):
-    """A session merely in a subdirectory has the weaker claim."""
+def test_sessions_holding_takes_only_an_exact_match(monkeypatch, tmp_path):
     (tmp_path / "here" / "sub").mkdir(parents=True)
     _panes(monkeypatch, deeper=[tmp_path / "here" / "sub"], exact=[tmp_path / "here"])
 
-    assert ownership.session_holding(tmp_path / "here") == "exact"
+    assert ownership.sessions_holding(tmp_path / "here") == ["exact"]
 
 
-def test_session_holding_is_empty_when_nothing_is_there(monkeypatch, tmp_path):
+def test_sessions_holding_ignores_a_subdirectory_pane(monkeypatch, tmp_path):
+    """Naming a key must not resolve to a session that merely wandered into it."""
+    (tmp_path / "here" / "sub").mkdir(parents=True)
+    _panes(monkeypatch, deeper=[tmp_path / "here" / "sub"])
+
+    assert ownership.sessions_holding(tmp_path / "here") == []
+
+
+def test_sessions_holding_reports_every_claimant(monkeypatch, tmp_path):
+    """Two sessions with a window at one place is normal, and not for this to resolve.
+
+    Picking one would mean a named key sometimes tears down a session that has
+    nothing to do with it; the caller refuses instead.
+    """
+    (tmp_path / "here").mkdir()
+    _panes(monkeypatch, second=[tmp_path / "here"], first=[tmp_path / "here"])
+
+    assert ownership.sessions_holding(tmp_path / "here") == ["first", "second"]
+
+
+def test_sessions_holding_is_empty_when_nothing_is_there(monkeypatch, tmp_path):
     _panes(monkeypatch, elsewhere=[tmp_path / "other"])
     (tmp_path / "here").mkdir()
 
-    assert ownership.session_holding(tmp_path / "here") == ""
+    assert ownership.sessions_holding(tmp_path / "here") == []
 
 
 def test_find_place_searches_every_root(tmp_path):
