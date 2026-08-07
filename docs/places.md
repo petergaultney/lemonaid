@@ -58,6 +58,7 @@ the thing went.
 
 ```bash
 lemonaid place open <key>      # get a session for this, whatever it takes
+lemonaid place acquire <key>   # just the directory, no session
 lemonaid place list            # every directory each root reports
 lemonaid place toss [<key>]    # kill a session and release the places it occupies
 lemonaid place hooks           # show what's configured
@@ -67,6 +68,12 @@ lemonaid place hooks           # show what's configured
 it's missing, switches to its session only if there isn't one, and neither case is an error.
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
+
+`place acquire` is the same acquisition without the session, printing the directory — so
+`cd $(lemonaid place acquire feat/thing)` works. It exists for callers that aren't tmux
+clients: an agent has its own session and will never attach to one, so `place open` would
+leave an unused session behind for every directory it made. Since nothing is recorded either
+way, the two produce places that are indistinguishable afterward.
 
 Outside every root that has a key vocabulary, there's no key to resolve, so `place open
 <name>` is just a named session in the current directory — the same thing `tmux new -s` gets
@@ -115,8 +122,19 @@ session 'stacked'
 kill it and release 2 places? [y/N]
 ```
 
-That prompt is where your in-the-moment context gets used. A session with nothing managed
-under it just asks `kill it?` — sessions without a worktree are ordinary, not a special case.
+That prompt is where your in-the-moment context gets used. Either half may be absent, and
+neither is a special case. A session with nothing managed under it just asks `kill it?`. A
+place with no session — an `acquire`d directory nobody opened — asks `release it?`:
+
+```
+$ lp toss feat/agent-made
+place 'feat/agent-made' (no session)
+  feat/agent-made - 2 unpushed
+release it? [y/N]
+```
+
+That's the one form of toss that acts on exactly what you named, since there's no session
+whose other places could come along.
 
 ### Ownership is derived, not recorded
 

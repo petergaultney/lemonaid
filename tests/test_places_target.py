@@ -142,16 +142,58 @@ def test_an_unknown_key_is_rejected(monkeypatch, tmp_path):
     assert "No configured root has a directory" in why_not
 
 
-def test_a_key_with_no_session_is_rejected(monkeypatch, tmp_path):
-    """Releasing a directory with no session is `wt rm`, not this."""
+def test_a_key_with_no_session_releases_just_that_place(monkeypatch, tmp_path):
+    """An acquired directory nobody opened is exactly what would be left behind."""
     _managed(tmp_path, "idle")
     _panes(monkeypatch)
     _attached_to(monkeypatch, "mine")
 
     doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "idle")
 
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == ""
+    assert [place.key for place in doomed.places] == ["idle"]
+
+
+def test_a_sessionless_place_never_takes_others_with_it(monkeypatch, tmp_path):
+    """There is no session, so there is nothing whose other places could come along."""
+    _managed(tmp_path, "idle", "unrelated")
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, "mine")
+
+    doomed, _ = target.resolve_toss_target(_config(_root(tmp_path)), "idle")
+
+    assert doomed is not None
+    assert [place.key for place in doomed.places] == ["idle"]
+
+
+def test_a_sessionless_place_is_not_torn_down_from_inside(monkeypatch, tmp_path):
+    """Nothing to switch away from - the client isn't in a session being killed."""
+    _managed(tmp_path, "idle")
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, "mine")
+
+    doomed, _ = target.resolve_toss_target(_config(_root(tmp_path)), "idle")
+
+    assert doomed is not None
+    assert doomed.from_inside is False
+
+
+def test_a_protected_place_with_no_session_is_refused(monkeypatch, tmp_path):
+    """The sessionless path skips `places_of`, which is what usually protects it.
+
+    A trunk worktree is the likeliest thing to have no session of its own, so this
+    is the case where protection matters most.
+    """
+    _managed(tmp_path, "main")
+    _panes(monkeypatch)
+    _attached_to(monkeypatch, "mine")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "main")
+
     assert doomed is None
-    assert "No tmux session is in" in why_not
+    assert "protected" in why_not
 
 
 def test_a_protected_place_is_not_owned(monkeypatch, tmp_path):
