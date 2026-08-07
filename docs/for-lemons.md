@@ -94,7 +94,29 @@ names. A root with empty hooks is a plain clone with nothing to acquire or relea
 `{key}` is whatever the configured tool names directories by — for a git-worktree tool, a
 branch name. lemonaid does not interpret it.
 
+### Just needing a directory
+
+**This is almost always what you want.** You have your own session, you are not a tmux
+client, and you will never attach to one.
+
+```bash
+lemonaid place acquire <key> --json   # {"key", "dir", "root", "error"}
+lemonaid place acquire <key>          # just the directory, one line
+```
+
+Runs the root's `create` hook if the directory doesn't exist, prints where it is, and creates
+no tmux session. Idempotent: an existing directory is printed rather than re-created, and
+that is not an error, so don't check first.
+
+Nothing is recorded when a directory is acquired. Ownership is worked out from tmux at the
+moment it's asked, so a directory acquired this way, made by hand, or opened as a place are
+indistinguishable afterward — `place list` reports all three and `place toss` releases all
+three.
+
 ### Getting a session for a place
+
+Only when a session is genuinely wanted — the user asked to be taken somewhere, or asked you
+to set a place up for them to attach to later.
 
 ```bash
 lemonaid place open <key> --json           # acquire if needed, then open a session
@@ -106,9 +128,10 @@ only if there isn't one, and neither case is an error. Always safe to run withou
 first, so don't probe for existence beforehand. `--json` returns
 `{"key", "dir", "root", "error"}`.
 
-**Use `--detach` whenever you are not acting on a direct request to go somewhere.** Without
-it, each call switches the user's terminal — so opening three places in a row leaves them
-somewhere they didn't ask to be, twice. Detached, the session is created and left alone.
+`--detach` still creates the session, it just doesn't switch to it — so it is not the polite
+way to acquire a directory. Use it when a session is wanted but the terminal shouldn't move.
+An unattached session nobody asked for is worse than no session: it clutters the session
+list and competes for the directory when something later tries to resolve who works there.
 
 The tmux session is named after the key (with `.` and `:` replaced, since tmux forbids them),
 so `tmux send-keys -t <key>` and similar work afterward. `place list --json` reports the
@@ -124,9 +147,12 @@ so the name is simply a session opened in the current directory. Nothing is acqu
 the JSON reports `"root": null`.
 
 ```bash
-cd ~/somewhere-unmanaged && lemonaid place open notes --detach --json
+cd ~/somewhere-unmanaged && lemonaid place open notes --json
 # {"key": "notes", "dir": "/home/me/somewhere-unmanaged", "root": null, "error": null}
 ```
+
+There is no directory to acquire here, so this command is only ever worth running when a
+session is the point.
 
 This is not a fallback for a key that failed to resolve. Inside a root with a key
 vocabulary the name is always a key, and a name that doesn't resolve is acquired — so a
@@ -161,9 +187,9 @@ when nothing is running there — which is how you tell an idle place from an ac
 lemonaid place toss <key> --json
 ```
 
-**The unit is a tmux session, not a directory.** A key names the session sitting in that
-place, and teardown covers *everything that session occupies* — which may be more than the
-one place you named. The response tells you what actually happened:
+**When there is a session, the unit is that session, not the directory.** A key names the
+session sitting in that place, and teardown covers *everything that session occupies* — which
+may be more than the one place you named. The response tells you what actually happened:
 
 ```json
 {"session": "stacked", "released": ["feat/base", "feat/on-top"], "error": null}
@@ -188,7 +214,10 @@ Two kinds of protection, and `--force` overrides neither:
 - `protected_sessions` under `[places]` refuses teardown of that session entirely. Naming a
   place it occupies is not a way around it.
 
-A session with no managed places is fine to toss — it just kills the session.
+Either half may be absent, and neither is an error. A session with no managed places just
+gets killed. A place with no session — an `acquire`d directory nobody opened — is just
+released, and since there is no session to drag other places along, that is the one form of
+toss that acts on exactly what you named (`"session": ""` in the response).
 
 Teardown finishes after the command returns — releasing a large directory is slow, so it
 runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.

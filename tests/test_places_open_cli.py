@@ -123,3 +123,41 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
         "root": None,
         "error": None,
     }
+
+
+def _acquire_args(**kwargs) -> argparse.Namespace:
+    return argparse.Namespace(**{"key": "thing", "root": None, "json": False, **kwargs})
+
+
+def test_acquire_prints_the_directory(monkeypatch, tmp_path, capsys):
+    root = PlaceRoot(path=tmp_path, path_of="echo x")
+    monkeypatch.setattr(cli, "load_config", lambda: _config(root))
+    monkeypatch.setattr(cli.Path, "cwd", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(lifecycle, "acquire_key", lambda key, r: (tmp_path / key, None))
+
+    cli.cmd_acquire(_acquire_args(key="feat/thing"))
+
+    assert capsys.readouterr().out.strip() == str(tmp_path / "feat/thing")
+
+
+def test_acquire_outside_a_namespaced_root_is_an_error(monkeypatch, tmp_path, capsys):
+    """There is no key vocabulary here, so nothing could be acquired."""
+    monkeypatch.setattr(cli, "load_config", lambda: _config())
+    monkeypatch.setattr(cli.Path, "cwd", staticmethod(lambda: tmp_path))
+
+    with pytest.raises(SystemExit):
+        cli.cmd_acquire(_acquire_args(key="notes"))
+
+    assert "no directory to acquire" in capsys.readouterr().err
+
+
+def test_acquire_exits_nonzero_on_failure(monkeypatch, tmp_path, capsys):
+    root = PlaceRoot(path=tmp_path, path_of="echo x")
+    monkeypatch.setattr(cli, "load_config", lambda: _config(root))
+    monkeypatch.setattr(cli.Path, "cwd", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(lifecycle, "acquire_key", lambda key, r: (None, "no create command"))
+
+    with pytest.raises(SystemExit):
+        cli.cmd_acquire(_acquire_args(key="nope", json=True))
+
+    assert json.loads(capsys.readouterr().out)["error"] == "no create command"

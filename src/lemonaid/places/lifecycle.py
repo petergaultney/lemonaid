@@ -78,6 +78,33 @@ def open_session(name: str, directory: Path, config: Config, attach: bool = True
     )
 
 
+def acquire_key(key: str, root: PlaceRoot) -> tuple[Path | None, str | None]:
+    """Get the directory for *key*, creating it if needed. No session is involved.
+
+    What a caller that isn't a tmux client wants: an agent has its own session and
+    will never attach to one, so opening a place would leave an unused session
+    behind. Nothing is recorded either way - ownership is derived from tmux when
+    asked - so a directory acquired here is found and released exactly like one a
+    session was opened for.
+
+    Returns (directory, error message).
+    """
+    directory = hooks.directory_for_key(root, key)
+    if directory is not None:
+        return directory, None
+
+    if not root.create:
+        return None, f"No create command configured for {root.path}"
+
+    _log.info("acquiring %r under %s", key, root.path)
+    directory = hooks.create(root, key, timeout=_ACQUIRE_TIMEOUT_SECONDS)
+
+    if directory is None:
+        return None, f"Could not acquire a directory for {key!r} under {root.path}"
+
+    return directory, None
+
+
 def open_key(
     key: str, config: Config, root: PlaceRoot, attach: bool = True
 ) -> tuple[Path | None, str | None]:
@@ -90,15 +117,8 @@ def open_key(
 
     Returns (directory, error message).
     """
-    directory = hooks.directory_for_key(root, key)
+    directory, error = acquire_key(key, root)
     if directory is None:
-        if not root.create:
-            return None, f"No create command configured for {root.path}"
-
-        _log.info("acquiring %r under %s", key, root.path)
-        directory = hooks.create(root, key, timeout=_ACQUIRE_TIMEOUT_SECONDS)
-
-    if directory is None:
-        return None, f"Could not acquire a directory for {key!r} under {root.path}"
+        return None, error
 
     return directory, open_place(directory, config, session_name=key, attach=attach)

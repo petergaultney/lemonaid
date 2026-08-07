@@ -90,6 +90,16 @@ def test_toss_does_not_tear_down_if_the_escape_fails(monkeypatch, tmp_path):
     assert not spawned
 
 
+def test_toss_without_a_session_switches_nothing(monkeypatch, tmp_path):
+    """There is no session being killed, so the client is not standing in danger."""
+    switched = []
+    monkeypatch.setattr(teardown, "_switch_client", lambda session: switched.append(session))
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    assert teardown.toss("", [_place(tmp_path)], from_inside=False) is None
+    assert not switched
+
+
 def test_toss_switches_away_before_spawning_the_reaper(monkeypatch, tmp_path):
     order = []
 
@@ -176,6 +186,32 @@ def test_reaper_releases_every_place_the_session_owned(monkeypatch, tmp_path):
 
     assert "release base" in script
     assert "release on-top" in script
+
+
+def test_reaper_releases_without_a_session_to_kill(monkeypatch, tmp_path):
+    """An acquired directory nobody opened has nothing to kill, only to release."""
+    script = _reaper_script(monkeypatch, "", [_place(tmp_path, "lonely")], tmp_path)
+
+    assert "kill-session" not in script
+    assert "release lonely" in script
+
+
+def test_reaper_names_itself_after_the_places_when_there_is_no_session(monkeypatch, tmp_path):
+    """Two sessionless tosses at once would otherwise ask tmux for the same name."""
+    captured = {}
+
+    def _run(argv, **kwargs):
+        captured["argv"] = argv
+
+        class _Result:
+            returncode = 0
+
+        return _Result()
+
+    monkeypatch.setattr(teardown.subprocess, "run", _run)
+    teardown._spawn_reaper("", [_place(tmp_path, "lonely")], tmp_path)
+
+    assert "lonely" in captured["argv"][captured["argv"].index("-s") + 1]
 
 
 def test_reaper_skips_a_place_whose_directory_is_already_gone(monkeypatch, tmp_path):

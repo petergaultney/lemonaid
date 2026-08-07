@@ -114,6 +114,62 @@ def test_open_key_passes_the_spawn_error_through(monkeypatch, tmp_path):
     assert error == "name already exists"
 
 
+def test_acquire_creates_and_returns_the_directory(tmp_path):
+    (tmp_path / "fresh").mkdir()
+    root = PlaceRoot(path=tmp_path, create="mkdir -p fresh", path_of=f"echo {tmp_path}/fresh")
+
+    directory, error = lifecycle.acquire_key("fresh", root)
+
+    assert error is None
+    assert directory == tmp_path / "fresh"
+
+
+def test_acquire_never_touches_tmux(monkeypatch, tmp_path):
+    """The whole point: a caller that isn't a tmux client leaves no session behind."""
+    (tmp_path / "d").mkdir()
+    spawned = _spawns_into(monkeypatch)
+
+    def _no_tmux(*args, **kwargs):
+        raise AssertionError("acquire must not look at tmux")
+
+    monkeypatch.setattr(lifecycle.tmux.navigation, "get_pane_for_cwd", _no_tmux)
+    monkeypatch.setattr(lifecycle.tmux.navigation, "get_pane_for_session", _no_tmux)
+
+    lifecycle.acquire_key("d", PlaceRoot(path=tmp_path, path_of=f"echo {tmp_path}/d"))
+
+    assert not spawned
+
+
+def test_acquire_is_idempotent_for_an_existing_directory(tmp_path):
+    (tmp_path / "already").mkdir()
+    root = PlaceRoot(
+        path=tmp_path,
+        create="echo SHOULD-NOT-RUN > created-marker",
+        path_of=f"echo {tmp_path}/already",
+    )
+
+    directory, error = lifecycle.acquire_key("already", root)
+
+    assert (directory, error) == (tmp_path / "already", None)
+    assert not (tmp_path / "created-marker").exists()
+
+
+def test_acquire_reports_a_root_that_cannot_create(tmp_path):
+    directory, error = lifecycle.acquire_key("k", PlaceRoot(path=tmp_path))
+
+    assert directory is None
+    assert error and "No create command" in error
+
+
+def test_acquire_reports_a_create_that_produced_nothing(tmp_path):
+    root = PlaceRoot(path=tmp_path, create="true", path_of=f"echo {tmp_path}/never-made")
+
+    directory, error = lifecycle.acquire_key("k", root)
+
+    assert directory is None
+    assert error and "Could not acquire" in error
+
+
 def _no_session_named(monkeypatch) -> None:
     monkeypatch.setattr(
         lifecycle.tmux.navigation, "get_pane_for_session", lambda session: (None, None)

@@ -59,6 +59,45 @@ def cmd_open(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def cmd_acquire(args: argparse.Namespace) -> None:
+    """Get the directory for a key, creating it if needed, without a session."""
+    config = load_config()
+    root = (
+        root_or_exit(config, args.root)
+        if args.root
+        else config.places.namespaced_root_for(Path.cwd())
+    )
+
+    if root is None:
+        print(
+            f"No root with a key vocabulary covers {Path.cwd()}, so there is no "
+            "directory to acquire. Run `place hooks --json` to see the configured roots.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    directory, error = lifecycle.acquire_key(args.key, root)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "key": args.key,
+                    "dir": str(directory) if directory else None,
+                    "root": str(root.path),
+                    "error": error,
+                }
+            )
+        )
+    elif error:
+        print(error, file=sys.stderr)
+    elif directory:
+        print(directory)
+
+    if error:
+        sys.exit(1)
+
+
 def cmd_list(args: argparse.Namespace) -> None:
     """List the directories every configured root reports."""
     config = load_config()
@@ -142,6 +181,10 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Acquires the directory only if it doesn't exist, and switches "
         "to its session only if there isn't one. Neither case is an error, so this "
         "is always safe to run without checking first.\n\n"
+        "If you only need the directory, use `place acquire` instead. Nothing is "
+        "recorded here that later cleanup depends on - a directory acquired either "
+        "way is reported by `list` and released by `toss` - so a session is the only "
+        "thing this adds.\n\n"
         "Run from a directory no configured root manages the names of, there is no "
         "key to resolve, so the name is simply a session opened in the current "
         "directory - nothing is acquired. Passing --root asks for that root's "
@@ -155,10 +198,37 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--root", help="Root to acquire under (default: the one containing cwd)"
     )
     open_parser.add_argument(
-        "-d", "--detach", action="store_true", help="Don't switch to the session"
+        "-d",
+        "--detach",
+        action="store_true",
+        help="Create the session without switching to it (still creates one)",
     )
     open_parser.add_argument("--json", action="store_true", help="Print the result as JSON")
     open_parser.set_defaults(func=cmd_open)
+
+    acquire_parser = place_subparsers.add_parser(
+        "acquire",
+        help="Get a key's directory, creating it if needed, with no tmux session",
+        description="Prints the directory for a key, running the root's `create` "
+        "hook first if it doesn't exist yet. No tmux session is created.\n\n"
+        "This is what an automated caller wants: it has its own session, will never "
+        "attach to a tmux one, and `place open` would leave an unused session "
+        "behind. Nothing is recorded either way - ownership is derived from tmux "
+        "when asked - so a directory acquired here is reported by `list` and "
+        "released by `toss` exactly like one that had a session.\n\n"
+        "Idempotent: an existing directory is printed rather than re-created, and "
+        "that is not an error, so there is no need to check first.",
+        epilog="Examples:\n"
+        '  place acquire feat/thing --json   # {"key", "dir", "root", "error"}\n'
+        "  cd $(place acquire feat/thing)    # the directory, one line",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    acquire_parser.add_argument("key", help="What the root's tool names directories by")
+    acquire_parser.add_argument(
+        "--root", help="Root to acquire under (default: the one containing cwd)"
+    )
+    acquire_parser.add_argument("--json", action="store_true", help="Print the result as JSON")
+    acquire_parser.set_defaults(func=cmd_acquire)
 
     list_parser = place_subparsers.add_parser("list", help="List directories under every root")
     list_parser.add_argument("--json", action="store_true", help="Print the listing as JSON")
