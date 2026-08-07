@@ -4,15 +4,32 @@ Provides Codex-specific functions for the unified watcher:
 - get_session_path: Find session files
 - describe_activity: Describe what Codex is doing
 - should_dismiss: Detect when to auto-dismiss notifications
+
+Codex spreads one action over several entries, and the ones carrying the
+description are not the ones another backend would expect. `exec` - the tool it
+runs nearly everything through - arrives as `response_item/custom_tool_call`,
+while turn boundaries and prose arrive as `event_msg`. Anything left
+undescribed here stalls the inbox row rather than merely going unlabelled: the
+watcher only writes when the newest *describable* entry's timestamp changes, so
+a gap in coverage reads as a session that stopped working.
 """
 
 import json
+import re
 from pathlib import Path
 
 from .utils import get_sessions_root
 
 # Channel prefix for Codex notifications
 CHANNEL_PREFIX = "codex:"
+
+# Codex wraps shell work in a JS call - `tools.exec_command({"cmd":"..."})` -
+# so the command has to come back out of that argument rather than off a field.
+_EXEC_COMMAND = re.compile(r'"cmd"\s*:\s*("(?:[^"\\]|\\.)*")')
+
+# File edits arrive through the same `exec` tool, as a patch script rather than a
+# command. The header names the file, which beats reporting them all as "Running".
+_PATCH_FILE = re.compile(r"\*\*\* (?:Add|Update|Delete) File: (.+?)(?:\\n|$)")
 
 
 def get_session_path(session_id: str, cwd: str) -> Path | None:
@@ -46,15 +63,80 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
     return None
 
 
+def _describe_custom_tool_call(payload: dict) -> str:
+    """Describe a custom_tool_call, which is how Codex runs shell commands."""
+    name = payload.get("name", "")
+    if name != "exec":
+        return f"Using {name}" if name else "Working"
+
+    source = payload.get("input", "") or ""
+
+    if patch := _PATCH_FILE.search(source):
+        return f"Editing {Path(patch.group(1)).name}"
+
+    match = _EXEC_COMMAND.search(source)
+    if match is None:
+        return "Running command"
+
+    try:
+        return _describe_command(json.loads(match.group(1)))
+    except json.JSONDecodeError:
+        return "Running command"
+
+
+def _describe_event(payload: dict) -> str | None:
+    """Describe an event_msg payload.
+
+    These carry the turn boundaries. `task_started` matters most: it is the first
+    entry after you send a message, so without it the row keeps showing the last
+    thing said before your reply while Codex is already working on it.
+    """
+    event_type = payload.get("type")
+
+    if event_type == "task_started":
+        return "Working..."
+
+    if event_type == "agent_message":
+        return _first_line(payload.get("message", ""))
+
+    if event_type == "patch_apply_end":
+        return "Applied changes" if payload.get("success") else "Patch failed"
+
+    if event_type == "mcp_tool_call_end":
+        invocation = payload.get("invocation")
+        if isinstance(invocation, dict) and invocation.get("tool"):
+            return f"Using {invocation['tool']}"
+
+        return "Using a connector"
+
+    return None
+
+
+def _first_line(text: str) -> str | None:
+    """The first line of *text*, truncated, or None if there is nothing to show."""
+    if not text.strip():
+        return None
+
+    line = text.strip().split("\n")[0]
+
+    return line[:200] + "..." if len(line) > 200 else line
+
+
 def describe_activity(entry: dict) -> str | None:
     """Extract a human-readable description of what Codex is doing.
 
     Codex session entries have different formats:
     - local_shell_call: Shell command execution
     - message: User/assistant messages
-    - response_item with function_call: Tool calls
+    - response_item with function_call or custom_tool_call: Tool calls
+    - event_msg: Turn boundaries and assistant prose
     """
     entry_type = entry.get("type")
+
+    if entry_type == "event_msg":
+        payload = entry.get("payload", {})
+
+        return _describe_event(payload) if isinstance(payload, dict) else None
 
     # Shell commands - most common activity
     if entry_type == "local_shell_call":
@@ -83,6 +165,9 @@ def describe_activity(entry: dict) -> str | None:
 
         if payload_type == "function_call":
             return _describe_function_call(payload)
+
+        if payload_type == "custom_tool_call":
+            return _describe_custom_tool_call(payload)
 
         if payload_type == "web_search_call":
             action = payload.get("action", {})
@@ -121,10 +206,20 @@ def should_dismiss(entry: dict) -> bool:
         if role in ("assistant", "user"):
             return True
 
+    if entry_type == "event_msg":
+        payload = entry.get("payload", {})
+        if isinstance(payload, dict) and payload.get("type") == "task_started":
+            return True
+
     if entry_type == "response_item":
         payload = entry.get("payload", {})
         payload_type = payload.get("type")
-        if payload_type in ("function_call", "web_search_call", "reasoning"):
+        if payload_type in (
+            "function_call",
+            "custom_tool_call",
+            "web_search_call",
+            "reasoning",
+        ):
             return True
         if payload_type == "message":
             role = payload.get("role")
