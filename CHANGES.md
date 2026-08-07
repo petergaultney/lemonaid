@@ -1,3 +1,13 @@
+# 0.14.1 (2026-08-07)
+
+#### Fixed
+
+- **Codex rows stopped updating mid-turn.** The inbox writes a session's message only when the newest *describable* transcript entry has a new timestamp, and Codex's most common entries weren't described at all: it runs nearly everything through an `exec` tool that arrives as `response_item/custom_tool_call`, and puts turn boundaries in `event_msg` entries. Neither was handled, so a session could work for the better part of an hour while the row showed the last thing said before you replied. On one real session the newest described entry was 46 minutes stale, and coverage was 184 entries out of 1584.
+
+  `custom_tool_call` now reports the command (parsed out of the `tools.exec_command({"cmd":...})` wrapper it's embedded in) or the file for a patch, and `event_msg` contributes `task_started`, `agent_message`, `patch_apply_end`, and `mcp_tool_call_end`. `task_started` matters most: it's the first entry after you send a message, so it's what moves the row off the previous turn. Same session, same file: 577 described, newest entry current.
+
+  `should_dismiss` gained the same two entry kinds, so a notification clears when Codex resumes work rather than waiting for the next `reasoning` entry.
+
 # 0.14.0 (2026-07-31)
 
 #### Changed
