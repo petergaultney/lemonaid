@@ -23,6 +23,9 @@ from . import ownership
 
 
 class TossTarget(ty.NamedTuple):
+    # Empty when the place has no session. Nothing to kill is the simple case, not
+    # an error: a directory acquired without ever opening a session is exactly the
+    # one that would otherwise be left behind.
     session: str
     # Everything the session occupies and would release. Protected places are
     # already excluded by `ownership.places_of`. May be empty: a session with no
@@ -48,14 +51,28 @@ def _refusal(config: Config, session: str) -> str:
 
 
 def _named(config: Config, key: str) -> tuple[TossTarget | None, str]:
-    """The session sitting in the place *key* names."""
+    """The session sitting in the place *key* names, or just the place if none is.
+
+    A place with no session releases only itself - there is no session whose other
+    places could come along, so this is the one form of toss that acts on exactly
+    what was named.
+    """
     place = ownership.find_place(config, key)
     if place is None:
         return None, f"No configured root has a directory for {key!r}"
 
     holding = ownership.sessions_holding(place.directory)
     if not holding:
-        return None, f"No tmux session is in {place.directory}; nothing to tear down"
+        # `places_of` drops protected places, and this path doesn't go through it -
+        # so protection has to be applied here or a named trunk worktree, which has
+        # no session precisely because everyone only passes through it, is releasable.
+        if place.root.is_protected(key):
+            return None, (
+                f"{key!r} is protected and will not be released. Change `protected` "
+                f"for {place.root.path} under [[places.roots]] if that is wrong."
+            )
+
+        return TossTarget("", [place], from_inside=False), ""
 
     if len(holding) > 1:
         return None, (

@@ -21,25 +21,41 @@ def _fate(place: ownership.Place, reasons: list[str]) -> str:
     return f"  {place.key}" + (f" - {'; '.join(reasons)}" if reasons else "")
 
 
+def _headline(doomed: target.TossTarget) -> str:
+    """The thing being torn down, named as whatever it actually is."""
+    if not doomed.session:
+        return f"place {doomed.places[0].key!r} (no session)"
+
+    if not doomed.places:
+        return f"session {doomed.session!r} - no managed places to release"
+
+    return f"session {doomed.session!r}"
+
+
 def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list[str]:
     """What is about to happen, one line per thing it happens to."""
     return [
-        f"session {doomed.session!r}"
-        + ("" if doomed.places else " - no managed places to release"),
+        _headline(doomed),
         *(_fate(place, concerns.get(place.key, [])) for place in doomed.places),
     ]
+
+
+def _prompt(doomed: target.TossTarget) -> str:
+    releasing = len(doomed.places)
+    if not doomed.session:
+        return "release it? [y/N] "
+
+    if not releasing:
+        return "kill it? [y/N] "
+
+    return f"kill it and release {releasing} place{'s' if releasing != 1 else ''}? [y/N] "
 
 
 def _confirmed(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> bool:
     for line in _describe(doomed, concerns):
         print(line, file=sys.stderr)
 
-    releasing = len(doomed.places)
-    prompt = (
-        f"kill it and release {releasing} place{'s' if releasing != 1 else ''}? [y/N] "
-        if releasing
-        else "kill it? [y/N] "
-    )
+    prompt = _prompt(doomed)
     try:
         return input(prompt).strip().lower() in ("y", "yes")
     except (EOFError, KeyboardInterrupt):

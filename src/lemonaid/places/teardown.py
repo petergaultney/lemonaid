@@ -105,9 +105,14 @@ def _switch_client(session: str) -> bool:
         return False
 
 
-def _reaper_session_name(session: str) -> str:
-    """A recognizable name, so a stuck teardown is findable in `tmux ls`."""
-    return "_lma_reap_" + "".join(c if c.isalnum() else "-" for c in session)[:40]
+def _reaper_session_name(what: str) -> str:
+    """A recognizable name, so a stuck teardown is findable in `tmux ls`.
+
+    *what* is the session being killed, or the places being released when there is
+    no session - two sessionless tosses running at once would otherwise ask tmux
+    for the same name.
+    """
+    return "_lma_reap_" + "".join(c if c.isalnum() else "-" for c in what)[:40]
 
 
 def _release_commands(places: abc.Sequence[ownership.Place], log: str) -> list[str]:
@@ -125,7 +130,7 @@ def _release_commands(places: abc.Sequence[ownership.Place], log: str) -> list[s
 
 
 def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path) -> str | None:
-    """Kill *session* and release *places*, in a process that outlives this one.
+    """Kill *session* if there is one and release *places*, outliving this process.
 
     A throwaway tmux session hosts the work: it survives the caller's shell
     exiting, and tmux is already a dependency. The session is killed before any
@@ -136,12 +141,13 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
     The reaper has no terminal anyone will look at, so it appends to a log.
     """
     log = shlex.quote(str(reap_log_path()))
+    what = session or ", ".join(place.key for place in places)
     script = "; ".join(
         [
-            f"echo {shlex.quote(f'--- tossing {session} ---')} >> {log}",
-            f"tmux kill-session -t {shlex.quote(session)} >> {log} 2>&1",
+            f"echo {shlex.quote(f'--- tossing {what} ---')} >> {log}",
+            *([f"tmux kill-session -t {shlex.quote(session)} >> {log} 2>&1"] if session else []),
             *_release_commands(places, log),
-            f"echo {shlex.quote(f'--- done {session} ---')} >> {log}",
+            f"echo {shlex.quote(f'--- done {what} ---')} >> {log}",
         ]
     )
 
@@ -152,7 +158,7 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
                 "new-session",
                 "-d",
                 "-s",
-                _reaper_session_name(session),
+                _reaper_session_name(what),
                 "-c",
                 str(cwd),
                 # Separate argv elements: tmux execs these itself rather than
@@ -166,8 +172,8 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
             capture_output=True,
         )
     except (OSError, subprocess.CalledProcessError) as e:
-        _log.warning("could not spawn a reaper for %r: %s", session, e)
-        return f"Could not start teardown of {session!r}: {e}"
+        _log.warning("could not spawn a reaper for %r: %s", what, e)
+        return f"Could not start teardown of {what!r}: {e}"
 
     return None
 
@@ -196,6 +202,9 @@ def toss(
     from_inside: bool,
 ) -> str | None:
     """Kill *session* and release *places*, moving the client out first if needed.
+
+    An empty *session* releases the places without killing anything - a directory
+    that never had a session is still worth releasing.
 
     Returns an error message on failure, or None once teardown is under way.
     Teardown itself finishes after this returns; see `reap_log_path`.
