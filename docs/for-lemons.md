@@ -65,6 +65,24 @@ lemonaid inbox add "channel-name" "Title" -m "Optional message" --metadata '{"ke
 | `read_at` | float? | Unix timestamp when marked read |
 | `switch_source` | string? | Switch-source: `tmux`, `wezterm`, or `null` (determines which switch-handler can navigate back) |
 
+Inside tmux, `metadata` also carries `tmux_session` and `tmux_window` — where the session was running,
+so a lost tmux server can be rebuilt from the inbox. Both are absent when the hook ran outside tmux, and
+a later observation that can't see tmux does not erase them.
+
+## Restoring a lost tmux layout
+
+```bash
+lemonaid tmux restore --dry-run --json   # what would be rebuilt
+lemonaid tmux restore --json             # {"restored": [...], "skipped": [...]}
+```
+
+Recreates the tmux sessions the active inbox says its lemons were running in, resuming each in the
+window it occupied. Windows keep their recorded index, so one lemonaid knows nothing about comes back as
+an empty gap rather than shifting the others down.
+
+Sessions already running are left alone, so this is safe to re-run. A session with no recorded location
+can't be placed and is skipped — check `--dry-run` before assuming a session will come back.
+
 ## Places
 
 A **place** is a directory you work in. lemonaid knows about directories and terminals — it
