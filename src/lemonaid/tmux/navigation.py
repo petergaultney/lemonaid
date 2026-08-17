@@ -104,6 +104,35 @@ def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def locations_by_tty() -> dict[str, tuple[str, str]]:
+    """Where every pane is sitting, as tty -> (session_name, window_index).
+
+    Distinct from `get_pane_for_tty`, which answers "is it still there" and is
+    used for auto-archiving. This answers "where is it", which is what lets a
+    session be rebuilt after the tmux server is gone - including for idle
+    sessions, which would otherwise never re-record their own location.
+
+    Returned whole rather than looked up per tty: the caller has many sessions
+    and runs on a poll, so one listing beats one subprocess each.
+    """
+    try:
+        result = subprocess.run(
+            ["tmux", "list-panes", "-a", "-F", "#{pane_tty}|#{session_name}|#{window_index}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as e:
+        _log.warning("could not list panes to locate sessions: %s", e)
+        return {}
+
+    return {
+        parts[0]: (parts[1], parts[2])
+        for line in result.stdout.strip().split("\n")
+        if len(parts := line.split("|")) == 3
+    }
+
+
 def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | None, str | None]:
     """Find a tmux pane by its current working directory.
 

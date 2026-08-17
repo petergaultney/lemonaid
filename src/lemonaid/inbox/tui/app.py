@@ -606,6 +606,7 @@ class LemonaidApp(App):
             update_message=self._update_channel_message,
             archive_channel=self._archive_channel,
             mark_unread=self._mark_channel_unread,
+            record_location=self._record_channel_location,
         )
         self.call_later(self._check_claude_patch)
         self.call_later(self._stretch_all_tables)
@@ -1819,6 +1820,16 @@ class LemonaidApp(App):
         """Update the message for a channel."""
         with db.connect() as conn:
             return db.update_message(conn, channel, message)
+
+    def _record_channel_location(self, channel: str, session: str, window: str) -> None:
+        """Note where a session is sitting, so `tmux restore` can rebuild it.
+
+        Done on the watcher's poll rather than only when a session notifies:
+        an idle session would otherwise never record one, and those are the
+        ones whose position is hardest to remember after a crash.
+        """
+        with db.connect() as conn:
+            db.record_location(conn, channel, session, window)
 
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""

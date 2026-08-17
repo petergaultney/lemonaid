@@ -10,7 +10,7 @@ from ..log import get_logger
 _log = get_logger("lemon_watchers.common")
 
 _ANCESTOR_DEPTH = 10
-_PS_TIMEOUT_SECONDS = 5
+_PROBE_TIMEOUT_SECONDS = 5
 
 
 def get_tty() -> str | None:
@@ -88,7 +88,7 @@ def _get_ancestor_tty(max_depth: int = _ANCESTOR_DEPTH) -> str | None:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=_PS_TIMEOUT_SECONDS,
+                timeout=_PROBE_TIMEOUT_SECONDS,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
             _log.warning("ps failed walking up from pid %d: %s", pid, e)
@@ -133,21 +133,40 @@ def detect_terminal_switch_source() -> str:
     return "unknown"
 
 
-def get_tmux_session_name() -> str | None:
-    """Get the tmux session name if running in tmux."""
+def _pane_format(spec: str) -> str | None:
+    """Ask tmux about this pane, or None when there is no pane to ask about."""
     pane_id = os.environ.get("TMUX_PANE")
     if not pane_id:
         return None
+
     try:
         result = subprocess.run(
-            ["tmux", "display-message", "-t", pane_id, "-p", "#{session_name}"],
+            ["tmux", "display-message", "-t", pane_id, "-p", spec],
             capture_output=True,
             text=True,
             check=True,
+            timeout=_PROBE_TIMEOUT_SECONDS,
         )
-        return result.stdout.strip() or None
-    except subprocess.CalledProcessError:
+    except (subprocess.SubprocessError, OSError) as e:
+        _log.warning("could not read %s for pane %s: %s", spec, pane_id, e)
         return None
+
+    return result.stdout.strip() or None
+
+
+def get_tmux_session_name() -> str | None:
+    """Get the tmux session name if running in tmux."""
+    return _pane_format("#{session_name}")
+
+
+def get_tmux_window_index() -> str | None:
+    """The pane's window index, as tmux would address it.
+
+    Kept as the string tmux printed rather than an int: it is only ever used to
+    build a `session:index` target, and a base-index of 1 makes 0 a real value
+    that must not be confused with absent.
+    """
+    return _pane_format("#{window_index}")
 
 
 def shorten_path(path: str) -> str:

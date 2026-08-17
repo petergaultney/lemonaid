@@ -34,6 +34,7 @@ from ..lemon_watchers import (
     get_git_branch,
     get_name_from_cwd,
     get_tmux_session_name,
+    get_tmux_window_index,
     get_tty,
     shorten_path,
 )
@@ -205,10 +206,12 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
 
+    tmux_session = get_tmux_session_name()
+
     # Claude's own name for the session beats anything we can derive from the
     # environment; the tmux/cwd names are placeholders until it exists.
     resolved = resolve_session_name(session_id, cwd)
-    name = resolved.name if resolved else (get_tmux_session_name() or get_name_from_cwd(cwd))
+    name = resolved.name if resolved else (tmux_session or get_name_from_cwd(cwd))
     name_source = resolved.source if resolved else "environment"
 
     # Detect switch-source (which terminal environment this notification came from)
@@ -228,6 +231,16 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     tty = get_tty()  # for pane matching
     if tty:
         metadata["tty"] = tty
+
+    # Where this session sits, so a lost tmux server can be rebuilt from the
+    # inbox. Absent when the hook runs outside tmux, which is why `db.add`
+    # carries a previously recorded location forward rather than dropping it.
+    if tmux_session:
+        metadata["tmux_session"] = tmux_session
+
+    window = get_tmux_window_index()
+    if window:
+        metadata["tmux_window"] = window
 
     return channel_id("claude", session_id), session_id, name, switch_source, metadata
 
