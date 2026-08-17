@@ -1,3 +1,21 @@
+# 0.17.0 (2026-08-25)
+
+#### Added
+
+- **`lemonaid tmux restore` rebuilds the tmux layout from the inbox.** When tmux dies the sessions go with it, but the inbox does not - it still holds every active lemon and its cwd. What it never held was *where* each one was running, so rebuilding the layout after a crash was manual work. Notifications now record `tmux_session` and `tmux_window`, and `tmux restore` recreates each session, resuming every lemon in the window it occupied.
+
+  Windows keep their recorded index, so a window lemonaid knows nothing about - an editor, a shell - comes back as an empty gap rather than shifting every later window down. Restored windows are not named: they pick up names from their processes, the same as they did before the crash.
+
+  `--dry-run` prints the layout and starts nothing, which is worth doing first since restoring a day's work means starting many processes at once. Sessions are restored detached, and one that is already running is left alone rather than duplicated - after a crash you have usually rebuilt some by hand already. `--json` for both.
+
+  Restoring goes through each backend's configured resume command, so this is not Claude-specific.
+
+- **Notifications record which tmux session and window they belong to**, which is what makes the above possible. `get_tmux_session_name()` already existed, but its result was used only to derive a display name and then discarded.
+
+  Recorded from two places, because a hook alone is not enough: an idle session's hook may not fire for days, and those are exactly the sessions whose window position is hardest to reconstruct after a crash. The hooks record it when they run, and the watcher - which already resolves panes by tty on each poll - keeps it current for every active session, in one `list-panes` call rather than one per session. Moving a window is followed; an unchanged location is not rewritten, and nothing else about the notification is touched.
+
+  Locations are also carried forward across updates. Metadata is replaced wholesale, and a hook firing from a subprocess with no `TMUX_PANE` would otherwise erase the location that restore depends on.
+
 # 0.16.0 (2026-08-25)
 
 #### Added
@@ -77,6 +95,7 @@
   Nothing is recreated if the directory itself is gone - a removed worktree, say. That reports a failure rather than spawning a session somewhere useless. Failures now raise a toast; the return value used to be discarded.
 
 - `spawn_session_for_resume` is now `spawn_session`, with `resume_argv` optional: passing it replaces the window at `resume_window` as before, omitting it uses the template unchanged. `_auto_session_name` moved from `tmux/cli.py` to `tmux/session.py` as `auto_session_name`, removing a deferred cross-module import of a private name.
+
 # 0.14.1 (2026-08-07)
 
 #### Fixed
