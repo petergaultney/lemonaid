@@ -1,7 +1,7 @@
 """Tests for lemonaid.claude.notify module."""
 
-from contextlib import contextmanager
-from unittest.mock import patch
+from contextlib import ExitStack, contextmanager
+from unittest.mock import MagicMock, patch
 
 from lemonaid.claude import notify
 
@@ -53,3 +53,47 @@ def test_handle_submit_headless_has_no_switch_source():
         notify.handle_submit(stdin_data=payload)
 
     assert mock_register.call_args.kwargs["switch_source"] is None
+
+
+def _submit_with(tmux_session, tmux_window, register):
+    """Run the submit hook with the tmux environment stubbed out."""
+    return (
+        patch("lemonaid.claude.notify.db.connect", _fake_connect),
+        patch("lemonaid.claude.notify.resolve_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=tmux_session),
+        patch("lemonaid.claude.notify.get_tmux_window_index", return_value=tmux_window),
+        patch("lemonaid.claude.notify.get_name_from_cwd", return_value="project"),
+        patch("lemonaid.claude.notify.get_tty", return_value=None),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value=None),
+        patch("lemonaid.claude.notify.db.register_working", register),
+    )
+
+
+def test_submit_records_where_the_session_is_running():
+    """Without this the inbox survives a tmux crash but can't rebuild the layout."""
+    payload = '{"session_id":"abc123","cwd":"/tmp/project"}'
+    register = MagicMock()
+
+    with ExitStack() as stack:
+        for ctx in _submit_with("relay", "4", register):
+            stack.enter_context(ctx)
+        notify.handle_submit(stdin_data=payload)
+
+    metadata = register.call_args.kwargs["metadata"]
+    assert metadata["tmux_session"] == "relay"
+    assert metadata["tmux_window"] == "4"
+
+
+def test_submit_records_no_location_outside_tmux():
+    payload = '{"session_id":"abc123","cwd":"/tmp/project"}'
+    register = MagicMock()
+
+    with ExitStack() as stack:
+        for ctx in _submit_with(None, None, register):
+            stack.enter_context(ctx)
+        notify.handle_submit(stdin_data=payload)
+
+    metadata = register.call_args.kwargs["metadata"]
+    assert "tmux_session" not in metadata
+    assert "tmux_window" not in metadata

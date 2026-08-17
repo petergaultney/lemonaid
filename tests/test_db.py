@@ -236,3 +236,90 @@ def test_register_working_preserves_user_name():
         n = db.register_working(conn, channel="claude:abc", message="Working", name="ignored")
         assert n.name == "my-name"
         assert n.metadata["auto_name"] == "auto"
+
+
+def test_tmux_location_survives_an_update_that_cannot_see_it():
+    """A hook can fire from a subprocess with no TMUX_PANE.
+
+    metadata is replaced wholesale on update, so without carrying these forward
+    one such observation erases the only record of where the session was - which
+    is exactly what `tmux restore` needs after a crash.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        db.add(
+            conn,
+            channel="claude:abc",
+            message="first",
+            metadata={"cwd": "/tmp", "tmux_session": "relay", "tmux_window": "4"},
+        )
+        updated = db.add(conn, channel="claude:abc", message="second", metadata={"cwd": "/tmp"})
+
+    assert updated.metadata["tmux_session"] == "relay"
+    assert updated.metadata["tmux_window"] == "4"
+
+
+def test_a_newly_observed_tmux_location_wins():
+    """Moving a session to another window must not be papered over by the old one."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "test.db") as conn:
+        db.add(
+            conn,
+            channel="claude:abc",
+            message="first",
+            metadata={"tmux_session": "relay", "tmux_window": "4"},
+        )
+        updated = db.add(
+            conn,
+            channel="claude:abc",
+            message="second",
+            metadata={"tmux_session": "main", "tmux_window": "2"},
+        )
+
+    assert updated.metadata["tmux_session"] == "main"
+    assert updated.metadata["tmux_window"] == "2"
+
+
+def test_record_location_only_touches_the_location():
+    """It runs on the watcher's poll for idle sessions; anything else would lie."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        added = db.add(conn, channel="claude:abc", message="hello", metadata={"cwd": "/tmp"})
+        db.mark_read(conn, added.id)
+
+        assert db.record_location(conn, "claude:abc", "relay", "4") is True
+
+        after = db.get_by_channel(conn, "claude:abc", unread_only=False)
+
+    assert after.metadata["tmux_session"] == "relay"
+    assert after.metadata["cwd"] == "/tmp"
+    assert after.message == "hello"
+    assert after.status == "read"
+
+
+def test_record_location_is_a_no_op_when_unchanged():
+    """Every poll would otherwise be a write for every session."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        db.add(
+            conn,
+            channel="claude:abc",
+            message="hello",
+            metadata={"tmux_session": "relay", "tmux_window": "4"},
+        )
+
+        assert db.record_location(conn, "claude:abc", "relay", "4") is False
+
+
+def test_record_location_follows_a_moved_window():
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        db.add(
+            conn,
+            channel="claude:abc",
+            message="hello",
+            metadata={"tmux_session": "relay", "tmux_window": "4"},
+        )
+        db.record_location(conn, "claude:abc", "relay", "7")
+
+        assert db.get_by_channel(conn, "claude:abc").metadata["tmux_window"] == "7"
+
+
+def test_record_location_ignores_an_unknown_channel():
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        assert db.record_location(conn, "claude:nope", "relay", "1") is False

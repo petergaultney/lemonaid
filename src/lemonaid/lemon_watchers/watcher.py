@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from .. import tmux
 from ..log import get_logger
 
 _log = get_logger("watcher")
@@ -207,6 +208,33 @@ def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
 _warned_no_tty: set[str] = set()
 
 
+def _record_locations(
+    active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
+    record_location: Callable[[str, str, str], None],
+) -> None:
+    """Note where each tmux-hosted session is sitting, so it can be rebuilt later.
+
+    A notification only records its own location when the session notifies, which
+    means an idle one - the kind you would most want back and least remember the
+    position of - can go days without one. The watcher already resolves every
+    pane, so it can keep this current for sessions that aren't saying anything.
+    """
+    if not any(tty and source == "tmux" for *_, tty, _msg, source in active):
+        return
+
+    # One listing for every session: this runs on each poll, and a call per
+    # session would be that many subprocesses twice a second.
+    by_tty = tmux.navigation.locations_by_tty()
+
+    for channel, _sid, _cwd, _created, _unread, tty, _msg, switch_source in active:
+        if not tty or switch_source != "tmux":
+            continue
+
+        location = by_tty.get(tty)
+        if location is not None:
+            record_location(channel, *location)
+
+
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
@@ -309,6 +337,7 @@ def unified_watch_loop(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
+    record_location: Callable[[str, str, str], None] | None = None,
     poll_interval: float = 0.5,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
@@ -320,6 +349,7 @@ def unified_watch_loop(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window)
         poll_interval: How often to poll (seconds)
     """
     # Build prefix -> backend mapping
@@ -337,6 +367,9 @@ def unified_watch_loop(
     while True:
         try:
             active = get_active()
+
+            if record_location:
+                _record_locations(active, record_location)
 
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
@@ -448,6 +481,7 @@ def start_unified_watcher(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
+    record_location: Callable[[str, str, str], None] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -458,6 +492,7 @@ def start_unified_watcher(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window)
     """
     global _watcher_thread
 
@@ -466,7 +501,12 @@ def start_unified_watcher(
 
     _watcher_thread = threading.Thread(
         target=unified_watch_loop,
-        args=(backends, get_active, mark_read, update_message, archive_channel, mark_unread),
+        args=(backends, get_active, mark_read, update_message),
+        kwargs={
+            "archive_channel": archive_channel,
+            "mark_unread": mark_unread,
+            "record_location": record_location,
+        },
         daemon=True,
     )
     _watcher_thread.start()
