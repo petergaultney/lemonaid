@@ -189,7 +189,7 @@ def check_needs_attention(
 
 
 def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
-    """Check if a pane still exists for the given TTY and switch source.
+    """Whether a pane still exists, assuming it does whenever we cannot tell.
 
     Deferred import to avoid circular dependencies.
     """
@@ -198,7 +198,10 @@ def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
 
     from ..handlers import check_pane_exists_by_tty
 
-    return check_pane_exists_by_tty(tty, switch_source)
+    # A tmux that failed to answer is not a pane that is gone. Archiving on it
+    # retires every live session at once, since one failed `list-panes` looks
+    # exactly like every pane having disappeared.
+    return check_pane_exists_by_tty(tty, switch_source) is not False
 
 
 def _archive_stale_sessions(
