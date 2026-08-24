@@ -427,6 +427,9 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.mark_read, "mark_read", "Mark Read"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
+        for b in _build_bindings(kb.mark_unread, "mark_unread", "Mark Unread"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
         for b in _build_bindings(kb.archive, "archive", "Archive"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
@@ -1031,7 +1034,7 @@ class LemonaidApp(App):
         history_filter = self.query_one("#history_filter", Input)
 
         # Inbox-only actions
-        for action in ("jump_unread", "mark_read", "archive", "snooze"):
+        for action in ("jump_unread", "mark_read", "mark_unread", "archive", "snooze"):
             self._set_binding_footer(action, show=not enabled)
 
         # History-only actions
@@ -1118,7 +1121,7 @@ class LemonaidApp(App):
         other_table = self.query_one("#other_sources_table", DataTable)
 
         # Inbox-only actions don't apply to the snoozed list
-        for action in ("jump_unread", "mark_read", "snooze"):
+        for action in ("jump_unread", "mark_read", "mark_unread", "snooze"):
             self._set_binding_footer(action, show=not enabled)
 
         self._set_binding_footer(
@@ -1431,6 +1434,33 @@ class LemonaidApp(App):
             _log.info("mark_read: %s", n.channel)
             # Keep cursor on unread items when possible
             self._refresh_notifications(stay_on_unread=True)
+
+    def action_mark_unread(self) -> None:
+        table = self._focused_table()
+        if table.row_count == 0:
+            return
+
+        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+        if not row_key:
+            return
+
+        notification_id = int(row_key.value)
+        with db.connect() as conn:
+            n = db.get(conn, notification_id)
+            if not n or n.is_unread:
+                return
+
+            entry = undo.capture(
+                conn,
+                "mark_unread",
+                f'Marked unread "{n.name or n.channel}"',
+                [notification_id],
+            )
+            db.mark_unread(conn, notification_id)
+
+        self._undo_stack.push(entry)
+        _log.info("mark_unread: %s", n.channel)
+        self._refresh_notifications()
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""

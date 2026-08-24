@@ -75,6 +75,7 @@ class KeybindingsConfig:
     refresh: str = "g"
     jump_unread: str = "u"
     mark_read: str = "m"
+    mark_unread: str = "M"
     archive: str = "a"
     rename: str = "r"
     snooze: str = "s"  # Snooze a session out of the inbox for a while
