@@ -8,6 +8,7 @@ rows; the separator is what keeps them legible as separate entries instead.
 from rich.text import Text
 
 from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui.utils import styled_cell
 
 
 def test_the_context_line_never_wraps():
@@ -113,6 +114,31 @@ def test_empty_context_fields_are_dropped():
     body, _ = app._as_card(cells, 40)
 
     assert body.plain.split("\n")[1].strip() == "15:24:18 · ~/w/repo"
+
+
+def test_a_card_keeps_the_colours_its_cells_arrived_with():
+    """Both layouts read one palette, so a colour means the same thing in each."""
+    cells = [
+        styled_cell("15:24", True, "time"),
+        Text("●"),
+        styled_cell("CC", True, "backend"),
+        styled_cell("a-name", True, "name"),
+        styled_cell("a/branch", True, "branch"),
+        styled_cell("~/w/repo", True, "cwd"),
+        styled_cell("a message", True, "message"),
+    ]
+    body, _ = app._as_card(cells, 60)
+
+    spans = {body.plain[s.start : s.end]: s.style for s in body.spans}
+    assert spans["a-name"] == "bold cyan"
+    assert spans["15:24"] == "bold yellow"
+    assert spans["~/w/repo"] == "bold blue"
+    assert spans["a/branch"] == "bold magenta"
+
+
+def test_the_marker_does_not_share_the_name_colour():
+    """Sharing it made the dot read as the first glyph of the name."""
+    assert app.UNREAD_MARKER_STYLE != f"bold {app.FIELD_STYLES['name']}"
 
 
 def test_a_long_message_uses_every_line_it_is_given():

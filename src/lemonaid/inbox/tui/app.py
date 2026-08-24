@@ -43,7 +43,7 @@ from ...tmux.scratch import (
 from ...tmux.session import spawn_session
 from .. import db, undo
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
-from .utils import set_terminal_title, styled_cell
+from .utils import FIELD_STYLES, UNREAD_MARKER_STYLE, set_terminal_title, styled_cell
 
 _DAY_SECONDS = 86400
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
@@ -139,29 +139,20 @@ def _as_card(
     you scan for, so each has to sit in one predictable place down the list. Only
     the message wraps, because it is the one field that reads as prose.
     """
+    # Cells arrive already coloured by field and dimmed by read state, so a card
+    # rearranges them rather than restyling: both layouts then agree on what a
+    # colour means, and fixing one fixes the other.
+    #
     # The dot rides on the name rather than owning a column: it is empty for most
     # rows, and a permanently-indented card wastes width a narrow pane hasn't got.
-    # The marker is its own colour: sharing the name's makes it read as the first
-    # glyph of the name rather than a mark against it.
     marker = cells[_UNREAD_CELL]
-    unread = bool(marker.plain)
-    headline = Text(marker.plain if unread else " ", style="bold bright_red") + Text(
-        " " + cells[_NAME_CELL].plain, style="bold cyan" if unread else "bold"
+    headline = Text(marker.plain or " ", style=UNREAD_MARKER_STYLE) + Text(" ") + cells[_NAME_CELL]
+
+    context = Text(" · ", style=FIELD_STYLES["backend"]).join(
+        part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain
     )
 
-    # Indented under the name, and coloured apart from it: the eye needs the three
-    # lines of a card to read as one entry without a rule between entries.
-    context = Text(" · ", style="bright_black").join(
-        Text(part.plain, style=style)
-        for part, style in (
-            (cells[_TIME_CELL], "yellow"),
-            (cells[_CWD_CELL], "blue"),
-            (cells[_BRANCH_CELL], "magenta"),
-        )
-        if part.plain
-    )
-
-    message = Text(cells[_MSG_CELL].plain, style="dim")
+    message = cells[_MSG_CELL]
 
     body = width - len(_INDENT)
     lines = [
@@ -769,27 +760,31 @@ class LemonaidApp(App):
         """Build the main-table row for a session, keyed by notification id."""
         is_unread = n.is_unread
         return str(n.id), [
-            styled_cell(_format_timestamp(n.created_at), is_unread),
-            Text("●", style="bold cyan") if is_unread else Text(""),
-            styled_cell(_backend_label(n.channel, self.config.tui.backend_labels), is_unread),
-            styled_cell(n.name or "", is_unread),
-            styled_cell(n.metadata.get("git_branch", ""), is_unread),
-            styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread),
-            styled_cell(n.message, is_unread),
-            styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), is_unread),
+            styled_cell(_format_timestamp(n.created_at), is_unread, "time"),
+            Text("●", style=UNREAD_MARKER_STYLE) if is_unread else Text(""),
+            styled_cell(
+                _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
+            ),
+            styled_cell(n.name or "", is_unread, "name"),
+            styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
+            styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd"),
+            styled_cell(n.message, is_unread, "message"),
+            styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), is_unread, "tty"),
         ]
 
     def _other_row(self, n: db.Notification) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
-            Text(_format_timestamp(n.created_at), style="dim"),
+            styled_cell(_format_timestamp(n.created_at), False, "time"),
             Text("○", style="dim") if n.is_unread else Text(""),
-            Text(_backend_label(n.channel, self.config.tui.backend_labels), style="dim"),
-            Text(n.name or "", style="dim"),
-            Text(n.metadata.get("git_branch", ""), style="dim cyan"),
-            Text(fish_path(n.metadata.get("cwd", "")), style="dim"),
-            Text(n.message, style="dim"),
-            Text(n.metadata.get("tty", "").replace("/dev/", ""), style="dim"),
+            styled_cell(
+                _backend_label(n.channel, self.config.tui.backend_labels), False, "backend"
+            ),
+            styled_cell(n.name or "", False, "name"),
+            styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
+            styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
+            styled_cell(n.message, False, "message"),
+            styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
@@ -1090,14 +1085,16 @@ class LemonaidApp(App):
             branch = n.metadata.get("git_branch", "")
 
             cells = [
-                Text(created, style="dim"),
+                styled_cell(created, False, "time"),
                 Text(""),  # No unread indicator for archived
-                Text(_backend_label(n.channel, self.config.tui.backend_labels), style="dim"),
-                Text(n.name or "", style=""),
-                Text(branch, style="dim cyan"),
-                Text(cwd, style="dim"),
-                Text(n.message, style="dim"),
-                Text("", style="dim"),  # No TTY for archived
+                styled_cell(
+                    _backend_label(n.channel, self.config.tui.backend_labels), False, "backend"
+                ),
+                styled_cell(n.name or "", False, "name"),
+                styled_cell(branch, False, "branch"),
+                styled_cell(cwd, False, "cwd"),
+                styled_cell(n.message, False, "message"),
+                Text(""),  # No TTY for archived
             ]
             card_width = self._card_width()
             shape = self._card_shape()
@@ -1159,18 +1156,20 @@ class LemonaidApp(App):
                 (
                     str(n.id),
                     [
-                        Text(_format_timestamp(n.created_at), style="dim"),
+                        styled_cell(_format_timestamp(n.created_at), False, "time"),
                         Text("○", style="dim") if n.snooze_prev_status == "unread" else Text(""),
-                        Text(
-                            _backend_label(n.channel, self.config.tui.backend_labels), style="dim"
+                        styled_cell(
+                            _backend_label(n.channel, self.config.tui.backend_labels),
+                            False,
+                            "backend",
                         ),
-                        Text(n.name or "", style=""),
-                        Text(n.metadata.get("git_branch", ""), style="dim cyan"),
-                        Text(fish_path(n.metadata.get("cwd", "")), style="dim"),
-                        Text(n.message, style="dim"),
+                        styled_cell(n.name or "", False, "name"),
+                        styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
+                        styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
+                        styled_cell(n.message, False, "message"),
                         Text(
                             format_wake_time(n.snooze_until) if n.snooze_until else "",
-                            style="yellow",
+                            style="bold yellow",
                         ),
                     ],
                 )
