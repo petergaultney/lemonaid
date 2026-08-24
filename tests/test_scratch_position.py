@@ -83,3 +83,39 @@ def test_a_stale_percentage_is_not_drift(monkeypatch, tmp_path):
     _pane_size(monkeypatch, "10")
 
     assert not scratch.size_has_drifted("top")
+
+
+def _window_size(monkeypatch, value: str) -> None:
+    """Stand in for `tmux display-message -p #{window_width|height}`."""
+
+    def _run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, stdout=f"{value}\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+
+def test_a_saved_size_is_used_when_it_fits(monkeypatch):
+    _window_size(monkeypatch, "200")
+
+    assert scratch._capped("45", "left") == "45"
+
+
+def test_a_saved_size_yields_to_a_small_window(monkeypatch):
+    """A session nothing has attached to yet is 80x24, where 45 is over half."""
+    _window_size(monkeypatch, "80")
+
+    assert scratch._capped("45", "left") == "32"
+
+
+def test_an_unreadable_window_size_leaves_the_size_alone(monkeypatch):
+    def _run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    assert scratch._capped("45", "left") == "45"
+
+
+def test_each_position_caps_against_its_own_axis():
+    assert scratch._window_size_format("left") == "#{window_width}"
+    assert scratch._window_size_format("top") == "#{window_height}"
