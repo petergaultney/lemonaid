@@ -36,7 +36,9 @@ See [wezterm.md](wezterm.md).
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `scratch_height` | `"10"` | Height of the scratch pane, in rows. |
+| `scratch_position` | `"top"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `f` in `lma`; that choice is remembered per tmux server. |
+| `scratch_height` | `"10"` | Height of the scratch pane on top, in rows. |
+| `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `follow_scratch` | `false` | Bootstrap follow mode for new tmux servers. When the scratch pane is first toggled on a server, this determines whether follow is enabled by default. See [tmux.md](tmux.md#follow-mode). |
 | `resume_window` | `0` | 0-based index into the template window list: which window to replace with the resume command when spawning a tmux session from history (`T`). Set to `1` if your lemon is in the second tab. |
 

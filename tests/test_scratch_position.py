@@ -119,3 +119,26 @@ def test_an_unreadable_window_size_leaves_the_size_alone(monkeypatch):
 def test_each_position_caps_against_its_own_axis():
     assert scratch._window_size_format("left") == "#{window_width}"
     assert scratch._window_size_format("top") == "#{window_height}"
+
+
+def test_position_falls_back_to_config_until_something_sets_it(monkeypatch, tmp_path):
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+
+    assert scratch.current_position("left") == "left"
+    assert scratch.current_position("top") == "top"
+
+
+def test_a_set_position_outlives_the_config_default(monkeypatch, tmp_path):
+    """Which edge you want depends on the window, which changes far more often."""
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+    scratch.set_position("top")
+
+    assert scratch.current_position("left") == "top"
+
+
+def test_flipping_alternates(monkeypatch, tmp_path):
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+
+    assert scratch.flip_position("left") == "top"
+    assert scratch.flip_position("left") == "left"
+    assert scratch.flip_position("left") == "top"
