@@ -7,7 +7,11 @@ Per-server state files in ~/.local/state/lemonaid/:
   tmux-scratch-<server>-pane    — pane ID (e.g. "%6"). Present = pane is alive.
   tmux-scratch-<server>-follow  — follow flag. "on" = follow active, empty = disabled.
                                   Missing = first run, bootstrap from config.
-  tmux-scratch-<server>-height  — last known pane height in rows. Survives recreates.
+  tmux-scratch-<server>-height  — last known height in rows, for a top pane.
+  tmux-scratch-<server>-width   — last known width in columns, for a left pane.
+                                  Separate files: a top pane's rows and a left
+                                  pane's columns are different quantities, so
+                                  switching position keeps both.
   tmux-scratch-follow.sh        — shell hook script, generated once.
 """
 
@@ -45,6 +49,23 @@ def _height_path() -> Path:
     return get_state_path() / f"tmux-scratch-{_get_server_name()}-height"
 
 
+def _width_path() -> Path:
+    return get_state_path() / f"tmux-scratch-{_get_server_name()}-width"
+
+
+def _size_path(position: str) -> Path:
+    return _width_path() if position == "left" else _height_path()
+
+
+def _pane_size_format(position: str) -> str:
+    return "#{pane_width}" if position == "left" else "#{pane_height}"
+
+
+def _split_flag(position: str) -> str:
+    """tmux join-pane axis flag. -b ("before") is top for -v, left for -h."""
+    return "-h" if position == "left" else "-v"
+
+
 def _get_pane_id() -> str | None:
     """Load the scratch pane ID from the state file."""
     path = _state_path()
@@ -60,8 +81,17 @@ def _save_pane_id(pane_id: str) -> None:
     _state_path().write_text(pane_id)
 
 
-def save_current_height() -> None:
-    """Save the scratch pane's current height in rows.
+def _current_size(pane_id: str, position: str) -> str:
+    result = subprocess.run(
+        ["tmux", "display-message", "-t", pane_id, "-p", _pane_size_format(position)],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def save_current_size(position: str) -> None:
+    """Persist the pane's size along the axis its position splits.
 
     Only called on explicit user action (keybinding), never automatically.
     """
@@ -69,40 +99,25 @@ def save_current_height() -> None:
     if not pane_id:
         return
 
-    result = subprocess.run(
-        ["tmux", "display-message", "-t", pane_id, "-p", "#{pane_height}"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return
-
-    rows = result.stdout.strip()
-    if rows:
-        _log.info("save_current_height: %s rows", rows)
-        _height_path().write_text(rows)
+    size = _current_size(pane_id, position)
+    if size:
+        _log.info("save_current_size: %s (%s)", size, position)
+        _size_path(position).write_text(size)
 
 
-def height_has_drifted() -> bool:
-    """Whether the pane's current height differs from the saved one."""
+def size_has_drifted(position: str) -> bool:
+    """Whether the pane's current size differs from the saved one."""
     pane_id = _get_pane_id()
     if not pane_id:
         return False
 
-    saved = _height_path().read_text().strip() if _height_path().exists() else ""
+    path = _size_path(position)
+    saved = path.read_text().strip() if path.exists() else ""
     if not saved:
         return False
 
-    result = subprocess.run(
-        ["tmux", "display-message", "-t", pane_id, "-p", "#{pane_height}"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return False
-
     try:
-        return int(result.stdout.strip()) != int(saved)
+        return int(_current_size(pane_id, position)) != int(saved)
     except ValueError:
         return False
 
@@ -282,13 +297,22 @@ def _create_pane() -> str:
     return pane_id
 
 
-def _show(pane_id: str, height: str, target_pane: str | None = None) -> bool:
-    """Join the scratch pane into current window as a top split."""
-    cmd = ["tmux", "join-pane", "-v", "-b", "-l", height, "-s", pane_id]
+def _show(pane_id: str, size: str, position: str, target_pane: str | None = None) -> bool:
+    """Join the scratch pane into the current window, above or left of it."""
+    cmd = ["tmux", "join-pane", _split_flag(position), "-b", "-l", size, "-s", pane_id]
     if target_pane:
         cmd.extend(["-t", target_pane])
-    result = subprocess.run(cmd, capture_output=True)
-    return result.returncode == 0
+    if subprocess.run(cmd, capture_output=True).returncode != 0:
+        return False
+
+    # The follow hook reads this file for its size, so a position being used for
+    # the first time has to record one - otherwise the hook falls back to the
+    # default compiled into it when follow was enabled.
+    path = _size_path(position)
+    if not path.exists():
+        path.write_text(size)
+
+    return True
 
 
 def _ensure_scratch_session() -> None:
@@ -345,7 +369,7 @@ def _get_current_pane() -> str | None:
     return None
 
 
-def _create_and_show(height: str) -> str:
+def _create_and_show(size: str, position: str) -> str:
     """Create a fresh scratch pane and show it."""
     # Capture target pane BEFORE creating new session (tmux context can change)
     target_pane = _get_current_pane()
@@ -357,13 +381,11 @@ def _create_and_show(height: str) -> str:
             capture_output=True,
         )
     pane_id = _create_pane()
-    _show(pane_id, height, target_pane)
-    _log.info("_create_and_show: seeding height file with %s", height)
-    _height_path().write_text(height)
+    _show(pane_id, size, position, target_pane)
     return "created"
 
 
-def ensure_scratch(height: str = "10") -> str:
+def ensure_scratch(size: str = "10", position: str = "top") -> str:
     """Ensure the scratch pane is visible in the current window.
 
     Like toggle, but never hides — only creates or shows.
@@ -373,7 +395,7 @@ def ensure_scratch(height: str = "10") -> str:
     pane_id = _get_pane_id()
 
     if pane_id is None or not _pane_exists(pane_id):
-        return _create_and_show(height)
+        return _create_and_show(size, position)
 
     current_window = _get_current_window()
     pane_window = _get_pane_window(pane_id)
@@ -381,8 +403,8 @@ def ensure_scratch(height: str = "10") -> str:
     if pane_window == current_window:
         return "already_visible"
 
-    if not _show(pane_id, height, current_pane):
-        return _create_and_show(height)
+    if not _show(pane_id, size, position, current_pane):
+        return _create_and_show(size, position)
 
     return "shown"
 
@@ -391,7 +413,7 @@ def _follow_script_path() -> Path:
     return get_state_path() / "tmux-scratch-follow.sh"
 
 
-def _write_follow_script(height: str = "10") -> Path:
+def _write_follow_script(size: str = "10", position: str = "top") -> Path:
     """Write the follow hook script to disk.
 
     Pure shell — reads the pane ID from the state file, checks if
@@ -400,6 +422,8 @@ def _write_follow_script(height: str = "10") -> Path:
     """
     script_path = _follow_script_path()
     state_dir = str(get_state_path())
+    dimension = "width" if position == "left" else "height"
+    axis = _split_flag(position)
     # Parse tmux server name from $TMUX the same way the Python code does
     script_path.write_text(
         f"""#!/bin/sh
@@ -420,11 +444,11 @@ cur=$(tmux display -p '#{{window_id}}')
 tgt=$(tmux display -t "$pane" -p '#{{window_id}}' 2>/dev/null) || exit 0
 [ "$cur" = "$tgt" ] && exit 0
 
-height=$(cat "$dir/tmux-scratch-$server-height" 2>/dev/null)
-[ -n "$height" ] || height=10
+size=$(cat "$dir/tmux-scratch-$server-{dimension}" 2>/dev/null)
+[ -n "$size" ] || size={size}
 
 cur_pane=$(tmux display -p '#{{pane_id}}')
-tmux join-pane -v -b -l "$height" -s "$pane" 2>/dev/null
+tmux join-pane {axis} -b -l "$size" -s "$pane" 2>/dev/null
 tmux select-pane -t "$cur_pane" 2>/dev/null
 exit 0
 """
@@ -442,7 +466,7 @@ def _check_tmux_conf_hooks() -> bool:
     return "scratch-follow" in tmux_conf.read_text()
 
 
-def set_follow(height: str = "10", enable: bool = True) -> str:
+def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> str:
     """Enable or disable follow mode for this tmux server.
 
     When enabled, installs tmux hooks for the current server session
@@ -452,8 +476,8 @@ def set_follow(height: str = "10", enable: bool = True) -> str:
     set_follow_enabled(enable)
 
     if enable:
-        ensure_scratch(height)
-        _write_follow_script(height)
+        ensure_scratch(size, position)
+        _write_follow_script(size, position)
         _install_hooks()
 
         if not _check_tmux_conf_hooks():
@@ -482,7 +506,7 @@ def _install_hooks() -> None:
         )
 
 
-def toggle_scratch(height: str = "10", follow_default: bool = False) -> str:
+def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool = False) -> str:
     """Toggle the scratch lma pane. Returns 'shown', 'hidden', 'selected', or 'created'.
 
     In follow mode, the pane is never hidden via toggle — use q in lma to dismiss.
@@ -495,7 +519,7 @@ def toggle_scratch(height: str = "10", follow_default: bool = False) -> str:
     pane_id = _get_pane_id()
 
     if pane_id is None or not _pane_exists(pane_id):
-        return _create_and_show(height)
+        return _create_and_show(size, position)
 
     current_window = _get_current_window()
     pane_window = _get_pane_window(pane_id)
@@ -511,16 +535,16 @@ def toggle_scratch(height: str = "10", follow_default: bool = False) -> str:
                 return "defocused"
 
             if not _hide(pane_id):
-                return _create_and_show(height)
+                return _create_and_show(size, position)
 
             return "hidden"
         else:
             if not _select_pane(pane_id):
-                return _create_and_show(height)
+                return _create_and_show(size, position)
 
             return "selected"
     else:
-        if not _show(pane_id, height, current_pane):
-            return _create_and_show(height)
+        if not _show(pane_id, size, position, current_pane):
+            return _create_and_show(size, position)
 
         return "shown"

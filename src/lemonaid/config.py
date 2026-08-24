@@ -43,8 +43,13 @@ class TmuxSessionConfig:
     # 0-based index into the template window list: which window to replace
     # with the resume command when spawning a session from history.
     resume_window: int = 0
-    # Height of the scratch pane, in rows.
+    # Where the scratch pane sits: "top" or "left".
+    scratch_position: str = "top"
+    # Size of the scratch pane along the axis it splits. A top pane is measured
+    # in rows and a left one in columns, so the two are stored separately -
+    # switching position keeps the size you chose for each.
     scratch_height: str = "10"
+    scratch_width: str = "45"
     # When true, the scratch pane follows across window/session switches.
     follow_scratch: bool = False
 
@@ -78,7 +83,7 @@ class KeybindingsConfig:
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
-    save_height: str = "H"  # Save the scratch pane height (follow mode only)
+    save_size: str = "H"  # Save the scratch pane size (follow mode only)
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 
@@ -231,11 +236,17 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
 
     tmux_session_data = data.get("tmux-session", {})
-    defaults_height = TmuxSessionConfig().scratch_height
+    tmux_session_defaults = TmuxSessionConfig()
     tmux_session = TmuxSessionConfig(
         templates=tmux_session_data.get("templates", {}),
         resume_window=tmux_session_data.get("resume_window", 0),
-        scratch_height=tmux_session_data.get("scratch_height", defaults_height),
+        scratch_position=tmux_session_data.get(
+            "scratch_position", tmux_session_defaults.scratch_position
+        ),
+        scratch_height=tmux_session_data.get(
+            "scratch_height", tmux_session_defaults.scratch_height
+        ),
+        scratch_width=tmux_session_data.get("scratch_width", tmux_session_defaults.scratch_width),
         follow_scratch=tmux_session_data.get("follow_scratch", False),
     )
 

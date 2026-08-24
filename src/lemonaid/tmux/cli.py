@@ -33,14 +33,23 @@ def cmd_swap(args: argparse.Namespace) -> None:
 def cmd_scratch(args: argparse.Namespace) -> None:
     """Toggle the scratch lma pane."""
     config = load_config()
-    height = args.height or config.tmux_session.scratch_height
+    position = args.position or config.tmux_session.scratch_position
+    size = args.size or (
+        config.tmux_session.scratch_width
+        if position == "left"
+        else config.tmux_session.scratch_height
+    )
 
     if args.follow is not None:
-        result = set_follow(height=height, enable=args.follow)
+        result = set_follow(size=size, position=position, enable=args.follow)
     elif args.ensure:
-        result = ensure_scratch(height=height)
+        result = ensure_scratch(size=size, position=position)
     else:
-        result = toggle_scratch(height=height, follow_default=config.tmux_session.follow_scratch)
+        result = toggle_scratch(
+            size=size,
+            position=position,
+            follow_default=config.tmux_session.follow_scratch,
+        )
 
     if args.verbose:
         print(result)
@@ -107,10 +116,20 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "First invocation creates it, subsequent invocations show/hide it.",
     )
     scratch_parser.add_argument(
-        "--height",
+        "--size",
         default=None,
-        help="Height of the scratch pane, in rows (default: from config)",
+        help="Size of the scratch pane: rows if it sits on top, columns if on the left"
+        " (default: from config)",
     )
+    scratch_parser.add_argument(
+        "--position",
+        choices=("top", "left"),
+        default=None,
+        help="Which edge the scratch pane sits against (default: from config)",
+    )
+    scratch_parser.add_argument(
+        "--height", dest="size", default=None, help=argparse.SUPPRESS
+    )  # pre-0.16 spelling of --size, kept so existing .tmux.conf bindings work
     scratch_parser.add_argument(
         "--ensure",
         action="store_true",
