@@ -282,21 +282,26 @@ def _vertical_scrollbar_width(table: DataTable) -> int:
 
 def _stretch_columns(
     table: DataTable,
-    flex_specs: list[tuple[int, int, float]],
+    flex_specs: list[tuple[int, int, float, int]],
     total_width: int,
 ) -> None:
     """Distribute remaining table width among flex columns.
 
     Textual DataTable doesn't natively expand columns to fill available width.
-    Each flex_spec is (column_index, min_width, weight).
-    Remaining space after fixed columns is divided proportionally by weight,
-    with a minimum floor of min_width.
+    Each flex_spec is (column_index, min_width, weight, max_width); a max_width of
+    0 means unbounded. Remaining space after fixed columns is divided
+    proportionally by weight, floored at min_width and capped at max_width.
+
+    The caps exist because a proportional share of a very wide terminal is mostly
+    padding: names and paths have a length past which the extra columns show
+    nothing. The last flex column is the message, whose length is unbounded, and
+    it takes whatever the capped columns decline.
     """
     if not flex_specs or not table.columns or total_width <= 0:
         return
 
     columns = list(table.columns.values())
-    flex_indices = {idx for idx, _, _ in flex_specs}
+    flex_indices = {spec[0] for spec in flex_specs}
     # A hidden column has been collapsed to zero width and draws no padding.
     hidden = sum(1 for i, c in enumerate(columns) if i not in flex_indices and not c.width)
     padding_total = 2 * table.cell_padding * (len(columns) - hidden) + 1
@@ -308,11 +313,11 @@ def _stretch_columns(
     # Honour the minimums only while they fit. When the terminal is too narrow
     # for all of them, fall back to pure proportional division rather than
     # overflowing the table horizontally.
-    total_weight = sum(frac for _, _, frac in flex_specs)
-    honour_minimums = sum(min_w for _, min_w, _ in flex_specs) <= remaining
+    total_weight = sum(spec[2] for spec in flex_specs)
+    honour_minimums = sum(spec[1] for spec in flex_specs) <= remaining
 
     budget = remaining
-    for position, (idx, min_w, frac) in enumerate(flex_specs):
+    for position, (idx, min_w, frac, max_w) in enumerate(flex_specs):
         if idx >= len(columns):
             continue
 
@@ -322,6 +327,8 @@ def _stretch_columns(
         # the width exactly instead of leaving a ragged gap.
         if position == len(flex_specs) - 1:
             width = max(width, budget)
+        elif max_w and honour_minimums:
+            width = min(width, max_w)
 
         columns[idx].auto_width = False
         columns[idx].width = min(width, budget)
@@ -332,7 +339,9 @@ def _stretch_columns(
     # to a horizontal scrollbar. Trim the widest column first and Name last.
     overflow = _rendered_width(table) - total_width
     while overflow > 0:
-        trimmable = [idx for idx, _, _ in flex_specs if idx < len(columns) and columns[idx].width]
+        trimmable = [
+            spec[0] for spec in flex_specs if spec[0] < len(columns) and columns[spec[0]].width
+        ]
         if not trimmable:
             break
 
@@ -682,7 +691,7 @@ class LemonaidApp(App):
                 "#snoozed_table",
             ):
                 table = self.query_one(table_id, DataTable)
-                _stretch_columns(table, [(0, 20, 1.0)], w - _vertical_scrollbar_width(table))
+                _stretch_columns(table, [(0, 20, 1.0, 0)], w - _vertical_scrollbar_width(table))
             return
 
         # Name carries Claude's conversation title, which is what actually
@@ -693,13 +702,13 @@ class LemonaidApp(App):
         # which CWD already says. They come back as the terminal widens.
         if w >= _WIDE_LAYOUT_COLS:
             hidden: set[int] = set()
-            flex = [(3, 40, 0.46), (4, 10, 0.11), (5, 12, 0.13), (6, 16, 0.30)]
+            flex = [(3, 40, 0.46, 48), (4, 10, 0.11, 32), (5, 12, 0.13, 30), (6, 16, 0.30, 0)]
         elif w >= _MEDIUM_LAYOUT_COLS:
             hidden = {_TTY_COLUMN}
-            flex = [(3, 36, 0.48), (4, 9, 0.10), (5, 11, 0.12), (6, 14, 0.30)]
+            flex = [(3, 36, 0.48, 44), (4, 9, 0.10, 28), (5, 11, 0.12, 28), (6, 14, 0.30, 0)]
         else:
             hidden = {_TTY_COLUMN, _BRANCH_COLUMN, _MESSAGE_COLUMN}
-            flex = [(3, 30, 0.72), (5, 10, 0.28)]
+            flex = [(3, 30, 0.72, 0), (5, 10, 0.28, 0)]
 
         for table_id in ("#main_table", "#other_sources_table", "#history_table", "#snoozed_table"):
             table = self.query_one(table_id, DataTable)

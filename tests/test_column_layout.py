@@ -158,3 +158,17 @@ def test_snoozed_table_keeps_its_wake_column_when_narrow():
             return list(table.columns.values())[7].label
 
     assert asyncio.run(run()).plain == "Wakes"
+
+
+def test_a_wide_terminal_gives_its_surplus_to_the_message():
+    """Name padded to 90 columns while the message truncated was the complaint."""
+    at_250 = _widths(250)
+
+    assert at_250["Message"] > at_250["Name"]
+
+
+def test_capped_columns_stop_growing_but_the_message_does_not():
+    wide, wider = _widths(200), _widths(250)
+
+    assert wide["Name"] == wider["Name"]  # capped
+    assert wider["Message"] > wide["Message"]  # unbounded
