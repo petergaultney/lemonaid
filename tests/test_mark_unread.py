@@ -79,3 +79,32 @@ def test_only_the_named_session_changes():
             db.mark_unread(conn, one.id)
 
             assert db.get(conn, two.id).is_read
+
+
+def test_by_tty_returns_read_sessions_only():
+    """The tmux keybinding's counterpart to mark-read --tty."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with _conn(tmpdir) as conn:
+            read = db.add(conn, channel="a", message="a", metadata={"tty": "/dev/ttys1"})
+            unread = db.add(conn, channel="b", message="b", metadata={"tty": "/dev/ttys1"})
+            other = db.add(conn, channel="c", message="c", metadata={"tty": "/dev/ttys9"})
+            db.mark_read(conn, read.id)
+            db.mark_read(conn, other.id)
+
+            assert db.mark_unread_by_tty(conn, "/dev/ttys1") == 1
+
+            assert db.get(conn, read.id).is_unread
+            assert db.get(conn, unread.id).is_unread  # already was
+            assert db.get(conn, other.id).is_read  # different tty
+
+
+def test_by_tty_keeps_ages_so_the_order_holds():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with _conn(tmpdir) as conn:
+            n = db.add(conn, channel="a", message="a", metadata={"tty": "/dev/ttys1"})
+            db.mark_read(conn, n.id)
+            before = db.get(conn, n.id).created_at
+
+            db.mark_unread_by_tty(conn, "/dev/ttys1")
+
+            assert db.get(conn, n.id).created_at == before

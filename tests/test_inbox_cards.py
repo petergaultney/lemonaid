@@ -131,7 +131,7 @@ def test_a_card_keeps_the_colours_its_cells_arrived_with():
 
     spans = {body.plain[s.start : s.end]: s.style for s in body.spans}
     assert spans["a-name"] == "bold cyan"
-    assert spans["15:24"] == "bold yellow"
+    assert spans["15:24"] == "bold green"
     assert spans["~/w/repo"] == "bold blue"
     assert spans["a/branch"] == "bold magenta"
 

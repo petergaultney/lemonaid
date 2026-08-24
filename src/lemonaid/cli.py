@@ -43,6 +43,16 @@ def cmd_mark_read(args: argparse.Namespace) -> None:
         print("No matching notifications")
 
 
+def cmd_mark_unread(args: argparse.Namespace) -> None:
+    """Mark notifications as unread by TTY."""
+    with inbox.db.connect() as conn:
+        count = inbox.db.mark_unread_by_tty(conn, args.tty)
+    if count > 0:
+        print(f"Marked {count} notification(s) as unread")
+    else:
+        print("No matching notifications")
+
+
 def setup_config_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the config subcommand."""
     config_parser = subparsers.add_parser(
@@ -81,6 +91,21 @@ def setup_mark_read_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(func=cmd_mark_read)
 
 
+def setup_mark_unread_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Set up the mark-unread command for tmux integration."""
+    parser = subparsers.add_parser(
+        "mark-unread",
+        help="Mark notifications as unread by TTY (for tmux keybindings)",
+        description="Return all read notifications from a specific TTY to unread.",
+    )
+    parser.add_argument(
+        "--tty",
+        required=True,
+        help="The TTY device path (e.g., /dev/ttys005)",
+    )
+    parser.set_defaults(func=cmd_mark_unread)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="lemonaid",
@@ -98,6 +123,7 @@ def main() -> None:
     wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
+    setup_mark_unread_parser(subparsers)
     for_lemons.setup_parser(subparsers)
 
     # Forward `lemonaid claude --flag ...` to the real claude CLI.

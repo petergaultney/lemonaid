@@ -166,6 +166,11 @@ def _as_card(
     return [Text("\n").join(lines), cells[_BACKEND_CELL]]
 
 
+def _without_marker(cells: list[Text]) -> list[Text]:
+    """Cells minus the unread marker, for a table built without that column."""
+    return [cell for index, cell in enumerate(cells) if index != _UNREAD_CELL]
+
+
 def _row_height(cells: list[Text]) -> int:
     """A card is as tall as it needs to be - a padded one is mostly blank lines.
 
@@ -346,6 +351,17 @@ class LemonaidApp(App):
         height: 1fr;
     }
 
+    /* History is a record, not a queue. The header is the one element always
+       in the same place, so it carries the distinction the rows no longer can
+       now that weight means unread rather than archived. */
+    App.-history Header {
+        background: $primary-darken-2;
+    }
+
+    App.-history HeaderTitle {
+        color: $text;
+    }
+
     #other_sources_label {
         height: 1;
         background: $surface;
@@ -506,7 +522,7 @@ class LemonaidApp(App):
         self._setup_table(other_table)
 
         history_table = self.query_one("#history_table", DataTable)
-        self._setup_table(history_table)
+        self._setup_table(history_table, marker_column=False)
 
         snoozed_table = self.query_one("#snoozed_table", DataTable)
         self._setup_table(snoozed_table, wake_column=True)
@@ -712,6 +728,7 @@ class LemonaidApp(App):
         wake_column: bool = False,
         width: int | None = None,
         height: int | None = None,
+        marker_column: bool = True,
     ) -> None:
         table.cursor_type = "row"
         # Idempotent: a resize across the card threshold re-runs this on a table
@@ -726,7 +743,11 @@ class LemonaidApp(App):
 
         # Time holds "HH:MM:SS" or the wider "YYYY-MM-DD" for older sessions.
         table.add_column("Time", width=10)
-        table.add_column("", width=1)  # Unread indicator
+        # Everything in history is archived, so the marker would always be
+        # empty. Dropping it shifts every row left, which is a structural cue
+        # that this is a different list rather than a differently-tinted one.
+        if marker_column:
+            table.add_column("", width=1)  # Unread indicator
         table.add_column("", width=3)  # Backend icon
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
@@ -1052,6 +1073,8 @@ class LemonaidApp(App):
         )
         self.refresh_bindings()
 
+        self.set_class(enabled, "-history")
+
         if enabled:
             self.sub_title = "session history"
             main_table.display = False
@@ -1088,20 +1111,25 @@ class LemonaidApp(App):
             branch = n.metadata.get("git_branch", "")
 
             cells = [
-                styled_cell(created, False, "time"),
-                Text(""),  # No unread indicator for archived
+                styled_cell(created, False, "time", history=True),
+                Text(""),  # archived: never a marker, but cards index by position
                 styled_cell(
-                    _backend_label(n.channel, self.config.tui.backend_labels), False, "backend"
+                    _backend_label(n.channel, self.config.tui.backend_labels),
+                    False,
+                    "backend",
+                    history=True,
                 ),
-                styled_cell(n.name or "", False, "name"),
-                styled_cell(branch, False, "branch"),
-                styled_cell(cwd, False, "cwd"),
-                styled_cell(n.message, False, "message"),
+                styled_cell(n.name or "", False, "name", history=True),
+                styled_cell(branch, False, "branch", history=True),
+                styled_cell(cwd, False, "cwd", history=True),
+                styled_cell(n.message, False, "message", history=True),
                 Text(""),  # No TTY for archived
             ]
             card_width = self._card_width()
             shape = self._card_shape()
-            card = _as_card(cells, card_width, *shape) if card_width else cells
+            # Columns drop the marker; cards have no columns to drop, and index
+            # their fields by position.
+            card = _as_card(cells, card_width, *shape) if card_width else _without_marker(cells)
             history_table.add_row(
                 *card, key=str(n.id), height=_row_height(card) if card_width else 1
             )

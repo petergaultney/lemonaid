@@ -679,6 +679,21 @@ def mark_read_by_tty(conn: sqlite3.Connection, tty: str) -> int:
     return cursor.rowcount
 
 
+def mark_unread_by_tty(conn: sqlite3.Connection, tty: str) -> int:
+    """Return a TTY's read sessions to the unread group, keeping their age."""
+    cursor = conn.execute(
+        """
+        UPDATE notifications
+        SET status = 'unread', read_at = NULL
+        WHERE json_extract(metadata, '$.tty') = ?
+          AND status = 'read'
+        """,
+        (tty,),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
 def archive(conn: sqlite3.Connection, notification_id: int) -> None:
     """Archive a notification and all other rows sharing its channel."""
     row = conn.execute(
