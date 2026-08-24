@@ -32,9 +32,9 @@ from ...log import get_logger
 from ...tmux.scratch import (
     _clear_state,
     _hide,
-    height_has_drifted,
+    size_has_drifted,
     is_follow_enabled,
-    save_current_height,
+    save_current_size,
 )
 from ...tmux.session import spawn_session
 from .. import db, undo
@@ -343,7 +343,7 @@ class LemonaidApp(App):
         # rather than a permanent fixture. Hidden from the footer it controls.
         self.bind("question_mark", "toggle_keys", description="Keys", show=False)
 
-        for b in _build_bindings(kb.save_height, "save_scratch_height", "Save Height", show=False):
+        for b in _build_bindings(kb.save_size, "save_scratch_size", "Save Size", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
         # Cross-table arrow navigation (always active)
@@ -655,9 +655,11 @@ class LemonaidApp(App):
         if self._claude_patch_status == "unpatched":
             status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
 
-        if self._scratch_mode and is_follow_enabled() and height_has_drifted():
+        position = self.config.tmux_session.scratch_position
+        if self._scratch_mode and is_follow_enabled() and size_has_drifted(position):
+            dimension = "width" if position == "left" else "height"
             status_text += (
-                f"  |  [bold cyan]{self.config.tui.keybindings.save_height}[/] save pane height"
+                f"  |  [bold cyan]{self.config.tui.keybindings.save_size}[/] save pane {dimension}"
             )
 
         self._set_status(status_text)
@@ -1345,13 +1347,13 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
-    def action_save_scratch_height(self) -> None:
-        """Save the current scratch pane height for follow mode."""
+    def action_save_scratch_size(self) -> None:
         if not self._scratch_mode:
             return
 
-        save_current_height()
-        self.notify("Pane height saved")
+        position = self.config.tmux_session.scratch_position
+        save_current_size(position)
+        self.notify("Pane width saved" if position == "left" else "Pane height saved")
         self._refresh_notifications()
 
     def _hide_scratch_pane(self) -> None:
