@@ -10,6 +10,8 @@
 
 - **`scratch_height` and `follow_scratch` config** in `[tmux-session]`: the pane height in rows (default `10`), and whether new tmux servers get follow mode on first scratch-pane creation.
 
+- **Move the scratch pane between top and left without editing config.** `lemonaid tmux scratch --flip`, or `f` inside `lma`. The pane moves in whatever window it currently occupies, so a keybinding works from anywhere rather than only where you can see it. Each edge keeps its own size, so flipping back and forth doesn't lose either.
+
 #### Changed
 
 - **Scratch pane height is rows, not a percentage.** The pane's saved height has always been read back from tmux as a row count, so a percentage could only ever be the initial default and the first save replaced it. Drift detection declined to compare percentages, which meant a percentage silently disabled the save-height hint. `--height` and `scratch_height` now mean rows.

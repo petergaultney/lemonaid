@@ -84,6 +84,7 @@ class KeybindingsConfig:
     copy_resume: str = "c"  # Copy resume command to clipboard
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
+    flip_position: str = "f"  # Move the scratch pane between top and left
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 

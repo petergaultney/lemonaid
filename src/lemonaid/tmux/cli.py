@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..config import load_config
 from .navigation import go_back, swap_back_location
+from . import scratch
 from .scratch import ensure_scratch, set_follow, toggle_scratch
 from .session import auto_session_name, create_session
 
@@ -33,15 +34,24 @@ def cmd_swap(args: argparse.Namespace) -> None:
 def cmd_scratch(args: argparse.Namespace) -> None:
     """Toggle the scratch lma pane."""
     config = load_config()
-    position = args.position or config.tmux_session.scratch_position
+    # Config is the default; the state file is where you left it, and an explicit
+    # flag beats both.
+    position = args.position or scratch.current_position(config.tmux_session.scratch_position)
+    if args.flip:
+        position = scratch.flip_position(config.tmux_session.scratch_position)
+
     size = args.size or (
         config.tmux_session.scratch_width
         if position == "left"
         else config.tmux_session.scratch_height
     )
 
-    if args.follow is not None:
+    if args.flip:
+        result = scratch.move_scratch(size=size, position=position)
+    elif args.follow is not None:
         result = set_follow(size=size, position=position, enable=args.follow)
+    elif args.position:
+        result = scratch.move_scratch(size=size, position=position)
     elif args.ensure:
         result = ensure_scratch(size=size, position=position)
     else:
@@ -125,7 +135,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--position",
         choices=("top", "left"),
         default=None,
-        help="Which edge the scratch pane sits against (default: from config)",
+        help="Move the scratch pane to this edge, and keep it there",
+    )
+    scratch_parser.add_argument(
+        "--flip",
+        action="store_true",
+        help="Move the scratch pane to the other edge (top <-> left)",
     )
     scratch_parser.add_argument(
         "--height", dest="size", default=None, help=argparse.SUPPRESS

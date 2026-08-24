@@ -146,7 +146,26 @@ The default scratch pane height (in rows) is configurable:
 scratch_height = "12"
 ```
 
-In follow mode, if you manually resize the pane (drag the border), a `save pane height` hint appears in the status bar. Press `H` to persist the new height.
+In follow mode, if you manually resize the pane (drag the border), a `save pane height` hint appears in the status bar. Press `H` to persist the new size.
+
+#### Moving between top and left
+
+`scratch_position` in `[tmux-session]` sets which edge the pane starts against, but you can move it without touching config:
+
+```bash
+lemonaid tmux scratch --flip          # to the other edge
+lemonaid tmux scratch --position left # to a specific one
+```
+
+Bind it for use from anywhere:
+
+```tmux
+bind-key L run-shell 'lemonaid tmux scratch --flip'
+```
+
+`f` does the same from inside `lma`. The pane moves in whatever window it currently occupies, so the binding works from any window rather than only the one you can see it in.
+
+Each edge keeps its own size - `scratch_height` in rows for the top, `scratch_width` in columns for the left - so flipping back and forth doesn't lose the size you chose for either.
 
 The `--height` CLI flag overrides the config for a single invocation:
 

@@ -33,8 +33,11 @@ from ...log import get_logger
 from ...tmux.scratch import (
     _clear_state,
     _hide,
+    current_position,
+    flip_position,
     size_has_drifted,
     is_follow_enabled,
+    move_scratch,
     save_current_size,
 )
 from ...tmux.session import spawn_session
@@ -138,9 +141,11 @@ def _as_card(
     """
     # The dot rides on the name rather than owning a column: it is empty for most
     # rows, and a permanently-indented card wastes width a narrow pane hasn't got.
+    # The marker is its own colour: sharing the name's makes it read as the first
+    # glyph of the name rather than a mark against it.
     marker = cells[_UNREAD_CELL]
     unread = bool(marker.plain)
-    headline = Text(marker.plain if unread else " ", style="bold cyan") + Text(
+    headline = Text(marker.plain if unread else " ", style="bold bright_red") + Text(
         " " + cells[_NAME_CELL].plain, style="bold cyan" if unread else "bold"
     )
 
@@ -463,6 +468,9 @@ class LemonaidApp(App):
         # Key hints share the bottom row with the status text, so they're a toggle
         # rather than a permanent fixture. Hidden from the footer it controls.
         self.bind("question_mark", "toggle_keys", description="Keys", show=False)
+
+        for b in _build_bindings(kb.flip_position, "flip_position", "Flip", show=False):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.save_size, "save_scratch_size", "Save Size", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -889,7 +897,7 @@ class LemonaidApp(App):
         if self._claude_patch_status == "unpatched":
             status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
 
-        position = self.config.tmux_session.scratch_position
+        position = current_position(self.config.tmux_session.scratch_position)
         if self._scratch_mode and is_follow_enabled() and size_has_drifted(position):
             dimension = "width" if position == "left" else "height"
             status_text += (
@@ -1588,11 +1596,25 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
+    def action_flip_position(self) -> None:
+        if not self._scratch_mode:
+            return
+
+        default = self.config.tmux_session.scratch_position
+        position = flip_position(default)
+        move_scratch(
+            self.config.tmux_session.scratch_width
+            if position == "left"
+            else self.config.tmux_session.scratch_height,
+            position,
+        )
+        self.notify(f"Pane moved to the {position}")
+
     def action_save_scratch_size(self) -> None:
         if not self._scratch_mode:
             return
 
-        position = self.config.tmux_session.scratch_position
+        position = current_position(self.config.tmux_session.scratch_position)
         save_current_size(position)
         self.notify("Pane width saved" if position == "left" else "Pane height saved")
         self._refresh_notifications()

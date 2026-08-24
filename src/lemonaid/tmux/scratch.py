@@ -162,6 +162,34 @@ def bootstrap_follow(config_default: bool) -> None:
         path.write_text("on" if config_default else "")
 
 
+def _position_path() -> Path:
+    return get_state_path() / f"tmux-scratch-{_get_server_name()}-position"
+
+
+def current_position(config_default: str) -> str:
+    """Where the pane sits on this server, falling back to config.
+
+    Runtime state rather than config alone: which edge you want depends on the
+    window you are looking at, which changes far more often than a config file.
+    """
+    path = _position_path()
+    if not path.exists():
+        return config_default
+
+    return path.read_text().strip() or config_default
+
+
+def set_position(position: str) -> None:
+    _position_path().write_text(position)
+
+
+def flip_position(config_default: str) -> str:
+    """Move the pane to the other edge, returning where it now sits."""
+    position = "top" if current_position(config_default) == "left" else "left"
+    set_position(position)
+    return position
+
+
 def _pane_exists(pane_id: str) -> bool:
     """Check if the scratch pane still exists and is ours.
 
@@ -498,6 +526,46 @@ def _check_tmux_conf_hooks() -> bool:
         return False
 
     return "scratch-follow" in tmux_conf.read_text()
+
+
+def move_scratch(size: str, position: str) -> str:
+    """Put the pane on `position`, moving a visible one there now.
+
+    A pane already in your window is broken out and rejoined on the other axis,
+    so the flip is visible immediately rather than at the next window switch.
+    The follow script is rewritten either way, since it carries the axis and the
+    dimension file it reads.
+    """
+    set_position(position)
+    if is_follow_enabled():
+        _write_follow_script(size, position)
+
+    pane_id = _get_pane_id()
+    if pane_id is None or not _pane_exists(pane_id):
+        return position
+
+    # The pane is moved wherever it currently sits, not only when you are in that
+    # window: a keybinding is worth having precisely when you are somewhere else.
+    target = _sibling_pane(pane_id)
+    if target is None:
+        return position  # nothing to sit beside; the hook will place it
+
+    _hide(pane_id)
+    _show(pane_id, size, position, target)
+    return position
+
+
+def _sibling_pane(pane_id: str) -> str | None:
+    """A pane sharing `pane_id`'s window, which the scratch pane can join onto."""
+    result = subprocess.run(
+        ["tmux", "list-panes", "-t", pane_id, "-F", "#{pane_id}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+
+    return next((p for p in result.stdout.split() if p != pane_id), None)
 
 
 def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> str:
