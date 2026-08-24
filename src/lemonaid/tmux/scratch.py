@@ -26,6 +26,7 @@ from .navigation import get_state_path
 _log = get_logger("tmux.scratch")
 
 _SCRATCH_SESSION = "_lma_scratch"
+_MAX_SHARE = 0.4  # most of a window the scratch pane may take
 
 
 def _get_server_name() -> str:
@@ -59,6 +60,10 @@ def _size_path(position: str) -> Path:
 
 def _pane_size_format(position: str) -> str:
     return "#{pane_width}" if position == "left" else "#{pane_height}"
+
+
+def _window_size_format(position: str) -> str:
+    return "#{window_width}" if position == "left" else "#{window_height}"
 
 
 def _split_flag(position: str) -> str:
@@ -297,8 +302,29 @@ def _create_pane() -> str:
     return pane_id
 
 
+def _capped(size: str, position: str) -> str:
+    """`size`, but never more than _MAX_SHARE of the window it is joining.
+
+    A saved size is absolute, and a window is not always the size it will end up:
+    a session nothing has attached to yet is tmux's default-size (80x24), so a
+    45-column pane is over half of it. The cap keeps the saved size wherever it
+    fits and yields when it doesn't, rather than swallowing the window.
+    """
+    result = subprocess.run(
+        ["tmux", "display-message", "-p", _window_size_format(position)],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return str(min(int(size), int(int(result.stdout.strip()) * _MAX_SHARE)))
+    except ValueError:
+        return size
+
+
 def _show(pane_id: str, size: str, position: str, target_pane: str | None = None) -> bool:
     """Join the scratch pane into the current window, above or left of it."""
+    requested = size
+    size = _capped(size, position)
     cmd = ["tmux", "join-pane", _split_flag(position), "-b", "-l", size, "-s", pane_id]
     if target_pane:
         cmd.extend(["-t", target_pane])
@@ -310,7 +336,7 @@ def _show(pane_id: str, size: str, position: str, target_pane: str | None = None
     # default compiled into it when follow was enabled.
     path = _size_path(position)
     if not path.exists():
-        path.write_text(size)
+        path.write_text(requested)
 
     return True
 
@@ -424,6 +450,8 @@ def _write_follow_script(size: str = "10", position: str = "top") -> Path:
     state_dir = str(get_state_path())
     dimension = "width" if position == "left" else "height"
     axis = _split_flag(position)
+    window_fmt = _window_size_format(position)
+    max_pct = int(_MAX_SHARE * 100)
     # Parse tmux server name from $TMUX the same way the Python code does
     script_path.write_text(
         f"""#!/bin/sh
@@ -446,6 +474,12 @@ tgt=$(tmux display -t "$pane" -p '#{{window_id}}' 2>/dev/null) || exit 0
 
 size=$(cat "$dir/tmux-scratch-$server-{dimension}" 2>/dev/null)
 [ -n "$size" ] || size={size}
+
+# Never more than a share of the window: a session nothing has attached to yet
+# is tmux's default-size, where an absolute size is most of the screen.
+window=$(tmux display -p '{window_fmt}')
+max=$((window * {max_pct} / 100))
+[ "$size" -le "$max" ] 2>/dev/null || size=$max
 
 cur_pane=$(tmux display -p '#{{pane_id}}')
 tmux join-pane {axis} -b -l "$size" -s "$pane" 2>/dev/null
