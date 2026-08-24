@@ -61,10 +61,17 @@ def get_current_location() -> tuple[str | None, str | None]:
         return None, None
 
 
+class TmuxUnavailable(Exception):
+    """tmux could not answer, which is not the same as answering "no"."""
+
+
 def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
     """Find the tmux session and pane for a given TTY.
 
-    Returns (session_name, pane_id) or (None, None) if not found.
+    Returns (session_name, pane_id), or (None, None) when no pane has that tty.
+
+    Raises TmuxUnavailable if tmux itself failed, so a caller deciding whether a
+    session is dead can tell that apart from a pane that is genuinely gone.
     """
     try:
         # List all panes with their TTY and pane ID
@@ -90,8 +97,9 @@ def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
                 if pane_tty == tty:
                     return session_name, pane_id
 
-    except subprocess.CalledProcessError:
-        pass
+    except subprocess.CalledProcessError as e:
+        _log.warning("could not list panes to resolve %s: %s", tty, e)
+        raise TmuxUnavailable(str(e)) from e
 
     return None, None
 
