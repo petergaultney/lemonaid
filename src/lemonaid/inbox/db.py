@@ -486,6 +486,20 @@ def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
+def mark_unread(conn: sqlite3.Connection, notification_id: int) -> None:
+    """Return a session to the inbox's unread group at its existing age.
+
+    Unlike mark_unread_for_channel(), created_at is left alone: this says "I have
+    not dealt with this yet", not "this just spoke", so the session sorts among
+    the unreads where its age puts it rather than jumping to the top.
+    """
+    conn.execute(
+        "UPDATE notifications SET status = 'unread', read_at = NULL WHERE id = ?",
+        (notification_id,),
+    )
+    conn.commit()
+
+
 def mark_unread_for_channel(conn: sqlite3.Connection, channel: str) -> int:
     """Mark all notifications for a channel as unread (needs attention).
 
