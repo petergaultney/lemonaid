@@ -189,7 +189,7 @@ def check_needs_attention(
 
 
 def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
-    """Check if a pane still exists for the given TTY and switch source.
+    """Whether a pane still exists, assuming it does whenever we cannot tell.
 
     Deferred import to avoid circular dependencies.
     """
@@ -198,7 +198,13 @@ def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
 
     from ..handlers import check_pane_exists_by_tty
 
-    return check_pane_exists_by_tty(tty, switch_source)
+    # A tmux that failed to answer is not a pane that is gone. Archiving on it
+    # retires every live session at once, since one failed `list-panes` looks
+    # exactly like every pane having disappeared.
+    return check_pane_exists_by_tty(tty, switch_source) is not False
+
+
+_warned_no_tty: set[str] = set()
 
 
 def _archive_stale_sessions(
@@ -243,9 +249,11 @@ def _archive_stale_sessions(
         if not tty:
             # Every check here keys on the tty, so a row without one is never
             # archived automatically - it survives any number of session kills.
-            # Logged because that presents as the archiver being broken rather
-            # than as a field being absent.
-            _log.warning("%s has no tty recorded; cannot auto-archive it", channel)
+            # Logged once, because that presents as the archiver being broken
+            # rather than as a field being absent.
+            if channel not in _warned_no_tty:
+                _warned_no_tty.add(channel)
+                _log.warning("%s has no tty recorded; cannot auto-archive it", channel)
             continue
 
         if channel.startswith("claude:"):

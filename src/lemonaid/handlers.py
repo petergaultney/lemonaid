@@ -12,13 +12,18 @@ from .log import get_logger
 _log = get_logger("handlers")
 
 
-def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool:
-    """Check if a pane still exists given its TTY and switch source.
+def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool | None:
+    """Whether a pane still exists, or None if that could not be determined.
 
-    Lower-level helper that just needs TTY. Used by watcher for auto-archive.
+    The watcher archives on False, so "tmux did not answer" has to be a third
+    answer rather than folding into "no pane". Used by watcher for auto-archive.
     """
     if switch_source == "tmux":
-        session, pane_id = tmux.navigation.get_pane_for_tty(tty)
+        try:
+            session, pane_id = tmux.navigation.get_pane_for_tty(tty)
+        except tmux.navigation.TmuxUnavailable:
+            return None
+
         return session is not None and pane_id is not None
 
     elif switch_source == "wezterm":
