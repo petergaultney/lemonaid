@@ -208,6 +208,49 @@ def _pane_exists(pane_id: str) -> bool:
     return result.stdout.strip() == "1"
 
 
+def _find_marked_panes() -> list[str]:
+    """Every pane on this server carrying our marker, newest last.
+
+    The state file is the fast path; this is what makes the marker a handle
+    rather than only a check. A pane joined into one of your windows leaves the
+    scratch session empty, so a lost state file used to mean "create another"
+    while the original kept running unowned.
+    """
+    result = subprocess.run(
+        ["tmux", "list-panes", "-a", "-F", "#{pane_id} #{@lemonaid_scratch}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return []
+
+    return [
+        line.split()[0]
+        for line in result.stdout.splitlines()
+        if len(line.split()) == 2 and line.split()[1] == "1"
+    ]
+
+
+def _adopt_existing_pane() -> str | None:
+    """Reclaim a marked pane when the state file no longer names one.
+
+    Extra marked panes are killed rather than left running: they are older TUI
+    processes painting an inbox nobody is watching, and the only thing worse
+    than no scratch pane is two disagreeing about what is unread.
+    """
+    panes = _find_marked_panes()
+    if not panes:
+        return None
+
+    keep = panes[-1]
+    for stray in panes[:-1]:
+        _log.info("killing orphaned scratch pane %s", stray)
+        subprocess.run(["tmux", "kill-pane", "-t", stray], capture_output=True)
+
+    _save_pane_id(keep)
+    return keep
+
+
 def _mark_pane(pane_id: str) -> None:
     """Mark a pane as our scratch pane using a tmux option."""
     subprocess.run(
@@ -279,6 +322,12 @@ def _create_pane() -> str:
             _mark_pane(pane_id)
             _save_pane_id(pane_id)
             return pane_id
+
+    # The session is left empty once its pane is joined into one of your
+    # windows, so the marker is the only thing that still finds it.
+    adopted = _adopt_existing_pane()
+    if adopted:
+        return adopted
 
     # Get current window dimensions to size the detached session properly
     # (otherwise detached sessions get tiny default dimensions)
@@ -448,6 +497,8 @@ def ensure_scratch(size: str = "10", position: str = "top") -> str:
     current_pane = _get_current_pane()
     pane_id = _get_pane_id()
 
+    if pane_id is None or not _pane_exists(pane_id):
+        pane_id = _adopt_existing_pane()
     if pane_id is None or not _pane_exists(pane_id):
         return _create_and_show(size, position)
 
@@ -620,6 +671,8 @@ def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool
     current_pane = _get_current_pane()
     pane_id = _get_pane_id()
 
+    if pane_id is None or not _pane_exists(pane_id):
+        pane_id = _adopt_existing_pane()
     if pane_id is None or not _pane_exists(pane_id):
         return _create_and_show(size, position)
 
