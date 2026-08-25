@@ -8,7 +8,11 @@
 
   This is also what makes a restored session findable. Its identity (`session_id`, `cwd`) is durable; the pane it runs in is not. The hook re-reports the location on every resume rather than leaving it to be inferred from a tty.
 
-- **`lemonaid tmux doctor`** reports what a crash would cost while you can still do something about it: how many running agents the inbox knows about, how many sessions could actually be resumed, and which ones could not and why. `--unknown` lists running panes with no inbox row.
+- **`lemonaid tmux adopt` puts running agent panes into the inbox**, matching each to its conversation by working directory and most recent activity. A running pane is the one case where the facts restore needs can still be recovered - it is there to be asked - so sessions that predate the SessionStart hook do not have to stay invisible until each happens to notify. On the inbox this was written against, one run took restorable sessions from 5 to 11.
+
+  Where the match is a guess it says so: several panes sharing a directory, two directories resolving to one conversation, or a conversation already running elsewhere in the inbox. `--skip-guesses` adopts only the unambiguous ones, and `--dry-run` writes nothing.
+
+- **`lemonaid tmux doctor`** reports what a crash would cost while you can still do something about it: how many running agents the inbox knows about, how many sessions could actually be resumed, and which ones could not and why. `--unknown` lists running panes with no inbox row, and the report ends with the commands that would fix what it found.
 
   Every way restore fails is otherwise silent. A session whose transcript is no longer on disk looks restorable right up until `claude --resume` starts a fresh conversation instead, which does not report an error.
 

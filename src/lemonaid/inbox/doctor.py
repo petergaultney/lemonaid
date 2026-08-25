@@ -8,6 +8,8 @@ to find out.
 
 import json
 import subprocess
+import typing as ty
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +17,7 @@ from ..claude import install_hooks
 from ..inbox import db
 
 _CLAUDE_PROCESSES = ("claude", "codex", "openclaw", "opencode")
+_MIN_TRANSCRIPT_BYTES = 5000
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,30 @@ def report() -> list[str]:
         lines += ["", "Not restorable"]
         lines += [f"  {name[:44]:<44} {why}" for name, why in missing]
 
+    unknown = len([p for p in lemons if p.tty not in known_ttys])
+    unplaced = len(restorable) - len(placed)
+    todo = []
+
+    if unknown or unplaced:
+        fixes = []
+        if unknown:
+            fixes.append(f"{unknown} running panes not in the inbox")
+        if unplaced:
+            fixes.append(f"{unplaced} with no window recorded")
+        todo.append(f"  lemonaid tmux adopt       # {', '.join(fixes)}")
+
+    if not hook_installed:
+        todo.append("  lemonaid claude hooks     # so new sessions record themselves")
+
+    if any("transcript" in why for _name, why in missing):
+        todo.append(
+            "  (transcript gone: nothing to resume - resuming would start a fresh"
+            " conversation, silently)"
+        )
+
+    if todo:
+        lines += ["", "What to do", *dict.fromkeys(todo)]
+
     return lines
 
 
@@ -151,3 +178,139 @@ def unknown_panes() -> list[Pane]:
     known_ttys = {m.get("tty") for _, _, m in _known_sessions() if m.get("tty")}
 
     return [p for p in live_panes() if _looks_like_a_lemon(p.command) and p.tty not in known_ttys]
+
+
+def _pane_cwd(pane: Pane) -> str | None:
+    result = subprocess.run(
+        [
+            "tmux",
+            "display-message",
+            "-t",
+            f"{pane.session}:{pane.window}",
+            "-p",
+            "#{pane_current_path}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() or None if result.returncode == 0 else None
+
+
+def _newest_transcript_for(cwd: str) -> tuple[str, float] | None:
+    """The most recently written transcript for a working directory.
+
+    How a running pane is matched to a conversation. It is the best available
+    signal and not a certain one: several panes can share a cwd, and nothing on
+    disk records which pane a transcript belonged to. Recency decides, and the
+    caller is told when it was a guess.
+    """
+    best: tuple[str, float] | None = None
+    for path in Path.home().joinpath(".claude/projects").rglob("*.jsonl"):
+        if path.stem.startswith("agent-"):
+            continue
+
+        try:
+            if path.stat().st_size < _MIN_TRANSCRIPT_BYTES:
+                continue
+
+            with path.open() as f:
+                for line in f:
+                    try:
+                        entry_cwd = json.loads(line).get("cwd")
+                    except json.JSONDecodeError:
+                        continue
+
+                    if entry_cwd:
+                        break
+                else:
+                    continue
+
+            if entry_cwd != cwd:
+                continue
+
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+
+        if best is None or mtime > best[1]:
+            best = (path.stem, mtime)
+
+    return best
+
+
+@dataclass(frozen=True)
+class Adoption:
+    pane: Pane
+    cwd: str
+    session_id: str
+    contested: bool  # another pane shares this cwd, so the match is a guess
+
+
+def plan_adoption() -> list[Adoption]:
+    """Running panes the inbox does not know, matched to their conversations.
+
+    A pane that is running is the one case where the missing facts can still be
+    recovered: it is there to be asked. Sessions started before the SessionStart
+    hook existed are exactly this, and would otherwise stay invisible until each
+    one happened to notify.
+    """
+    panes = unknown_panes()
+    cwd_by_pane = {}
+    for pane in panes:
+        cwd = _pane_cwd(pane)
+        if cwd:
+            cwd_by_pane[pane] = cwd
+
+    shared = Counter(cwd_by_pane.values())
+    found_by_pane = {}
+    for pane, cwd in cwd_by_pane.items():
+        found = _newest_transcript_for(cwd)
+        if found:
+            found_by_pane[pane] = (cwd, found[0])
+
+    # Two panes landing on one transcript is the clearest sign the match is a
+    # guess, and it is not visible from either pane alone: distinct directories
+    # can still resolve to the same conversation. Sessions already in the inbox
+    # count too - a conversation that is demonstrably running somewhere else is
+    # not the one in this pane.
+    claims = Counter(session_id for _cwd, session_id in found_by_pane.values())
+    claims.update(
+        metadata["session_id"]
+        for _n, _s, metadata in _known_sessions()
+        if metadata.get("session_id")
+    )
+
+    return [
+        Adoption(
+            pane,
+            cwd,
+            session_id,
+            contested=shared[cwd] > 1 or claims[session_id] > 1,
+        )
+        for pane, (cwd, session_id) in found_by_pane.items()
+    ]
+
+
+def adopt(plans: ty.Iterable[Adoption]) -> int:
+    """Put these sessions in the inbox as working. Returns how many were added."""
+    added = 0
+    with db.connect() as conn:
+        for plan in plans:
+            db.register_working(
+                conn,
+                channel=f"claude:{plan.session_id}",
+                message=f"Adopted from {plan.pane.session}:{plan.pane.window}",
+                name=Path(plan.cwd).name,
+                metadata={
+                    "session_id": plan.session_id,
+                    "cwd": plan.cwd,
+                    "tty": plan.pane.tty,
+                    "tmux_session": plan.pane.session,
+                    "tmux_window": plan.pane.window,
+                    "adopted": True,
+                },
+                switch_source="tmux",
+            )
+            added += 1
+
+    return added
