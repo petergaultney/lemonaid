@@ -20,14 +20,15 @@ name, then time, cwd and branch, then the message wrapped over as many lines as
 the pane can spare:
 
 ```
-● tars-chat-observability             CC
- 11:23:30 · ~/w/d/t/live-observability
- All four PRs green - #5343's last
- check passed.
+● pantry-expiry-notifier              CC
+ 11:23:30 · ~/src/pantry · feat/expiry
+ All four checks green. The notifier
+ now fires 3 days out instead of on
+ the morning of.
 
-  relay-debug-hq                      CC
- 08:36:22 · ~/trove
- Here's what I can and can't tell you.
+  grocery-list-dedupe                 cx
+ 10:55:25 · ~/src/pantry · chore/dedupe
+ Working...
 ```
 
 The bar above the list turns the unread marker's colour while something is
