@@ -30,6 +30,8 @@
 
 #### Changed
 
+- **A card spends one column on its gutter, not three.** The table's own cell padding is gone in card layout: the unread dot sits in the first column, the name one space after it, and the lines below take that single space of indent. The backend label (`CC`, `cx`) is right-justified against the pane's edge rather than left-aligned in a column of its own. On a 58-column sidebar that is four more columns of message per line.
+
 - **Scratch pane height is rows, not a percentage.** The pane's saved height has always been read back from tmux as a row count, so a percentage could only ever be the initial default and the first save replaced it. Drift detection declined to compare percentages, which meant a percentage silently disabled the save-height hint. `--height` and `scratch_height` now mean rows.
 
 - **Scratch pane state files renamed**: `scratch-pane-<server>.json` is now `tmux-scratch-<server>-pane` (plain text). Legacy files are cleaned up on first use.

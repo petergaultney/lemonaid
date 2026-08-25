@@ -5,6 +5,8 @@ blank line. Padding every card to one height wasted most of a tall pane on blank
 rows; the separator is what keeps them legible as separate entries instead.
 """
 
+import asyncio
+
 from rich.text import Text
 
 from lemonaid.inbox.tui import app
@@ -76,7 +78,7 @@ def test_a_short_card_does_not_pad_to_the_budget():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
     body, _ = app._as_card(cells, 40, message_lines=3)
 
-    assert body.plain == "  n\n  15:24 · ~/w\n  m\n"
+    assert body.plain == "  n\n 15:24 · ~/w\n m\n"
 
 
 def test_every_line_fits_the_width():
@@ -137,6 +139,33 @@ def test_a_card_keeps_the_colours_its_cells_arrived_with():
     assert spans["a/branch"] == "bold magenta"
 
 
+def test_a_card_spends_one_column_on_its_gutter():
+    """A sidebar is mostly gutter otherwise: the table adds no padding of its
+    own, so what the card writes is the whole left margin."""
+    cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
+    body, _ = app._as_card(cells, 40)
+
+    assert app._CARD_CELL_PADDING == 0
+    assert body.plain.split("\n")[1].startswith(" 15:24")
+    assert not body.plain.split("\n")[1].startswith("  ")
+
+
+def test_the_backend_label_sits_against_the_right_edge():
+    """Labels differ in width ("CC", "cx"), and it is the edge they share."""
+    cells = [Text("15:24"), Text(""), Text("cx"), Text("n"), Text(""), Text(""), Text("m")]
+    _, backend = app._as_card(cells, 40)
+
+    assert backend.justify == "right"
+
+
+def test_justifying_the_backend_leaves_the_row_cell_alone():
+    """The same Text object is reused by the column layout, which centres nothing."""
+    cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
+    app._as_card(cells, 40)
+
+    assert cells[app._BACKEND_CELL].justify is None
+
+
 def test_the_marker_does_not_share_the_name_colour():
     """Sharing it made the dot read as the first glyph of the name."""
     assert app.UNREAD_MARKER_STYLE != f"bold {app.FIELD_STYLES['name']}"
@@ -159,6 +188,44 @@ def test_a_long_message_uses_every_line_it_is_given():
 
     assert len(short.plain.split("\n")) == 3 + 3  # name, context, budget, separator-ish
     assert len(tall.plain.split("\n")) == 3 + 12
+
+
+def _card_columns(width: int, height: int) -> tuple[list[int], int, bool]:
+    """Column widths, the width DataTable will report, and whether it h-scrolls."""
+
+    async def run():
+        pane = app.LemonaidApp()
+        async with pane.run_test(size=(width, height)) as pilot:
+            await pilot.pause()
+            await pilot.pause()
+            table = pane.query_one("#main_table")
+            return (
+                [c.width for c in table.columns.values()],
+                sum(c.get_render_width(table) for c in table.columns.values()),
+                table.show_horizontal_scrollbar,
+            )
+
+    return asyncio.run(run())
+
+
+def test_a_card_row_reaches_the_edge_of_the_pane():
+    """One column short and the backend label floats off the right edge."""
+    widths, rendered, hbar = _card_columns(58, 30)
+
+    assert len(widths) == 2
+    assert widths[app._CARD_BACKEND_COLUMN] == app._BACKEND_WIDTH
+    # Everything but the scrollbar's own reserved columns.
+    assert rendered == 58 - 2
+    assert not hbar
+
+
+def test_a_card_row_still_fits_when_the_pane_is_tiny():
+    """The body has a floor, so a very narrow pane overflows rather than
+    rendering a negative width - but it must not do so silently at usual sizes."""
+    for width in (40, 45, 50, 58, 64, 70):
+        widths, rendered, hbar = _card_columns(width, 30)
+        assert not hbar, width
+        assert rendered == width - 2, width
 
 
 def _layout(width: int, height: int) -> str:
