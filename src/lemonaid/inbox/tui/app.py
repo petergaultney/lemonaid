@@ -396,15 +396,27 @@ class LemonaidApp(App):
         height: 1fr;
     }
 
-    /* History is a record, not a queue. The header is the one element always
-       in the same place, so it carries the distinction the rows no longer can
-       now that weight means unread rather than archived. */
-    App.-history Header {
-        background: $primary-darken-2;
+    /* The bar above the list is the table's header row, which carries no labels
+       in card layout - so it is free to carry the state of the list instead:
+       whether anything in it wants you, and which list you are looking at.
+       ANSI colours rather than theme variables, so it tracks the same terminal
+       palette the unread marker is drawn from - the bar and the dot are the
+       same colour by construction rather than by matching two hex values
+       against one terminal's rendering of them. */
+    DataTable > .datatable--header {
+        background: ansi_bright_blue;
     }
 
-    App.-history HeaderTitle {
-        color: $text;
+    App.-unread DataTable > .datatable--header {
+        background: ansi_bright_red;
+        color: ansi_black;
+    }
+
+    /* History is a record, not a queue. Same specificity as the unread rule
+       above and deliberately after it: which list you are looking at outranks
+       what is in the one you left. */
+    App.-history DataTable > .datatable--header {
+        background: ansi_blue;
     }
 
     #other_sources_label {
@@ -923,6 +935,7 @@ class LemonaidApp(App):
                 other_notifications = []
 
         unread_count = sum(1 for n in current_notifications if n.is_unread)
+        self.set_class(bool(unread_count), "-unread")
         rebuilt = _sync_rows(
             main_table,
             [self._active_row(n) for n in current_notifications],
