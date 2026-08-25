@@ -40,10 +40,16 @@ def cmd_scratch(args: argparse.Namespace) -> None:
     if args.flip:
         position = scratch.flip_position(config.tmux_session.scratch_position)
 
-    size = args.size or (
-        config.tmux_session.scratch_width
-        if position == "left"
-        else config.tmux_session.scratch_height
+    # The saved size beats config: it is what the follow hook will use, and a
+    # pane shown at one width and rejoined at another is a visible jump.
+    size = (
+        args.size
+        or scratch.saved_size(position)
+        or (
+            config.tmux_session.scratch_width
+            if position == "left"
+            else config.tmux_session.scratch_height
+        )
     )
 
     if args.flip:

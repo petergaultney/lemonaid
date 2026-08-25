@@ -2,7 +2,7 @@
 
 #### Added
 
-- **Follow mode for the scratch pane**: the pane can stay visible across every window and session switch, so the inbox is ambient rather than something you summon. Enable with `lemonaid tmux scratch --follow`, which prints the `set-hook` lines to add to `.tmux.conf`; `--unfollow` disables it. The hooks are shell, not Python, so a switch costs ~5ms.
+- **Follow mode for the scratch pane**: the pane can stay visible across every window and session switch, so the inbox is ambient rather than something you summon. Enable with `lemonaid tmux scratch --follow`; `--unfollow` disables it. Nothing goes in `.tmux.conf`: showing the pane installs two hooks on the running server, and they run inside tmux itself (`if-shell -F`, `run-shell -C`) with no shell process, so the pane is in place before the window you switched to is drawn.
 
   In follow mode `prefix+l` toggles focus between the scratch pane and your work rather than hiding it, and selecting a notification no longer dismisses the pane. `q` parks it until the next `prefix+l`.
 
@@ -10,7 +10,21 @@
 
 - **`scratch_height` and `follow_scratch` config** in `[tmux-session]`: the pane height in rows (default `10`), and whether new tmux servers get follow mode on first scratch-pane creation.
 
+- **Sessions render as cards in a tall, narrow pane.** Below 72 columns, or whenever a pane is taller than 1.2x its width, each session is a card - name, time, cwd, branch, then the message wrapped onto as many lines as the pane can spare - instead of columns four characters wide. This is what a left-hand scratch pane shows.
+
+- **Clicking a session switches to it** on the first click, rather than moving the cursor and waiting for a second.
+
+- **Mark a session unread again**: `M` in `lma`, `lemonaid mark-unread --tty` for a tmux binding. It returns to the unread group at its existing age rather than jumping to the top.
+
 - **Move the scratch pane between top and left without editing config.** `lemonaid tmux scratch --flip`, or `f` inside `lma`. The pane moves in whatever window it currently occupies, so a keybinding works from anywhere rather than only where you can see it. Each edge keeps its own size, so flipping back and forth doesn't lose either.
+
+#### Fixed
+
+- **One failed `tmux list-panes` no longer archives every live session.** A failed listing looked identical to "no pane has this tty", so the auto-archiver treated one tmux hiccup as every pane vanishing at once. The archiver now archives only when a pane is definitely gone.
+
+- **One scratch pane per tmux server.** A lost state file used to mean a second `lma --scratch` process, with the first left running and painting a different idea of what was unread. The `@lemonaid_scratch` marker is now how the pane is found, and extra marked panes are killed.
+
+- **Read rows are legible.** They were dimmed; most of the inbox is read most of the time, and dim on a dark background cost enough contrast that the pane stopped being readable. Bold-vs-plain still separates unread from read. History, which the dim had been telling apart, now has its own header colour, no marker column, and yellow rather than green timestamps.
 
 #### Changed
 

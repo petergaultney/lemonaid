@@ -100,15 +100,22 @@ Follow mode keeps the scratch pane visible across window and session switches â€
 lemonaid tmux scratch --follow
 ```
 
-This enables follow for the current tmux server and prints `set-hook` lines to add to `.tmux.conf` for persistence across tmux restarts:
+This enables follow for the current tmux server and installs two hooks on it
+(`session-window-changed` and `client-session-changed`). Nothing goes in
+`.tmux.conf`: the pane does not outlive the server, and showing it again on a new
+server installs the hooks again.
 
-```tmux
-set-hook -g after-select-window[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
-set-hook -g session-window-changed[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
-set-hook -g client-session-changed[100] 'run-shell -b "~/.local/state/lemonaid/tmux-scratch-follow.sh"'
-```
+The hooks run inside the tmux server - `if-shell -F` to decide, `run-shell -C` to
+join - with no shell process. A switch fires both hooks, and hooks run one after
+another in the server, so the second finds the pane already joined and does
+nothing. The pane is in place before tmux redraws the window you switched to.
 
-The hooks run a shell script (~5ms per switch, no Python) that moves the scratch pane into your current window.
+Everything the hooks read is a tmux global option (`@lemonaid_follow`,
+`@lemonaid_scratch_pane`, `@lemonaid_scratch_position`, `@lemonaid_scratch_width`,
+`@lemonaid_scratch_height`), mirrored from the state files whenever they change.
+
+Older versions had you add three `set-hook ... run-shell -b ".../tmux-scratch-follow.sh"`
+lines to `.tmux.conf`. Remove them; `--follow` says so if it sees them.
 
 #### Behavior in follow mode
 
@@ -124,7 +131,7 @@ The hooks run a shell script (~5ms per switch, no Python) that moves the scratch
 lemonaid tmux scratch --unfollow
 ```
 
-This disables follow for the current tmux server session. The hooks in `.tmux.conf` remain but become no-ops. Re-run `--follow` to re-enable.
+This disables follow for the current tmux server. The hooks stay installed but do nothing until `--follow` turns it back on.
 
 #### Config bootstrap
 
