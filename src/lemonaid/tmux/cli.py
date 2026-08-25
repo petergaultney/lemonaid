@@ -312,7 +312,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     adopt_parser.add_argument(
-        "-n", "--dry-run", action="store_true", help="Show what would be adopted, and write nothing"
+        "--dry-run", action="store_true", help="Show what would be adopted, and write nothing"
     )
     adopt_parser.add_argument(
         "--skip-guesses", action="store_true", help="Adopt only panes whose match is unambiguous"
@@ -350,7 +350,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     restore_parser.add_argument(
-        "-n",
         "--dry-run",
         action="store_true",
         help="Print the layout that would be rebuilt, and start nothing",

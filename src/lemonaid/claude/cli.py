@@ -202,7 +202,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     hooks_parser.add_argument(
-        "-n", "--dry-run", action="store_true", help="Say what would change, and change nothing"
+        "--dry-run", action="store_true", help="Say what would change, and change nothing"
     )
     hooks_parser.add_argument(
         "--uninstall", action="store_true", help="Remove the hook lemonaid installed"

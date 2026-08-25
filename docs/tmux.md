@@ -360,9 +360,9 @@ active lemon, its working directory, and (once recorded) which tmux session and
 window it was running in.
 
 ```bash
-lemonaid tmux doctor          # what could be restored, and what could not
-lemonaid tmux restore -n      # the layout that would be rebuilt
-lemonaid tmux restore         # rebuild it
+lemonaid tmux doctor              # what could be restored, and what could not
+lemonaid tmux restore --dry-run   # the layout that would be rebuilt
+lemonaid tmux restore             # rebuild it
 ```
 
 ### Check before you need it
@@ -391,7 +391,7 @@ success. `doctor` names those before a crash rather than after.
 ### Adopting what is already running
 
 ```bash
-lemonaid tmux adopt -n              # what would be adopted
+lemonaid tmux adopt --dry-run       # what would be adopted
 lemonaid tmux adopt --skip-guesses  # only the unambiguous matches
 lemonaid tmux adopt                 # all of them
 ```
