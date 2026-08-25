@@ -23,7 +23,7 @@ from ... import claude, codex, openclaw, opencode
 from ... import resume as resume_mod
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
-from ...handlers import handle_notification
+from ...handlers import check_pane_exists_by_tty, handle_notification
 from ...lemon_watchers import (
     detect_terminal_switch_source,
     fish_path,
@@ -1329,6 +1329,47 @@ class LemonaidApp(App):
         self._refresh_snoozed()
         self.notify(f"{entry.description} — press {self._undo_key()} to undo")
 
+    def _switch_to_notification(self, notification) -> None:
+        """Put the terminal on this session, recreating its pane if it is gone."""
+        # Channel drives cwd-based fallback resolution; name is the
+        # session name to reuse if the pane is gone and we respawn.
+        if not handle_notification(
+            {
+                **notification.metadata,
+                "channel": notification.channel,
+                "name": notification.name or "",
+            },
+            self.config,
+            switch_source=notification.switch_source,
+        ):
+            self.notify("Could not switch to or recreate that session", severity="warning")
+            return
+
+        # In scratch mode the pane hides after navigation, unless follow
+        # mode is on - there the hook re-shows it in the target window.
+        if self._scratch_mode and not is_follow_enabled():
+            self._hide_scratch_pane()
+
+    def _still_running(self, notification) -> bool:
+        """Whether this session's pane is still there to switch to.
+
+        Archiving is a guess made from outside the session - a watcher that
+        could not find the pane - and it is wrong often enough that history
+        holds sessions which never stopped running. Asked of the server the
+        session was recorded on, since a pane on another one is absent from
+        this one's listing for reasons that have nothing to do with it.
+        """
+        tty = notification.metadata.get("tty")
+        if not tty or not notification.switch_source:
+            return False
+
+        return (
+            check_pane_exists_by_tty(
+                tty, notification.switch_source, notification.metadata.get("tmux_socket")
+            )
+            is True
+        )
+
     def _resume_session(self, *, copy_only: bool = False) -> None:
         """Resume the selected history session."""
         history_table = self.query_one("#history_table", DataTable)
@@ -1344,6 +1385,18 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
 
         if not notification:
+            return
+
+        # A session that never stopped needs returning to the inbox, not a
+        # second copy of itself started next to the one already running.
+        if not copy_only and self._still_running(notification):
+            with db.connect() as conn:
+                db.mark_unread(conn, notification.id)
+
+            self._set_history_mode(False)
+            self._refresh_notifications()
+            self.notify(f"{notification.name or notification.channel} is running - back in the inbox")
+            self._switch_to_notification(notification)
             return
 
         resume = resume_mod.build_resume_command(
@@ -1880,26 +1933,9 @@ class LemonaidApp(App):
 
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
-            if notification:
-                # Channel drives cwd-based fallback resolution; name is the
-                # session name to reuse if the pane is gone and we respawn.
-                metadata = {
-                    **notification.metadata,
-                    "channel": notification.channel,
-                    "name": notification.name or "",
-                }
-                if not handle_notification(
-                    metadata,
-                    self.config,
-                    switch_source=notification.switch_source,
-                ):
-                    self.notify("Could not switch to or recreate that session", severity="warning")
-                    return
 
-                # In scratch mode the pane hides after navigation, unless follow
-                # mode is on - there the hook re-shows it in the target window.
-                if self._scratch_mode and not is_follow_enabled():
-                    self._hide_scratch_pane()
+        if notification:
+            self._switch_to_notification(notification)
 
 
 def main() -> None:
