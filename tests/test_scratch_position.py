@@ -100,11 +100,14 @@ def test_a_saved_size_is_used_when_it_fits(monkeypatch):
     assert scratch._capped("45", "left") == "45"
 
 
-def test_a_saved_size_yields_to_a_small_window(monkeypatch):
-    """A session nothing has attached to yet is 80x24, where 45 is over half."""
+def test_a_saved_size_yields_only_to_a_client_that_cannot_hold_it(monkeypatch):
+    """The main pane keeps follow.MIN_MAIN; the sidebar takes the rest."""
     _window_size(monkeypatch, "80")
 
-    assert scratch._capped("45", "left") == "32"
+    assert scratch._capped("45", "left") == "40"
+
+    _window_size(monkeypatch, "100")
+    assert scratch._capped("45", "left") == "45"
 
 
 def test_an_unreadable_window_size_leaves_the_size_alone(monkeypatch):

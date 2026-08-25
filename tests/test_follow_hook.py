@@ -47,11 +47,12 @@ def test_the_parking_session_is_never_a_destination():
     assert "_lma_scratch" in follow.hook_condition()
 
 
-def test_the_cap_measures_the_client_and_falls_back_to_the_window():
+def test_the_size_is_measured_against_the_client_never_the_window():
+    """A window the client is not showing yet still has the size it last had."""
     command = follow.hook_command()
 
-    assert "#{client_width}" in command and "#{window_width}" in command
-    assert "#{client_height}" in command and "#{window_height}" in command
+    assert "client_width" in command and "client_height" in command
+    assert "window_width" not in command and "window_height" not in command
 
 
 # --- against a real server -------------------------------------------------
@@ -227,104 +228,20 @@ def test_a_top_pane_is_measured_in_rows(tmux):
     assert (pane, 245, 12, False) in _panes(tmux, "a:w2")
 
 
-def test_a_saved_size_yields_to_the_cap(tmux):
-    pane = _followed_pane(tmux, **{follow.WIDTH_OPTION: "200"})
+def test_a_saved_size_is_used_as_saved(tmux):
+    pane = _followed_pane(tmux, **{follow.WIDTH_OPTION: "70"})
 
     tmux("select-window", "-t", "a:w2")
 
-    assert (pane, int(245 * follow.MAX_SHARE), 90, False) in _panes(tmux, "a:w2")
+    assert (pane, 70, 90, False) in _panes(tmux, "a:w2")
 
 
-def test_follow_off_leaves_the_pane_where_it_is(tmux):
-    _followed_pane(tmux, **{follow.FOLLOW_OPTION: "off"})
-
-    tmux("select-window", "-t", "a:w2")
-
-    assert len(_panes(tmux, "a:w2")) == 1
-
-
-def test_a_parked_pane_stays_parked(tmux):
-    """q clears the state; the hook must see that without a file to read."""
-    _followed_pane(tmux)
-    scratch._clear_state()
+def test_a_saved_size_the_client_cannot_hold_leaves_the_main_pane_room(tmux):
+    pane = _followed_pane(tmux, **{follow.WIDTH_OPTION: "300"})
 
     tmux("select-window", "-t", "a:w2")
 
-    assert len(_panes(tmux, "a:w2")) == 1
-
-
-def _main_pane(run, window: str) -> tuple[str, int, int, bool]:
-    return next(p for p in _panes(run, window) if p[0] not in follow.placeholders(window) and p[0] != scratch._get_pane_id())
-
-
-def test_a_revisited_window_keeps_its_layout(tmux):
-    """The whole point of placeholders: the window's own pane never changes size."""
-    _followed_pane(tmux)
-    tmux("select-window", "-t", "a:w2")
-    first = _main_pane(tmux, "a:w2")
-    assert first[1] == 245 - 58 - 1
-
-    tmux("select-window", "-t", "a:w1")
-    assert _main_pane(tmux, "a:w2") == first  # a placeholder holds the slot
-    assert len(follow.placeholders("a:w2")) == 1
-
-    tmux("select-window", "-t", "a:w2")
-    assert _main_pane(tmux, "a:w2") == first
-    assert len(_panes(tmux, "a:w2")) == 2  # swapped in, not added
-
-
-def test_the_first_visit_leaves_a_placeholder_where_the_pane_was(tmux):
-    _followed_pane(tmux)
-
-    tmux("select-window", "-t", "a:w2")
-
-    assert follow.placeholders(scratch._SCRATCH_SESSION, whole_session=True)
-
-
-def test_a_window_left_holding_only_a_placeholder_is_closed(tmux):
-    _followed_pane(tmux)
-    tmux("select-window", "-t", "a:w2")
-    tmux("select-window", "-t", "a:w1")
-    tmux("kill-pane", "-t", _main_pane(tmux, "a:w2")[0])
-
-    windows = tmux("list-windows", "-t", "a", "-F", "#{window_name}").stdout.split()
-    assert windows == ["w1"]
-
-
-def test_a_sessions_last_window_is_never_closed(tmux):
-    """detach-on-destroy would take the client with it."""
-    _followed_pane(tmux)
-    tmux("switch-client", "-t", "b:w2")
-    tmux("switch-client", "-t", "a:w1")
-    tmux("kill-window", "-t", "b:w1")
-    tmux("kill-pane", "-t", _main_pane(tmux, "b:w2")[0])
-
-    assert tmux("list-windows", "-t", "b", "-F", "#{window_name}").stdout.split() == ["w2"]
-
-
-def test_the_slot_keeps_its_width_when_the_client_shrinks(tmux):
-    """tmux spreads a resize over every pane; the sidebar is a character count."""
-    pane = _followed_pane(tmux)
-    tmux("select-window", "-t", "a:w2")
-
-    tmux("refresh-client", "-C", "200x90")
-
-    assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
-
-
-def test_show_swaps_into_a_placeholder_rather_than_adding_a_sidebar(tmux):
-    """Unparking with prefix+l in a window that already has a slot."""
-    pane = _followed_pane(tmux)
-    tmux("select-window", "-t", "a:w2")
-    tmux("select-window", "-t", "a:w1")
-    main = _main_pane(tmux, "a:w2")
-
-    assert scratch._show(pane, "58", "left", main[0])
-
-    assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
-    assert len(_panes(tmux, "a:w2")) == 2
-    assert _main_pane(tmux, "a:w2") == main
-    assert len(follow.placeholders("a:w1")) == 1  # took the pane's old slot
+    assert (pane, 245 - follow.MIN_MAIN["left"], 90, False) in _panes(tmux, "a:w2")
 
 
 def test_the_slot_is_on_the_left(tmux):
