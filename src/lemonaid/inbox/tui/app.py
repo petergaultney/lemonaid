@@ -44,7 +44,14 @@ from ...tmux.session import spawn_session
 from .. import db, undo
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
-from .utils import FIELD_STYLES, UNREAD_MARKER_STYLE, set_terminal_title, styled_cell
+from .utils import (
+    FIELD_STYLES,
+    JUMP_DIGITS,
+    UNREAD_MARKER_STYLE,
+    jump_gutter,
+    set_terminal_title,
+    styled_cell,
+)
 
 _DAY_SECONDS = 86400
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
@@ -540,6 +547,10 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.save_size, "save_scratch_size", "Save Size", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
+        if self.config.tui.keybindings.jump_by_number:
+            for digit in JUMP_DIGITS:
+                self.bind(digit, f"jump_to_number('{digit}')", description="Jump", show=False)
+
         # Cross-table arrow navigation (always active)
         self.bind("up", "cursor_up", description="Up", show=False)
         self.bind("down", "cursor_down", description="Down", show=False)
@@ -864,8 +875,12 @@ class LemonaidApp(App):
         table = self.query_one("#main_table", DataTable)
         return table.cursor_coordinate.row
 
-    def _active_row(self, n: db.Notification) -> tuple[str, list[Text]]:
-        """Build the main-table row for a session, keyed by notification id."""
+    def _active_row(self, n: db.Notification, row_index: int) -> tuple[str, list[Text]]:
+        """Build the main-table row for a session, keyed by notification id.
+
+        `row_index` is the session's position in the list, which is what its jump
+        digit names - so a row's number changes when the list reorders.
+        """
         is_unread = n.is_unread
         return str(n.id), [
             styled_cell(_format_timestamp(n.created_at), is_unread, "time"),
@@ -873,7 +888,7 @@ class LemonaidApp(App):
             styled_cell(
                 _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
             ),
-            styled_cell(n.name or "", is_unread, "name"),
+            jump_gutter(row_index) + styled_cell(n.name or "", is_unread, "name"),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd"),
             styled_cell(n.message, is_unread, "message"),
@@ -938,7 +953,7 @@ class LemonaidApp(App):
         self.set_class(bool(unread_count), "-unread")
         rebuilt = _sync_rows(
             main_table,
-            [self._active_row(n) for n in current_notifications],
+            [self._active_row(n, i) for i, n in enumerate(current_notifications)],
             self._card_width(),
             self._card_shape(),
         )
@@ -1187,6 +1202,7 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notifications = db.get_history(conn, search=self._history_filter)
 
+        row_index = 0
         for n in notifications:
             if not resume_mod.has_resume_command(self.config, n.channel):
                 continue
@@ -1204,7 +1220,7 @@ class LemonaidApp(App):
                     "backend",
                     history=True,
                 ),
-                styled_cell(n.name or "", False, "name", history=True),
+                jump_gutter(row_index) + styled_cell(n.name or "", False, "name", history=True),
                 styled_cell(branch, False, "branch", history=True),
                 styled_cell(cwd, False, "cwd", history=True),
                 styled_cell(n.message, False, "message", history=True),
@@ -1218,6 +1234,7 @@ class LemonaidApp(App):
             history_table.add_row(
                 *card, key=str(n.id), height=_row_height(card) if card_width else 1
             )
+            row_index += 1
 
         if history_table.row_count > 0:
             history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
@@ -1781,6 +1798,23 @@ class LemonaidApp(App):
         table = self.query_one("#main_table", DataTable)
         table.move_cursor(row=earliest_row)
         table.action_select_cursor()
+
+    def action_jump_to_number(self, digit: str) -> None:
+        """Switch to the numbered session, as though it had been selected by hand.
+
+        The lower table is not numbered: it holds sessions no terminal here can
+        switch to, so a jump would name a row it cannot act on.
+        """
+        table = self.query_one("#history_table" if self._history_mode else "#main_table", DataTable)
+        if not table.display:
+            return
+
+        row = JUMP_DIGITS.find(digit)
+        if row < 0 or row >= table.row_count:
+            return
+
+        table.move_cursor(row=row)
+        self.action_select()
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""
