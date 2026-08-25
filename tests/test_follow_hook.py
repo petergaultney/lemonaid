@@ -10,6 +10,7 @@ because that ordering is the whole point and cannot be faked.
 import shutil
 import subprocess
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -381,3 +382,21 @@ def test_a_dead_pane_is_no_error(tmux):
 
     assert tmux("select-window", "-t", "a:w2").returncode == 0
     assert len(_panes(tmux, "a:w2")) == 1
+
+
+def test_resizing_the_terminal_holds_the_slot_at_its_saved_size():
+    """tmux spreads a window resize over every pane, so without this a smaller
+    font takes columns from the sidebar rather than from your own panes."""
+    command = follow.resize_hook_command()
+
+    assert "resize-pane" in command
+    assert "window_width" in command and "client_width" in command
+
+
+def test_the_resize_hook_is_installed_under_a_name_tmux_fires():
+    """`window-resized` is not listed by `show-hooks -g` until it is set, which
+    makes a wrong name look identical to an unset one."""
+    from lemonaid.tmux import follow as f
+
+    source = Path(f.__file__).read_text()
+    assert '"window-resized": resize_hook_command()' in source
