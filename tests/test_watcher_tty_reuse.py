@@ -19,7 +19,7 @@ def _archiver() -> tuple[list[str], object]:
 
 
 def _panes(monkeypatch, *, alive: bool, process_running: bool) -> None:
-    monkeypatch.setattr(watcher, "_check_pane_exists", lambda tty, src: alive)
+    monkeypatch.setattr(watcher, "_check_pane_exists", lambda tty, src, socket=None: alive)
     monkeypatch.setattr(
         watcher, "is_process_running_on_tty", lambda tty, name="claude": process_running
     )

@@ -34,6 +34,7 @@ from ..lemon_watchers import (
     get_git_branch,
     get_name_from_cwd,
     get_tmux_session_name,
+    get_tmux_socket,
     get_tmux_window_index,
     get_tty,
     shorten_path,
@@ -241,6 +242,13 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     window = get_tmux_window_index()
     if window:
         metadata["tmux_window"] = window
+
+    # Which tmux server, not just where in it: the watcher asking whether this
+    # pane still exists may be attached to a different one, where the honest
+    # answer to "is it there" is "not here, and I cannot see where it is".
+    socket = get_tmux_socket()
+    if socket:
+        metadata["tmux_socket"] = socket
 
     return channel_id("claude", session_id), session_id, name, switch_source, metadata
 

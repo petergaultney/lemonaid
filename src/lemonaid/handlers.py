@@ -12,15 +12,21 @@ from .log import get_logger
 _log = get_logger("handlers")
 
 
-def check_pane_exists_by_tty(tty: str, switch_source: str) -> bool | None:
+def check_pane_exists_by_tty(
+    tty: str, switch_source: str, socket: str | None = None
+) -> bool | None:
     """Whether a pane still exists, or None if that could not be determined.
 
     The watcher archives on False, so "tmux did not answer" has to be a third
     answer rather than folding into "no pane". Used by watcher for auto-archive.
+
+    *socket* names the server the session was recorded on. Without it the
+    question is put to the caller's own server, where a pane living on a
+    different one is absent for a reason that has nothing to do with it.
     """
     if switch_source == "tmux":
         try:
-            session, pane_id = tmux.navigation.get_pane_for_tty(tty)
+            session, pane_id = tmux.navigation.get_pane_for_tty(tty, socket)
         except tmux.navigation.TmuxUnavailable:
             return None
 

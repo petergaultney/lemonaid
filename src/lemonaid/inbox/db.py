@@ -357,7 +357,7 @@ def _reconcile_name(
 # able to see. A hook can fire from a subprocess with no TMUX_PANE, and metadata
 # is replaced wholesale on update - so without this, one such observation erases
 # the location that `tmux restore` needs after a crash.
-_STICKY_METADATA = ("tmux_session", "tmux_window")
+_STICKY_METADATA = ("tmux_session", "tmux_window", "tmux_socket")
 
 
 def _carry_forward(existing: Notification, metadata: dict[str, Any]) -> None:
@@ -367,29 +367,36 @@ def _carry_forward(existing: Notification, metadata: dict[str, Any]) -> None:
             metadata[key] = existing.metadata[key]
 
 
-def record_location(conn: sqlite3.Connection, channel: str, session: str, window: str) -> bool:
+def record_location(
+    conn: sqlite3.Connection,
+    channel: str,
+    session: str,
+    window: str,
+    socket: str | None = None,
+) -> bool:
     """Note where *channel* is sitting in tmux. True if anything changed.
 
     Only the location is touched - not status, message, or created_at - because
     this runs on the watcher's poll for sessions that are doing nothing. Writing
     anything else would make an idle session look like it had just spoken.
+
+    *socket* is optional so a caller that saw the pane but not which server it
+    was on cannot blank a socket already recorded by the hook.
     """
     existing = get_by_channel(conn, channel, unread_only=False)
     if existing is None:
         return False
 
-    if (existing.metadata.get("tmux_session"), existing.metadata.get("tmux_window")) == (
-        session,
-        window,
-    ):
+    location = {"tmux_session": session, "tmux_window": window}
+    if socket:
+        location["tmux_socket"] = socket
+
+    if all(existing.metadata.get(k) == v for k, v in location.items()):
         return False
 
     conn.execute(
         "UPDATE notifications SET metadata = ? WHERE id = ?",
-        (
-            json.dumps({**existing.metadata, "tmux_session": session, "tmux_window": window}),
-            existing.id,
-        ),
+        (json.dumps({**existing.metadata, **location}), existing.id),
     )
     conn.commit()
 
