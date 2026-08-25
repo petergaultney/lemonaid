@@ -5,6 +5,8 @@ session, gaps where a non-lemon window was - can be pinned down without a tmux
 server.
 """
 
+import subprocess
+
 from lemonaid.config import Config
 from lemonaid.inbox.db import Notification
 from lemonaid.tmux import restore
@@ -215,3 +217,37 @@ def test_a_missing_session_is_still_restored_alongside_running_ones(monkeypatch)
     assert spawned == ["gone"]
     assert restored == ["gone"]
     assert skipped == ["relay"]
+
+
+def test_a_restored_session_is_built_at_the_client_size(monkeypatch):
+    """A detached session with no size is 80x24 and stays there until a client
+    shows it. The scratch pane then splits its saved width off an 80-column
+    window, leaving the main pane below the minimum - and what you see in the
+    slot is the placeholder, a bare `sleep`, which renders as an empty pane."""
+    argv: list[list[str]] = []
+    monkeypatch.setattr(restore, "_client_size", lambda: ("214", "67"))
+    monkeypatch.setattr(restore, "_run", lambda *a: argv.append(list(a)) or True)
+
+    restore._restore_session(
+        restore.SessionPlan(
+            name="relay",
+            windows=[restore.Window(index=2, cwd="/tmp", argv=["claude"], name="a")],
+        )
+    )
+
+    new_session = next(c for c in argv if "new-session" in c)
+    assert new_session[new_session.index("-x") + 1] == "214"
+    assert new_session[new_session.index("-y") + 1] == "67"
+
+
+def test_no_client_falls_back_to_a_usable_size(monkeypatch):
+    """Restoring from a script with no attached client must not produce 80x24."""
+    monkeypatch.setattr(
+        restore.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr=""),
+    )
+
+    width, height = restore._client_size()
+    assert int(width) >= 200
+    assert int(height) >= 50
