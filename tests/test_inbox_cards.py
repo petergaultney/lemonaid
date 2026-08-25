@@ -158,3 +158,28 @@ def test_a_long_message_uses_every_line_it_is_given():
 
     assert len(short.plain.split("\n")) == 3 + 3  # name, context, budget, separator-ish
     assert len(tall.plain.split("\n")) == 3 + 12
+
+
+def _layout(width: int, height: int) -> str:
+    """Which layout a pane of this size gets, without building an app."""
+    if width < app._SIDEBAR_COLS:
+        return "cards"
+
+    return "cards" if height >= width * app._CARD_ASPECT else "columns"
+
+
+def test_a_narrow_pane_gets_cards_at_any_height():
+    """The scratch pane keeps its width and changes height with the window it
+    joins; deciding on aspect alone made it flip layout on a window switch."""
+    assert _layout(58, 89) == "cards"
+    assert _layout(58, 58) == "cards"
+    assert _layout(58, 24) == "cards"
+
+
+def test_a_wide_short_pane_still_gets_columns():
+    assert _layout(145, 40) == "columns"
+    assert _layout(200, 58) == "columns"
+
+
+def test_a_wide_but_tall_pane_still_gets_cards():
+    assert _layout(100, 130) == "cards"

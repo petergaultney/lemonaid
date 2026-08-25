@@ -66,6 +66,10 @@ _MEDIUM_LAYOUT_COLS = 104
 # because a pane can be wide enough to draw every column and still only have room
 # to show four characters of each - which is what a side pane usually is.
 _CARD_LAYOUT_COLS = 54
+# A pane this narrow is a sidebar however short the window makes it. Above it,
+# height decides - but only for panes narrow enough for the question to matter,
+# so a sidebar does not change layout with the window it is joined to.
+_SIDEBAR_COLS = 72
 _CARD_ASPECT = 1.2  # rows per column, above which a pane counts as tall and narrow
 _CARD_HEIGHT = 3  # headline + one context line + one message line
 _CARD_MAX_HEIGHT = 14  # a card long enough to hold most messages whole
@@ -610,6 +614,13 @@ class LemonaidApp(App):
         # Cards and columns are different column sets, so crossing that threshold
         # rebuilds the tables rather than just restretching them.
         crossed = self._cards(width, height) != self._card_layout
+        _log.info(
+            "resize %sx%s -> %s%s",
+            width,
+            height,
+            "cards" if self._cards(width, height) else "columns",
+            " (changed)" if crossed else "",
+        )
         if crossed:
             self._card_layout = self._cards(width, height)
             for table_id, wake in (
@@ -632,12 +643,23 @@ class LemonaidApp(App):
             self._refresh_notifications()
 
     def _cards(self, width: int | None = None, height: int | None = None) -> bool:
+        """Whether to draw cards rather than columns at this size.
+
+        A pane narrow enough to be a sidebar gets cards whatever its height. The
+        scratch pane keeps its width and takes its height from whichever window it
+        joins, so letting the aspect ratio decide made the same pane render as
+        cards in a tall window and as squeezed columns in a short one - which is
+        the layout changing on a window switch, not on anything the user did.
+        """
         w = self.size.width if width is None else width
         h = self.size.height if height is None else height
         if w <= 0:
             return False
 
-        return w < _CARD_LAYOUT_COLS or h >= w * _CARD_ASPECT
+        if w < _SIDEBAR_COLS:
+            return True
+
+        return h >= w * _CARD_ASPECT
 
     def _card_shape(self) -> tuple[int, int]:
         """How many lines the context and message get inside one card.
