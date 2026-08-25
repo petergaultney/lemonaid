@@ -16,6 +16,8 @@
 
 - **Clicking a session switches to it** on the first click, rather than moving the cursor and waiting for a second.
 
+- **The bar above the list says whether anything is unread.** It turns the unread marker's own orange while the inbox has something waiting, and dark blue in session history. All three colours are ANSI, so the bar tracks the same terminal palette the rest of the TUI is drawn from.
+
 - **Mark a session unread again**: `M` in `lma`, `lemonaid mark-unread --tty` for a tmux binding. It returns to the unread group at its existing age rather than jumping to the top.
 
 - **Move the scratch pane between top and left without editing config.** `lemonaid tmux scratch --flip`, or `f` inside `lma`. The pane moves in whatever window it currently occupies, so a keybinding works from anywhere rather than only where you can see it. Each edge keeps its own size, so flipping back and forth doesn't lose either.
