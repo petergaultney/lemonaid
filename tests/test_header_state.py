@@ -7,6 +7,7 @@ step with the rows.
 """
 
 import asyncio
+import itertools
 
 from textual.color import Color
 from textual.widgets import DataTable
@@ -14,10 +15,24 @@ from textual.widgets import DataTable
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 
+_channels = itertools.count()
+
 
 def _add(status: str = "unread") -> None:
+    """A session in the inbox, on a channel no watcher will recognise.
+
+    The channel is unique per row because a watcher that finds new output on
+    one marks it unread again - and these tests assert on exactly that flag,
+    including the negative, which only fails when the watcher wins the race.
+    """
     with db.connect() as conn:
-        notification = db.add(conn, "claude", "a message", "a-session", {"tty": "/dev/ttys001"})
+        notification = db.add(
+            conn,
+            f"demo-{next(_channels)}",
+            "a message",
+            "a-session",
+            {"tty": "/dev/ttys001"},
+        )
         conn.execute(
             "UPDATE notifications SET status = ?, switch_source = ? WHERE id = ?",
             (status, "tmux", notification.id),
@@ -27,9 +42,7 @@ def _add(status: str = "unread") -> None:
 
 def _bar(app, table_id: str) -> Color:
     """The colour actually painted behind the list's header row."""
-    return app.query_one(table_id, DataTable).get_component_styles(
-        "datatable--header"
-    ).background
+    return app.query_one(table_id, DataTable).get_component_styles("datatable--header").background
 
 
 def _run(steps):
