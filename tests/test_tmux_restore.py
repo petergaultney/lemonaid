@@ -175,3 +175,43 @@ def test_as_json_carries_what_a_caller_needs_to_act():
             ],
         }
     ]
+
+
+def test_running_it_when_nothing_is_wrong_creates_nothing(monkeypatch):
+    """The accident case: every session already exists, so this is a no-op.
+
+    Guarded at the session rather than the window, so an existing session is
+    never added to - after a crash you have usually rebuilt some by hand, and
+    a half-restored session would put duplicate lemons in your windows.
+    """
+    spawned: list = []
+    monkeypatch.setattr(restore, "_existing_sessions", lambda: {"relay", "hq"})
+    monkeypatch.setattr(restore, "_restore_session", lambda plan: spawned.append(plan.name))
+
+    plans = [
+        restore.SessionPlan(name="relay", windows=[]),
+        restore.SessionPlan(name="hq", windows=[]),
+    ]
+    restored, skipped = restore.restore(plans)
+
+    assert not spawned
+    assert restored == []
+    assert sorted(skipped) == ["hq", "relay"]
+
+
+def test_a_missing_session_is_still_restored_alongside_running_ones(monkeypatch):
+    """Skipping the live ones must not skip the dead one next to them."""
+    spawned: list = []
+    monkeypatch.setattr(restore, "_existing_sessions", lambda: {"relay"})
+    monkeypatch.setattr(restore, "_restore_session", lambda plan: spawned.append(plan.name) or None)
+
+    restored, skipped = restore.restore(
+        [
+            restore.SessionPlan(name="relay", windows=[]),
+            restore.SessionPlan(name="gone", windows=[]),
+        ]
+    )
+
+    assert spawned == ["gone"]
+    assert restored == ["gone"]
+    assert skipped == ["relay"]

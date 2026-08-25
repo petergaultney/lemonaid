@@ -130,11 +130,17 @@ def cmd_restore(args: argparse.Namespace) -> None:
     for name in restored:
         print(f"restored {name}")
 
+    # Not stderr: an already-running session is the expected outcome of running
+    # this when nothing is wrong, not a problem with the run.
     for name in skipped:
-        print(f"{name} is already running; left alone", file=sys.stderr)
+        print(f"skipped {name} (already running)")
 
     if not plans:
-        print(tmux_restore.describe(plans)[0], file=sys.stderr)
+        print(tmux_restore.describe(plans)[0])
+    elif not restored:
+        print(f"\nnothing to restore: all {len(skipped)} sessions are already running")
+    else:
+        print(f"\nrestored {len(restored)}, skipped {len(skipped)} already running")
 
 
 def cmd_doctor(args: argparse.Namespace) -> None:
