@@ -53,23 +53,37 @@ def _by_position(top: str, left: str) -> str:
     return f"#{{?#{{==:#{{{POSITION_OPTION}}},top}},{top},{left}}}"
 
 
-def _fitted(saved: str, client_dim: str, margin: int) -> str:
-    """min(saved, client - margin), or saved when there is no client to measure.
+def _fitted(saved: str, client_dim: str, window_dim: str, margin: int) -> str:
+    """min(saved, available - margin), where available is the smaller of the
+    client and the window along this axis.
 
-    The client, not the window: a window the client is not showing yet still has
-    the size it last had, and the hook runs before the switch resizes it.
+    Neither dimension can be trusted alone at hook time. The window may not have
+    been resized yet - a window no client has shown reports tmux's 80x24
+    default - and the client, measured from inside a hook mid-switch, can report
+    the size it is leaving rather than the one it is arriving at. Taking the
+    smaller means the split never leaves the main pane under `margin` on either
+    reading; the cost is a sidebar occasionally narrower than asked, which the
+    next resize corrects.
+
+    Getting this wrong leaves the slot holding its placeholder - a bare `sleep`,
+    which renders as an empty pane.
     """
-    room = f"#{{e|-|:#{{{client_dim}}},{margin}}}"
+    available = (
+        f"#{{?{client_dim},"
+        f"#{{?#{{<:#{{{client_dim}}},#{{{window_dim}}}}},#{{{client_dim}}},#{{{window_dim}}}}},"
+        f"#{{{window_dim}}}}}"
+    )
+    room = f"#{{e|-|:{available},{margin}}}"
     fitted = f"#{{?#{{e|<=|:#{{{saved}}},{room}}},#{{{saved}}},{room}}}"
-    return f"#{{?{client_dim},{fitted},#{{{saved}}}}}"
+    return f"#{{?{available},{fitted},#{{{saved}}}}}"
 
 
 def _width() -> str:
-    return _fitted(WIDTH_OPTION, "client_width", MIN_MAIN["left"])
+    return _fitted(WIDTH_OPTION, "client_width", "window_width", MIN_MAIN["left"])
 
 
 def _height() -> str:
-    return _fitted(HEIGHT_OPTION, "client_height", MIN_MAIN["top"])
+    return _fitted(HEIGHT_OPTION, "client_height", "window_height", MIN_MAIN["top"])
 
 
 def _split_size() -> str:

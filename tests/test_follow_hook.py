@@ -47,12 +47,20 @@ def test_the_parking_session_is_never_a_destination():
     assert "_lma_scratch" in follow.hook_condition()
 
 
-def test_the_size_is_measured_against_the_client_never_the_window():
-    """A window the client is not showing yet still has the size it last had."""
+def test_the_size_is_measured_against_both_the_client_and_the_window():
+    """Neither dimension can be trusted alone at hook time.
+
+    A window no client has shown reports tmux's 80x24 default, and the client,
+    read from inside a hook mid-switch, can report the size it is leaving rather
+    than the one it is arriving at - observed as `win=214 client=80`. Sizing
+    against either one alone can split a sidebar that leaves the main pane under
+    MIN_MAIN, and then the slot keeps its placeholder: a bare `sleep`, which
+    renders as an empty pane.
+    """
     command = follow.hook_command()
 
     assert "client_width" in command and "client_height" in command
-    assert "window_width" not in command and "window_height" not in command
+    assert "window_width" in command and "window_height" in command
 
 
 # --- against a real server -------------------------------------------------
