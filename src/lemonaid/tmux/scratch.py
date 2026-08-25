@@ -66,13 +66,26 @@ def _pane_size_format(position: str) -> str:
 
 
 def _window_size_format(position: str) -> str:
-    """The client's size, not the window's.
+    """The smaller of the client and the window, along `position`'s axis.
 
-    A window no client has sized yet reports tmux's default-size of 80x24, and
-    both the toggle and the follow hook can run before the switch resizes it.
-    The client already knows the size the window is about to become.
+    Neither alone is right. A window no client has sized yet reports tmux's
+    default-size of 80x24, and both the toggle and the follow hook can run
+    before the switch resizes it - so the window under-reports, and the client
+    knows the size it is about to become. But a window can also be genuinely
+    smaller than the client and stay that way, and splitting a client-sized
+    sidebar off it leaves the main pane below MIN_MAIN. The split happens in
+    the window, so the window's size cannot be ignored; taking the minimum
+    keeps the pre-switch case working without over-splitting a small one.
     """
-    return "#{client_width}" if position == "left" else "#{client_height}"
+    client, window = (
+        ("client_width", "window_width")
+        if position == "left"
+        else ("client_height", "window_height")
+    )
+    smaller = f"#{{?#{{<:#{{{client}}},#{{{window}}}}},#{{{client}}},#{{{window}}}}}"
+    # Guarded on the client existing: with no client attached the dimension is
+    # empty, and comparing against empty yields empty rather than the window.
+    return f"#{{?{client},{smaller},#{{{window}}}}}"
 
 
 def _split_flag(position: str) -> str:
