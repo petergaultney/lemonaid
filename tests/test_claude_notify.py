@@ -97,3 +97,40 @@ def test_submit_records_no_location_outside_tmux():
     metadata = register.call_args.kwargs["metadata"]
     assert "tmux_session" not in metadata
     assert "tmux_window" not in metadata
+
+
+def _message_for(payload: str) -> str:
+    """The inbox message a hook payload produces."""
+    with (
+        patch("lemonaid.claude.notify.db.connect", _fake_connect),
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("Test Session", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys001"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+        patch("lemonaid.claude.notify.db.get_by_channel", return_value=None),
+        patch("lemonaid.claude.notify.db.add") as mock_add,
+    ):
+        notify.handle_notification(stdin_data=payload)
+
+    return mock_add.call_args.kwargs["message"]
+
+
+def test_a_finished_turn_says_it_is_waiting():
+    """Stop carries no notification_type, and used to report its hook's name."""
+    message = _message_for('{"session_id":"abc123","cwd":"/tmp/project","hook_event_name":"Stop"}')
+    assert message == "Waiting in tmp/project"
+    assert "Stop" not in message
+
+
+def test_a_permission_prompt_still_says_permission():
+    assert (
+        _message_for(
+            '{"session_id":"abc123","cwd":"/tmp/project",'
+            '"hook_event_name":"Notification","notification_type":"permission_prompt"}'
+        )
+        == "Permission needed in tmp/project"
+    )

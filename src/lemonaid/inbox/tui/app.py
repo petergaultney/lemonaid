@@ -1202,7 +1202,6 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notifications = db.get_history(conn, search=self._history_filter)
 
-        row_index = 0
         for n in notifications:
             if not resume_mod.has_resume_command(self.config, n.channel):
                 continue
@@ -1220,7 +1219,7 @@ class LemonaidApp(App):
                     "backend",
                     history=True,
                 ),
-                jump_gutter(row_index) + styled_cell(n.name or "", False, "name", history=True),
+                styled_cell(n.name or "", False, "name", history=True),
                 styled_cell(branch, False, "branch", history=True),
                 styled_cell(cwd, False, "cwd", history=True),
                 styled_cell(n.message, False, "message", history=True),
@@ -1234,7 +1233,6 @@ class LemonaidApp(App):
             history_table.add_row(
                 *card, key=str(n.id), height=_row_height(card) if card_width else 1
             )
-            row_index += 1
 
         if history_table.row_count > 0:
             history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
@@ -1802,10 +1800,15 @@ class LemonaidApp(App):
     def action_jump_to_number(self, digit: str) -> None:
         """Switch to the numbered session, as though it had been selected by hand.
 
-        The lower table is not numbered: it holds sessions no terminal here can
-        switch to, so a jump would name a row it cannot act on.
+        Inbox only. In history Enter resumes rather than switches, and a resume
+        is too costly to hang on a single unconfirmed keystroke. The lower table
+        is unnumbered for the same reason in reverse: nothing there can be
+        switched to at all.
         """
-        table = self.query_one("#history_table" if self._history_mode else "#main_table", DataTable)
+        if self._history_mode:
+            return
+
+        table = self.query_one("#main_table", DataTable)
         if not table.display:
             return
 
