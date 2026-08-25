@@ -46,3 +46,21 @@ def styled_cell(
         return Text(value, style=f"bold {style}")
 
     return Text(value, style=style)
+
+
+# Ten rows get a digit; 1-9 then 0, so the key's position on the keyboard runs
+# in the same direction as the list. Past that you scroll: a second digit would
+# need a timeout to tell "1" from "12", and the wait would be felt on every jump.
+JUMP_DIGITS = "1234567890"
+JUMP_GUTTER_STYLE = "bright_black"
+
+
+def jump_digit(row_index: int) -> str:
+    """The digit that jumps to `row_index`, or "" past the tenth row."""
+    return JUMP_DIGITS[row_index] if row_index < len(JUMP_DIGITS) else ""
+
+
+def jump_gutter(row_index: int) -> Text:
+    """The number that prefixes a session's name, padded so names stay aligned."""
+    digit = jump_digit(row_index)
+    return Text(f"{digit} " if digit else "  ", style=JUMP_GUTTER_STYLE)

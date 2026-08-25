@@ -1,9 +1,18 @@
+# 0.18.0 (unreleased)
+
+#### Added
+
+- **Digits 1-9 then 0 switch to that session**, numbered from the top of the list. The number is the row's position and nothing else: it renumbers when the list reorders, so it is a shortcut for the row you can see rather than a name a session keeps.
+
+  Only the first ten rows carry a digit; past that you scroll. A second digit would need a timeout to tell `1` from `12`, and that wait would be paid on every jump.
+
+  The non-switchable table stays unnumbered - those are sessions no terminal here can switch to, so a jump would name a row it cannot act on. Set `jump_by_number = false` under the keybindings config to leave digits unbound.
+
 # 0.17.1 (2026-08-25)
 
 #### Fixed
 
 - **Binary patcher** now finds the notification polling interval in recent Claude Code versions (tested 2.1.234–2.1.246). The previous approach searched for `XXX=6000` within 500 bytes of `notificationType` in the binary, but the constant is defined far from that marker in these versions. The patcher keeps that proximity search as a first attempt and falls back to the hook module's constant trio (`600000, 30000, 6000`).
-
 
 # 0.17.0 (2026-08-25)
 

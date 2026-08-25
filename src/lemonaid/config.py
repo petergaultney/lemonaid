@@ -86,6 +86,8 @@ class KeybindingsConfig:
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
     flip_position: str = "f"  # Move the scratch pane between top and left
+    # Digits 1-9 then 0 switch to that row of the list, counting from the top.
+    jump_by_number: bool = True
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 

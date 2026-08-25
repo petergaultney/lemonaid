@@ -7,6 +7,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | Key | Action |
 |-----|--------|
 | `Enter` | Open notification (switches to that session) |
+| `1`-`9`, `0` | Switch to that row of the list, counting from the top |
 | `u` | Jump directly to earliest unread session |
 | `m` | Mark as read |
 | `M` | Mark as unread again |
@@ -32,6 +33,7 @@ stay until you press `?` a second time. `?` is not configurable.
 | Key | Action |
 |-----|--------|
 | `Enter` | Resume selected session (replaces current terminal) |
+| `1`-`9`, `0` | Resume that row of the list, counting from the top |
 | `c` | Copy resume command to clipboard |
 | `T` | Spawn a tmux session around the selected session |
 | `/` | Filter by name, cwd, branch |
@@ -58,6 +60,22 @@ same list from the shell.
 
 New agent output cancels a snooze early. Snoozing means "not this state, not
 yet"; if the session produces something new, it wants you again.
+
+## Jump by number
+
+The first ten rows carry a number, shown before the session name. Pressing that
+digit switches to the row, exactly as selecting it would.
+
+The number is the row's position, so it renumbers whenever the list reorders —
+it is a shortcut for the row in front of you, not a name a session keeps. Past
+the tenth row there is no digit; scroll instead. Supporting more would mean
+waiting after each keypress to tell `1` from `12`, and that delay would be paid
+on every jump.
+
+The non-switchable table is not numbered. Those sessions belong to terminals
+this one cannot switch to, so a number would name a row it cannot act on.
+
+Set `jump_by_number = false` to leave the digits unbound.
 
 ## Undo
 
@@ -92,6 +110,7 @@ rename = "r"
 tmux_resume = "T"  # spawn tmux session from history
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
+jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
 ```
 
