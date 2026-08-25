@@ -8,6 +8,7 @@ from pathlib import Path
 from ..config import load_config
 from ..inbox import db
 from . import restore as tmux_restore
+from . import restart as tmux_restart
 from .navigation import go_back, swap_back_location
 from . import scratch
 from .scratch import ensure_scratch, set_follow, toggle_scratch
@@ -55,7 +56,9 @@ def cmd_scratch(args: argparse.Namespace) -> None:
         )
     )
 
-    if args.flip:
+    if args.restart:
+        result = tmux_restart.restart_scratch()
+    elif args.flip:
         result = scratch.move_scratch(size=size, position=position)
     elif args.follow is not None:
         result = set_follow(size=size, position=position, enable=args.follow)
@@ -70,7 +73,7 @@ def cmd_scratch(args: argparse.Namespace) -> None:
             follow_default=config.tmux_session.follow_scratch,
         )
 
-    if args.verbose:
+    if args.verbose or args.restart:
         print(result)
 
 
@@ -185,6 +188,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     scratch_parser.add_argument(
         "--height", dest="size", default=None, help=argparse.SUPPRESS
     )  # pre-0.16 spelling of --size, kept so existing .tmux.conf bindings work
+    scratch_parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="Restart the lma process in the scratch pane, keeping the pane where it is",
+    )
     scratch_parser.add_argument(
         "--ensure",
         action="store_true",
