@@ -19,17 +19,7 @@ In a pane too narrow for the column layout, each session renders as a card -
 name, then time, cwd and branch, then the message wrapped over as many lines as
 the pane can spare:
 
-```
-● pantry-expiry-notifier              CC
- 11:23:30 · ~/src/pantry · feat/expiry
- All four checks green. The notifier
- now fires 3 days out instead of on
- the morning of.
-
-  grocery-list-dedupe                 cx
- 10:55:25 · ~/src/pantry · chore/dedupe
- Working...
-```
+<img width="899" height="511" alt="The inbox as a left sidebar, cards for each session, beside a Claude Code session" src="https://github.com/user-attachments/assets/9b82c2df-abf3-40ef-a529-f0e95a110abb" />
 
 The bar above the list turns the unread marker's colour while something is
 waiting for you. `prefix+l` toggles focus between the inbox and your work; `q`
