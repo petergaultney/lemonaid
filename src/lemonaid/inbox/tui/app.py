@@ -75,9 +75,19 @@ _CARD_HEIGHT = 3  # headline + one context line + one message line
 _CARD_MAX_HEIGHT = 14  # a card long enough to hold most messages whole
 _CARD_MAX_SHARE = 0.4  # most of a tall pane one card may claim
 _CARD_BODY_COLUMN = 0
+_CARD_BACKEND_COLUMN = 1
+# Two cells for the label ("CC", "cx", a two-cell emoji) and one to keep it
+# off the card's text. The label is right-justified into it, so it is the
+# pane's edge the labels line up against.
+_BACKEND_WIDTH = 3
 _CARD_MIN_TEXT = 16
 _CARD_CHROME_ROWS = 4  # header, status row, and a little slack
-_INDENT = "  "  # aligns a card's lines under its name, past the unread marker
+_INDENT = " "  # one column, so a card's body clears the marker but little else
+# Cards draw their own gutter - a single space, with the marker in the column
+# before it - so the table adds none. Every column a narrow pane spends on
+# padding is one the message doesn't get.
+_CARD_CELL_PADDING = 0
+_COLUMN_CELL_PADDING = 1  # DataTable's own default, restored on the way back
 
 _TIME_CELL = 0
 _UNREAD_CELL = 1
@@ -168,7 +178,11 @@ def _as_card(
         *(Text(_INDENT) + line for line in _wrapped(message, body, message_lines)),
         Text(""),  # separates this card from the next
     ]
-    return [Text("\n").join(lines), cells[_BACKEND_CELL]]
+    # Right-justified so the backend labels line up against the pane's edge
+    # whatever their width, rather than against each other's first character.
+    backend = cells[_BACKEND_CELL].copy()
+    backend.justify = "right"
+    return [Text("\n").join(lines), backend]
 
 
 def _without_marker(cells: list[Text]) -> list[Text]:
@@ -283,6 +297,23 @@ def _vertical_scrollbar_width(table: DataTable) -> int:
     a list short enough not to scroll.
     """
     return int(table.styles.scrollbar_size_vertical or 0)
+
+
+def _fill_card_columns(table: DataTable, total_width: int) -> None:
+    """Give the card body everything the backend label doesn't need.
+
+    Two unpadded columns is arithmetic rather than a distribution, and the flex
+    path's approximations cost a column here - which is the column that puts the
+    backend label against the pane's edge instead of one short of it.
+    """
+    columns = list(table.columns.values())
+    if len(columns) < 2 or total_width <= 0:
+        return
+
+    for column in columns:
+        column.auto_width = False
+    columns[_CARD_BACKEND_COLUMN].width = _BACKEND_WIDTH
+    columns[_CARD_BODY_COLUMN].width = max(_CARD_MIN_TEXT, total_width - _BACKEND_WIDTH)
 
 
 def _stretch_columns(
@@ -721,7 +752,7 @@ class LemonaidApp(App):
                 "#snoozed_table",
             ):
                 table = self.query_one(table_id, DataTable)
-                _stretch_columns(table, [(0, 20, 1.0, 0)], w - _vertical_scrollbar_width(table))
+                _fill_card_columns(table, w - _vertical_scrollbar_width(table))
             return
 
         # Name carries Claude's conversation title, which is what actually
@@ -776,10 +807,12 @@ class LemonaidApp(App):
             table.clear(columns=True)
 
         if self._cards(width, height):
+            table.cell_padding = _CARD_CELL_PADDING
             table.add_column("", width=20)  # The card body, stretched on resize
-            table.add_column("", width=3)  # Backend icon
+            table.add_column("", width=3)  # Backend icon, right-justified in it
             return
 
+        table.cell_padding = _COLUMN_CELL_PADDING
         # Time holds "HH:MM:SS" or the wider "YYYY-MM-DD" for older sessions.
         table.add_column("Time", width=10)
         # Everything in history is archived, so the marker would always be
