@@ -35,14 +35,15 @@ from ...tmux.scratch import (
     _hide,
     current_position,
     flip_position,
-    size_has_drifted,
     is_follow_enabled,
     move_scratch,
     save_current_size,
+    size_has_drifted,
 )
 from ...tmux.session import spawn_session
 from .. import db, undo
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
+from .table import ClickToActTable
 from .utils import FIELD_STYLES, UNREAD_MARKER_STYLE, set_terminal_title, styled_cell
 
 _DAY_SECONDS = 86400
@@ -506,10 +507,12 @@ class LemonaidApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield DataTable(id="main_table")
+        yield ClickToActTable(id="main_table")
         yield Static("", id="other_sources_label")
         yield DataTable(id="other_sources_table", show_header=False)
         yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
+        # History resumes a session, replacing the terminal you are sitting in.
+        # That wants picking a row and committing to it to stay separate.
         yield DataTable(id="history_table")
         yield DataTable(id="snoozed_table")
         yield Static("", id="status")
