@@ -74,7 +74,9 @@ def tmux(monkeypatch, tmp_path):
     def run(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
 
-    started = run("-f", "/dev/null", "new-session", "-d", "-s", "a", "-n", "w1", "-x", "245", "-y", "90")
+    started = run(
+        "-f", "/dev/null", "new-session", "-d", "-s", "a", "-n", "w1", "-x", "245", "-y", "90"
+    )
     if started.returncode != 0:
         pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
 
@@ -100,9 +102,12 @@ def tmux(monkeypatch, tmp_path):
 
 def _panes(run, window: str) -> list[tuple[str, int, int, bool]]:
     """(pane_id, width, height, active) for each pane in `window`."""
-    out = run("list-panes", "-t", window, "-F", "#{pane_id} #{pane_width} #{pane_height} #{pane_active}")
+    out = run(
+        "list-panes", "-t", window, "-F", "#{pane_id} #{pane_width} #{pane_height} #{pane_active}"
+    )
     return [
-        (p, int(w), int(h), a == "1") for p, w, h, a in (line.split() for line in out.stdout.split("\n") if line)
+        (p, int(w), int(h), a == "1")
+        for p, w, h, a in (line.split() for line in out.stdout.split("\n") if line)
     ]
 
 
@@ -156,8 +161,15 @@ def _assert_sane(run, pane: str) -> None:
     """The pane is in the client's window, every window holds at most one slot
     (the pane or a placeholder), and no slot outside the parking session has focus."""
     here = run("display", "-p", "#{session_name}:#{window_index}").stdout.strip()
-    assert run("display", "-p", "-t", pane, "#{session_name}:#{window_index}").stdout.strip() == here
-    out = run("list-panes", "-a", "-F", "#{session_name}:#{window_index} #{pane_id} #{pane_active} #{pane_start_command}")
+    assert (
+        run("display", "-p", "-t", pane, "#{session_name}:#{window_index}").stdout.strip() == here
+    )
+    out = run(
+        "list-panes",
+        "-a",
+        "-F",
+        "#{session_name}:#{window_index} #{pane_id} #{pane_active} #{pane_start_command}",
+    )
     slots: dict[str, list[str]] = {}
     for line in out.stdout.splitlines():
         window, pane_id, active, *_ = line.split()
@@ -253,7 +265,10 @@ def test_the_slot_is_on_the_left(tmux):
 
     assert tmux("display", "-t", pane, "-p", "#{pane_left}").stdout.strip() == "0"
     tmux("select-window", "-t", "a:w1")
-    assert tmux("display", "-t", follow.placeholders("a:w2")[0], "-p", "#{pane_left}").stdout.strip() == "0"
+    assert (
+        tmux("display", "-t", follow.placeholders("a:w2")[0], "-p", "#{pane_left}").stdout.strip()
+        == "0"
+    )
 
 
 def test_follow_off_leaves_the_pane_where_it_is(tmux):
@@ -275,7 +290,11 @@ def test_a_parked_pane_stays_parked(tmux):
 
 
 def _main_pane(run, window: str) -> tuple[str, int, int, bool]:
-    return next(p for p in _panes(run, window) if p[0] not in follow.placeholders(window) and p[0] != scratch._get_pane_id())
+    return next(
+        p
+        for p in _panes(run, window)
+        if p[0] not in follow.placeholders(window) and p[0] != scratch._get_pane_id()
+    )
 
 
 def test_a_revisited_window_keeps_its_layout(tmux):

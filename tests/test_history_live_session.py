@@ -24,7 +24,7 @@ def _archived(tty: str | None = None, socket: str | None = None) -> int:
     exact thing these tests assert on.
     """
     tty = tty or f"/dev/ttys{next(_ttys)}"
-    metadata = {"tty": tty, "cwd": "/tmp", "session_id": "abc123"}
+    metadata = {"tty": tty, "cwd": "/tmp", "session_id": f"abc{next(_ttys)}"}
     if socket:
         metadata["tmux_socket"] = socket
 
@@ -38,7 +38,17 @@ def _archived(tty: str | None = None, socket: str | None = None) -> int:
         return n.id
 
 
-def _run(steps, size=(120, 20)):
+def _run(steps, size=(120, 20), monkeypatch=None):
+    """Run the app with auto-archiving disabled at the database.
+
+    These tests assert on a row's status, and the watcher archives any row whose
+    tty has no pane - which is every row here, since the ttys are invented. The
+    thread doing it may belong to an earlier test's app, so blocking it on this
+    app's instance is not enough; the write itself has to be a no-op.
+    """
+    if monkeypatch is not None:
+        monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+
     async def run():
         app = LemonaidApp()
         async with app.run_test(size=size) as pilot:
@@ -55,9 +65,17 @@ def _status(nid: int) -> str:
 
 
 def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
+    """Observed as the un-archiving call rather than the row's later status: a
+    watcher thread outliving an earlier test archives rows whose invented tty
+    has no pane, so the status read afterwards is not this test's to own."""
     nid = _archived()
+    unarchived: list[int] = []
     monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: True)
     monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "lemonaid.inbox.tui.app.db.mark_unread",
+        lambda conn, nid: unarchived.append(nid),
+    )
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -65,8 +83,8 @@ def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
         app._resume_session()
         await pilot.pause()
 
-    _run(steps)
-    assert _status(nid) == "unread"
+    _run(steps, monkeypatch=monkeypatch)
+    assert unarchived == [nid]
 
 
 def test_a_live_session_is_switched_to_not_resumed(monkeypatch):
@@ -89,7 +107,7 @@ def test_a_live_session_is_switched_to_not_resumed(monkeypatch):
         app._resume_session()
         await pilot.pause()
 
-    _run(steps)
+    _run(steps, monkeypatch=monkeypatch)
     assert switched
     assert not resumed
 
@@ -110,7 +128,7 @@ def test_a_dead_session_still_resumes(monkeypatch):
         app._resume_session()
         await pilot.pause()
 
-    _run(steps)
+    _run(steps, monkeypatch=monkeypatch)
     assert resumed
 
 
@@ -131,7 +149,7 @@ def test_the_recorded_server_is_the_one_asked(monkeypatch):
         app._resume_session()
         await pilot.pause()
 
-    _run(steps)
+    _run(steps, monkeypatch=monkeypatch)
     assert asked == ["/tmp/tmux-1/other"]
 
 
@@ -151,5 +169,5 @@ def test_copying_a_command_never_switches(monkeypatch):
         app._resume_session(copy_only=True)
         await pilot.pause()
 
-    _run(steps)
+    _run(steps, monkeypatch=monkeypatch)
     assert not switched

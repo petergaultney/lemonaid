@@ -267,7 +267,11 @@ def _archive_stale_sessions(
         # Asked of the server the session was recorded on. Without that, a pane
         # on another tmux server is absent from this one's listing and reads as
         # gone - which archives a session that is running fine.
-        if tty and switch_source and not _check_pane_exists(tty, switch_source, sockets.get(channel)):
+        if (
+            tty
+            and switch_source
+            and not _check_pane_exists(tty, switch_source, sockets.get(channel))
+        ):
             archive_channel(channel)
             archived.add(channel)
             _log.info("archived (pane gone): %s", channel)

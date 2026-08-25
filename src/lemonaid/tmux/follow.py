@@ -246,7 +246,9 @@ def placeholders(target: str | None = None, *, whole_session: bool = False) -> l
     if result.returncode != 0:
         return []
 
-    return [line.split()[0] for line in result.stdout.splitlines() if "LEMONAID_PLACEHOLDER" in line]
+    return [
+        line.split()[0] for line in result.stdout.splitlines() if "LEMONAID_PLACEHOLDER" in line
+    ]
 
 
 def kill_placeholders(target: str | None = None, *, whole_session: bool = False) -> None:
