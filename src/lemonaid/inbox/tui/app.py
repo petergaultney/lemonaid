@@ -643,14 +643,19 @@ class LemonaidApp(App):
             self._refresh_notifications()
 
     def _cards(self, width: int | None = None, height: int | None = None) -> bool:
-        """Whether to draw cards rather than columns at this size.
+        """Whether to draw cards rather than columns.
 
-        A pane narrow enough to be a sidebar gets cards whatever its height. The
-        scratch pane keeps its width and takes its height from whichever window it
-        joins, so letting the aspect ratio decide made the same pane render as
-        cards in a tall window and as squeezed columns in a short one - which is
-        the layout changing on a window switch, not on anything the user did.
+        The scratch pane is a sidebar or a strip by declaration - its position -
+        never by measurement. It takes its height from whichever window it is in
+        and can be any width for a moment while tmux rearranges a layout, and a
+        layout that follows those is a sidebar rendering as a top pane.
+
+        A plain `lma` in a terminal decides from its shape: a pane narrow enough
+        to be a sidebar gets cards whatever its height.
         """
+        if self._scratch_mode:
+            return current_position(self.config.tmux_session.scratch_position) == "left"
+
         w = self.size.width if width is None else width
         h = self.size.height if height is None else height
         if w <= 0:

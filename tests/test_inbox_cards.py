@@ -9,6 +9,7 @@ from rich.text import Text
 
 from lemonaid.inbox.tui import app
 from lemonaid.inbox.tui.utils import styled_cell
+from lemonaid.tmux import scratch
 
 
 def test_the_context_line_never_wraps():
@@ -183,3 +184,29 @@ def test_a_wide_short_pane_still_gets_columns():
 
 def test_a_wide_but_tall_pane_still_gets_cards():
     assert _layout(100, 130) == "cards"
+
+
+def test_a_scratch_pane_on_the_left_is_cards_whatever_its_size(monkeypatch, tmp_path):
+    """A sidebar by declaration: a moment at 245 columns mid-relayout, or a short
+    window, must not turn it into a top pane."""
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+    scratch.set_position("left")
+    sidebar = app.LemonaidApp(scratch_mode=True)
+
+    assert sidebar._cards(58, 89)
+    assert sidebar._cards(245, 16)
+    assert sidebar._cards(245, 89)
+
+
+def test_a_scratch_pane_on_top_is_columns_whatever_its_size(monkeypatch, tmp_path):
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+    scratch.set_position("top")
+    strip = app.LemonaidApp(scratch_mode=True)
+
+    assert not strip._cards(245, 16)
+    assert not strip._cards(58, 89)
+
+
+def test_a_plain_lma_still_decides_from_its_shape():
+    assert app.LemonaidApp()._cards(58, 89)
+    assert not app.LemonaidApp()._cards(245, 16)

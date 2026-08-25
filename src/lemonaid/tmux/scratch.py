@@ -129,6 +129,7 @@ def save_current_size(position: str) -> None:
     if size:
         _log.info("save_current_size: %s (%s)", size, position)
         _save_size(position, size)
+        follow.resize_placeholders(position, size)
 
 
 def size_has_drifted(position: str) -> bool:
@@ -439,15 +440,38 @@ def _capped(size: str, position: str) -> str:
         return size
 
 
+def _swap_into(pane_id: str, placeholder: str, size: str, position: str) -> bool:
+    """Take a placeholder's slot. The placeholder lands where the pane was; if
+    that is the parking session, it has nothing to hold open and is killed."""
+    swap = ["tmux", "swap-pane", "-d", "-s", pane_id, "-t", placeholder]
+    if subprocess.run(swap, capture_output=True).returncode != 0:
+        return False
+
+    follow.kill_placeholders(_SCRATCH_SESSION, whole_session=True)
+    flag = "-x" if position == "left" else "-y"
+    subprocess.run(["tmux", "resize-pane", "-t", pane_id, flag, size], capture_output=True)
+    return True
+
+
 def _show(pane_id: str, size: str, position: str, target_pane: str | None = None) -> bool:
-    """Join the scratch pane into the current window, above or left of it."""
+    """Put the scratch pane into the target's window, above or left of it.
+
+    A window holding a placeholder gets a swap, so its own panes keep their
+    size; any other window gets a join.
+    """
     requested = size
     size = _capped(size, position)
-    cmd = ["tmux", "join-pane", _split_flag(position), "-b", "-l", size, "-s", pane_id]
-    if target_pane:
-        cmd.extend(["-t", target_pane])
-    if subprocess.run(cmd, capture_output=True).returncode != 0:
-        return False
+    target = target_pane or _get_current_window()
+    placeholder = next(iter(follow.placeholders(target) if target else []), None)
+    if placeholder:
+        if not _swap_into(pane_id, placeholder, size, position):
+            return False
+    else:
+        cmd = ["tmux", "join-pane", _split_flag(position), "-b", "-l", size, "-s", pane_id]
+        if target_pane:
+            cmd.extend(["-t", target_pane])
+        if subprocess.run(cmd, capture_output=True).returncode != 0:
+            return False
 
     if not saved_size(position):
         _save_size(position, requested)  # the follow hook needs one for this axis
@@ -593,8 +617,11 @@ def move_scratch(size: str, position: str) -> str:
 
     A pane already in your window is broken out and rejoined on the other axis,
     so the flip is visible immediately rather than at the next window switch.
+    Placeholders hold slots on the old axis, so they all go; windows get new ones
+    as they are visited.
     """
     set_position(position)
+    follow.kill_placeholders()
     pane_id = _get_pane_id()
     if pane_id is None or not _pane_exists(pane_id):
         return position
@@ -632,6 +659,7 @@ def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> 
     """
     set_follow_enabled(enable)
     if not enable:
+        follow.kill_placeholders()
         return "follow disabled"
 
     ensure_scratch(size, position)
