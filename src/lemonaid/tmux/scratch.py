@@ -12,7 +12,10 @@ Per-server state files in ~/.local/state/lemonaid/:
                                   Separate files: a top pane's rows and a left
                                   pane's columns are different quantities, so
                                   switching position keeps both.
-  tmux-scratch-follow.sh        — shell hook script, generated once.
+
+Each of these is mirrored into a tmux global option (see follow.py) whenever it
+is written, because the follow hook runs inside the tmux server and can read
+options but not files. The files are what survives a server restart.
 """
 
 import os
@@ -21,12 +24,12 @@ import sys
 from pathlib import Path
 
 from ..log import get_logger
+from . import follow
 from .navigation import get_state_path
 
 _log = get_logger("tmux.scratch")
 
 _SCRATCH_SESSION = "_lma_scratch"
-_MAX_SHARE = 0.4  # most of a window the scratch pane may take
 
 
 def _get_server_name() -> str:
@@ -90,6 +93,18 @@ def _get_pane_id() -> str | None:
 def _save_pane_id(pane_id: str) -> None:
     """Save the scratch pane ID."""
     _state_path().write_text(pane_id)
+    follow.publish({follow.PANE_OPTION: pane_id})
+
+
+def saved_size(position: str) -> str:
+    """The size last saved for this axis, or "" if none has been."""
+    path = _size_path(position)
+    return path.read_text().strip() if path.exists() else ""
+
+
+def _save_size(position: str, size: str) -> None:
+    _size_path(position).write_text(size)
+    follow.publish({follow.size_option(position): size})
 
 
 def _current_size(pane_id: str, position: str) -> str:
@@ -113,7 +128,7 @@ def save_current_size(position: str) -> None:
     size = _current_size(pane_id, position)
     if size:
         _log.info("save_current_size: %s (%s)", size, position)
-        _size_path(position).write_text(size)
+        _save_size(position, size)
 
 
 def size_has_drifted(position: str) -> bool:
@@ -122,8 +137,7 @@ def size_has_drifted(position: str) -> bool:
     if not pane_id:
         return False
 
-    path = _size_path(position)
-    saved = path.read_text().strip() if path.exists() else ""
+    saved = saved_size(position)
     if not saved:
         return False
 
@@ -138,6 +152,7 @@ def _clear_state() -> None:
     path = _state_path()
     if path.exists():
         path.unlink()
+    follow.publish({follow.PANE_OPTION: None})
 
 
 def _follow_path() -> Path:
@@ -156,6 +171,7 @@ def is_follow_enabled() -> bool:
 def set_follow_enabled(enabled: bool) -> None:
     """Set follow mode for this tmux server. Empty file = disabled."""
     _follow_path().write_text("on" if enabled else "")
+    follow.publish({follow.FOLLOW_OPTION: "on" if enabled else "off"})
 
 
 def bootstrap_follow(config_default: bool) -> None:
@@ -187,6 +203,7 @@ def current_position(config_default: str) -> str:
 
 def set_position(position: str) -> None:
     _position_path().write_text(position)
+    follow.publish({follow.POSITION_OPTION: position})
 
 
 def flip_position(config_default: str) -> str:
@@ -194,6 +211,24 @@ def flip_position(config_default: str) -> str:
     position = "top" if current_position(config_default) == "left" else "left"
     set_position(position)
     return position
+
+
+def _publish_all(size: str, position: str) -> None:
+    """Mirror this server's state files into the options the follow hook reads.
+
+    Run whenever the pane is shown, so a server whose options were never set -
+    a fresh server, or one an older lemonaid set up - catches up unnoticed.
+    """
+    other = "top" if position == "left" else "left"
+    follow.publish(
+        {
+            follow.FOLLOW_OPTION: "on" if is_follow_enabled() else "off",
+            follow.PANE_OPTION: _get_pane_id(),
+            follow.POSITION_OPTION: position,
+            follow.size_option(position): saved_size(position) or size,
+            follow.size_option(other): saved_size(other) or None,
+        }
+    )
 
 
 def _pane_exists(pane_id: str) -> bool:
@@ -386,7 +421,7 @@ def _create_pane() -> str:
 
 
 def _capped(size: str, position: str) -> str:
-    """`size`, but never more than _MAX_SHARE of the window it is joining.
+    """`size`, but never more than follow.MAX_SHARE of the window it is joining.
 
     A saved size is absolute, and a window is not always the size it will end up:
     a session nothing has attached to yet is tmux's default-size (80x24), so a
@@ -399,7 +434,7 @@ def _capped(size: str, position: str) -> str:
         text=True,
     )
     try:
-        return str(min(int(size), int(int(result.stdout.strip()) * _MAX_SHARE)))
+        return str(min(int(size), int(int(result.stdout.strip()) * follow.MAX_SHARE)))
     except ValueError:
         return size
 
@@ -414,12 +449,8 @@ def _show(pane_id: str, size: str, position: str, target_pane: str | None = None
     if subprocess.run(cmd, capture_output=True).returncode != 0:
         return False
 
-    # The follow hook reads this file for its size, so a position being used for
-    # the first time has to record one - otherwise the hook falls back to the
-    # default compiled into it when follow was enabled.
-    path = _size_path(position)
-    if not path.exists():
-        path.write_text(requested)
+    if not saved_size(position):
+        _save_size(position, requested)  # the follow hook needs one for this axis
 
     return True
 
@@ -500,6 +531,10 @@ def ensure_scratch(size: str = "10", position: str = "top") -> str:
     Like toggle, but never hides — only creates or shows.
     Returns 'shown', 'created', or 'already_visible'.
     """
+    if is_follow_enabled():
+        _publish_all(size, position)
+        follow.install_hooks()
+
     current_pane = _get_current_pane()
     pane_id = _get_pane_id()
 
@@ -524,88 +559,24 @@ def _follow_script_path() -> Path:
     return get_state_path() / "tmux-scratch-follow.sh"
 
 
-def _write_follow_script(size: str = "10", position: str = "top") -> Path:
-    """Write the follow hook script to disk.
+def _retire_follow_script() -> None:
+    """The hook no longer runs a script.
 
-    Pure shell — reads the pane ID from the state file, checks if
-    it's already in the current window, and joins it if not.  ~5ms
-    on the hot path (already visible).
-
-    Position is read at run time rather than baked in. The hook is only
-    regenerated by --follow and --flip, so an axis compiled into it goes stale
-    the moment position changes by any other route - and a stale axis rejoins a
-    left pane along the top, at a width meant for columns.
+    A .tmux.conf that still names the old one gets a stub, so those hooks do
+    nothing rather than print "No such file" on every switch. Otherwise the file
+    is removed.
     """
-    script_path = _follow_script_path()
-    state_dir = str(get_state_path())
-    max_pct = int(_MAX_SHARE * 100)
-    default_position = position
-    default_size = size
-    # Parse tmux server name from $TMUX the same way the Python code does
-    script_path.write_text(
-        f"""#!/bin/sh
-# lemonaid scratch-follow hook — do not edit, regenerated by lemonaid
-server=$(basename "$(echo "$TMUX" | cut -d, -f1)")
-[ -n "$server" ] || server=default
-dir={state_dir}
-
-# Is follow enabled for this server?
-grep -q on "$dir/tmux-scratch-$server-follow" 2>/dev/null || exit 0
-
-# Is there a pane to show?
-pane=$(cat "$dir/tmux-scratch-$server-pane" 2>/dev/null)
-[ -n "$pane" ] || exit 0
-
-# Already in this window?
-cur=$(tmux display -p '#{{window_id}}')
-tgt=$(tmux display -t "$pane" -p '#{{window_id}}' 2>/dev/null) || exit 0
-[ "$cur" = "$tgt" ] && exit 0
-
-# Where the pane belongs now, not where it belonged when this was written.
-position=$(cat "$dir/tmux-scratch-$server-position" 2>/dev/null)
-[ -n "$position" ] || position={default_position}
-if [ "$position" = "left" ]; then
-    axis=-h
-    dimension=width
-    window_fmt='#{{client_width}}'
-else
-    axis=-v
-    dimension=height
-    window_fmt='#{{client_height}}'
-fi
-
-size=$(cat "$dir/tmux-scratch-$server-$dimension" 2>/dev/null)
-[ -n "$size" ] || size={default_size}
-
-# Never more than a share of the window. Measured from the client rather than
-# the window: a window no client has sized yet reports tmux's default-size of
-# 80x24, and the hook runs before the switch resizes it - which capped the pane
-# at 32 columns and then left it there once the window grew.
-window=$(tmux display -p "$window_fmt")
-max=$((window * {max_pct} / 100))
-[ "$size" -le "$max" ] 2>/dev/null || size=$max
-
-# One round-trip: join and restore focus relayout the window once between them
-# rather than redrawing after each, which is visible as the pane resizing twice.
-# Diagnostics for a pane that lands at the wrong size or layout: every input the
-# join depends on, written before the join so a bad value is visible even when
-# the result looks fine. Off unless the file already exists (`: > $log` to arm).
-log="$dir/tmux-scratch-follow.log"
-if [ -f "$log" ]; then
-    printf '%s pos=%s size=%s dim=%s client=%s window=%s max=%s pane=%s -> %s\n' \
-        "$(date +%H:%M:%S)" "$position" "$size" "$dimension" \
-        "$(tmux display -p '#{{client_width}}x#{{client_height}}')" \
-        "$(tmux display -p '#{{window_width}}x#{{window_height}}')" \
-        "$max" "$pane" "$(tmux display -p '#{{session_name}}:#{{window_index}}')" >> "$log"
-fi
-
-cur_pane=$(tmux display -p '#{{pane_id}}')
-tmux join-pane "$axis" -b -l "$size" -s "$pane" \\; select-pane -t "$cur_pane" 2>/dev/null
-exit 0
-"""
-    )
-    script_path.chmod(0o755)
-    return script_path
+    path = _follow_script_path()
+    if _check_tmux_conf_hooks():
+        path.write_text(
+            "#!/bin/sh\n"
+            "# Retired: the lemonaid follow hook runs inside tmux now.\n"
+            "# Remove the set-hook lines naming this file from .tmux.conf.\n"
+            "exit 0\n"
+        )
+        path.chmod(0o755)
+    elif path.exists():
+        path.unlink()
 
 
 def _check_tmux_conf_hooks() -> bool:
@@ -622,13 +593,8 @@ def move_scratch(size: str, position: str) -> str:
 
     A pane already in your window is broken out and rejoined on the other axis,
     so the flip is visible immediately rather than at the next window switch.
-    The follow script is rewritten either way, since it carries the axis and the
-    dimension file it reads.
     """
     set_position(position)
-    if is_follow_enabled():
-        _write_follow_script(size, position)
-
     pane_id = _get_pane_id()
     if pane_id is None or not _pane_exists(pane_id):
         return position
@@ -660,41 +626,24 @@ def _sibling_pane(pane_id: str) -> str | None:
 def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> str:
     """Enable or disable follow mode for this tmux server.
 
-    When enabled, installs tmux hooks for the current server session
-    and generates the follow script. Warns if .tmux.conf doesn't have
-    the hooks (so follow won't persist across tmux restarts).
+    Enabling shows the pane and installs the hooks on the running server; nothing
+    is needed in .tmux.conf, since the pane does not outlive the server either
+    and showing it again installs them again.
     """
     set_follow_enabled(enable)
+    if not enable:
+        return "follow disabled"
 
-    if enable:
-        ensure_scratch(size, position)
-        _write_follow_script(size, position)
-        _install_hooks()
-
-        if not _check_tmux_conf_hooks():
-            script = _follow_script_path()
-            print(
-                f"\nFollow enabled for this tmux server session.\n"
-                f"To persist across tmux restarts, add these to .tmux.conf:\n\n"
-                f"  set-hook -g after-select-window[100] 'run-shell -b \"{script}\"'\n"
-                f"  set-hook -g session-window-changed[100] 'run-shell -b \"{script}\"'\n"
-                f"  set-hook -g client-session-changed[100] 'run-shell -b \"{script}\"'\n",
-                file=sys.stderr,
-            )
-
-        return "follow enabled"
-
-    return "follow disabled"
-
-
-def _install_hooks() -> None:
-    """Install the tmux hooks that call the follow script."""
-    script = _follow_script_path()
-    for hook in ("after-select-window", "session-window-changed", "client-session-changed"):
-        subprocess.run(
-            ["tmux", "set-hook", "-g", f"{hook}[100]", f"run-shell -b '{script}'"],
-            capture_output=True,
+    ensure_scratch(size, position)
+    _retire_follow_script()
+    if _check_tmux_conf_hooks():
+        print(
+            "\nFollow enabled. lemonaid installs its tmux hooks itself now; the\n"
+            "set-hook lines naming tmux-scratch-follow.sh in ~/.tmux.conf can go.\n",
+            file=sys.stderr,
         )
+
+    return "follow enabled"
 
 
 def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool = False) -> str:
@@ -704,9 +653,10 @@ def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool
     follow_default is the config value, used to bootstrap the follow file on first run.
     """
     bootstrap_follow(follow_default)
-    follow = is_follow_enabled()
-    if follow and not _follow_script_path().exists():
-        _write_follow_script(size, position)
+    following = is_follow_enabled()
+    if following:
+        _publish_all(size, position)
+        follow.install_hooks()
 
     current_pane = _get_current_pane()
     pane_id = _get_pane_id()
@@ -721,7 +671,7 @@ def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool
 
     if pane_window == current_window:
         if current_pane == pane_id:
-            if follow:
+            if following:
                 # Focus the next pane (the main content pane below)
                 subprocess.run(
                     ["tmux", "select-pane", "-t", ":.+"],
