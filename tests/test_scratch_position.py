@@ -120,16 +120,11 @@ def test_an_unreadable_window_size_leaves_the_size_alone(monkeypatch):
 
 
 def test_each_position_caps_against_its_own_axis():
-    assert scratch._window_size_format("left") == "#{client_width}"
-    assert scratch._window_size_format("top") == "#{client_height}"
+    left = scratch._window_size_format("left")
+    top = scratch._window_size_format("top")
 
-
-def test_the_cap_measures_the_client_not_the_window():
-    """A window no client has sized yet reports tmux's default-size 80x24, and
-    the join can run before the switch resizes it."""
-    for position in ("left", "top"):
-        assert "client" in scratch._window_size_format(position)
-        assert "window" not in scratch._window_size_format(position)
+    assert "width" in left and "height" not in left
+    assert "height" in top and "width" not in top
 
 
 def test_position_falls_back_to_config_until_something_sets_it(monkeypatch, tmp_path):
@@ -153,3 +148,36 @@ def test_flipping_alternates(monkeypatch, tmp_path):
     assert scratch.flip_position("left") == "top"
     assert scratch.flip_position("left") == "left"
     assert scratch.flip_position("left") == "top"
+
+
+def test_the_size_is_capped_against_the_smaller_of_client_and_window():
+    """Neither alone is right.
+
+    A window no client has shown reports tmux's 80x24 default, so the window
+    under-reports before a switch - that is why the client is consulted. But a
+    window can also be genuinely smaller and stay that way, and the split
+    happens in the window: sizing a client-width sidebar into it leaves the main
+    pane below MIN_MAIN, the swap that would fix it is capped against the wide
+    client, and the slot keeps its placeholder - a bare `sleep`, which renders
+    as an empty pane.
+    """
+    fmt = scratch._window_size_format("left")
+
+    assert "client_width" in fmt
+    assert "window_width" in fmt
+
+
+def test_the_size_format_falls_back_to_the_window_with_no_client():
+    """A client-less server reports an empty dimension, and comparing against
+    empty yields empty rather than the window."""
+    fmt = scratch._window_size_format("left")
+
+    assert fmt.startswith("#{?client_width,")
+    assert fmt.endswith(",#{window_width}}")
+
+
+def test_both_axes_are_capped_the_same_way():
+    top = scratch._window_size_format("top")
+
+    assert "client_height" in top
+    assert "window_height" in top
