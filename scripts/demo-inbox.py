@@ -5,7 +5,9 @@
     uv run scripts/demo-inbox.py --top      # top strip, columns
 
 Attaches a tmux server named `lemonaid-demo` with the scratch pane already
-showing. `Ctrl-b d` detaches; `--kill` tears the server and its inbox down.
+showing. It reads your own `~/.tmux.conf`, so the demo looks like your tmux
+(set `LEMONAID_DEMO_NO_CONFIG=1` for tmux's stock defaults instead). Your
+prefix detaches it as usual; `--kill` tears the server and its inbox down.
 
 Everything it touches is its own: `LEMONAID_DB` points the inbox at a scratch
 file and the server has its own socket, so the real inbox is never read, written,
@@ -27,65 +29,99 @@ DB = Path(tempfile.gettempdir()) / "lemonaid-demo" / "demo.db"
 
 # Ages, not timestamps: the inbox sorts unread first and then by recency, and a
 # screenshot wants that ordering to look like an afternoon's work.
+#
+# Invented sessions on an invented project. These end up in screenshots, so
+# nothing here should resemble a real repo, branch, or path.
 _MINUTE = 60
 SESSIONS = [
     (
-        "tars-chat-observability",
+        "pantry-expiry-notifier",
         "unread",
         4 * _MINUTE,
         "claude",
-        "~/w/d/t/live-observability",
-        "tars/live-observability",
-        "All four PRs green - #5343's last check passed.",
+        "~/src/pantry",
+        "feat/expiry-alerts",
+        "All four checks green. The notifier now fires 3 days out instead of "
+        "on the morning of, which is what the yoghurt incident called for.",
     ),
     (
-        "protostellar-tenant-views",
+        "sourdough-hydration-calc",
         "unread",
         22 * _MINUTE,
         "claude",
-        "~/w/ds-monorepo",
-        "protostellar/tenant-views",
-        "Blocking bug found: `Unmemoized.invoke()` is not bound to the invocation "
-        "that produced it, so the memoized result lands under the wrong key.",
+        "~/src/breadbox",
+        "fix/baker-percentage",
+        "Found the bug: `hydration()` divides by total dough weight rather "
+        "than flour weight, so every loaf above 70% came out as 41%.",
     ),
     (
-        "obs-red-team",
+        "grocery-list-dedupe",
         "read",
         41 * _MINUTE,
         "codex",
-        "~/w/d/t/l/protostellar",
-        "tars/live-observability",
+        "~/src/pantry",
+        "chore/dedupe",
         "Working...",
     ),
     (
-        "relay-single-file-datadog-monitor",
+        "recipe-import-from-url",
         "read",
         3 * 60 * _MINUTE,
         "claude",
-        "~/w/d/main",
+        "~/src/cookbook",
         "main",
-        "Done. Wrote `~/work/vault/th/datadog.md` with the full reference "
-        "(tokens, monitor YAML locations, apply script, On-Call routing details).",
+        "Done. Handles JSON-LD, microdata, and the three blog themes that "
+        "put the ingredients in a table. Falls back to asking rather than guessing.",
     ),
     (
-        "openclaw-upgrade",
+        "spice-rack-inventory",
         "read",
         5 * 60 * _MINUTE,
         "openclaw",
-        "~/trove",
+        "~/notes",
         "",
         "Synced - 7843 bytes, matching the corrected version.",
     ),
     (
-        "relay-debug-hq",
+        "leftovers-what-can-i-make",
         "read",
         6 * 60 * _MINUTE,
         "claude",
-        "~/trove",
+        "~/notes",
         "",
         "Here's what I can and can't tell you.",
     ),
 ]
+
+
+# The main panes end up in the same screenshot as the sidebar, so they show
+# invented output too - a real shell would put a real prompt, path, and branch
+# on display.
+_GIT_LOG = """$ git log --oneline -8
+8f2a1c4 (HEAD -> feat/expiry-alerts) notify three days out, not on the day
+1d9e07b pantry: read expiry from the label scan when there is one
+6b3c882 fix hydration() to divide by flour weight, not dough weight
+44a1f5e cookbook: import recipes from JSON-LD and microdata
+90ce713 grocery list: fold duplicate entries on normalised names
+2ef4a06 spice rack: seed the inventory from last year's notes
+b7d1e59 pantry: first pass at an expiry model
+0c5a3f8 initial commit"""
+
+_PYTEST = """$ uv run pytest -q
+........................................................ [ 71%]
+does.......                                              [100%]
+67 passed in 2.14s"""
+
+
+def _show(text: str) -> list[str]:
+    """A command that prints `text` and then holds the pane open.
+
+    The demo panes run this instead of a shell. A real shell would put a real
+    prompt, path, and branch on screen next to the sidebar - which is the thing
+    a public screenshot must not contain - and the interactive shell here is
+    xonsh, which does not read POSIX heredocs anyway.
+    """
+    return [sys.executable, "-c", f"print({text!r}); import time; time.sleep(2**31)"]
 
 
 def _seed() -> None:
@@ -115,6 +151,20 @@ def _seed() -> None:
 
 def _tmux(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["tmux", "-L", SERVER, *args], capture_output=True, text=True)
+
+
+def _config_args() -> list[str]:
+    """`-f` for the demo server: your own `.tmux.conf` unless told otherwise.
+
+    A screenshot of a server running tmux's built-in defaults doesn't look like
+    the thing being demonstrated - windows start at 0, the status bar is the
+    stock green - so the demo reads the same config as everything else.
+    """
+    if os.environ.get("LEMONAID_DEMO_NO_CONFIG"):
+        return ["-f", "/dev/null"]
+
+    conf = Path.home() / ".tmux.conf"
+    return ["-f", str(conf)] if conf.exists() else []
 
 
 def _socket() -> str:
@@ -151,13 +201,31 @@ def _stage(position: str, attach: bool = True) -> None:
     # previous run would render the previous position. Everything is torn down.
     _position_state(position)
 
-    _tmux("-f", "/dev/null", "new-session", "-d", "-s", "demo", "-x", "200", "-y", "50")
+    _tmux(
+        *_config_args(),
+        "new-session",
+        "-d",
+        "-s",
+        "demo",
+        "-n",
+        "cookbook",
+        "-x",
+        "200",
+        "-y",
+        "50",
+    )
+    # Otherwise the window takes its name from whatever last ran in it, which in
+    # a freshly-staged demo is the staging command.
+    _tmux("set-window-option", "-t", "demo", "automatic-rename", "off")
     # The pane the CLI spawns is a child of the server, so this is what points
     # the demo's own `lma` at the demo inbox rather than the real one.
     _tmux("set-environment", "-g", "LEMONAID_DB", str(DB))
-    _tmux("send-keys", "-t", "demo", "git log --oneline -12", "Enter")
-    _tmux("new-window", "-t", "demo", "-n", "tests")
-    _tmux("select-window", "-t", "demo:1")
+    _tmux("respawn-pane", "-k", "-t", "demo:cookbook", *_show(_GIT_LOG))
+    # Named, not indexed: `base-index` is a config setting, so :1 is the first
+    # window on one server and the second on another.
+    _tmux("new-window", "-t", "demo", "-n", "tests", *_show(_PYTEST))
+    _tmux("set-window-option", "-t", "demo:tests", "automatic-rename", "off")
+    _tmux("select-window", "-t", "demo:tests")
 
     # Created through the CLI so the demo exercises the real path - position,
     # sizing, and the follow hooks all come from the code under review.
