@@ -39,7 +39,7 @@ SESSIONS = [
         "unread",
         4 * _MINUTE,
         "claude",
-        "~/src/pantry",
+        "src/pantry",
         "feat/expiry-alerts",
         "All four checks green. The notifier now fires 3 days out instead of "
         "on the morning of, which is what the yoghurt incident called for.",
@@ -49,7 +49,7 @@ SESSIONS = [
         "unread",
         22 * _MINUTE,
         "claude",
-        "~/src/breadbox",
+        "src/breadbox",
         "fix/baker-percentage",
         "Found the bug: `hydration()` divides by total dough weight rather "
         "than flour weight, so every loaf above 70% came out as 41%.",
@@ -59,7 +59,7 @@ SESSIONS = [
         "read",
         41 * _MINUTE,
         "codex",
-        "~/src/pantry",
+        "src/pantry",
         "chore/dedupe",
         "Working...",
     ),
@@ -68,7 +68,7 @@ SESSIONS = [
         "read",
         3 * 60 * _MINUTE,
         "claude",
-        "~/src/cookbook",
+        "src/cookbook",
         "main",
         "Done. Handles JSON-LD, microdata, and the three blog themes that "
         "put the ingredients in a table. Falls back to asking rather than guessing.",
@@ -78,7 +78,7 @@ SESSIONS = [
         "read",
         5 * 60 * _MINUTE,
         "openclaw",
-        "~/notes",
+        "notes",
         "",
         "Synced - 7843 bytes, matching the corrected version.",
     ),
@@ -87,7 +87,7 @@ SESSIONS = [
         "read",
         6 * 60 * _MINUTE,
         "claude",
-        "~/notes",
+        "notes",
         "",
         "Here's what I can and can't tell you.",
     ),
@@ -113,7 +113,7 @@ does.......                                              [100%]
 67 passed in 2.14s"""
 
 
-def _show(text: str) -> list[str]:
+def _show(text: str, title: str) -> list[str]:
     """A command that prints `text` and then holds the pane open.
 
     The demo panes run this instead of a shell. A real shell would put a real
@@ -121,7 +121,11 @@ def _show(text: str) -> list[str]:
     a public screenshot must not contain - and the interactive shell here is
     xonsh, which does not read POSIX heredocs anyway.
     """
-    return [sys.executable, "-c", f"print({text!r}); import time; time.sleep(2**31)"]
+    # The pane title is what a window-status format falls back to for an
+    # interpreter process, and its default is the hostname - which is the last
+    # identifying thing left in a screenshot of this.
+    script = f"print('\\033]2;{title}\\007' + {text!r}); import time; time.sleep(2**31)"
+    return [sys.executable, "-c", script]
 
 
 def _seed() -> None:
@@ -142,7 +146,14 @@ def _seed() -> None:
                 f"{backend}:demo-{i}",
                 message,
                 name,
-                {"tty": f"/dev/ttys{100 + i}", "cwd": cwd, "git_branch": branch},
+                {
+                    # Absolute, as a real hook records it: `fish_path` shortens
+                    # `$HOME` to `~` and leaves an unexpanded `~/...` string as
+                    # the unrecognisable `/s/pantry`.
+                    "tty": f"/dev/ttys{100 + i}",
+                    "cwd": str(Path.home() / cwd),
+                    "git_branch": branch,
+                },
                 switch_source="tmux",
                 created_at=now - age,
                 status=status,
@@ -209,6 +220,8 @@ def _stage(position: str, attach: bool = True) -> None:
         "demo",
         "-n",
         "cookbook",
+        "-c",
+        str(Path.home()),
         "-x",
         "200",
         "-y",
@@ -220,10 +233,20 @@ def _stage(position: str, attach: bool = True) -> None:
     # The pane the CLI spawns is a child of the server, so this is what points
     # the demo's own `lma` at the demo inbox rather than the real one.
     _tmux("set-environment", "-g", "LEMONAID_DB", str(DB))
-    _tmux("respawn-pane", "-k", "-t", "demo:cookbook", *_show(_GIT_LOG))
+    _tmux(
+        "respawn-pane",
+        "-k",
+        "-c",
+        str(Path.home()),
+        "-t",
+        "demo:cookbook",
+        *_show(_GIT_LOG, "cookbook"),
+    )
     # Named, not indexed: `base-index` is a config setting, so :1 is the first
     # window on one server and the second on another.
-    _tmux("new-window", "-t", "demo", "-n", "tests", *_show(_PYTEST))
+    _tmux(
+        "new-window", "-t", "demo", "-n", "tests", "-c", str(Path.home()), *_show(_PYTEST, "tests")
+    )
     _tmux("set-window-option", "-t", "demo:tests", "automatic-rename", "off")
     _tmux("select-window", "-t", "demo:tests")
 
