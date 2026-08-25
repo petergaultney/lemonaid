@@ -286,6 +286,49 @@ def handle_submit(stdin_data: str | None = None) -> None:
     _log.info("working: channel=%s", channel)
 
 
+def handle_session_start(stdin_data: str | None = None) -> None:
+    """Record a session and where it is running, from a SessionStart hook.
+
+    The other hooks all need a turn: a session that starts, or is resumed after
+    a crash, says nothing until you talk to it, so nothing knew it existed or
+    which pane it was in. This one fires on startup and on resume, which is what
+    makes a restored session findable without waiting for the user.
+
+    Registered as working rather than unread. A session that has not spoken is
+    not asking for anything, and a restore that filled the inbox with every
+    session it started would be its own kind of noise.
+    """
+    if stdin_data is None:
+        stdin_data = sys.stdin.read()
+
+    try:
+        data = json.loads(stdin_data) if stdin_data else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    channel, _session_id, name, switch_source, metadata = _resolve_session(data, "started")
+    source = data.get("source", "startup")
+    metadata["session_start_source"] = source
+
+    with db.connect() as conn:
+        db.register_working(
+            conn,
+            channel=channel,
+            message=f"Started in {shorten_path(data.get('cwd', 'unknown'))}",
+            name=name,
+            metadata=metadata,
+            switch_source=switch_source if switch_source != "unknown" else None,
+        )
+
+    _log.info(
+        "session start (%s): channel=%s tmux=%s:%s",
+        source,
+        channel,
+        metadata.get("tmux_session"),
+        metadata.get("tmux_window"),
+    )
+
+
 def handle_notification(stdin_data: str | None = None) -> None:
     """
     Handle a Claude Code notification from stdin.

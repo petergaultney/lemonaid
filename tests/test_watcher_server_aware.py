@@ -32,7 +32,7 @@ def test_the_pane_check_asks_the_recorded_server(monkeypatch):
     def _run(argv, **kwargs):
         asked.append(argv)
         return subprocess.CompletedProcess(
-            argv, 0, stdout="/dev/ttys001|relay|%1\n", stderr=""
+            argv, 0, stdout="/dev/ttys001|relay|%1|1000\n", stderr=""
         )
 
     monkeypatch.setattr(subprocess, "run", _run)
@@ -99,3 +99,33 @@ def test_a_dead_server_is_not_an_answer(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _run)
     assert handlers.check_pane_exists_by_tty("/dev/ttys001", "tmux", "/tmp/gone") is None
     assert watcher._check_pane_exists("/dev/ttys001", "tmux", "/tmp/gone") is True
+
+
+def _listing(monkeypatch, stdout: str) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kw: subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr=""),
+    )
+
+
+def test_a_reused_tty_does_not_resurrect_an_old_session(monkeypatch):
+    """tty names are recycled. After a reboot a recorded tty usually names some
+    unrelated pane, which otherwise reads as the old session still running."""
+    _listing(monkeypatch, "/dev/ttys001|relay|%1|2000\n")  # session created after the record
+
+    assert navigation.get_pane_for_tty("/dev/ttys001", None, not_after=1000) == (None, None)
+
+
+def test_a_pane_older_than_the_record_is_the_session(monkeypatch):
+    """The session was there before the notification, so it is the one meant."""
+    _listing(monkeypatch, "/dev/ttys001|relay|%1|500\n")
+
+    assert navigation.get_pane_for_tty("/dev/ttys001", None, not_after=1000) == ("relay", "%1")
+
+
+def test_without_a_cutoff_any_pane_on_that_tty_matches(monkeypatch):
+    """Callers that have no timestamp keep the old behaviour."""
+    _listing(monkeypatch, "/dev/ttys001|relay|%1|9999\n")
+
+    assert navigation.get_pane_for_tty("/dev/ttys001") == ("relay", "%1")

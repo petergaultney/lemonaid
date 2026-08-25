@@ -3,7 +3,14 @@
 import argparse
 
 from .bootstrap import run_bootstrap
-from .notify import dismiss_session, handle_dismiss, handle_notification, handle_submit
+from .install_hooks import install_session_start, uninstall_session_start
+from .notify import (
+    dismiss_session,
+    handle_dismiss,
+    handle_notification,
+    handle_session_start,
+    handle_submit,
+)
 from .patcher import apply_patch, check_status, find_binary, restore_backup
 from .resume import resume_session
 from .summarize import run_summarize
@@ -17,6 +24,20 @@ def cmd_notify(args: argparse.Namespace) -> None:
 def cmd_submit(args: argparse.Namespace) -> None:
     """Handle Claude Code UserPromptSubmit hook (register session as working)."""
     handle_submit()
+
+
+def cmd_session_start(args: argparse.Namespace) -> None:
+    """Handle Claude Code SessionStart hook (record session and its location)."""
+    handle_session_start()
+
+
+def cmd_hooks(args: argparse.Namespace) -> None:
+    """Install or remove the optional SessionStart hook."""
+    if args.uninstall:
+        print(uninstall_session_start())
+        return
+
+    print(install_session_start(dry_run=args.dry_run))
 
 
 def cmd_dismiss(args: argparse.Namespace) -> None:
@@ -157,6 +178,36 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Register a session as working from a UserPromptSubmit hook (reads JSON from stdin)",
     )
     submit_parser.set_defaults(func=cmd_submit)
+
+    # claude session-start
+    session_start_parser = claude_subparsers.add_parser(
+        "session-start",
+        help="Record a session and its tmux location from a SessionStart hook "
+        "(reads JSON from stdin)",
+    )
+    session_start_parser.set_defaults(func=cmd_session_start)
+
+    # claude hooks
+    hooks_parser = claude_subparsers.add_parser(
+        "hooks",
+        help="Install the optional SessionStart hook",
+        description="Adds a SessionStart hook so every Claude session registers "
+        "itself - and where it is running - the moment it starts or is resumed.\n\n"
+        "The other hooks need a turn: a session that has not been spoken to yet "
+        "is invisible to lemonaid, which is exactly the session a restore needs "
+        "to find. Opt-in because it changes what the inbox holds: sessions that "
+        "exist, rather than sessions that have said something.\n\n"
+        "Editing is additive - your own hooks are never touched, and installing "
+        "twice does nothing the second time.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    hooks_parser.add_argument(
+        "-n", "--dry-run", action="store_true", help="Say what would change, and change nothing"
+    )
+    hooks_parser.add_argument(
+        "--uninstall", action="store_true", help="Remove the hook lemonaid installed"
+    )
+    hooks_parser.set_defaults(func=cmd_hooks)
 
     # claude dismiss
     dismiss_parser = claude_subparsers.add_parser(
