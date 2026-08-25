@@ -2,6 +2,29 @@
 
 #### Added
 
+- **`lemonaid claude hooks` installs a SessionStart hook**, so a session records itself the moment it starts or is resumed. Every other Claude hook needs a turn, which meant a session you had not spoken to yet was invisible - and those are exactly the sessions a restore has to find. On the inbox this was written against, 20 agents were running and 8 were known.
+
+  Opt-in, because it changes what the inbox holds: sessions that exist, rather than sessions that have said something. Sessions register as working and never as unread - one that has not spoken is not asking for anything, and a restore that flagged everything it started would be its own kind of noise. Editing `settings.json` is additive and idempotent; hooks you wrote are never touched, and `--uninstall` removes only lemonaid's own line.
+
+  This is also what makes a restored session findable. Its identity (`session_id`, `cwd`) is durable; the pane it runs in is not. The hook re-reports the location on every resume rather than leaving it to be inferred from a tty.
+
+- **`lemonaid tmux doctor`** reports what a crash would cost while you can still do something about it: how many running agents the inbox knows about, how many sessions could actually be resumed, and which ones could not and why. `--unknown` lists running panes with no inbox row.
+
+  Every way restore fails is otherwise silent. A session whose transcript is no longer on disk looks restorable right up until `claude --resume` starts a fresh conversation instead, which does not report an error.
+
+- **`lemonaid tmux scratch --restart`** replaces the `lma` process in the scratch pane without moving the pane. Killing it would discard what follow mode built around it - the pane sits in one of your windows, and every window it has visited holds a placeholder in its slot. The previous way to pick up new code was `prefix+: kill-pane` then `prefix+l`, which is that discard done by hand.
+
+- **Enter on a running session in history returns it to the inbox** instead of starting a second copy beside the first. Archiving is a guess made from outside the session - a watcher that could not find its pane - and it is wrong often enough that history fills with sessions that never stopped. A session that really is gone still resumes exactly as before.
+
+#### Fixed
+
+- **The watcher asks the tmux server a session was recorded on.** A tmux command with no `-S` goes to whichever server the calling process is attached to, so a session on a different server was absent from that listing - indistinguishable from a pane that had been closed. A watcher running on one server archived live sessions running on another. Hooks now record `tmux_socket`; rows written before this have none and are checked exactly as they were.
+
+  A socket naming a server that is gone exits non-zero, which reads as "cannot tell" rather than "no pane", so a server that never comes back does not archive everything it hosted.
+
+- **A reused tty no longer resurrects an old session.** tty device names are recycled, so after a reboot a recorded tty usually names some unrelated pane, and every stale row claimed to still be running. Pane lookups now reject a tmux session younger than the record: on the inbox this was written against, that took archived rows falsely reporting themselves alive from 674 to 5. It narrows the lie rather than ending it, which is why the SessionStart hook reports the location rather than inferring it.
+
+
 - **`lemonaid tmux restore` rebuilds the tmux layout from the inbox.** When tmux dies the sessions go with it, but the inbox does not - it still holds every active lemon and its cwd. What it never held was *where* each one was running, so rebuilding the layout after a crash was manual work. Notifications now record `tmux_session` and `tmux_window`, and `tmux restore` recreates each session, resuming every lemon in the window it occupied.
 
   Windows keep their recorded index, so a window lemonaid knows nothing about - an editor, a shell - comes back as an empty gap rather than shifting every later window down. Restored windows are not named: they pick up names from their processes, the same as they did before the crash.

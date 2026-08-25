@@ -90,6 +90,17 @@ The keybinding is "idempotent" in that pressing it always gets you to the scratc
 
 State is tracked per tmux server in `~/.local/state/lemonaid/`, so multiple tmux servers won't conflict.
 
+### Restarting it
+
+```bash
+lemonaid tmux scratch --restart
+```
+
+Replaces the `lma` process in place - the pane keeps its id, window, size, and
+every placeholder follow mode has put in the windows it has visited. Killing
+the pane instead discards that arrangement, which is what `prefix+: kill-pane`
+followed by `prefix+l` used to do.
+
 ### Follow mode
 
 Follow mode keeps the scratch pane visible across window and session switches — it follows you everywhere, giving a persistent bird's-eye view of your lemon sessions.
@@ -341,6 +352,72 @@ Edit `src/lemonaid/tmux/window_color.py` to customize:
 - `PROCESS_COLORS` - Override colors for specific process names
 - `HIDDEN_PROCESSES` - Shells/wrappers that shouldn't appear (just show directory)
 - `INTERPRETER_PROCESSES` - Interpreters where pane_title is preferred
+
+## Surviving a crash
+
+When tmux dies the sessions go with it. The inbox does not - it holds every
+active lemon, its working directory, and (once recorded) which tmux session and
+window it was running in.
+
+```bash
+lemonaid tmux doctor          # what could be restored, and what could not
+lemonaid tmux restore -n      # the layout that would be rebuilt
+lemonaid tmux restore         # rebuild it
+```
+
+### Check before you need it
+
+`doctor` is the one to run first, and to run occasionally when nothing is wrong:
+
+```
+Coverage
+  13 agent panes running on this tmux server
+  6 sessions in the inbox
+  9 running panes the inbox does not know about
+
+Restore
+  5 of 6 inbox sessions could be resumed
+  4 of those have a recorded tmux window to be placed in
+
+SessionStart hook
+  installed
+```
+
+Every way restore fails is otherwise silent. A session whose transcript is no
+longer on disk looks restorable right until `claude --resume` starts a fresh
+conversation instead - which reports no error, so the failure looks like
+success. `doctor` names those before a crash rather than after.
+
+### The SessionStart hook
+
+```bash
+lemonaid claude hooks              # install
+lemonaid claude hooks --dry-run    # say what would change
+lemonaid claude hooks --uninstall  # remove lemonaid's hook, leave yours
+```
+
+Without it, a session is recorded only when it speaks - so a session you have
+not talked to yet is invisible, and those are exactly the ones whose position
+you will not remember. It is opt-in because it changes what the inbox holds:
+sessions that exist, rather than sessions that have said something.
+
+Sessions register as working, never as unread. One that has not spoken is not
+asking for anything.
+
+The hook fires on resume as well as startup, which is what makes a restored
+session findable again: its identity (`session_id`, `cwd`) survives the crash,
+but the pane it runs in does not, so the new location is reported rather than
+guessed from a tty.
+
+### What restore does and does not bring back
+
+Windows keep their recorded index, so a window lemonaid knows nothing about -
+an editor, a shell - comes back as an empty gap rather than shifting the others
+down. Sessions are restored detached, and one already running is left alone.
+
+Not restored: pane splits (one window comes back as one pane), and two lemons
+sharing a window collapse to one. Restore knows a gap existed, not that emacs
+lived in it.
 
 ## Advantages over WezTerm integration
 

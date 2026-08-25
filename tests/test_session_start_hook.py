@@ -68,12 +68,20 @@ def test_the_location_is_recorded(monkeypatch):
 
 
 def test_resuming_reuses_the_session_row():
-    """Same session_id, so this is the same inbox entry moving, not a new one."""
+    """Same session_id, so this is the same inbox entry moving, not a new one.
+
+    Counted by channel rather than by listing active rows: a watcher thread from
+    another test's app can archive a row between the two calls, which changes
+    what is active without changing whether a second row was created.
+    """
     _fire(source="startup")
     _fire(source="resume")
 
     with db.connect() as conn:
-        assert len(db.get_active(conn, switch_source=None)) == 1
+        rows = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE channel = ?", ("claude:s-1",)
+        ).fetchone()
+    assert rows[0] == 1
 
 
 def test_an_unread_session_stays_unread():

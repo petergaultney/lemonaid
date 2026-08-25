@@ -100,7 +100,11 @@ def test_name_grows_with_width_within_a_layout():
     threshold, TTY at the wide one), which necessarily takes space back from
     Name. That trade is deliberate, so growth is only asserted within a layout.
     """
-    assert _widths(_SIDEBAR_COLS)["Name"] < _widths(88)["Name"] < _widths(_MEDIUM_LAYOUT_COLS - 1)["Name"]
+    assert (
+        _widths(_SIDEBAR_COLS)["Name"]
+        < _widths(88)["Name"]
+        < _widths(_MEDIUM_LAYOUT_COLS - 1)["Name"]
+    )
     assert _widths(_MEDIUM_LAYOUT_COLS)["Name"] < _widths(_WIDE_LAYOUT_COLS - 1)["Name"]
     assert _widths(_WIDE_LAYOUT_COLS)["Name"] < _widths(200)["Name"]
 

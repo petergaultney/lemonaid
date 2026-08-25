@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from ..inbox import db
+from ..inbox import db, doctor
 from . import restart as tmux_restart
 from . import restore as tmux_restore
 from . import scratch
@@ -137,6 +137,20 @@ def cmd_restore(args: argparse.Namespace) -> None:
         print(tmux_restore.describe(plans)[0], file=sys.stderr)
 
 
+def cmd_doctor(args: argparse.Namespace) -> None:
+    """Report what restore knows, before you need it to know it."""
+    for line in doctor.report():
+        print(line)
+
+    if args.unknown:
+        panes = doctor.unknown_panes()
+        print("\nRunning, but not in the inbox")
+        for pane in panes:
+            print(f"  {pane.session}:{pane.window:<4} {pane.tty}")
+        if not panes:
+            print("  (none)")
+
+
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the tmux subcommand."""
     tmux_parser = subparsers.add_parser(
@@ -253,6 +267,20 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Don't attach to the session after creation",
     )
     new_parser.set_defaults(func=cmd_new)
+
+    doctor_parser = tmux_subparsers.add_parser(
+        "doctor",
+        help="Report what could be restored after a crash, and what could not",
+        description="What lemonaid currently knows about your running sessions.\n\n"
+        "Restore depends on facts recorded long before you need them - a window "
+        "location, a session id, a hook that either fired or did not. This says "
+        "whether they are there while you can still do something about it.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    doctor_parser.add_argument(
+        "--unknown", action="store_true", help="List running panes the inbox does not know about"
+    )
+    doctor_parser.set_defaults(func=cmd_doctor)
 
     restore_parser = tmux_subparsers.add_parser(
         "restore",
