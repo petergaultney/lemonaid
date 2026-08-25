@@ -352,7 +352,10 @@ def handle_notification(stdin_data: str | None = None) -> None:
     )
 
     short_path = shorten_path(cwd)
-    if notification_type == "idle_prompt":
+    # Stop means the turn ended, which is the same state idle_prompt names: the
+    # session is waiting on you. It carries no notification_type of its own, so
+    # without this it falls through and reports its hook's name as the message.
+    if notification_type in ("idle_prompt", "Stop"):
         message = f"Waiting in {short_path}"
     elif notification_type == "permission_prompt":
         message = f"Permission needed in {short_path}"

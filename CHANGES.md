@@ -1,4 +1,4 @@
-# 0.18.0 (unreleased)
+# 0.18.0 (2026-08-25)
 
 #### Added
 
@@ -6,7 +6,11 @@
 
   Only the first ten rows carry a digit; past that you scroll. A second digit would need a timeout to tell `1` from `12`, and that wait would be paid on every jump.
 
-  The non-switchable table stays unnumbered - those are sessions no terminal here can switch to, so a jump would name a row it cannot act on. Set `jump_by_number = false` under the keybindings config to leave digits unbound.
+  The inbox only. In history Enter resumes rather than switches, and a resume is too costly to hang on one unconfirmed keystroke. The non-switchable table is unnumbered for the reverse reason: nothing there can be switched to at all. Set `jump_by_number = false` under the keybindings config to leave digits unbound.
+
+#### Fixed
+
+- **A finished turn says "Waiting in ..." rather than "Stop in ..."**. Claude's `Stop` hook carries no notification type of its own, so it fell through to a fallback that prints the hook's name - leaking an internal event name into the inbox. It means the same thing `idle_prompt` does, and now reads the same way, matching what the codex and openclaw backends already said for a completed turn.
 
 # 0.17.1 (2026-08-25)
 

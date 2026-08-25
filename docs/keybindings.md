@@ -33,7 +33,6 @@ stay until you press `?` a second time. `?` is not configurable.
 | Key | Action |
 |-----|--------|
 | `Enter` | Resume selected session (replaces current terminal) |
-| `1`-`9`, `0` | Resume that row of the list, counting from the top |
 | `c` | Copy resume command to clipboard |
 | `T` | Spawn a tmux session around the selected session |
 | `/` | Filter by name, cwd, branch |
@@ -71,6 +70,9 @@ it is a shortcut for the row in front of you, not a name a session keeps. Past
 the tenth row there is no digit; scroll instead. Supporting more would mean
 waiting after each keypress to tell `1` from `12`, and that delay would be paid
 on every jump.
+
+History is not numbered either. There Enter resumes rather than switches, and
+a resume is too costly to hang on one unconfirmed keystroke.
 
 The non-switchable table is not numbered. Those sessions belong to terminals
 this one cannot switch to, so a number would name a row it cannot act on.

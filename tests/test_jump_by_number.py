@@ -111,6 +111,23 @@ def test_a_digit_selects_the_row_at_that_position(monkeypatch):
     assert selected == [1], "the row was moved to but never selected"
 
 
+def test_history_is_not_numbered(monkeypatch):
+    """Enter resumes in history, which is too costly for one unconfirmed key."""
+
+    async def steps(app, pilot):
+        from textual.widgets import DataTable
+
+        app._set_history_mode(True)
+        await pilot.pause()
+        table = app.query_one("#history_table", DataTable)
+        before = table.cursor_coordinate.row
+        app.action_jump_to_number("2")
+        return before, table.cursor_coordinate.row
+
+    before, after = _run(steps, monkeypatch=monkeypatch)
+    assert before == after
+
+
 def test_a_digit_typed_into_the_history_filter_stays_a_digit(monkeypatch):
     """The filter is a text box; a digit there is search input, not a jump."""
 
