@@ -68,6 +68,10 @@ def _fitted(saved: str, client_dim: str, window_dim: str, margin: int) -> str:
     Getting this wrong leaves the slot holding its placeholder - a bare `sleep`,
     which renders as an empty pane.
     """
+    # tmux formats have no way to bind an intermediate, so `available` is
+    # written out at each use rather than named. Two branches instead of three:
+    # the window is always set, so it alone decides whether there is anything to
+    # measure, and the client only narrows it.
     available = (
         f"#{{?{client_dim},"
         f"#{{?#{{<:#{{{client_dim}}},#{{{window_dim}}}}},#{{{client_dim}}},#{{{window_dim}}}}},"
@@ -75,7 +79,7 @@ def _fitted(saved: str, client_dim: str, window_dim: str, margin: int) -> str:
     )
     room = f"#{{e|-|:{available},{margin}}}"
     fitted = f"#{{?#{{e|<=|:#{{{saved}}},{room}}},#{{{saved}}},{room}}}"
-    return f"#{{?{available},{fitted},#{{{saved}}}}}"
+    return f"#{{?{window_dim},{fitted},#{{{saved}}}}}"
 
 
 def _width() -> str:
