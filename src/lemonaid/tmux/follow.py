@@ -22,7 +22,10 @@ survives a server restart; scratch.py writes both.
 
 import subprocess
 
-MAX_SHARE = 0.4  # most of a window the scratch pane may take
+# The saved size is the size. It yields only when the client cannot hold it and
+# still leave the main pane this much: a sidebar is a character count, and a
+# bigger font should cost the window's own panes columns, not the sidebar.
+MIN_MAIN = {"left": 40, "top": 10}
 
 FOLLOW_OPTION = "@lemonaid_follow"  # "on" or "off"
 PANE_OPTION = "@lemonaid_scratch_pane"  # the pane to follow with; unset while parked
@@ -46,34 +49,37 @@ def size_option(position: str) -> str:
     return WIDTH_OPTION if position == "left" else HEIGHT_OPTION
 
 
-def _capped(saved: str, client_dim: str, window_dim: str) -> str:
-    """min(saved, MAX_SHARE of the client), as a tmux format.
-
-    The client rather than the window: a window no client has displayed yet is
-    tmux's default-size of 80x24 until the switch resizes it, and the hook runs
-    first. The window is the fallback for a hook with no client in its context.
-    """
-    dim = f"#{{?{client_dim},#{{{client_dim}}},#{{{window_dim}}}}}"
-    cap = f"#{{e|/|:#{{e|*|:{dim},{int(MAX_SHARE * 100)}}},100}}"
-    return f"#{{?#{{e|<=|:#{{{saved}}},{cap}}},#{{{saved}}},{cap}}}"
-
-
 def _by_position(top: str, left: str) -> str:
     return f"#{{?#{{==:#{{{POSITION_OPTION}}},top}},{top},{left}}}"
 
 
+def _fitted(saved: str, client_dim: str, margin: int) -> str:
+    """min(saved, client - margin), or saved when there is no client to measure.
+
+    The client, not the window: a window the client is not showing yet still has
+    the size it last had, and the hook runs before the switch resizes it.
+    """
+    room = f"#{{e|-|:#{{{client_dim}}},{margin}}}"
+    fitted = f"#{{?#{{e|<=|:#{{{saved}}},{room}}},#{{{saved}}},{room}}}"
+    return f"#{{?{client_dim},{fitted},#{{{saved}}}}}"
+
+
+def _width() -> str:
+    return _fitted(WIDTH_OPTION, "client_width", MIN_MAIN["left"])
+
+
+def _height() -> str:
+    return _fitted(HEIGHT_OPTION, "client_height", MIN_MAIN["top"])
+
+
 def _split_size() -> str:
-    """split-window / join-pane flags: axis and size for the current position."""
-    width = _capped(WIDTH_OPTION, "client_width", "window_width")
-    height = _capped(HEIGHT_OPTION, "client_height", "window_height")
-    return _by_position(f"-v -b -l {height}", f"-h -b -l {width}")  # -b: before = top / left
+    """split-window flags: axis and size for the current position."""
+    return _by_position(f"-v -b -l {_height()}", f"-h -b -l {_width()}")  # -b: top / left
 
 
 def _resize_size() -> str:
     """resize-pane flags for the same size."""
-    width = _capped(WIDTH_OPTION, "client_width", "window_width")
-    height = _capped(HEIGHT_OPTION, "client_height", "window_height")
-    return _by_position(f"-y {height}", f"-x {width}")
+    return _by_position(f"-y {_height()}", f"-x {_width()}")
 
 
 def _is_the_pane() -> str:

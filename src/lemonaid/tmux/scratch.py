@@ -422,20 +422,15 @@ def _create_pane() -> str:
 
 
 def _capped(size: str, position: str) -> str:
-    """`size`, but never more than follow.MAX_SHARE of the window it is joining.
-
-    A saved size is absolute, and a window is not always the size it will end up:
-    a session nothing has attached to yet is tmux's default-size (80x24), so a
-    45-column pane is over half of it. The cap keeps the saved size wherever it
-    fits and yields when it doesn't, rather than swallowing the window.
-    """
+    """`size`, unless the client cannot hold it and still leave the main pane
+    follow.MIN_MAIN. Same rule as the hook, so a show and a swap agree."""
     result = subprocess.run(
         ["tmux", "display-message", "-p", _window_size_format(position)],
         capture_output=True,
         text=True,
     )
     try:
-        return str(min(int(size), int(int(result.stdout.strip()) * follow.MAX_SHARE)))
+        return str(min(int(size), int(result.stdout.strip()) - follow.MIN_MAIN[position]))
     except ValueError:
         return size
 
