@@ -5,6 +5,44 @@ running in the terminal.
 
 <img width="1452" height="228" alt="Screenshot 2026-02-11 at 16 52 46" src="https://github.com/user-attachments/assets/c9dff292-2e2f-449a-9039-314865dcf7d1" />
 
+## An inbox that stays in view
+
+The inbox can live in a pane that follows you across every window and session
+switch, so it is ambient rather than something you summon:
+
+```bash
+lemonaid tmux scratch --follow          # left or top, from config
+lemonaid tmux scratch --flip            # move it to the other edge
+```
+
+In a pane too narrow for the column layout, each session renders as a card -
+name, then time, cwd and branch, then the message wrapped over as many lines as
+the pane can spare:
+
+```
+● tars-chat-observability             CC
+ 11:23:30 · ~/w/d/t/live-observability
+ All four PRs green - #5343's last
+ check passed.
+
+  relay-debug-hq                      CC
+ 08:36:22 · ~/trove
+ Here's what I can and can't tell you.
+```
+
+The bar above the list turns the unread marker's colour while something is
+waiting for you. `prefix+l` toggles focus between the inbox and your work; `q`
+parks it until you want it back.
+
+To see it with invented sessions before wiring up your own:
+
+```bash
+uv run scripts/demo-inbox.py            # a throwaway tmux server, own inbox
+uv run scripts/demo-inbox.py --kill
+```
+
+Full setup, keybindings, and behaviour: [docs/tmux.md](docs/tmux.md).
+
 ## How It Works
 
 Lemonaid has two parts: **hooks** that fire when your lemons need attention, and a **TUI** (`lma`) that shows what's going on and lets you jump to sessions.
@@ -26,7 +64,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
-- **Scratch pane** (`tmux`): Toggle an always-on inbox with a keybinding — no startup delay. Optional **follow mode** keeps the pane visible across all window/session switches
+- **Always-visible sidebar** (`tmux`): [Follow mode](docs/tmux.md#follow-mode) keeps the inbox in view across every window and session switch, on the left or across the top. Sessions render as cards when the pane is too narrow for columns. Without follow mode it is still a scratch pane you toggle with a keybinding, with no startup delay
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers
@@ -134,13 +172,18 @@ lemonaid inbox list
 |-----|--------|
 | `Enter` | Open notification (switches to that session) |
 | `u` | Jump directly to earliest unread session |
-| `m` | Mark as read |
+| `m` / `M` | Mark as read / unread |
 | `a` | Archive (remove from list) |
+| `s` / `S` | Snooze session / list snoozed |
+| `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
 | `h` | Toggle session history |
 | `c` | Copy resume command (in history mode) |
 | `/` | Filter history |
+| `f` | Move the scratch pane between top and left |
+| `H` | Save scratch pane size (follow mode, once it has drifted) |
 | `g` | Refresh |
+| `?` | Toggle the key hints |
 | `q` / `Escape` | Quit |
 
 All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).

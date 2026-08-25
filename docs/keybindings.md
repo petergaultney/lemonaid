@@ -9,6 +9,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `Enter` | Open notification (switches to that session) |
 | `u` | Jump directly to earliest unread session |
 | `m` | Mark as read |
+| `M` | Mark as unread again |
 | `a` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
@@ -82,6 +83,7 @@ select = ""  # additional keys for select (Enter always works)
 refresh = "g"
 jump_unread = "u"
 mark_read = "m"
+mark_unread = "M"
 archive = "a"
 snooze = "s"
 snoozed_list = "S"

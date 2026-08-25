@@ -66,3 +66,11 @@ openclaw = "🦞"
 ### `[tui.keybindings]`
 
 See [keybindings.md](keybindings.md).
+
+## Environment variables
+
+| Variable | Effect |
+|----------|--------|
+| `LEMONAID_DB` | Path to the inbox database, replacing `~/.local/share/lemonaid/lemonaid.db`. A second `lma` pointed at its own file cannot archive rows in your real inbox, which is what makes demos and experiments safe - `scripts/demo-inbox.py` uses it. |
+| `LEMONAID_DEBUG` | `1` turns on debug logging in the hook entry points. |
+| `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
