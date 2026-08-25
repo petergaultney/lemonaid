@@ -577,9 +577,10 @@ window=$(tmux display -p "$window_fmt")
 max=$((window * {max_pct} / 100))
 [ "$size" -le "$max" ] 2>/dev/null || size=$max
 
+# One round-trip: join and restore focus relayout the window once between them
+# rather than redrawing after each, which is visible as the pane resizing twice.
 cur_pane=$(tmux display -p '#{{pane_id}}')
-tmux join-pane "$axis" -b -l "$size" -s "$pane" 2>/dev/null
-tmux select-pane -t "$cur_pane" 2>/dev/null
+tmux join-pane "$axis" -b -l "$size" -s "$pane" \\; select-pane -t "$cur_pane" 2>/dev/null
 exit 0
 """
     )
