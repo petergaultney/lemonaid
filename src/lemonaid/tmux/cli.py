@@ -151,6 +151,36 @@ def cmd_doctor(args: argparse.Namespace) -> None:
             print("  (none)")
 
 
+def cmd_adopt(args: argparse.Namespace) -> None:
+    """Put running panes the inbox does not know about into the inbox."""
+    plans = doctor.plan_adoption()
+    if not plans:
+        print("nothing to adopt: every running agent pane is already in the inbox")
+        return
+
+    certain = [p for p in plans if not p.contested]
+    guessed = [p for p in plans if p.contested]
+
+    for plan in certain:
+        print(f"  {plan.pane.session}:{plan.pane.window:<4} {plan.session_id}  {plan.cwd}")
+
+    for plan in guessed:
+        print(f"  {plan.pane.session}:{plan.pane.window:<4} {plan.session_id}  {plan.cwd}  (guess)")
+
+    if guessed:
+        print(
+            f"\n{len(guessed)} marked (guess): several panes share that directory and nothing"
+            "\non disk says which conversation belonged to which pane."
+        )
+
+    if args.dry_run:
+        print(f"\nwould adopt {len(plans)}; nothing written")
+        return
+
+    chosen = certain if args.skip_guesses else plans
+    print(f"\nadopted {doctor.adopt(chosen)}")
+
+
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the tmux subcommand."""
     tmux_parser = subparsers.add_parser(
@@ -267,6 +297,27 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Don't attach to the session after creation",
     )
     new_parser.set_defaults(func=cmd_new)
+
+    adopt_parser = tmux_subparsers.add_parser(
+        "adopt",
+        help="Put running agent panes into the inbox, so restore knows about them",
+        description="Finds agent panes with no inbox row and records them, matching "
+        "each to its conversation by working directory and most recent activity.\n\n"
+        "A running pane is the one case where missing facts can still be recovered: "
+        "it is there to be asked. Sessions started before the SessionStart hook was "
+        "installed are exactly this, and would otherwise stay invisible until each "
+        "happened to notify.\n\n"
+        "Where several panes share a directory the match is a guess and is marked as "
+        "one; --skip-guesses adopts only the certain ones.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    adopt_parser.add_argument(
+        "-n", "--dry-run", action="store_true", help="Show what would be adopted, and write nothing"
+    )
+    adopt_parser.add_argument(
+        "--skip-guesses", action="store_true", help="Adopt only panes whose match is unambiguous"
+    )
+    adopt_parser.set_defaults(func=cmd_adopt)
 
     doctor_parser = tmux_subparsers.add_parser(
         "doctor",

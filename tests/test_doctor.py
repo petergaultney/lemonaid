@@ -6,6 +6,7 @@ hook that was never installed. These pin that each of those is reported rather
 than discovered afterwards.
 """
 
+import json
 
 from lemonaid.inbox import db, doctor
 
@@ -99,3 +100,72 @@ def test_unknown_panes_lists_only_agents_with_no_row(monkeypatch):
     _session(session_id="abc", cwd="/tmp", tty="/dev/ttys001")
 
     assert [p.tty for p in doctor.unknown_panes()] == ["/dev/ttys002"]
+
+
+def _panes(monkeypatch, panes, cwds):
+    monkeypatch.setattr(doctor, "live_panes", lambda: panes)
+    monkeypatch.setattr(doctor, "_pane_cwd", lambda p: cwds.get(p))
+
+
+def test_adoption_matches_a_pane_to_its_conversation(monkeypatch):
+    pane = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
+    _panes(monkeypatch, [pane], {pane: "/work/a"})
+    monkeypatch.setattr(doctor, "_newest_transcript_for", lambda cwd: ("sid-a", 100.0))
+
+    plans = doctor.plan_adoption()
+    assert [(p.session_id, p.contested) for p in plans] == [("sid-a", False)]
+
+
+def test_two_panes_in_one_directory_are_guesses(monkeypatch):
+    """Nothing on disk records which pane a transcript belonged to."""
+    a = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
+    b = doctor.Pane("relay", "3", "/dev/ttys002", "2.1.245")
+    _panes(monkeypatch, [a, b], {a: "/work/same", b: "/work/same"})
+    monkeypatch.setattr(doctor, "_newest_transcript_for", lambda cwd: ("sid-x", 100.0))
+
+    assert all(p.contested for p in doctor.plan_adoption())
+
+
+def test_a_transcript_claimed_twice_is_a_guess(monkeypatch):
+    """Distinct directories can still resolve to one conversation, which is not
+    visible from either pane alone."""
+    a = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
+    b = doctor.Pane("hq", "1", "/dev/ttys002", "2.1.245")
+    _panes(monkeypatch, [a, b], {a: "/work/a", b: "/work/b"})
+    monkeypatch.setattr(doctor, "_newest_transcript_for", lambda cwd: ("sid-same", 100.0))
+
+    assert all(p.contested for p in doctor.plan_adoption())
+
+
+def test_a_conversation_already_in_the_inbox_makes_it_a_guess(monkeypatch):
+    """It is demonstrably running somewhere else, so it is not this pane."""
+    pane = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
+    _panes(monkeypatch, [pane], {pane: "/work/a"})
+    monkeypatch.setattr(doctor, "_newest_transcript_for", lambda cwd: ("sid-taken", 100.0))
+    _session(session_id="sid-taken", cwd="/elsewhere", tty="/dev/ttys999")
+
+    assert doctor.plan_adoption()[0].contested
+
+
+def test_adopting_records_the_window(monkeypatch, tmp_path):
+    """The point: an adopted session can then be placed by restore."""
+    pane = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
+    doctor.adopt([doctor.Adoption(pane, "/work/a", "sid-a", contested=False)])
+
+    with db.connect() as conn:
+        row = conn.execute("SELECT metadata FROM notifications").fetchone()
+    metadata = json.loads(row[0])
+    assert (metadata["tmux_session"], metadata["tmux_window"]) == ("relay", "2")
+
+    monkeypatch.setattr(doctor, "transcript_for", lambda sid: tmp_path / "t.jsonl")
+    assert doctor._restorable(metadata) == (True, "restorable")
+
+
+def test_the_report_says_what_to_do(monkeypatch):
+    monkeypatch.setattr(
+        doctor,
+        "live_panes",
+        lambda: [doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")],
+    )
+
+    assert any("lemonaid tmux adopt" in line for line in doctor.report())

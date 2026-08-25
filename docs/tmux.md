@@ -388,6 +388,25 @@ longer on disk looks restorable right until `claude --resume` starts a fresh
 conversation instead - which reports no error, so the failure looks like
 success. `doctor` names those before a crash rather than after.
 
+### Adopting what is already running
+
+```bash
+lemonaid tmux adopt -n              # what would be adopted
+lemonaid tmux adopt --skip-guesses  # only the unambiguous matches
+lemonaid tmux adopt                 # all of them
+```
+
+`doctor` reporting running panes the inbox does not know about is the common
+case after installing the hook, since it only records sessions started or
+resumed after it. Those panes are still running, which means the facts can be
+recovered: `adopt` matches each to its conversation by working directory and
+most recent activity, and records the window it is in.
+
+Where the match is a guess it says so — several panes in one directory, two
+directories resolving to one conversation, or a conversation already running
+elsewhere in the inbox. Adopting a guess points a session at the wrong
+conversation, so `--skip-guesses` takes only the certain ones.
+
 ### The SessionStart hook
 
 ```bash
