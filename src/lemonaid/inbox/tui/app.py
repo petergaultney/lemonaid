@@ -607,6 +607,7 @@ class LemonaidApp(App):
             archive_channel=self._archive_channel,
             mark_unread=self._mark_channel_unread,
             record_location=self._record_channel_location,
+            sockets=self._recorded_sockets,
         )
         self.call_later(self._check_claude_patch)
         self.call_later(self._stretch_all_tables)
@@ -1821,7 +1822,23 @@ class LemonaidApp(App):
         with db.connect() as conn:
             return db.update_message(conn, channel, message)
 
-    def _record_channel_location(self, channel: str, session: str, window: str) -> None:
+    def _recorded_sockets(self) -> dict[str, str]:
+        """Which tmux server each active session was last seen on.
+
+        The watcher asks tmux whether a pane is still there, and a pane on
+        another server is absent from this one's listing for reasons that have
+        nothing to do with the session being alive.
+        """
+        with db.connect() as conn:
+            return {
+                n.channel: socket
+                for n in db.get_active(conn, switch_source="tmux")
+                if (socket := n.metadata.get("tmux_socket"))
+            }
+
+    def _record_channel_location(
+        self, channel: str, session: str, window: str, socket: str | None = None
+    ) -> None:
         """Note where a session is sitting, so `tmux restore` can rebuild it.
 
         Done on the watcher's poll rather than only when a session notifies:
@@ -1829,7 +1846,7 @@ class LemonaidApp(App):
         ones whose position is hardest to remember after a crash.
         """
         with db.connect() as conn:
-            db.record_location(conn, channel, session, window)
+            db.record_location(conn, channel, session, window, socket)
 
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""

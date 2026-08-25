@@ -169,6 +169,22 @@ def get_tmux_window_index() -> str | None:
     return _pane_format("#{window_index}")
 
 
+def get_tmux_socket() -> str | None:
+    """The socket of the tmux server this pane belongs to, as a path.
+
+    `$TMUX` is "<socket>,<pid>,<session>"; only the socket identifies the server,
+    and it is what `tmux -S` takes. Recorded because every other tmux question
+    lemonaid asks - is this pane still there, where is it - is answered by
+    whichever server the asking process is attached to, which for a watcher
+    running elsewhere is the wrong one.
+    """
+    tmux_env = os.environ.get("TMUX")
+    if not tmux_env:
+        return None
+
+    return tmux_env.split(",")[0] or None
+
+
 def shorten_path(path: str) -> str:
     """Shorten a path for display, using last 2 components.
 

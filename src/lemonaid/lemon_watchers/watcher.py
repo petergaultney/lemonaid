@@ -189,7 +189,7 @@ def check_needs_attention(
     return None
 
 
-def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
+def _check_pane_exists(tty: str, switch_source: str | None, socket: str | None = None) -> bool:
     """Whether a pane still exists, assuming it does whenever we cannot tell.
 
     Deferred import to avoid circular dependencies.
@@ -202,7 +202,7 @@ def _check_pane_exists(tty: str, switch_source: str | None) -> bool:
     # A tmux that failed to answer is not a pane that is gone. Archiving on it
     # retires every live session at once, since one failed `list-panes` looks
     # exactly like every pane having disappeared.
-    return check_pane_exists_by_tty(tty, switch_source) is not False
+    return check_pane_exists_by_tty(tty, switch_source, socket) is not False
 
 
 _warned_no_tty: set[str] = set()
@@ -210,7 +210,8 @@ _warned_no_tty: set[str] = set()
 
 def _record_locations(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
-    record_location: Callable[[str, str, str], None],
+    record_location: Callable[[str, str, str, str | None], None],
+    sockets: dict[str, str] | None = None,
 ) -> None:
     """Note where each tmux-hosted session is sitting, so it can be rebuilt later.
 
@@ -219,25 +220,33 @@ def _record_locations(
     position of - can go days without one. The watcher already resolves every
     pane, so it can keep this current for sessions that aren't saying anything.
     """
-    if not any(tty and source == "tmux" for *_, tty, _msg, source in active):
+    sockets = sockets or {}
+    tmux_rows = [
+        (channel, tty)
+        for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active
+        if tty and source == "tmux"
+    ]
+    if not tmux_rows:
         return
 
-    # One listing for every session: this runs on each poll, and a call per
-    # session would be that many subprocesses twice a second.
-    by_tty = tmux.navigation.locations_by_tty()
+    # One listing per server rather than per session: this runs on every poll,
+    # and the sessions are spread over a handful of servers at most.
+    by_server: dict[str | None, dict[str, tuple[str, str]]] = {}
 
-    for channel, _sid, _cwd, _created, _unread, tty, _msg, switch_source in active:
-        if not tty or switch_source != "tmux":
-            continue
+    for channel, tty in tmux_rows:
+        socket = sockets.get(channel)
+        if socket not in by_server:
+            by_server[socket] = tmux.navigation.locations_by_tty(socket)
 
-        location = by_tty.get(tty)
+        location = by_server[socket].get(tty)
         if location is not None:
-            record_location(channel, *location)
+            record_location(channel, *location, socket)
 
 
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
+    sockets: dict[str, str] | None = None,
 ) -> set[str]:
     """Archive stale sessions based on TTY occupancy and pane existence.
 
@@ -249,12 +258,16 @@ def _archive_stale_sessions(
     Returns set of archived channel names.
     """
     archived: set[str] = set()
+    sockets = sockets or {}
 
     # First pass: archive any sessions whose panes no longer exist
     remaining = []
     for item in active:
         channel, _session_id, _cwd, _created_at, _is_unread, tty, _db_message, switch_source = item
-        if tty and switch_source and not _check_pane_exists(tty, switch_source):
+        # Asked of the server the session was recorded on. Without that, a pane
+        # on another tmux server is absent from this one's listing and reads as
+        # gone - which archives a session that is running fine.
+        if tty and switch_source and not _check_pane_exists(tty, switch_source, sockets.get(channel)):
             archive_channel(channel)
             archived.add(channel)
             _log.info("archived (pane gone): %s", channel)
@@ -337,7 +350,8 @@ def unified_watch_loop(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
-    record_location: Callable[[str, str, str], None] | None = None,
+    record_location: Callable[[str, str, str, str | None], None] | None = None,
+    sockets: Callable[[], dict[str, str]] | None = None,
     poll_interval: float = 0.5,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
@@ -349,7 +363,8 @@ def unified_watch_loop(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
-        record_location: Optional callback to note a channel's (tmux_session, tmux_window)
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        sockets: Optional callback returning channel -> recorded tmux socket
         poll_interval: How often to poll (seconds)
     """
     # Build prefix -> backend mapping
@@ -367,13 +382,17 @@ def unified_watch_loop(
     while True:
         try:
             active = get_active()
+            # Which tmux server each session was recorded on. Read once per poll:
+            # both the location pass and the archiver need it, and it is one
+            # query rather than one per row.
+            by_channel = sockets() if sockets else {}
 
             if record_location:
-                _record_locations(active, record_location)
+                _record_locations(active, record_location, by_channel)
 
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
-                archived_channels = _archive_stale_sessions(active, archive_channel)
+                archived_channels = _archive_stale_sessions(active, archive_channel, by_channel)
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
                 # Clean up caches for archived channels
@@ -481,7 +500,8 @@ def start_unified_watcher(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
-    record_location: Callable[[str, str, str], None] | None = None,
+    record_location: Callable[[str, str, str, str | None], None] | None = None,
+    sockets: Callable[[], dict[str, str]] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -492,7 +512,8 @@ def start_unified_watcher(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention
-        record_location: Optional callback to note a channel's (tmux_session, tmux_window)
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        sockets: Optional callback returning channel -> recorded tmux socket
     """
     global _watcher_thread
 
@@ -506,6 +527,7 @@ def start_unified_watcher(
             "archive_channel": archive_channel,
             "mark_unread": mark_unread,
             "record_location": record_location,
+            "sockets": sockets,
         },
         daemon=True,
     )

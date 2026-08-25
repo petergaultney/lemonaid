@@ -65,19 +65,33 @@ class TmuxUnavailable(Exception):
     """tmux could not answer, which is not the same as answering "no"."""
 
 
-def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
+def server_args(socket: str | None) -> list[str]:
+    """`tmux`, aimed at *socket* when there is one.
+
+    A tmux command with no `-S` goes to whichever server the calling process is
+    attached to. That is right for anything acting on "here" and wrong for
+    anything asking about a session recorded elsewhere, which cannot be seen
+    from the wrong server and so reads as gone.
+    """
+    return ["tmux", "-S", socket] if socket else ["tmux"]
+
+
+def get_pane_for_tty(tty: str, socket: str | None = None) -> tuple[str | None, str | None]:
     """Find the tmux session and pane for a given TTY.
 
     Returns (session_name, pane_id), or (None, None) when no pane has that tty.
 
     Raises TmuxUnavailable if tmux itself failed, so a caller deciding whether a
-    session is dead can tell that apart from a pane that is genuinely gone.
+    session is dead can tell that apart from a pane that is genuinely gone. A
+    *socket* naming a server that is gone is exactly that failure, not an
+    answer: the session may be dead, but a server that never comes back would
+    otherwise archive its rows on the strength of a connection error.
     """
     try:
         # List all panes with their TTY and pane ID
         result = subprocess.run(
             [
-                "tmux",
+                *server_args(socket),
                 "list-panes",
                 "-a",
                 "-F",
@@ -104,7 +118,7 @@ def get_pane_for_tty(tty: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def locations_by_tty() -> dict[str, tuple[str, str]]:
+def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]]:
     """Where every pane is sitting, as tty -> (session_name, window_index).
 
     Distinct from `get_pane_for_tty`, which answers "is it still there" and is
@@ -117,7 +131,13 @@ def locations_by_tty() -> dict[str, tuple[str, str]]:
     """
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-a", "-F", "#{pane_tty}|#{session_name}|#{window_index}"],
+            [
+                *server_args(socket),
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_tty}|#{session_name}|#{window_index}",
+            ],
             capture_output=True,
             text=True,
             check=True,
