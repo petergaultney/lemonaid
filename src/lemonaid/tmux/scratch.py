@@ -293,12 +293,32 @@ def _adopt_existing_pane() -> str | None:
     return keep
 
 
+def marked_pane() -> str | None:
+    """The live scratch pane, by state file and then by marker.
+
+    Both, because they fail in different ways: the file is stale after the pane
+    is killed from outside lemonaid, and the marker is the only handle left once
+    the file is lost. `_adopt_existing_pane` kills the extras, so a caller that
+    gets an id here is holding the one pane.
+    """
+    pane_id = _get_pane_id()
+    if pane_id and _pane_exists(pane_id):
+        return pane_id
+
+    return _adopt_existing_pane()
+
+
 def _mark_pane(pane_id: str) -> None:
     """Mark a pane as our scratch pane using a tmux option."""
     subprocess.run(
         ["tmux", "set-option", "-p", "-t", pane_id, "@lemonaid_scratch", "1"],
         capture_output=True,
     )
+
+
+def remark_pane(pane_id: str) -> None:
+    """Assert the marker on a pane already believed to carry it."""
+    _mark_pane(pane_id)
 
 
 def _get_pane_window(pane_id: str) -> str | None:
