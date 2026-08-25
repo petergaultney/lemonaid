@@ -2,7 +2,9 @@
 
 #### Added
 
-- **Follow mode for the scratch pane**: the pane can stay visible across every window and session switch, so the inbox is ambient rather than something you summon. Enable with `lemonaid tmux scratch --follow`; `--unfollow` disables it. Nothing goes in `.tmux.conf`: showing the pane installs two hooks on the running server, and they run inside tmux itself (`if-shell -F`, `run-shell -C`) with no shell process, so the pane is in place before the window you switched to is drawn.
+- **Follow mode for the scratch pane**: the pane can stay visible across every window and session switch, so the inbox is ambient rather than something you summon. Enable with `lemonaid tmux scratch --follow`; `--unfollow` disables it. Nothing goes in `.tmux.conf`: showing the pane installs its hooks on the running server, and they run inside tmux itself (`if-shell -F`, `run-shell -C`) with no shell process.
+
+  The pane is swapped between windows rather than moved: each window it has visited keeps a placeholder pane in its slot, so a window's own panes never resize when the scratch pane comes or goes, and nothing repaints on a switch. The first visit to a window is the only time its layout changes. A window left holding only a placeholder is closed (never a session's last window), and the slot keeps its saved size when the terminal is resized.
 
   In follow mode `prefix+l` toggles focus between the scratch pane and your work rather than hiding it, and selecting a notification no longer dismisses the pane. `q` parks it until the next `prefix+l`.
 
@@ -10,7 +12,7 @@
 
 - **`scratch_height` and `follow_scratch` config** in `[tmux-session]`: the pane height in rows (default `10`), and whether new tmux servers get follow mode on first scratch-pane creation.
 
-- **Sessions render as cards in a tall, narrow pane.** Below 72 columns, or whenever a pane is taller than 1.2x its width, each session is a card - name, time, cwd, branch, then the message wrapped onto as many lines as the pane can spare - instead of columns four characters wide. This is what a left-hand scratch pane shows.
+- **Sessions render as cards in a tall, narrow pane.** Each session is a card - name, time, cwd, branch, then the message wrapped onto as many lines as the pane can spare - instead of columns four characters wide. A left scratch pane is always cards and a top one always columns, whatever size tmux hands it at any instant; a plain `lma` decides from its shape (below 72 columns, or taller than 1.2x its width).
 
 - **Clicking a session switches to it** on the first click, rather than moving the cursor and waiting for a second.
 

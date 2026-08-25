@@ -110,6 +110,19 @@ join - with no shell process. A switch fires both hooks, and hooks run one after
 another in the server, so the second finds the pane already joined and does
 nothing. The pane is in place before tmux redraws the window you switched to.
 
+The pane is swapped, not moved. Every window it has been in keeps a placeholder
+pane in its slot - a bare `sleep`, visible as an empty pane - so the window's own
+panes never change size when the scratch pane arrives or leaves. Moving the pane
+meant the window you were returning to was full width until the hook ran, and its
+program repainted in front of you. The first visit to a window is the only time
+its layout changes: a placeholder is split in and the scratch pane swapped into it.
+
+A window whose real panes have all exited, leaving only a placeholder, is closed -
+unless it is its session's last window, since with `detach-on-destroy` that would
+detach you. Flipping position or turning follow off removes every placeholder; the
+saved size is re-asserted whenever a window is resized, so a font change costs the
+window's own panes columns rather than the sidebar.
+
 Everything the hooks read is a tmux global option (`@lemonaid_follow`,
 `@lemonaid_scratch_pane`, `@lemonaid_scratch_position`, `@lemonaid_scratch_width`,
 `@lemonaid_scratch_height`), mirrored from the state files whenever they change.
@@ -119,10 +132,12 @@ lines to `.tmux.conf`. Remove them; `--follow` says so if it sees them.
 
 #### Behavior in follow mode
 
-- **Switching sessions/windows**: The scratch pane follows automatically, preserving its height
+- **Switching sessions/windows**: The scratch pane follows automatically, preserving its size
+- **Layout**: a left pane always renders sessions as cards and a top pane always as columns, whatever size tmux hands it at any instant
 - **`prefix + l`**: Toggles focus between the scratch pane and your main pane (never hides)
 - **`q` in lma**: Temporarily parks the pane. The next `prefix + l` brings it back with follow still active
 - **Selecting a notification**: Switches to that session; the scratch pane follows via the hook
+- **Focus**: The scratch pane never arrives focused, and never leaves the placeholder focused behind it. A switch made from inside the inbox puts focus back on the pane you came from
 - **Resizing**: Manual resizes are preserved across switches
 
 #### Disabling follow
