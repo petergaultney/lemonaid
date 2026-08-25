@@ -141,6 +141,27 @@ def _existing_sessions() -> set[str]:
     return set(result.stdout.split()) if result.returncode == 0 else set()
 
 
+def _client_size() -> tuple[str, str]:
+    """The size to build a detached session at.
+
+    A detached session with no size is 80x24, and stays that way until a client
+    shows it. The scratch pane splits its saved width off whatever the window
+    reports, so in an 80-column window a 48-column sidebar leaves 32 for your
+    work - and the swap that would fix it is capped against the client, which
+    is wide enough that nothing looks wrong. The pane you see is the
+    placeholder: a bare `sleep`, which renders as an empty pane.
+    """
+    result = subprocess.run(
+        ["tmux", "display-message", "-p", "#{client_width} #{client_height}"],
+        capture_output=True,
+        text=True,
+        timeout=_SPAWN_TIMEOUT_SECONDS,
+    )
+    parts = result.stdout.split()
+
+    return (parts[0], parts[1]) if len(parts) == 2 and parts[0].isdigit() else ("200", "50")
+
+
 def _restore_session(plan: SessionPlan) -> str | None:
     """Create *plan*'s session and its windows. Returns an error message or None.
 
@@ -149,8 +170,21 @@ def _restore_session(plan: SessionPlan) -> str | None:
     rather than shifting every later window down.
     """
     first = plan.windows[0]
+    width, height = _client_size()
     if not _run(
-        "tmux", "new-session", "-d", "-s", plan.name, "-c", first.cwd, "-n", str(first.index)
+        "tmux",
+        "new-session",
+        "-d",
+        "-s",
+        plan.name,
+        "-c",
+        first.cwd,
+        "-n",
+        str(first.index),
+        "-x",
+        width,
+        "-y",
+        height,
     ):
         return f"Could not create session {plan.name!r}"
 
