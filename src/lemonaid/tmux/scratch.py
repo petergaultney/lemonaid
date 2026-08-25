@@ -63,7 +63,13 @@ def _pane_size_format(position: str) -> str:
 
 
 def _window_size_format(position: str) -> str:
-    return "#{window_width}" if position == "left" else "#{window_height}"
+    """The client's size, not the window's.
+
+    A window no client has sized yet reports tmux's default-size of 80x24, and
+    both the toggle and the follow hook can run before the switch resizes it.
+    The client already knows the size the window is about to become.
+    """
+    return "#{client_width}" if position == "left" else "#{client_height}"
 
 
 def _split_flag(position: str) -> str:
@@ -561,24 +567,38 @@ position=$(cat "$dir/tmux-scratch-$server-position" 2>/dev/null)
 if [ "$position" = "left" ]; then
     axis=-h
     dimension=width
-    window_fmt='#{{window_width}}'
+    window_fmt='#{{client_width}}'
 else
     axis=-v
     dimension=height
-    window_fmt='#{{window_height}}'
+    window_fmt='#{{client_height}}'
 fi
 
 size=$(cat "$dir/tmux-scratch-$server-$dimension" 2>/dev/null)
 [ -n "$size" ] || size={default_size}
 
-# Never more than a share of the window: a session nothing has attached to yet
-# is tmux's default-size, where an absolute size is most of the screen.
+# Never more than a share of the window. Measured from the client rather than
+# the window: a window no client has sized yet reports tmux's default-size of
+# 80x24, and the hook runs before the switch resizes it - which capped the pane
+# at 32 columns and then left it there once the window grew.
 window=$(tmux display -p "$window_fmt")
 max=$((window * {max_pct} / 100))
 [ "$size" -le "$max" ] 2>/dev/null || size=$max
 
 # One round-trip: join and restore focus relayout the window once between them
 # rather than redrawing after each, which is visible as the pane resizing twice.
+# Diagnostics for a pane that lands at the wrong size or layout: every input the
+# join depends on, written before the join so a bad value is visible even when
+# the result looks fine. Off unless the file already exists (`: > $log` to arm).
+log="$dir/tmux-scratch-follow.log"
+if [ -f "$log" ]; then
+    printf '%s pos=%s size=%s dim=%s client=%s window=%s max=%s pane=%s -> %s\n' \
+        "$(date +%H:%M:%S)" "$position" "$size" "$dimension" \
+        "$(tmux display -p '#{{client_width}}x#{{client_height}}')" \
+        "$(tmux display -p '#{{window_width}}x#{{window_height}}')" \
+        "$max" "$pane" "$(tmux display -p '#{{session_name}}:#{{window_index}}')" >> "$log"
+fi
+
 cur_pane=$(tmux display -p '#{{pane_id}}')
 tmux join-pane "$axis" -b -l "$size" -s "$pane" \\; select-pane -t "$cur_pane" 2>/dev/null
 exit 0

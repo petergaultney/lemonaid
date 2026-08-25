@@ -6,6 +6,7 @@ from rich.text import Text
 
 from lemonaid.inbox.tui.app import (
     _MEDIUM_LAYOUT_COLS,
+    _SIDEBAR_COLS,
     _WIDE_LAYOUT_COLS,
     LemonaidApp,
 )
@@ -99,7 +100,7 @@ def test_name_grows_with_width_within_a_layout():
     threshold, TTY at the wide one), which necessarily takes space back from
     Name. That trade is deliberate, so growth is only asserted within a layout.
     """
-    assert _widths(60)["Name"] < _widths(80)["Name"] < _widths(_MEDIUM_LAYOUT_COLS - 1)["Name"]
+    assert _widths(_SIDEBAR_COLS)["Name"] < _widths(88)["Name"] < _widths(_MEDIUM_LAYOUT_COLS - 1)["Name"]
     assert _widths(_MEDIUM_LAYOUT_COLS)["Name"] < _widths(_WIDE_LAYOUT_COLS - 1)["Name"]
     assert _widths(_WIDE_LAYOUT_COLS)["Name"] < _widths(200)["Name"]
 
@@ -110,7 +111,7 @@ def test_name_beats_original_fixed_width_everywhere():
     23 rather than 24 at the narrow end: two of those columns belong to the
     vertical scrollbar, which the layout now reserves instead of overflowing into.
     """
-    for width in (60, 80, 100, _MEDIUM_LAYOUT_COLS, 120, _WIDE_LAYOUT_COLS, 160, 200):
+    for width in (_SIDEBAR_COLS, 80, 100, _MEDIUM_LAYOUT_COLS, 120, _WIDE_LAYOUT_COLS, 160, 200):
         assert _widths(width)["Name"] >= 23, width
 
 

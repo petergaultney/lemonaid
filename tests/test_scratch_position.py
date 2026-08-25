@@ -117,8 +117,16 @@ def test_an_unreadable_window_size_leaves_the_size_alone(monkeypatch):
 
 
 def test_each_position_caps_against_its_own_axis():
-    assert scratch._window_size_format("left") == "#{window_width}"
-    assert scratch._window_size_format("top") == "#{window_height}"
+    assert scratch._window_size_format("left") == "#{client_width}"
+    assert scratch._window_size_format("top") == "#{client_height}"
+
+
+def test_the_cap_measures_the_client_not_the_window():
+    """A window no client has sized yet reports tmux's default-size 80x24, and
+    the join can run before the switch resizes it."""
+    for position in ("left", "top"):
+        assert "client" in scratch._window_size_format(position)
+        assert "window" not in scratch._window_size_format(position)
 
 
 def test_position_falls_back_to_config_until_something_sets_it(monkeypatch, tmp_path):
