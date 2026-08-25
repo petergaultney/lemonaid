@@ -51,3 +51,12 @@ def test_the_hook_is_executable(monkeypatch, tmp_path):
     monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
 
     assert scratch._write_follow_script("45", "left").stat().st_mode & 0o111
+
+
+def test_the_join_and_the_focus_restore_are_one_command(monkeypatch, tmp_path):
+    """Two commands relayout the window twice, which is visible as a double resize."""
+    script = _script(monkeypatch, tmp_path)
+
+    join = next(line for line in script.splitlines() if "join-pane" in line)
+    assert "select-pane" in join
+    assert "\\;" in join
