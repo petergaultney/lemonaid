@@ -16,6 +16,8 @@
 
 - **Clicking a session switches to it** on the first click, rather than moving the cursor and waiting for a second.
 
+- **`LEMONAID_DB` points the inbox at a different file.** A second `lma` can run against invented sessions - a demo, a screenshot, an experiment - without either inbox's watchers archiving the other's rows. `scripts/demo-inbox.py` stages exactly that on a throwaway tmux server.
+
 - **The bar above the list says whether anything is unread.** It turns the unread marker's own orange while the inbox has something waiting, and dark blue in session history. All three colours are ANSI, so the bar tracks the same terminal palette the rest of the TUI is drawn from.
 
 - **Mark a session unread again**: `M` in `lma`, `lemonaid mark-unread --tty` for a tmux binding. It returns to the unread group at its existing age rather than jumping to the top.
