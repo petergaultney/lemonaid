@@ -13,7 +13,7 @@ _log = get_logger("handlers")
 
 
 def check_pane_exists_by_tty(
-    tty: str, switch_source: str, socket: str | None = None
+    tty: str, switch_source: str, socket: str | None = None, not_after: float | None = None
 ) -> bool | None:
     """Whether a pane still exists, or None if that could not be determined.
 
@@ -23,10 +23,14 @@ def check_pane_exists_by_tty(
     *socket* names the server the session was recorded on. Without it the
     question is put to the caller's own server, where a pane living on a
     different one is absent for a reason that has nothing to do with it.
+
+    *not_after* rejects a pane in a tmux session younger than the record: tty
+    names are reused, so after a reboot a recorded tty usually names some other
+    pane entirely.
     """
     if switch_source == "tmux":
         try:
-            session, pane_id = tmux.navigation.get_pane_for_tty(tty, socket)
+            session, pane_id = tmux.navigation.get_pane_for_tty(tty, socket, not_after)
         except tmux.navigation.TmuxUnavailable:
             return None
 

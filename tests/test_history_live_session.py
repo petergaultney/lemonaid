@@ -7,12 +7,23 @@ wants returning to the inbox and switching to, not resuming.
 """
 
 import asyncio
+import itertools
 
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 
 
-def _archived(tty: str = "/dev/ttys001", socket: str | None = None) -> int:
+_ttys = itertools.count(900)
+
+
+def _archived(tty: str | None = None, socket: str | None = None) -> int:
+    """An archived session on a tty no other test and no real pane will match.
+
+    A tty shared with another test's row - or with a pane on the machine running
+    this - makes the liveness check answer about something else, which is the
+    exact thing these tests assert on.
+    """
+    tty = tty or f"/dev/ttys{next(_ttys)}"
     metadata = {"tty": tty, "cwd": "/tmp", "session_id": "abc123"}
     if socket:
         metadata["tmux_socket"] = socket
@@ -45,7 +56,7 @@ def _status(nid: int) -> str:
 
 def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
     nid = _archived()
-    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a: True)
+    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: True)
     monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: True)
 
     async def steps(app, pilot):
@@ -63,7 +74,7 @@ def test_a_live_session_is_switched_to_not_resumed(monkeypatch):
     _archived()
     switched: list = []
     resumed: list = []
-    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a: True)
+    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: True)
     monkeypatch.setattr(
         "lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: switched.append(a) or True
     )
@@ -87,7 +98,7 @@ def test_a_dead_session_still_resumes(monkeypatch):
     """The existing behaviour has to survive: this one really is gone."""
     _archived()
     resumed: list = []
-    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a: False)
+    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: False)
     monkeypatch.setattr(
         "lemonaid.inbox.tui.app.resume_mod.build_resume_command",
         lambda *a: resumed.append(a) or None,
@@ -110,7 +121,7 @@ def test_the_recorded_server_is_the_one_asked(monkeypatch):
     asked: list = []
     monkeypatch.setattr(
         "lemonaid.inbox.tui.app.check_pane_exists_by_tty",
-        lambda tty, src, socket=None: asked.append(socket) or True,
+        lambda tty, src, socket=None, not_after=None: asked.append(socket) or True,
     )
     monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: True)
 
@@ -128,7 +139,7 @@ def test_copying_a_command_never_switches(monkeypatch):
     """`copy` asks for the text of a resume command, whatever the session is doing."""
     _archived()
     switched: list = []
-    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a: True)
+    monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: True)
     monkeypatch.setattr(
         "lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: switched.append(a) or True
     )

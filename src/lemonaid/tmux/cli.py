@@ -7,10 +7,10 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
-from . import restore as tmux_restore
 from . import restart as tmux_restart
-from .navigation import go_back, swap_back_location
+from . import restore as tmux_restore
 from . import scratch
+from .navigation import go_back, swap_back_location
 from .scratch import ensure_scratch, set_follow, toggle_scratch
 from .session import auto_session_name, create_session
 

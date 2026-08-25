@@ -76,7 +76,9 @@ def server_args(socket: str | None) -> list[str]:
     return ["tmux", "-S", socket] if socket else ["tmux"]
 
 
-def get_pane_for_tty(tty: str, socket: str | None = None) -> tuple[str | None, str | None]:
+def get_pane_for_tty(
+    tty: str, socket: str | None = None, not_after: float | None = None
+) -> tuple[str | None, str | None]:
     """Find the tmux session and pane for a given TTY.
 
     Returns (session_name, pane_id), or (None, None) when no pane has that tty.
@@ -86,6 +88,17 @@ def get_pane_for_tty(tty: str, socket: str | None = None) -> tuple[str | None, s
     *socket* naming a server that is gone is exactly that failure, not an
     answer: the session may be dead, but a server that never comes back would
     otherwise archive its rows on the strength of a connection error.
+
+    *not_after* is when the thing being looked for was last known to exist. The
+    OS reuses tty device names, so after a reboot every recorded tty is likely
+    to name some unrelated pane; a tmux session created later than the record
+    cannot be the one it refers to. Without it a stale row matches whatever
+    inherited its tty, which reads as "still running" for a session that is not.
+
+    This narrows the lie without ending it - two records can still point at one
+    reused tty inside a long-lived tmux session. A tty is where a session was,
+    not which session it is. The SessionStart hook is what makes the location a
+    reported fact rather than one inferred from a device name.
     """
     try:
         # List all panes with their TTY and pane ID
@@ -95,7 +108,7 @@ def get_pane_for_tty(tty: str, socket: str | None = None) -> tuple[str | None, s
                 "list-panes",
                 "-a",
                 "-F",
-                "#{pane_tty}|#{session_name}|#{pane_id}",
+                "#{pane_tty}|#{session_name}|#{pane_id}|#{session_created}",
             ],
             capture_output=True,
             text=True,
@@ -106,10 +119,15 @@ def get_pane_for_tty(tty: str, socket: str | None = None) -> tuple[str | None, s
             if not line:
                 continue
             parts = line.split("|")
-            if len(parts) == 3:
-                pane_tty, session_name, pane_id = parts
-                if pane_tty == tty:
-                    return session_name, pane_id
+            if len(parts) == 4:
+                pane_tty, session_name, pane_id, created = parts
+                if pane_tty != tty:
+                    continue
+
+                if not_after is not None and created.isdigit() and int(created) > not_after:
+                    continue
+
+                return session_name, pane_id
 
     except subprocess.CalledProcessError as e:
         _log.warning("could not list panes to resolve %s: %s", tty, e)

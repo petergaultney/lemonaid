@@ -235,9 +235,7 @@ def _sync_rows(
     change still costs a rebuild.
     """
     cards = card_width > 0
-    shaped = [
-        (key, _as_card(cells, card_width, *shape) if cards else cells) for key, cells in rows
-    ]
+    shaped = [(key, _as_card(cells, card_width, *shape) if cards else cells) for key, cells in rows]
 
     if [str(key.value) for key in table.rows] == [key for key, _ in shaped]:
         resized = False
@@ -1358,6 +1356,9 @@ class LemonaidApp(App):
         holds sessions which never stopped running. Asked of the server the
         session was recorded on, since a pane on another one is absent from
         this one's listing for reasons that have nothing to do with it.
+
+        A tty alone does not identify a session across a reboot, so a pane in a
+        tmux session younger than this notification does not count as it.
         """
         tty = notification.metadata.get("tty")
         if not tty or not notification.switch_source:
@@ -1365,7 +1366,10 @@ class LemonaidApp(App):
 
         return (
             check_pane_exists_by_tty(
-                tty, notification.switch_source, notification.metadata.get("tmux_socket")
+                tty,
+                notification.switch_source,
+                notification.metadata.get("tmux_socket"),
+                notification.created_at,
             )
             is True
         )
@@ -1395,7 +1399,9 @@ class LemonaidApp(App):
 
             self._set_history_mode(False)
             self._refresh_notifications()
-            self.notify(f"{notification.name or notification.channel} is running - back in the inbox")
+            self.notify(
+                f"{notification.name or notification.channel} is running - back in the inbox"
+            )
             self._switch_to_notification(notification)
             return
 
