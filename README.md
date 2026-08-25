@@ -3,7 +3,7 @@
 Monitor progress of and switch between lemons (go on... say 'LLMs' three times fast)
 running in the terminal.
 
-<img width="1452" height="228" alt="Screenshot 2026-02-11 at 16 52 46" src="https://github.com/user-attachments/assets/c9dff292-2e2f-449a-9039-314865dcf7d1" />
+<img width="899" height="511" alt="The lemonaid inbox as a top strip, one row per session, above a Claude Code session" src="https://github.com/user-attachments/assets/bdb98206-b0f3-44e9-a395-541130edb2b9" />
 
 ## An inbox that stays in view
 
@@ -15,9 +15,9 @@ lemonaid tmux scratch --follow          # left or top, from config
 lemonaid tmux scratch --flip            # move it to the other edge
 ```
 
-In a pane too narrow for the column layout, each session renders as a card -
-name, then time, cwd and branch, then the message wrapped over as many lines as
-the pane can spare:
+Above, as a top strip, it draws the columns. On the left it has no room for
+them, so each session becomes a card instead - name, then time, cwd and branch,
+then the message wrapped over as many lines as the pane can spare:
 
 <img width="899" height="511" alt="The inbox as a left sidebar, cards for each session, beside a Claude Code session" src="https://github.com/user-attachments/assets/9b82c2df-abf3-40ef-a529-f0e95a110abb" />
 
