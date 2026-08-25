@@ -97,20 +97,39 @@ SESSIONS = [
 # The main panes end up in the same screenshot as the sidebar, so they show
 # invented output too - a real shell would put a real prompt, path, and branch
 # on display.
-_GIT_LOG = """$ git log --oneline -8
-8f2a1c4 (HEAD -> feat/expiry-alerts) notify three days out, not on the day
-1d9e07b pantry: read expiry from the label scan when there is one
-6b3c882 fix hydration() to divide by flour weight, not dough weight
-44a1f5e cookbook: import recipes from JSON-LD and microdata
-90ce713 grocery list: fold duplicate entries on normalised names
-2ef4a06 spice rack: seed the inventory from last year's notes
-b7d1e59 pantry: first pass at an expiry model
-0c5a3f8 initial commit"""
+# The cards point at agent sessions, so the pane beside them shows one. Chrome
+# copied from Claude Code's TUI - the glyphs are the real ones, hence the noqa;
+# the content is the invented recipe project.
+_CLAUDE = """\033[38;5;210m ▛▀▖▗▀▖\033[0m  \033[1mClaude Code\033[0m \033[2mv2.1.241\033[0m
+\033[38;5;210m ▙▄▘▝▄▘\033[0m  \033[2mOpus 5 · ~/src/pantry\033[0m
 
-_PYTEST = """$ uv run pytest -q
+\033[2m✻ Conversation compacted (ctrl+o for history)\033[0m
+
+\033[38;5;114m⏺\033[0m The expiry check fired on the morning of, which is too late to
+  act on. Moving it to three days out.
+
+\033[38;5;114m⏺\033[0m \033[1mRead\033[0m(src/pantry/expiry.py)
+  \033[2m⎿  Read 84 lines\033[0m
+
+\033[38;5;114m⏺\033[0m \033[1mEdit\033[0m(src/pantry/expiry.py)
+  \033[2m⎿  Updated with 2 additions and 2 removals\033[0m
+
+\033[38;5;114m⏺\033[0m \033[1mBash\033[0m(uv run pytest tests/test_expiry.py -q)
+  \033[2m⎿  12 passed in 0.31s\033[0m
+
+\033[38;5;114m⏺\033[0m All four checks green. The notifier now fires 3 days out instead
+  of on the morning of, which is what the yoghurt incident called for.
+
+\033[2m─────────────────────────────────────────────────────────────────\033[0m
+
+\033[38;5;110m›\033[0m \033[2mTry "add a test for the leap-year case"\033[0m
+
+  \033[2mOpus 5 · feat/expiry-alerts · 34% context\033[0m"""  # noqa: RUF001
+
+_PYTEST = """\033[2m$\033[0m uv run pytest -q
 ........................................................ [ 71%]
 does.......                                              [100%]
-67 passed in 2.14s"""
+\033[38;5;114m67 passed\033[0m in 2.14s"""
 
 
 def _show(text: str, title: str) -> list[str]:
@@ -219,7 +238,7 @@ def _stage(position: str, attach: bool = True) -> None:
         "-s",
         "demo",
         "-n",
-        "cookbook",
+        "pantry",
         "-c",
         str(Path.home()),
         "-x",
@@ -239,8 +258,8 @@ def _stage(position: str, attach: bool = True) -> None:
         "-c",
         str(Path.home()),
         "-t",
-        "demo:cookbook",
-        *_show(_GIT_LOG, "cookbook"),
+        "demo:pantry",
+        *_show(_CLAUDE, "pantry"),
     )
     # Named, not indexed: `base-index` is a config setting, so :1 is the first
     # window on one server and the second on another.
