@@ -221,17 +221,22 @@ def _as_card(
     # gutter's copy would be a second one beside the name. It leaves the column
     # blank rather than closing the gap, which keeps every name in the list on
     # the same column whether or not its card is marked.
+    # The jump digit comes off a marked name - the card draws the bar down its
+    # own edge instead of carrying the gutter's copy of it.
     name = cells[_NAME_CELL]
     is_here = name.plain.startswith(HERE_BLOCK)
     if is_here:
-        name = Text(" " * (gutter_width - len(HERE_BAR))) + name[gutter_width:]
+        name = name[gutter_width:]
 
-    # The bar sits outside the card rather than inside it: every line keeps the
-    # spacing it had and the bar is prepended, so a marked card is one column
-    # wider than an unmarked one. Taking the indent instead would close up the
-    # gap the body lines rely on, running the bar into the text beside it.
-    edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text("")
-    headline = edge + dot + Text(" ") + name
+    # The bar goes in the column every line already spends on padding, rather
+    # than before it. Prepending would push the whole card right by one the
+    # moment it was marked, which reads as the list jumping under the cursor.
+    #
+    # That leaves the dot nowhere to sit on a marked card, so it takes the cell
+    # the jump digit vacated: the row it marks is the one you are already in,
+    # which is the one row a number would be no use on.
+    edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text(_INDENT)
+    headline = edge + Text(" ") + dot + Text(" ") + name if is_here else dot + Text(" ") + name
 
     context = Text(" · ", style=FIELD_STYLES["backend"]).join(
         part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain
@@ -243,13 +248,13 @@ def _as_card(
     # every line's budget shrinks by it. Without that the context line overflows
     # the pane and wraps - and a wrapped line starts at column 0, breaking the
     # edge the bar is there to draw.
-    body = width - len(_INDENT) - len(edge.plain)
+    body = width - len(_INDENT)
     lines = [
         _truncated(headline, width),
-        edge + Text(_INDENT) + _truncated(context, body),
+        edge + _truncated(context, body),
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
-        *(edge + Text(_INDENT) + line for line in _wrapped(message, body, message_lines)),
+        *(edge + line for line in _wrapped(message, body, message_lines)),
         # Separates this card from the next, and carries the bar when there is
         # one: the blank line is part of the card's own cell, so it takes the row
         # cursor's background with the rest, and an edge stopping short of it

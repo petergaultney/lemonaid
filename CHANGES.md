@@ -1,3 +1,9 @@
+# 0.19.1 (2026-08-26)
+
+#### Fixed
+
+- **Marking a card no longer moves what is in it.** The bar was prepended to each line rather than placed in the column the card already spends on padding, so a card shifted right by one the moment it became the focused session - which read as the list jumping under the cursor. The unread dot moves into the cell the jump digit vacated, since the row you are already in is the one a number is no use on.
+
 # 0.19.0 (2026-08-26)
 
 #### Added

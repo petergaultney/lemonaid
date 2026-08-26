@@ -234,31 +234,35 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
     assert _as_card(cells, 44, 1, 1, 2)[0].plain.endswith("\n")
 
 
-def test_the_bar_does_not_close_up_a_card_line_it_marks():
-    """The bar is prepended, not swapped for the indent the body lines keep.
+def test_marking_a_card_does_not_move_anything_in_it():
+    """The bar goes in the column the card already spends on padding.
 
-    Consuming that column ran the bar straight into the timestamp beside it.
+    Prepending it instead pushed every line right by one the moment a card was
+    marked, which reads as the list jumping under the cursor.
     """
     from rich.text import Text
 
     from lemonaid.inbox.tui.app import _as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
-    def lines(is_here: bool) -> list[str]:
+    def lines(is_here: bool, row: int) -> list[str]:
         cells = [
             Text("15:24"),
             Text(""),
             Text("CC"),
-            jump_gutter(0, is_here) + styled_cell("a-name", False, "name"),
+            jump_gutter(row, is_here) + styled_cell("a-name", False, "name"),
             Text(""),
             Text("~/w"),
             Text("msg"),
         ]
         return _as_card(cells, 40, 1, 1, 2)[0].plain.split("\n")
 
-    marked, plain = lines(True), lines(False)
-    assert marked[1] == HERE_BAR + plain[1]
-    assert marked[2] == HERE_BAR + plain[2]
+    marked, plain = lines(True, 0), lines(False, 2)
+
+    assert marked[0].index("a-name") == plain[0].index("a-name")
+    assert marked[1].index("15:24") == plain[1].index("15:24")
+    assert marked[1][0] == HERE_BAR
+    assert plain[1][0] == " "
 
 
 def test_an_unmarked_card_keeps_its_jump_digit():
@@ -315,3 +319,33 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
 
     for line in lines(True, 0):
         assert len(line) <= width
+
+
+def test_a_marked_card_puts_its_dot_where_the_digit_would_be():
+    """The bar takes the padding column, leaving the dot the digit's cell.
+
+    Sitting it beside the bar instead gave the headline no space before the dot
+    and two after it.
+    """
+    from rich.text import Text
+
+    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.utils import styled_cell
+
+    def headline(is_here: bool, row: int) -> str:
+        cells = [
+            Text("13:06:01"),
+            Text("●"),
+            Text("CC"),
+            jump_gutter(row, is_here) + styled_cell("a-session", False, "name"),
+            Text(""),
+            Text("~/w/x"),
+            Text("a msg"),
+        ]
+        return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[0]
+
+    marked, plain = headline(True, 0), headline(False, 1)
+
+    assert marked.index("●") == plain.index("●") + 2
+    assert marked.index("a-session") == plain.index("a-session")
+    assert marked[marked.index("●") - 1] == " "
