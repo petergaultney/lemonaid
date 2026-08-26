@@ -27,9 +27,11 @@ from ...handlers import check_pane_exists_by_tty, handle_notification
 from ...lemon_watchers import (
     detect_terminal_switch_source,
     fish_path,
+    get_tmux_socket,
     start_unified_watcher,
 )
 from ...log import get_logger
+from ...tmux import navigation
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -46,6 +48,10 @@ from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .utils import (
     FIELD_STYLES,
+    GUTTER_WIDTH,
+    HERE_BAR,
+    HERE_BAR_STYLE,
+    HERE_BLOCK,
     JUMP_DIGITS,
     UNREAD_MARKER_STYLE,
     jump_gutter,
@@ -53,7 +59,6 @@ from .utils import (
     styled_cell,
 )
 
-_DAY_SECONDS = 86400
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
@@ -96,6 +101,9 @@ _INDENT = " "  # one column, so a card's body clears the marker but little else
 _CARD_CELL_PADDING = 0
 _COLUMN_CELL_PADDING = 1  # DataTable's own default, restored on the way back
 
+_DAY_SECONDS = 86400
+_FOCUS_CACHE_SECONDS = 1.0
+
 _TIME_CELL = 0
 _UNREAD_CELL = 1
 _BACKEND_CELL = 2
@@ -111,10 +119,38 @@ _log = get_logger("tui")
 
 
 def _format_timestamp(ts: float) -> str:
+    """The clock time for today and yesterday, a date for anything older.
+
+    Yesterday keeps a time because it is still the recent past - what you want
+    from a row from last night is the hour, not the date. It is prefixed `y`
+    so the hour is not read as today's: a bare 23:59 at breakfast says nothing
+    about which night it was.
+
+    Only past that does the clock stop being the useful part and the calendar
+    day take over.
+    """
     dt = datetime.fromtimestamp(ts)
-    if time.time() - ts < _DAY_SECONDS:
+    days_ago = (datetime.now().date() - dt.date()).days
+    if days_ago == 0:
         return dt.strftime("%H:%M:%S")
+
+    if days_ago == 1:
+        return f"y {dt.strftime('%H:%M')}"
+
     return dt.strftime("%Y-%m-%d")
+
+
+def _time_cell(ts: float, is_unread: bool, *, history: bool = False) -> Text:
+    """The time column, greyed once the row is more than a day old.
+
+    The text says when; the colour says whether it is still worth reacting to.
+    The two disagree either side of the yesterday boundary - 00:30 last night
+    is recent by breakfast and 23:00 the night before is not, though both read
+    as yesterday - so recency is measured in hours rather than taken from the
+    same calendar test the text uses.
+    """
+    field = "time" if time.time() - ts < _DAY_SECONDS else "time_old"
+    return styled_cell(_format_timestamp(ts), is_unread, field, history=history)
 
 
 def _backend_label(channel: str, overrides: dict[str, str]) -> str:
@@ -149,7 +185,11 @@ def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> li
 
 
 def _as_card(
-    cells: list[Text], width: int, context_lines: int = 1, message_lines: int = 1
+    cells: list[Text],
+    width: int,
+    context_lines: int = 1,
+    message_lines: int = 1,
+    gutter_width: int = 0,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -160,6 +200,9 @@ def _as_card(
     The name and the context line are truncated, never wrapped: they are fields
     you scan for, so each has to sit in one predictable place down the list. Only
     the message wraps, because it is the one field that reads as prose.
+
+    `gutter_width` is how much of the name cell the column layout's gutter takes,
+    for a card to strip before laying out its own.
     """
     # Cells arrive already coloured by field and dimmed by read state, so a card
     # rearranges them rather than restyling: both layouts then agree on what a
@@ -172,7 +215,23 @@ def _as_card(
     # follows then inherits, since a colour change does not clear it.
     marker = cells[_UNREAD_CELL]
     dot = Text("●", style=UNREAD_MARKER_STYLE) if marker.plain else Text(" ")
-    headline = dot + Text(" ") + cells[_NAME_CELL]
+
+    # The jump digit stays on the name, where a card shows it just as a row does.
+    # The here-marker does not: a card draws that down its whole height, so the
+    # gutter's copy would be a second one beside the name. It leaves the column
+    # blank rather than closing the gap, which keeps every name in the list on
+    # the same column whether or not its card is marked.
+    name = cells[_NAME_CELL]
+    is_here = name.plain.startswith(HERE_BLOCK)
+    if is_here:
+        name = Text(" " * (gutter_width - len(HERE_BAR))) + name[gutter_width:]
+
+    # The bar sits outside the card rather than inside it: every line keeps the
+    # spacing it had and the bar is prepended, so a marked card is one column
+    # wider than an unmarked one. Taking the indent instead would close up the
+    # gap the body lines rely on, running the bar into the text beside it.
+    edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text("")
+    headline = edge + dot + Text(" ") + name
 
     context = Text(" · ", style=FIELD_STYLES["backend"]).join(
         part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain
@@ -180,14 +239,23 @@ def _as_card(
 
     message = cells[_MSG_CELL]
 
-    body = width - len(_INDENT)
+    # The bar is a column of the card's width, not an extra one beside it, so
+    # every line's budget shrinks by it. Without that the context line overflows
+    # the pane and wraps - and a wrapped line starts at column 0, breaking the
+    # edge the bar is there to draw.
+    body = width - len(_INDENT) - len(edge.plain)
     lines = [
         _truncated(headline, width),
-        Text(_INDENT) + _truncated(context, body),
+        edge + Text(_INDENT) + _truncated(context, body),
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
-        *(Text(_INDENT) + line for line in _wrapped(message, body, message_lines)),
-        Text(""),  # separates this card from the next
+        *(edge + Text(_INDENT) + line for line in _wrapped(message, body, message_lines)),
+        # Separates this card from the next, and carries the bar when there is
+        # one: the blank line is part of the card's own cell, so it takes the row
+        # cursor's background with the rest, and an edge stopping short of it
+        # reads as one that ran out rather than one that ends the card. Left
+        # genuinely empty otherwise, so an unmarked card ends where it did.
+        edge if is_here else Text(""),
     ]
     # Right-justified so the backend labels line up against the pane's edge
     # whatever their width, rather than against each other's first character.
@@ -233,6 +301,7 @@ def _sync_rows(
     rows: list[tuple[str, list[Text]]],
     card_width: int = 0,
     shape: tuple[int, int] = (1, 1),
+    gutter_width: int = 0,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -246,7 +315,10 @@ def _sync_rows(
     change still costs a rebuild.
     """
     cards = card_width > 0
-    shaped = [(key, _as_card(cells, card_width, *shape) if cards else cells) for key, cells in rows]
+    shaped = [
+        (key, _as_card(cells, card_width, *shape, gutter_width) if cards else cells)
+        for key, cells in rows
+    ]
 
     if [str(key.value) for key in table.rows] == [key for key, _ in shaped]:
         resized = False
@@ -478,6 +550,8 @@ class LemonaidApp(App):
         self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
+        self._focused: frozenset[str] = frozenset()
+        self._focused_asked_at = 0.0
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
         self._hint_timer: Timer | None = None
@@ -840,7 +914,7 @@ class LemonaidApp(App):
             return
 
         table.cell_padding = _COLUMN_CELL_PADDING
-        # Time holds "HH:MM:SS" or the wider "YYYY-MM-DD" for older sessions.
+        # Time holds "HH:MM:SS", "y HH:MM" for yesterday, or "YYYY-MM-DD".
         table.add_column("Time", width=10)
         # Everything in history is archived, so the marker would always be
         # empty. Dropping it shifts every row left, which is a structural cue
@@ -879,20 +953,41 @@ class LemonaidApp(App):
         table = self.query_one("#main_table", DataTable)
         return table.cursor_coordinate.row
 
-    def _active_row(self, n: db.Notification, row_index: int) -> tuple[str, list[Text]]:
+    def _focused_ttys(self) -> frozenset[str]:
+        """Which pane the user is looking at, asked of tmux at most once a second.
+
+        A refresh runs on the poll interval and again on every action that
+        changes the list - far more often than a pane can be switched by hand,
+        and the answer costs a subprocess each time.
+        """
+        now = time.time()
+        if now - self._focused_asked_at >= _FOCUS_CACHE_SECONDS:
+            self._focused = frozenset(navigation.focused_ttys(get_tmux_socket()))
+            self._focused_asked_at = now
+
+        return self._focused
+
+    def _active_row(
+        self, n: db.Notification, row_index: int, focused: frozenset[str] = frozenset()
+    ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
         `row_index` is the session's position in the list, which is what its jump
         digit names - so a row's number changes when the list reorders.
+
+        `focused` is the set of ttys a user is looking at, passed in rather than
+        looked up here: it costs a subprocess, and every row in one refresh shares
+        the answer.
         """
         is_unread = n.is_unread
+        is_here = n.metadata.get("tty", "") in focused
         return str(n.id), [
-            styled_cell(_format_timestamp(n.created_at), is_unread, "time"),
+            _time_cell(n.created_at, is_unread),
             Text("●", style=UNREAD_MARKER_STYLE) if is_unread else Text(""),
             styled_cell(
                 _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
             ),
-            jump_gutter(row_index) + styled_cell(n.name or "", is_unread, "name"),
+            jump_gutter(row_index, is_here) + styled_cell(n.name or "", is_unread, "name"),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd"),
             styled_cell(n.message, is_unread, "message"),
@@ -902,7 +997,7 @@ class LemonaidApp(App):
     def _other_row(self, n: db.Notification) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
-            styled_cell(_format_timestamp(n.created_at), False, "time"),
+            _time_cell(n.created_at, False),
             Text("○", style="dim") if n.is_unread else Text(""),
             styled_cell(
                 _backend_label(n.channel, self.config.tui.backend_labels), False, "backend"
@@ -955,11 +1050,13 @@ class LemonaidApp(App):
 
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
+        focused = self._focused_ttys()
         rebuilt = _sync_rows(
             main_table,
-            [self._active_row(n, i) for i, n in enumerate(current_notifications)],
+            [self._active_row(n, i, focused) for i, n in enumerate(current_notifications)],
             self._card_width(),
             self._card_shape(),
+            GUTTER_WIDTH,
         )
 
         # Populate non-switchable table (always dim, not interactive).
@@ -1291,7 +1388,7 @@ class LemonaidApp(App):
                 (
                     str(n.id),
                     [
-                        styled_cell(_format_timestamp(n.created_at), False, "time"),
+                        _time_cell(n.created_at, False, history=True),
                         Text("○", style="dim") if n.snooze_prev_status == "unread" else Text(""),
                         styled_cell(
                             _backend_label(n.channel, self.config.tui.backend_labels),

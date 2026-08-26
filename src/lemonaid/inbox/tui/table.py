@@ -16,7 +16,18 @@ class ClickToActTable(DataTable):
 
     Rows here are destinations, and a row cursor means the column was never part
     of the intent.
+
+    The cursor also fills a row's background without repainting its text.
+    Textual's default gives the cursor's foreground priority over the cell's
+    own, which flattens every field to one colour - and here colour *is* the
+    field's identity, so the selected row loses exactly what the list is read
+    for. The mouse-hover highlight is left alone: it is transient and follows
+    the pointer rather than marking a choice.
     """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("cursor_foreground_priority", "renderable")
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
     def on_click(self, event: events.Click) -> None:
         # Public on_click runs alongside the base _on_click rather than replacing
