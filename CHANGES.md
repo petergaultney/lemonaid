@@ -1,3 +1,15 @@
+# 0.19.0 (2026-08-26)
+
+#### Added
+
+- **The session you are sitting in is marked down its left edge**, in place of its jump digit. tmux is asked which pane is focused each refresh, so a switch made outside lemonaid moves the mark too.
+
+#### Fixed
+
+- **The selected row keeps each field's colour.** Textual gave the row cursor's foreground priority over each cell's own, so selecting a row repainted every field one colour - and colour is what tells the fields apart. Mouse hover is composed the same way and gets the same treatment.
+
+- **Yesterday's rows say which day.** The clock-to-date switch was a 24-hour elapsed test, so 23:59 last night still read as a bare time by morning. Yesterday keeps its time behind a `y` marker; only older rows become dates. Under a day stays green, older goes grey.
+
 # 0.18.1 (2026-08-25)
 
 #### Fixed

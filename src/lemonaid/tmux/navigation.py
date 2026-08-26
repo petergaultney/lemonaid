@@ -171,6 +171,42 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]]:
     }
 
 
+def focused_ttys(socket: str | None = None) -> set[str]:
+    """The ttys a user is actually looking at, one per attached client.
+
+    A pane is focused when it is the active pane, of the active window, of a
+    session someone is attached to - all three, since every window has an active
+    pane whether or not anyone is watching it. Detached sessions contribute
+    nothing: their "active" pane is just where they were left.
+
+    A set rather than one tty: several clients can be attached to different
+    sessions at once, and each of them is somewhere.
+    """
+    try:
+        result = subprocess.run(
+            [
+                *server_args(socket),
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_tty}|#{session_attached}|#{window_active}|#{pane_active}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as e:
+        _log.warning("could not list panes to find the focused one: %s", e)
+        return set()
+
+    return {
+        parts[0]
+        for line in result.stdout.strip().split("\n")
+        if len(parts := line.split("|")) == 4
+        if parts[1] not in ("", "0") and parts[2] == "1" and parts[3] == "1"
+    }
+
+
 def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | None, str | None]:
     """Find a tmux pane by its current working directory.
 
