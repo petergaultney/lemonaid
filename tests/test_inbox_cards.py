@@ -10,7 +10,7 @@ import asyncio
 from rich.text import Text
 
 from lemonaid.inbox.tui import app
-from lemonaid.inbox.tui.utils import styled_cell
+from lemonaid.inbox.tui.utils import FIELD_STYLES, styled_cell
 from lemonaid.tmux import scratch
 
 
@@ -133,10 +133,12 @@ def test_a_card_keeps_the_colours_its_cells_arrived_with():
     body, _ = app._as_card(cells, 60)
 
     spans = {body.plain[s.start : s.end]: s.style for s in body.spans}
-    assert spans["a-name"] == "bold cyan"
-    assert spans["15:24"] == "bold green"
-    assert spans["~/w/repo"] == "bold blue"
-    assert spans["a/branch"] == "bold magenta"
+    # Against the palette rather than a copy of it: the claim is that a card
+    # preserves the colour its cell arrived with, whatever that colour is.
+    assert spans["a-name"] == f"bold {FIELD_STYLES['name']}"
+    assert spans["15:24"] == f"bold {FIELD_STYLES['time']}"
+    assert spans["~/w/repo"] == f"bold {FIELD_STYLES['cwd']}"
+    assert spans["a/branch"] == f"bold {FIELD_STYLES['branch']}"
 
 
 def test_a_card_spends_one_column_on_its_gutter():
@@ -277,3 +279,42 @@ def test_a_scratch_pane_on_top_is_columns_whatever_its_size(monkeypatch, tmp_pat
 def test_a_plain_lma_still_decides_from_its_shape():
     assert app.LemonaidApp()._cards(58, 89)
     assert not app.LemonaidApp()._cards(245, 16)
+
+
+def test_a_read_card_emits_no_bold_at_all():
+    """Bold on the marker slot would bleed into the name beside it.
+
+    A colour change does not clear the bold attribute - only a reset does - so a
+    bold placeholder in the empty marker slot puts every following field on the
+    terminal's bold face, whatever the app thinks it asked for. The rendered
+    attributes are the thing to assert on; the source styles look right either way.
+    """
+    cells = [
+        styled_cell("15:24", False, "time"),
+        Text(""),  # read: no dot
+        styled_cell("CC", False, "backend"),
+        styled_cell("a-name", False, "name"),
+        styled_cell("", False, "branch"),
+        styled_cell("~/w/repo", False, "cwd"),
+        styled_cell("a message", False, "message"),
+    ]
+    body, _ = app._as_card(cells, 60)
+
+    assert not any("bold" in str(span.style) for span in body.spans)
+
+
+def test_an_unread_card_bolds_the_dot_but_not_the_message():
+    cells = [
+        styled_cell("15:24", True, "time"),
+        Text("●"),
+        styled_cell("CC", True, "backend"),
+        styled_cell("a-name", True, "name"),
+        styled_cell("", True, "branch"),
+        styled_cell("~/w/repo", True, "cwd"),
+        styled_cell("a message", True, "message"),
+    ]
+    body, _ = app._as_card(cells, 60)
+    styles = {body.plain[s.start : s.end]: str(s.style) for s in body.spans}
+
+    assert "bold" in styles["a-name"], "an unread name is bold"
+    assert "bold" not in styles["a message"], "the message reads as prose, never bold"
