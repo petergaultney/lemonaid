@@ -413,11 +413,17 @@ def add(
     switch_source: str | None = None,
     created_at: float | None = None,
     status: str = "unread",
+    keep_existing_message: bool = False,
 ) -> Notification:
     """Add a notification or update existing one if upsert=True.
 
     If upsert=True and a notification exists for the channel (even if read or archived),
     it will be updated and set back to unread status.
+
+    `keep_existing_message` leaves a row's existing message text alone. It is for
+    callers that know a turn ended but not what was said in it: the transcript
+    watcher writes the better message, and only rewrites when the transcript
+    itself changes, so a message overwritten here does not come back.
     """
     now = created_at if created_at is not None else time.time()
     metadata = metadata or {}
@@ -428,6 +434,8 @@ def add(
         if existing:
             name = _reconcile_name(existing, name, metadata)
             _carry_forward(existing, metadata)
+            if keep_existing_message and existing.message:
+                message = existing.message
 
             conn.execute(
                 """

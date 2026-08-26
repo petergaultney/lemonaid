@@ -134,3 +134,92 @@ def test_a_permission_prompt_still_says_permission():
         )
         == "Permission needed in tmp/project"
     )
+
+
+def test_stop_leaves_a_real_message_alone(tmp_path, monkeypatch):
+    """The watcher's message is the better one, and it does not get rewritten.
+
+    It only writes when the transcript itself changes, so a message Stop
+    overwrites stays overwritten until the session says something new.
+    """
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    from lemonaid.inbox import db as real_db
+
+    with real_db.connect() as conn:
+        real_db.add(conn, "claude:keep1", "The five unresolved are from tiny runs.", "a-session")
+
+    with (
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("a-session", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys001"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+    ):
+        notify.handle_notification(
+            stdin_data='{"session_id":"keep1","cwd":"/tmp/project","hook_event_name":"Stop"}'
+        )
+
+    with real_db.connect() as conn:
+        assert (
+            real_db.get_by_channel(conn, "claude:keep1", unread_only=False).message
+            == "The five unresolved are from tiny runs."
+        )
+
+
+def test_stop_on_a_new_session_still_gets_a_message(tmp_path, monkeypatch):
+    """Nothing to preserve, so the generic message is the only one there is."""
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    from lemonaid.inbox import db as real_db
+
+    with (
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("fresh", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys002"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+    ):
+        notify.handle_notification(
+            stdin_data='{"session_id":"fresh1","cwd":"/tmp/project","hook_event_name":"Stop"}'
+        )
+
+    with real_db.connect() as conn:
+        assert (
+            real_db.get_by_channel(conn, "claude:fresh1", unread_only=False).message
+            == "Waiting in tmp/project"
+        )
+
+
+def test_a_permission_prompt_does_overwrite(tmp_path, monkeypatch):
+    """A question is news the transcript does not carry, so it replaces."""
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    from lemonaid.inbox import db as real_db
+
+    with real_db.connect() as conn:
+        real_db.add(conn, "claude:perm1", "Some earlier chatter.", "a-session")
+
+    with (
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("a-session", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys003"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+    ):
+        notify.handle_notification(
+            stdin_data='{"session_id":"perm1","cwd":"/tmp/project",'
+            '"hook_event_name":"Notification","notification_type":"permission_prompt"}'
+        )
+
+    with real_db.connect() as conn:
+        assert (
+            real_db.get_by_channel(conn, "claude:perm1", unread_only=False).message
+            == "Permission needed in tmp/project"
+        )
