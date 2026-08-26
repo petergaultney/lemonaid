@@ -5,6 +5,7 @@ import os
 import sys
 
 from ..inbox import db
+from ..inbox.channel import UnidentifiedSession
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -19,8 +20,10 @@ _log = get_logger("opencode.notify")
 
 
 def _channel_for_session(session_id: str | None) -> str:
+    """Raises `UnidentifiedSession` when there is nothing to attribute to."""
     if not session_id:
-        return "opencode:unknown"
+        raise UnidentifiedSession("opencode notification has no session id")
+
     return f"opencode:{session_id}"
 
 
@@ -149,7 +152,11 @@ def handle_notification(
     if tty:
         metadata["tty"] = tty
 
-    channel = _channel_for_session(session_id)
+    try:
+        channel = _channel_for_session(session_id)
+    except UnidentifiedSession:
+        _log.warning("dropped a notification with no session id: cwd=%s", cwd)
+        return
 
     with db.connect() as conn:
         db.add(

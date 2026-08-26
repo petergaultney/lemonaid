@@ -28,7 +28,7 @@ import typing as ty
 from pathlib import Path
 
 from ..inbox import db
-from ..inbox.channel import channel_id
+from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -277,7 +277,11 @@ def handle_submit(stdin_data: str | None = None) -> None:
     except json.JSONDecodeError:
         data = {}
 
-    channel, session_id, name, switch_source, metadata = _resolve_session(data, "working")
+    try:
+        channel, session_id, name, switch_source, metadata = _resolve_session(data, "working")
+    except UnidentifiedSession:
+        _log.warning("dropped a working notification with no session id")
+        return
     message = f"Working in {shorten_path(data.get('cwd', 'unknown'))}"
 
     with db.connect() as conn:
@@ -313,7 +317,11 @@ def handle_session_start(stdin_data: str | None = None) -> None:
     except json.JSONDecodeError:
         data = {}
 
-    channel, _session_id, name, switch_source, metadata = _resolve_session(data, "started")
+    try:
+        channel, _session_id, name, switch_source, metadata = _resolve_session(data, "started")
+    except UnidentifiedSession:
+        _log.warning("dropped a session-start notification with no session id")
+        return
     source = data.get("source", "startup")
     metadata["session_start_source"] = source
 
@@ -385,7 +393,13 @@ def handle_notification(stdin_data: str | None = None) -> None:
 
     message, tells_us_what_was_said = _describe(notification_type, shorten_path(cwd))
 
-    channel, session_id, name, switch_source, metadata = _resolve_session(data, notification_type)
+    try:
+        channel, session_id, name, switch_source, metadata = _resolve_session(
+            data, notification_type
+        )
+    except UnidentifiedSession:
+        _log.warning("dropped a %s notification with no session id", notification_type)
+        return
 
     # Check existing state before upsert for logging
     with db.connect() as conn:
