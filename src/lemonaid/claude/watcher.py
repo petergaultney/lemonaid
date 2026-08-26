@@ -14,24 +14,47 @@ from ..lemon_watchers import short_filename
 CHANNEL_PREFIX = "claude:"
 
 
-def get_session_path(session_id: str, cwd: str) -> Path | None:
-    """Find the transcript path, trying parent directories as fallback.
+def get_session_path(session_id: str, cwd: str, recorded: str = "") -> Path | None:
+    """Find a session's transcript.
 
-    Claude may store sessions under a parent directory (like git root) rather
-    than the exact cwd. This handles git worktrees where sessions live under
-    the main repo path.
+    `recorded` is the path Claude itself reported in a hook payload, and is
+    authoritative when present. The cwd-derived name is a guess at a directory
+    Claude chose, and it is wrong for paths whose encoding does not round-trip -
+    a session whose transcript is never found gets no message updates at all,
+    which reads as a session that has gone quiet.
+
+    Falls back to a project lookup by session id, which also covers sessions
+    Claude filed under a parent directory (the git-worktree case).
     """
-    if not cwd or not session_id:
+    if not session_id:
         return None
 
-    from .projects import find_project_path
+    if recorded:
+        path = Path(recorded)
+        if path.exists():
+            return path
 
-    project_path = find_project_path(cwd)
-    if not project_path:
-        return None
+    from .projects import find_project_path, find_session_project
 
-    transcript_path = project_path / f"{session_id}.jsonl"
-    return transcript_path if transcript_path.exists() else None
+    if cwd:
+        project_path = find_project_path(cwd)
+        if project_path:
+            transcript_path = project_path / f"{session_id}.jsonl"
+            if transcript_path.exists():
+                return transcript_path
+
+    # find_session_project answers with the session's cwd, not its transcript
+    # directory - so it feeds the same derivation, just from a cwd Claude
+    # confirmed rather than the one the inbox recorded.
+    found = find_session_project(session_id)
+    if found and found != cwd:
+        project_path = find_project_path(found)
+        if project_path:
+            transcript_path = project_path / f"{session_id}.jsonl"
+            if transcript_path.exists():
+                return transcript_path
+
+    return None
 
 
 def describe_activity(entry: dict) -> str | None:
