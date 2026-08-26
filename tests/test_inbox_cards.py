@@ -225,7 +225,7 @@ def test_a_card_row_still_fits_when_the_pane_is_tiny():
     """The body has a floor, so a very narrow pane overflows rather than
     rendering a negative width - but it must not do so silently at usual sizes."""
     for width in (40, 45, 50, 58, 64, 70):
-        widths, rendered, hbar = _card_columns(width, 30)
+        _widths, rendered, hbar = _card_columns(width, 30)
         assert not hbar, width
         assert rendered == width - 2, width
 

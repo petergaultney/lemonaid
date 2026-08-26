@@ -166,10 +166,21 @@ def test_the_switch_target_keeps_focus(tmux):
     assert tmux("display", "-p", "#{pane_id}").stdout.strip() != scratch._get_pane_id()
 
 
+def _where_the_client_is(run) -> str:
+    """The attached client's window.
+
+    Asked of the client rather than of `display` with no target: $TMUX carries a
+    pane id as its third field, and the fixture has no real pane to name there,
+    so tmux resolves "current" to whichever session owns %0 - the parking
+    session - however the client has since been switched.
+    """
+    return run("list-clients", "-F", "#{session_name}:#{window_index}").stdout.strip()
+
+
 def _assert_sane(run, pane: str) -> None:
     """The pane is in the client's window, every window holds at most one slot
     (the pane or a placeholder), and no slot outside the parking session has focus."""
-    here = run("display", "-p", "#{session_name}:#{window_index}").stdout.strip()
+    here = _where_the_client_is(run)
     assert (
         run("display", "-p", "-t", pane, "#{session_name}:#{window_index}").stdout.strip() == here
     )
