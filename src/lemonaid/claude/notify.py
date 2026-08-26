@@ -389,6 +389,11 @@ def handle_notification(stdin_data: str | None = None) -> None:
             name=name,
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
+            # Stop knows the turn ended, not what was said in it. The watcher has
+            # the assistant's actual last line, and only rewrites when the
+            # transcript changes - so overwriting here loses that message until
+            # the session says something new.
+            keep_existing_message=notification_type == "Stop",
         )
 
     if existing:

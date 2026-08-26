@@ -14,6 +14,8 @@
 
 - **The message is never bold**, on unread rows too. It is the one field that reads as prose rather than as a value to pick out, and a wrapped bold paragraph is harder to read than the plain one beside it.
 
+- **A finished turn no longer replaces a session's last real message.** The transcript watcher writes what the session actually said, and only rewrites when the transcript changes - so a message the `Stop` hook overwrote stayed overwritten until the session spoke again. Whether you saw the real message or a generic one came down to which of the two wrote last, which is why it hit some sessions and not others. `Stop` now leaves existing message text alone; a permission prompt or a question still replaces it, since those are news the transcript does not carry.
+
 - **A finished turn says "Waiting in ..." rather than "Stop in ..."**. Claude's `Stop` hook carries no notification type of its own, so it fell through to a fallback that prints the hook's name - leaking an internal event name into the inbox. It means the same thing `idle_prompt` does, and now reads the same way, matching what the codex and openclaw backends already said for a completed turn.
 
 # 0.17.1 (2026-08-25)
