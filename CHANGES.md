@@ -1,3 +1,10 @@
+# 0.17.1 (2026-08-25)
+
+#### Fixed
+
+- **Binary patcher** now finds the notification polling interval in recent Claude Code versions (tested 2.1.234–2.1.246). The previous approach searched for `XXX=6000` within 500 bytes of `notificationType` in the binary, but the constant is defined far from that marker in these versions. The patcher keeps that proximity search as a first attempt and falls back to the hook module's constant trio (`600000, 30000, 6000`).
+
+
 # 0.17.0 (2026-08-25)
 
 #### Added
