@@ -48,19 +48,30 @@ The TUI will show the warning again when an update invalidates the patch.
 
 ## Technical details
 
-### Version-specific patterns
+### How the pattern is found
 
-The minified variable name for the polling interval has changed across versions:
+The minified variable name for the polling interval changes across versions.
 
-| Version | Original pattern | Patched pattern |
-|---------|-----------------|-----------------|
-| < 2.1.0 | `ewD=6000` | `ewD=0500` |
-| >= 2.1.0 | `spB=6000` | `spB=0500` |
+Versions before 2.1.0 and 2.1.0–2.1.15 use hardcoded patterns (`ewD=6000` and
+`spB=6000` respectively).
 
-If a future version changes the pattern again, lemonaid will report status as "unknown" and we'll need to:
+For 2.1.16+, the patcher tries two dynamic strategies in order:
 
-1. Find the new pattern: `grep -boa 'setInterval' ~/.local/share/claude/versions/<version>` and look for notification-related intervals
-2. Update `get_pattern_for_version()` in `src/lemonaid/claude/patcher.py`
+1. **Proximity search**: looks for `XXX=6000` within 500 bytes of `notificationType`
+   in the binary.
+
+2. **Trio search**: the hook module defines three constants together in the bundled
+   source — `var XX=600000, YY=30000, ZZ=6000`. The variable names change per build
+   but the trio structure is stable across all tested versions (2.1.234–2.1.246).
+
+| Strategy | Original pattern | Patched pattern |
+|----------|-----------------|-----------------|
+| proximity | `XXX=6000` near `notificationType` | `XXX=0500` |
+| trio | `600000, 30000, ZZZ=6000` | `ZZZ= 500` |
+
+Tested on 2.1.234–2.1.246; the trio search is what succeeds on those versions.
+
+If no strategy finds the pattern, lemonaid reports status as "unknown".
 
 ### macOS code signing
 
