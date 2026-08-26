@@ -357,7 +357,7 @@ def _reconcile_name(
 # able to see. A hook can fire from a subprocess with no TMUX_PANE, and metadata
 # is replaced wholesale on update - so without this, one such observation erases
 # the location that `tmux restore` needs after a crash.
-_STICKY_METADATA = ("tmux_session", "tmux_window", "tmux_socket")
+_STICKY_METADATA = ("tmux_session", "tmux_window", "tmux_socket", "transcript_path")
 
 
 def _carry_forward(existing: Notification, metadata: dict[str, Any]) -> None:

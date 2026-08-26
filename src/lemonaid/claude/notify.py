@@ -225,6 +225,13 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
         "name_source": name_source,
     }
 
+    # Claude tells us where the transcript is. Deriving it from the cwd guesses
+    # at a directory name Claude chose, and the guess is wrong for some paths -
+    # a session whose transcript cannot be found gets no message updates at all.
+    transcript_path = data.get("transcript_path")
+    if transcript_path:
+        metadata["transcript_path"] = transcript_path
+
     branch = get_git_branch(cwd)
     if branch:
         metadata["git_branch"] = branch
