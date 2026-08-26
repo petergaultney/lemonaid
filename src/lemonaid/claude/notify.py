@@ -278,7 +278,7 @@ def handle_submit(stdin_data: str | None = None) -> None:
         data = {}
 
     try:
-        channel, session_id, name, switch_source, metadata = _resolve_session(data, "working")
+        channel, _session_id, name, switch_source, metadata = _resolve_session(data, "working")
     except UnidentifiedSession:
         _log.warning("dropped a working notification with no session id")
         return
@@ -394,7 +394,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
     message, tells_us_what_was_said = _describe(notification_type, shorten_path(cwd))
 
     try:
-        channel, session_id, name, switch_source, metadata = _resolve_session(
+        channel, _session_id, name, switch_source, metadata = _resolve_session(
             data, notification_type
         )
     except UnidentifiedSession:

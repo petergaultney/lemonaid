@@ -10,7 +10,26 @@ Each migration module should have:
 import importlib
 import pkgutil
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+
+
+@contextmanager
+def _exclusive(conn: sqlite3.Connection) -> Iterator[None]:
+    """Hold a write lock for the block, so no other connection can migrate too.
+
+    `PRAGMA user_version` is not transactional, but the lock is what matters:
+    the second connection waits, and by the time it reads the version the first
+    has finished and committed.
+    """
+    conn.execute("BEGIN EXCLUSIVE")
+    try:
+        yield
+    except BaseException:
+        conn.rollback()
+        raise
+    else:
+        conn.commit()
 
 
 def get_current_version(conn: sqlite3.Connection) -> int:
@@ -46,16 +65,21 @@ def run_migrations(conn: sqlite3.Connection) -> list[str]:
     """Run any pending migrations.
 
     Returns list of descriptions of migrations that were run.
-    """
-    current_version = get_current_version(conn)
-    migrations = discover_migrations()
-    applied = []
 
-    for version, description, migrate_fn in migrations:
-        if version > current_version:
-            migrate_fn(conn)
-            set_version(conn, version)
-            conn.commit()
-            applied.append(f"v{version}: {description}")
+    Every `connect()` calls this, and the TUI connects from its watcher thread
+    while the main thread is doing the same - so the version is read and written
+    inside one exclusive transaction. Reading it outside, both connections saw
+    the same pending migration and both applied it, and the second failed on a
+    column the first had already renamed.
+    """
+    with _exclusive(conn):
+        current_version = get_current_version(conn)
+        applied = []
+
+        for version, description, migrate_fn in discover_migrations():
+            if version > current_version:
+                migrate_fn(conn)
+                set_version(conn, version)
+                applied.append(f"v{version}: {description}")
 
     return applied

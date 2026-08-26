@@ -1,3 +1,11 @@
+# 0.19.1 (2026-08-26)
+
+#### Fixed
+
+- **Marking a card no longer moves what is in it.** The bar was prepended to each line rather than placed in the column the card already spends on padding, so a card shifted right by one the moment it became the focused session. The unread dot moves into the cell the jump digit vacated, since the row you are already in is the one a number is no use on.
+
+- **Two connections no longer run the same migration at once.** Every `connect()` migrates, and the TUI connects from its watcher thread while the main thread is doing the same - both read the same pending version and both applied it, the second failing on a column the first had already renamed.
+
 # 0.19.0 (2026-08-26)
 
 #### Added
