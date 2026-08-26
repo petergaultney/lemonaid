@@ -167,8 +167,12 @@ def _as_card(
     #
     # The dot rides on the name rather than owning a column: it is empty for most
     # rows, and a permanently-indented card wastes width a narrow pane hasn't got.
+    # Styled only when there is a dot to style. The marker style is bold, and a
+    # bold empty placeholder still emits the attribute - which the name that
+    # follows then inherits, since a colour change does not clear it.
     marker = cells[_UNREAD_CELL]
-    headline = Text(marker.plain or " ", style=UNREAD_MARKER_STYLE) + Text(" ") + cells[_NAME_CELL]
+    dot = Text("●", style=UNREAD_MARKER_STYLE) if marker.plain else Text(" ")
+    headline = dot + Text(" ") + cells[_NAME_CELL]
 
     context = Text(" · ", style=FIELD_STYLES["backend"]).join(
         part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain

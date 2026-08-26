@@ -26,6 +26,9 @@ FIELD_STYLES = {
 }
 UNREAD_MARKER_STYLE = "bold bright_red"
 
+# Fields that stay plain even when a row is demanding attention.
+_NEVER_BOLD = frozenset({"message"})
+
 # History is a record rather than a queue, so its timestamps are the settled
 # kind. Green is the live colour and belongs to the inbox.
 HISTORY_FIELD_STYLES = {**FIELD_STYLES, "time": "yellow"}
@@ -40,9 +43,13 @@ def styled_cell(
     time, and `dim` on a dark background costs enough contrast that the majority
     of the pane stops being readable - which is a high price for a distinction
     the bold unread rows already make on their own.
+
+    The message is never bold. It is the one field that reads as prose rather
+    than as a value to pick out, and a wrapped bold paragraph is harder to read
+    than the plain one beside it - the weight costs more than the emphasis buys.
     """
     style = (HISTORY_FIELD_STYLES if history else FIELD_STYLES).get(field, "default")
-    if is_unread:
+    if is_unread and field not in _NEVER_BOLD:
         return Text(value, style=f"bold {style}")
 
     return Text(value, style=style)

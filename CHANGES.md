@@ -10,6 +10,10 @@
 
 #### Fixed
 
+- **Read sessions are no longer bold.** The card headline styled the unread marker's slot whether or not there was a dot in it, and that style is bold. A colour change does not clear the bold attribute - only a reset does - so the bold from an empty marker carried forward into the session name, putting every row on the terminal's bold face regardless of its state.
+
+- **The message is never bold**, on unread rows too. It is the one field that reads as prose rather than as a value to pick out, and a wrapped bold paragraph is harder to read than the plain one beside it.
+
 - **A finished turn says "Waiting in ..." rather than "Stop in ..."**. Claude's `Stop` hook carries no notification type of its own, so it fell through to a fallback that prints the hook's name - leaking an internal event name into the inbox. It means the same thing `idle_prompt` does, and now reads the same way, matching what the codex and openclaw backends already said for a completed turn.
 
 # 0.17.1 (2026-08-25)
