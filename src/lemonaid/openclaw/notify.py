@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
-from ..inbox.channel import channel_id
+from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -159,7 +159,11 @@ def handle_notification(
     if tty:
         metadata["tty"] = tty
 
-    channel = channel_id("openclaw", session_id)
+    try:
+        channel = channel_id("openclaw", session_id)
+    except UnidentifiedSession:
+        _log.warning("dropped a notification with no session id: cwd=%s", cwd)
+        return
 
     with db.connect() as conn:
         db.add(
@@ -310,7 +314,11 @@ def handle_register(session_id: str | None = None, cwd: str | None = None) -> bo
     if branch:
         metadata["git_branch"] = branch
 
-    channel = channel_id("openclaw", session_id)
+    try:
+        channel = channel_id("openclaw", session_id)
+    except UnidentifiedSession:
+        _log.warning("dropped a notification with no session id: cwd=%s", cwd)
+        return False
 
     # Upsert the notification
     with db.connect() as conn:

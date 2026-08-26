@@ -1,3 +1,9 @@
+# 0.18.1 (2026-08-25)
+
+#### Fixed
+
+- **A notification that cannot name its session is dropped rather than filed under a shared `unknown` channel.** Every backend collapsed a missing session id into one pseudo-session per backend, which then took the tty of whatever shell delivered it - so it appeared in the inbox sitting on a real pane, and the next such notification upserted over it. In practice every payload carries an id, so this only fires on a malformed call; dropping it with a logged warning is better than parking it on a pane in use.
+
 # 0.18.0 (2026-08-25)
 
 #### Added

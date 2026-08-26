@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
-from ..inbox.channel import channel_id
+from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -167,7 +167,11 @@ def handle_notification(
     if tty:
         metadata["tty"] = tty
 
-    channel = channel_id("codex", session_id)
+    try:
+        channel = channel_id("codex", session_id)
+    except UnidentifiedSession:
+        _log.warning("dropped a notification with no session id: cwd=%s", cwd)
+        return
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
     with db.connect() as conn:
