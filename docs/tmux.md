@@ -128,9 +128,13 @@ meant the window you were returning to was full width until the hook ran, and it
 program repainted in front of you. The first visit to a window is the only time
 its layout changes: a placeholder is split in and the scratch pane swapped into it.
 
-A window whose real panes have all exited, leaving only a placeholder, is closed -
-unless it is its session's last window, since with `detach-on-destroy` that would
-detach you. Flipping position or turning follow off removes every placeholder; the
+When a window's real panes have all exited, the placeholder left behind is killed.
+The window then has nothing in it, so tmux closes it, and a session with no windows
+follows - which means exiting your last shell ends the session as it would without
+follow mode. Where an attached client goes next is `detach-on-destroy`, which is
+yours to set: `off` switches it to another session rather than detaching it.
+
+Flipping position or turning follow off removes every placeholder; the
 saved size is re-asserted whenever a window is resized, so a font change costs the
 window's own panes columns rather than the sidebar.
 

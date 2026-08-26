@@ -1,3 +1,11 @@
+# 0.19.2 (2026-08-26)
+
+#### Fixed
+
+- **Exiting your last shell ends the session again.** The placeholder left behind held the window open, and follow mode filled it with the inbox. Follow now kills the placeholder rather than the window, so tmux tears down the window and the session itself - where an attached client goes next is `detach-on-destroy`, which is yours to set.
+
+- **The sidebar comes back on attach.** Reattaching changes no window and no session, so neither hook fired and the window kept a blank placeholder until `prefix+l`.
+
 # 0.19.1 (2026-08-26)
 
 #### Fixed
