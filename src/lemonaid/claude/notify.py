@@ -336,6 +336,31 @@ def handle_session_start(stdin_data: str | None = None) -> None:
     )
 
 
+def _describe(notification_type: str, short_path: str) -> tuple[str, bool]:
+    """A hook's inbox message, and whether it is worth more than what is there.
+
+    The flag answers a question the message alone cannot: an end-of-turn hook
+    knows a turn finished but not what was said in it, while the watcher holds
+    the assistant's actual last line and only rewrites when the transcript
+    changes. Overwriting on Stop therefore loses that line until the session
+    speaks again. A prompt or a question is news the transcript does not carry,
+    so those do replace it.
+
+    Stop names the same state as idle_prompt and carries no notification type of
+    its own; without a case here it would report its hook's name as the message.
+    """
+    if notification_type in ("idle_prompt", "Stop"):
+        return f"Waiting in {short_path}", False
+
+    if notification_type == "permission_prompt":
+        return f"Permission needed in {short_path}", True
+
+    if notification_type == "PermissionRequest":
+        return f"Question in {short_path}", True
+
+    return f"{notification_type} in {short_path}", True
+
+
 def handle_notification(stdin_data: str | None = None) -> None:
     """
     Handle a Claude Code notification from stdin.
@@ -358,18 +383,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
         data.get("notification_type") or data.get("hook_event_name") or "idle_prompt"
     )
 
-    short_path = shorten_path(cwd)
-    # Stop means the turn ended, which is the same state idle_prompt names: the
-    # session is waiting on you. It carries no notification_type of its own, so
-    # without this it falls through and reports its hook's name as the message.
-    if notification_type in ("idle_prompt", "Stop"):
-        message = f"Waiting in {short_path}"
-    elif notification_type == "permission_prompt":
-        message = f"Permission needed in {short_path}"
-    elif notification_type == "PermissionRequest":
-        message = f"Question in {short_path}"
-    else:
-        message = f"{notification_type} in {short_path}"
+    message, tells_us_what_was_said = _describe(notification_type, shorten_path(cwd))
 
     channel, session_id, name, switch_source, metadata = _resolve_session(data, notification_type)
 
@@ -396,11 +410,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
             name=name,
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
-            # Stop knows the turn ended, not what was said in it. The watcher has
-            # the assistant's actual last line, and only rewrites when the
-            # transcript changes - so overwriting here loses that message until
-            # the session says something new.
-            keep_existing_message=notification_type == "Stop",
+            keep_existing_message=not tells_us_what_was_said,
         )
 
     if existing:
