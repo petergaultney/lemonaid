@@ -31,6 +31,7 @@ The escape sequence format is: \\033]7;file://HOSTNAME/PATH\\033\\\\
 
 import os
 import re
+import subprocess
 import sys
 
 COLORS = [
@@ -121,6 +122,35 @@ INTERPRETER_PROCESSES: set[str] = {
     "perl",
 }
 _INTERPRETER_RE = re.compile(r"^(?:python\d+(?:\.\d+)?|node\d+(?:\.\d+)?)$")
+
+# Interpreters that commonly act as interactive shells (e.g. python -> xonsh/ipython).
+# When these have no meaningful title, treat them as shell windows.
+# Non-Python interpreters (node, ruby, perl) are almost always running apps.
+_SHELL_INTERPRETERS_RE = re.compile(r"^python\d*(?:\.\d+)?$")
+
+_NODE_APP_NAMES = {"codex", "opencode"}
+
+
+def _detect_node_app(pane_pid: str) -> str | None:
+    """Check if a node interpreter is running a known app (e.g. Codex).
+
+    Walks the process tree from the pane shell to find the node command
+    line, then checks if the script argument matches a known app.
+    """
+    try:
+        result = subprocess.run(
+            ["pgrep", "-lfa", "-P", pane_pid],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        for line in result.stdout.splitlines():
+            for name in _NODE_APP_NAMES:
+                if f"/{name}" in line or f" {name}" in line.split("node", 1)[-1]:
+                    return name
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return None
 
 
 def djb2(s: str) -> int:
@@ -239,21 +269,23 @@ def format_process(process: str, active: bool) -> str | None:
 
 
 def format_window(
-    path: str, process: str | None = None, title: str | None = None, active: bool = False
+    path: str,
+    process: str | None = None,
+    title: str | None = None,
+    active: bool = False,
+    pane_pid: str | None = None,
 ) -> str:
-    """Format a window title with optional process and path.
-
-    Args:
-        path: The current working directory
-        process: The foreground process name (optional)
-        title: The pane title, if set by the application (optional)
-
-    Returns:
-        Formatted string like "git: play/lemonaid" or "$lemonaid" for shells
-    """
     # Normalize version strings (like "2.1.12") to "claude"
     if process and re.match(r"^\d+\.\d+\.\d+$", process):
         process = "claude"
+
+    # For node interpreters, check the process tree for known apps (Codex, etc.)
+    # before falling through to title extraction, since these apps set generic
+    # titles (directory basename) that don't identify them.
+    if pane_pid and process and (process == "node" or process.startswith("node")):
+        detected = _detect_node_app(pane_pid)
+        if detected:
+            process = detected
 
     # Standalone apps: show ONLY the process name, no directory
     if process in STANDALONE_PROCESSES:
@@ -270,15 +302,13 @@ def format_window(
         app_name = extract_app_from_title(title, path)
         if app_name:
             process = app_name
-            # Check again if the extracted app is a standalone process
             if process in STANDALONE_PROCESSES:
                 color = _get_process_color(process, active)
                 return f"#[fg={color}]{process}#[fg=default]"
         else:
-            # No meaningful title — interpreter is likely acting as a shell
-            # (e.g. python3.14 running xonsh). Treat as hidden.
-            is_shell = True
-            process = None
+            if process and _SHELL_INTERPRETERS_RE.match(process):
+                is_shell = True
+                process = None
 
     formatted_process = format_process(process, active) if process else None
 
@@ -325,11 +355,12 @@ def main() -> None:
         title = sys.argv[4] if len(sys.argv) > 4 else None
         active_flag = sys.argv[5] if len(sys.argv) > 5 else "0"
         active = active_flag == "1"
+        pane_pid = sys.argv[6] if len(sys.argv) > 6 else None
 
         # Prefer OSC 7 path when available (works for xonsh)
         path = pane_path if pane_path else pane_current_path
 
-        print(format_window(path, process, title, active))
+        print(format_window(path, process, title, active, pane_pid))
     else:
         print(
             "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]",
