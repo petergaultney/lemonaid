@@ -107,6 +107,9 @@ mark_unread = "M"
 archive = "a"
 snooze = "s"
 snoozed_list = "S"
+pin = "p"
+move_pin_up = "shift+up"
+move_pin_down = "shift+down"
 undo = "z"
 rename = "r"
 tmux_resume = "T"  # spawn tmux session from history
@@ -122,6 +125,13 @@ For example, to use `o` for selecting sessions:
 [tui.keybindings]
 select = "o"
 ```
+
+### Keys that carry a modifier
+
+`move_pin_up` and `move_pin_down` name one key each, written the way Textual
+writes it - `"shift+up"`, `"ctrl+k"`, `"K"`. They are the exception to the rule
+below: their value is a single key name, not a set of one-character
+alternatives. Set either to `""` to leave it unbound.
 
 ### Multiple keys per action
 

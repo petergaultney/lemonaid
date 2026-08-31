@@ -166,6 +166,8 @@ lemonaid inbox list
 | `m` / `M` | Mark as read / unread |
 | `a` | Archive (remove from list) |
 | `s` / `S` | Snooze session / list snoozed |
+| `p` | Pin session to a place in the list, or unpin it |
+| `Shift`+`↑`/`↓` | Move a pinned session up or down one slot |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
 | `h` | Toggle session history |
@@ -174,7 +176,7 @@ lemonaid inbox list
 | `f` | Move the scratch pane between top and left |
 | `H` | Save scratch pane size (follow mode, once it has drifted) |
 | `g` | Refresh |
-| `?` | Toggle the key hints |
+| `?` | Show the key reference |
 | `q` / `Escape` | Quit |
 
 All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).

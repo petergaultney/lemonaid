@@ -165,11 +165,19 @@ _HIDDEN_STATUSES = ("archived", "snoozed")
 
 
 def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> list[Notification]:
-    """Get active sessions (one per channel), unread first then by recency.
+    """Get active sessions (one per channel), pinned first, then unread, then by recency.
 
     Returns only the most recent notification per channel, excluding archived
     and snoozed ones. If switch_source is provided, filters to only
     notifications with that exact source.
+
+    A pinned session holds its place whatever its status, so an unread pin
+    stays where it was put rather than rising to the top. Unpinned sessions sort
+    as they always did, below every pin.
+
+    The channel is last, and has to stay there. It is only a tiebreak for two
+    pins that somehow share a position - above the status test it sorts every
+    unpinned row too, since those all tie on a NULL position.
 
     Callers that render the inbox should call wake_expired() first; this query
     does not itself resurrect sessions whose snooze has run out.
@@ -184,11 +192,15 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
                 WHERE status NOT IN ('archived', 'snoozed')
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
+            LEFT JOIN pins p ON p.channel = n.channel
             WHERE n.status NOT IN ('archived', 'snoozed')
             AND n.switch_source = ?
             ORDER BY
+                CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
+                p.position,
                 CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
-                n.created_at DESC
+                n.created_at DESC,
+                n.channel
             """,
             (switch_source,),
         ).fetchall()
@@ -202,10 +214,14 @@ def get_active(conn: sqlite3.Connection, switch_source: str | None = None) -> li
                 WHERE status NOT IN ('archived', 'snoozed')
                 GROUP BY channel
             ) latest ON n.id = latest.max_id
+            LEFT JOIN pins p ON p.channel = n.channel
             WHERE n.status NOT IN ('archived', 'snoozed')
             ORDER BY
+                CASE WHEN p.position IS NULL THEN 1 ELSE 0 END,
+                p.position,
                 CASE n.status WHEN 'unread' THEN 0 ELSE 1 END,
-                n.created_at DESC
+                n.created_at DESC,
+                n.channel
             """
         ).fetchall()
     return [Notification.from_row(row) for row in rows]
@@ -765,7 +781,12 @@ def mark_unread_by_tty(conn: sqlite3.Connection, tty: str) -> int:
 
 
 def archive(conn: sqlite3.Connection, notification_id: int) -> None:
-    """Archive a notification and all other rows sharing its channel."""
+    """Archive a notification and all other rows sharing its channel.
+
+    Archiving drops any pin on the channel. Snoozing deliberately does not:
+    snooze is "not now" and the session comes back to its place, where archive
+    is "done" and would otherwise leave a pin on a session absent from the list.
+    """
     row = conn.execute(
         "SELECT channel FROM notifications WHERE id = ?", (notification_id,)
     ).fetchone()
@@ -774,6 +795,7 @@ def archive(conn: sqlite3.Connection, notification_id: int) -> None:
             "UPDATE notifications SET status = 'archived' WHERE channel = ?",
             (row["channel"],),
         )
+        conn.execute("DELETE FROM pins WHERE channel = ?", (row["channel"],))
     else:
         conn.execute(
             "UPDATE notifications SET status = 'archived' WHERE id = ?",

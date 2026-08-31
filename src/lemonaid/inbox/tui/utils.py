@@ -81,6 +81,32 @@ HERE_BLOCK = "\u2588"
 HERE_BAR = "\u2503"
 HERE_BAR_STYLE = "bright_green"
 
+# Square, where the unread marker is round: the two sit near each other and say
+# different things. It shares the backend column rather than taking one of its
+# own - on its own line under the label in a card, which has the height for it,
+# and in the label's spare third cell in a single-line row, which does not.
+PIN_MARK = "\u25aa"  # ▪
+PIN_MARK_STYLE = "yellow"
+
+
+def backend_cell(label: Text, is_pinned: bool, *, stacked: bool = False) -> Text:
+    """The backend label, with the pin mark when the session is pinned.
+
+    `stacked` puts the mark on its own line under the label, which only a card
+    has the height for. A single-line row takes the label column's spare third
+    cell instead.
+
+    The mark is a span rather than the Text's own style: concatenating takes the
+    left operand's base style for the whole result, so a style set here would
+    run on under whatever follows.
+    """
+    if not is_pinned:
+        return label
+
+    cell = label + Text(f"\n{PIN_MARK}" if stacked else PIN_MARK)
+    cell.stylize(PIN_MARK_STYLE, len(label.plain), len(cell.plain))
+    return cell
+
 
 def jump_digit(row_index: int) -> str:
     """The digit that jumps to `row_index`, or "" past the tenth row."""
