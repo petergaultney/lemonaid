@@ -158,6 +158,32 @@ def test_a_switch_that_fires_two_hooks_joins_once(tmux):
     assert (pane, 58, 90, False) in panes
 
 
+def test_the_pane_comes_back_on_attach(tmux):
+    """Reattaching changes no window and no session, so the other two hooks are
+    silent - and the window kept the placeholder the pane had been swapped out
+    of, which renders as a blank pane until something forces the swap."""
+    pane = _followed_pane(tmux)
+    tmux("select-window", "-t", "a:w2")
+    assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
+
+    tmux("detach-client", "-s", "a")
+    client = subprocess.Popen(
+        ["tmux", *tmux("display", "-p", "#{socket_path}").args[1:3], "-C", "attach", "-t", "a"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        tmux("refresh-client", "-C", "245x90")
+        assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
+    finally:
+        client.kill()
+
+
+def test_attaching_is_one_of_the_hooks():
+    assert "client-attached" in follow.HOOKS
+
+
 def test_the_switch_target_keeps_focus(tmux):
     _followed_pane(tmux)
 
@@ -351,15 +377,30 @@ def test_a_window_left_holding_only_a_placeholder_is_closed(tmux):
     assert windows == ["w1"]
 
 
-def test_a_sessions_last_window_is_never_closed(tmux):
-    """detach-on-destroy would take the client with it."""
+def test_exiting_the_last_shell_ends_the_session(tmux):
+    """The placeholder must not hold a session open once its shells are gone.
+
+    Killing the pane rather than the window leaves the teardown to tmux: an
+    empty window closes, and its session follows. What that does to a client
+    watching it is `detach-on-destroy`, which is the user's setting.
+    """
     _followed_pane(tmux)
     tmux("switch-client", "-t", "b:w2")
     tmux("switch-client", "-t", "a:w1")
     tmux("kill-window", "-t", "b:w1")
     tmux("kill-pane", "-t", _main_pane(tmux, "b:w2")[0])
 
-    assert tmux("list-windows", "-t", "b", "-F", "#{window_name}").stdout.split() == ["w2"]
+    assert "b" not in tmux("list-sessions", "-F", "#{session_name}").stdout.split()
+
+
+def test_a_placeholder_alone_in_a_window_is_removed(tmux):
+    """The window then has nothing in it, so tmux closes it."""
+    _followed_pane(tmux)
+    tmux("switch-client", "-t", "b:w2")
+    tmux("switch-client", "-t", "a:w1")
+    tmux("kill-pane", "-t", _main_pane(tmux, "b:w2")[0])
+
+    assert tmux("list-windows", "-t", "b", "-F", "#{window_name}").stdout.split() == ["w1"]
 
 
 def test_the_slot_keeps_its_width_when_the_client_shrinks(tmux):
