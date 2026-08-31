@@ -84,6 +84,11 @@ class KeybindingsConfig:
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
+    pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it
+    # Unlike the fields above, these two name one key each rather than a set of
+    # single-character alternatives, so that they can carry a modifier.
+    move_pin_up: str = "shift+up"
+    move_pin_down: str = "shift+down"
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
     flip_position: str = "f"  # Move the scratch pane between top and left
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.

@@ -1,3 +1,17 @@
+# 0.20.0 (2026-08-26)
+
+#### Added
+
+- **A session can be pinned to a place in the list.** `p` pins the selected session or releases it; shift-up and shift-down move a pin one slot, and both keys are configurable. A pinned session holds its place whatever its status, so an unread pin no longer jumps to the top, and it is marked beside its backend label.
+
+- **`?` opens a key reference.** It replaces the footer's one-row hint strip, which truncated in a sidebar and never showed the `?` it advertised. On a top bar it lays out in two columns, so a short pane does not scroll.
+
+#### Fixed
+
+- **Exiting your last shell ends the session again.** The placeholder left behind held the window open, and follow mode filled it with the inbox. Follow now kills the placeholder rather than the window, so tmux tears down the window and the session itself - where an attached client goes next is `detach-on-destroy`, which is yours to set.
+
+- **The sidebar comes back on attach.** Reattaching changes no window and no session, so neither hook fired and the window kept a blank placeholder until `prefix+l`.
+
 # 0.19.1 (2026-08-26)
 
 #### Fixed

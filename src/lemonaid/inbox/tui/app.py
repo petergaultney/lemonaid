@@ -16,6 +16,7 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.coordinate import Coordinate
 from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
@@ -43,7 +44,8 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, undo
+from .. import db, pins, undo
+from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .utils import (
@@ -53,7 +55,9 @@ from .utils import (
     HERE_BAR_STYLE,
     HERE_BLOCK,
     JUMP_DIGITS,
+    PIN_MARK,
     UNREAD_MARKER_STYLE,
+    backend_cell,
     jump_gutter,
     set_terminal_title,
     styled_cell,
@@ -264,7 +268,13 @@ def _as_card(
     ]
     # Right-justified so the backend labels line up against the pane's edge
     # whatever their width, rather than against each other's first character.
+    #
+    # A card has height the single-line row does not, so the pin mark moves off
+    # the label's own line onto the one below it, where it is a mark rather than
+    # a third character of the label.
     backend = cells[_BACKEND_CELL].copy()
+    if backend.plain.endswith(PIN_MARK):
+        backend = backend_cell(backend[: -len(PIN_MARK)], True, stacked=True)
     backend.justify = "right"
     return [Text("\n").join(lines), backend]
 
@@ -612,6 +622,15 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
             self.bind(b.key, b.action, description=b.description, show=False)
 
+        for b in _build_bindings(kb.pin, "pin", "Pin"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        # Named keys rather than a string of alternatives: these carry a modifier.
+        if kb.move_pin_up:
+            self.bind(kb.move_pin_up, "move_pin_up", description="Move Up", show=False)
+        if kb.move_pin_down:
+            self.bind(kb.move_pin_down, "move_pin_down", description="Move Down", show=False)
+
         for b in _build_bindings(kb.tmux_resume, "tmux_resume", "Tmux"):
             self.bind(b.key, b.action, description=b.description, show=False)
 
@@ -622,7 +641,7 @@ class LemonaidApp(App):
 
         # Key hints share the bottom row with the status text, so they're a toggle
         # rather than a permanent fixture. Hidden from the footer it controls.
-        self.bind("question_mark", "toggle_keys", description="Keys", show=False)
+        self.bind("question_mark", "help", description="Keys", show=False)
 
         for b in _build_bindings(kb.flip_position, "flip_position", "Flip", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -973,24 +992,31 @@ class LemonaidApp(App):
         return self._focused
 
     def _active_row(
-        self, n: db.Notification, row_index: int, focused: frozenset[str] = frozenset()
+        self,
+        n: db.Notification,
+        row_index: int,
+        focused: frozenset[str] = frozenset(),
+        pinned: frozenset[str] = frozenset(),
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
         `row_index` is the session's position in the list, which is what its jump
         digit names - so a row's number changes when the list reorders.
 
-        `focused` is the set of ttys a user is looking at, passed in rather than
-        looked up here: it costs a subprocess, and every row in one refresh shares
-        the answer.
+        `focused` is the set of ttys a user is looking at, and `pinned` the set of
+        pinned channels. Both are passed in rather than looked up here, since
+        every row in one refresh shares the answer.
         """
         is_unread = n.is_unread
         is_here = n.metadata.get("tty", "") in focused
         return str(n.id), [
             _time_cell(n.created_at, is_unread),
             Text("●", style=UNREAD_MARKER_STYLE) if is_unread else Text(""),
-            styled_cell(
-                _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
+            backend_cell(
+                styled_cell(
+                    _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
+                ),
+                n.channel in pinned,
             ),
             jump_gutter(row_index, is_here) + styled_cell(n.name or "", is_unread, "name"),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
@@ -1053,12 +1079,17 @@ class LemonaidApp(App):
             else:
                 other_notifications = []
 
+            pinned = frozenset(pins.pinned_positions(conn))
+
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
         focused = self._focused_ttys()
         rebuilt = _sync_rows(
             main_table,
-            [self._active_row(n, i, focused) for i, n in enumerate(current_notifications)],
+            [
+                self._active_row(n, i, focused, pinned)
+                for i, n in enumerate(current_notifications)
+            ],
             self._card_width(),
             self._card_shape(),
             GUTTER_WIDTH,
@@ -1155,6 +1186,20 @@ class LemonaidApp(App):
         if self._history_mode:
             self._set_history_mode(False)
         self._set_snoozed_mode(not self._snoozed_mode)
+
+    def action_help(self) -> None:
+        """Show the key reference.
+
+        The footer is one row and truncates in a sidebar, so the full list lives
+        in a modal that gets the whole pane. The startup peek at the footer is
+        left alone - it is a reminder that keys exist, not the reference.
+        """
+        if self._hint_timer is not None:
+            self._hint_timer.stop()
+            self._hint_timer = None
+
+        self._show_keys(False)
+        self.push_screen(HelpScreen(self.config.tui.keybindings, wide=not self._card_layout))
 
     def action_toggle_keys(self) -> None:
         # An explicit toggle outranks the startup timer, which would otherwise
@@ -1786,6 +1831,94 @@ class LemonaidApp(App):
         _log.info("archive: %s", n.channel)
         self._refresh_notifications()
         self.notify(f"{entry.description} — press {self._undo_key()} to undo")
+
+    def _row_channels(self) -> list[str]:
+        """The channel of every row on screen, in the order they are drawn.
+
+        Read from the table rather than re-queried, so a reorder acts on the
+        list the user is looking at even when the watcher has changed the
+        inbox since the last refresh.
+        """
+        table = self.query_one(self._active_table_id(), DataTable)
+        channels = []
+        with db.connect() as conn:
+            for row in range(table.row_count):
+                key, _ = table.coordinate_to_cell_key(Coordinate(row, 0))
+                notification = db.get(conn, int(key.value)) if key and key.value else None
+                if notification:
+                    channels.append(notification.channel)
+
+        return channels
+
+    def _selected_channel(self) -> str | None:
+        """The channel of the row under the cursor, in the main list only."""
+        if self._history_mode or self._snoozed_mode:
+            return None
+
+        row_key = self._get_current_row_key()
+        if not row_key:
+            return None
+
+        with db.connect() as conn:
+            notification = db.get(conn, int(row_key))
+
+        return notification.channel if notification else None
+
+    def action_pin(self) -> None:
+        """Hold the selected session at its place in the list, or release it."""
+        channel = self._selected_channel()
+        if not channel:
+            return
+
+        with db.connect() as conn:
+            now_pinned = pins.toggle(conn, channel)
+
+        _log.info("pin: %s -> %s", channel, now_pinned)
+        self._refresh_notifications()
+        self.notify(f"{'Pinned' if now_pinned else 'Unpinned'} {channel}")
+
+    def _move_pin(self, offset: int) -> None:
+        """Trade places with the nearest pinned session `offset` away on screen.
+
+        The neighbour is taken from the rendered list rather than from the pins
+        table, so a pinned session that is currently snoozed keeps its position
+        and returns between the same two rows it sat between before.
+        """
+        channel = self._selected_channel()
+        if not channel:
+            return
+
+        with db.connect() as conn:
+            if not pins.is_pinned(conn, channel):
+                return
+
+            pinned_now = pins.pinned_positions(conn)
+            on_screen = [c for c in self._row_channels() if c in pinned_now]
+            if channel not in on_screen:
+                return
+
+            neighbour = on_screen.index(channel) + offset
+            if not 0 <= neighbour < len(on_screen):
+                return
+
+            pins.swap(conn, channel, on_screen[neighbour])
+
+        self._refresh_notifications()
+        self._select_channel(channel)
+
+    def action_move_pin_up(self) -> None:
+        self._move_pin(-1)
+
+    def action_move_pin_down(self) -> None:
+        self._move_pin(1)
+
+    def _select_channel(self, channel: str) -> None:
+        """Put the cursor back on a channel after the list around it moved."""
+        table = self.query_one(self._active_table_id(), DataTable)
+        for index, c in enumerate(self._row_channels()):
+            if c == channel and index < table.row_count:
+                table.move_cursor(row=index)
+                return
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""
