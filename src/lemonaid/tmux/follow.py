@@ -39,7 +39,10 @@ MARKER_OPTION = "@lemonaid_scratch"  # set on the pane itself; how it is found a
 PLACEHOLDER_COMMAND = ("env", "LEMONAID_PLACEHOLDER=1", "sleep", "2147483647")
 _PLACEHOLDER_GLOB = "*LEMONAID_PLACEHOLDER*"
 
-HOOKS = ("session-window-changed", "client-session-changed")
+# client-attached because neither of the others fires on a plain `tmux attach`:
+# reattaching to the session a client already had changes no window and no
+# session, so nothing swapped the inbox in and the window kept its placeholder.
+HOOKS = ("session-window-changed", "client-session-changed", "client-attached")
 RETIRED_HOOKS = ("after-select-window",)  # fires alongside session-window-changed
 _HOOK_INDEX = 100
 _SCRATCH_SESSION = "_lma_scratch"
@@ -195,17 +198,18 @@ def hook_command() -> str:
 
 
 def orphan_hook_command() -> str:
-    """Kill a window left holding nothing but a placeholder.
+    """Kill the placeholder in a window left holding nothing else.
 
     Runs on window-pane-changed, whose context is the window whose active pane
-    changed - which is what happens when a window's last real pane exits. Never
-    a session's last window: with detach-on-destroy that would detach the client.
+    changed - which is what happens when a window's last real pane exits.
+
+    The pane goes rather than the window: a window with no panes closes on its
+    own, and a session with no windows follows, so exiting the last shell ends
+    the session the way it would without follow mode. What happens to a client
+    watching it is then `detach-on-destroy`, which is the user's to set.
     """
-    condition = (
-        f"#{{&&:#{{>:#{{session_windows}},1}},"
-        f"#{{&&:#{{==:#{{window_panes}},1}},{_is_placeholder()}}}}}"
-    )
-    return f"if-shell -F '{condition}' 'kill-window'"
+    condition = f"#{{&&:#{{==:#{{window_panes}},1}},{_is_placeholder()}}}"
+    return f"if-shell -F '{condition}' 'kill-pane'"
 
 
 def resize_hook_command() -> str:
