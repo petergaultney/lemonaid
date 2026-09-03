@@ -1,3 +1,9 @@
+# Unreleased
+
+#### Changed
+
+- **The docs say which tmux you need.** tmux 3.0 or later for lemonaid, and 3.6 or later for follow mode. The follow hook uses the `#{!:...}` format operator, which tmux added in 3.6; on an older tmux that term expands to nothing, the hook's condition is never true, and the sidebar stays in the window it was in. Nothing in the code changed.
+
 # 0.20.0 (2026-08-26)
 
 #### Added

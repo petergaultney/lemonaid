@@ -141,7 +141,7 @@ Features: idle/permission notifications via plugin hooks, auto-dismiss via sessi
 
 ## Terminal Setup
 
-- **`tmux`**: See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
+- **`tmux`** (3.0 or later; follow mode needs 3.6): See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
 - **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
 
 ## Usage
