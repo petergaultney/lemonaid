@@ -1,5 +1,9 @@
 # 0.20.1 (2026-09-18)
 
+#### Changed
+
+- **The docs say which tmux you need.** tmux 3.0 or later for lemonaid, and 3.6 or later for follow mode. The follow hook uses the `#{!:...}` format operator, which tmux added in 3.6; on an older tmux that term expands to nothing, the hook's condition is never true, and the sidebar stays in the window it was in. Nothing in the code changed.
+
 #### Fixed
 
 - **The inbox no longer burns ~80% CPU at idle.** `db.connect()` ran schema init, migration discovery (a filesystem walk), and an exclusive lock on every call - roughly 50-70 times per second between the TUI refresh and the watcher thread. Now runs once per process. The watcher also ran `tmux list-panes -a` once per active session per tick; now one listing per server is shared between location recording and stale-session archiving.

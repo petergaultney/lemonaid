@@ -6,6 +6,18 @@ Lemonaid integrates with tmux to switch directly to the session and pane where a
 
 Lemonaid automatically detects when notifications come from tmux and uses the tmux switch-handler. No configuration needed.
 
+### tmux version
+
+Lemonaid needs tmux 3.0 or later. It marks its scratch pane with a pane option
+and installs its hooks as array options, and both arrived in 3.0.
+
+Follow mode needs tmux 3.6 or later. The follow hook is a tmux format expression
+that runs inside the server, and it uses the `#{!:...}` operator to ask whether
+the pane is already in the window you switched to. tmux added that operator in
+3.6. On an older tmux the term expands to nothing, the hook's condition is never
+true, and the sidebar stays in the window it was in. `tmux -V` shows what you
+have.
+
 ### Add a back-navigation keybinding (optional but recommended)
 
 Add to your `~/.tmux.conf`:
@@ -104,6 +116,8 @@ followed by `prefix+l` used to do.
 ### Follow mode
 
 Follow mode keeps the scratch pane visible across window and session switches — it follows you everywhere, giving a persistent bird's-eye view of your lemon sessions.
+
+It needs tmux 3.6 or later; see [tmux version](#tmux-version).
 
 #### Enabling follow
 
@@ -456,6 +470,12 @@ lived in it.
 1. Make sure you're running inside tmux (`echo $TMUX` should show something)
 2. Check that the notification has TTY metadata: `lemonaid inbox list --json | jq`
 3. Test manually: `tmux switch-client -t %5` (replace %5 with actual pane ID)
+
+### The sidebar stays behind when you switch windows
+
+Check your tmux version with `tmux -V`. Follow mode needs 3.6 or later; on an
+older tmux the hook runs but its condition is never true, so nothing joins the
+pane into the new window. See [tmux version](#tmux-version).
 
 ### Back navigation goes to wrong location
 
