@@ -1,3 +1,9 @@
+# 0.20.2 (2026-09-18)
+
+#### Fixed
+
+- **`lemonaid claude hooks` no longer replaces a symlinked `settings.json` with a plain file.** The settings file is written whole through a temp file and a rename, and a rename onto a symlink replaces the link itself. A `~/.claude/settings.json` that pointed into a dotfiles repo became a copy, and the dotfile it pointed at never got the hook. The write now follows the link and lands in the target, for `--uninstall` as well.
+
 # 0.20.1 (2026-09-18)
 
 #### Changed

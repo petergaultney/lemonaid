@@ -96,3 +96,33 @@ def test_broken_json_is_not_overwritten(tmp_path):
         install_hooks.install_session_start(p)
 
     assert p.read_text() == "{not json"
+
+
+def test_a_symlinked_settings_file_stays_a_symlink(tmp_path):
+    """The file is usually a link into a dotfiles repo; the write must land in the repo."""
+    real = tmp_path / "dotfiles" / "settings.json"
+    real.parent.mkdir()
+    real.write_text(json.dumps({"model": "opus"}))
+    link = tmp_path / "settings.json"
+    link.symlink_to(real)
+
+    install_hooks.install_session_start(link)
+
+    assert link.is_symlink()
+    assert json.loads(real.read_text())["hooks"]["SessionStart"][0]["hooks"][0]["command"] == (
+        "lemonaid claude session-start"
+    )
+
+
+def test_uninstall_also_writes_through_the_symlink(tmp_path):
+    real = tmp_path / "dotfiles" / "settings.json"
+    real.parent.mkdir()
+    real.write_text(json.dumps({}))
+    link = tmp_path / "settings.json"
+    link.symlink_to(real)
+    install_hooks.install_session_start(link)
+
+    install_hooks.uninstall_session_start(link)
+
+    assert link.is_symlink()
+    assert "SessionStart" not in json.loads(real.read_text()).get("hooks", {})
