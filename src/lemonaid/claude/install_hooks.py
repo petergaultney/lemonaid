@@ -52,6 +52,19 @@ def _with_hook(settings: dict, event: str, command: str) -> tuple[dict, bool]:
     return settings, True
 
 
+def _write(path: Path, settings: dict) -> None:
+    """Replace the settings file whole: a partial write is a file Claude Code will not start with.
+
+    The file is commonly a symlink into a dotfiles repo. Replacing the link itself would
+    leave a plain file in its place and the dotfile behind, so the write goes to the target.
+    """
+    target = path.resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".json.lemonaid-tmp")
+    tmp.write_text(json.dumps(settings, indent=2) + "\n")
+    tmp.replace(target)
+
+
 def install_session_start(path: Path | None = None, dry_run: bool = False) -> str:
     """Add the SessionStart hook. Returns the line to print."""
     path = path or settings_path()
@@ -64,12 +77,7 @@ def install_session_start(path: Path | None = None, dry_run: bool = False) -> st
     if dry_run:
         return f"would add SessionStart -> {_SESSION_START_COMMAND} in {path}"
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Written whole rather than in place: a partial write here is a settings
-    # file Claude Code will not start with.
-    tmp = path.with_suffix(".json.lemonaid-tmp")
-    tmp.write_text(json.dumps(settings, indent=2) + "\n")
-    tmp.replace(path)
+    _write(path, settings)
     return f"installed SessionStart -> {_SESSION_START_COMMAND} in {path}"
 
 
@@ -88,7 +96,5 @@ def uninstall_session_start(path: Path | None = None) -> str:
     else:
         del settings["hooks"]["SessionStart"]
 
-    tmp = path.with_suffix(".json.lemonaid-tmp")
-    tmp.write_text(json.dumps(settings, indent=2) + "\n")
-    tmp.replace(path)
+    _write(path, settings)
     return f"removed SessionStart hook from {path}"
