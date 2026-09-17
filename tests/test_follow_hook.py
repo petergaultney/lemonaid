@@ -403,6 +403,20 @@ def test_a_placeholder_alone_in_a_window_is_removed(tmux):
     assert tmux("list-windows", "-t", "b", "-F", "#{window_name}").stdout.split() == ["w1"]
 
 
+def test_a_window_whose_shell_exits_beside_the_inbox_is_closed_on_the_way_out(tmux):
+    """Exiting a shell happens in the window you are in, and in follow mode the
+    inbox is beside you. The placeholder only arrives with the swap on the way
+    out, and tmux fires no window-pane-changed for a command a hook runs."""
+    pane = _followed_pane(tmux)
+    tmux("select-window", "-t", "a:w2")
+    tmux("kill-pane", "-t", _main_pane(tmux, "a:w2")[0])
+
+    tmux("select-window", "-t", "a:w1")
+
+    _assert_sane(tmux, pane)
+    assert tmux("list-windows", "-t", "a", "-F", "#{window_name}").stdout.split() == ["w1"]
+
+
 def test_the_slot_keeps_its_width_when_the_client_shrinks(tmux):
     """tmux spreads a resize over every pane; the sidebar is a character count."""
     pane = _followed_pane(tmux)
