@@ -153,6 +153,23 @@ def _unfocus_placeholders() -> str:
     return f"#{{S:#{{W:#{{P:#{{?{focused},select-pane -t #{{?{came_from},{came_from},#{{window_id}}.+}} ; ,}}}}}}}}"
 
 
+def _is_lone_placeholder() -> str:
+    """The pane is a placeholder and the only pane in its window."""
+    return f"#{{&&:#{{==:#{{window_panes}},1}},{_is_placeholder()}}}"
+
+
+def _kill_orphan_placeholders() -> str:
+    """A kill-pane for every placeholder left alone in a window outside the
+    parking session. Empty when there is none.
+
+    The swap that strands one runs inside this hook, and tmux fires no
+    window-pane-changed for a command a hook runs, so the orphan hook never
+    sees it.
+    """
+    lone = f"#{{&&:#{{!=:#{{session_name}},{_SCRATCH_SESSION}}},{_is_lone_placeholder()}}}"
+    return f"#{{S:#{{W:#{{P:#{{?{lone},kill-pane -t #{{pane_id}} ; ,}}}}}}}}"
+
+
 def hook_condition() -> str:
     """Follow is on, the pane exists, it is not here, and here is not its parking session."""
     return (
@@ -173,6 +190,12 @@ def hook_command() -> str:
     placeholder left focused anywhere is unfocused the same way. Last because a
     select-pane moves the hook's own target to the pane it selected, and every
     format after it would be read against the wrong window.
+
+    Then any placeholder the swap left alone is killed. A window whose shells
+    have exited beside the pane holds nothing else once the pane leaves, and
+    tmux fires no window-pane-changed for a command a hook runs, so the orphan
+    hook never sees it. The sweep names every pane it touches, so it can come
+    after the select-pane.
     """
     swap = f"run-shell -C 'swap-pane -d -s #{{{PANE_OPTION}}} -t {_placeholder_id_here()}'"
     split = f"run-shell -C 'split-window -d {_split_size()} -t #{{pane_id}} {' '.join(PLACEHOLDER_COMMAND)}'"
@@ -193,6 +216,7 @@ def hook_command() -> str:
         f"  {resize}\n"
         f"  {unfocus_here}\n"
         f"  run-shell -C '{_unfocus_placeholders()}'\n"
+        f"  run-shell -C '{_kill_orphan_placeholders()}'\n"
         f"}}"
     )
 
@@ -201,15 +225,16 @@ def orphan_hook_command() -> str:
     """Kill the placeholder in a window left holding nothing else.
 
     Runs on window-pane-changed, whose context is the window whose active pane
-    changed - which is what happens when a window's last real pane exits.
+    changed - which is what happens when a window's last real pane exits. Not
+    when the swap in hook_command strands one: tmux fires no hook for a command
+    a hook runs, so that case is swept there.
 
     The pane goes rather than the window: a window with no panes closes on its
     own, and a session with no windows follows, so exiting the last shell ends
     the session the way it would without follow mode. What happens to a client
     watching it is then `detach-on-destroy`, which is the user's to set.
     """
-    condition = f"#{{&&:#{{==:#{{window_panes}},1}},{_is_placeholder()}}}"
-    return f"if-shell -F '{condition}' 'kill-pane'"
+    return f"if-shell -F '{_is_lone_placeholder()}' 'kill-pane'"
 
 
 def resize_hook_command() -> str:
