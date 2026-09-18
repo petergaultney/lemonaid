@@ -84,6 +84,21 @@ class SessionName(ty.NamedTuple):
     source: str
 
 
+def find_transcript(session_id: str, cwd: str) -> Path | None:
+    """The path to a session's JSONL transcript, if it exists."""
+    from .projects import find_project_path, get_project_path
+
+    for project_dir in (get_project_path(cwd), find_project_path(cwd)):
+        if project_dir is None:
+            continue
+
+        transcript = project_dir / f"{session_id}.jsonl"
+        if transcript.exists():
+            return transcript
+
+    return None
+
+
 def _transcript_titles(session_id: str, cwd: str) -> tuple[str | None, str | None]:
     """Read the newest (customTitle, aiTitle) out of a session's transcript.
 
