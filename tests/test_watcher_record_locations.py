@@ -26,8 +26,11 @@ def _record(active, by_tty, monkeypatch, sockets=None) -> list[tuple]:
         return by_tty
 
     monkeypatch.setattr(watcher.tmux.navigation, "locations_by_tty", _listing)
+    sockets = sockets or {}
+    servers = watcher._tmux_servers_needed(active, sockets)
+    pane_locations = watcher._fetch_pane_locations(servers)
     recorded: list[tuple] = []
-    watcher._record_locations(active, lambda *args: recorded.append(args), sockets)
+    watcher._record_locations(active, lambda *args: recorded.append(args), sockets, pane_locations)
 
     return recorded
 
@@ -76,7 +79,11 @@ def test_does_not_ask_tmux_when_nothing_could_match(monkeypatch):
         "locations_by_tty",
         lambda socket=None: (asked.append(socket), {})[1],
     )
-    watcher._record_locations([_active("claude:a", None)], lambda *a: None)
+    active = [_active("claude:a", None)]
+    sockets: dict[str, str] = {}
+    servers = watcher._tmux_servers_needed(active, sockets)
+    pane_locations = watcher._fetch_pane_locations(servers)
+    watcher._record_locations(active, lambda *a: None, sockets, pane_locations)
 
     assert not asked
 
@@ -109,10 +116,10 @@ def test_one_listing_per_server_not_per_session(monkeypatch):
         return {f"/dev/ttys00{i}": ("relay", str(i)) for i in range(1, 5)}
 
     monkeypatch.setattr(watcher.tmux.navigation, "locations_by_tty", _listing)
-    watcher._record_locations(
-        [_active(f"claude:{i}", f"/dev/ttys00{i}") for i in range(1, 5)],
-        lambda *a: None,
-        {f"claude:{i}": "/tmp/tmux-1/default" for i in range(1, 5)},
-    )
+    active = [_active(f"claude:{i}", f"/dev/ttys00{i}") for i in range(1, 5)]
+    sockets = {f"claude:{i}": "/tmp/tmux-1/default" for i in range(1, 5)}
+    servers = watcher._tmux_servers_needed(active, sockets)
+    pane_locations = watcher._fetch_pane_locations(servers)
+    watcher._record_locations(active, lambda *a: None, sockets, pane_locations)
 
     assert asked == ["/tmp/tmux-1/default"]

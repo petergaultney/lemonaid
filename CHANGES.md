@@ -1,3 +1,9 @@
+# 0.20.1 (2026-09-18)
+
+#### Fixed
+
+- **The inbox no longer burns ~80% CPU at idle.** `db.connect()` ran schema init, migration discovery (a filesystem walk), and an exclusive lock on every call - roughly 50-70 times per second between the TUI refresh and the watcher thread. Now runs once per process. The watcher also ran `tmux list-panes -a` once per active session per tick; now one listing per server is shared between location recording and stale-session archiving.
+
 # 0.20.0 (2026-08-26)
 
 #### Added

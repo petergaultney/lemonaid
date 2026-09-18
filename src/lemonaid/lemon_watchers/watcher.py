@@ -208,37 +208,38 @@ def _check_pane_exists(tty: str, switch_source: str | None, socket: str | None =
 _warned_no_tty: set[str] = set()
 
 
+def _tmux_servers_needed(
+    active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
+    sockets: dict[str, str],
+) -> set[str | None]:
+    """Which tmux servers the active list talks to."""
+    return {
+        sockets.get(channel)
+        for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active
+        if tty and source == "tmux"
+    }
+
+
+def _fetch_pane_locations(
+    servers: set[str | None],
+) -> dict[str | None, dict[str, tuple[str, str]]]:
+    """One `tmux list-panes -a` per server, returning tty -> (session, window)."""
+    return {socket: tmux.navigation.locations_by_tty(socket) for socket in servers}
+
+
 def _record_locations(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     record_location: Callable[[str, str, str, str | None], None],
-    sockets: dict[str, str] | None = None,
+    sockets: dict[str, str],
+    pane_locations: dict[str | None, dict[str, tuple[str, str]]],
 ) -> None:
-    """Note where each tmux-hosted session is sitting, so it can be rebuilt later.
+    """Note where each tmux-hosted session is sitting, so it can be rebuilt later."""
+    for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active:
+        if not (tty and source == "tmux"):
+            continue
 
-    A notification only records its own location when the session notifies, which
-    means an idle one - the kind you would most want back and least remember the
-    position of - can go days without one. The watcher already resolves every
-    pane, so it can keep this current for sessions that aren't saying anything.
-    """
-    sockets = sockets or {}
-    tmux_rows = [
-        (channel, tty)
-        for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active
-        if tty and source == "tmux"
-    ]
-    if not tmux_rows:
-        return
-
-    # One listing per server rather than per session: this runs on every poll,
-    # and the sessions are spread over a handful of servers at most.
-    by_server: dict[str | None, dict[str, tuple[str, str]]] = {}
-
-    for channel, tty in tmux_rows:
         socket = sockets.get(channel)
-        if socket not in by_server:
-            by_server[socket] = tmux.navigation.locations_by_tty(socket)
-
-        location = by_server[socket].get(tty)
+        location = pane_locations.get(socket, {}).get(tty)
         if location is not None:
             record_location(channel, *location, socket)
 
@@ -246,7 +247,8 @@ def _record_locations(
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
-    sockets: dict[str, str] | None = None,
+    sockets: dict[str, str],
+    pane_locations: dict[str | None, dict[str, tuple[str, str]]],
 ) -> set[str]:
     """Archive stale sessions based on TTY occupancy and pane existence.
 
@@ -255,28 +257,35 @@ def _archive_stale_sessions(
     - If process is running: only one session can be active, archive others
     - If process is not running: archive all sessions on that TTY
 
+    `pane_locations` is the pre-fetched result of one `tmux list-panes -a` per
+    server, shared with `_record_locations` so tmux is only asked once per tick.
+
     Returns set of archived channel names.
     """
     archived: set[str] = set()
-    sockets = sockets or {}
 
     # First pass: archive any sessions whose panes no longer exist
     remaining = []
     for item in active:
         channel, _session_id, _cwd, _created_at, _is_unread, tty, _db_message, switch_source = item
-        # Asked of the server the session was recorded on. Without that, a pane
-        # on another tmux server is absent from this one's listing and reads as
-        # gone - which archives a session that is running fine.
-        if (
-            tty
-            and switch_source
-            and not _check_pane_exists(tty, switch_source, sockets.get(channel))
-        ):
+        if tty and switch_source == "tmux":
+            socket = sockets.get(channel)
+            server_panes = pane_locations.get(socket)
+            # server_panes is None when the server could not be reached -
+            # that is not evidence that the pane is gone.
+            if server_panes is not None and tty not in server_panes:
+                archive_channel(channel)
+                archived.add(channel)
+                _log.info("archived (pane gone): %s", channel)
+                continue
+
+        elif tty and switch_source and not _check_pane_exists(tty, switch_source, sockets.get(channel)):
             archive_channel(channel)
             archived.add(channel)
             _log.info("archived (pane gone): %s", channel)
-        else:
-            remaining.append(item)
+            continue
+
+        remaining.append(item)
 
     # Second pass: group by TTY and handle duplicates/process exit
     tty_groups: dict[tuple[str, str], list[tuple[str, float]]] = {}
@@ -391,12 +400,21 @@ def unified_watch_loop(
             # query rather than one per row.
             by_channel = sockets() if sockets else {}
 
+            # One tmux listing per server, shared by both location recording
+            # and stale-session archiving. Before this, each pass ran its own
+            # `tmux list-panes -a` per server, and the archiver ran one per
+            # *session* - N+1 subprocesses every 0.5s.
+            servers = _tmux_servers_needed(active, by_channel)
+            pane_locations = _fetch_pane_locations(servers)
+
             if record_location:
-                _record_locations(active, record_location, by_channel)
+                _record_locations(active, record_location, by_channel, pane_locations)
 
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
-                archived_channels = _archive_stale_sessions(active, archive_channel, by_channel)
+                archived_channels = _archive_stale_sessions(
+                    active, archive_channel, by_channel, pane_locations,
+                )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
                 # Clean up caches for archived channels
