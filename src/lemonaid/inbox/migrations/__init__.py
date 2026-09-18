@@ -42,11 +42,17 @@ def set_version(conn: sqlite3.Connection, version: int) -> None:
     conn.execute(f"PRAGMA user_version = {version}")
 
 
+_cached_migrations: list[tuple[int, str, Callable[[sqlite3.Connection], None]]] | None = None
+
+
 def discover_migrations() -> list[tuple[int, str, Callable[[sqlite3.Connection], None]]]:
     """Discover all migration modules and return sorted list of (version, description, migrate_fn)."""
+    global _cached_migrations
+    if _cached_migrations is not None:
+        return _cached_migrations
+
     migrations = []
 
-    # Import all modules in this package
     package_path = __path__  # type: ignore[name-defined]
     for _importer, modname, ispkg in pkgutil.iter_modules(package_path):
         if modname.startswith("m") and not ispkg:
@@ -56,8 +62,8 @@ def discover_migrations() -> list[tuple[int, str, Callable[[sqlite3.Connection],
                     (module.VERSION, getattr(module, "DESCRIPTION", ""), module.migrate)
                 )
 
-    # Sort by version
     migrations.sort(key=lambda x: x[0])
+    _cached_migrations = migrations
     return migrations
 
 

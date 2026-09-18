@@ -118,18 +118,24 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+_initialized_dbs: set[Path] = set()
+
+
 @contextmanager
 def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
     """Context manager for database connections."""
-    from . import migrations
-
     if db_path is None:
         db_path = get_db_path()
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    _init_schema(conn)
-    migrations.run_migrations(conn)
+
+    if db_path not in _initialized_dbs:
+        from . import migrations
+
+        _init_schema(conn)
+        migrations.run_migrations(conn)
+        _initialized_dbs.add(db_path)
 
     try:
         yield conn

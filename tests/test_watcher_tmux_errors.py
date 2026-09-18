@@ -69,17 +69,24 @@ def test_the_watcher_still_archives_a_pane_that_is_really_gone(monkeypatch):
 
 
 def test_a_tmux_error_archives_nothing(monkeypatch):
-    """End to end: the archiver sees every session as still live."""
+    """End to end: the archiver sees every session as still live.
+
+    When a tmux server can't be reached, its socket key is absent from
+    pane_locations, which means "couldn't check" rather than "pane gone".
+    """
     monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name="claude": True)
-    _tmux_fails(monkeypatch)
 
     archived: list[str] = []
+    # Both sessions are on the default server (no socket recorded).
+    # Server unreachable -> socket key absent from pane_locations -> assume alive.
     watcher._archive_stale_sessions(
         [
             ("claude:a", "sid", "/work/one", 1.0, False, "/dev/ttys001", "msg", "tmux"),
             ("claude:b", "sid", "/work/two", 2.0, False, "/dev/ttys002", "msg", "tmux"),
         ],
         archived.append,
+        {},
+        {},  # empty pane_locations: server couldn't be reached
     )
 
     assert archived == []
