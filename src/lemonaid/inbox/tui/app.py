@@ -565,6 +565,7 @@ class LemonaidApp(App):
         self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
+        self._name_scan_mtimes: dict[str, float] = {}
         self._focused: frozenset[str] = frozenset()
         self._focused_asked_at = 0.0
         self._exec_on_exit: tuple[str, list[str]] | None = None
@@ -1240,17 +1241,31 @@ class LemonaidApp(App):
             candidates = [
                 (n.id, n.metadata.get("session_id", ""), n.metadata.get("cwd", ""))
                 for n in db.get_active(conn, switch_source=None)
-                # Sessions already showing a Claude /rename are settled. Anything
-                # else is re-read: an AI title can still be superseded by a later
-                # /rename, so having one is not a reason to stop looking.
                 if n.channel.startswith("claude:")
-                and n.metadata.get("name_source") != "claude_rename"
+                and n.metadata.get("name_source") not in ("claude_rename", "claude_index")
                 and n.metadata.get("session_id")
                 and n.metadata.get("cwd")
             ]
 
         upgraded = False
         for notification_id, session_id, cwd in candidates:
+            transcript = claude.notify.find_transcript(session_id, cwd)
+            if not transcript:
+                continue
+
+            # resolve_session_name reads the full transcript, which can be
+            # megabytes. With 60+ sessions this dominates CPU when nothing
+            # has changed.
+            cache_key = str(transcript)
+            try:
+                mtime = transcript.stat().st_mtime
+            except OSError:
+                continue
+
+            if mtime == self._name_scan_mtimes.get(cache_key):
+                continue
+
+            self._name_scan_mtimes[cache_key] = mtime
             resolved = claude.notify.resolve_session_name(session_id, cwd)
             if not resolved:
                 continue

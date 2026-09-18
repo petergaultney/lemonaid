@@ -389,8 +389,8 @@ def unified_watch_loop(
     last_observed_ts: dict[str, float] = {}
     # Track last "needs attention" timestamp per channel to avoid re-marking
     last_attention_ts: dict[str, float] = {}
-    # Cache session paths
-    session_cache: dict[str, Path] = {}
+    # Cache session paths (including None for sessions with no transcript)
+    session_cache: dict[str, Path | None] = {}
 
     while True:
         try:
@@ -420,7 +420,6 @@ def unified_watch_loop(
                 # Clean up caches for archived channels
                 for channel in archived_channels:
                     last_observed_ts.pop(channel, None)
-                    # Find and remove from session_cache
                     to_remove = [k for k in session_cache if k.startswith(f"{channel}:")]
                     for k in to_remove:
                         session_cache.pop(k, None)
@@ -448,63 +447,69 @@ def unified_watch_loop(
                 # Resolve reader: backends can override for remote reading (e.g., SSH)
                 read_fn = getattr(backend, "read_lines", read_jsonl_tail)
 
-                # Get session path (with caching)
                 cache_key = f"{channel}:{session_id}"
-                session_path = session_cache.get(cache_key)
-                if not session_path:
-                    session_path = backend.get_session_path(session_id, cwd)
-                    if not session_path:
+                if cache_key in session_cache:
+                    session_path = session_cache[cache_key]
+                    if session_path is None:
                         continue
+                else:
+                    session_path = backend.get_session_path(session_id, cwd)
                     session_cache[cache_key] = session_path
+                    if session_path is None:
+                        continue
+
+                # Read the tail once and parse it once. The three consumers
+                # below each traversed the same 50 lines independently;
+                # with 60+ sessions that tripled the JSON work per tick.
+                lines = read_fn(session_path)
+                recent: list[dict] = []
+                for line in reversed(lines[-50:]):
+                    try:
+                        recent.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
 
                 # For unread notifications, check if we should mark as read
                 if is_unread:
-                    dismiss_entry = has_activity_since(
-                        session_path, created_at, backend.should_dismiss, read_fn
-                    )
-                    if dismiss_entry:
-                        entry_type = dismiss_entry.get("type", "?")
-                        entry_ts = dismiss_entry.get("timestamp", "")[:19]
-                        mark_read(channel)
-                        _log.info(
-                            "marked read: %s (trigger: %s at %s)", channel, entry_type, entry_ts
-                        )
+                    for entry in recent:
+                        ts = parse_timestamp(entry.get("timestamp", ""))
+                        if ts and ts > created_at and backend.should_dismiss(entry):
+                            mark_read(channel)
+                            _log.info(
+                                "marked read: %s (trigger: %s at %s)",
+                                channel,
+                                entry.get("type", "?"),
+                                entry.get("timestamp", "")[:19],
+                            )
+                            break
 
                 # For read notifications, check if agent now needs attention
-                # (only for backends that implement needs_attention, like OpenClaw)
                 if not is_unread and mark_unread:
                     needs_attention_fn = getattr(backend, "needs_attention", None)
                     if needs_attention_fn:
-                        # Use the last attention timestamp we processed, or created_at
                         since_ts = last_attention_ts.get(channel, created_at)
-                        attention_entry = check_needs_attention(
-                            session_path, since_ts, needs_attention_fn, read_fn
-                        )
-                        if attention_entry:
-                            entry_ts_str = attention_entry.get("timestamp", "")
-                            entry_ts = parse_timestamp(entry_ts_str)
-                            if entry_ts:
-                                last_attention_ts[channel] = entry_ts
-                            mark_unread(channel)
-                            _log.info(
-                                "marked unread: %s (agent waiting at %s)",
-                                channel,
-                                entry_ts_str[:19],
-                            )
+                        for entry in recent:
+                            ts = parse_timestamp(entry.get("timestamp", ""))
+                            if ts and ts > since_ts and needs_attention_fn(entry):
+                                last_attention_ts[channel] = ts
+                                mark_unread(channel)
+                                _log.info(
+                                    "marked unread: %s (agent waiting at %s)",
+                                    channel,
+                                    entry.get("timestamp", "")[:19],
+                                )
+                                break
 
-                # Update message from transcript only if there's genuinely new activity.
-                # We cache the timestamp of the last entry to detect new vs same state.
-                # If timestamp unchanged, we don't write - this preserves whatever is
-                # in the DB (e.g., a late "Permission needed" from notify handler).
-                # When Claude makes progress, new entries arrive with new timestamps.
-                result = get_latest_activity(session_path, backend.describe_activity, read_fn)
-                if result:
-                    message, entry_ts_str = result
-                    entry_ts = parse_timestamp(entry_ts_str)
-                    if entry_ts and entry_ts != last_observed_ts.get(channel):
-                        update_message(channel, message)
-                        last_observed_ts[channel] = entry_ts
-                        _log.info("updated %s: %s", channel, message)
+                # Update message from transcript
+                for entry in recent:
+                    activity = backend.describe_activity(entry)
+                    if activity:
+                        entry_ts = parse_timestamp(entry.get("timestamp", ""))
+                        if entry_ts and entry_ts != last_observed_ts.get(channel):
+                            update_message(channel, activity)
+                            last_observed_ts[channel] = entry_ts
+                            _log.info("updated %s: %s", channel, activity)
+                        break
 
         except Exception as e:
             _log.error("error: %s", e, exc_info=True)
