@@ -18,20 +18,37 @@ def _archiver() -> tuple[list[str], object]:
     return archived, archived.append
 
 
-def _panes(monkeypatch, *, alive: bool, process_running: bool) -> None:
-    monkeypatch.setattr(watcher, "_check_pane_exists", lambda tty, src, socket=None: alive)
+def _pane_locations(active, *, alive: bool) -> dict[None, dict[str, tuple[str, str]]]:
+    """Build pane_locations for the default (no socket) server.
+
+    When alive=True, every tty in `active` appears in the listing.
+    When alive=False, none do.
+    """
+    if not alive:
+        return {None: {}}
+
+    return {
+        None: {
+            tty: ("session", "0")
+            for *_, tty, _, _ in active
+            if tty
+        }
+    }
+
+
+def _setup(monkeypatch, *, process_running: bool) -> None:
     monkeypatch.setattr(
         watcher, "is_process_running_on_tty", lambda tty, name="claude": process_running
     )
 
 
 def test_the_older_session_on_a_reused_tty_is_archived(monkeypatch):
-    _panes(monkeypatch, alive=True, process_running=True)
+    _setup(monkeypatch, process_running=True)
     archived, archive = _archiver()
+    active = [_row("claude:old", "/dev/ttys004", 100.0), _row("claude:new", "/dev/ttys004", 200.0)]
 
     watcher._archive_stale_sessions(
-        [_row("claude:old", "/dev/ttys004", 100.0), _row("claude:new", "/dev/ttys004", 200.0)],
-        archive,
+        active, archive, {}, _pane_locations(active, alive=True),
     )
 
     assert archived == ["claude:old"]
@@ -39,34 +56,37 @@ def test_the_older_session_on_a_reused_tty_is_archived(monkeypatch):
 
 def test_both_go_when_the_process_is_gone(monkeypatch):
     """The shell is idle, so neither session is running on it any more."""
-    _panes(monkeypatch, alive=True, process_running=False)
+    _setup(monkeypatch, process_running=False)
     archived, archive = _archiver()
+    active = [_row("claude:old", "/dev/ttys004", 100.0), _row("claude:new", "/dev/ttys004", 200.0)]
 
     watcher._archive_stale_sessions(
-        [_row("claude:old", "/dev/ttys004", 100.0), _row("claude:new", "/dev/ttys004", 200.0)],
-        archive,
+        active, archive, {}, _pane_locations(active, alive=True),
     )
 
     assert sorted(archived) == ["claude:new", "claude:old"]
 
 
 def test_a_dead_pane_is_archived_before_any_grouping(monkeypatch):
-    _panes(monkeypatch, alive=False, process_running=True)
+    _setup(monkeypatch, process_running=True)
     archived, archive = _archiver()
+    active = [_row("claude:gone", "/dev/ttys004", 100.0)]
 
-    watcher._archive_stale_sessions([_row("claude:gone", "/dev/ttys004", 100.0)], archive)
+    watcher._archive_stale_sessions(
+        active, archive, {}, _pane_locations(active, alive=False),
+    )
 
     assert archived == ["claude:gone"]
 
 
 def test_different_ttys_do_not_compete(monkeypatch):
     """Two live sessions in different shells are both current."""
-    _panes(monkeypatch, alive=True, process_running=True)
+    _setup(monkeypatch, process_running=True)
     archived, archive = _archiver()
+    active = [_row("claude:a", "/dev/ttys004", 100.0), _row("claude:b", "/dev/ttys005", 200.0)]
 
     watcher._archive_stale_sessions(
-        [_row("claude:a", "/dev/ttys004", 100.0), _row("claude:b", "/dev/ttys005", 200.0)],
-        archive,
+        active, archive, {}, _pane_locations(active, alive=True),
     )
 
     assert archived == []
@@ -74,12 +94,12 @@ def test_different_ttys_do_not_compete(monkeypatch):
 
 def test_a_row_without_a_tty_is_left_alone(monkeypatch):
     """Nothing here can decide anything about it - and it must not take another down."""
-    _panes(monkeypatch, alive=True, process_running=True)
+    _setup(monkeypatch, process_running=True)
     archived, archive = _archiver()
+    active = [_row("claude:no-tty", None, 100.0), _row("claude:live", "/dev/ttys004", 200.0)]
 
     watcher._archive_stale_sessions(
-        [_row("claude:no-tty", None, 100.0), _row("claude:live", "/dev/ttys004", 200.0)],
-        archive,
+        active, archive, {}, _pane_locations(active, alive=True),
     )
 
     assert archived == []
