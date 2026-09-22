@@ -54,6 +54,44 @@ def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch):
     assert [r["channel"] for r in _rows()] == ["codex:01a03bff"]
 
 
+def test_codex_resolves_a_generic_notification_id_through_the_cwd(tmp_path, monkeypatch):
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    session_path = tmp_path / "rollout-01a03bff-a7bb-77a2-9b4d-d63cfe32fd00.jsonl"
+    session_path.write_text(
+        json.dumps(
+            {
+                "type": "session_meta",
+                "payload": {
+                    "id": "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00",
+                    "cwd": "/tmp/project",
+                },
+            }
+        )
+        + "\n"
+    )
+    monkeypatch.setattr(
+        codex_notify,
+        "find_latest_session_for_cwd",
+        lambda cwd: session_path if cwd == "/tmp/project" else None,
+    )
+
+    codex_notify.handle_notification(
+        json.dumps(
+            {
+                "type": "agent-turn-complete",
+                "id": "01a0cb50-eb7f-7233-80b2-ef793653653a",
+                "cwd": "/tmp/project",
+            }
+        )
+    )
+
+    with db.connect() as conn:
+        row = conn.execute("SELECT channel, metadata FROM notifications").fetchone()
+
+    assert row["channel"] == "codex:01a03bff"
+    assert json.loads(row["metadata"])["session_path"] == str(session_path)
+
+
 def test_claude_drops_a_payload_with_no_session(tmp_path, monkeypatch):
     monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
 
