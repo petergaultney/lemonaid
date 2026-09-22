@@ -1,6 +1,16 @@
 """Tests for lemonaid.claude.watcher module."""
 
-from lemonaid.claude.watcher import describe_activity
+from lemonaid.claude.watcher import describe_activity, get_model
+
+
+def test_get_model_from_assistant_message():
+    entry = {"type": "assistant", "message": {"model": "claude-opus-5-5"}}
+    assert get_model(entry) == ("anthropic", "claude-opus-5-5")
+
+
+def test_get_model_ignores_user_message():
+    entry = {"type": "user", "message": {"model": "claude-opus-5-5"}}
+    assert get_model(entry) is None
 
 
 def test_describe_activity_tool_use_read():

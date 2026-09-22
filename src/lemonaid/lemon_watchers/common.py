@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from ..log import get_logger
 
@@ -11,6 +12,11 @@ _log = get_logger("lemon_watchers.common")
 
 _ANCESTOR_DEPTH = 10
 _PROBE_TIMEOUT_SECONDS = 5
+
+
+class ModelInfo(NamedTuple):
+    provider: str
+    model: str
 
 
 def get_tty() -> str | None:

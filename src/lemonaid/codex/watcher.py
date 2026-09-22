@@ -18,6 +18,7 @@ import json
 import re
 from pathlib import Path
 
+from ..lemon_watchers.common import ModelInfo
 from .utils import get_sessions_root
 
 # Channel prefix for Codex notifications
@@ -30,6 +31,31 @@ _EXEC_COMMAND = re.compile(r'"cmd"\s*:\s*("(?:[^"\\]|\\.)*")')
 # File edits arrive through the same `exec` tool, as a patch script rather than a
 # command. The header names the file, which beats reporting them all as "Running".
 _PATCH_FILE = re.compile(r"\*\*\* (?:Add|Update|Delete) File: (.+?)(?:\\n|$)")
+
+
+def get_model(entry: dict) -> ModelInfo | None:
+    if entry.get("type") not in ("turn_context", "session_meta"):
+        return None
+
+    model = entry.get("payload", {}).get("model")
+    return ModelInfo("openai", model) if isinstance(model, str) and model else None
+
+
+def get_initial_model(session_path: Path) -> ModelInfo | None:
+    """Read through the first turn context when a watcher joins mid-turn."""
+    try:
+        with open(session_path, encoding="utf-8", errors="replace") as session:
+            for line in session:
+                try:
+                    model = get_model(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+                if model:
+                    return model
+    except OSError:
+        return None
+
+    return None
 
 
 def get_session_path(session_id: str, cwd: str) -> Path | None:

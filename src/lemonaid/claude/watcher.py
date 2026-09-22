@@ -8,10 +8,18 @@ Provides Claude-specific functions for the unified watcher:
 
 from pathlib import Path
 
-from ..lemon_watchers import short_filename
+from ..lemon_watchers.common import ModelInfo, short_filename
 
 # Channel prefix for Claude notifications
 CHANNEL_PREFIX = "claude:"
+
+
+def get_model(entry: dict) -> ModelInfo | None:
+    if entry.get("type") != "assistant":
+        return None
+
+    model = entry.get("message", {}).get("model")
+    return ModelInfo("anthropic", model) if isinstance(model, str) and model else None
 
 
 def get_session_path(session_id: str, cwd: str, recorded: str = "") -> Path | None:

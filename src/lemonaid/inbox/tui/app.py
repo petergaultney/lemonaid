@@ -26,6 +26,7 @@ from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
 from ...handlers import check_pane_exists_by_tty, handle_notification
 from ...lemon_watchers import (
+    ModelInfo,
     detect_terminal_switch_source,
     fish_path,
     get_tmux_socket,
@@ -45,6 +46,7 @@ from ...tmux.scratch import (
 )
 from ...tmux.session import spawn_session
 from .. import db, pins, undo
+from . import backend_indicators
 from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
@@ -92,7 +94,7 @@ _CARD_MAX_HEIGHT = 14  # a card long enough to hold most messages whole
 _CARD_MAX_SHARE = 0.4  # most of a tall pane one card may claim
 _CARD_BODY_COLUMN = 0
 _CARD_BACKEND_COLUMN = 1
-# Two cells for the label ("CC", "cx", a two-cell emoji) and one to keep it
+# Two cells for the label (a glyph or a two-cell emoji) and one to keep it
 # off the card's text. The label is right-justified into it, so it is the
 # pane's edge the labels line up against.
 _BACKEND_WIDTH = 3
@@ -155,11 +157,6 @@ def _time_cell(ts: float, is_unread: bool, *, history: bool = False) -> Text:
     """
     field = "time" if time.time() - ts < _DAY_SECONDS else "time_old"
     return styled_cell(_format_timestamp(ts), is_unread, field, history=history)
-
-
-def _backend_label(channel: str, overrides: dict[str, str]) -> str:
-    prefix = channel.split(":")[0] if ":" in channel else channel
-    return overrides.get(prefix, prefix)
 
 
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
@@ -572,6 +569,7 @@ class LemonaidApp(App):
         self._keys_shown = True
         self._hint_timer: Timer | None = None
         self._card_layout = False
+        self._models_by_channel: dict[str, ModelInfo] = {}
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -680,7 +678,6 @@ class LemonaidApp(App):
     def on_mount(self) -> None:
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
-
         # Apply transparent styles if configured
         if self.config.tui.transparent:
             self.screen.styles.background = "transparent"
@@ -719,6 +716,8 @@ class LemonaidApp(App):
             archive_channel=self._archive_channel,
             mark_unread=self._mark_channel_unread,
             record_location=self._record_channel_location,
+            record_model=self._record_channel_model,
+            models=self._recorded_models,
             sockets=self._recorded_sockets,
         )
         self.call_later(self._check_claude_patch)
@@ -992,6 +991,27 @@ class LemonaidApp(App):
 
         return self._focused
 
+    def _backend_value(
+        self, n: db.Notification, is_unread: bool, *, history: bool = False
+    ) -> Text:
+        remembered = self._models_by_channel.get(n.channel)
+        model = n.metadata.get("model")
+        if isinstance(model, str) and model:
+            provider = n.metadata.get("model_provider")
+            if not isinstance(provider, str):
+                provider = remembered.provider if remembered else ""
+            remembered = ModelInfo(provider, model)
+            self._models_by_channel[n.channel] = remembered
+
+        return backend_indicators.backend_text(
+            n.channel,
+            self.config.tui.backend_labels,
+            is_unread,
+            model=remembered.model if remembered else "",
+            model_provider=remembered.provider if remembered else "",
+            history=history,
+        )
+
     def _active_row(
         self,
         n: db.Notification,
@@ -1014,9 +1034,7 @@ class LemonaidApp(App):
             _time_cell(n.created_at, is_unread),
             Text("●", style=UNREAD_MARKER_STYLE) if is_unread else Text(""),
             backend_cell(
-                styled_cell(
-                    _backend_label(n.channel, self.config.tui.backend_labels), is_unread, "backend"
-                ),
+                self._backend_value(n, is_unread),
                 n.channel in pinned,
             ),
             jump_gutter(row_index, is_here) + styled_cell(n.name or "", is_unread, "name"),
@@ -1031,9 +1049,7 @@ class LemonaidApp(App):
         return str(n.id), [
             _time_cell(n.created_at, False),
             Text("○", style="dim") if n.is_unread else Text(""),
-            styled_cell(
-                _backend_label(n.channel, self.config.tui.backend_labels), False, "backend"
-            ),
+            self._backend_value(n, False),
             styled_cell(n.name or "", False, "name"),
             styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
             styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
@@ -1379,12 +1395,7 @@ class LemonaidApp(App):
             cells = [
                 styled_cell(created, False, "time", history=True),
                 Text(""),  # archived: never a marker, but cards index by position
-                styled_cell(
-                    _backend_label(n.channel, self.config.tui.backend_labels),
-                    False,
-                    "backend",
-                    history=True,
-                ),
+                self._backend_value(n, False, history=True),
                 styled_cell(n.name or "", False, "name", history=True),
                 styled_cell(branch, False, "branch", history=True),
                 styled_cell(cwd, False, "cwd", history=True),
@@ -1455,11 +1466,7 @@ class LemonaidApp(App):
                     [
                         _time_cell(n.created_at, False, history=True),
                         Text("○", style="dim") if n.snooze_prev_status == "unread" else Text(""),
-                        styled_cell(
-                            _backend_label(n.channel, self.config.tui.backend_labels),
-                            False,
-                            "backend",
-                        ),
+                        self._backend_value(n, False),
                         styled_cell(n.name or "", False, "name"),
                         styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
                         styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
@@ -2186,6 +2193,16 @@ class LemonaidApp(App):
                 if (socket := n.metadata.get("tmux_socket"))
             }
 
+    def _recorded_models(self) -> dict[str, ModelInfo]:
+        with db.connect() as conn:
+            return {
+                n.channel: ModelInfo(provider, model)
+                for n in db.get_active(conn, switch_source=None)
+                if isinstance((provider := n.metadata.get("model_provider")), str)
+                and isinstance((model := n.metadata.get("model")), str)
+                and model
+            }
+
     def _record_channel_location(
         self, channel: str, session: str, window: str, socket: str | None = None
     ) -> None:
@@ -2197,6 +2214,10 @@ class LemonaidApp(App):
         """
         with db.connect() as conn:
             db.record_location(conn, channel, session, window, socket)
+
+    def _record_channel_model(self, channel: str, provider: str, model: str) -> None:
+        with db.connect() as conn:
+            db.record_model(conn, channel, provider, model)
 
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""

@@ -1,3 +1,9 @@
+# 0.21.0 (2026-09-22)
+
+#### Added
+
+- **Session indicators show the model family when the transcript identifies it.** Anthropic models use muted orange `F`, `O`, `S`, or `H`; OpenAI models use soft-white `A`, `S`, `T`, or `L`. The backend letter or lobster remains while the model is unknown.
+
 # 0.20.2 (2026-09-18)
 
 #### Fixed

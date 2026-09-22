@@ -21,6 +21,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
+from ..lemon_watchers.common import ModelInfo
 from ..lemon_watchers.watcher import read_jsonl_tail
 from ..log import get_logger
 from .utils import find_session_path
@@ -28,6 +29,19 @@ from .utils import find_session_path
 _log = get_logger("openclaw.watcher")
 
 CHANNEL_PREFIX = "openclaw:"
+
+
+def get_model(entry: dict) -> ModelInfo | None:
+    if entry.get("type") != "message":
+        return None
+
+    message = entry.get("message", {})
+    model = message.get("model") or message.get("modelId") or entry.get("model")
+    if not isinstance(model, str) or not model:
+        return None
+
+    provider = message.get("provider") or message.get("providerId") or entry.get("provider") or ""
+    return ModelInfo(provider if isinstance(provider, str) else "", model)
 
 
 @functools.lru_cache(maxsize=1)
