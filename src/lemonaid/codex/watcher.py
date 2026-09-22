@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 
 from ..lemon_watchers.common import ModelInfo
-from .utils import get_sessions_root
+from .utils import find_latest_session_for_cwd, get_sessions_root
 
 # Channel prefix for Codex notifications
 CHANNEL_PREFIX = "codex:"
@@ -86,7 +86,10 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
             if session_id[:8] in path.name:
                 return path
 
-    return None
+    # Some Codex notify payloads contain a turn ID where older lemonaid
+    # versions expected a rollout ID. Recover those existing inbox rows from
+    # the cwd rather than leaving them permanently on the provider fallback.
+    return find_latest_session_for_cwd(cwd)
 
 
 def _describe_custom_tool_call(payload: dict) -> str:

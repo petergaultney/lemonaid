@@ -38,7 +38,10 @@ def _parse_input_messages(data: dict) -> str | None:
 
 
 def _extract_session_id(data: dict, session_path: Path | None) -> str | None:
-    for key in ("session_id", "sessionId", "thread_id", "thread-id", "threadId", "id"):
+    # Codex's generic `id` identifies the notification/turn, not the rollout.
+    # Treating it as a session ID leaves the watcher looking for a file that
+    # cannot exist.
+    for key in ("session_id", "sessionId", "thread_id", "thread-id", "threadId"):
         value = data.get(key)
         if isinstance(value, str) and value:
             return value
@@ -113,9 +116,15 @@ def handle_notification(
     except json.JSONDecodeError:
         data = {}
 
-    session_path_obj = _resolve_session_path(session_id, cwd, session_path)
-    session_id = session_id or _extract_session_id(data, session_path_obj)
-    cwd = _resolve_cwd(cwd or data.get("cwd"), session_path_obj)
+    data_cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else None
+    resolved_cwd = cwd or data_cwd
+    payload_session_id = _extract_session_id(data, None)
+    session_path_obj = _resolve_session_path(
+        session_id or payload_session_id, resolved_cwd, session_path
+    )
+    canonical_session_id = _extract_session_id({}, session_path_obj)
+    session_id = session_id or canonical_session_id or payload_session_id
+    cwd = _resolve_cwd(resolved_cwd, session_path_obj)
     notification_type = (
         notification_type
         or data.get("notification_type")

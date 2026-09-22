@@ -5,6 +5,22 @@ import json
 from lemonaid.codex import watcher
 
 
+def test_session_path_falls_back_to_latest_rollout_for_cwd(tmp_path, monkeypatch):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    expected = sessions / "rollout-real-session.jsonl"
+    expected.write_text("{}\n")
+
+    monkeypatch.setattr(watcher, "get_sessions_root", lambda: sessions)
+    monkeypatch.setattr(
+        watcher,
+        "find_latest_session_for_cwd",
+        lambda cwd: expected if cwd == "/tmp/project" else None,
+    )
+
+    assert watcher.get_session_path("turn-id-with-no-file", "/tmp/project") == expected
+
+
 def test_get_model_from_turn_context():
     entry = {"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}}
     assert watcher.get_model(entry) == ("openai", "gpt-5.6-sol")
