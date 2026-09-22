@@ -54,14 +54,16 @@ See [tmux.md](tmux.md).
 
 ### `[tui.backend_labels]`
 
-Override the short label shown for each backend in the session list. Keys are backend names (`claude`, `codex`, `openclaw`); values are any string. Backends without an override display their name as-is.
+Override the short label shown for each backend in the session list when its model is not yet known. Keys are backend names (`claude`, `codex`, `openclaw`); values are any string. Claude, Codex, and OpenClaw default to `A`, `O`, and `🦞`; unknown backends display their name as-is.
 
 ```toml
 [tui.backend_labels]
-claude = "CC"
-codex = "cx"
+claude = "A"
+codex = "O"
 openclaw = "🦞"
 ```
+
+When the session transcript names a recognized model family, that model replaces the backend fallback: `F`, `O`, `S`, or `H` for Anthropic Fable, Opus, Sonnet, and Haiku; `A`, `S`, `T`, or `L` for OpenAI Astra, Sol, Terra, and Luna. The letter uses the provider's color, so the two `S` indicators remain distinct.
 
 ### `[tui.keybindings]`
 

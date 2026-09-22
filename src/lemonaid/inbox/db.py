@@ -379,7 +379,14 @@ def _reconcile_name(
 # able to see. A hook can fire from a subprocess with no TMUX_PANE, and metadata
 # is replaced wholesale on update - so without this, one such observation erases
 # the location that `tmux restore` needs after a crash.
-_STICKY_METADATA = ("tmux_session", "tmux_window", "tmux_socket", "transcript_path")
+_STICKY_METADATA = (
+    "tmux_session",
+    "tmux_window",
+    "tmux_socket",
+    "transcript_path",
+    "model_provider",
+    "model",
+)
 
 
 def _carry_forward(existing: Notification, metadata: dict[str, Any]) -> None:
@@ -419,6 +426,25 @@ def record_location(
     conn.execute(
         "UPDATE notifications SET metadata = ? WHERE id = ?",
         (json.dumps({**existing.metadata, **location}), existing.id),
+    )
+    conn.commit()
+
+    return True
+
+
+def record_model(conn: sqlite3.Connection, channel: str, provider: str, model: str) -> bool:
+    """Record the latest model observed in a session transcript."""
+    existing = get_by_channel(conn, channel, unread_only=False)
+    if existing is None:
+        return False
+
+    observed = {"model_provider": provider, "model": model}
+    if all(existing.metadata.get(k) == v for k, v in observed.items()):
+        return False
+
+    conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ?",
+        (json.dumps({**existing.metadata, **observed}), existing.id),
     )
     conn.commit()
 

@@ -8,12 +8,25 @@ from unittest.mock import patch
 from lemonaid.openclaw import watcher as openclaw_watcher
 from lemonaid.openclaw.watcher import (
     describe_activity,
+    get_model,
     needs_attention,
     read_lines,
     should_dismiss,
 )
 
 # --- describe_activity ---
+
+
+def test_get_model_from_assistant_message():
+    entry = {
+        "type": "message",
+        "message": {
+            "role": "assistant",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-6",
+        },
+    }
+    assert get_model(entry) == ("anthropic", "claude-sonnet-4-6")
 
 
 def test_describe_tool_use_read():

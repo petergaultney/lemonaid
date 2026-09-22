@@ -1,6 +1,7 @@
 """Shared utilities and unified watcher for LLM session monitoring."""
 
 from .common import (
+    ModelInfo,
     detect_terminal_switch_source,
     fish_path,
     get_git_branch,
@@ -23,6 +24,7 @@ from .watcher import (
 
 __all__ = [
     "WatcherBackend",
+    "ModelInfo",
     "detect_terminal_switch_source",
     "fish_path",
     "get_latest_activity",

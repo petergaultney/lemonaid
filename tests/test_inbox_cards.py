@@ -9,6 +9,7 @@ import asyncio
 
 from rich.text import Text
 
+from lemonaid.inbox import db
 from lemonaid.inbox.tui import app
 from lemonaid.inbox.tui.utils import FIELD_STYLES, styled_cell
 from lemonaid.tmux import scratch
@@ -158,6 +159,24 @@ def test_the_backend_label_sits_against_the_right_edge():
     _, backend = app._as_card(cells, 40)
 
     assert backend.justify == "right"
+
+
+def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
+    tui = app.LemonaidApp()
+    known = db.Notification(
+        id=1,
+        channel="claude:abc",
+        message="working",
+        metadata={"model_provider": "anthropic", "model": "claude-opus-5-5"},
+    )
+    temporarily_missing = db.Notification(
+        id=1,
+        channel="claude:abc",
+        message="working",
+    )
+
+    assert tui._backend_value(known, False).plain == "O"
+    assert tui._backend_value(temporarily_missing, False).plain == "O"
 
 
 def test_justifying_the_backend_leaves_the_row_cell_alone():

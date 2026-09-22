@@ -1,6 +1,29 @@
 """Tests for lemonaid.codex.watcher module."""
 
+import json
+
 from lemonaid.codex import watcher
+
+
+def test_get_model_from_turn_context():
+    entry = {"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}}
+    assert watcher.get_model(entry) == ("openai", "gpt-5.6-sol")
+
+
+def test_get_initial_model_finds_the_first_turn_context(tmp_path):
+    session = tmp_path / "rollout.jsonl"
+    session.write_text(
+        "\n".join(
+            json.dumps(entry)
+            for entry in (
+                {"type": "session_meta", "payload": {"model_provider": "openai"}},
+                {"type": "response_item", "payload": {"type": "message"}},
+                {"type": "turn_context", "payload": {"model": "gpt-5.6-terra"}},
+            )
+        )
+    )
+
+    assert watcher.get_initial_model(session) == ("openai", "gpt-5.6-terra")
 
 
 def test_describe_activity_local_shell_call():

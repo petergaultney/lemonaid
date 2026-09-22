@@ -15,6 +15,7 @@ from typing import Protocol
 
 from .. import tmux
 from ..log import get_logger
+from .common import ModelInfo
 
 _log = get_logger("watcher")
 
@@ -46,6 +47,11 @@ class WatcherBackend(Protocol):
         Optional method - returns False by default for backends that don't need it
         (e.g., Claude/Codex where hooks fire when attention is needed).
         """
+        ...
+
+    @staticmethod
+    def get_model(entry: dict) -> ModelInfo | None:
+        """Extract the model identity from an entry, when it carries one."""
         ...
 
     # Optional: backends can define read_lines(session_path: Path) -> list[str]
@@ -187,6 +193,12 @@ def check_needs_attention(
             continue
 
     return None
+
+
+def _latest_model(
+    entries: list[dict], get_model: Callable[[dict], ModelInfo | None]
+) -> ModelInfo | None:
+    return next((model for entry in entries if (model := get_model(entry))), None)
 
 
 def _check_pane_exists(tty: str, switch_source: str | None, socket: str | None = None) -> bool:
@@ -364,6 +376,8 @@ def unified_watch_loop(
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
     record_location: Callable[[str, str, str, str | None], None] | None = None,
+    record_model: Callable[[str, str, str], None] | None = None,
+    models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     poll_interval: float = 0.5,
 ) -> None:
@@ -377,6 +391,8 @@ def unified_watch_loop(
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        record_model: Optional callback to note a channel's (provider, model)
+        models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
         poll_interval: How often to poll (seconds)
     """
@@ -389,6 +405,8 @@ def unified_watch_loop(
     last_observed_ts: dict[str, float] = {}
     # Track last "needs attention" timestamp per channel to avoid re-marking
     last_attention_ts: dict[str, float] = {}
+    last_observed_model: dict[str, ModelInfo] = {}
+    initial_model_checked: set[str] = set()
     # Cache session paths (including None for sessions with no transcript)
     session_cache: dict[str, Path | None] = {}
 
@@ -399,6 +417,7 @@ def unified_watch_loop(
             # both the location pass and the archiver need it, and it is one
             # query rather than one per row.
             by_channel = sockets() if sockets else {}
+            saved_models = models() if models else {}
 
             # One tmux listing per server, shared by both location recording
             # and stale-session archiving. Before this, each pass ran its own
@@ -420,6 +439,8 @@ def unified_watch_loop(
                 # Clean up caches for archived channels
                 for channel in archived_channels:
                     last_observed_ts.pop(channel, None)
+                    last_observed_model.pop(channel, None)
+                    initial_model_checked.discard(channel)
                     to_remove = [k for k in session_cache if k.startswith(f"{channel}:")]
                     for k in to_remove:
                         session_cache.pop(k, None)
@@ -468,6 +489,25 @@ def unified_watch_loop(
                         recent.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
+
+                if record_model and (get_model := getattr(backend, "get_model", None)):
+                    model = _latest_model(recent, get_model)
+                    model = model or last_observed_model.get(channel)
+                    if model is None and channel not in initial_model_checked:
+                        get_initial_model = getattr(backend, "get_initial_model", None)
+                        model = get_initial_model(session_path) if get_initial_model else None
+                        initial_model_checked.add(channel)
+                    if model:
+                        last_observed_model[channel] = model
+                        if model != saved_models.get(channel):
+                            record_model(channel, model.provider, model.model)
+                            saved_models[channel] = model
+                            _log.info(
+                                "recorded model for %s: %s/%s",
+                                channel,
+                                model.provider,
+                                model.model,
+                            )
 
                 # For unread notifications, check if we should mark as read
                 if is_unread:
@@ -528,6 +568,8 @@ def start_unified_watcher(
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
     record_location: Callable[[str, str, str, str | None], None] | None = None,
+    record_model: Callable[[str, str, str], None] | None = None,
+    models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
@@ -540,6 +582,8 @@ def start_unified_watcher(
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        record_model: Optional callback to note a channel's (provider, model)
+        models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
     """
     global _watcher_thread
@@ -554,6 +598,8 @@ def start_unified_watcher(
             "archive_channel": archive_channel,
             "mark_unread": mark_unread,
             "record_location": record_location,
+            "record_model": record_model,
+            "models": models,
             "sockets": sockets,
         },
         daemon=True,

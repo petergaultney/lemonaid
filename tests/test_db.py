@@ -323,3 +323,18 @@ def test_record_location_follows_a_moved_window():
 def test_record_location_ignores_an_unknown_channel():
     with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
         assert db.record_location(conn, "claude:nope", "relay", "1") is False
+
+
+def test_record_model_is_preserved_by_later_notifications():
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        db.add(conn, channel="claude:abc", message="first", metadata={"cwd": "/tmp"})
+        assert db.record_model(conn, "claude:abc", "anthropic", "claude-opus-5-5") is True
+        updated = db.add(
+            conn,
+            channel="claude:abc",
+            message="second",
+            metadata={"cwd": "/tmp"},
+        )
+
+    assert updated.metadata["model_provider"] == "anthropic"
+    assert updated.metadata["model"] == "claude-opus-5-5"

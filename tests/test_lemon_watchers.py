@@ -3,12 +3,99 @@
 import json
 from datetime import UTC, datetime
 
+import pytest
+
 from lemonaid.lemon_watchers import (
+    ModelInfo,
     fish_path,
     get_latest_activity,
     has_activity_since,
     parse_timestamp,
+    watcher,
 )
+from lemonaid.lemon_watchers.watcher import _latest_model
+
+
+def test_latest_model_uses_the_newest_entry_that_names_one():
+    entries = [
+        {"model": "gpt-5.6-sol"},
+        {"type": "tool"},
+        {"model": "gpt-5.6-terra"},
+    ]
+
+    def extract(entry: dict) -> ModelInfo | None:
+        return ModelInfo("openai", entry["model"]) if "model" in entry else None
+
+    assert _latest_model(entries, extract) == ("openai", "gpt-5.6-sol")
+
+
+def test_watch_loop_restores_model_metadata_erased_by_an_older_hook(tmp_path, monkeypatch):
+    session = tmp_path / "session.jsonl"
+    session.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "timestamp": "2026-09-22T18:00:00Z",
+                "model": "claude-opus-5-5",
+            }
+        )
+    )
+
+    class Backend:
+        CHANNEL_PREFIX = "claude:"
+
+        @staticmethod
+        def get_session_path(_session_id, _cwd):
+            return session
+
+        @staticmethod
+        def get_model(entry):
+            model = entry.get("model")
+            return ModelInfo("anthropic", model) if model else None
+
+        @staticmethod
+        def describe_activity(_entry):
+            return None
+
+        @staticmethod
+        def should_dismiss(_entry):
+            return False
+
+    saved: dict[str, ModelInfo] = {}
+    recorded: list[ModelInfo] = []
+    polls = 0
+
+    def record_model(channel: str, provider: str, model: str) -> None:
+        observed = ModelInfo(provider, model)
+        recorded.append(observed)
+        saved[channel] = observed
+
+    def finish_poll(_seconds: float) -> None:
+        nonlocal polls
+        polls += 1
+        if polls == 1:
+            session.write_text(json.dumps({"type": "noise"}))
+            saved.clear()
+            return
+        raise StopIteration
+
+    monkeypatch.setattr(watcher.time, "sleep", finish_poll)
+
+    with pytest.raises(StopIteration):
+        watcher.unified_watch_loop(
+            [Backend],
+            lambda: [("claude:abc", "abc", "/tmp", 0.0, False, None, "", None)],
+            lambda _channel: 0,
+            lambda _channel, _message: 0,
+            record_model=record_model,
+            models=lambda: dict(saved),
+            poll_interval=0,
+        )
+
+    assert recorded == [
+        ModelInfo("anthropic", "claude-opus-5-5"),
+        ModelInfo("anthropic", "claude-opus-5-5"),
+    ]
 
 
 def test_parse_timestamp_zulu():
