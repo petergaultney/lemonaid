@@ -134,11 +134,12 @@ _SHELL_INTERPRETERS_RE = re.compile(r"^python\d*(?:\.\d+)?$")
 _NODE_APP_NAMES = {"codex", "opencode"}
 
 
-def _detect_interpreter_app(pane_pid: str, names: Collection[str]) -> str | None:
-    """Check if an interpreter is running one of the named entrypoints.
+def _detect_named_app(pane_pid: str, names: Collection[str]) -> str | None:
+    """Check if a pane is running one of the named entrypoints.
 
-    The pane PID belongs to its shell. Its foreground interpreter is normally a
-    direct child, whose command line retains the console-script or script name.
+    The pane PID belongs to its shell. Its foreground child retains the
+    console-script name even when a launcher such as mise or uv sits between
+    the shell and the eventual interpreter.
     """
     try:
         result = subprocess.run(
@@ -302,8 +303,8 @@ def format_window(
     detectable_apps = set(named_processes)
     if process and (process == "node" or process.startswith("node")):
         detectable_apps.update(_NODE_APP_NAMES)
-    if pane_pid and is_interpreter and detectable_apps:
-        detected = _detect_interpreter_app(pane_pid, detectable_apps)
+    if pane_pid and detectable_apps:
+        detected = _detect_named_app(pane_pid, detectable_apps)
         if detected:
             process = detected
 
