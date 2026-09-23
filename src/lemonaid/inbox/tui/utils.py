@@ -28,7 +28,10 @@ FIELD_STYLES = {
     "message": "default",
     "tty": "bright_black",
 }
-UNREAD_MARKER_STYLE = "bold bright_red"
+# A soft lemon rather than warning red: unread means "ready for you", not an
+# error. One value feeds both the marker and the table's attention bar.
+ATTENTION_COLOR = "#e3cf65"
+UNREAD_MARKER_STYLE = f"bold {ATTENTION_COLOR}"
 
 # Fields that stay plain even when a row is demanding attention.
 _NEVER_BOLD = frozenset({"message"})
@@ -84,7 +87,7 @@ HERE_BAR_STYLE = "bright_green"
 # Square, where the unread marker is round: the two sit near each other and say
 # different things. It shares the backend column rather than taking one of its
 # own - on its own line under the label in a card, which has the height for it,
-# and in the label's spare third cell in a single-line row, which does not.
+# and in the trailing cell beside the label in a single-line row, which does not.
 PIN_MARK = "\u25aa"  # ▪
 PIN_MARK_STYLE = "yellow"
 
@@ -93,8 +96,8 @@ def backend_cell(label: Text, is_pinned: bool, *, stacked: bool = False) -> Text
     """The backend label, with the pin mark when the session is pinned.
 
     `stacked` puts the mark on its own line under the label, which only a card
-    has the height for. A single-line row takes the label column's spare third
-    cell instead.
+    has the height for. A single-line row takes the label column's trailing cell
+    instead.
 
     The mark is a span rather than the Text's own style: concatenating takes the
     left operand's base style for the whole result, so a style set here would
