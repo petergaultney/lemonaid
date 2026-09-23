@@ -288,8 +288,8 @@ set-option -sa terminal-features ',xterm-256color:RGB'
 
 # Window status with colored directory names
 # Third argument is pane_title - used to show app names instead of "python3.12"
-setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}') "
-setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}') "
+setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}' '#{pane_pid}') "
+setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}' '#{window_active}' '#{pane_pid}') "
 setw -g window-status-style none
 setw -g window-status-current-style "bg=colour238,bold"
 setw -g window-status-separator "│"
@@ -361,9 +361,18 @@ sys.stdout.flush()
 
 `lemonaid-tmux-window-status` will prefer `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
 
+For apps that do not set a useful title, configure their console-script name.
+Lemonaid will find it in the interpreter command line and show it by itself:
+
+```toml
+[tmux-window]
+named_processes = ["mops-console"]
+```
+
 ### Customization
 
-Edit `src/lemonaid/tmux/window_color.py` to customize:
+The color constants remain source-level customization in
+`src/lemonaid/tmux/window_status.py`:
 
 - `COLORS` - The color palette (23 distinct colors)
 - `DIR_COLORS` - Override colors for specific directory names

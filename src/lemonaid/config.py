@@ -21,6 +21,10 @@ def get_default_config() -> str:
 # Switch-handlers are auto-selected based on the notification's switch-source.
 # No configuration needed for tmux/wezterm - they just work.
 
+[tmux-window]
+# Apps hidden behind an interpreter whose names should replace the directory.
+named_processes = []
+
 [wezterm]
 # How to resolve pane from notification metadata
 # Options: "tty" (match TTY to pane), "metadata" (use workspace/pane_id from metadata)
@@ -56,6 +60,15 @@ class TmuxSessionConfig:
     def get_template(self, name: str) -> list[str] | None:
         """Get a template by name."""
         return self.templates.get(name)
+
+
+@dataclass
+class TmuxWindowConfig:
+    """Configuration for tmux status-line window names."""
+
+    # Entrypoints hidden behind an interpreter process. Once found in the pane
+    # process tree, these replace the directory with the configured name.
+    named_processes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -203,6 +216,7 @@ class Config:
     handlers: dict[str, str] = field(default_factory=dict)
     wezterm: WeztermConfig = field(default_factory=WeztermConfig)
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
+    tmux_window: TmuxWindowConfig = field(default_factory=TmuxWindowConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
     backends: dict[str, BackendConfig] = field(default_factory=dict)
@@ -259,6 +273,16 @@ def _parse_config(data: dict[str, Any]) -> Config:
         follow_scratch=tmux_session_data.get("follow_scratch", False),
     )
 
+    tmux_window_data = data.get("tmux-window", {})
+    named_processes = tmux_window_data.get("named_processes", ())
+    tmux_window = TmuxWindowConfig(
+        named_processes=tuple(
+            name.strip() for name in named_processes if isinstance(name, str) and name.strip()
+        )
+        if isinstance(named_processes, list)
+        else (),
+    )
+
     tui_data = data.get("tui", {})
     keybindings_data = tui_data.get("keybindings", {})
     # Use dataclass defaults for any unspecified keybindings
@@ -310,6 +334,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         handlers=handlers,
         wezterm=wezterm,
         tmux_session=tmux_session,
+        tmux_window=tmux_window,
         tui=tui,
         openclaw=openclaw,
         backends=backends,

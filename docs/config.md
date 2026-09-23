@@ -46,6 +46,23 @@ See [wezterm.md](wezterm.md).
 
 See [tmux.md](tmux.md).
 
+## `[tmux-window]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `named_processes` | `[]` | Console-script or application names to show by themselves in the tmux status line when they run behind Python, Node, or another recognized interpreter. |
+
+For example, to show `mops-console` instead of its working-directory name:
+
+```toml
+[tmux-window]
+named_processes = ["mops-console"]
+```
+
+The name may come from the interpreter's command line or the pane title. Add
+`#{pane_pid}` as the final `lemonaid-tmux-window-status` argument, as shown in
+[the tmux setup](tmux.md#tmuxconf-setup), for command-line detection.
+
 ## `[tui]`
 
 | Key | Default | Description |
