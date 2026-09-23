@@ -276,6 +276,29 @@ def _archive_stale_sessions(
     """
     archived: set[str] = set()
 
+    def archive(
+        item: tuple[str, str, str, float, bool, str | None, str, str | None],
+        reason: str,
+        **evidence: object,
+    ) -> None:
+        channel, session_id, cwd, created_at, _unread, tty, _message, source = item
+        archive_channel(channel)
+        archived.add(channel)
+        details = " ".join(f"{key}={value!r}" for key, value in evidence.items())
+        _log.info(
+            "auto-archive channel=%s reason=%s session_id=%s tty=%s source=%s "
+            "socket=%s cwd=%r created_at=%.3f%s",
+            channel,
+            reason,
+            session_id,
+            tty,
+            source,
+            sockets.get(channel),
+            cwd,
+            created_at,
+            f" {details}" if details else "",
+        )
+
     # First pass: archive any sessions whose panes no longer exist
     remaining = []
     for item in active:
@@ -286,21 +309,24 @@ def _archive_stale_sessions(
             # server_panes is None when the server could not be reached -
             # that is not evidence that the pane is gone.
             if server_panes is not None and tty not in server_panes:
-                archive_channel(channel)
-                archived.add(channel)
-                _log.info("archived (pane gone): %s", channel)
+                archive(item, "pane-gone", known_panes=sorted(server_panes))
                 continue
 
-        elif tty and switch_source and not _check_pane_exists(tty, switch_source, sockets.get(channel)):
-            archive_channel(channel)
-            archived.add(channel)
-            _log.info("archived (pane gone): %s", channel)
+        elif (
+            tty
+            and switch_source
+            and not _check_pane_exists(tty, switch_source, sockets.get(channel))
+        ):
+            archive(item, "pane-gone")
             continue
 
         remaining.append(item)
 
     # Second pass: group by TTY and handle duplicates/process exit
-    tty_groups: dict[tuple[str, str], list[tuple[str, float]]] = {}
+    tty_groups: dict[
+        tuple[str, str],
+        list[tuple[str, str, str, float, bool, str | None, str, str | None]],
+    ] = {}
 
     for (
         channel,
@@ -334,36 +360,41 @@ def _archive_stale_sessions(
 
         if key not in tty_groups:
             tty_groups[key] = []
-        tty_groups[key].append((channel, created_at))
+        tty_groups[key].append(
+            (
+                channel,
+                _session_id,
+                _cwd,
+                created_at,
+                _is_unread,
+                tty,
+                _db_message,
+                _switch_source,
+            )
+        )
 
     # Process each TTY group
     for (tty, process_name), sessions in tty_groups.items():
         if len(sessions) == 1:
             # Only one session - check if process is still running
-            channel, _ = sessions[0]
             if not is_process_running_on_tty(tty, process_name):
-                archive_channel(channel)
-                archived.add(channel)
-                _log.info("archived (process exited): %s", channel)
+                archive(sessions[0], "process-exited", expected_process=process_name)
         else:
             # Multiple sessions on same TTY - keep newest, archive rest
             # Sort by created_at descending (newest first)
-            sessions.sort(key=lambda x: x[1], reverse=True)
-            newest_channel = sessions[0][0]
+            sessions.sort(key=lambda x: x[3], reverse=True)
+            newest = sessions[0]
+            newest_channel = newest[0]
 
             # Check if process is running
             process_running = is_process_running_on_tty(tty, process_name)
 
-            for channel, _ in sessions[1:]:  # Skip newest
-                archive_channel(channel)
-                archived.add(channel)
-                _log.info("archived (newer session on %s): %s", tty, channel)
+            for item in sessions[1:]:  # Skip newest
+                archive(item, "newer-session-on-tty", replacement=newest_channel)
 
             # If process isn't running, also archive the newest
             if not process_running:
-                archive_channel(newest_channel)
-                archived.add(newest_channel)
-                _log.info("archived (process exited): %s", newest_channel)
+                archive(newest, "process-exited", expected_process=process_name)
 
     return archived
 
@@ -380,6 +411,7 @@ def unified_watch_loop(
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     poll_interval: float = 0.5,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
 
@@ -410,7 +442,7 @@ def unified_watch_loop(
     # Cache session paths (including None for sessions with no transcript)
     session_cache: dict[str, Path | None] = {}
 
-    while True:
+    while stop_event is None or not stop_event.is_set():
         try:
             active = get_active()
             # Which tmux server each session was recorded on. Read once per poll:
@@ -432,7 +464,10 @@ def unified_watch_loop(
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
                 archived_channels = _archive_stale_sessions(
-                    active, archive_channel, by_channel, pane_locations,
+                    active,
+                    archive_channel,
+                    by_channel,
+                    pane_locations,
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
@@ -554,10 +589,14 @@ def unified_watch_loop(
         except Exception as e:
             _log.error("error: %s", e, exc_info=True)
 
-        time.sleep(poll_interval)
+        if stop_event is None:
+            time.sleep(poll_interval)
+        else:
+            stop_event.wait(poll_interval)
 
 
 _watcher_thread: threading.Thread | None = None
+_watcher_stop: threading.Event | None = None
 
 
 def start_unified_watcher(
@@ -586,11 +625,12 @@ def start_unified_watcher(
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
     """
-    global _watcher_thread
+    global _watcher_stop, _watcher_thread
 
     if _watcher_thread is not None and _watcher_thread.is_alive():
         return  # Already running
 
+    _watcher_stop = threading.Event()
     _watcher_thread = threading.Thread(
         target=unified_watch_loop,
         args=(backends, get_active, mark_read, update_message),
@@ -601,7 +641,28 @@ def start_unified_watcher(
             "record_model": record_model,
             "models": models,
             "sockets": sockets,
+            "stop_event": _watcher_stop,
         },
         daemon=True,
     )
     _watcher_thread.start()
+
+
+def stop_unified_watcher(timeout: float = 2.0) -> None:
+    """Stop and join the process-wide watcher thread, if one is running."""
+    global _watcher_stop, _watcher_thread
+
+    thread = _watcher_thread
+    if thread is None:
+        return
+
+    if _watcher_stop is not None:
+        _watcher_stop.set()
+    thread.join(timeout)
+    if thread.is_alive():
+        _log.warning("watcher did not stop within %.1fs", timeout)
+        return
+
+    _watcher_thread = None
+    _watcher_stop = None
+    _log.info("watcher stopped")

@@ -100,6 +100,39 @@ def test_a_genuinely_dead_pane_is_still_archived(monkeypatch):
     assert archived == ["claude:gone"]
 
 
+def test_an_automatic_archive_logs_its_decision_and_evidence(monkeypatch):
+    logged: list[str] = []
+    monkeypatch.setattr(
+        watcher._log,
+        "info",
+        lambda message, *args: logged.append(message % args),
+    )
+    socket = "/tmp/tmux-1/other"
+
+    watcher._archive_stale_sessions(
+        [_active("claude:gone", "/dev/ttys001")],
+        lambda _channel: None,
+        {"claude:gone": socket},
+        {socket: {"/dev/ttys002": ("relay", "0")}},
+    )
+
+    assert len(logged) == 1
+    event = logged[0]
+    for field in (
+        "auto-archive",
+        "channel=claude:gone",
+        "reason=pane-gone",
+        "session_id=sid",
+        "tty=/dev/ttys001",
+        "source=tmux",
+        f"socket={socket}",
+        "cwd='/tmp'",
+        "created_at=0.000",
+        "known_panes=['/dev/ttys002']",
+    ):
+        assert field in event
+
+
 def test_a_dead_server_is_not_an_answer(monkeypatch):
     """`tmux -S` on a socket that is gone exits non-zero, which must read as
     "cannot tell" rather than "no pane" - otherwise a server that never comes
