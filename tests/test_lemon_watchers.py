@@ -1,6 +1,7 @@
 """Tests for lemon_watchers shared utilities."""
 
 import json
+import threading
 from datetime import UTC, datetime
 
 import pytest
@@ -14,6 +15,22 @@ from lemonaid.lemon_watchers import (
     watcher,
 )
 from lemonaid.lemon_watchers.watcher import _latest_model
+
+
+def test_started_watcher_can_be_stopped_and_joined():
+    polled = threading.Event()
+
+    def get_active():
+        polled.set()
+        return []
+
+    watcher.start_unified_watcher([], get_active, lambda _channel: 0, lambda _channel, _message: 0)
+    assert polled.wait(1)
+
+    watcher.stop_unified_watcher()
+
+    assert watcher._watcher_thread is None
+    assert watcher._watcher_stop is None
 
 
 def test_latest_model_uses_the_newest_entry_that_names_one():

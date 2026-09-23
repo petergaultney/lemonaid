@@ -20,6 +20,7 @@ from .watcher import (
     parse_timestamp,
     read_jsonl_tail,
     start_unified_watcher,
+    stop_unified_watcher,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "short_filename",
     "shorten_path",
     "start_unified_watcher",
+    "stop_unified_watcher",
 ]

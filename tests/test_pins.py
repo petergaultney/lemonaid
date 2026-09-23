@@ -278,10 +278,8 @@ def test_an_unpinned_card_keeps_a_bare_label():
 #
 # Only the wiring is exercised here - that the keys reach the actions and that
 # the actions read the list off the table. The ordering rules themselves are
-# covered above, against the database, where no app is involved: a watcher
-# thread from an earlier test outlives it and archives rows out of whichever
-# database is current, so a test that keeps an app alive across several frames
-# cannot rely on its rows still being there.
+# covered above, directly against the database. The TUI tests stub archiving
+# because their rows deliberately use invented TTYs with no corresponding pane.
 
 
 def test_the_keys_are_bound(monkeypatch):

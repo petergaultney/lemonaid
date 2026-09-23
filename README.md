@@ -77,6 +77,9 @@ uv sync
 uv run pre-commit install
 ```
 
+Before running or extending the test suite, read [docs/testing.md](docs/testing.md),
+especially its watcher-isolation safety invariant.
+
 ## 🍋 Integrations
 
 ### Claude Code

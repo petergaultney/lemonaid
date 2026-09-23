@@ -31,6 +31,7 @@ from ...lemon_watchers import (
     fish_path,
     get_tmux_socket,
     start_unified_watcher,
+    stop_unified_watcher,
 )
 from ...log import get_logger
 from ...tmux import navigation
@@ -726,6 +727,10 @@ class LemonaidApp(App):
         self.refresh_bindings()
         self._show_keys(True)
         self._hint_timer = self.set_timer(_KEY_HINT_SECONDS, lambda: self._show_keys(False))
+
+    def on_unmount(self) -> None:
+        """Stop the DB-mutating watcher before this app's resources disappear."""
+        stop_unified_watcher()
 
     def _check_claude_patch(self) -> None:
         """Check Claude Code patch status in a child process (avoids GIL stall).

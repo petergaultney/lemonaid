@@ -12,7 +12,6 @@ import itertools
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 
-
 _ttys = itertools.count(900)
 
 
@@ -39,12 +38,10 @@ def _archived(tty: str | None = None, socket: str | None = None) -> int:
 
 
 def _run(steps, size=(120, 20), monkeypatch=None):
-    """Run the app with auto-archiving disabled at the database.
+    """Run the app with auto-archiving disabled for its invented TTYs.
 
     These tests assert on a row's status, and the watcher archives any row whose
-    tty has no pane - which is every row here, since the ttys are invented. The
-    thread doing it may belong to an earlier test's app, so blocking it on this
-    app's instance is not enough; the write itself has to be a no-op.
+    tty has no pane - which is every row here, since the ttys are invented.
     """
     if monkeypatch is not None:
         monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
@@ -65,9 +62,7 @@ def _status(nid: int) -> str:
 
 
 def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
-    """Observed as the un-archiving call rather than the row's later status: a
-    watcher thread outliving an earlier test archives rows whose invented tty
-    has no pane, so the status read afterwards is not this test's to own."""
+    """A still-running archived session is returned to the active inbox."""
     nid = _archived()
     unarchived: list[int] = []
     monkeypatch.setattr("lemonaid.inbox.tui.app.check_pane_exists_by_tty", lambda *a, **k: True)
