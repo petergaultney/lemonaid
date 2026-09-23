@@ -7,11 +7,18 @@ rows; the separator is what keeps them legible as separate entries instead.
 
 import asyncio
 
+from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app
-from lemonaid.inbox.tui.utils import FIELD_STYLES, styled_cell
+from lemonaid.inbox.tui import app, backend_indicators
+from lemonaid.inbox.tui.utils import (
+    ATTENTION_COLOR,
+    FIELD_STYLES,
+    HERE_BAR,
+    jump_gutter,
+    styled_cell,
+)
 from lemonaid.tmux import scratch
 
 
@@ -26,7 +33,7 @@ def test_the_context_line_never_wraps():
         Text("~/w/d/t/live-observability"),
         Text("m"),
     ]
-    body, _ = app._as_card(cells, 38, context_lines=3, message_lines=1)
+    (body,) = app._as_card(cells, 38, context_lines=3, message_lines=1)
 
     assert body.plain.split("\n")[1].endswith("…")
     assert len(body.plain.split("\n")) == 4  # name, context, message, separator
@@ -43,17 +50,17 @@ def test_a_card_stays_within_its_budget():
         Text("a message that also runs well past the available width"),
         Text("ttys001"),
     ]
-    body, backend = app._as_card(cells, 30, message_lines=3)
+    (body,) = app._as_card(cells, 30, message_lines=3)
 
     # headline + one context line + message + the separator
     assert len(body.plain.split("\n")) <= 1 + 1 + 3 + 1
-    assert backend.plain == "CC"
+    assert body.plain.split("\n")[0].endswith("CC")
 
 
 def test_a_card_ends_in_exactly_one_blank_line():
     """Two would read as a gap, none as a run-on into the next card."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
-    body, _ = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
     assert body.plain.endswith("\n")
     assert not body.plain.endswith("\n\n")
@@ -62,7 +69,7 @@ def test_a_card_ends_in_exactly_one_blank_line():
 def test_a_wrap_landing_near_the_boundary_adds_no_second_blank():
     """rich pads a wrap to full width; that blank would read as a gap."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("a bc def")]
-    body, _ = app._as_card(cells, 12, message_lines=3)
+    (body,) = app._as_card(cells, 12, message_lines=3)
 
     assert not body.plain.endswith("\n\n")
 
@@ -77,31 +84,34 @@ def test_the_row_is_tall_enough_for_the_separator():
 def test_a_short_card_does_not_pad_to_the_budget():
     """Padding is what made a tall pane mostly blank rows."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
-    body, _ = app._as_card(cells, 40, message_lines=3)
+    (body,) = app._as_card(cells, 40, message_lines=3)
 
-    assert body.plain == "  n\n 15:24 · ~/w\n m\n"
+    lines = body.plain.split("\n")
+    assert lines[0] == "   n" + " " * 34 + "CC"
+    assert lines[1:] == [" 15:24 · ~/w", " m", ""]
 
 
 def test_every_line_fits_the_width():
     cells = [Text("15:24:18"), Text(""), Text("CC")] + [Text("x" * 90)] * 5
-    body, _ = app._as_card(cells, 24, message_lines=2)
+    (body,) = app._as_card(cells, 24, message_lines=2)
 
     assert all(len(line) <= 24 for line in body.plain.split("\n"))
 
 
 def test_an_unread_card_leads_with_its_marker():
     cells = [Text("15:24:18"), Text("●"), Text("CC"), Text("thing"), Text(""), Text(""), Text("")]
-    body, _ = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
-    assert body.plain.split("\n")[0].startswith("● thing")
+    assert body.plain.split("\n")[0].startswith("  ● thing")
 
 
 def test_a_read_card_keeps_the_name_aligned():
     """The marker column is a space when read, so names line up down the list."""
     cells = [Text("15:24:18"), Text(""), Text("CC"), Text("thing"), Text(""), Text(""), Text("")]
-    body, _ = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
-    assert body.plain.split("\n")[0] == "  thing"
+    assert body.plain.split("\n")[0].startswith("   thing")
+    assert body.plain.split("\n")[0].endswith("CC")
 
 
 def test_empty_context_fields_are_dropped():
@@ -115,7 +125,7 @@ def test_empty_context_fields_are_dropped():
         Text("~/w/repo"),
         Text("msg"),
     ]
-    body, _ = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
     assert body.plain.split("\n")[1].strip() == "15:24:18 · ~/w/repo"
 
@@ -131,7 +141,7 @@ def test_a_card_keeps_the_colours_its_cells_arrived_with():
         styled_cell("~/w/repo", True, "cwd"),
         styled_cell("a message", True, "message"),
     ]
-    body, _ = app._as_card(cells, 60)
+    (body,) = app._as_card(cells, 60)
 
     spans = {body.plain[s.start : s.end]: s.style for s in body.spans}
     # Against the palette rather than a copy of it: the claim is that a card
@@ -146,7 +156,7 @@ def test_a_card_spends_one_column_on_its_gutter():
     """A sidebar is mostly gutter otherwise: the table adds no padding of its
     own, so what the card writes is the whole left margin."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
-    body, _ = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
     assert app._CARD_CELL_PADDING == 0
     assert body.plain.split("\n")[1].startswith(" 15:24")
@@ -156,9 +166,94 @@ def test_a_card_spends_one_column_on_its_gutter():
 def test_the_backend_label_sits_against_the_right_edge():
     """Labels differ in width ("CC", "cx"), and it is the edge they share."""
     cells = [Text("15:24"), Text(""), Text("cx"), Text("n"), Text(""), Text(""), Text("m")]
-    _, backend = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
 
-    assert backend.justify == "right"
+    assert body.plain.split("\n")[0].endswith("cx")
+    assert len(body.plain.split("\n")[0]) == 40
+
+
+def test_the_message_uses_width_that_only_the_header_label_needs():
+    cells = [
+        Text("15:24"),
+        Text(""),
+        Text("Opus 5.5"),
+        Text("n"),
+        Text(""),
+        Text(""),
+        Text("x" * 39),
+    ]
+    (body,) = app._as_card(cells, 40, message_lines=2)
+
+    lines = body.plain.split("\n")
+    assert lines[0].endswith("Opus 5.5")
+    assert lines[2] == " " + "x" * 39
+    assert lines[3] == ""
+
+
+def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
+    backend = backend_indicators.backend_text(
+        "claude:session", {}, True, model="claude-opus-5-5"
+    )
+    cells = [
+        Text("15:24"),
+        Text("●"),
+        backend,
+        jump_gutter(0) + styled_cell("a name", True, "name"),
+        Text(""),
+        Text(""),
+        Text("message"),
+    ]
+    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar")
+    headline = body.plain.split("\n")[0]
+    console = Console(color_system="truecolor")
+
+    assert "●" not in headline
+    assert headline.endswith(" ")
+    model_start = headline.index("Opus 5.5")
+    assert body.get_style_at_offset(console, 0).bgcolor.name == ATTENTION_COLOR
+    assert body.get_style_at_offset(console, model_start - 1).bgcolor.name == "#d88760"
+    assert body.get_style_at_offset(console, model_start).color.name == "black"
+    assert body.get_style_at_offset(
+        console, model_start + len("Opus 5.5")
+    ).bgcolor.name == "#d88760"
+
+
+def test_bar_mode_does_not_paint_over_the_selected_green_edge():
+    cells = [
+        Text("15:24"),
+        Text("●"),
+        backend_indicators.backend_text("codex:session", {}, True, model="gpt-5.6-sol"),
+        jump_gutter(0, True) + styled_cell("a name", True, "name"),
+        Text(""),
+        Text(""),
+        Text("message"),
+    ]
+    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar")
+    console = Console(color_system="truecolor")
+
+    assert body.plain.startswith(HERE_BAR)
+    assert body.get_style_at_offset(console, 0).bgcolor is None
+    assert body.get_style_at_offset(console, 1).bgcolor.name == ATTENTION_COLOR
+
+
+def test_bar_mode_hides_the_empty_card_header():
+    class Table:
+        id = "main_table"
+        columns = {}
+        cursor_type = ""
+        cell_padding = -1
+        show_header = True
+
+        def add_column(self, *_args, **_kwargs):
+            pass
+
+    pane = app.LemonaidApp()
+    pane.config.tui.card_unread_style = "bar"
+    table = Table()
+
+    pane._setup_table(table, width=58, height=89)
+
+    assert not table.show_header
 
 
 def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
@@ -175,16 +270,16 @@ def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
         message="working",
     )
 
-    assert tui._backend_value(known, False).plain == "O"
-    assert tui._backend_value(temporarily_missing, False).plain == "O"
+    assert tui._backend_value(known, False).plain == "Opus 5.5"
+    assert tui._backend_value(temporarily_missing, False).plain == "Opus 5.5"
 
 
-def test_justifying_the_backend_leaves_the_row_cell_alone():
-    """The same Text object is reused by the column layout, which centres nothing."""
+def test_building_a_card_does_not_mutate_column_layout_justification():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
+    cells[app._BACKEND_CELL].justify = "right"
     app._as_card(cells, 40)
 
-    assert cells[app._BACKEND_CELL].justify is None
+    assert cells[app._BACKEND_CELL].justify == "right"
 
 
 def test_the_marker_does_not_share_the_name_colour():
@@ -204,8 +299,8 @@ def test_a_long_message_uses_every_line_it_is_given():
         Text(" ".join(f"word{i}" for i in range(200))),
     ]
 
-    short, _ = app._as_card(list(cells), 40, message_lines=3)
-    tall, _ = app._as_card(list(cells), 40, message_lines=12)
+    (short,) = app._as_card(list(cells), 40, message_lines=3)
+    (tall,) = app._as_card(list(cells), 40, message_lines=12)
 
     assert len(short.plain.split("\n")) == 3 + 3  # name, context, budget, separator-ish
     assert len(tall.plain.split("\n")) == 3 + 12
@@ -233,10 +328,10 @@ def test_a_card_row_reaches_the_edge_of_the_pane():
     """One column short and the backend label floats off the right edge."""
     widths, rendered, hbar = _card_columns(58, 30)
 
-    assert len(widths) == 2
-    assert widths[app._CARD_BACKEND_COLUMN] == app._BACKEND_WIDTH
-    # Everything but the scrollbar's own reserved columns.
-    assert rendered == 58 - 2
+    assert len(widths) == 1
+    assert widths[app._CARD_BODY_COLUMN] == rendered
+    # Everything but the scrollbar's one reserved column.
+    assert rendered == 58 - 1
     assert not hbar
 
 
@@ -246,7 +341,7 @@ def test_a_card_row_still_fits_when_the_pane_is_tiny():
     for width in (40, 45, 50, 58, 64, 70):
         _widths, rendered, hbar = _card_columns(width, 30)
         assert not hbar, width
-        assert rendered == width - 2, width
+        assert rendered == width - 1, width
 
 
 def _layout(width: int, height: int) -> str:
@@ -317,7 +412,7 @@ def test_a_read_card_emits_no_bold_at_all():
         styled_cell("~/w/repo", False, "cwd"),
         styled_cell("a message", False, "message"),
     ]
-    body, _ = app._as_card(cells, 60)
+    (body,) = app._as_card(cells, 60)
 
     assert not any("bold" in str(span.style) for span in body.spans)
 
@@ -332,7 +427,7 @@ def test_an_unread_card_bolds_the_dot_but_not_the_message():
         styled_cell("~/w/repo", True, "cwd"),
         styled_cell("a message", True, "message"),
     ]
-    body, _ = app._as_card(cells, 60)
+    (body,) = app._as_card(cells, 60)
     styles = {body.plain[s.start : s.end]: str(s.style) for s in body.spans}
 
     assert "bold" in styles["a-name"], "an unread name is bold"

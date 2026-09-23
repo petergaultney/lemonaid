@@ -239,12 +239,12 @@ def test_the_stacked_mark_keeps_its_own_colour():
 
 
 def test_the_mark_fits_the_column():
-    """The backend column is three wide for a two-character label."""
+    """A single-line row appends one cell to the model label."""
     assert len(backend_cell(styled_cell("CC", False, "backend"), True).plain) == 3
 
 
 def test_a_card_moves_an_inline_mark_onto_its_own_line():
-    """Rows carry the mark inline; the card restacks what it is handed."""
+    """Rows carry the mark inline; the card moves it to the context line."""
     cells = [
         Text("15:48:29"),
         Text(""),
@@ -254,9 +254,11 @@ def test_a_card_moves_an_inline_mark_onto_its_own_line():
         Text("~/w/x"),
         Text("a message"),
     ]
-    _body, backend = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
+    headline, context = body.plain.split("\n")[:2]
 
-    assert backend.plain == f"CC\n{PIN_MARK}"
+    assert headline.endswith("CC")
+    assert context.endswith(PIN_MARK)
 
 
 def test_an_unpinned_card_keeps_a_bare_label():
@@ -269,9 +271,11 @@ def test_an_unpinned_card_keeps_a_bare_label():
         Text("~/w/x"),
         Text("a message"),
     ]
-    _body, backend = app._as_card(cells, 40)
+    (body,) = app._as_card(cells, 40)
+    headline, context = body.plain.split("\n")[:2]
 
-    assert backend.plain == "CC"
+    assert headline.endswith("CC")
+    assert not context.endswith(PIN_MARK)
 
 
 # --- through the TUI -------------------------------------------------------

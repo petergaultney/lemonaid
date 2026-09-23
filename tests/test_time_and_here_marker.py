@@ -177,7 +177,7 @@ def test_a_focused_card_carries_the_bar_down_every_line():
             Text("a message"),
             Text(""),
         ]
-        return _as_card(cells, 44, 1, 1)[0].plain.split("\n")
+        return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")
 
     focused = card_for(True)
     assert all(line.startswith(HERE_BAR) for line in focused if line)
@@ -321,12 +321,8 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
         assert len(line) <= width
 
 
-def test_a_marked_card_puts_its_dot_where_the_digit_would_be():
-    """The bar takes the padding column, leaving the dot the digit's cell.
-
-    Sitting it beside the bar instead gave the headline no space before the dot
-    and two after it.
-    """
+def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout():
+    """The bar replaces the number; the dot and title remain where they were."""
     from rich.text import Text
 
     from lemonaid.inbox.tui.app import _as_card
@@ -346,6 +342,31 @@ def test_a_marked_card_puts_its_dot_where_the_digit_would_be():
 
     marked, plain = headline(True, 0), headline(False, 1)
 
-    assert marked.index("●") == plain.index("●") + 2
+    assert marked[0] == HERE_BAR
+    assert plain[0] == "2"
+    assert marked.index("●") == plain.index("●") == 2
     assert marked.index("a-session") == plain.index("a-session")
-    assert marked[marked.index("●") - 1] == " "
+    assert marked.index("a-session") == 4
+
+
+def test_a_successful_inbox_switch_marks_its_tty_immediately(monkeypatch):
+    from lemonaid.inbox import db
+    from lemonaid.inbox.tui import app as app_mod
+
+    pane = app_mod.LemonaidApp()
+    refreshed: list[bool] = []
+    monkeypatch.setattr(app_mod, "handle_notification", lambda *args, **kwargs: True)
+    monkeypatch.setattr(pane, "_refresh_notifications", lambda: refreshed.append(True))
+    notification = db.Notification(
+        id=1,
+        channel="claude:session",
+        message="working",
+        metadata={"tty": "/dev/ttys123"},
+        switch_source="tmux",
+    )
+
+    pane._switch_to_notification(notification)
+
+    assert pane._focused == frozenset({"/dev/ttys123"})
+    assert pane._focused_asked_at > 0
+    assert refreshed == [True]

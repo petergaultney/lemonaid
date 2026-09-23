@@ -112,4 +112,4 @@ def test_history_outranks_an_unread_inbox():
 
     in_history, back_in_inbox = _run(steps)
     assert in_history == Color.parse("ansi_blue")
-    assert back_in_inbox == Color.parse("ansi_bright_red")
+    assert back_in_inbox == Color.parse("#e3cf65")

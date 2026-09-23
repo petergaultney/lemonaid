@@ -115,6 +115,7 @@ class TuiConfig:
 
     transparent: bool = False  # Use ANSI colors for terminal transparency
     refresh_interval: float = 0.33  # Seconds between TUI refreshes
+    card_unread_style: str = "dot"  # "dot" or a full-width "bar"
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -296,6 +297,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
         refresh_interval=tui_data.get("refresh_interval", 0.33),
+        card_unread_style=tui_data.get("card_unread_style", "dot"),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),
     )

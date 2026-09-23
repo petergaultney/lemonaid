@@ -68,19 +68,32 @@ The name may come from the interpreter's command line or the pane title. Add
 | Key | Default | Description |
 |-----|---------|-------------|
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
+| `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
+
+With `card_unread_style = "bar"`, an unread card drops the dot and paints its
+first line instead. The selector and title use a lemon-yellow background with
+black text; the model label uses its provider colour as the background, with
+one coloured space on each side. A green selected-session bar remains green.
+The otherwise-empty blue/yellow table header is hidden in card layout because
+the unread rows now carry the status themselves.
+
+```toml
+[tui]
+card_unread_style = "bar"
+```
 
 ### `[tui.backend_labels]`
 
-Override the short label shown for each backend in the session list when its model is not yet known. Keys are backend names (`claude`, `codex`, `openclaw`); values are any string. Claude, Codex, and OpenClaw default to `A`, `O`, and `🦞`; unknown backends display their name as-is.
+Override the label shown for each backend in the session list when its model is not yet known. Keys are backend names (`claude`, `codex`, `openclaw`); values are any string. Claude, Codex, and OpenClaw default to `Anthropic`, `OpenAI`, and `🦞`; unknown backends display their name as-is.
 
 ```toml
 [tui.backend_labels]
-claude = "A"
-codex = "O"
+claude = "Claude"
+codex = "Codex"
 openclaw = "🦞"
 ```
 
-When the session transcript names a recognized model family, that model replaces the backend fallback: `F`, `O`, `S`, or `H` for Anthropic Fable, Opus, Sonnet, and Haiku; `A`, `S`, `T`, or `L` for OpenAI Astra, Sol, Terra, and Luna. The letter uses the provider's color, so the two `S` indicators remain distinct.
+When the session transcript names a recognized model family, its friendly name and version replace the backend fallback: for example, `Opus 5.5`, `Fable 5.6`, or `Sol 5.6`. Labels are right-aligned and use the provider's color.
 
 ### `[tui.keybindings]`
 

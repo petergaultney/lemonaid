@@ -63,6 +63,11 @@ def test_parse_keybindings_missing_section():
     assert kb.up_down == ""
 
 
+def test_card_unread_style_defaults_to_dot_and_can_be_overridden():
+    assert _parse_config({}).tui.card_unread_style == "dot"
+    assert _parse_config({"tui": {"card_unread_style": "bar"}}).tui.card_unread_style == "bar"
+
+
 def test_parse_named_tmux_window_processes():
     config = _parse_config({"tmux-window": {"named_processes": ["mops-console"]}})
 

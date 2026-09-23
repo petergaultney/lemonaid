@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import cast
 
 from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
@@ -52,6 +53,7 @@ from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .utils import (
+    ATTENTION_COLOR,
     FIELD_STYLES,
     GUTTER_WIDTH,
     HERE_BAR,
@@ -94,11 +96,10 @@ _CARD_HEIGHT = 3  # headline + one context line + one message line
 _CARD_MAX_HEIGHT = 14  # a card long enough to hold most messages whole
 _CARD_MAX_SHARE = 0.4  # most of a tall pane one card may claim
 _CARD_BODY_COLUMN = 0
-_CARD_BACKEND_COLUMN = 1
-# Two cells for the label (a glyph or a two-cell emoji) and one to keep it
-# off the card's text. The label is right-justified into it, so it is the
-# pane's edge the labels line up against.
-_BACKEND_WIDTH = 3
+# Ten cells hold the longest current model label (`Sonnet 4.6`); one more holds
+# the pin in a single-line row. The fixed width prevents a row from reflowing
+# when its model becomes known, and the labels share their right edge.
+_BACKEND_WIDTH = 11
 _CARD_MIN_TEXT = 16
 _CARD_CHROME_ROWS = 4  # header, status row, and a little slack
 _INDENT = " "  # one column, so a card's body clears the marker but little else
@@ -192,6 +193,7 @@ def _as_card(
     context_lines: int = 1,
     message_lines: int = 1,
     gutter_width: int = 0,
+    unread_style: str = "dot",
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -218,27 +220,32 @@ def _as_card(
     marker = cells[_UNREAD_CELL]
     dot = Text("●", style=UNREAD_MARKER_STYLE) if marker.plain else Text(" ")
 
-    # The jump digit stays on the name, where a card shows it just as a row does.
-    # The here-marker does not: a card draws that down its whole height, so the
-    # gutter's copy would be a second one beside the name. It leaves the column
-    # blank rather than closing the gap, which keeps every name in the list on
-    # the same column whether or not its card is marked.
-    # The jump digit comes off a marked name - the card draws the bar down its
-    # own edge instead of carrying the gutter's copy of it.
+    # The first cell is one stable navigation slot: a jump digit until this is
+    # the current session, then the green bar. Read titles start in the fourth
+    # cell; an unread dot, with breathing room on both sides, nudges the title
+    # one cell right as part of the attention signal.
     name = cells[_NAME_CELL]
     is_here = name.plain.startswith(HERE_BLOCK)
-    if is_here:
+    selector = Text(_INDENT)
+    if gutter_width:
+        selector = (
+            Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else name[: len(_INDENT)]
+        )
         name = name[gutter_width:]
 
     # The bar goes in the column every line already spends on padding, rather
     # than before it. Prepending would push the whole card right by one the
     # moment it was marked, which reads as the list jumping under the cursor.
-    #
-    # That leaves the dot nowhere to sit on a marked card, so it takes the cell
-    # the jump digit vacated: the row it marks is the one you are already in,
-    # which is the one row a number would be no use on.
     edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text(_INDENT)
-    headline = edge + Text(" ") + dot + Text(" ") + name if is_here else dot + Text(" ") + name
+    bar_unread = unread_style == "bar" and bool(marker.plain)
+    if bar_unread:
+        headline = selector + Text("  ") + name
+    else:
+        headline = (
+            selector + Text(" ") + dot + Text(" ") + name
+            if marker.plain
+            else selector + Text("  ") + name
+        )
 
     context = Text(" · ", style=FIELD_STYLES["backend"]).join(
         part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain
@@ -251,9 +258,37 @@ def _as_card(
     # the pane and wraps - and a wrapped line starts at column 0, breaking the
     # edge the bar is there to draw.
     body = width - len(_INDENT)
+    backend = cells[_BACKEND_CELL].copy()
+    pin = Text("")
+    if backend.plain.endswith(PIN_MARK):
+        pin = backend[-len(PIN_MARK) :]
+        backend = backend[: -len(PIN_MARK)]
+    backend.justify = None
+    pin.justify = None
+
+    if bar_unread:
+        backend_style = backend.get_style_at_offset(_CONSOLE, 0)
+        badge = Text(f" {backend.plain} ")
+        badge.stylize(
+            Style(
+                color="black",
+                bgcolor=backend_style.color or ATTENTION_COLOR,
+            )
+        )
+        headline = _right_aligned(headline, badge, width)
+        # Keep the selected-session bar green; everything after it is the
+        # yellow title bar until the provider-coloured model badge begins.
+        headline.stylize(
+            Style(color="black", bgcolor=ATTENTION_COLOR),
+            1 if is_here else 0,
+            len(headline) - len(badge),
+        )
+    else:
+        headline = _right_aligned(headline, backend, width)
+
     lines = [
-        _truncated(headline, width),
-        edge + _truncated(context, body),
+        headline,
+        _right_aligned(edge + context, pin, width),
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
         *(edge + line for line in _wrapped(message, body, message_lines)),
@@ -264,17 +299,10 @@ def _as_card(
         # genuinely empty otherwise, so an unmarked card ends where it did.
         edge if is_here else Text(""),
     ]
-    # Right-justified so the backend labels line up against the pane's edge
-    # whatever their width, rather than against each other's first character.
-    #
-    # A card has height the single-line row does not, so the pin mark moves off
-    # the label's own line onto the one below it, where it is a mark rather than
-    # a third character of the label.
-    backend = cells[_BACKEND_CELL].copy()
-    if backend.plain.endswith(PIN_MARK):
-        backend = backend_cell(backend[: -len(PIN_MARK)], True, stacked=True)
-    backend.justify = "right"
-    return [Text("\n").join(lines), backend]
+    # Model and pin live in the first two lines rather than a second table
+    # column. That gives the message every column below them instead of making
+    # a short label reserve a blank strip down the entire card.
+    return [Text("\n").join(lines)]
 
 
 def _without_marker(cells: list[Text]) -> list[Text]:
@@ -297,6 +325,20 @@ def _truncated(line: Text, width: int) -> Text:
     return line
 
 
+def _right_aligned(left: Text, right: Text, width: int) -> Text:
+    """Fit a right-hand label beside a line without reserving later lines."""
+    left = left.copy()
+    right = right.copy()
+    _truncated(right, width)
+    if not right.plain:
+        return _truncated(left, width)
+
+    left_width = max(0, width - right.cell_len - 1)
+    _truncated(left, left_width)
+    gap = max(0, width - left.cell_len - right.cell_len)
+    return left + Text(" " * gap) + right
+
+
 def _wrapped(line: Text, width: int, budget: int) -> list[Text]:
     """`line` over at most `budget` lines, or fewer when it doesn't need them."""
     # rich pads a wrap to the full width, which yields a blank last line when the
@@ -315,6 +357,7 @@ def _sync_rows(
     card_width: int = 0,
     shape: tuple[int, int] = (1, 1),
     gutter_width: int = 0,
+    unread_style: str = "dot",
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -329,7 +372,12 @@ def _sync_rows(
     """
     cards = card_width > 0
     shaped = [
-        (key, _as_card(cells, card_width, *shape, gutter_width) if cards else cells)
+        (
+            key,
+            _as_card(cells, card_width, *shape, gutter_width, unread_style)
+            if cards
+            else cells,
+        )
         for key, cells in rows
     ]
 
@@ -394,20 +442,14 @@ def _vertical_scrollbar_width(table: DataTable) -> int:
 
 
 def _fill_card_columns(table: DataTable, total_width: int) -> None:
-    """Give the card body everything the backend label doesn't need.
-
-    Two unpadded columns is arithmetic rather than a distribution, and the flex
-    path's approximations cost a column here - which is the column that puts the
-    backend label against the pane's edge instead of one short of it.
-    """
+    """Give the card's single cell the entire paintable width."""
     columns = list(table.columns.values())
-    if len(columns) < 2 or total_width <= 0:
+    if not columns or total_width <= 0:
         return
 
     for column in columns:
         column.auto_width = False
-    columns[_CARD_BACKEND_COLUMN].width = _BACKEND_WIDTH
-    columns[_CARD_BODY_COLUMN].width = max(_CARD_MIN_TEXT, total_width - _BACKEND_WIDTH)
+    columns[_CARD_BODY_COLUMN].width = max(_CARD_MIN_TEXT, total_width)
 
 
 def _stretch_columns(
@@ -485,24 +527,33 @@ def _stretch_columns(
 class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
-    CSS = """
+    CSS = f"$attention: {ATTENTION_COLOR};\n" + """
     #main_table {
         height: 1fr;
+    }
+
+    /* HeaderIcon is only a second route to the command palette, which already
+       has a keybinding in the footer. Hide its matching empty clock spacer too,
+       so the title remains centred across the full pane. */
+    HeaderIcon, HeaderClockSpace {
+        display: none;
     }
 
     /* The bar above the list is the table's header row, which carries no labels
        in card layout - so it is free to carry the state of the list instead:
        whether anything in it wants you, and which list you are looking at.
-       ANSI colours rather than theme variables, so it tracks the same terminal
-       palette the unread marker is drawn from - the bar and the dot are the
-       same colour by construction rather than by matching two hex values
-       against one terminal's rendering of them. */
+       The attention colour is shared with the unread marker, so the bar and
+       dot remain the same lemon yellow by construction. */
     DataTable > .datatable--header {
         background: ansi_bright_blue;
     }
 
+    DataTable {
+        scrollbar-size-vertical: 1;
+    }
+
     App.-unread DataTable > .datatable--header {
-        background: ansi_bright_red;
+        background: $attention;
         color: ansi_black;
     }
 
@@ -938,11 +989,14 @@ class LemonaidApp(App):
 
         if self._cards(width, height):
             table.cell_padding = _CARD_CELL_PADDING
+            if table.id != "other_sources_table":
+                table.show_header = self.config.tui.card_unread_style != "bar"
             table.add_column("", width=20)  # The card body, stretched on resize
-            table.add_column("", width=3)  # Backend icon, right-justified in it
             return
 
         table.cell_padding = _COLUMN_CELL_PADDING
+        if table.id != "other_sources_table":
+            table.show_header = True
         # Time holds "HH:MM:SS", "y HH:MM" for yesterday, or "YYYY-MM-DD".
         table.add_column("Time", width=10)
         # Everything in history is archived, so the marker would always be
@@ -950,7 +1004,7 @@ class LemonaidApp(App):
         # that this is a different list rather than a differently-tinted one.
         if marker_column:
             table.add_column("", width=1)  # Unread indicator
-        table.add_column("", width=3)  # Backend icon
+        table.add_column("", width=_BACKEND_WIDTH)  # Model, right-aligned
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
         table.add_column("CWD", width=16)
@@ -1115,6 +1169,7 @@ class LemonaidApp(App):
             self._card_width(),
             self._card_shape(),
             GUTTER_WIDTH,
+            self.config.tui.card_unread_style,
         )
 
         # Populate non-switchable table (always dim, not interactive).
@@ -1535,6 +1590,15 @@ class LemonaidApp(App):
         ):
             self.notify("Could not switch to or recreate that session", severity="warning")
             return
+
+        # We already know where a successful in-app switch went. Reflect that
+        # immediately instead of waiting for the next tmux poll; the periodic
+        # lookup remains authoritative for switches made outside lemonaid.
+        tty = notification.metadata.get("tty")
+        if isinstance(tty, str) and tty:
+            self._focused = frozenset({tty})
+            self._focused_asked_at = time.time()
+            self._refresh_notifications()
 
         # In scratch mode the pane hides after navigation, unless follow
         # mode is on - there the hook re-shows it in the target window.
