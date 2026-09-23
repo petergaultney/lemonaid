@@ -63,6 +63,16 @@ def test_parse_keybindings_missing_section():
     assert kb.up_down == ""
 
 
+def test_parse_named_tmux_window_processes():
+    config = _parse_config({"tmux-window": {"named_processes": ["mops-console"]}})
+
+    assert config.tmux_window.named_processes == ("mops-console",)
+
+
+def test_named_tmux_window_processes_default_to_empty():
+    assert _parse_config({}).tmux_window.named_processes == ()
+
+
 def test_build_bindings_single_key():
     """Single key creates one visible binding."""
     bindings = _build_bindings("q", "quit", "Quit")

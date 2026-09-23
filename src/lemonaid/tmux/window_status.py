@@ -33,6 +33,9 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Collection
+
+from ..config import load_config
 
 COLORS = [
     "#FF5555",  # Bright Red
@@ -131,11 +134,11 @@ _SHELL_INTERPRETERS_RE = re.compile(r"^python\d*(?:\.\d+)?$")
 _NODE_APP_NAMES = {"codex", "opencode"}
 
 
-def _detect_node_app(pane_pid: str) -> str | None:
-    """Check if a node interpreter is running a known app (e.g. Codex).
+def _detect_interpreter_app(pane_pid: str, names: Collection[str]) -> str | None:
+    """Check if an interpreter is running one of the named entrypoints.
 
-    Walks the process tree from the pane shell to find the node command
-    line, then checks if the script argument matches a known app.
+    The pane PID belongs to its shell. Its foreground interpreter is normally a
+    direct child, whose command line retains the console-script or script name.
     """
     try:
         result = subprocess.run(
@@ -145,8 +148,8 @@ def _detect_node_app(pane_pid: str) -> str | None:
             timeout=1,
         )
         for line in result.stdout.splitlines():
-            for name in _NODE_APP_NAMES:
-                if f"/{name}" in line or f" {name}" in line.split("node", 1)[-1]:
+            for name in names:
+                if re.search(rf"(?:^|[/\s]){re.escape(name)}(?:\s|$)", line):
                     return name
     except (subprocess.TimeoutExpired, OSError):
         pass
@@ -208,7 +211,9 @@ def format_path(path: str) -> str:
     return f"#[fg={color}]{display}#[fg=default]"
 
 
-def extract_app_from_title(title: str | None, path: str) -> str | None:
+def extract_app_from_title(
+    title: str | None, path: str, named_processes: Collection[str] = ()
+) -> str | None:
     """Extract a meaningful app name from the pane title.
 
     Many shells/prompts set titles like "app - hostname" or "app user@host path".
@@ -225,6 +230,11 @@ def extract_app_from_title(title: str | None, path: str) -> str | None:
 
     if not first_word:
         return None
+
+    # A configured name is authoritative even when it is also the directory
+    # basename, which is otherwise indistinguishable from a generic shell title.
+    if first_word in named_processes:
+        return first_word
 
     # Skip if it looks like a path
     if first_word.startswith("/") or first_word.startswith("~"):
@@ -274,21 +284,31 @@ def format_window(
     title: str | None = None,
     active: bool = False,
     pane_pid: str | None = None,
+    named_processes: Collection[str] = (),
 ) -> str:
+    named_processes = frozenset(named_processes)
+
     # Normalize version strings (like "2.1.12") to "claude"
     if process and re.match(r"^\d+\.\d+\.\d+$", process):
         process = "claude"
 
-    # For node interpreters, check the process tree for known apps (Codex, etc.)
-    # before falling through to title extraction, since these apps set generic
-    # titles (directory basename) that don't identify them.
-    if pane_pid and process and (process == "node" or process.startswith("node")):
-        detected = _detect_node_app(pane_pid)
+    is_interpreter = process in INTERPRETER_PROCESSES or bool(
+        process and _INTERPRETER_RE.match(process)
+    )
+
+    # Look through an interpreter's command line before title extraction. Some
+    # apps leave the shell's generic title in place, so the title has no name to
+    # recover even though the Python/Node entrypoint does.
+    detectable_apps = set(named_processes)
+    if process and (process == "node" or process.startswith("node")):
+        detectable_apps.update(_NODE_APP_NAMES)
+    if pane_pid and is_interpreter and detectable_apps:
+        detected = _detect_interpreter_app(pane_pid, detectable_apps)
         if detected:
             process = detected
 
     # Standalone apps: show ONLY the process name, no directory
-    if process in STANDALONE_PROCESSES:
+    if process in STANDALONE_PROCESSES or process in named_processes:
         color = _get_process_color(process, active)
         return f"#[fg={color}]{process}#[fg=default]"
 
@@ -298,11 +318,11 @@ def format_window(
     formatted_path = format_path(path)
 
     # If we have a meaningful title and process is an interpreter, prefer title
-    if process in INTERPRETER_PROCESSES or (process and _INTERPRETER_RE.match(process)):
-        app_name = extract_app_from_title(title, path)
+    if is_interpreter:
+        app_name = extract_app_from_title(title, path, named_processes)
         if app_name:
             process = app_name
-            if process in STANDALONE_PROCESSES:
+            if process in STANDALONE_PROCESSES or process in named_processes:
                 color = _get_process_color(process, active)
                 return f"#[fg={color}]{process}#[fg=default]"
         else:
@@ -356,11 +376,21 @@ def main() -> None:
         active_flag = sys.argv[5] if len(sys.argv) > 5 else "0"
         active = active_flag == "1"
         pane_pid = sys.argv[6] if len(sys.argv) > 6 else None
+        named_processes = load_config().tmux_window.named_processes
 
         # Prefer OSC 7 path when available (works for xonsh)
         path = pane_path if pane_path else pane_current_path
 
-        print(format_window(path, process, title, active, pane_pid))
+        print(
+            format_window(
+                path,
+                process,
+                title,
+                active,
+                pane_pid,
+                named_processes=named_processes,
+            )
+        )
     else:
         print(
             "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]",
