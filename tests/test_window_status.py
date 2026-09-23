@@ -37,6 +37,25 @@ def test_configured_python_entrypoint_replaces_the_directory(monkeypatch):
     assert "filter-guard" not in formatted
 
 
+def test_configured_entrypoint_is_found_behind_a_launcher(monkeypatch):
+    monkeypatch.setattr(
+        window_status.subprocess,
+        "run",
+        lambda *args, **kwargs: CompletedProcess(args[0], 0, "123 mise mops-console\n", ""),
+    )
+
+    formatted = window_status.format_window(
+        "/work/eula-mgt",
+        "mise",
+        "user@host: /work/eula-mgt | xonsh",
+        pane_pid="42",
+        named_processes=("mops-console",),
+    )
+
+    assert "mops-console" in formatted
+    assert "eula-mgt" not in formatted
+
+
 def test_unconfigured_python_entrypoint_still_uses_the_directory(monkeypatch):
     monkeypatch.setattr(
         window_status.subprocess,
