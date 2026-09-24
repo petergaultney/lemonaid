@@ -37,7 +37,7 @@ def cmd_show(args: argparse.Namespace) -> None:
 
     markdown = status.render(found.dirs, found.names, time.time())
     if args.page:
-        popup.page(markdown)
+        popup.page(markdown, args.dismiss)
     else:
         print(markdown)
 
@@ -76,6 +76,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         default=[],
         help="Also prefer .z/brief-NAME.md (repeatable)",
+    )
+    show_parser.add_argument(
+        "--dismiss",
+        action="append",
+        default=[],
+        help="With --page, also quit on this lesskey key sequence (repeatable)",
     )
     mode = show_parser.add_mutually_exclusive_group()
     mode.add_argument(

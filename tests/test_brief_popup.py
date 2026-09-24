@@ -64,6 +64,7 @@ def test_the_popup_targets_the_calling_client_not_the_lemons_session(monkeypatch
     calls: list[list[str]] = []
     monkeypatch.setattr(subprocess, "Popen", lambda argv, **_: calls.append(argv))
     monkeypatch.setattr(popup, "_client_width", lambda: 200)
+    monkeypatch.setattr(popup.dismiss, "bound_sequences", lambda: ["`b"])
 
     popup.open_popup([Path("/work/place")], ["Pliny"], title="#5 thing")
 
@@ -73,6 +74,7 @@ def test_the_popup_targets_the_calling_client_not_the_lemons_session(monkeypatch
     assert argv[argv.index("-T") + 1] == " ##5 thing "
     assert argv[argv.index("-w") + 1] == "140"
     assert argv[argv.index("-S") + 1] == "fg=yellow"
+    assert argv[argv.index("--dismiss") + 1] == "`b"
 
 
 def test_the_popup_keeps_ninety_percent_on_a_narrower_client():
@@ -81,3 +83,7 @@ def test_the_popup_keeps_ninety_percent_on_a_narrower_client():
 
 def test_the_popup_still_has_a_bounded_width_when_tmux_cannot_answer():
     assert popup._popup_width(None) == "140"
+
+
+def test_the_pager_also_quits_on_the_keys_it_is_given():
+    assert popup._less_command(["`b"])[-1].endswith(r";`b quit")

@@ -78,7 +78,9 @@ session you're in, without the inbox focused, bind a key to it:
 bind-key b run-shell -b 'lemonaid brief show "#{session_name}" --popup'
 ```
 
-The popup opens over the client that pressed the key.
+The popup opens over the client that pressed the key, and pressing the same key again closes it.
+The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is
+told which prefix + key sequences run `brief show` and quits on them.
 
 ## Scratch Pane
 
