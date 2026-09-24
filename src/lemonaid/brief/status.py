@@ -124,19 +124,25 @@ def _render_brief(brief: Brief, now: float, full: bool) -> str:
     )
 
 
-def render(notes: Path, names: abc.Iterable[str], now: float) -> str:
+def render(dirs: abc.Sequence[Path], names: abc.Sequence[str], now: float) -> str:
     """Markdown for where the work in a place stands.
 
-    One brief is shown with its task statement below a rule, out of the way; when
-    several could be the one, each shows only its Status and Now. Without a brief,
+    The first directory holding a brief is used. One brief is shown with its task
+    statement below a rule, out of the way; when several could be the one, each
+    shows only its Status and Now. Without a brief anywhere, the first
     `.z/state.md` (written by lemons before compaction) stands in.
     """
-    briefs = pick(find_briefs(notes), names)
-    if briefs:
-        return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)
+    notes_dirs = [notes_dir(d) for d in dirs]
+    for notes in notes_dirs:
+        if briefs := pick(find_briefs(notes), names):
+            return "\n\n---\n\n".join(
+                _render_brief(b, now, full=len(briefs) == 1) for b in briefs
+            )
 
-    state = notes / "state.md"
-    if state.is_file():
+    for state in (notes / "state.md" for notes in notes_dirs):
+        if not state.is_file():
+            continue
+
         return "\n\n".join(
             [
                 "## Work status",
@@ -146,4 +152,5 @@ def render(notes: Path, names: abc.Iterable[str], now: float) -> str:
             ]
         )
 
-    return f"## Work status\n\nNothing in `{notes}` says where this work stands."
+    searched = ", ".join(f"`{notes}`" for notes in notes_dirs)
+    return f"## Work status\n\nNothing in {searched} says where this work stands."

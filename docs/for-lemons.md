@@ -289,9 +289,12 @@ lemonaid brief show <session> --popup  # in a tmux popup over your own client
 ```
 
 Output starts with the brief's `Status:` line and its `## Now` section, then the rest of the brief below
-a rule. When a place has several briefs, the one named after the session's `LEMON_NAME` or tmux session
-name is shown; failing that, all of them, newest first, each with only its Status and Now. With no brief,
-`.z/state.md` stands in. `b` in the TUI opens the same popup for the selected session.
+a rule. It looks in the working directory of each lemon the inbox has in that session, then the
+session's own directory, and uses the first that has a brief. When that directory has several, the one
+named after the lemon's `LEMON_NAME`, its backend (`brief-codex.md`), or the tmux session is shown;
+failing that, all of them, newest first, each with only its Status and Now. The backend counts only
+when the session holds one lemon. With no brief, `.z/state.md` stands in. `b` in the TUI opens the same
+popup for the selected session.
 
 **Keep `Status:` and `## Now` current if you work from a brief.** They are what a person reads without
 switching to your session:
