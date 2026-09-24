@@ -271,7 +271,7 @@ def _as_card(
         badge = Text(f" {backend.plain} ")
         badge.stylize(
             Style(
-                color="black",
+                color="#000000",
                 bgcolor=backend_style.color or ATTENTION_COLOR,
             )
         )
@@ -279,7 +279,7 @@ def _as_card(
         # Keep the selected-session bar green; everything after it is the
         # yellow title bar until the provider-coloured model badge begins.
         headline.stylize(
-            Style(color="black", bgcolor=ATTENTION_COLOR),
+            Style(color="#000000", bgcolor=ATTENTION_COLOR),
             1 if is_here else 0,
             len(headline) - len(badge),
         )
