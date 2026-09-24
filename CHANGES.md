@@ -1,3 +1,13 @@
+# 0.23.0 (2026-09-24)
+
+#### Added
+
+- **A lemon can carry an emoji before its name.** `lemonaid inbox emoji --self 🦫` sets it for the calling harness session (its inbox channel), so it survives compaction and resume, and it shows on inbox rows and cards. An emoji another live session holds is refused; `lemonaid inbox emojis --json` lists the ones in use.
+
+- **`lemonaid inbox rename --self "name"` sets the calling session's display name**, the same override as the TUI's rename key.
+
+- **`--self` never guesses.** It picks the one live session recorded at the pane's tty, tmux session, and window, and otherwise errors and points to `--channel` or `--id`.
+
 # 0.22.1 (2026-09-24)
 
 #### Fixed

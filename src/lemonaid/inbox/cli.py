@@ -6,7 +6,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime
 
-from . import db
+from . import db, decorate_cli
 
 
 def _notification_to_json(n: db.Notification) -> dict:
@@ -162,6 +162,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser = inbox_subparsers.add_parser("read", help="Mark notification as read")
     read_parser.add_argument("id", type=int, help="Notification ID")
     read_parser.set_defaults(func=cmd_read)
+
+    decorate_cli.add_parsers(inbox_subparsers)
 
     # inbox snoozed
     snoozed_parser = inbox_subparsers.add_parser(

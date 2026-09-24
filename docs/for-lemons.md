@@ -51,6 +51,38 @@ lemonaid inbox read 42
 lemonaid inbox add "channel-name" "Title" -m "Optional message" --metadata '{"key": "value"}'
 ```
 
+### Emoji and display name
+
+Both are decoration on one harness session - the Claude session or Codex thread you are,
+not your place or tmux session. Neither changes your name for signing and watching, nor the
+tmux session name.
+
+When Peter says you need an emoji, pick one yourself: see which are taken, choose one that
+fits your work, and set it. He does not want to be asked to choose.
+
+```bash
+lemonaid inbox emojis --json                 # emojis live sessions already hold
+lemonaid inbox emoji --self 🦫               # shown before your name in the inbox
+lemonaid inbox emoji --self --clear
+lemonaid inbox rename --self "tenant views"  # your inbox display name
+lemonaid inbox rename --self --clear         # back to the backend's name
+```
+
+- Every target resolves to one channel (your backend session id) before anything changes,
+  so the emoji and name survive compaction and `--resume`. A fresh lemon starts without one.
+- `--self` looks up the live session recorded at your pane's tty, tmux session, and window.
+  It refuses, rather than guessing, when none or several match - for example before your
+  harness has sent lemonaid a notification, or when the recorded location is out of date.
+  Then name yourself explicitly with `--channel <channel>` or `--id <n>`, from
+  `inbox list --json`.
+- An emoji another live session holds is refused. Snoozed sessions count as live; an
+  archived session keeps its emoji but no longer holds it.
+- The rename is the same override the TUI's rename key sets.
+
+`inbox emojis --json` prints `[{"emoji", "id", "channel", "name", "cwd"}]`. `rename` and
+`emoji` take `--json` and print `{"channel", "name"}` or `{"channel", "emoji"}`, plus
+`"error"`.
+
 ## Notification Fields
 
 | Field | Type | Description |
