@@ -19,6 +19,12 @@ from .common import ModelInfo
 
 _log = get_logger("watcher")
 
+# A hook can announce a session just before its transcript is created. Keep
+# successful path lookups forever, but retry a miss instead of making that
+# startup race permanent. The delay avoids repeatedly scanning backend session
+# directories for rows that genuinely have no transcript.
+_MISSING_SESSION_RETRY_SECONDS = 5.0
+
 
 class WatcherBackend(Protocol):
     """Protocol for LLM-specific watcher backends."""
@@ -439,8 +445,10 @@ def unified_watch_loop(
     last_attention_ts: dict[str, float] = {}
     last_observed_model: dict[str, ModelInfo] = {}
     initial_model_checked: set[str] = set()
-    # Cache session paths (including None for sessions with no transcript)
-    session_cache: dict[str, Path | None] = {}
+    # Successful transcript lookups are stable. Missing paths are retried: a
+    # session hook commonly arrives just before the backend creates its file.
+    session_cache: dict[str, Path] = {}
+    session_retry_after: dict[str, float] = {}
 
     while stop_event is None or not stop_event.is_set():
         try:
@@ -479,6 +487,11 @@ def unified_watch_loop(
                     to_remove = [k for k in session_cache if k.startswith(f"{channel}:")]
                     for k in to_remove:
                         session_cache.pop(k, None)
+                    retry_to_remove = [
+                        k for k in session_retry_after if k.startswith(f"{channel}:")
+                    ]
+                    for k in retry_to_remove:
+                        session_retry_after.pop(k, None)
 
             for (
                 channel,
@@ -504,15 +517,19 @@ def unified_watch_loop(
                 read_fn = getattr(backend, "read_lines", read_jsonl_tail)
 
                 cache_key = f"{channel}:{session_id}"
-                if cache_key in session_cache:
-                    session_path = session_cache[cache_key]
-                    if session_path is None:
+                session_path = session_cache.get(cache_key)
+                if session_path is None:
+                    now = time.monotonic()
+                    if now < session_retry_after.get(cache_key, 0.0):
                         continue
-                else:
                     session_path = backend.get_session_path(session_id, cwd)
-                    session_cache[cache_key] = session_path
                     if session_path is None:
+                        session_retry_after[cache_key] = (
+                            now + _MISSING_SESSION_RETRY_SECONDS
+                        )
                         continue
+                    session_cache[cache_key] = session_path
+                    session_retry_after.pop(cache_key, None)
 
                 # Read the tail once and parse it once. The three consumers
                 # below each traversed the same 50 lines independently;
