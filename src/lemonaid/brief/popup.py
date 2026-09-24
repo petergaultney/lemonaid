@@ -70,7 +70,10 @@ def page(markdown: str, quit_keys: abc.Iterable[str] = ()) -> None:
 
 
 def popup_command(
-    dirs: abc.Iterable[Path], names: abc.Iterable[str], quit_keys: abc.Iterable[str] = ()
+    dirs: abc.Iterable[Path],
+    place: Path | None,
+    names: abc.Iterable[str],
+    quit_keys: abc.Iterable[str] = (),
 ) -> list[str]:
     """The command a popup runs: this same lemonaid, paging one directory's brief.
 
@@ -84,6 +87,7 @@ def popup_command(
         "brief",
         "show",
         *(arg for directory in dirs for arg in ("--dir", str(directory))),
+        *(["--place", str(place)] if place else []),
         *(arg for name in names for arg in ("--name", name)),
         *(arg for seq in quit_keys for arg in ("--dismiss", seq)),
         "--page",
@@ -112,7 +116,9 @@ def _popup_width(client_width: int | None) -> str:
     return str(min(_MAX_POPUP_WIDTH, max(1, client_width * 9 // 10)))
 
 
-def open_popup(dirs: abc.Iterable[Path], names: abc.Iterable[str], title: str) -> None:
+def open_popup(
+    dirs: abc.Iterable[Path], place: Path | None, names: abc.Iterable[str], title: str
+) -> None:
     """Open a popup over the calling client showing where a place's work stands.
 
     Never targets the lemon's own session, so the popup appears wherever the
@@ -134,7 +140,7 @@ def open_popup(dirs: abc.Iterable[Path], names: abc.Iterable[str], title: str) -
             f" {title.replace('#', '##')} ",
             # As separate arguments, tmux execs the command itself instead of
             # handing one string to default-shell, which need not be POSIX.
-            *popup_command(dirs, names, dismiss.bound_sequences()),
+            *popup_command(dirs, place, names, dismiss.bound_sequences()),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

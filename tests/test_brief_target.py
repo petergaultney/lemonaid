@@ -59,3 +59,9 @@ def test_a_session_with_two_lemons_names_neither_backend():
 
 def test_a_session_the_inbox_never_saw_still_has_its_tmux_directory():
     assert target.for_session("hq", []).dirs == [Path("/work/engineering-infra")]
+
+
+def test_the_place_is_the_sessions_directory():
+    assert target.for_session("hq", []).place == Path("/work/engineering-infra")
+    found = target.for_notification(_row("claude:abc", "hq", "/work/ds-monorepo"))
+    assert found.place == Path("/work/engineering-infra")

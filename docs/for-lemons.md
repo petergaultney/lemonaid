@@ -285,6 +285,7 @@ parent hands a lemon its task, and how that lemon reports where the work stands.
 lemonaid brief show                  # the current tmux session's brief, as markdown
 lemonaid brief show <session>        # another session's
 lemonaid brief show --dir <path>     # a directory's, without asking tmux
+lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <dir>
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
 ```
 
@@ -295,6 +296,10 @@ named after the lemon's `LEMON_NAME`, its backend (`brief-codex.md`), or the tmu
 failing that, all of them, newest first, each with only its Status and Now. The backend counts only
 when the session holds one lemon. With no brief, `.z/state.md` stands in. `b` in the TUI opens the same
 popup for the selected session.
+
+The session's directory is the place, and the search never leaves it. A lemon working in a
+subdirectory finds the place's `.z/`, but a `.z/` above the place, or in a lemon's working directory
+outside it, belongs to other work, so a place without a `.z/` of its own has no brief.
 
 **Keep `Status:` and `## Now` current if you work from a brief.** They are what a person reads without
 switching to your session:

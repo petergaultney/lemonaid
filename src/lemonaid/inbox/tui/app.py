@@ -2126,7 +2126,7 @@ class LemonaidApp(App):
             self.notify("No directory recorded for this session", severity="warning")
             return
 
-        brief.popup.open_popup(target.dirs, target.names, title=target.title)
+        brief.popup.open_popup(target.dirs, target.place, target.names, title=target.title)
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""

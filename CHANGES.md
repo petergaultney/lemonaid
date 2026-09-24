@@ -1,3 +1,9 @@
+# 0.22.1 (2026-09-24)
+
+#### Fixed
+
+- **A brief is never read from above the session's place.** A place without its own `.z/` showed the nearest brief in any parent directory, such as the repo checkout's, which belonged to a different lemon. A lemon's working directory outside the place is not searched either. The search still climbs from a lemon's subdirectory to the place.
+
 # 0.22.0 (2026-09-24)
 
 #### Added
