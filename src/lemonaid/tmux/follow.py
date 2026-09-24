@@ -46,6 +46,7 @@ HOOKS = ("session-window-changed", "client-session-changed", "client-attached")
 RETIRED_HOOKS = ("after-select-window",)  # fires alongside session-window-changed
 _HOOK_INDEX = 100
 _SCRATCH_SESSION = "_lma_scratch"
+_INTERNAL_SESSION_GLOB = "_lma_*"
 
 
 def size_option(position: str) -> str:
@@ -181,10 +182,10 @@ def _kill_older_placeholders() -> str:
 
 
 def hook_condition() -> str:
-    """Follow is on, the pane exists, it is not here, and here is not its parking session."""
+    """Follow is on, the pane exists, and here is not an internal session."""
     return (
         f"#{{&&:#{{==:#{{{FOLLOW_OPTION}}},on}},"
-        f"#{{&&:#{{!=:#{{session_name}},{_SCRATCH_SESSION}}},"
+        f"#{{&&:#{{!:#{{m:{_INTERNAL_SESSION_GLOB},#{{session_name}}}}}},"
         f"#{{&&:{_pane_exists()},#{{!:{_pane_is_here()}}}}}}}}}"
     )
 

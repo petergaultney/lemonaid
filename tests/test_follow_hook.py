@@ -45,7 +45,18 @@ def test_after_select_window_is_retired():
 
 
 def test_the_parking_session_is_never_a_destination():
-    assert "_lma_scratch" in follow.hook_condition()
+    assert "_lma_*" in follow.hook_condition()
+
+
+@pytest.mark.parametrize("session", ["_lma_reap_doomed", "_lma_other"])
+def test_follow_never_enters_internal_sessions(tmux, session):
+    pane = _followed_pane(tmux)
+    tmux("new-session", "-d", "-s", session, "sleep", "30")
+
+    tmux("switch-client", "-t", session)
+
+    assert pane not in [item[0] for item in _panes(tmux, session)]
+    assert follow.placeholders(session, whole_session=True) == []
 
 
 def test_the_size_is_measured_against_both_the_client_and_the_window():

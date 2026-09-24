@@ -18,6 +18,67 @@ the pane is already in the window you switched to. tmux added that operator in
 true, and the sidebar stays in the window it was in. `tmux -V` shows what you
 have.
 
+### tmux server setup
+
+On macOS, check these server settings before relying on follow mode. A tmux
+server inherits its open-file limit when it starts; panes and placeholders each
+consume a pty. A server started with a 256-file limit can run out after enough
+windows have been visited.
+
+```bash
+tmux_pid=$(tmux display-message -p '#{pid}')
+lsof -p "$tmux_pid" | wc -l  # open files, including pane ptys
+launchctl limit maxfiles    # soft and hard limits for new processes
+```
+
+If the soft `maxfiles` limit is 256, one working system LaunchDaemon is
+`/Library/LaunchDaemons/limit.maxfiles.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>limit.maxfiles</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>launchctl</string>
+    <string>limit</string>
+    <string>maxfiles</string>
+    <string>65536</string>
+    <string>200000</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+```
+
+Install it as root, validate it with `plutil -lint`, and reboot. Confirm
+`launchctl limit maxfiles` reports a soft limit of 65536 before starting a new
+tmux server; an already-running server keeps its old limit. The
+[Apple launchd job guide](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
+describes the plist keys.
+
+Also check the tmux options:
+
+```bash
+tmux show-option -gv remain-on-exit
+tmux show-option -gv renumber-windows
+```
+
+Both should be `off`. `remain-on-exit on` leaves dead panes behind when programs
+finish (the lemonaid reaper removes its own session regardless);
+`renumber-windows on` moves a reviewer out of window 4 when window 3 is
+absent. Put these in `~/.tmux.conf` and reload it with
+`tmux source-file ~/.tmux.conf`:
+
+```tmux
+set -g remain-on-exit off
+set -g renumber-windows off
+```
+
 ### Add a back-navigation keybinding (optional but recommended)
 
 Add to your `~/.tmux.conf`:

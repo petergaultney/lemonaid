@@ -4,6 +4,13 @@ The caller is usually standing inside the directory being destroyed, and the
 removal is slow, so the order is: check, switch away, then do the work detached.
 """
 
+import shutil
+import subprocess
+import time
+import uuid
+
+import pytest
+
 from lemonaid.config import PlaceRoot
 from lemonaid.places import ownership, teardown
 
@@ -151,7 +158,7 @@ def test_toss_of_a_session_with_no_places_is_just_a_kill(monkeypatch, tmp_path):
     monkeypatch.setattr(teardown.subprocess, "run", _run)
 
     assert teardown.toss("notes", [], from_inside=True) is None
-    assert "kill-session -t notes" in captured["script"]
+    assert "kill-session -t =notes" in captured["script"]
 
 
 def _reaper_script(monkeypatch, session: str, places, cwd) -> str:
@@ -192,7 +199,8 @@ def test_reaper_releases_without_a_session_to_kill(monkeypatch, tmp_path):
     """An acquired directory nobody opened has nothing to kill, only to release."""
     script = _reaper_script(monkeypatch, "", [_place(tmp_path, "lonely")], tmp_path)
 
-    assert "kill-session" not in script
+    assert "kill-session -t =lonely" not in script
+    assert script.endswith("tmux kill-session -t =_lma_reap_lonely")
     assert "release lonely" in script
 
 
@@ -228,7 +236,7 @@ def test_reaper_skips_a_place_whose_root_cannot_release(monkeypatch, tmp_path):
     plain = _place(tmp_path, "clone", root=PlaceRoot(path=tmp_path))
     script = _reaper_script(monkeypatch, "doomed", [plain], tmp_path)
 
-    assert "kill-session -t doomed" in script
+    assert "kill-session -t =doomed" in script
     assert "release" not in script
 
 
@@ -299,6 +307,68 @@ def test_reaper_passes_the_shell_and_its_flag_as_separate_arguments(monkeypatch,
     argv = captured["argv"]
     assert argv[-3:-1] == ["sh", "-c"]
     assert "kill-session" in argv[-1]
+
+
+def test_reaper_disappears_with_global_remain_on_exit_on(monkeypatch, tmp_path):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    name = f"lemonaid-reaper-test-{uuid.uuid4().hex[:8]}"
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    started = tmux("-f", "/dev/null", "new-session", "-d", "-s", "doomed", "sleep", "30")
+    if started.returncode != 0:
+        pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
+
+    socket = tmux("display-message", "-p", "-t", "doomed", "#{socket_path}").stdout.strip()
+    monkeypatch.setenv("TMUX", f"{socket},0,0")
+    monkeypatch.setattr(teardown, "reap_log_path", lambda: tmp_path / "reap.log")
+    try:
+        assert tmux("set-option", "-g", "remain-on-exit", "on").returncode == 0
+        assert teardown._spawn_reaper("doomed", [], tmp_path) is None
+
+        deadline = time.monotonic() + 3
+        while tmux("has-session", "-t", "_lma_reap_doomed").returncode == 0:
+            assert time.monotonic() < deadline, "reaper session did not remove itself"
+            time.sleep(0.05)
+
+        assert tmux("has-session", "-t", "doomed").returncode != 0
+        assert "--- done doomed ---" in (tmp_path / "reap.log").read_text()
+    finally:
+        tmux("kill-server")
+
+
+def test_reaper_does_not_kill_a_prefix_named_session(monkeypatch, tmp_path):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    name = f"lemonaid-reaper-test-{uuid.uuid4().hex[:8]}"
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    started = tmux("-f", "/dev/null", "new-session", "-d", "-s", "doomed-sibling", "sleep", "30")
+    if started.returncode != 0:
+        pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
+
+    socket = tmux("display-message", "-p", "-t", "doomed-sibling", "#{socket_path}").stdout.strip()
+    monkeypatch.setenv("TMUX", f"{socket},0,0")
+    monkeypatch.setattr(teardown, "reap_log_path", lambda: tmp_path / "reap.log")
+    try:
+        assert tmux("set-option", "-g", "remain-on-exit", "on").returncode == 0
+        assert teardown._spawn_reaper("doomed", [], tmp_path) is None
+
+        deadline = time.monotonic() + 3
+        while tmux("has-session", "-t", "=_lma_reap_doomed").returncode == 0:
+            assert time.monotonic() < deadline, "reaper session did not remove itself"
+            time.sleep(0.05)
+
+        assert tmux("has-session", "-t", "=doomed-sibling").returncode == 0
+        assert "--- done doomed ---" in (tmp_path / "reap.log").read_text()
+    finally:
+        tmux("kill-server")
 
 
 def test_escape_prefers_a_session_that_wants_attention(monkeypatch):

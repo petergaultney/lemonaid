@@ -78,6 +78,9 @@ uv sync
 uv run pre-commit install
 ```
 
+On macOS, check the [tmux server setup](docs/tmux.md#tmux-server-setup) before
+using follow mode, especially the file-descriptor limit and window options.
+
 Before running or extending the test suite, read [docs/testing.md](docs/testing.md),
 especially its watcher-isolation safety invariant.
 

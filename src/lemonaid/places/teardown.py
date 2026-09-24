@@ -142,12 +142,14 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
     """
     log = shlex.quote(str(reap_log_path()))
     what = session or ", ".join(place.key for place in places)
+    reaper = _reaper_session_name(what)
     script = "; ".join(
         [
             f"echo {shlex.quote(f'--- tossing {what} ---')} >> {log}",
-            *([f"tmux kill-session -t {shlex.quote(session)} >> {log} 2>&1"] if session else []),
+            *([f"tmux kill-session -t {shlex.quote('=' + session)} >> {log} 2>&1"] if session else []),
             *_release_commands(places, log),
             f"echo {shlex.quote(f'--- done {what} ---')} >> {log}",
+            f"tmux kill-session -t {shlex.quote('=' + reaper)}",
         ]
     )
 
@@ -158,7 +160,7 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
                 "new-session",
                 "-d",
                 "-s",
-                _reaper_session_name(what),
+                reaper,
                 "-c",
                 str(cwd),
                 # Separate argv elements: tmux execs these itself rather than
