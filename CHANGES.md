@@ -2,7 +2,7 @@
 
 #### Added
 
-- **`b` shows the selected session's brief in a tmux popup.** It opens over your client, not the lemon's session, and starts at the brief's `Status:` line and `## Now` section; the task statement is below a rule. The reader view removes generic `Brief:` title prefixes, uses left-aligned headings, stays at 140 columns or less, and closes with `q` or `Escape`.
+- **`b` shows the selected session's brief in a tmux popup.** It opens over your client, not the lemon's session, and starts at the brief's `Status:` line and `## Now` section; the task statement is below a rule. The reader view colours working yellow, done green, and blocked red; removes generic `Brief:` title prefixes; uses left-aligned headings; stays at 140 columns or less; and closes with `q` or `Escape`.
 
 # 0.21.1 (2026-09-24)
 

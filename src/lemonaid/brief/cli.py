@@ -15,7 +15,9 @@ def _directory(target: str, dir_arg: str) -> Path:
     directory = session.session_dir(target) if target else None
     if directory is None:
         print(
-            f"No tmux session '{target}'." if target else "Not in tmux; name a session or pass --dir.",
+            f"No tmux session '{target}'."
+            if target
+            else "Not in tmux; name a session or pass --dir.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -73,9 +75,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     mode.add_argument(
         "--popup", action="store_true", help="Show it in a tmux popup over your client"
     )
-    mode.add_argument(
-        "--page", action="store_true", help="Show it in a pager, rendered by glow if installed"
-    )
+    mode.add_argument("--page", action="store_true", help="Show it in a pager, rendered by Rich")
     show_parser.set_defaults(func=cmd_show)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())
