@@ -212,7 +212,8 @@ def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
     model_start = headline.index("Opus 5.5")
     assert body.get_style_at_offset(console, 0).bgcolor.name == ATTENTION_COLOR
     assert body.get_style_at_offset(console, model_start - 1).bgcolor.name == "#d88760"
-    assert body.get_style_at_offset(console, model_start).color.name == "black"
+    assert body.get_style_at_offset(console, model_start).color.name == "#000000"
+    assert body.get_style_at_offset(console, 0).color.name == "#000000"
     assert body.get_style_at_offset(
         console, model_start + len("Opus 5.5")
     ).bgcolor.name == "#d88760"
