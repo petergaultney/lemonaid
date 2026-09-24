@@ -38,7 +38,14 @@ def pane_paths() -> dict[str, list[Path]]:
     """Every live session's pane working directories, by session name."""
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-a", "-F", "#{session_name}\t#{pane_current_path}"],
+            [
+                "tmux",
+                "list-panes",
+                "-a",
+                "-F",
+                "#{session_name}\t#{pane_current_path}\t#{@lemonaid_scratch}"
+                "\t#{pane_start_command}",
+            ],
             capture_output=True,
             text=True,
             check=True,
@@ -50,7 +57,9 @@ def pane_paths() -> dict[str, list[Path]]:
 
     by_session: dict[str, list[Path]] = {}
     for line in result.stdout.splitlines():
-        session, _, path = line.partition("\t")
+        session, path, scratch, start_command = line.split("\t", 3)
+        if scratch == "1" or "LEMONAID_PLACEHOLDER" in start_command:
+            continue
         if session and path:
             by_session.setdefault(session, []).append(Path(path))
 
