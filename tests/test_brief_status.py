@@ -34,7 +34,7 @@ def test_status_and_now_come_first_and_the_task_goes_below_a_rule(tmp_path):
 
     assert out.startswith("## make the thing")
     assert "Brief:" not in out
-    assert "brief.md" not in out
+    assert str(tmp_path / ".z" / "brief.md") in out
     assert out.index("**Status:** working") < out.index("## Now") < out.index("---")
     assert out.index("- Next: the popup.") < out.index("---") < out.index("## Goal")
     assert "updated 5m ago" in out

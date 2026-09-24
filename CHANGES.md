@@ -1,3 +1,9 @@
+# 0.25.1 (2026-09-24)
+
+#### Changed
+
+- **Brief popups show the lemon's session identity and the brief path above its status.** The header uses the recorded name, emoji, model, tmux location, working directory, and branch.
+
 # 0.25.0 (2026-09-24)
 
 #### Added

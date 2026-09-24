@@ -2208,8 +2208,15 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, int(row_key))
             attached = brief.attached.for_rows(conn, [notification] if notification else [])
+            emojis = emoji.by_channel(conn)
 
-        target = brief.target.for_notification(notification, attached) if notification else None
+        target = (
+            brief.target.for_notification(
+                notification, attached, emojis.get(notification.channel, "")
+            )
+            if notification
+            else None
+        )
         if not target or not (target.attached or target.dirs):
             self.notify("No brief or directory recorded for this session", severity="warning")
             return

@@ -82,6 +82,8 @@ Passing the window shows the brief of the lemon in it when a session holds sever
 and its reviewer); from any other window, every lemon's brief is shown.
 
 The popup opens over the client that pressed the key, and pressing the same key again closes it.
+Its first lines identify the selected lemon and its working directory from the inbox, then show
+the brief path and current status. A brief without an attached session says so in that header.
 The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is
 told which prefix + key sequences run `brief show` and quits on them.
 

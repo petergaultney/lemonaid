@@ -6,8 +6,24 @@ import sys
 import time
 from pathlib import Path
 
-from ..inbox import db
+from ..inbox import db, emoji
 from . import attached, popup, session, status, target, write_cli
+
+
+def _file_header(files: list[Path]) -> tuple[str, dict[Path, str]]:
+    with db.connect() as conn:
+        attachments = {item.path.resolve(): item for item in attached.everything(conn)}
+        emojis = emoji.by_channel(conn)
+
+    identities = {
+        path: target.header_for_notification(item.notification, emojis.get(item.channel, ""))
+        for path in files
+        if (item := attachments.get(path.resolve())) and item.notification
+    }
+    if len(files) == 1:
+        return identities.get(files[0], "**No attached session**"), {}
+
+    return (f"**{len(files)} briefs**" if identities else "**No attached session**"), identities
 
 
 def _target(
@@ -16,14 +32,26 @@ def _target(
     dir_args: list[str],
     place_arg: str,
     name_args: list[str],
+    header_arg: str,
+    brief_identity_args: list[list[str]],
 ) -> target.Target:
     if file_args or dir_args:
+        files = [Path(f) for f in file_args]
+        header, identities = (
+            (header_arg, {Path(path): identity for path, identity in brief_identity_args})
+            if header_arg
+            else _file_header(files)
+            if files
+            else ("", {})
+        )
         return target.Target(
-            [Path(f) for f in file_args],
+            files,
             [Path(d) for d in dir_args],
             Path(place_arg) if place_arg else None,
             name_args,
             Path((file_args or dir_args)[0]).name,
+            header,
+            identities,
         )
 
     tmux_session, _, window = (session_arg or session.current_session()).partition(":")
@@ -33,7 +61,9 @@ def _target(
 
     with db.connect() as conn:
         rows = db.get_active(conn)
-        found = target.for_session(tmux_session, rows, attached.for_rows(conn, rows), window)
+        found = target.for_session(
+            tmux_session, rows, attached.for_rows(conn, rows), window, emoji.by_channel(conn)
+        )
 
     if not (found.attached or found.dirs):
         print(f"No tmux session or inbox row for '{tmux_session}'.", file=sys.stderr)
@@ -43,12 +73,17 @@ def _target(
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    found = _target(args.session, args.file, args.dir, args.place, args.name)
+    found = _target(
+        args.session, args.file, args.dir, args.place, args.name, args.header, args.brief_identity
+    )
     if args.popup:
         popup.open_popup(found)
         return
 
-    markdown = status.render(found.attached, found.dirs, found.place, found.names, time.time())
+    body = status.render(
+        found.attached, found.dirs, found.place, found.names, time.time(), found.brief_headers
+    )
+    markdown = f"{found.header}\n\n{body}" if found.header else body
     if args.page:
         popup.page(markdown, args.dismiss)
     else:
@@ -108,6 +143,10 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         default=[],
         help="Also prefer .z/brief-NAME.md (repeatable)",
+    )
+    show_parser.add_argument("--header", default="", help=argparse.SUPPRESS)
+    show_parser.add_argument(
+        "--brief-identity", nargs=2, action="append", default=[], help=argparse.SUPPRESS
     )
     show_parser.add_argument(
         "--dismiss",

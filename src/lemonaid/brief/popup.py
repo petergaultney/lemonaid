@@ -85,6 +85,13 @@ def popup_command(found: target.Target, quit_keys: abc.Iterable[str] = ()) -> li
         *(arg for directory in found.dirs for arg in ("--dir", str(directory))),
         *(["--place", str(found.place)] if found.place else []),
         *(arg for name in found.names for arg in ("--name", name)),
+        "--header",
+        found.header,
+        *(
+            arg
+            for path, identity in found.brief_headers.items()
+            for arg in ("--brief-identity", str(path), identity)
+        ),
         *(arg for seq in quit_keys for arg in ("--dismiss", seq)),
         "--page",
     ]

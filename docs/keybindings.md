@@ -48,9 +48,9 @@ stay until you press `?` a second time. `?` is not configurable.
 
 ## Brief
 
-`b` opens a tmux popup over your client with where the selected session's work
-stands: the `Status:` line and `## Now` section of the brief attached to it (or,
-for an older session with none, its `.z/brief.md`), with the rest of the brief below.
+`b` opens a tmux popup over your client with the selected session's identity and
+brief path, then its `Status:` and `## Now` (or an older session's `.z/brief.md`).
+The rest of the brief appears below.
 Press `q` or `Escape` to close it. Rich renders the Markdown and colours `working`
 yellow, `done` green, and `blocked` red. `lemonaid brief
 show <session> --popup` does the same from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-popup)). The popup has a yellow border and uses 90% of the
