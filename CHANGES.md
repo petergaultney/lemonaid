@@ -1,3 +1,9 @@
+# 0.24.3 (2026-09-24)
+
+#### Fixed
+
+- **`place toss` no longer leaves a dead reaper pane when tmux has `remain-on-exit on`.** The reaper removes its own session after teardown, and follow mode skips lemonaid's internal sessions.
+
 # 0.24.2 (2026-09-24)
 
 #### Fixed
