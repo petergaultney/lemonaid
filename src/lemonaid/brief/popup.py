@@ -11,6 +11,8 @@ import rich.markdown
 import rich.segment
 import rich.style
 
+from . import dismiss
+
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
 _LESSKEY_CONTENT = r"#command;\e quit"
@@ -25,12 +27,13 @@ _STATUS_STYLES = {
 _UNKNOWN_STATUS_STYLE = rich.style.Style(dim=True)
 
 
-def _less_command() -> list[str]:
-    """A pager whose two natural dismiss keys both close it.
+def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
+    """A pager that closes on q, Escape, and each lesskey sequence in `quit_keys`.
 
     `--tilde` leaves the lines past the end of a short brief blank.
     """
-    return ["less", "-R", "--tilde", f"--lesskey-content={_LESSKEY_CONTENT}"]
+    lesskey = ";".join([_LESSKEY_CONTENT, *(f"{seq} quit" for seq in quit_keys)])
+    return ["less", "-R", "--tilde", f"--lesskey-content={lesskey}"]
 
 
 def _render_markdown(console: rich.console.Console, markdown: str) -> list[rich.segment.Segment]:
@@ -58,15 +61,17 @@ def _render_markdown(console: rich.console.Console, markdown: str) -> list[rich.
     return rendered
 
 
-def page(markdown: str) -> None:
+def page(markdown: str, quit_keys: abc.Iterable[str] = ()) -> None:
     """Show Markdown rendered by Rich in an ANSI-aware pager."""
     console = rich.console.Console(force_terminal=True)
     with console.capture() as capture:
         console.print(rich.segment.Segments(_render_markdown(console, markdown)), end="")
-    subprocess.run(_less_command(), input=capture.get(), text=True)
+    subprocess.run(_less_command(quit_keys), input=capture.get(), text=True)
 
 
-def popup_command(dirs: abc.Iterable[Path], names: abc.Iterable[str]) -> list[str]:
+def popup_command(
+    dirs: abc.Iterable[Path], names: abc.Iterable[str], quit_keys: abc.Iterable[str] = ()
+) -> list[str]:
     """The command a popup runs: this same lemonaid, paging one directory's brief.
 
     Everything it needs is in its arguments, since a popup inherits the tmux
@@ -80,6 +85,7 @@ def popup_command(dirs: abc.Iterable[Path], names: abc.Iterable[str]) -> list[st
         "show",
         *(arg for directory in dirs for arg in ("--dir", str(directory))),
         *(arg for name in names for arg in ("--name", name)),
+        *(arg for seq in quit_keys for arg in ("--dismiss", seq)),
         "--page",
     ]
 
@@ -128,7 +134,7 @@ def open_popup(dirs: abc.Iterable[Path], names: abc.Iterable[str], title: str) -
             f" {title.replace('#', '##')} ",
             # As separate arguments, tmux execs the command itself instead of
             # handing one string to default-shell, which need not be POSIX.
-            *popup_command(dirs, names),
+            *popup_command(dirs, names, dismiss.bound_sequences()),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

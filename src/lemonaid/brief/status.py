@@ -135,9 +135,7 @@ def render(dirs: abc.Sequence[Path], names: abc.Sequence[str], now: float) -> st
     notes_dirs = [notes_dir(d) for d in dirs]
     for notes in notes_dirs:
         if briefs := pick(find_briefs(notes), names):
-            return "\n\n---\n\n".join(
-                _render_brief(b, now, full=len(briefs) == 1) for b in briefs
-            )
+            return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)
 
     for state in (notes / "state.md" for notes in notes_dirs):
         if not state.is_file():
