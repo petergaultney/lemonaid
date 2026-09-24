@@ -200,6 +200,7 @@ def _as_card(
     message_lines: int = 1,
     gutter_width: int = 0,
     unread_style: str = "dot",
+    emoji: str = "",
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -238,6 +239,8 @@ def _as_card(
             Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else name[: len(_INDENT)]
         )
         name = name[gutter_width:]
+    if emoji and name.plain.startswith(f"{emoji} "):
+        name = name[len(emoji) + 1 :]
 
     # The bar goes in the column every line already spends on padding, rather
     # than before it. Prepending would push the whole card right by one the
@@ -271,6 +274,10 @@ def _as_card(
         backend = backend[: -len(PIN_MARK)]
     backend.justify = None
     pin.justify = None
+    markers = Text(emoji)
+    if pin.plain:
+        markers += Text(" ") if emoji else Text("")
+        markers += pin
 
     if bar_unread:
         backend_style = backend.get_style_at_offset(_CONSOLE, 0)
@@ -294,7 +301,7 @@ def _as_card(
 
     lines = [
         headline,
-        _right_aligned(edge + context, pin, width),
+        _right_aligned(edge + context, markers, width),
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
         *(edge + line for line in _wrapped(message, body, message_lines)),
@@ -364,6 +371,7 @@ def _sync_rows(
     shape: tuple[int, int] = (1, 1),
     gutter_width: int = 0,
     unread_style: str = "dot",
+    emojis_by_row: abc.Mapping[str, str] | None = None,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -380,7 +388,14 @@ def _sync_rows(
     shaped = [
         (
             key,
-            _as_card(cells, card_width, *shape, gutter_width, unread_style)
+            _as_card(
+                cells,
+                card_width,
+                *shape,
+                gutter_width,
+                unread_style,
+                (emojis_by_row or {}).get(key, ""),
+            )
             if cards
             else cells,
         )
@@ -1184,6 +1199,7 @@ class LemonaidApp(App):
             self._card_shape(),
             GUTTER_WIDTH,
             self.config.tui.card_unread_style,
+            {str(n.id): emojis.get(n.channel, "") for n in current_notifications},
         )
 
         # Populate non-switchable table (always dim, not interactive).

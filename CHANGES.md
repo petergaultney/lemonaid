@@ -1,3 +1,9 @@
+# 0.24.1 (2026-09-24)
+
+#### Changed
+
+- **Session emojis sit at the right end of a card's second line, next to its pin when present.** Card titles stay uninterrupted; single-line rows still show emojis before their names.
+
 # 0.24.0 (2026-09-24)
 
 #### Added
