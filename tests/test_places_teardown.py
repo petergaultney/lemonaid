@@ -134,6 +134,26 @@ def test_toss_from_outside_does_not_switch_anything(monkeypatch, tmp_path):
     assert not switched
 
 
+def test_successful_toss_retires_every_places_name(monkeypatch, tmp_path):
+    places = [_place(tmp_path, "one"), _place(tmp_path, "two")]
+    retired = []
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+    monkeypatch.setattr(teardown.names, "retire", lambda paths: retired.extend(paths))
+
+    assert teardown.toss("other", places, from_inside=False) is None
+
+    assert retired == [place.directory for place in places]
+
+
+def test_failed_toss_keeps_the_places_name_active(monkeypatch, tmp_path):
+    retired = []
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: "no reaper")
+    monkeypatch.setattr(teardown.names, "retire", lambda paths: retired.extend(paths))
+
+    assert teardown.toss("other", [_place(tmp_path)], from_inside=False) == "no reaper"
+    assert not retired
+
+
 def test_toss_of_a_session_with_no_places_is_just_a_kill(monkeypatch, tmp_path):
     """Sometimes there is no worktree, and closing the session is the whole ask."""
     monkeypatch.setattr(teardown, "_switch_client", lambda session: True)

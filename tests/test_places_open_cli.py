@@ -12,7 +12,7 @@ import json
 import pytest
 
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
-from lemonaid.places import cli, lifecycle
+from lemonaid.places import cli, lifecycle, ownership
 
 
 def _args(**kwargs) -> argparse.Namespace:
@@ -184,3 +184,24 @@ def test_acquire_exits_nonzero_on_failure(monkeypatch, tmp_path, capsys):
         cli.cmd_acquire(_acquire_args(key="nope", json=True))
 
     assert json.loads(capsys.readouterr().out)["error"] == "no create command"
+
+
+def test_list_json_includes_the_places_lemon_name(monkeypatch, tmp_path, capsys):
+    root = PlaceRoot(path=tmp_path)
+    place = ownership.Place("feat/thing", root, tmp_path / "feat" / "thing")
+    monkeypatch.setattr(cli, "load_config", lambda: _config(root))
+    monkeypatch.setattr(ownership, "managed_places", lambda _config: [place])
+    monkeypatch.setattr(ownership, "pane_paths", dict)
+    monkeypatch.setattr(cli.names, "current_names", lambda _directories: {place.directory: "Tapir"})
+
+    cli.cmd_list(argparse.Namespace(json=True))
+
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            "root": str(tmp_path),
+            "dir": str(place.directory),
+            "key": "feat/thing",
+            "session": "",
+            "lemon_name": "Tapir",
+        }
+    ]

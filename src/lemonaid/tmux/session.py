@@ -3,6 +3,7 @@
 import shlex
 import subprocess
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 from ..claude.projects import find_session_project
@@ -33,6 +34,7 @@ def create_session(
     directory: str | Path | None = None,
     claude_rename: bool = False,
     attach: bool = True,
+    environment: Mapping[str, str] | None = None,
 ) -> bool:
     """Create a new tmux session with the specified windows.
 
@@ -58,6 +60,9 @@ def create_session(
             capture_output=True,
         )
 
+        if environment and not set_session_environment(name, environment):
+            return False
+
         # Query base-index after new-session so the server is guaranteed to exist.
         # On a fresh boot with no tmux server, querying before would fall back to 0
         # even if ~/.tmux.conf sets base-index to 1.
@@ -66,6 +71,11 @@ def create_session(
         # Send command to first window if specified.
         # send-keys failures are non-fatal — the session/windows are already created.
         if first_cmd:
+            if environment:
+                exports = "; ".join(
+                    f"export {key}={shlex.quote(value)}" for key, value in environment.items()
+                )
+                first_cmd = f"{exports}; {first_cmd}"
             subprocess.run(
                 ["tmux", "send-keys", "-t", f"{name}:{base_index}", first_cmd, "Enter"],
                 capture_output=True,
@@ -138,6 +148,21 @@ def sanitize_name(name: str) -> str:
     return name.replace(".", "-").replace(":", "-").strip()
 
 
+def set_session_environment(session: str, environment: Mapping[str, str]) -> bool:
+    """Set values inherited by windows subsequently created in *session*."""
+    try:
+        for key, value in environment.items():
+            subprocess.run(
+                ["tmux", "set-environment", "-t", session, key, value],
+                check=True,
+                capture_output=True,
+            )
+    except (OSError, subprocess.CalledProcessError) as e:
+        _log.warning("could not set environment in session %s: %s", session, e)
+        return False
+    return True
+
+
 def auto_session_name(directory: Path, max_len: int = 15) -> str:
     """Derive a tmux session name from the directory path.
 
@@ -168,6 +193,7 @@ def spawn_session(
     attach: bool = True,
     template_name: str = "default",
     initial_prompt: str = "",
+    environment: Mapping[str, str] | None = None,
 ) -> str | None:
     """Create a tmux session from a configured template, rooted at *cwd*.
 
@@ -217,7 +243,21 @@ def spawn_session(
 
     _log.info("spawn_session: %s -> session '%s' in %s", channel or "no channel", session_name, cwd)
 
-    if not create_session(name=session_name, windows=windows, directory=cwd, attach=attach):
+    if environment is None:
+        # A session recreated from the inbox/history should keep the place's
+        # identity even though it did not travel through `place open`.
+        from ..places import names
+
+        if lemon_name := names.current_name(cwd):
+            environment = {names.LEMON_NAME_ENV: lemon_name}
+
+    if not create_session(
+        name=session_name,
+        windows=windows,
+        directory=cwd,
+        attach=attach,
+        environment=environment,
+    ):
         return f"Failed to create tmux session '{session_name}' (name may already exist)"
 
     return None

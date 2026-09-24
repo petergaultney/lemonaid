@@ -16,7 +16,7 @@ from pathlib import Path
 from .. import tmux
 from ..inbox import db
 from ..log import get_logger
-from . import hooks, ownership
+from . import hooks, names, ownership
 
 _log = get_logger("places.teardown")
 
@@ -217,4 +217,7 @@ def toss(
         if not _switch_client(target):
             return f"Could not switch away to '{target}'; nothing was torn down"
 
-    return _spawn_reaper(session, places, _reaper_cwd(places))
+    error = _spawn_reaper(session, places, _reaper_cwd(places))
+    if error is None:
+        names.retire(place.directory for place in places)
+    return error

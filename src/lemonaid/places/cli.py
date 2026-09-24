@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from ..config import Config, PlaceRoot, load_config
-from . import lifecycle, ownership, toss_cli
+from . import lifecycle, names, ownership, toss_cli
 
 
 def root_or_exit(config: Config, directory: str | Path) -> PlaceRoot:
@@ -125,6 +125,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         for session in ownership.pane_paths()
         for place in ownership.places_of(session, config, known)
     }
+    lemon_names = names.current_names(place.directory for place in known)
 
     # The key is included so a caller can act on a listed directory without
     # having to re-derive one; these came from the roots' own listings, so they
@@ -135,6 +136,7 @@ def cmd_list(args: argparse.Namespace) -> None:
             "dir": str(place.directory),
             "key": place.key,
             "session": occupied.get(place.directory, ""),
+            "lemon_name": lemon_names.get(place.directory, ""),
         }
         for place in known
     ]

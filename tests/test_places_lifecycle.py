@@ -28,16 +28,23 @@ def test_open_place_switches_to_an_existing_session(monkeypatch, tmp_path):
         lifecycle.tmux.navigation, "get_pane_for_cwd", lambda cwd, process=None: ("live", "%2")
     )
     switched = []
+    environment = []
 
     def _switch(session, pane, save_current=True):
         switched.append((session, pane))
         return True
 
     monkeypatch.setattr(lifecycle.tmux.navigation, "switch_to_pane", _switch)
+    monkeypatch.setattr(
+        lifecycle.tmux.session,
+        "set_session_environment",
+        lambda session, values: environment.append((session, values)) or True,
+    )
     spawned = _spawns_into(monkeypatch)
 
     assert lifecycle.open_place(tmp_path, _CONFIG) is None
     assert switched == [("live", "%2")]
+    assert environment == [("live", {"LEMON_NAME": "Lemur"})]
     assert not spawned
 
 
@@ -48,6 +55,7 @@ def test_open_place_spawns_when_nothing_is_there(monkeypatch, tmp_path):
     assert lifecycle.open_place(tmp_path, _CONFIG, session_name="named") is None
     assert spawned[0]["cwd"] == str(tmp_path)
     assert spawned[0]["session_name"] == "named"
+    assert spawned[0]["environment"] == {"LEMON_NAME": "Numbat"}
 
 
 def test_open_place_passes_harness_and_prompt_to_spawn(monkeypatch, tmp_path):

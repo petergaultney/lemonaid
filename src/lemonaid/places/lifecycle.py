@@ -10,7 +10,7 @@ from pathlib import Path
 from .. import tmux
 from ..config import Config, PlaceRoot
 from ..log import get_logger
-from . import hooks
+from . import hooks, names
 
 _log = get_logger("places.lifecycle")
 
@@ -39,6 +39,12 @@ def open_place(
         )
 
     if session and pane_id:
+        lemon_name = names.assign(directory, session)
+        if not tmux.session.set_session_environment(
+            session, {names.LEMON_NAME_ENV: lemon_name}
+        ):
+            return f"Could not set {names.LEMON_NAME_ENV} in existing session '{session}'"
+
         if not attach:
             return None  # it already exists; nothing to do but say so
 
@@ -47,6 +53,10 @@ def open_place(
 
         return None
 
+    lemon_name = names.assign(
+        directory,
+        session_name or tmux.session.auto_session_name(directory),
+    )
     return tmux.session.spawn_session(
         cwd=str(directory),
         config=config.tmux_session,
@@ -54,6 +64,7 @@ def open_place(
         attach=attach,
         template_name=harness,
         initial_prompt=prompt,
+        environment={names.LEMON_NAME_ENV: lemon_name},
     )
 
 

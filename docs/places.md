@@ -83,6 +83,17 @@ options only affect creation; if the place already has a session, `open` keeps
 its idempotent behavior and switches to that session without injecting a new
 prompt. See [the configuration reference](config.md#tmux-sessiontemplates).
 
+Every managed place opened this way also receives a short, whimsical lemon
+name such as `Pliny` or `Quokka`. Lemonaid keeps the assignment across tmux
+session recreation, exports it as `LEMON_NAME` before a newly-created harness
+starts, and never issues the same name twice. A successful `place toss` retires
+the place's assignment but preserves the issued-name history.
+
+Opening an already-running session assigns a name if it did not have one and
+sets it in the tmux session environment. New windows and processes inherit it;
+the environment of a harness process that was already running cannot be changed
+retroactively, so restart that harness once if it needs the new variable.
+
 `place acquire` is the same acquisition without the session, printing the directory — so
 `cd $(lemonaid place acquire feat/thing)` works. It exists for callers that aren't tmux
 clients: an agent has its own session and will never attach to one, so `place open` would
@@ -105,7 +116,8 @@ places.
 
 Add `--detach` to skip switching to it, and `--json` to any of these for machine-readable
 output. `list --json` includes each place's key and its live tmux session name (empty when
-nothing is running there), which is what an agent needs to act on a listed place. See
+nothing is running there), plus its persistent `lemon_name` (empty before the
+place has been opened). This is what an agent needs to act on a listed place. See
 [for-lemons.md](for-lemons.md) for the full programmatic surface.
 
 A root's `list` hook may occasionally report a valid directory outside the

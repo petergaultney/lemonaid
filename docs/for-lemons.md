@@ -184,6 +184,20 @@ back to `resume_window` when that setting is absent. Both options matter only
 when `open` creates the session. If a session already exists, `open` switches to
 it without starting another harness or sending the prompt.
 
+Each managed place gets a unique, never-reused whimsical identity when it is
+first opened. Lemonaid exports it in the tmux session environment as
+`LEMON_NAME` before a new harness starts. Use that value as the lemon's name;
+do not infer identity from the harness provider. The assignment survives tmux
+session recreation. A successful `place toss` retires it while retaining the
+issued-name history, so a later place cannot claim old comments signed with the
+same name.
+
+`place open` also assigns a name idempotently to an older live session that has
+none and updates the tmux session environment. A process that was already
+running cannot inherit a newly-added environment variable; restart that harness
+once if it needs the name. Sessions opened outside a managed place do not get a
+place identity and should continue using their harness name.
+
 The tmux session is named after the key (with `.` and `:` replaced, since tmux forbids them),
 so `tmux send-keys -t <key>` and similar work afterward. `place list --json` reports the
 actual name.
@@ -226,11 +240,14 @@ Every directory each root reports, whether or not it has a session:
 [{"root": "/home/me/work/somerepo",
   "dir": "/home/me/work/somerepo/release/202608",
   "key": "release/202608",
-  "session": "release/202608"}]
+  "session": "release/202608",
+  "lemon_name": "Quokka"}]
 ```
 
 `key` is what to pass to `open` and `toss`. `session` is the live tmux session name, or `""`
 when nothing is running there — which is how you tell an idle place from an active one.
+`lemon_name` is the persistent place identity, or `""` before the place has ever
+been opened.
 If a root's hook reports a directory outside that configured root, it is skipped
 and logged rather than aborting the entire listing; it has no key in that root's
 namespace.
