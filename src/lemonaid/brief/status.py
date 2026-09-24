@@ -33,14 +33,25 @@ class _Parts:
     rest: str
 
 
-def notes_dir(start: Path) -> Path:
-    """The nearest `.z/` at or above `start`, or `start/.z` if there is none.
+def notes_dir(start: Path, place: Path | None) -> Path | None:
+    """The nearest `.z/` from `start` up to `place`, or `start/.z` if there is none.
 
-    A session's recorded cwd can be a subdirectory of the place it works in.
+    A session's recorded cwd can be a subdirectory of the place it works in. The
+    search never leaves the place: a `.z/` above it, or a `start` outside it,
+    belongs to some other work, and is None. Without a place, only `start/.z`.
     """
+    if place is None:
+        return start / ".z"
+
+    if not start.resolve().is_relative_to(place.resolve()):
+        return None
+
+    start, place = start.resolve(), place.resolve()
     for directory in (start, *start.parents):
         if (directory / ".z").is_dir():
             return directory / ".z"
+        if directory == place:
+            break
 
     return start / ".z"
 
@@ -124,7 +135,9 @@ def _render_brief(brief: Brief, now: float, full: bool) -> str:
     )
 
 
-def render(dirs: abc.Sequence[Path], names: abc.Sequence[str], now: float) -> str:
+def render(
+    dirs: abc.Sequence[Path], place: Path | None, names: abc.Sequence[str], now: float
+) -> str:
     """Markdown for where the work in a place stands.
 
     The first directory holding a brief is used. One brief is shown with its task
@@ -132,7 +145,7 @@ def render(dirs: abc.Sequence[Path], names: abc.Sequence[str], now: float) -> st
     shows only its Status and Now. Without a brief anywhere, the first
     `.z/state.md` (written by lemons before compaction) stands in.
     """
-    notes_dirs = [notes_dir(d) for d in dirs]
+    notes_dirs = [notes for d in dirs if (notes := notes_dir(d, place))]
     for notes in notes_dirs:
         if briefs := pick(find_briefs(notes), names):
             return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)

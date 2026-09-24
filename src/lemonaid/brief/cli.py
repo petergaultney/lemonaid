@@ -10,9 +10,16 @@ from ..inbox import db
 from . import popup, session, status, target
 
 
-def _target(session_arg: str, dir_args: list[str], name_args: list[str]) -> target.Target:
+def _target(
+    session_arg: str, dir_args: list[str], place_arg: str, name_args: list[str]
+) -> target.Target:
     if dir_args:
-        return target.Target([Path(d) for d in dir_args], name_args, Path(dir_args[0]).name)
+        return target.Target(
+            [Path(d) for d in dir_args],
+            Path(place_arg) if place_arg else None,
+            name_args,
+            Path(dir_args[0]).name,
+        )
 
     tmux_session = session_arg or session.current_session()
     if not tmux_session:
@@ -30,12 +37,12 @@ def _target(session_arg: str, dir_args: list[str], name_args: list[str]) -> targ
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    found = _target(args.session, args.dir, args.name)
+    found = _target(args.session, args.dir, args.place, args.name)
     if args.popup:
-        popup.open_popup(found.dirs, found.names, title=found.title)
+        popup.open_popup(found.dirs, found.place, found.names, title=found.title)
         return
 
-    markdown = status.render(found.dirs, found.names, time.time())
+    markdown = status.render(found.dirs, found.place, found.names, time.time())
     if args.page:
         popup.page(markdown, args.dismiss)
     else:
@@ -56,7 +63,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "show",
         help="Print a session's Status and Now, or show them in a popup",
         description="Looks in the directories of the session's lemons (from the inbox), "
-        "then the session's own directory (from tmux), and shows the first brief found: "
+        "then the session's own directory (from tmux), and shows the first brief found, "
+        "never looking above the session's directory: "
         "the one named for the lemon's LEMON_NAME, backend, or session if there is one, "
         "otherwise every brief there, newest first. Falls back to .z/state.md when "
         "there is no brief.",
@@ -70,6 +78,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         default=[],
         help="Read this directory instead of asking the inbox and tmux (repeatable, in order)",
+    )
+    show_parser.add_argument(
+        "--place",
+        default="",
+        help="With --dir, also look in .z/ above a --dir, up to and including this "
+        "directory (without it, only each --dir's own .z/ is read)",
     )
     show_parser.add_argument(
         "--name",
