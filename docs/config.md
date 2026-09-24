@@ -88,6 +88,21 @@ The name may come from the interpreter's command line or the pane title. Add
 |-----|---------|-------------|
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
+| `brief_status` | `false` | In card layout, color sessions with attached briefs by their `Status:` and show brief age. |
+| `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
+
+With `brief_status = true`, attached briefs give `blocked` cards a yellow
+headline, `done` cards a blue headline, and `waiting` cards dimmer text plus
+the `Waiting on:` line from `## Now`. `working` cards retain the read style.
+Every brief card shows its age. Unread remains a separate dot, including when
+`card_unread_style = "bar"`. Cards without an attached brief retain their
+current appearance. This setting only changes cards, not the column layout.
+
+```toml
+[tui]
+brief_status = true
+brief_stale_hours = 6
+```
 
 With `card_unread_style = "bar"`, an unread card drops the dot and paints its
 first line instead. The selector and title use a lemon-yellow background with

@@ -48,7 +48,7 @@ from ...tmux.scratch import (
 )
 from ...tmux.session import spawn_session
 from .. import db, emoji, pins, undo
-from . import backend_indicators
+from . import backend_indicators, brief_cards
 from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
@@ -201,6 +201,9 @@ def _as_card(
     gutter_width: int = 0,
     unread_style: str = "dot",
     emoji: str = "",
+    card_brief: brief_cards.CardBrief | None = None,
+    stale_hours: float = 6.0,
+    now: float = 0.0,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -246,7 +249,7 @@ def _as_card(
     # than before it. Prepending would push the whole card right by one the
     # moment it was marked, which reads as the list jumping under the cursor.
     edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text(_INDENT)
-    bar_unread = unread_style == "bar" and bool(marker.plain)
+    bar_unread = unread_style == "bar" and bool(marker.plain) and card_brief is None
     if bar_unread:
         headline = selector + Text("  ") + name
     else:
@@ -261,6 +264,11 @@ def _as_card(
     )
 
     message = cells[_MSG_CELL]
+    if card_brief and card_brief.status == "waiting" and not marker.plain:
+        headline.stylize("dim")
+        context.stylize("dim")
+        message = message.copy()
+        message.stylize("dim")
 
     # The bar is a column of the card's width, not an extra one beside it, so
     # every line's budget shrinks by it. Without that the context line overflows
@@ -274,6 +282,8 @@ def _as_card(
         backend = backend[: -len(PIN_MARK)]
     backend.justify = None
     pin.justify = None
+    if card_brief and card_brief.status == "waiting" and not marker.plain:
+        backend.stylize("dim")
     markers = Text(emoji)
     if pin.plain:
         markers += Text(" ") if emoji else Text("")
@@ -299,9 +309,27 @@ def _as_card(
     else:
         headline = _right_aligned(headline, backend, width)
 
+    if card_brief and card_brief.status in {"blocked", "done"}:
+        background = ATTENTION_COLOR if card_brief.status == "blocked" else "#285995"
+        foreground = "#000000" if card_brief.status == "blocked" else "#ffffff"
+        headline.stylize(Style(color=foreground, bgcolor=background), 1 if is_here else 0)
+        if marker.plain:
+            headline.stylize(
+                "bold #000000" if card_brief.status == "blocked" else UNREAD_MARKER_STYLE,
+                2,
+                3,
+            )
+
+    brief_lines: list[Text] = []
+    if card_brief:
+        brief_lines.append(Text(card_brief.age(now, stale_hours), style="dim"))
+        if card_brief.status == "waiting" and card_brief.waiting_on:
+            brief_lines.append(Text(card_brief.waiting_on, style="dim"))
+
     lines = [
         headline,
         _right_aligned(edge + context, markers, width),
+        *(edge + _truncated(line, body) for line in brief_lines),
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
         *(edge + line for line in _wrapped(message, body, message_lines)),
@@ -372,6 +400,9 @@ def _sync_rows(
     gutter_width: int = 0,
     unread_style: str = "dot",
     emojis_by_row: abc.Mapping[str, str] | None = None,
+    briefs_by_row: abc.Mapping[str, brief_cards.CardBrief | None] | None = None,
+    stale_hours: float = 6.0,
+    now: float = 0.0,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -395,6 +426,9 @@ def _sync_rows(
                 gutter_width,
                 unread_style,
                 (emojis_by_row or {}).get(key, ""),
+                (briefs_by_row or {}).get(key),
+                stale_hours,
+                now,
             )
             if cards
             else cells,
@@ -643,6 +677,7 @@ class LemonaidApp(App):
         self._hint_timer: Timer | None = None
         self._card_layout = False
         self._models_by_channel: dict[str, ModelInfo] = {}
+        self._brief_cache = brief_cards.BriefCache()
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -902,7 +937,7 @@ class LemonaidApp(App):
 
         return h >= w * _CARD_ASPECT
 
-    def _card_shape(self) -> tuple[int, int]:
+    def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
         """How many lines the context and message get inside one card.
 
         A card grows only while the sessions on screen still fit: vertical space
@@ -915,7 +950,10 @@ class LemonaidApp(App):
 
         rows = self.size.height - _CARD_CHROME_ROWS
         sessions = max(1, self.query_one("#main_table", DataTable).row_count)
-        spare = rows // sessions - _CARD_HEIGHT
+        # _CARD_HEIGHT includes the first message line, but not the blank separator.
+        # Account for it on brief cards without changing the existing card sizing.
+        card_height = _CARD_HEIGHT + extra_lines + int(extra_lines > 0)
+        spare = rows // sessions - card_height
         if spare <= 0:
             return 1, 1
 
@@ -926,7 +964,7 @@ class LemonaidApp(App):
 
         # All of it goes to the message: context is one truncated line by
         # design, so lines handed to it would be discarded.
-        return 1, 1 + min(spare, ceiling - _CARD_HEIGHT)
+        return 1, 1 + min(spare, max(0, ceiling - card_height))
 
     def _card_width(self) -> int:
         """Width the card's body column was stretched to, or 0 outside card mode.
@@ -1185,6 +1223,25 @@ class LemonaidApp(App):
 
             pinned = frozenset(pins.pinned_positions(conn))
             emojis = emoji.by_channel(conn)
+            attached = (
+                brief.attached.for_rows(conn, current_notifications)
+                if self.config.tui.brief_status and self._card_width()
+                else {}
+            )
+
+        card_briefs = {
+            str(n.id): self._brief_cache.get(attached[n.channel])
+            for n in current_notifications
+            if n.channel in attached
+        }
+        extra_lines = max(
+            (
+                1 + int(card.status == "waiting" and bool(card.waiting_on))
+                for card in card_briefs.values()
+                if card
+            ),
+            default=0,
+        )
 
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
@@ -1196,10 +1253,13 @@ class LemonaidApp(App):
                 for i, n in enumerate(current_notifications)
             ],
             self._card_width(),
-            self._card_shape(),
+            self._card_shape(extra_lines),
             GUTTER_WIDTH,
             self.config.tui.card_unread_style,
             {str(n.id): emojis.get(n.channel, "") for n in current_notifications},
+            card_briefs,
+            self.config.tui.brief_stale_hours,
+            time.time(),
         )
 
         # Populate non-switchable table (always dim, not interactive).

@@ -20,6 +20,7 @@ _STATUS_LINE = re.compile(
 )
 _STATUS_STYLES = {
     "working": rich.style.Style(color="yellow"),
+    "waiting": rich.style.Style(color="bright_black"),
     "done": rich.style.Style(color="green"),
     "blocked": rich.style.Style(color="red"),
 }

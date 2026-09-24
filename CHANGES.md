@@ -1,3 +1,11 @@
+# 0.25.0 (2026-09-24)
+
+#### Added
+
+- **Cards can show an attached brief's status, age, and waiting reason.** Set `[tui] brief_status = true` to color blocked and done cards, dim waiting cards, and flag working or waiting briefs after `brief_stale_hours` hours. Unread remains a separate marker.
+
+- **`lemonaid brief status` accepts `waiting` and takes only a state.** Notes go through `brief now`; older status lines with notes still supply their state.
+
 # 0.24.1 (2026-09-24)
 
 #### Changed

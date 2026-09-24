@@ -25,19 +25,29 @@ The thing exists.
 
 
 def test_status_replaces_the_first_status_line_only():
-    out = store.with_status(_BRIEF + "\nStatus: in a code block\n", "done", "PR #7")
+    out = store.with_status(_BRIEF + "\nStatus: in a code block\n", "done")
 
-    assert "Status: done - PR #7\n" in out
+    assert "Status: done\n" in out
+    assert "## Now\n- Starting." in out
     assert "Status: working" not in out
     assert "Status: in a code block" in out
 
 
-def test_status_without_a_note_is_the_bare_state():
-    assert "\nStatus: blocked\n" in store.with_status(_BRIEF, "blocked", "")
+def test_status_is_the_bare_state():
+    assert "\nStatus: blocked\n" in store.with_status(_BRIEF, "blocked")
+
+
+def test_status_leaves_now_alone():
+    brief = _BRIEF.replace("- Starting.", "- Note: old\n- Starting.")
+
+    updated = store.with_status(brief, "waiting")
+
+    assert "Status: waiting\n" in updated
+    assert "## Now\n- Note: old\n- Starting." in updated
 
 
 def test_status_goes_under_the_title_when_missing():
-    assert store.with_status("# t\n\n## Goal\nx\n", "working", "") == (
+    assert store.with_status("# t\n\n## Goal\nx\n", "working") == (
         "# t\n\nStatus: working\n\n## Goal\nx\n"
     )
 
@@ -85,7 +95,7 @@ def test_a_concurrent_save_survives_the_edit(tmp_path):
         calls.append(text)
         if len(calls) == 1:
             path.write_text(text.replace("The thing exists.", "Edited in Obsidian."))
-        return store.with_status(text, "done", "")
+        return store.with_status(text, "done")
 
     store.edit(path, change)
 

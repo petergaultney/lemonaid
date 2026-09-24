@@ -53,6 +53,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **[Places](docs/places.md)**: Spin up a directory and its session in one command, and tear both down in one command. What "spin up a directory" means is a shell command you configure per repo, so worktrees (or whatever else you use) stay out of lemonaid's model
 - **Briefs**: `b` on a session shows where its work stands - the `Status:` and `## Now` of the brief attached to it, a Markdown file in `~/.brief-lemons/` - in a tmux popup, without switching to it. `lemonaid brief show` prints the same from anywhere
+- **Brief status cards**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a waiting lemon is waiting on, and flag stale briefs
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive

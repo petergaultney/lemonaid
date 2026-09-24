@@ -55,8 +55,17 @@ def test_a_brief_without_now_shows_status_alone(tmp_path):
 
     out = status.render([], [tmp_path], tmp_path, [], now=1000)
 
-    assert "**Status:** done - PR #3" in out
+    assert "**Status:** done" in out
     assert "## Now" not in out
+
+
+def test_unknown_status_has_no_state(tmp_path):
+    _write(tmp_path / ".z", "brief.md", "# x\n\nStatus: reviewing - soon\n", 1000)
+
+    out = status.render([], [tmp_path], tmp_path, [], now=1000)
+
+    assert "**Status:** reviewing - soon" in out
+    assert "- Note: soon" not in out
 
 
 def test_the_brief_named_for_the_session_wins(tmp_path):

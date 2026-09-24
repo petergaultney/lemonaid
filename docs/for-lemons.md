@@ -320,7 +320,7 @@ lemonaid brief new --self "Fix the thing"      # create ~/.brief-lemons/<today>-
 lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.brief-lemons/)
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
-lemonaid brief status --self done "PR #12"     # Status: done - PR #12  (working | done | blocked)
+lemonaid brief status --self waiting            # Status: waiting  (working | waiting | done | blocked)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
@@ -330,6 +330,9 @@ lemonaid place open feat/thing --brief <file>  # attach to the first lemon that 
 `--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet
 waits for the first one that starts there, which is also what `place open --brief` does. Every command
 takes `--json`.
+
+`brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
+with `brief now`. Readers still recognize older `Status: done - PR #12` lines as `done`.
 
 A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with `brief now` and
 `brief status`; any other lemon may do the same or edit the file directly.

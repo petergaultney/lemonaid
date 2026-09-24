@@ -121,7 +121,7 @@ def _cmd_now(args: argparse.Namespace) -> None:
 def _cmd_status(args: argparse.Namespace) -> None:
     path, error = _own_brief(args)
     if path:
-        error = _edit(path, lambda brief: store.with_status(brief, args.state, args.note.strip()))
+        error = _edit(path, lambda brief: store.with_status(brief, args.state))
     _finish(args, {"path": str(path) if path else None}, error, str(path))
 
 
@@ -188,7 +188,6 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
 
     status = _parser(brief_subparsers, "status", "Set the Status line of a lemon's brief")
     status.add_argument("state", choices=store.STATES)
-    status.add_argument("note", nargs="?", default="", help="One line: `Status: <state> - <note>`")
     status.set_defaults(func=_cmd_status)
 
     detach = _parser(brief_subparsers, "detach", "Detach a lemon's brief; the file stays")

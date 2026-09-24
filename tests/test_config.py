@@ -68,6 +68,13 @@ def test_card_unread_style_defaults_to_dot_and_can_be_overridden():
     assert _parse_config({"tui": {"card_unread_style": "bar"}}).tui.card_unread_style == "bar"
 
 
+def test_brief_cards_are_opt_in():
+    assert _parse_config({}).tui.brief_status is False
+    config = _parse_config({"tui": {"brief_status": True, "brief_stale_hours": 12}})
+    assert config.tui.brief_status is True
+    assert config.tui.brief_stale_hours == 12
+
+
 def test_parse_named_tmux_window_processes():
     config = _parse_config({"tmux-window": {"named_processes": ["mops-console"]}})
 
