@@ -115,6 +115,73 @@ def test_watch_loop_restores_model_metadata_erased_by_an_older_hook(tmp_path, mo
     ]
 
 
+def test_watch_loop_retries_transcript_that_appears_after_session_hook(tmp_path, monkeypatch):
+    session = tmp_path / "session.jsonl"
+    path_lookups = 0
+
+    class Backend:
+        CHANNEL_PREFIX = "claude:"
+
+        @staticmethod
+        def get_session_path(_session_id, _cwd):
+            nonlocal path_lookups
+            path_lookups += 1
+            if path_lookups == 1:
+                return None
+            return session
+
+        @staticmethod
+        def get_model(entry):
+            model = entry.get("model")
+            return ModelInfo("anthropic", model) if model else None
+
+        @staticmethod
+        def describe_activity(_entry):
+            return None
+
+        @staticmethod
+        def should_dismiss(_entry):
+            return False
+
+    recorded: list[ModelInfo] = []
+    polls = 0
+
+    def finish_poll(_seconds: float) -> None:
+        nonlocal polls
+        polls += 1
+        if polls == 1:
+            session.write_text(
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "timestamp": "2026-09-23T18:00:00Z",
+                        "model": "claude-opus-5-5",
+                    }
+                )
+            )
+            return
+        raise StopIteration
+
+    monkeypatch.setattr(watcher, "_MISSING_SESSION_RETRY_SECONDS", 0.0)
+    monkeypatch.setattr(watcher.time, "sleep", finish_poll)
+
+    with pytest.raises(StopIteration):
+        watcher.unified_watch_loop(
+            [Backend],
+            lambda: [("claude:abc", "abc", "/tmp", 0.0, False, None, "", None)],
+            lambda _channel: 0,
+            lambda _channel, _message: 0,
+            record_model=lambda _channel, provider, model: recorded.append(
+                ModelInfo(provider, model)
+            ),
+            models=dict,
+            poll_interval=0,
+        )
+
+    assert path_lookups == 2
+    assert recorded == [ModelInfo("anthropic", "claude-opus-5-5")]
+
+
 def test_parse_timestamp_zulu():
     ts = parse_timestamp("2026-01-24T12:34:56Z")
     assert ts == datetime(2026, 1, 24, 12, 34, 56, tzinfo=UTC).timestamp()
