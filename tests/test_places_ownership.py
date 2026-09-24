@@ -5,6 +5,7 @@ by `place open`, or by an agent all resolve the same way afterward.
 """
 
 from pathlib import Path
+from subprocess import CompletedProcess
 
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.places import ownership
@@ -32,6 +33,23 @@ def _panes(monkeypatch, **by_session: list[Path]) -> None:
 
 def _config(*roots: PlaceRoot) -> Config:
     return Config(places=PlacesConfig(roots=list(roots)))
+
+
+def test_pane_paths_excludes_follow_mode_panes(monkeypatch):
+    monkeypatch.setattr(
+        ownership.subprocess,
+        "run",
+        lambda *args, **kwargs: CompletedProcess(
+            args[0],
+            0,
+            "work\t/work/feature\t\tpython\n"
+            "work\t/work/scratch-origin\t1\tpython\n"
+            "work\t/work/placeholder-origin\t\tenv LEMONAID_PLACEHOLDER=1 sleep 2147483647\n",
+            "",
+        ),
+    )
+
+    assert ownership.pane_paths() == {"work": [Path("/work/feature")]}
 
 
 def test_a_session_owns_the_place_its_pane_sits_in(monkeypatch, tmp_path):
