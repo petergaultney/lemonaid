@@ -42,7 +42,7 @@ def test_rich_colours_statuses_by_state():
 
 
 def test_the_popup_command_carries_everything_it_needs(tmp_path):
-    cmd = popup.popup_command(tmp_path, ["Pliny", "my-session"])
+    cmd = popup.popup_command([tmp_path, tmp_path / "b"], ["Pliny", "my-session"])
 
     assert cmd[:3] == [sys.executable, "-m", "lemonaid.cli"]
     assert cmd[3:] == [
@@ -50,6 +50,8 @@ def test_the_popup_command_carries_everything_it_needs(tmp_path):
         "show",
         "--dir",
         str(tmp_path),
+        "--dir",
+        str(tmp_path / "b"),
         "--name",
         "Pliny",
         "--name",
@@ -63,7 +65,7 @@ def test_the_popup_targets_the_calling_client_not_the_lemons_session(monkeypatch
     monkeypatch.setattr(subprocess, "Popen", lambda argv, **_: calls.append(argv))
     monkeypatch.setattr(popup, "_client_width", lambda: 200)
 
-    popup.open_popup(Path("/work/place"), ["Pliny"], title="#5 thing")
+    popup.open_popup([Path("/work/place")], ["Pliny"], title="#5 thing")
 
     [argv] = calls
     assert argv[:2] == ["tmux", "display-popup"]

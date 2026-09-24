@@ -9,7 +9,6 @@ import threading
 import time
 from collections import abc
 from datetime import datetime
-from pathlib import Path
 from typing import cast
 
 from rich.console import Console
@@ -2122,17 +2121,12 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, int(row_key))
 
-        cwd = notification.metadata.get("cwd") if notification else None
-        if not notification or not cwd:
+        target = brief.target.for_notification(notification) if notification else None
+        if not target or not target.dirs:
             self.notify("No directory recorded for this session", severity="warning")
             return
 
-        tmux_session = notification.metadata.get("tmux_session") or ""
-        brief.popup.open_popup(
-            Path(cwd),
-            brief.session.names(tmux_session, notification.name or ""),
-            title=notification.name or tmux_session or Path(cwd).name,
-        )
+        brief.popup.open_popup(target.dirs, target.names, title=target.title)
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""

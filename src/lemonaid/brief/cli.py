@@ -1,39 +1,41 @@
 """CLI for showing where a lemon's work stands, from its brief."""
 
 import argparse
+import dataclasses
 import sys
 import time
 from pathlib import Path
 
-from . import popup, session, status
+from ..inbox import db
+from . import popup, session, status, target
 
 
-def _directory(target: str, dir_arg: str) -> Path:
-    if dir_arg:
-        return Path(dir_arg)
+def _target(session_arg: str, dir_args: list[str], name_args: list[str]) -> target.Target:
+    if dir_args:
+        return target.Target([Path(d) for d in dir_args], name_args, Path(dir_args[0]).name)
 
-    directory = session.session_dir(target) if target else None
-    if directory is None:
-        print(
-            f"No tmux session '{target}'."
-            if target
-            else "Not in tmux; name a session or pass --dir.",
-            file=sys.stderr,
-        )
+    tmux_session = session_arg or session.current_session()
+    if not tmux_session:
+        print("Not in tmux; name a session or pass --dir.", file=sys.stderr)
         sys.exit(1)
 
-    return directory
+    with db.connect() as conn:
+        found = target.for_session(tmux_session, db.get_active(conn))
+
+    if not found.dirs:
+        print(f"No tmux session or inbox row for '{tmux_session}'.", file=sys.stderr)
+        sys.exit(1)
+
+    return dataclasses.replace(found, names=[*found.names, *name_args])
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    target = args.session or ("" if args.dir else session.current_session())
-    directory = _directory(target, args.dir)
-    names = [*session.names(target), *args.name] if target else args.name
+    found = _target(args.session, args.dir, args.name)
     if args.popup:
-        popup.open_popup(directory, names, title=target or directory.name)
+        popup.open_popup(found.dirs, found.names, title=found.title)
         return
 
-    markdown = status.render(status.notes_dir(directory), names, time.time())
+    markdown = status.render(found.dirs, found.names, time.time())
     if args.page:
         popup.page(markdown)
     else:
@@ -53,8 +55,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     show_parser = brief_subparsers.add_parser(
         "show",
         help="Print a session's Status and Now, or show them in a popup",
-        description="Finds the session's directory from tmux and shows its brief: the "
-        "one named for the session's LEMON_NAME or session name if there is one, "
+        description="Looks in the directories of the session's lemons (from the inbox), "
+        "then the session's own directory (from tmux), and shows the first brief found: "
+        "the one named for the lemon's LEMON_NAME, backend, or session if there is one, "
         "otherwise every brief there, newest first. Falls back to .z/state.md when "
         "there is no brief.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -63,7 +66,10 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "session", nargs="?", default="", help="tmux session (default: the current one)"
     )
     show_parser.add_argument(
-        "--dir", default="", help="Read this directory instead of asking tmux for one"
+        "--dir",
+        action="append",
+        default=[],
+        help="Read this directory instead of asking the inbox and tmux (repeatable, in order)",
     )
     show_parser.add_argument(
         "--name",

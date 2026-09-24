@@ -35,6 +35,10 @@ def lemon_name(session: str) -> str:
     return line.removeprefix(prefix) if line.startswith(prefix) else ""
 
 
-def names(session: str, *others: str) -> list[str]:
+def names(session: str, backend: str = "", display: str = "") -> list[str]:
     """What a brief for this session could be named after, most specific first."""
-    return [n for n in (lemon_name(session) if session else "", session, *others) if n]
+    return [
+        n
+        for n in (lemon_name(session) if session else "", backend, session, display)
+        if n
+    ]

@@ -66,7 +66,7 @@ def page(markdown: str) -> None:
     subprocess.run(_less_command(), input=capture.get(), text=True)
 
 
-def popup_command(directory: Path, names: abc.Iterable[str]) -> list[str]:
+def popup_command(dirs: abc.Iterable[Path], names: abc.Iterable[str]) -> list[str]:
     """The command a popup runs: this same lemonaid, paging one directory's brief.
 
     Everything it needs is in its arguments, since a popup inherits the tmux
@@ -78,8 +78,7 @@ def popup_command(directory: Path, names: abc.Iterable[str]) -> list[str]:
         "lemonaid.cli",
         "brief",
         "show",
-        "--dir",
-        str(directory),
+        *(arg for directory in dirs for arg in ("--dir", str(directory))),
         *(arg for name in names for arg in ("--name", name)),
         "--page",
     ]
@@ -107,7 +106,7 @@ def _popup_width(client_width: int | None) -> str:
     return str(min(_MAX_POPUP_WIDTH, max(1, client_width * 9 // 10)))
 
 
-def open_popup(directory: Path, names: abc.Iterable[str], title: str) -> None:
+def open_popup(dirs: abc.Iterable[Path], names: abc.Iterable[str], title: str) -> None:
     """Open a popup over the calling client showing where a place's work stands.
 
     Never targets the lemon's own session, so the popup appears wherever the
@@ -129,7 +128,7 @@ def open_popup(directory: Path, names: abc.Iterable[str], title: str) -> None:
             f" {title.replace('#', '##')} ",
             # As separate arguments, tmux execs the command itself instead of
             # handing one string to default-shell, which need not be POSIX.
-            *popup_command(directory, names),
+            *popup_command(dirs, names),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
