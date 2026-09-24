@@ -51,8 +51,8 @@ stay until you press `?` a second time. `?` is not configurable.
 `b` opens a tmux popup over your client with where the selected session's work
 stands: the `Status:` line and `## Now` section of its `.z/brief.md` (or the
 `.z/brief-<name>.md` named for that session), with the rest of the brief below.
-Press `q` or `Escape` to close it. It renders with [`glow`](https://github.com/charmbracelet/glow)
-when that is installed and with a built-in renderer otherwise. `lemonaid brief
+Press `q` or `Escape` to close it. Rich renders the Markdown and colours `working`
+yellow, `done` green, and `blocked` red. `lemonaid brief
 show <session> --popup` does the same from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-popup)). The popup has a yellow border and uses 90% of the
 client width up to a 140-column maximum.
 

@@ -1,18 +1,28 @@
 """Showing a brief to a person: in a pager, and in a tmux popup around one."""
 
-import shutil
+import re
 import subprocess
 import sys
-import tempfile
 from collections import abc
 from pathlib import Path
 
 import rich.console
 import rich.markdown
+import rich.segment
+import rich.style
 
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
 _LESSKEY_CONTENT = r"#command;\e quit"
+_STATUS_LINE = re.compile(
+    r"^(?P<label>\s*Status:\s*)(?P<value>.*?)(?P<trailing>\s*)$", re.IGNORECASE
+)
+_STATUS_STYLES = {
+    "working": rich.style.Style(color="yellow"),
+    "done": rich.style.Style(color="green"),
+    "blocked": rich.style.Style(color="red"),
+}
+_UNKNOWN_STATUS_STYLE = rich.style.Style(dim=True)
 
 
 def _less_command() -> list[str]:
@@ -20,22 +30,37 @@ def _less_command() -> list[str]:
     return ["less", "-R", f"--lesskey-content={_LESSKEY_CONTENT}"]
 
 
-def page(markdown: str) -> None:
-    """Show markdown in a pager, rendered by `glow` when it is installed."""
-    glow = shutil.which("glow")
-    if not glow:
-        console = rich.console.Console(force_terminal=True)
-        with console.capture() as capture:
-            console.print(rich.markdown.Markdown(markdown))
-        subprocess.run(_less_command(), input=capture.get(), text=True)
-        return
+def _render_markdown(console: rich.console.Console, markdown: str) -> list[rich.segment.Segment]:
+    """Render Markdown, colouring each brief status by its state."""
+    rendered: list[rich.segment.Segment] = []
+    for line in rich.segment.Segment.split_lines(console.render(rich.markdown.Markdown(markdown))):
+        plain = "".join(segment.text for segment in line)
+        match = _STATUS_LINE.fullmatch(plain)
+        if match:
+            value = match["value"]
+            rendered.extend(
+                [
+                    rich.segment.Segment(match["label"], rich.style.Style(bold=True)),
+                    rich.segment.Segment(
+                        value,
+                        _STATUS_STYLES.get(value.partition(" ")[0].lower(), _UNKNOWN_STATUS_STYLE),
+                    ),
+                    rich.segment.Segment(match["trailing"]),
+                ]
+            )
+        else:
+            rendered.extend(line)
+        rendered.append(rich.segment.Segment.line())
 
-    # A file rather than stdin: glow picks its light or dark style from the
-    # terminal, which it can only query when stdin is still the tty.
-    with tempfile.NamedTemporaryFile("w", suffix=".md") as f:
-        f.write(markdown)
-        f.flush()
-        subprocess.run([glow, "-p", f.name])
+    return rendered
+
+
+def page(markdown: str) -> None:
+    """Show Markdown rendered by Rich in an ANSI-aware pager."""
+    console = rich.console.Console(force_terminal=True)
+    with console.capture() as capture:
+        console.print(rich.segment.Segments(_render_markdown(console, markdown)), end="")
+    subprocess.run(_less_command(), input=capture.get(), text=True)
 
 
 def popup_command(directory: Path, names: abc.Iterable[str]) -> list[str]:
