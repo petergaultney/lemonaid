@@ -16,7 +16,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `S` | Toggle snoozed view |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
-| `b` | Show the session's brief in a popup (see below) |
+| `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
@@ -48,12 +48,18 @@ stay until you press `?` a second time. `?` is not configurable.
 
 ## Brief
 
-`b` opens a tmux popup over your client with the selected session's identity and
+When the scratch pane follows on the left, `b` switches to the selected lemon and
+shows its brief in place of the inbox. You can type in the lemon while the brief stays
+visible. `prefix+b` toggles it from the lemon pane, and switching windows or sessions
+restores the inbox. `prefix+l` also restores the inbox, then focuses it; use the
+mouse wheel to scroll the brief while it stays visible beside the lemon.
+
+Otherwise, `b` opens a tmux popup over your client with the selected session's identity and
 brief path, then its `Status:` and `## Now` (or an older session's `.z/brief.md`).
 The rest of the brief appears below.
 Press `q` or `Escape` to close it. Rich renders the Markdown and colours `working`
 yellow, `done` green, and `blocked` red. `lemonaid brief
-show <session> --popup` does the same from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-popup)). The popup has a yellow border and uses 90% of the
+show <session> --popup` uses the same sidebar-or-popup behavior from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-view)). The popup has a yellow border and uses 90% of the
 client width up to a 140-column maximum.
 
 ## Snooze

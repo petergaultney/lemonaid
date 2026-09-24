@@ -2,12 +2,13 @@
 
 import argparse
 import dataclasses
+import os
 import sys
 import time
 from pathlib import Path
 
 from ..inbox import db, emoji
-from . import attached, popup, session, status, target, write_cli
+from . import attached, popup, session, sidebar, status, target, write_cli
 
 
 def _file_header(files: list[Path]) -> tuple[str, dict[Path, str]]:
@@ -77,7 +78,10 @@ def cmd_show(args: argparse.Namespace) -> None:
         args.session, args.file, args.dir, args.place, args.name, args.header, args.brief_identity
     )
     if args.popup:
-        popup.open_popup(found)
+        if not sidebar.toggle(
+            found, sidebar.window_id(args.session or os.environ.get("TMUX_PANE", ""))
+        ):
+            popup.open_popup(found)
         return
 
     body = status.render(

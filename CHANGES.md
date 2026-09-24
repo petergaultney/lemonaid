@@ -1,3 +1,9 @@
+# 0.26.0 (2026-09-24)
+
+#### Added
+
+- **Briefs can stay visible in a left scratch sidebar while you type in the lemon pane.** `b` switches to the selected lemon and shows its brief there; `prefix+b` toggles the current lemon's brief. Switching windows or sessions, or pressing `prefix+l`, restores the inbox. The top scratch strip keeps using the popup.
+
 # 0.25.1 (2026-09-24)
 
 #### Changed

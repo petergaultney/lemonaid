@@ -549,6 +549,17 @@ def _select_pane(pane_id: str) -> bool:
     return result.returncode == 0
 
 
+def _clear_brief(pane_id: str) -> None:
+    """Restore the inbox before focusing or repositioning its scratch pane."""
+    subprocess.run(
+        ["tmux", "set-option", "-pu", "-t", pane_id, follow.BRIEF_OPTION],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["tmux", "send-keys", "-t", pane_id, follow.BRIEF_WAKE_KEY], capture_output=True
+    )
+
+
 def _get_current_pane() -> str | None:
     """Get the current pane ID."""
     result = subprocess.run(
@@ -654,6 +665,9 @@ def move_scratch(size: str, position: str) -> str:
     if pane_id is None or not _pane_exists(pane_id):
         return position
 
+    if position != "left":
+        _clear_brief(pane_id)
+
     # The pane is moved wherever it currently sits, not only when you are in that
     # window: a keybinding is worth having precisely when you are somewhere else.
     target = _sibling_pane(pane_id)
@@ -740,6 +754,7 @@ def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool
 
             return "hidden"
         else:
+            _clear_brief(pane_id)
             if not _select_pane(pane_id):
                 return _create_and_show(size, position)
 
