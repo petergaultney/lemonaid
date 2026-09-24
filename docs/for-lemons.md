@@ -355,9 +355,9 @@ lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
 ```
 
-Output starts with the brief's `Status:` line and its `## Now` section, then the rest of the brief below
-a rule. The briefs attached to the session's lemons come first; when the session holds several lemons
-and no window picks one, each attached brief is shown with only its Status and Now. `b` in the TUI
+Output for a recorded session starts with its identity and brief path, followed by the brief's `Status:` line and its `## Now` section, then the rest of the brief below
+a rule. `--file` resolves an attached session from the inbox, while `--dir` has no session header. The briefs attached to the session's lemons come first; when the session holds several lemons
+and no window picks one, each attached brief names its lemon above its Status and Now. `b` in the TUI
 opens the same popup for the selected session.
 
 A session with no attached brief falls back to `.z/`, for sessions started before briefs moved out of

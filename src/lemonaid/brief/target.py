@@ -8,8 +8,8 @@ import dataclasses
 from collections import abc
 from pathlib import Path
 
-from ..inbox import db
-from . import session
+from ..inbox import db, model_label
+from . import display, session
 
 
 @dataclasses.dataclass(frozen=True)
@@ -19,6 +19,8 @@ class Target:
     place: Path | None  # the session's directory; no brief is looked for above it
     names: list[str]  # candidate <name>s for .z/brief-<name>.md, most specific first
     title: str
+    header: str = ""
+    brief_headers: dict[Path, str] = dataclasses.field(default_factory=dict)
 
 
 def _unique(paths: abc.Iterable[Path | None]) -> list[Path]:
@@ -29,7 +31,29 @@ def _backend(notification: db.Notification) -> str:
     return notification.channel.partition(":")[0]
 
 
-def for_notification(notification: db.Notification, attached: abc.Mapping[str, Path]) -> Target:
+def header_for_notification(notification: db.Notification, emoji: str = "") -> str:
+    metadata = notification.metadata
+    backend = _backend(notification).capitalize()
+    model = model_label.model_label(metadata.get("model"))
+    identity = " ".join(part for part in (emoji, notification.name or backend) if part)
+    location = ":".join(
+        str(part) for part in (metadata.get("tmux_session"), metadata.get("tmux_window")) if part
+    )
+    first = " | ".join(
+        part
+        for part in (identity, f"{backend} / {model[0]}" if model else backend, location)
+        if part
+    )
+    cwd = metadata.get("cwd")
+    directory = display.home_path(Path(cwd)) if cwd else ""
+    branch = metadata.get("git_branch")
+    second = " | ".join(part for part in (directory, branch) if part)
+    return f"**{first}**  \n{second}" if second else f"**{first}**"
+
+
+def for_notification(
+    notification: db.Notification, attached: abc.Mapping[str, Path], emoji: str = ""
+) -> Target:
     """The target for one inbox row: its attached brief, else its lemon's cwd, then its
     tmux session's directory. *attached* maps channels to their briefs."""
     tmux_session = notification.metadata.get("tmux_session") or ""
@@ -41,6 +65,7 @@ def for_notification(notification: db.Notification, attached: abc.Mapping[str, P
         place,
         session.names(tmux_session, _backend(notification), notification.name or ""),
         notification.name or tmux_session or (Path(cwd).name if cwd else ""),
+        header_for_notification(notification, emoji),
     )
 
 
@@ -49,6 +74,7 @@ def for_session(
     notifications: abc.Iterable[db.Notification],
     attached: abc.Mapping[str, Path],
     window: str = "",
+    emojis: abc.Mapping[str, str] | None = None,
 ) -> Target:
     """The target for a tmux session, from every active inbox row recorded in it.
 
@@ -66,7 +92,7 @@ def for_session(
         rows = [n for n in rows if str(n.metadata.get("tmux_window") or "") == window] or rows
 
     if len(rows) == 1:
-        return for_notification(rows[0], attached)
+        return for_notification(rows[0], attached, (emojis or {}).get(rows[0].channel, ""))
 
     place = session.session_dir(tmux_session)
     return Target(
@@ -75,4 +101,12 @@ def for_session(
         place,
         session.names(tmux_session),
         tmux_session,
+        f"**{tmux_session} | {len(rows)} lemons**"
+        if rows
+        else f"**No lemon recorded in {tmux_session}**",
+        {
+            attached[n.channel]: header_for_notification(n, (emojis or {}).get(n.channel, ""))
+            for n in rows
+            if n.channel in attached
+        },
     )
