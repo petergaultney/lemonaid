@@ -16,6 +16,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `S` | Toggle snoozed view |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
+| `b` | Show the session's brief in a popup (see below) |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
@@ -44,6 +45,16 @@ stay until you press `?` a second time. `?` is not configurable.
 |-----|--------|
 | `Enter` | Wake the selected session now (returns it to the inbox) |
 | `S` / `q` | Back to the inbox |
+
+## Brief
+
+`b` opens a tmux popup over your client with where the selected session's work
+stands: the `Status:` line and `## Now` section of its `.z/brief.md` (or the
+`.z/brief-<name>.md` named for that session), with the rest of the brief below.
+Press `q` or `Escape` to close it. It renders with [`glow`](https://github.com/charmbracelet/glow)
+when that is installed and with a built-in renderer otherwise. `lemonaid brief
+show <session> --popup` does the same from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-popup)). The popup has a yellow border and uses 90% of the
+client width up to a 140-column maximum.
 
 ## Snooze
 
@@ -112,6 +123,7 @@ move_pin_up = "shift+up"
 move_pin_down = "shift+down"
 undo = "z"
 rename = "r"
+brief = "b"  # show the session's brief in a popup
 tmux_resume = "T"  # spawn tmux session from history
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left

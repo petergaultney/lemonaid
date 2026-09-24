@@ -67,6 +67,18 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
 - `lemonaid tmux scratch` - Toggle the scratch lma pane (see below)
 - `lemonaid tmux new [-s name]` - Create a new tmux session from a template
+- `lemonaid brief show [<session>] --popup` - Show a session's brief in a popup (see below)
+
+## Brief popup
+
+`b` in the inbox shows the selected session's brief in a popup. To see the brief for the
+session you're in, without the inbox focused, bind a key to it:
+
+```tmux
+bind-key b run-shell -b 'lemonaid brief show "#{session_name}" --popup'
+```
+
+The popup opens over the client that pressed the key.
 
 ## Scratch Pane
 
