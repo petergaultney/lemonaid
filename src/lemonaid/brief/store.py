@@ -15,7 +15,7 @@ import tempfile
 from collections import abc
 from pathlib import Path
 
-STATES = ("working", "done", "blocked")
+STATES = ("working", "waiting", "done", "blocked")
 
 _EDIT_ATTEMPTS = 5
 
@@ -115,9 +115,9 @@ def edit(path: Path, change: abc.Callable[[str], str]) -> None:
     raise ChangedUnderneath(f"{path} kept changing while it was being edited; try again")
 
 
-def with_status(text: str, state: str, note: str) -> str:
-    """*text* with its first `Status:` line set, added under the title if missing."""
-    line = f"Status: {state} - {note}" if note else f"Status: {state}"
+def with_status(text: str, state: str) -> str:
+    """Set the first `Status:` line without changing `## Now`."""
+    line = f"Status: {state}"
     lines = text.splitlines()
     for i, existing in enumerate(lines):
         if _STATUS_LINE.fullmatch(existing.strip()):
