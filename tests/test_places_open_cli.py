@@ -17,7 +17,15 @@ from lemonaid.places import cli, lifecycle
 
 def _args(**kwargs) -> argparse.Namespace:
     return argparse.Namespace(
-        **{"key": "thing", "root": None, "detach": False, "json": False, **kwargs}
+        **{
+            "key": "thing",
+            "root": None,
+            "detach": False,
+            "json": False,
+            "harness": "default",
+            "prompt": "",
+            **kwargs,
+        }
     )
 
 
@@ -36,16 +44,19 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
     monkeypatch.setattr(
         lifecycle,
         "open_key",
-        lambda key, cfg, root, attach=True: (keyed.append((key, root.path, attach)), (cwd, None))[
-            1
-        ],
+        lambda key, cfg, root, attach=True, harness="default", prompt="": (
+            keyed.append((key, root.path, attach, harness, prompt)),
+            (cwd, None),
+        )[1],
     )
 
     sessions: list = []
     monkeypatch.setattr(
         lifecycle,
         "open_session",
-        lambda name, directory, cfg, attach=True: sessions.append((name, directory, attach)),
+        lambda name, directory, cfg, attach=True, harness="default", prompt="": sessions.append(
+            (name, directory, attach, harness, prompt)
+        ),
     )
 
     return keyed, sessions
@@ -57,7 +68,7 @@ def test_a_key_inside_a_namespaced_root(monkeypatch, tmp_path):
 
     cli.cmd_open(_args(key="feat/thing"))
 
-    assert keyed == [("feat/thing", tmp_path, True)]
+    assert keyed == [("feat/thing", tmp_path, True, "default", "")]
     assert not sessions
 
 
@@ -66,7 +77,7 @@ def test_a_name_outside_every_root(monkeypatch, tmp_path):
 
     cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path, True)]
+    assert sessions == [("notes", tmp_path, True, "default", "")]
     assert not keyed
 
 
@@ -76,7 +87,7 @@ def test_a_hookless_root_does_not_claim_the_name(monkeypatch, tmp_path):
 
     cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path, True)]
+    assert sessions == [("notes", tmp_path, True, "default", "")]
     assert not keyed
 
 
@@ -89,7 +100,7 @@ def test_the_innermost_root_decides(monkeypatch, tmp_path):
 
     cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path / "vendored", True)]
+    assert sessions == [("notes", tmp_path / "vendored", True, "default", "")]
     assert not keyed
 
 
@@ -109,7 +120,19 @@ def test_detach_is_passed_through(monkeypatch, tmp_path):
 
     cli.cmd_open(_args(key="notes", detach=True))
 
-    assert sessions == [("notes", tmp_path, False)]
+    assert sessions == [("notes", tmp_path, False, "default", "")]
+
+
+def test_harness_and_prompt_are_passed_through(monkeypatch, tmp_path):
+    keyed, _ = _records(
+        monkeypatch,
+        _config(PlaceRoot(path=tmp_path, path_of="wt path {key}")),
+        tmp_path,
+    )
+
+    cli.cmd_open(_args(key="feat/thing", harness="codex", prompt="read .z/brief.md"))
+
+    assert keyed == [("feat/thing", tmp_path, True, "codex", "read .z/brief.md")]
 
 
 def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys):

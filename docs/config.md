@@ -41,10 +41,29 @@ See [wezterm.md](wezterm.md).
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `follow_scratch` | `false` | Bootstrap follow mode for new tmux servers. When the scratch pane is first toggled on a server, this determines whether follow is enabled by default. See [tmux.md](tmux.md#follow-mode). |
 | `resume_window` | `0` | 0-based index into the template window list: which window to replace with the resume command when spawning a tmux session from history (`T`). Set to `1` if your lemon is in the second tab. |
+| `harness_window` | `resume_window` | 0-based template window whose command accepts `place open --prompt`. Set it separately only when new-session prompts and resumed sessions belong in different windows. |
 
 ### `[tmux-session.templates]`
 
 See [tmux.md](tmux.md).
+
+Template names also act as harness names for `place open`. For example,
+`place open feat/thing --harness codex` selects the `codex` list below, while
+an open without `--harness` continues to select `default`:
+
+```toml
+[tmux-session]
+resume_window = 1
+# harness_window = 1  # implied by resume_window when omitted
+
+[tmux-session.templates]
+default = [
+    "emacsclient -nw .",
+    "lemonaid claude patch && claude --remote-control --thinking-display summarized",
+    "",
+]
+codex = ["emacsclient -nw .", "codex", ""]
+```
 
 ## `[tmux-window]`
 

@@ -50,6 +50,24 @@ def test_open_place_spawns_when_nothing_is_there(monkeypatch, tmp_path):
     assert spawned[0]["session_name"] == "named"
 
 
+def test_open_place_passes_harness_and_prompt_to_spawn(monkeypatch, tmp_path):
+    _no_existing_session(monkeypatch)
+    spawned = _spawns_into(monkeypatch)
+
+    assert (
+        lifecycle.open_place(
+            tmp_path,
+            _CONFIG,
+            harness="codex",
+            prompt="read .z/brief.md",
+        )
+        is None
+    )
+
+    assert spawned[0]["template_name"] == "codex"
+    assert spawned[0]["initial_prompt"] == "read .z/brief.md"
+
+
 def test_open_key_acquires_then_opens(monkeypatch, tmp_path):
     (tmp_path / "acquired").mkdir()
     root = PlaceRoot(path=tmp_path, create="mkdir -p acquired", path_of=f"echo {tmp_path}/acquired")

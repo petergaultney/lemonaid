@@ -239,9 +239,15 @@ default = [
     "claude",
     "",
 ]
+codex = [
+    "emacsclient -nw .",
+    "codex",
+    "",
+]
 ```
 
 Each entry in the list creates a window. Empty string means just a shell.
+Named templates can also be selected as harnesses by `place open --harness`.
 
 ### Usage
 

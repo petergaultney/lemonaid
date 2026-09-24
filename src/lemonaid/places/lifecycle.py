@@ -22,6 +22,8 @@ def open_place(
     config: Config,
     session_name: str = "",
     attach: bool = True,
+    harness: str = "default",
+    prompt: str = "",
 ) -> str | None:
     """Switch to a session rooted at *directory*, creating one if none exists.
 
@@ -50,10 +52,19 @@ def open_place(
         config=config.tmux_session,
         session_name=session_name,
         attach=attach,
+        template_name=harness,
+        initial_prompt=prompt,
     )
 
 
-def open_session(name: str, directory: Path, config: Config, attach: bool = True) -> str | None:
+def open_session(
+    name: str,
+    directory: Path,
+    config: Config,
+    attach: bool = True,
+    harness: str = "default",
+    prompt: str = "",
+) -> str | None:
     """Get a session called *name* sitting in *directory*, acquiring nothing.
 
     For directories no root claims the names of, where a name can only have meant
@@ -74,7 +85,12 @@ def open_session(name: str, directory: Path, config: Config, attach: bool = True
         return None
 
     return tmux.session.spawn_session(
-        cwd=str(directory), config=config.tmux_session, session_name=name, attach=attach
+        cwd=str(directory),
+        config=config.tmux_session,
+        session_name=name,
+        attach=attach,
+        template_name=harness,
+        initial_prompt=prompt,
     )
 
 
@@ -106,7 +122,12 @@ def acquire_key(key: str, root: PlaceRoot) -> tuple[Path | None, str | None]:
 
 
 def open_key(
-    key: str, config: Config, root: PlaceRoot, attach: bool = True
+    key: str,
+    config: Config,
+    root: PlaceRoot,
+    attach: bool = True,
+    harness: str = "default",
+    prompt: str = "",
 ) -> tuple[Path | None, str | None]:
     """Get a session for *key* under *root*, acquiring its directory if needed.
 
@@ -121,4 +142,11 @@ def open_key(
     if directory is None:
         return None, error
 
-    return directory, open_place(directory, config, session_name=key, attach=attach)
+    return directory, open_place(
+        directory,
+        config,
+        session_name=key,
+        attach=attach,
+        harness=harness,
+        prompt=prompt,
+    )

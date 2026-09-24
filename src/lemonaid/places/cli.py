@@ -37,9 +37,23 @@ def cmd_open(args: argparse.Namespace) -> None:
 
     if root is None:
         directory = Path.cwd()
-        error = lifecycle.open_session(args.key, directory, config, attach=not args.detach)
+        error = lifecycle.open_session(
+            args.key,
+            directory,
+            config,
+            attach=not args.detach,
+            harness=args.harness,
+            prompt=args.prompt,
+        )
     else:
-        directory, error = lifecycle.open_key(args.key, config, root, attach=not args.detach)
+        directory, error = lifecycle.open_key(
+            args.key,
+            config,
+            root,
+            attach=not args.detach,
+            harness=args.harness,
+            prompt=args.prompt,
+        )
 
     if args.json:
         print(
@@ -196,6 +210,17 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     open_parser.add_argument(
         "--root", help="Root to acquire under (default: the one containing cwd)"
+    )
+    open_parser.add_argument(
+        "--harness",
+        default="default",
+        metavar="NAME",
+        help="Use [tmux-session.templates].NAME (default: default)",
+    )
+    open_parser.add_argument(
+        "--prompt",
+        default="",
+        help="Pass an initial prompt to the configured harness window",
     )
     open_parser.add_argument(
         "-d",

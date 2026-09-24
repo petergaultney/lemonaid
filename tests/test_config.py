@@ -78,6 +78,19 @@ def test_named_tmux_window_processes_default_to_empty():
     assert _parse_config({}).tmux_window.named_processes == ()
 
 
+def test_harness_window_defaults_to_resume_window_at_use_time():
+    config = _parse_config({"tmux-session": {"resume_window": 1}})
+
+    assert config.tmux_session.resume_window == 1
+    assert config.tmux_session.harness_window is None
+
+
+def test_harness_window_can_be_configured_separately():
+    config = _parse_config({"tmux-session": {"resume_window": 1, "harness_window": 2}})
+
+    assert config.tmux_session.harness_window == 2
+
+
 def test_build_bindings_single_key():
     """Single key creates one visible binding."""
     bindings = _build_bindings("q", "quit", "Quit")

@@ -166,8 +166,10 @@ def spawn_session(
     session_metadata: dict | None = None,
     session_name: str = "",
     attach: bool = True,
+    template_name: str = "default",
+    initial_prompt: str = "",
 ) -> str | None:
-    """Create a tmux session from the default template, rooted at *cwd*.
+    """Create a tmux session from a configured template, rooted at *cwd*.
 
     With *resume_argv*, the window at `config.resume_window` is replaced by that
     command; without it the template is used as-is, which is what recreating a
@@ -178,9 +180,25 @@ def spawn_session(
 
     Returns an error message string on failure, or None on success.
     """
-    windows = config.get_template("default")
+    windows = config.get_template(template_name)
     if not windows:
-        return "No tmux-session template 'default' in config"
+        return f"No tmux-session template {template_name!r} in config"
+
+    # Never mutate the list held by Config: the next session may choose a
+    # different prompt or no prompt at all.
+    windows = list(windows)
+
+    if initial_prompt:
+        configured_idx = (
+            config.resume_window if config.harness_window is None else config.harness_window
+        )
+        idx = max(0, min(configured_idx, len(windows) - 1))
+        if not windows[idx].strip():
+            return (
+                f"Tmux-session template {template_name!r} has no harness command "
+                f"in window {idx}"
+            )
+        windows[idx] = f"{windows[idx]} {shlex.quote(initial_prompt)}"
 
     # For Claude sessions, prefer the history-derived project dir
     if channel.startswith("claude:") and session_metadata:

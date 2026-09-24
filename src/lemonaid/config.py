@@ -47,6 +47,9 @@ class TmuxSessionConfig:
     # 0-based index into the template window list: which window to replace
     # with the resume command when spawning a session from history.
     resume_window: int = 0
+    # 0-based template window whose command accepts an initial prompt. None
+    # follows resume_window, since both normally identify the lemon window.
+    harness_window: int | None = None
     # Where the scratch pane sits: "top" or "left".
     scratch_position: str = "top"
     # Size of the scratch pane along the axis it splits. A top pane is measured
@@ -264,6 +267,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tmux_session = TmuxSessionConfig(
         templates=tmux_session_data.get("templates", {}),
         resume_window=tmux_session_data.get("resume_window", 0),
+        harness_window=tmux_session_data.get("harness_window"),
         scratch_position=tmux_session_data.get(
             "scratch_position", tmux_session_defaults.scratch_position
         ),
