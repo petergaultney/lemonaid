@@ -26,8 +26,11 @@ _UNKNOWN_STATUS_STYLE = rich.style.Style(dim=True)
 
 
 def _less_command() -> list[str]:
-    """A pager whose two natural dismiss keys both close it."""
-    return ["less", "-R", f"--lesskey-content={_LESSKEY_CONTENT}"]
+    """A pager whose two natural dismiss keys both close it.
+
+    `--tilde` leaves the lines past the end of a short brief blank.
+    """
+    return ["less", "-R", "--tilde", f"--lesskey-content={_LESSKEY_CONTENT}"]
 
 
 def _render_markdown(console: rich.console.Console, markdown: str) -> list[rich.segment.Segment]:

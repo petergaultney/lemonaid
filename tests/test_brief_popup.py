@@ -13,7 +13,11 @@ def test_the_fallback_pager_quits_on_escape_as_well_as_q():
     command = popup._less_command()
 
     assert command[:2] == ["less", "-R"]
-    assert r"\e quit" in command[2]
+    assert r"\e quit" in command[-1]
+
+
+def test_the_fallback_pager_leaves_the_space_past_the_end_blank():
+    assert "--tilde" in popup._less_command()
 
 
 def test_rich_colours_statuses_by_state():
