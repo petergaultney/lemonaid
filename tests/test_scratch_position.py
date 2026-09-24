@@ -150,6 +150,49 @@ def test_flipping_alternates(monkeypatch, tmp_path):
     assert scratch.flip_position("left") == "top"
 
 
+def test_moving_to_top_dismisses_the_sidebar_brief(monkeypatch):
+    commands: list[list[str]] = []
+    monkeypatch.setattr(scratch, "set_position", lambda _: None)
+    monkeypatch.setattr(scratch.follow, "kill_placeholders", lambda: None)
+    monkeypatch.setattr(scratch, "_get_pane_id", lambda: "%7")
+    monkeypatch.setattr(scratch, "_pane_exists", lambda _: True)
+    monkeypatch.setattr(scratch, "_sibling_pane", lambda _: None)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **_: commands.append(argv) or subprocess.CompletedProcess(argv, 0),
+    )
+
+    assert scratch.move_scratch("12", "top") == "top"
+    assert ["tmux", "set-option", "-pu", "-t", "%7", scratch.follow.BRIEF_OPTION] in commands
+    assert ["tmux", "send-keys", "-t", "%7", scratch.follow.BRIEF_WAKE_KEY] in commands
+
+
+def test_focusing_scratch_restores_inbox_before_selecting_it(monkeypatch):
+    commands: list[list[str]] = []
+    monkeypatch.setattr(scratch, "bootstrap_follow", lambda _: None)
+    monkeypatch.setattr(scratch, "is_follow_enabled", lambda: True)
+    monkeypatch.setattr(scratch, "_publish_all", lambda *_: None)
+    monkeypatch.setattr(scratch.follow, "install_hooks", lambda: None)
+    monkeypatch.setattr(scratch, "_get_current_pane", lambda: "%main")
+    monkeypatch.setattr(scratch, "_get_pane_id", lambda: "%7")
+    monkeypatch.setattr(scratch, "_pane_exists", lambda _: True)
+    monkeypatch.setattr(scratch, "_get_current_window", lambda: "@2")
+    monkeypatch.setattr(scratch, "_get_pane_window", lambda _: "@2")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **_: commands.append(argv) or subprocess.CompletedProcess(argv, 0),
+    )
+
+    assert scratch.toggle_scratch(position="left") == "selected"
+    assert commands == [
+        ["tmux", "set-option", "-pu", "-t", "%7", scratch.follow.BRIEF_OPTION],
+        ["tmux", "send-keys", "-t", "%7", scratch.follow.BRIEF_WAKE_KEY],
+        ["tmux", "select-pane", "-t", "%7"],
+    ]
+
+
 def test_the_size_is_capped_against_the_smaller_of_client_and_window():
     """Neither alone is right.
 

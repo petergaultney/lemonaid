@@ -32,6 +32,8 @@ POSITION_OPTION = "@lemonaid_scratch_position"  # "left" or "top"
 WIDTH_OPTION = "@lemonaid_scratch_width"  # columns, for a left pane
 HEIGHT_OPTION = "@lemonaid_scratch_height"  # rows, for a top pane
 MARKER_OPTION = "@lemonaid_scratch"  # set on the pane itself; how it is found again
+BRIEF_OPTION = "@lemonaid_brief_sidebar"  # a brief belongs to the window being left
+BRIEF_WAKE_KEY = "F12"
 RECENT_PLACEHOLDER_OPTION = "@lemonaid_recent_placeholder"  # most recently left slot
 
 # Recognised by its start command rather than an option: an option could only be
@@ -221,6 +223,7 @@ def hook_command() -> str:
     )
     return (
         f"if-shell -F '{hook_condition()}' {{\n"
+        f"  run-shell -C 'set-option -pu -t #{{{PANE_OPTION}}} {BRIEF_OPTION}'\n"
         f"  if-shell -F '{_placeholder_here()}' {{\n"
         f"    {remember}\n"
         f"    {swap}\n"
@@ -230,6 +233,7 @@ def hook_command() -> str:
         f"    {swap}\n"
         f"  }}\n"
         f"  {resize}\n"
+        f"  run-shell -C 'send-keys -t #{{{PANE_OPTION}}} {BRIEF_WAKE_KEY}'\n"
         f"  {unfocus_here}\n"
         f"  run-shell -C '{_unfocus_placeholders()}'\n"
         f"  run-shell -C '{_kill_orphan_placeholders()}'\n"

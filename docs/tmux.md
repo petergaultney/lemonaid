@@ -128,11 +128,11 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
 - `lemonaid tmux scratch` - Toggle the scratch lma pane (see below)
 - `lemonaid tmux new [-s name]` - Create a new tmux session from a template
-- `lemonaid brief show [<session>[:<window>]] --popup` - Show a session's brief in a popup (see below)
+- `lemonaid brief show [<session>[:<window>]] --popup` - Show a session's brief in the sidebar when available, otherwise a popup (see below)
 
-## Brief popup
+## Brief view
 
-`b` in the inbox shows the selected session's brief in a popup. To see the brief for the
+`b` in the inbox shows the selected session's brief. To see the brief for the
 session you're in, without the inbox focused, bind a key to it:
 
 ```tmux
@@ -142,7 +142,15 @@ bind-key b run-shell -b 'lemonaid brief show "#{session_name}:#{window_index}" -
 Passing the window shows the brief of the lemon in it when a session holds several (an author
 and its reviewer); from any other window, every lemon's brief is shown.
 
-The popup opens over the client that pressed the key, and pressing the same key again closes it.
+With the scratch pane following on the left, the brief replaces the inbox inside that pane.
+`b` in the inbox switches to the selected lemon so you can type while reading. The binding
+above shows the current lemon's brief without changing focus. Press `prefix+b` again to
+restore the inbox; switching to another window or session also restores it. `prefix+l`
+restores the inbox and focuses it. Use the mouse wheel to scroll a visible brief while
+staying in the lemon pane.
+
+When the scratch pane is on top, parked, or not following, the brief opens as a popup over
+the client that pressed the key. Pressing the same key again closes it.
 Its first lines identify the selected lemon and its working directory from the inbox, then show
 the brief path and current status. A brief without an attached session says so in that header.
 The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is

@@ -58,6 +58,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
 - **Always-visible sidebar** (`tmux`): [Follow mode](docs/tmux.md#follow-mode) keeps the inbox in view across every window and session switch, on the left or across the top. Sessions render as cards when the pane is too narrow for columns. Without follow mode it is still a scratch pane you toggle with a keybinding, with no startup delay
+- **Brief beside the lemon** (`tmux`): When the scratch pane follows on the left, `b` replaces the inbox with the selected lemon's brief while you type in its pane. `prefix+b` toggles the brief from the lemon; switching away restores the inbox
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers

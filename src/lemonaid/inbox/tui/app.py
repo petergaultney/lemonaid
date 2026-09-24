@@ -17,9 +17,10 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Container
 from textual.coordinate import Coordinate
 from textual.timer import Timer
-from textual.widgets import DataTable, Footer, Header, Input, Static
+from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
 
 from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
@@ -49,6 +50,7 @@ from ...tmux.scratch import (
 from ...tmux.session import spawn_session
 from .. import db, emoji, pins, undo
 from . import backend_indicators, brief_cards
+from .brief_view import BriefView
 from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
@@ -583,6 +585,10 @@ class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
     CSS = f"$attention: {ATTENTION_COLOR};\n" + """
+    #content_switcher, #inbox_content {
+        height: 1fr;
+    }
+
     #main_table {
         height: 1fr;
     }
@@ -678,6 +684,9 @@ class LemonaidApp(App):
         self._card_layout = False
         self._models_by_channel: dict[str, ModelInfo] = {}
         self._brief_cache = brief_cards.BriefCache()
+        self._brief_target: brief.target.Target | None = None
+        self._brief_saved_focus = "main_table"
+        self._brief_saved_subtitle = "attention inbox"
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -773,17 +782,25 @@ class LemonaidApp(App):
             self.bind(up, "cursor_up", description="Up", show=False)
             self.bind(down, "cursor_down", description="Down", show=False)
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if self._brief_target is not None:
+            return action in {"quit", "brief", "refresh", "help", "flip_position"}
+        return True
+
     def compose(self) -> ComposeResult:
         yield Header()
-        yield ClickToActTable(id="main_table")
-        yield Static("", id="other_sources_label")
-        yield DataTable(id="other_sources_table", show_header=False)
-        yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
-        # History resumes a session, replacing the terminal you are sitting in.
-        # That wants picking a row and committing to it to stay separate.
-        yield DataTable(id="history_table")
-        yield DataTable(id="snoozed_table")
-        yield Static("", id="status")
+        with ContentSwitcher(initial="inbox_content", id="content_switcher"):
+            with Container(id="inbox_content"):
+                yield ClickToActTable(id="main_table")
+                yield Static("", id="other_sources_label")
+                yield DataTable(id="other_sources_table", show_header=False)
+                yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
+                # History resumes a session, replacing the terminal you are sitting in.
+                # That wants picking a row and committing to it to stay separate.
+                yield DataTable(id="history_table")
+                yield DataTable(id="snoozed_table")
+                yield Static("", id="status")
+            yield BriefView(id="brief_view")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -1183,6 +1200,11 @@ class LemonaidApp(App):
         ]
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
+        if self._brief_target is not None:
+            self._wake_expired_snoozes()
+            self.query_one(BriefView).update_brief(self._brief_target)
+            return
+
         # Alternate views own the screen; the periodic tick still needs to wake
         # expired snoozes so they're waiting when the inbox comes back.
         if self._history_mode or self._snoozed_mode:
@@ -1335,6 +1357,13 @@ class LemonaidApp(App):
         In history mode, q quits directly (use h to return to active view).
         The snoozed list is a subview, so q backs out of it instead.
         """
+        if self._brief_target is not None:
+            pane = os.environ.get("TMUX_PANE")
+            if pane:
+                brief.sidebar.clear(pane)
+            self._set_brief_view(None)
+            return
+
         if self._snoozed_mode:
             self._set_snoozed_mode(False)
             return
@@ -1379,6 +1408,9 @@ class LemonaidApp(App):
 
     def _show_keys(self, shown: bool) -> None:
         self._keys_shown = shown
+        if self._brief_target is not None:
+            return
+
         self.query_one(Footer).display = shown
         self.query_one("#status", Static).display = not shown
 
@@ -1665,7 +1697,7 @@ class LemonaidApp(App):
         self._refresh_snoozed()
         self.notify(f"{entry.description} — press {self._undo_key()} to undo")
 
-    def _switch_to_notification(self, notification) -> None:
+    def _switch_to_notification(self, notification) -> bool:
         """Put the terminal on this session, recreating its pane if it is gone."""
         # Channel drives cwd-based fallback resolution; name is the
         # session name to reuse if the pane is gone and we respawn.
@@ -1679,7 +1711,7 @@ class LemonaidApp(App):
             switch_source=notification.switch_source,
         ):
             self.notify("Could not switch to or recreate that session", severity="warning")
-            return
+            return False
 
         # We already know where a successful in-app switch went. Reflect that
         # immediately instead of waiting for the next tmux poll; the periodic
@@ -1694,6 +1726,8 @@ class LemonaidApp(App):
         # mode is on - there the hook re-shows it in the target window.
         if self._scratch_mode and not is_follow_enabled():
             self._hide_scratch_pane()
+
+        return True
 
     def _still_running(self, notification) -> bool:
         """Whether this session's pane is still there to switch to.
@@ -1863,6 +1897,12 @@ class LemonaidApp(App):
 
     def on_key(self, event: events.Key) -> None:
         """Handle special keys in the filter input."""
+        if event.key == "f12" and self._scratch_mode:
+            event.prevent_default()
+            event.stop()
+            self._sync_brief_view()
+            return
+
         if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
             return
 
@@ -1924,6 +1964,10 @@ class LemonaidApp(App):
             table.action_select_cursor()
 
     def action_refresh(self) -> None:
+        if self._brief_target is not None:
+            self.query_one(BriefView).show(self._brief_target)
+            return
+
         self._refresh_notifications()
 
     def _undo_key(self) -> str:
@@ -2199,8 +2243,49 @@ class LemonaidApp(App):
             handle_rename,
         )
 
+    def _set_brief_view(self, found: brief.target.Target | None) -> None:
+        view = self.query_one(BriefView)
+        switcher = self.query_one(ContentSwitcher)
+        if found is None:
+            if self._brief_target is None:
+                return
+
+            self._brief_target = None
+            switcher.current = "inbox_content"
+            self.sub_title = self._brief_saved_subtitle
+            self.query_one(f"#{self._brief_saved_focus}").focus()
+            self.refresh_bindings()
+            self._show_keys(self._keys_shown)
+            self._refresh_notifications()
+            return
+
+        if self._brief_target is None:
+            self._brief_saved_focus = (
+                self.focused.id if self.focused and self.focused.id else "main_table"
+            )
+            self._brief_saved_subtitle = self.sub_title
+
+        self._brief_target = found
+        switcher.current = "brief_view"
+        self.sub_title = "brief"
+        view.show(found)
+        view.focus()
+        self.refresh_bindings()
+
+    def _sync_brief_view(self) -> None:
+        pane = os.environ.get("TMUX_PANE")
+        shown = brief.sidebar.read(pane) if pane else None
+        if shown and brief.sidebar.window_id(pane) == shown[1]:
+            self._set_brief_view(shown[0])
+        else:
+            self._set_brief_view(None)
+
     def action_brief(self) -> None:
-        """Show where the selected session's work stands, in a popup over this client."""
+        """Show a brief in the sidebar, or use a popup if it is unavailable."""
+        if self._brief_target is not None:
+            self.action_quit()
+            return
+
         row_key = self._get_current_row_key()
         if not row_key:
             return
@@ -2220,6 +2305,20 @@ class LemonaidApp(App):
         if not target or not (target.attached or target.dirs):
             self.notify("No brief or directory recorded for this session", severity="warning")
             return
+
+        if (
+            self._scratch_mode
+            and is_follow_enabled()
+            and not self._history_mode
+            and not self._snoozed_mode
+            and notification.switch_source == "tmux"
+            and current_position(self.config.tmux_session.scratch_position) == "left"
+            and self._switch_to_notification(notification)
+        ):
+            pane = os.environ.get("TMUX_PANE", "")
+            if brief.sidebar.toggle(target, brief.sidebar.window_id(pane)):
+                self._sync_brief_view()
+                return
 
         brief.popup.open_popup(target)
 
