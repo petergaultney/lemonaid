@@ -56,6 +56,10 @@ def notes_dir(start: Path, place: Path | None) -> Path | None:
     return start / ".z"
 
 
+def load(path: Path) -> Brief:
+    return Brief(path, path.stem, path.stat().st_mtime, path.read_text())
+
+
 def find_briefs(notes: Path) -> list[Brief]:
     """Every brief in a `.z/` directory, newest first."""
     if not notes.is_dir():
@@ -135,20 +139,38 @@ def _render_brief(brief: Brief, now: float, full: bool) -> str:
     )
 
 
+def _render_all(briefs: abc.Sequence[Brief], now: float) -> str:
+    return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)
+
+
 def render(
-    dirs: abc.Sequence[Path], place: Path | None, names: abc.Sequence[str], now: float
+    attached: abc.Sequence[Path],
+    dirs: abc.Sequence[Path],
+    place: Path | None,
+    names: abc.Sequence[str],
+    now: float,
 ) -> str:
     """Markdown for where the work in a place stands.
 
-    The first directory holding a brief is used. One brief is shown with its task
-    statement below a rule, out of the way; when several could be the one, each
-    shows only its Status and Now. Without a brief anywhere, the first
-    `.z/state.md` (written by lemons before compaction) stands in.
+    Briefs attached to the session's lemons come first, and when there are any,
+    nothing else is read. Otherwise the first directory holding a brief is used.
+    One brief is shown with its task statement below a rule, out of the way;
+    when several could be the one, each shows only its Status and Now. Without a
+    brief anywhere, the first `.z/state.md` (written by lemons before
+    compaction) stands in.
     """
+    if attached:
+        present = [load(path) for path in attached if path.is_file()]
+        if present:
+            return _render_all(sorted(present, key=lambda b: b.mtime, reverse=True), now)
+
+        missing = ", ".join(f"`{path}`" for path in attached)
+        return f"## Work status\n\nThe attached brief {missing} does not exist."
+
     notes_dirs = [notes for d in dirs if (notes := notes_dir(d, place))]
     for notes in notes_dirs:
         if briefs := pick(find_briefs(notes), names):
-            return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)
+            return _render_all(briefs, now)
 
     for state in (notes / "state.md" for notes in notes_dirs):
         if not state.is_file():

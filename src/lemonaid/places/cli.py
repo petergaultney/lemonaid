@@ -6,7 +6,9 @@ import json
 import sys
 from pathlib import Path
 
+from .. import brief
 from ..config import Config, PlaceRoot, load_config
+from ..inbox import db
 from . import lifecycle, ownership, toss_cli
 
 
@@ -23,9 +25,44 @@ def root_or_exit(config: Config, directory: str | Path) -> PlaceRoot:
     return root
 
 
+def _attach_brief(
+    path: Path,
+    key: str,
+    directory: Path,
+    in_root: bool,
+    config: Config,
+    harness: str,
+    after_id: int,
+) -> str | None:
+    """Wait on the new session's harness window for its lemon. Returns an error, or None."""
+    session = lifecycle.session_for(key, directory, in_root)
+    if not session:
+        return f"Opened, but could not tell which session is {directory}'s to attach {path}"
+
+    with db.connect() as conn:
+        brief.attached.attach_pending(
+            conn, session, lifecycle.harness_window(config, harness), path, after_id
+        )
+    return None
+
+
 def cmd_open(args: argparse.Namespace) -> None:
     """Get a session for a key, acquiring its directory if it doesn't exist yet."""
     config = load_config()
+    brief_path = brief.store.resolve(args.brief) if args.brief else None
+    if brief_path and (error := brief.store.outside_error(brief_path)):
+        print(error, file=sys.stderr)
+        sys.exit(1)
+
+    if brief_path and not brief_path.is_file():
+        print(f"No brief at {brief_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Taken before the session exists, so a lemon that starts quickly still counts.
+    after_id = 0
+    if brief_path:
+        with db.connect() as conn:
+            after_id = brief.attached.newest_id(conn)
 
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
@@ -55,6 +92,11 @@ def cmd_open(args: argparse.Namespace) -> None:
             prompt=args.prompt,
         )
 
+    if brief_path and directory and not error:
+        error = _attach_brief(
+            brief_path, args.key, directory, root is not None, config, args.harness, after_id
+        )
+
     if args.json:
         print(
             json.dumps(
@@ -62,6 +104,7 @@ def cmd_open(args: argparse.Namespace) -> None:
                     "key": args.key,
                     "dir": str(directory) if directory else None,
                     "root": str(root.path) if root else None,
+                    "brief": str(brief_path) if brief_path else None,
                     "error": error,
                 }
             )
@@ -221,6 +264,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--prompt",
         default="",
         help="Pass an initial prompt to the configured harness window",
+    )
+    open_parser.add_argument(
+        "--brief",
+        default="",
+        metavar="FILE",
+        help="Attach this brief (a path, or a name in ~/.brief-lemons/) to the first "
+        "lemon that starts in the session's harness window",
     )
     open_parser.add_argument(
         "-d",

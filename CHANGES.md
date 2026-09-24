@@ -1,3 +1,15 @@
+# 0.24.0 (2026-09-24)
+
+#### Added
+
+- **Briefs are attached to lemon sessions and live in `~/.brief-lemons/`.** `brief attach`, `new`, `now`, `status`, and `detach` take `--self`, `--session SESSION[:WINDOW]`, `--channel`, or `--id`, so a sandboxed lemon can keep its brief current and the control center can attach one on another lemon's behalf. `brief show`, `b`, and `prefix+b` show the attached brief first and fall back to `.z/` for older sessions.
+
+- **`place open --brief <file>` attaches a brief to the first lemon that starts in the new session.**
+
+- **`brief list --json` maps each brief file to its session.**
+
+- **Only files inside `~/.brief-lemons/` can be attached or edited as briefs.** The write commands run outside Codex's sandbox, so the folder is their boundary.
+
 # 0.23.0 (2026-09-24)
 
 #### Added

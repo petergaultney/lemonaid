@@ -14,12 +14,12 @@ def _tmux(*args: str) -> str:
 
 
 def current_session() -> str:
-    """The session of the calling pane, or "" outside tmux."""
+    """`session:window` of the calling pane, or "" outside tmux."""
     pane = os.environ.get("TMUX_PANE")
     if not pane:
         return ""
 
-    return _tmux("display-message", "-p", "-t", pane, "#{session_name}")
+    return _tmux("display-message", "-p", "-t", pane, "#{session_name}:#{window_index}")
 
 
 def session_dir(session: str) -> Path | None:

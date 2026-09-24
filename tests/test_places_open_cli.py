@@ -11,7 +11,9 @@ import json
 
 import pytest
 
+from lemonaid.brief import attached, store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
+from lemonaid.inbox import db
 from lemonaid.places import cli, lifecycle
 
 
@@ -24,6 +26,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "json": False,
             "harness": "default",
             "prompt": "",
+            "brief": "",
             **kwargs,
         }
     )
@@ -144,6 +147,7 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
         "key": "notes",
         "dir": str(tmp_path),
         "root": None,
+        "brief": None,
         "error": None,
     }
 
@@ -184,3 +188,30 @@ def test_acquire_exits_nonzero_on_failure(monkeypatch, tmp_path, capsys):
         cli.cmd_acquire(_acquire_args(key="nope", json=True))
 
     assert json.loads(capsys.readouterr().out)["error"] == "no create command"
+
+
+def test_a_brief_waits_on_the_new_sessions_harness_window(monkeypatch, tmp_path):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    brief_file = store.briefs_dir() / "task.md"
+    brief_file.parent.mkdir(parents=True)
+    brief_file.write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task"))
+
+    with db.connect() as conn:
+        [waiting] = attached.everything(conn)
+    assert (waiting.path, waiting.tmux_session, waiting.tmux_window) == (
+        brief_file.resolve(),
+        "notes",
+        "2",
+    )
+
+
+def test_a_missing_brief_is_refused_before_opening(monkeypatch, tmp_path):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", brief="nosuch"))
+
+    assert not sessions

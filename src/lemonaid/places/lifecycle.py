@@ -94,6 +94,23 @@ def open_session(
     )
 
 
+def harness_window(config: Config, template_name: str) -> str:
+    """tmux's index for the window a template starts its lemon in."""
+    windows = config.tmux_session.get_template(template_name) or [""]
+    configured = config.tmux_session.harness_window
+    idx = config.tmux_session.resume_window if configured is None else configured
+    return str(tmux.session.get_base_index() + max(0, min(idx, len(windows) - 1)))
+
+
+def session_for(key: str, directory: Path, in_root: bool) -> str:
+    """The name of the session `open_key` (*in_root*) or `open_session` got for *key*."""
+    if not in_root:
+        return tmux.session.sanitize_name(key)
+
+    session, _ = tmux.navigation.get_pane_for_cwd(str(directory))
+    return session if session and session != tmux.navigation.AMBIGUOUS else ""
+
+
 def acquire_key(key: str, root: PlaceRoot) -> tuple[Path | None, str | None]:
     """Get the directory for *key*, creating it if needed. No session is involved.
 
