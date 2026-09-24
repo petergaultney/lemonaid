@@ -69,6 +69,20 @@ it's missing, switches to its session only if there isn't one, and neither case 
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
 
+Choose a configured lemon with `--harness NAME`. The name selects the matching
+entry under `[tmux-session.templates]`; without it, `default` is used. An
+initial prompt can be passed directly to that template's harness command:
+
+```bash
+lemonaid place open feat/thing --harness codex --prompt 'read .z/brief.md and do what it says'
+```
+
+The prompt is shell-quoted and appended as a positional argument to the command
+in `harness_window` (or `resume_window` when `harness_window` is unset). These
+options only affect creation; if the place already has a session, `open` keeps
+its idempotent behavior and switches to that session without injecting a new
+prompt. See [the configuration reference](config.md#tmux-sessiontemplates).
+
 `place acquire` is the same acquisition without the session, printing the directory — so
 `cd $(lemonaid place acquire feat/thing)` works. It exists for callers that aren't tmux
 clients: an agent has its own session and will never attach to one, so `place open` would
@@ -93,6 +107,11 @@ Add `--detach` to skip switching to it, and `--json` to any of these for machine
 output. `list --json` includes each place's key and its live tmux session name (empty when
 nothing is running there), which is what an agent needs to act on a listed place. See
 [for-lemons.md](for-lemons.md) for the full programmatic surface.
+
+A root's `list` hook may occasionally report a valid directory outside the
+configured root, for example a temporary git worktree. Lemonaid ignores and
+logs that entry because it cannot derive a key in the root's namespace; other
+places continue to list normally.
 
 ## Teardown
 

@@ -64,11 +64,21 @@ def managed_places(config: Config) -> list[Place]:
     subprocess, and resolving a session's places means testing every pane path
     against every managed directory.
     """
-    return [
-        Place(str(directory.relative_to(root.path)), root, directory)
-        for root in config.places.roots
-        for directory in hooks.list_directories(root)
-    ]
+    places: list[Place] = []
+    for root in config.places.roots:
+        for directory in hooks.list_directories(root):
+            try:
+                key = str(directory.relative_to(root.path))
+            except ValueError:
+                _log.warning(
+                    "place root %s reported directory outside itself: %s",
+                    root.path,
+                    directory,
+                )
+                continue
+            places.append(Place(key, root, directory))
+
+    return places
 
 
 def places_of(

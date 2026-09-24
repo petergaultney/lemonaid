@@ -163,6 +163,7 @@ to set a place up for them to attach to later.
 ```bash
 lemonaid place open <key> --json           # acquire if needed, then open a session
 lemonaid place open <key> --detach --json  # ... without stealing the terminal
+lemonaid place open <key> --harness codex --prompt 'read .z/brief.md' --json
 ```
 
 Idempotent: the directory is acquired only if it doesn't exist, its session is switched to
@@ -174,6 +175,14 @@ first, so don't probe for existence beforehand. `--json` returns
 way to acquire a directory. Use it when a session is wanted but the terminal shouldn't move.
 An unattached session nobody asked for is worse than no session: it clutters the session
 list and competes for the directory when something later tries to resolve who works there.
+
+`--harness NAME` selects `[tmux-session.templates].NAME`; omitting it selects
+`default`. Commands are config-owned — Lemonaid does not hardcode how Claude,
+Codex, or another harness starts. `--prompt TEXT` shell-quotes the text and
+appends it as a positional argument to the command in `harness_window`, falling
+back to `resume_window` when that setting is absent. Both options matter only
+when `open` creates the session. If a session already exists, `open` switches to
+it without starting another harness or sending the prompt.
 
 The tmux session is named after the key (with `.` and `:` replaced, since tmux forbids them),
 so `tmux send-keys -t <key>` and similar work afterward. `place list --json` reports the
@@ -222,6 +231,9 @@ Every directory each root reports, whether or not it has a session:
 
 `key` is what to pass to `open` and `toss`. `session` is the live tmux session name, or `""`
 when nothing is running there — which is how you tell an idle place from an active one.
+If a root's hook reports a directory outside that configured root, it is skipped
+and logged rather than aborting the entire listing; it has no key in that root's
+namespace.
 
 ### Tearing one down
 

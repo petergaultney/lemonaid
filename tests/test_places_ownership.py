@@ -43,6 +43,20 @@ def test_a_session_owns_the_place_its_pane_sits_in(monkeypatch, tmp_path):
     assert [p.key for p in places] == ["feat"]
 
 
+def test_a_root_listing_skips_a_directory_outside_the_root(monkeypatch, tmp_path):
+    root_dir = tmp_path / "root"
+    inside = root_dir / "inside"
+    outside = tmp_path / "scratch" / "outside"
+    inside.mkdir(parents=True)
+    outside.mkdir(parents=True)
+    root = PlaceRoot(path=root_dir, list="unused")
+    monkeypatch.setattr(ownership.hooks, "list_directories", lambda _root: [inside, outside])
+
+    places = ownership.managed_places(_config(root))
+
+    assert [(place.key, place.directory) for place in places] == [("inside", inside)]
+
+
 def test_a_pane_deep_inside_does_not_claim_the_place(monkeypatch, tmp_path):
     """Visiting a directory and working in it are the same thing by path.
 
