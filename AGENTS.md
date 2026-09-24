@@ -1,5 +1,25 @@
 # Lemonaid Development Guidelines
 
+## Never touch the live install or its state
+
+Peter's installed `lemonaid` runs from a checkout, and every hook on the machine
+writes his real inbox. A lemon working on lemonaid must not change either.
+
+- **Work in a gent worktree**, under `~/play/lemonaid-wt/` (`wt co <branch> main`
+  from `~/play/lemonaid-wt/main`). Never edit, switch branches in, or run
+  `uv sync` in the checkout the tool is installed from (`uv tool list
+  --show-paths` / the `.pth` under `~/.local/share/uv/tools/lemonaid` says which).
+- **Run anything outside pytest through `scripts/sandbox`**: `scripts/sandbox
+  lemonaid ...`, `scripts/sandbox lma`. It points the database, config, state
+  directory, and tmux at `.z/sandbox/` in your worktree, seeded once from a
+  read-only snapshot. A bare `uv run lemonaid ...` writes the live inbox.
+- **Never open the live database, config, or `~/.local/state/lemonaid` for
+  writing, and never touch the real tmux server's options or sessions,** without
+  asking Peter first - including to repair something you broke. Say what
+  happened and what you'd do.
+- To show Peter a change working, give him `scripts/sandbox attach` or
+  `scripts/sandbox lma` from the worktree. Making a branch live is his step.
+
 ## Before Committing
 
 1. **Bump the version** in `pyproject.toml` if adding features or fixes

@@ -1,5 +1,6 @@
 """Configuration management for lemonaid."""
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
@@ -8,7 +9,10 @@ from typing import Any
 
 
 def get_config_path() -> Path:
-    """Get the path to the lemonaid config file."""
+    """The config file, `LEMONAID_CONFIG` overriding the XDG default."""
+    if override := os.environ.get("LEMONAID_CONFIG"):
+        return Path(override).expanduser()
+
     xdg_config = Path.home() / ".config"
     return xdg_config / "lemonaid" / "config.toml"
 

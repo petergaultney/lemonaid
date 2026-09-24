@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Run lemonaid from this checkout against a private copy of your state.
+
+    scripts/sandbox lemonaid inbox list --json   # any command, this checkout's code
+    scripts/sandbox lma                          # the TUI, on the snapshot
+    scripts/sandbox tmux new-session -d -s demo  # the sandbox's own tmux server
+    scripts/sandbox attach                       # look at that server yourself
+    scripts/sandbox --reset                      # re-snapshot the live state
+    scripts/sandbox --kill                       # stop the sandbox tmux server
+
+Everything lives in `.z/sandbox/` in this checkout. The first run snapshots the
+live inbox (opened read-only) and copies the live config; after that the live
+files are never opened again. The sandbox's tmux server has its own socket, so
+commands that create sessions, set options, or resolve `--self` from a pane act
+on it and never on your real server. Panes started in it inherit the sandbox
+environment, so `--self` commands can be tested from inside one - but a pane's
+shell rebuilds PATH, so call this checkout's code there as
+`$LEMONAID_SANDBOX/bin/lemonaid` (or `.../bin/lma`), not a bare `lemonaid`.
+
+Commands that write outside lemonaid's own state - `claude hooks`, `claude
+patch`, `claude patch-restore` - are refused, since no environment variable can
+redirect ~/.claude or the Claude binary.
+"""
+
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SANDBOX = ROOT / ".z" / "sandbox"
+DB = SANDBOX / "lemonaid.db"
+CONFIG = SANDBOX / "config.toml"
+STATE = SANDBOX / "state"
+SOCKET = SANDBOX / "tmux.sock"
+BIN = SANDBOX / "bin"
+
+LIVE_DB = Path(os.environ.get("LEMONAID_DB") or "~/.local/share/lemonaid/lemonaid.db").expanduser()
+LIVE_CONFIG = Path(
+    os.environ.get("LEMONAID_CONFIG") or "~/.config/lemonaid/config.toml"
+).expanduser()
+
+_REFUSED = [("claude", "hooks"), ("claude", "patch"), ("claude", "patch-restore")]
+
+
+def _snapshot() -> None:
+    SANDBOX.mkdir(parents=True, exist_ok=True)
+    STATE.mkdir(exist_ok=True)
+    DB.unlink(missing_ok=True)
+
+    if LIVE_DB.exists():
+        # The backup API gives a consistent copy while live hooks keep writing,
+        # and mode=ro means this can never write to the live file.
+        with (
+            sqlite3.connect(f"file:{LIVE_DB}?mode=ro", uri=True) as live,
+            sqlite3.connect(DB) as copy,
+        ):
+            live.backup(copy)
+    if LIVE_CONFIG.exists():
+        shutil.copyfile(LIVE_CONFIG, CONFIG)
+
+    BIN.mkdir(exist_ok=True)
+    for name in ("lemonaid", "lma"):
+        link = BIN / name
+        link.unlink(missing_ok=True)
+        link.symlink_to(ROOT / ".venv" / "bin" / name)
+
+    print(f"sandbox: snapshot of {LIVE_DB} and {LIVE_CONFIG} in {SANDBOX}", file=sys.stderr)
+
+
+def _environment() -> dict[str, str]:
+    env = {
+        **os.environ,
+        "LEMONAID_DB": str(DB),
+        "LEMONAID_CONFIG": str(CONFIG),
+        "LEMONAID_STATE_DIR": str(STATE),
+        # A tmux client with no -S/-L talks to the server $TMUX names, so every
+        # tmux call lemonaid makes lands on the sandbox server.
+        "TMUX": f"{SOCKET},0,0",
+        "LEMONAID_SANDBOX": str(SANDBOX),
+    }
+    env.pop("TMUX_PANE", None)
+    return env
+
+
+def _refusal(argv: list[str]) -> str:
+    words = [arg for arg in argv if not arg.startswith("-")]
+    if words[:1] != ["lemonaid"]:
+        return ""
+
+    return next(
+        (
+            f"sandbox: `lemonaid {' '.join(pair)}` writes outside the sandbox; run it for real "
+            "only if Peter asks"
+            for pair in _REFUSED
+            if tuple(words[1:3]) == pair
+        ),
+        "",
+    )
+
+
+def main(argv: list[str]) -> int:
+    if not argv:
+        print(__doc__.strip())
+        return 0
+
+    if argv == ["--reset"]:
+        _snapshot()
+        return 0
+
+    if argv == ["--kill"]:
+        return subprocess.run(["tmux", "-S", str(SOCKET), "kill-server"]).returncode
+
+    if not DB.exists():
+        _snapshot()
+
+    if argv == ["attach"]:
+        # Unset TMUX so attaching from inside your own tmux isn't refused as nesting.
+        env = {k: v for k, v in _environment().items() if k != "TMUX"}
+        return subprocess.run(["tmux", "-S", str(SOCKET), "attach"], env=env).returncode
+
+    if refusal := _refusal(argv):
+        print(refusal, file=sys.stderr)
+        return 2
+
+    command = ["uv", "run", "--quiet", "--project", str(ROOT), "--", *argv]
+    return subprocess.run(command, env=_environment()).returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
