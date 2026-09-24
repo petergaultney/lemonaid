@@ -1,3 +1,13 @@
+# 0.21.1 (2026-09-24)
+
+#### Fixed
+
+- **The inbox stays responsive when tmux is overloaded.** Focus checks query attached clients instead of every pane, and all background tmux queries have a short timeout.
+
+- **The watcher no longer mistakes a failed pane listing for dead sessions.** An unavailable tmux server now leaves its sessions untouched until a later check succeeds.
+
+- **tmux status helpers safely receive pane titles and paths containing shell syntax.** The documented formats use tmux's shell quoting instead of wrapping values in literal single quotes.
+
 # 0.21.0 (2026-09-22)
 
 #### Added

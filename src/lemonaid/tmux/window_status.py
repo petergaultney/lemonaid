@@ -15,7 +15,7 @@ Required tmux settings for OSC 7 support:
 
 Example window-status-format:
 
-    setw -g window-status-format " #I:#(lemonaid-tmux-window-status '#{pane_path}' '#{pane_current_path}' '#{pane_current_command}' '#{pane_title}') "
+    setw -g window-status-format " #I:#(lemonaid-tmux-window-status #{q:pane_path} #{q:pane_current_path} #{q:pane_current_command} #{q:pane_title}) "
 
 For session name with inverted colors:
 

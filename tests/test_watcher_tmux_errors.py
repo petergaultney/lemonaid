@@ -30,6 +30,13 @@ def _tmux_lists(monkeypatch, *rows: str) -> None:
     monkeypatch.setattr(subprocess, "run", _run)
 
 
+def _tmux_times_out(monkeypatch) -> None:
+    def _run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+
 def test_a_failed_lookup_is_raised_not_reported_as_absent(monkeypatch):
     _tmux_fails(monkeypatch)
 
@@ -90,3 +97,28 @@ def test_a_tmux_error_archives_nothing(monkeypatch):
     )
 
     assert archived == []
+
+
+def test_a_slow_location_listing_is_unknown(monkeypatch):
+    _tmux_times_out(monkeypatch)
+
+    assert navigation.locations_by_tty() is None
+
+
+def test_a_slow_focus_listing_does_not_block_the_tui(monkeypatch):
+    _tmux_times_out(monkeypatch)
+
+    assert navigation.focused_ttys() == set()
+
+
+def test_focus_listing_queries_clients_instead_of_every_pane(monkeypatch):
+    calls: list[list[str]] = []
+
+    def _run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="/dev/ttys001\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    assert navigation.focused_ttys() == {"/dev/ttys001"}
+    assert calls == [["tmux", "list-clients", "-F", "#{pane_tty}"]]
