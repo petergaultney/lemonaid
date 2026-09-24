@@ -47,7 +47,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, pins, undo
+from .. import db, emoji, pins, undo
 from . import backend_indicators
 from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
@@ -159,6 +159,12 @@ def _time_cell(ts: float, is_unread: bool, *, history: bool = False) -> Text:
     """
     field = "time" if time.time() - ts < _DAY_SECONDS else "time_old"
     return styled_cell(_format_timestamp(ts), is_unread, field, history=history)
+
+
+def _decorated_name(n: db.Notification, emojis: abc.Mapping[str, str]) -> str:
+    """The session's name, after its emoji when it has one."""
+    decoration = emojis.get(n.channel, "")
+    return f"{decoration} {n.name or ''}".rstrip() if decoration else n.name or ""
 
 
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
@@ -1078,8 +1084,9 @@ class LemonaidApp(App):
         self,
         n: db.Notification,
         row_index: int,
-        focused: frozenset[str] = frozenset(),
-        pinned: frozenset[str] = frozenset(),
+        focused: frozenset[str],
+        pinned: frozenset[str],
+        emojis: abc.Mapping[str, str],
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
@@ -1099,20 +1106,23 @@ class LemonaidApp(App):
                 self._backend_value(n, is_unread),
                 n.channel in pinned,
             ),
-            jump_gutter(row_index, is_here) + styled_cell(n.name or "", is_unread, "name"),
+            jump_gutter(row_index, is_here)
+            + styled_cell(_decorated_name(n, emojis), is_unread, "name"),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd"),
             styled_cell(n.message, is_unread, "message"),
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), is_unread, "tty"),
         ]
 
-    def _other_row(self, n: db.Notification) -> tuple[str, list[Text]]:
+    def _other_row(
+        self, n: db.Notification, emojis: abc.Mapping[str, str]
+    ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
             _time_cell(n.created_at, False),
             Text("○", style="dim") if n.is_unread else Text(""),
             self._backend_value(n, False),
-            styled_cell(n.name or "", False, "name"),
+            styled_cell(_decorated_name(n, emojis), False, "name"),
             styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
             styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
             styled_cell(n.message, False, "message"),
@@ -1159,6 +1169,7 @@ class LemonaidApp(App):
                 other_notifications = []
 
             pinned = frozenset(pins.pinned_positions(conn))
+            emojis = emoji.by_channel(conn)
 
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
@@ -1166,7 +1177,7 @@ class LemonaidApp(App):
         rebuilt = _sync_rows(
             main_table,
             [
-                self._active_row(n, i, focused, pinned)
+                self._active_row(n, i, focused, pinned, emojis)
                 for i, n in enumerate(current_notifications)
             ],
             self._card_width(),
@@ -1189,7 +1200,7 @@ class LemonaidApp(App):
             other_table.display = True
             _sync_rows(
                 other_table,
-                [self._other_row(n) for n in other_notifications],
+                [self._other_row(n, emojis) for n in other_notifications],
                 self._card_width(),
                 self._card_shape(),
             )
