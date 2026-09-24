@@ -172,11 +172,31 @@ def test_now_and_status_edit_the_attached_brief(capsys):
     _run(capsys, "attach", "--channel", "codex:t1", str(_brief("task")))
 
     _run(capsys, "now", "--channel", "codex:t1", "- Done: the parser.")
-    _run(capsys, "status", "--channel", "codex:t1", "done", "PR #9")
+    _run(capsys, "status", "--channel", "codex:t1", "done")
 
     text = _brief("task").read_text()
-    assert "Status: done - PR #9" in text
+    assert "Status: done\n" in text
     assert "## Now\n- Done: the parser.\n" in text
+
+
+def test_status_rejects_a_note_argument():
+    parser = argparse.ArgumentParser()
+    write_cli.add_parsers(parser.add_subparsers())
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["status", "--channel", "codex:t1", "done", "PR #9"])
+
+
+def test_status_then_now_sets_state_and_notes(capsys):
+    _lemon("codex:t1", "work", "4", 1)
+    _run(capsys, "attach", "--channel", "codex:t1", str(_brief("task")))
+
+    _run(capsys, "status", "--channel", "codex:t1", "waiting")
+    _run(capsys, "now", "--channel", "codex:t1", "- Waiting on: review\n- Note: PR #9")
+
+    text = _brief("task").read_text()
+    assert "Status: waiting\n" in text
+    assert "## Now\n- Waiting on: review\n- Note: PR #9\n" in text
 
 
 def test_now_without_an_attached_brief_says_how_to_get_one(capsys):

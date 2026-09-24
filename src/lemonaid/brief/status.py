@@ -10,6 +10,8 @@ import re
 from collections import abc
 from pathlib import Path
 
+from . import store
+
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)
@@ -26,9 +28,10 @@ class Brief:
 
 
 @dataclasses.dataclass(frozen=True)
-class _Parts:
+class Parts:
     title: str
     status: str
+    raw_status: str
     now: str
     rest: str
 
@@ -87,7 +90,7 @@ def pick(briefs: abc.Sequence[Brief], names: abc.Iterable[str]) -> list[Brief]:
     return list(briefs)
 
 
-def _split(text: str) -> _Parts:
+def split(text: str) -> Parts:
     title, status = "", ""
     now: list[str] = []
     rest: list[str] = []
@@ -109,10 +112,13 @@ def _split(text: str) -> _Parts:
         else:
             rest.append(line)
 
-    return _Parts(title, status, "\n".join(now).strip(), "\n".join(rest).strip())
+    state = status.split(maxsplit=1)[0] if status else ""
+    state = state.lower() if state.lower() in store.STATES else ""
+
+    return Parts(title, state, status, "\n".join(now).strip(), "\n".join(rest).strip())
 
 
-def _age(seconds: float) -> str:
+def age(seconds: float) -> str:
     for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
         if seconds >= size:
             return f"{int(seconds // size)}{unit} ago"
@@ -126,13 +132,13 @@ def _display_title(title: str) -> str:
 
 
 def _render_brief(brief: Brief, now: float, full: bool) -> str:
-    parts = _split(brief.text)
+    parts = split(brief.text)
     title = _display_title(parts.title) or brief.name or "Work status"
     return "\n\n".join(
         [
             f"## {title}",
-            f"*updated {_age(now - brief.mtime)}*",
-            f"**Status:** {parts.status or '(no Status line)'}",
+            f"*updated {age(now - brief.mtime)}*",
+            f"**Status:** {parts.status or parts.raw_status or '(no Status line)'}",
             *([f"## Now\n\n{parts.now}"] if parts.now else []),
             *(["---", parts.rest] if full and parts.rest else []),
         ]
@@ -179,7 +185,7 @@ def render(
         return "\n\n".join(
             [
                 "## Work status",
-                f"*`.z/state.md`, updated {_age(now - state.stat().st_mtime)}*",
+                f"*`.z/state.md`, updated {age(now - state.stat().st_mtime)}*",
                 "---",
                 state.read_text().strip(),
             ]

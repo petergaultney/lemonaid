@@ -6,12 +6,14 @@ rows; the separator is what keeps them legible as separate entries instead.
 """
 
 import asyncio
+from types import SimpleNamespace
 
 from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
 from lemonaid.inbox.tui import app, backend_indicators
+from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
     FIELD_STYLES,
@@ -237,6 +239,83 @@ def test_bar_mode_does_not_paint_over_the_selected_green_edge():
     assert body.plain.startswith(HERE_BAR)
     assert body.get_style_at_offset(console, 0).bgcolor is None
     assert body.get_style_at_offset(console, 1).bgcolor.name == ATTENTION_COLOR
+
+
+def _brief_cells(unread: bool = False, here: bool = False) -> list[Text]:
+    return [
+        Text("12:30"),
+        Text("●" if unread else ""),
+        Text("CC"),
+        jump_gutter(0, here) + Text("task"),
+        Text("branch"),
+        Text("~/work"),
+        Text("message"),
+    ]
+
+
+def test_blocked_unread_dot_contrasts_with_its_headline():
+    (body,) = app._as_card(
+        _brief_cells(unread=True),
+        40,
+        gutter_width=2,
+        card_brief=CardBrief("blocked", "", 3600),
+        now=7200,
+    )
+    dot = body.plain.index("●")
+    style = body.get_style_at_offset(Console(color_system="truecolor"), dot)
+
+    assert style.color.name == "#000000"
+    assert style.bgcolor.name == ATTENTION_COLOR
+    assert style.bold
+
+
+def test_waiting_brief_lines_keep_the_current_session_edge_and_age():
+    (body,) = app._as_card(
+        _brief_cells(unread=True, here=True),
+        40,
+        gutter_width=2,
+        unread_style="bar",
+        card_brief=CardBrief("waiting", "review", 3600),
+        now=7200,
+    )
+    lines = body.plain.splitlines()
+
+    assert all(line.startswith(HERE_BAR) for line in lines)
+    assert lines[2] == f"{HERE_BAR}updated 1h ago"
+    assert lines[3] == f"{HERE_BAR}review"
+    assert "●" in lines[0]
+
+
+def test_done_headline_is_blue_with_white_text():
+    (body,) = app._as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("done", "", 0))
+    style = body.get_style_at_offset(Console(color_system="truecolor"), 0)
+
+    assert style.bgcolor.name == "#285995"
+    assert style.color.name == "#ffffff"
+
+
+def test_read_waiting_card_dims_its_model_badge():
+    (body,) = app._as_card(
+        _brief_cells(), 40, gutter_width=2, card_brief=CardBrief("waiting", "", 0)
+    )
+
+    assert body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index("CC")).dim
+
+
+def test_brief_lines_reduce_the_message_budget():
+    pane = SimpleNamespace(
+        _card_layout=True,
+        size=SimpleNamespace(height=30),
+        query_one=lambda *_args: SimpleNamespace(row_count=4),
+    )
+
+    assert app.LemonaidApp._card_shape(pane) == (1, 4)
+    shape = app.LemonaidApp._card_shape(pane, extra_lines=2)
+    assert shape == (1, 1)
+    (body,) = app._as_card(
+        _brief_cells(), 40, *shape, gutter_width=2, card_brief=CardBrief("waiting", "review", 0)
+    )
+    assert len(body.plain.split("\n")) == 30 // 4 - 1
 
 
 def test_card_emoji_sits_on_the_second_line_before_the_pin():
