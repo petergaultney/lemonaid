@@ -359,6 +359,26 @@ def test_a_revisited_window_keeps_its_layout(tmux):
     assert len(_panes(tmux, "a:w2")) == 2  # swapped in, not added
 
 
+def test_only_the_most_recently_left_window_keeps_a_placeholder(tmux):
+    pane = _followed_pane(tmux)
+    tmux("select-window", "-t", "a:w2")
+    tmux("switch-client", "-t", "b:w1")
+    assert len(follow.placeholders("a:w2")) == 1
+
+    tmux("switch-client", "-t", "b:w2")
+
+    assert follow.placeholders("a:w2") == []
+    assert len(follow.placeholders("b:w1")) == 1
+    assert len(follow.placeholders(scratch._SCRATCH_SESSION, whole_session=True)) == 1
+    _assert_sane(tmux, pane)
+
+    parking = set(follow.placeholders(scratch._SCRATCH_SESSION, whole_session=True))
+    for target in ("a:w2", "a:w1", "b:w2", "b:w1", "a:w2"):
+        tmux("switch-client", "-t", target)
+        assert len(set(follow.placeholders()) - parking) <= 1
+        _assert_sane(tmux, pane)
+
+
 def test_the_first_visit_leaves_a_placeholder_where_the_pane_was(tmux):
     _followed_pane(tmux)
 

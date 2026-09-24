@@ -1,3 +1,9 @@
+# 0.24.2 (2026-09-24)
+
+#### Fixed
+
+- **Follow mode keeps at most one placeholder outside its parking session.** The last window left retains its layout for a quick switch back; older placeholders no longer accumulate across every window visited.
+
 # 0.24.1 (2026-09-24)
 
 #### Changed

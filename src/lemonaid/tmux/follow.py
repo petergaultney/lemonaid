@@ -8,12 +8,11 @@ what the first did. Two background shells each saw the pane absent and both
 joined it, and a pane joined twice into one window comes out at whatever width
 the second split left it.
 
-The pane is swapped, not moved. Every window it has left keeps a placeholder
-pane in its slot - a bare `sleep` - so the window's own panes never change size
-when the scratch pane comes or goes. Moving it meant the window you were
-returning to was full width until the hook ran, and its program repainted in
-front of you. A window it has never visited gets a placeholder split in first,
-so that one visit is the only time the window's layout changes.
+The pane is swapped, not moved. The last window it left keeps a placeholder
+pane in its slot - a bare `sleep` - so a switch back does not resize its own
+panes. Older placeholders are reaped, bounding the spare slots to one outside
+the parking session. Moving the pane instead made the window you were returning
+to full width until the hook ran, and its program repainted in front of you.
 
 Everything the hook reads is a tmux option, which the server expands without
 leaving the process. The files in the state directory remain the record that
@@ -33,6 +32,7 @@ POSITION_OPTION = "@lemonaid_scratch_position"  # "left" or "top"
 WIDTH_OPTION = "@lemonaid_scratch_width"  # columns, for a left pane
 HEIGHT_OPTION = "@lemonaid_scratch_height"  # rows, for a top pane
 MARKER_OPTION = "@lemonaid_scratch"  # set on the pane itself; how it is found again
+RECENT_PLACEHOLDER_OPTION = "@lemonaid_recent_placeholder"  # most recently left slot
 
 # Recognised by its start command rather than an option: an option could only be
 # set after the split, and the hook has to find the pane in the same breath.
@@ -170,6 +170,16 @@ def _kill_orphan_placeholders() -> str:
     return f"#{{S:#{{W:#{{P:#{{?{lone},kill-pane -t #{{pane_id}} ; ,}}}}}}}}"
 
 
+def _kill_older_placeholders() -> str:
+    """Keep only the most recently left slot outside the parking session."""
+    old = (
+        f"#{{&&:#{{!=:#{{session_name}},{_SCRATCH_SESSION}}},"
+        f"#{{&&:{_is_placeholder()},"
+        f"#{{!=:#{{pane_id}},#{{{RECENT_PLACEHOLDER_OPTION}}}}}}}}}"
+    )
+    return f"#{{S:#{{W:#{{P:#{{?{old},kill-pane -t #{{pane_id}} ; ,}}}}}}}}"
+
+
 def hook_condition() -> str:
     """Follow is on, the pane exists, it is not here, and here is not its parking session."""
     return (
@@ -194,11 +204,14 @@ def hook_command() -> str:
     Then any placeholder the swap left alone is killed. A window whose shells
     have exited beside the pane holds nothing else once the pane leaves, and
     tmux fires no window-pane-changed for a command a hook runs, so the orphan
-    hook never sees it. The sweep names every pane it touches, so it can come
-    after the select-pane.
+    hook never sees it. Older slots are reaped as well. Both sweeps name every
+    pane they touch, so they can come after the select-pane.
     """
     swap = f"run-shell -C 'swap-pane -d -s #{{{PANE_OPTION}}} -t {_placeholder_id_here()}'"
     split = f"run-shell -C 'split-window -d {_split_size()} -t #{{pane_id}} {' '.join(PLACEHOLDER_COMMAND)}'"
+    remember = (
+        f"run-shell -C 'set-option -g {RECENT_PLACEHOLDER_OPTION} {_placeholder_id_here()}'"
+    )
     resize = f"run-shell -C 'resize-pane -t #{{{PANE_OPTION}}} {_resize_size()}'"
     unfocus_here = (
         f"if-shell -F '{_pane_is_active_here()}' {{\n"
@@ -208,15 +221,18 @@ def hook_command() -> str:
     return (
         f"if-shell -F '{hook_condition()}' {{\n"
         f"  if-shell -F '{_placeholder_here()}' {{\n"
+        f"    {remember}\n"
         f"    {swap}\n"
         f"  }} {{\n"
         f"    {split}\n"
+        f"    {remember}\n"
         f"    {swap}\n"
         f"  }}\n"
         f"  {resize}\n"
         f"  {unfocus_here}\n"
         f"  run-shell -C '{_unfocus_placeholders()}'\n"
         f"  run-shell -C '{_kill_orphan_placeholders()}'\n"
+        f"  run-shell -C '{_kill_older_placeholders()}'\n"
         f"}}"
     )
 

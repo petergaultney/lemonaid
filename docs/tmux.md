@@ -126,7 +126,7 @@ lemonaid tmux scratch --restart
 ```
 
 Replaces the `lma` process in place - the pane keeps its id, window, size, and
-every placeholder follow mode has put in the windows it has visited. Killing
+the recent placeholder follow mode has kept. Killing
 the pane instead discards that arrangement, which is what `prefix+: kill-pane`
 followed by `prefix+l` used to do.
 
@@ -142,8 +142,9 @@ It needs tmux 3.6 or later; see [tmux version](#tmux-version).
 lemonaid tmux scratch --follow
 ```
 
-This enables follow for the current tmux server and installs two hooks on it
-(`session-window-changed` and `client-session-changed`). Nothing goes in
+This enables follow for the current tmux server and installs switch and attach
+hooks (`session-window-changed`, `client-session-changed`, and `client-attached`),
+along with cleanup and resize hooks. Nothing goes in
 `.tmux.conf`: the pane does not outlive the server, and showing it again on a new
 server installs the hooks again.
 
@@ -152,12 +153,13 @@ join - with no shell process. A switch fires both hooks, and hooks run one after
 another in the server, so the second finds the pane already joined and does
 nothing. The pane is in place before tmux redraws the window you switched to.
 
-The pane is swapped, not moved. Every window it has been in keeps a placeholder
-pane in its slot - a bare `sleep`, visible as an empty pane - so the window's own
-panes never change size when the scratch pane arrives or leaves. Moving the pane
-meant the window you were returning to was full width until the hook ran, and its
-program repainted in front of you. The first visit to a window is the only time
-its layout changes: a placeholder is split in and the scratch pane swapped into it.
+The pane is swapped, not moved. The last window it left keeps a placeholder pane
+in its slot - a bare `sleep`, visible as an empty pane - so switching straight
+back does not resize that window's own panes. Older placeholders are removed:
+there is at most one outside the parking session, rather than one in every window
+ever visited. Revisiting an older window creates a new slot and changes its layout
+once again. This keeps the common back-and-forth switch stable without accumulating
+panes indefinitely.
 
 When a window's real panes have all exited, the placeholder left behind is killed.
 The window then has nothing in it, so tmux closes it, and a session with no windows
@@ -169,9 +171,10 @@ Flipping position or turning follow off removes every placeholder; the
 saved size is re-asserted whenever a window is resized, so a font change costs the
 window's own panes columns rather than the sidebar.
 
-Everything the hooks read is a tmux global option (`@lemonaid_follow`,
+The hooks read tmux global options (`@lemonaid_follow`,
 `@lemonaid_scratch_pane`, `@lemonaid_scratch_position`, `@lemonaid_scratch_width`,
 `@lemonaid_scratch_height`), mirrored from the state files whenever they change.
+They also track the last placeholder in `@lemonaid_recent_placeholder` on this server.
 
 Older versions had you add three `set-hook ... run-shell -b ".../tmux-scratch-follow.sh"`
 lines to `.tmux.conf`. Remove them; `--follow` says so if it sees them.
