@@ -92,7 +92,9 @@ The name may come from the interpreter's command line or the pane title. Add
 With `card_unread_style = "bar"`, an unread card drops the dot and paints its
 first line instead. The selector and title use a lemon-yellow background with
 black text; the model label uses its provider colour as the background, with
-one coloured space on each side. A green selected-session bar remains green.
+one coloured space on each side. Session emojis appear at the right end of the
+second line, just before the pin marker when present. A green selected-session
+bar remains green.
 The otherwise-empty blue/yellow table header is hidden in card layout because
 the unread rows now carry the status themselves.
 

@@ -16,6 +16,8 @@ from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
     FIELD_STYLES,
     HERE_BAR,
+    PIN_MARK,
+    backend_cell,
     jump_gutter,
     styled_cell,
 )
@@ -235,6 +237,52 @@ def test_bar_mode_does_not_paint_over_the_selected_green_edge():
     assert body.plain.startswith(HERE_BAR)
     assert body.get_style_at_offset(console, 0).bgcolor is None
     assert body.get_style_at_offset(console, 1).bgcolor.name == ATTENTION_COLOR
+
+
+def test_card_emoji_sits_on_the_second_line_before_the_pin():
+    emoji = "🏖️"
+    cells = [
+        Text("15:24"),
+        Text("●"),
+        backend_cell(
+            backend_indicators.backend_text("codex:session", {}, True, model="gpt-5.6-sol"),
+            True,
+        ),
+        jump_gutter(0, True) + styled_cell(f"{emoji} a name", True, "name"),
+        Text(""),
+        Text(""),
+        Text("message"),
+    ]
+    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar", emoji=emoji)
+    console = Console(color_system="truecolor")
+    headline, context = body.plain.split("\n")[:2]
+
+    assert emoji not in headline
+    assert "a name" in headline
+    assert context.endswith(f"{emoji} {PIN_MARK}")
+    assert body.get_style_at_offset(console, 2).bgcolor.name == ATTENTION_COLOR
+    emoji_start = body.plain.index(emoji)
+    assert body.get_style_at_offset(console, emoji_start).bgcolor is None
+    assert body.get_style_at_offset(console, 0).bgcolor is None
+
+
+def test_card_emoji_uses_the_right_edge_when_there_is_no_pin():
+    emoji = "🥤"
+    cells = [
+        Text("15:24"),
+        Text(""),
+        Text("Sol 5.6"),
+        styled_cell(f"{emoji} a name", False, "name"),
+        Text(""),
+        Text("~/w/repo"),
+        Text("message"),
+    ]
+    (body,) = app._as_card(cells, 40, emoji=emoji)
+    headline, context = body.plain.split("\n")[:2]
+
+    assert emoji not in headline
+    assert headline.startswith("   a name")
+    assert context.endswith(emoji)
 
 
 def test_bar_mode_hides_the_empty_card_header():
