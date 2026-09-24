@@ -310,26 +310,61 @@ runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.
 
 ## Briefs
 
-A brief is `.z/brief.md` in a place, or `.z/brief-<name>.md` when several lemons share one. It is how a
-parent hands a lemon its task, and how that lemon reports where the work stands.
+A brief is a Markdown file attached to one lemon session: one Claude session or Codex thread, keyed by
+its inbox channel, so it survives compaction and `--resume`, and an author and its reviewer sharing a
+place each have their own. Briefs live in `~/.brief-lemons/<YYYY-MM-DD>-<slug>.md`, never in the repo.
+A brief is how a parent hands a lemon its task, and how that lemon reports where the work stands.
 
 ```bash
-lemonaid brief show                  # the current tmux session's brief, as markdown
-lemonaid brief show <session>        # another session's
-lemonaid brief show --dir <path>     # a directory's, without asking tmux
+lemonaid brief new --self "Fix the thing"      # create ~/.brief-lemons/<today>-fix-the-thing.md, attach it
+lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.brief-lemons/)
+lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
+lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
+lemonaid brief status --self done "PR #12"     # Status: done - PR #12  (working | done | blocked)
+lemonaid brief detach --self                   # the file stays
+lemonaid brief list --json                     # every brief file and the session it belongs to
+lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
+```
+
+`--self` is the lemon in the calling tmux pane, resolved the same way as `inbox emoji --self`.
+`--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet
+waits for the first one that starts there, which is also what `place open --brief` does. Every command
+takes `--json`.
+
+A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with `brief now` and
+`brief status`; any other lemon may do the same or edit the file directly.
+
+A brief's real path must be inside `~/.brief-lemons/`: `attach`, `place open --brief`, `now`, and
+`status` refuse anything else, including a symlink that points out of it, since they write for lemons
+whose sandbox would otherwise stop them. `now` and `status` change one section and replace the file
+whole; if it is saved in between (in an editor, say), they re-apply the change to the newer text.
+
+`brief list --json` is how a tool maps a brief file back to its session: one entry per brief, with
+`path`, `channel`, `id` (the inbox row), `name`, `archived`, `tmux_session`, `tmux_window`, and
+`pending` (true while it waits for a lemon to start; `channel` is then null).
+
+```bash
+lemonaid brief show                  # the calling pane's lemon's brief, as markdown
+lemonaid brief show <session>[:<window>]  # another session's; the window picks one lemon in it
+lemonaid brief show --file <path>    # a brief file, without asking tmux
+lemonaid brief show --dir <path>     # a directory's .z/, without asking tmux
 lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <dir>
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
 ```
 
 Output starts with the brief's `Status:` line and its `## Now` section, then the rest of the brief below
-a rule. It looks in the working directory of each lemon the inbox has in that session, then the
-session's own directory, and uses the first that has a brief. When that directory has several, the one
-named after the lemon's `LEMON_NAME`, its backend (`brief-codex.md`), or the tmux session is shown;
-failing that, all of them, newest first, each with only its Status and Now. The backend counts only
-when the session holds one lemon. With no brief, `.z/state.md` stands in. `b` in the TUI opens the same
-popup for the selected session.
+a rule. The briefs attached to the session's lemons come first; when the session holds several lemons
+and no window picks one, each attached brief is shown with only its Status and Now. `b` in the TUI
+opens the same popup for the selected session.
 
-The session's directory is the place, and the search never leaves it. A lemon working in a
+A session with no attached brief falls back to `.z/`, for sessions started before briefs moved out of
+it. It looks in the working directory of each lemon the inbox has in that session, then the session's
+own directory, and uses the first that has a brief. When that directory has several, the one named
+after the lemon's `LEMON_NAME`, its backend (`brief-codex.md`), or the tmux session is shown; failing
+that, all of them, newest first, each with only its Status and Now. The backend counts only when the
+session holds one lemon. With no brief, `.z/state.md` stands in.
+
+The session's directory is the place, and the `.z/` search never leaves it. A lemon working in a
 subdirectory finds the place's `.z/`, but a `.z/` above the place, or in a lemon's working directory
 outside it, belongs to other work, so a place without a `.z/` of its own has no brief.
 

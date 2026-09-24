@@ -7,29 +7,35 @@ import time
 from pathlib import Path
 
 from ..inbox import db
-from . import popup, session, status, target
+from . import attached, popup, session, status, target, write_cli
 
 
 def _target(
-    session_arg: str, dir_args: list[str], place_arg: str, name_args: list[str]
+    session_arg: str,
+    file_args: list[str],
+    dir_args: list[str],
+    place_arg: str,
+    name_args: list[str],
 ) -> target.Target:
-    if dir_args:
+    if file_args or dir_args:
         return target.Target(
+            [Path(f) for f in file_args],
             [Path(d) for d in dir_args],
             Path(place_arg) if place_arg else None,
             name_args,
-            Path(dir_args[0]).name,
+            Path((file_args or dir_args)[0]).name,
         )
 
-    tmux_session = session_arg or session.current_session()
+    tmux_session, _, window = (session_arg or session.current_session()).partition(":")
     if not tmux_session:
         print("Not in tmux; name a session or pass --dir.", file=sys.stderr)
         sys.exit(1)
 
     with db.connect() as conn:
-        found = target.for_session(tmux_session, db.get_active(conn))
+        rows = db.get_active(conn)
+        found = target.for_session(tmux_session, rows, attached.for_rows(conn, rows), window)
 
-    if not found.dirs:
+    if not (found.attached or found.dirs):
         print(f"No tmux session or inbox row for '{tmux_session}'.", file=sys.stderr)
         sys.exit(1)
 
@@ -37,12 +43,12 @@ def _target(
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    found = _target(args.session, args.dir, args.place, args.name)
+    found = _target(args.session, args.file, args.dir, args.place, args.name)
     if args.popup:
-        popup.open_popup(found.dirs, found.place, found.names, title=found.title)
+        popup.open_popup(found)
         return
 
-    markdown = status.render(found.dirs, found.place, found.names, time.time())
+    markdown = status.render(found.attached, found.dirs, found.place, found.names, time.time())
     if args.page:
         popup.page(markdown, args.dismiss)
     else:
@@ -53,17 +59,19 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     brief_parser = subparsers.add_parser(
         "brief",
         help="Where a lemon's work stands, from its brief",
-        description="A brief is .z/brief.md, or .z/brief-<name>.md when several "
-        "lemons share a directory. Its Status line and `## Now` section are what the "
-        "worker keeps current.",
+        description="A brief is a Markdown file in ~/.brief-lemons/ attached to one "
+        "lemon session (or, for older sessions, .z/brief.md or .z/brief-<name>.md in its "
+        "place). Its Status line and `## Now` section are what the worker keeps current.",
     )
     brief_subparsers = brief_parser.add_subparsers(dest="brief_command")
 
     show_parser = brief_subparsers.add_parser(
         "show",
         help="Print a session's Status and Now, or show them in a popup",
-        description="Looks in the directories of the session's lemons (from the inbox), "
-        "then the session's own directory (from tmux), and shows the first brief found, "
+        description="Shows the briefs attached to the session's lemons. A session with "
+        "none falls back to .z/: it looks in the directories of the session's lemons "
+        "(from the inbox), then the session's own directory (from tmux), and shows the "
+        "first brief found, "
         "never looking above the session's directory: "
         "the one named for the lemon's LEMON_NAME, backend, or session if there is one, "
         "otherwise every brief there, newest first. Falls back to .z/state.md when "
@@ -71,7 +79,17 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     show_parser.add_argument(
-        "session", nargs="?", default="", help="tmux session (default: the current one)"
+        "session",
+        nargs="?",
+        default="",
+        metavar="SESSION[:WINDOW]",
+        help="tmux session, and the window of one lemon in it (default: the calling pane's)",
+    )
+    show_parser.add_argument(
+        "--file",
+        action="append",
+        default=[],
+        help="Show this brief instead of asking the inbox and tmux (repeatable)",
     )
     show_parser.add_argument(
         "--dir",
@@ -103,5 +121,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     mode.add_argument("--page", action="store_true", help="Show it in a pager, rendered by Rich")
     show_parser.set_defaults(func=cmd_show)
+
+    write_cli.add_parsers(brief_subparsers)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())

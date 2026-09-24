@@ -67,7 +67,7 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 - `lemonaid tmux swap <session> <pane_id>` - Swap back location and print target (for keybinding integration)
 - `lemonaid tmux scratch` - Toggle the scratch lma pane (see below)
 - `lemonaid tmux new [-s name]` - Create a new tmux session from a template
-- `lemonaid brief show [<session>] --popup` - Show a session's brief in a popup (see below)
+- `lemonaid brief show [<session>[:<window>]] --popup` - Show a session's brief in a popup (see below)
 
 ## Brief popup
 
@@ -75,8 +75,11 @@ Because the swap is atomic, pressing `prefix + p` repeatedly toggles between two
 session you're in, without the inbox focused, bind a key to it:
 
 ```tmux
-bind-key b run-shell -b 'lemonaid brief show "#{session_name}" --popup'
+bind-key b run-shell -b 'lemonaid brief show "#{session_name}:#{window_index}" --popup'
 ```
+
+Passing the window shows the brief of the lemon in it when a session holds several (an author
+and its reviewer); from any other window, every lemon's brief is shown.
 
 The popup opens over the client that pressed the key, and pressing the same key again closes it.
 The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is

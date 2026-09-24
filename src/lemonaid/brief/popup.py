@@ -4,14 +4,13 @@ import re
 import subprocess
 import sys
 from collections import abc
-from pathlib import Path
 
 import rich.console
 import rich.markdown
 import rich.segment
 import rich.style
 
-from . import dismiss
+from . import dismiss, target
 
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
@@ -69,12 +68,7 @@ def page(markdown: str, quit_keys: abc.Iterable[str] = ()) -> None:
     subprocess.run(_less_command(quit_keys), input=capture.get(), text=True)
 
 
-def popup_command(
-    dirs: abc.Iterable[Path],
-    place: Path | None,
-    names: abc.Iterable[str],
-    quit_keys: abc.Iterable[str] = (),
-) -> list[str]:
+def popup_command(found: target.Target, quit_keys: abc.Iterable[str] = ()) -> list[str]:
     """The command a popup runs: this same lemonaid, paging one directory's brief.
 
     Everything it needs is in its arguments, since a popup inherits the tmux
@@ -86,9 +80,10 @@ def popup_command(
         "lemonaid.cli",
         "brief",
         "show",
-        *(arg for directory in dirs for arg in ("--dir", str(directory))),
-        *(["--place", str(place)] if place else []),
-        *(arg for name in names for arg in ("--name", name)),
+        *(arg for path in found.attached for arg in ("--file", str(path))),
+        *(arg for directory in found.dirs for arg in ("--dir", str(directory))),
+        *(["--place", str(found.place)] if found.place else []),
+        *(arg for name in found.names for arg in ("--name", name)),
         *(arg for seq in quit_keys for arg in ("--dismiss", seq)),
         "--page",
     ]
@@ -116,9 +111,7 @@ def _popup_width(client_width: int | None) -> str:
     return str(min(_MAX_POPUP_WIDTH, max(1, client_width * 9 // 10)))
 
 
-def open_popup(
-    dirs: abc.Iterable[Path], place: Path | None, names: abc.Iterable[str], title: str
-) -> None:
+def open_popup(found: target.Target) -> None:
     """Open a popup over the calling client showing where a place's work stands.
 
     Never targets the lemon's own session, so the popup appears wherever the
@@ -137,10 +130,10 @@ def open_popup(
             "fg=yellow",
             "-T",
             # -T is a format, where a bare # starts a variable.
-            f" {title.replace('#', '##')} ",
+            f" {found.title.replace('#', '##')} ",
             # As separate arguments, tmux execs the command itself instead of
             # handing one string to default-shell, which need not be POSIX.
-            *popup_command(dirs, place, names, dismiss.bound_sequences()),
+            *popup_command(found, dismiss.bound_sequences()),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

@@ -2131,13 +2131,14 @@ class LemonaidApp(App):
 
         with db.connect() as conn:
             notification = db.get(conn, int(row_key))
+            attached = brief.attached.for_rows(conn, [notification] if notification else [])
 
-        target = brief.target.for_notification(notification) if notification else None
-        if not target or not target.dirs:
-            self.notify("No directory recorded for this session", severity="warning")
+        target = brief.target.for_notification(notification, attached) if notification else None
+        if not target or not (target.attached or target.dirs):
+            self.notify("No brief or directory recorded for this session", severity="warning")
             return
 
-        brief.popup.open_popup(target.dirs, target.place, target.names, title=target.title)
+        brief.popup.open_popup(target)
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""

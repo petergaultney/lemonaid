@@ -77,6 +77,10 @@ initial prompt can be passed directly to that template's harness command:
 lemonaid place open feat/thing --harness codex --prompt 'read .z/brief.md and do what it says'
 ```
 
+`--brief <file>` attaches a brief (a path, or a name in `~/.brief-lemons/`) to the
+first lemon that starts in the session's harness window, so the prompt can just
+say to read it. See `lemonaid for-lemons` for the `brief` commands.
+
 The prompt is shell-quoted and appended as a positional argument to the command
 in `harness_window` (or `resume_window` when `harness_window` is unset). These
 options only affect creation; if the place already has a session, `open` keeps

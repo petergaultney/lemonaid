@@ -1,3 +1,3 @@
-from . import cli, popup, session, status, target
+from . import attached, cli, popup, session, status, store, target
 
-__all__ = ["cli", "popup", "session", "status", "target"]
+__all__ = ["attached", "cli", "popup", "session", "status", "store", "target"]
