@@ -240,7 +240,7 @@ def _tmux_servers_needed(
 
 def _fetch_pane_locations(
     servers: set[str | None],
-) -> dict[str | None, dict[str, tuple[str, str]]]:
+) -> dict[str | None, dict[str, tuple[str, str]] | None]:
     """One `tmux list-panes -a` per server, returning tty -> (session, window)."""
     return {socket: tmux.navigation.locations_by_tty(socket) for socket in servers}
 
@@ -249,7 +249,7 @@ def _record_locations(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     record_location: Callable[[str, str, str, str | None], None],
     sockets: dict[str, str],
-    pane_locations: dict[str | None, dict[str, tuple[str, str]]],
+    pane_locations: dict[str | None, dict[str, tuple[str, str]] | None],
 ) -> None:
     """Note where each tmux-hosted session is sitting, so it can be rebuilt later."""
     for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active:
@@ -257,7 +257,10 @@ def _record_locations(
             continue
 
         socket = sockets.get(channel)
-        location = pane_locations.get(socket, {}).get(tty)
+        server_panes = pane_locations.get(socket)
+        if server_panes is None:
+            continue
+        location = server_panes.get(tty)
         if location is not None:
             record_location(channel, *location, socket)
 
@@ -266,7 +269,7 @@ def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
     sockets: dict[str, str],
-    pane_locations: dict[str | None, dict[str, tuple[str, str]]],
+    pane_locations: dict[str | None, dict[str, tuple[str, str]] | None],
 ) -> set[str]:
     """Archive stale sessions based on TTY occupancy and pane existence.
 
@@ -416,7 +419,7 @@ def unified_watch_loop(
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
-    poll_interval: float = 0.5,
+    poll_interval: float = 2.0,
     stop_event: threading.Event | None = None,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.

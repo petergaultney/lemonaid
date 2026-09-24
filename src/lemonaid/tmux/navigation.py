@@ -14,6 +14,7 @@ _log = get_logger("tmux.navigation")
 # session is gone and may be recreated, while several found means one of them is
 # the right one and spawning another would add to the confusion.
 AMBIGUOUS = "?ambiguous"
+_QUERY_TIMEOUT_SECONDS = 0.5
 
 
 def get_state_path() -> Path:
@@ -139,7 +140,7 @@ def get_pane_for_tty(
     return None, None
 
 
-def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]]:
+def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]] | None:
     """Where every pane is sitting, as tty -> (session_name, window_index).
 
     Distinct from `get_pane_for_tty`, which answers "is it still there" and is
@@ -162,10 +163,11 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=_QUERY_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.CalledProcessError) as e:
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         _log.warning("could not list panes to locate sessions: %s", e)
-        return {}
+        return None
 
     return {
         parts[0]: (parts[1], parts[2])
@@ -175,39 +177,25 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]]:
 
 
 def focused_ttys(socket: str | None = None) -> set[str]:
-    """The ttys a user is actually looking at, one per attached client.
-
-    A pane is focused when it is the active pane, of the active window, of a
-    session someone is attached to - all three, since every window has an active
-    pane whether or not anyone is watching it. Detached sessions contribute
-    nothing: their "active" pane is just where they were left.
-
-    A set rather than one tty: several clients can be attached to different
-    sessions at once, and each of them is somewhere.
-    """
+    """The ttys a user is actually looking at, one per attached client."""
     try:
         result = subprocess.run(
             [
                 *server_args(socket),
-                "list-panes",
-                "-a",
+                "list-clients",
                 "-F",
-                "#{pane_tty}|#{session_attached}|#{window_active}|#{pane_active}",
+                "#{pane_tty}",
             ],
             capture_output=True,
             text=True,
             check=True,
+            timeout=_QUERY_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.CalledProcessError) as e:
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         _log.warning("could not list panes to find the focused one: %s", e)
         return set()
 
-    return {
-        parts[0]
-        for line in result.stdout.strip().split("\n")
-        if len(parts := line.split("|")) == 4
-        if parts[1] not in ("", "0") and parts[2] == "1" and parts[3] == "1"
-    }
+    return {line for line in result.stdout.strip().split("\n") if line}
 
 
 def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | None, str | None]:
