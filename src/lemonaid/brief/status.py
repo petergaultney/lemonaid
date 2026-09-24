@@ -1,16 +1,11 @@
-"""What a place's brief says about where its lemon's work stands.
-
-A brief is `.z/brief.md`, or `.z/brief-<name>.md` when several lemons share a
-directory. Its `Status:` line and `## Now` section are the worker's running
-account of progress; everything else is the task statement it started from.
-"""
+"""Find and render the brief attached to a lemon or stored in a place's `.z/`."""
 
 import dataclasses
 import re
 from collections import abc
 from pathlib import Path
 
-from . import store
+from . import display, store
 
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
@@ -131,13 +126,15 @@ def _display_title(title: str) -> str:
     return _GENERIC_TITLE_PREFIX.sub("", title, count=1).strip()
 
 
-def _render_brief(brief: Brief, now: float, full: bool) -> str:
+def _render_brief(brief: Brief, now: float, full: bool, identity: str = "") -> str:
     parts = split(brief.text)
     title = _display_title(parts.title) or brief.name or "Work status"
     return "\n\n".join(
         [
+            *([identity] if identity else []),
             f"## {title}",
             f"*updated {age(now - brief.mtime)}*",
+            f"`{display.home_path(brief.path)}`",
             f"**Status:** {parts.status or parts.raw_status or '(no Status line)'}",
             *([f"## Now\n\n{parts.now}"] if parts.now else []),
             *(["---", parts.rest] if full and parts.rest else []),
@@ -145,8 +142,11 @@ def _render_brief(brief: Brief, now: float, full: bool) -> str:
     )
 
 
-def _render_all(briefs: abc.Sequence[Brief], now: float) -> str:
-    return "\n\n---\n\n".join(_render_brief(b, now, full=len(briefs) == 1) for b in briefs)
+def _render_all(briefs: abc.Sequence[Brief], now: float, identities: abc.Mapping[Path, str]) -> str:
+    return "\n\n---\n\n".join(
+        _render_brief(b, now, full=len(briefs) == 1, identity=identities.get(b.path, ""))
+        for b in briefs
+    )
 
 
 def render(
@@ -155,6 +155,7 @@ def render(
     place: Path | None,
     names: abc.Sequence[str],
     now: float,
+    identities: abc.Mapping[Path, str] | None = None,
 ) -> str:
     """Markdown for where the work in a place stands.
 
@@ -168,7 +169,9 @@ def render(
     if attached:
         present = [load(path) for path in attached if path.is_file()]
         if present:
-            return _render_all(sorted(present, key=lambda b: b.mtime, reverse=True), now)
+            return _render_all(
+                sorted(present, key=lambda b: b.mtime, reverse=True), now, identities or {}
+            )
 
         missing = ", ".join(f"`{path}`" for path in attached)
         return f"## Work status\n\nThe attached brief {missing} does not exist."
@@ -176,7 +179,7 @@ def render(
     notes_dirs = [notes for d in dirs if (notes := notes_dir(d, place))]
     for notes in notes_dirs:
         if briefs := pick(find_briefs(notes), names):
-            return _render_all(briefs, now)
+            return _render_all(briefs, now, identities or {})
 
     for state in (notes / "state.md" for notes in notes_dirs):
         if not state.is_file():
