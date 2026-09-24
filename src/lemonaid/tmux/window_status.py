@@ -225,9 +225,14 @@ def extract_app_from_title(
     if not title or not title.strip():
         return None
 
-    # Get the first word/token from the title
+    # Shells and terminal apps conventionally put the running command before
+    # " | ". Lemon harnesses use the same title field for task descriptions,
+    # so only trust that prefix when it is a single command-like token.
     title = title.strip()
-    first_word = title.split()[0] if title.split() else ""
+    prefix = title.split(" | ", 1)[0].strip()
+    if len(prefix.split()) != 1:
+        return None
+    first_word = prefix
 
     if not first_word:
         return None
