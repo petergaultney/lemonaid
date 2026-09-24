@@ -9,6 +9,7 @@ import threading
 import time
 from collections import abc
 from datetime import datetime
+from pathlib import Path
 from typing import cast
 
 from rich.console import Console
@@ -21,7 +22,7 @@ from textual.coordinate import Coordinate
 from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from ... import claude, codex, openclaw, opencode
+from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
@@ -672,6 +673,9 @@ class LemonaidApp(App):
 
         for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
             self.bind(b.key, b.action, description=b.description, show=False)
+
+        for b in _build_bindings(kb.brief, "brief", "Brief"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -2107,6 +2111,27 @@ class LemonaidApp(App):
         self.push_screen(
             RenameScreen(current_name=notification.name or ""),
             handle_rename,
+        )
+
+    def action_brief(self) -> None:
+        """Show where the selected session's work stands, in a popup over this client."""
+        row_key = self._get_current_row_key()
+        if not row_key:
+            return
+
+        with db.connect() as conn:
+            notification = db.get(conn, int(row_key))
+
+        cwd = notification.metadata.get("cwd") if notification else None
+        if not notification or not cwd:
+            self.notify("No directory recorded for this session", severity="warning")
+            return
+
+        tmux_session = notification.metadata.get("tmux_session") or ""
+        brief.popup.open_popup(
+            Path(cwd),
+            brief.session.names(tmux_session, notification.name or ""),
+            title=notification.name or tmux_session or Path(cwd).name,
         )
 
     def action_jump_unread(self) -> None:
