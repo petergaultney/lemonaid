@@ -8,8 +8,11 @@ from pathlib import Path
 
 
 def get_state_path() -> Path:
-    """Get the path to the lemonaid state directory."""
-    state_dir = Path.home() / ".local" / "state" / "lemonaid"
+    """The lemonaid state directory, `LEMONAID_STATE_DIR` overriding the default."""
+    override = os.environ.get("LEMONAID_STATE_DIR")
+    state_dir = (
+        Path(override).expanduser() if override else Path.home() / ".local" / "state" / "lemonaid"
+    )
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir
 

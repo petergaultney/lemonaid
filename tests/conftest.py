@@ -29,6 +29,13 @@ def _own_database(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _own_state_and_config(monkeypatch, tmp_path):
+    """Scratch-pane and back-location state, and the config, stay out of $HOME."""
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("LEMONAID_CONFIG", str(tmp_path / "config.toml"))
+
+
+@pytest.fixture(autouse=True)
 def _watchers_must_not_outlive_tests(_no_real_tmux, _own_database):
     """Fail safely if a test leaves the DB-mutating watcher behind.
 
