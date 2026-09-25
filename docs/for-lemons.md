@@ -413,7 +413,8 @@ ID also identifies self without tmux. Otherwise, lemonaid resolves the current
 tmux pane and refuses ambiguous matches. Pass `--channel <your-channel>` to
 override receive identity. Both print one message and move it to `done/`;
 watch waits until one exists, or use `--timeout <seconds>` to bound the wait.
-Inside Codex, `watch` queues the message into your thread (`$CODEX_THREAD_ID`)
-with `codex queue` and moves it to `done/` only once the queue succeeds, so a
-failed queue leaves it pending. `--codex-thread <thread>` names the thread
-explicitly.
+A Codex lemon needs no waiter: lemonaid's delivery service queues each message
+into your thread with `codex queue`, and starts itself when a message is sent.
+A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a
+background task; if the `waiter-check` Stop hook is installed, it refuses to
+let your turn end until that watch is running.

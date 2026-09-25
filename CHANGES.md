@@ -1,3 +1,10 @@
+# 0.30.0 (2026-09-25)
+
+#### Added
+
+- **Codex lemons get their messages without arming a waiter.** A delivery service queues each pending message into the recipient's Codex thread and moves it to `done/` only once `codex queue` succeeds, retrying failures. `tell` starts it, as does a Codex turn ending with mail pending; it runs detached, one at a time, and exits after two idle minutes. `lemonaid inbox deliver` runs it in the foreground.
+- **An optional Stop hook keeps each Claude lemon's inbox waiter armed.** `lemonaid claude hooks --waiter-check` installs `lemonaid claude waiter-check`, which blocks a lemon with a brief from ending its turn while no `inbox watch --self` is running for it. A second watch for the same lemon now exits with an error.
+
 # 0.29.0 (2026-09-25)
 
 #### Added
