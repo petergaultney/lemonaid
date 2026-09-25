@@ -62,6 +62,12 @@ and `done`. Below it come the brief's `Needs` part in the attention colour, then
 `## Now` with `Done` last (or an older session's `.z/brief.md`), the rest of the brief below a
 rule, and the brief's path at the bottom.
 
+Bare `~/work/vault/...md` and `~/trove/...md` paths in the brief open in Obsidian, and bare
+`https://` and `obsidian://` URLs are shortened to a label (`lemonaid#74`, a note's name). Each
+label is a terminal hyperlink (OSC 8), so cmd-click opens it from any line it wraps onto; tmux
+passes hyperlinks through when `terminal-features` includes `hyperlinks`. Markdown links and code
+spans are left as written.
+
 A session with several lemons, opened from a window with none, starts with the session's name as a
 yellow bar, then one card per lemon, located by window (`w2`). The lowest-numbered window's
 lemon shows its whole `## Now`, the others only their `Needs` and one line of `Waiting on`.

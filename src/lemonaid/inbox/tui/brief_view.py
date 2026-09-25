@@ -1,13 +1,28 @@
 """The scratch pane's scrollable brief view, drawn as the lemon's card opened up."""
 
+import ast
+import re
 import time
+import typing as ty
 
+from markdown_it.token import Token
 from rich.text import Text
 from textual.containers import VerticalScroll
+from textual.content import Content, Span
+from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
+from textual.widgets._markdown import MarkdownBlock, MarkdownParagraph  # no public name
 
-from ...brief import pr, render, target
+from ...brief import links, pr, render, target
 from . import brief_card, utils
+
+_CLICK_LINK = re.compile(r"link\((?P<href>'[^']*'|\"[^\"]*\")\)")
+
+
+def _href(style: Style) -> str:
+    """The URL of a Markdown link's `@click` action, or ""."""
+    match = _CLICK_LINK.fullmatch(str(style.meta.get("@click", "")))
+    return ast.literal_eval(match["href"]) if match else ""
 
 
 class _Card(Static):
@@ -28,6 +43,33 @@ class _Card(Static):
 
     def render(self) -> Text:
         return brief_card.header(self._section, self._in_session, self.now, self.size.width)
+
+
+class _LinkedParagraph(MarkdownParagraph):
+    """A paragraph whose links are terminal hyperlinks too.
+
+    Textual makes a link clickable inside the app only. A hyperlink lets the
+    terminal open it on cmd-click, from any line a wrapped label lands on.
+    """
+
+    def _token_to_content(self, token: Token) -> Content:
+        content = super()._token_to_content(token)
+        return Content(
+            content.plain,
+            spans=[
+                Span(span.start, span.end, span.style + Style(link=href))
+                if isinstance(span.style, Style) and (href := _href(span.style))
+                else span
+                for span in content.spans
+            ],
+        )
+
+
+class _Markdown(Markdown):
+    BLOCKS: ty.ClassVar[dict[str, type[MarkdownBlock]]] = {
+        **Markdown.BLOCKS,
+        "paragraph_open": _LinkedParagraph,
+    }
 
 
 class _SessionBar(Static):
@@ -82,7 +124,7 @@ class BriefView(VerticalScroll):
 
     def _widgets(self, shown: render.View, now: float) -> list[Static | Markdown | Rule]:
         if not shown.sections:
-            return [Markdown(render.to_markdown(shown, now))]
+            return [_Markdown(links.linkify(render.to_markdown(shown, now)))]
 
         top: list[Static | Markdown | Rule] = (
             [_SessionBar(shown.header)]
@@ -97,7 +139,7 @@ class BriefView(VerticalScroll):
             for widget in (
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now),
-                *([Markdown(section.body)] if section.body else []),
+                *([_Markdown(links.linkify(section.body))] if section.body else []),
             )
         ]
         return [
