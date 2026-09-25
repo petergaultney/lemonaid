@@ -10,7 +10,7 @@ from .. import brief
 from ..inbox import db, self_session
 from ..inbox.channel import channel_id
 from ..log import get_logger
-from . import store
+from . import codex_delivery, store
 
 _log = get_logger("messages.cli")
 
@@ -146,10 +146,24 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                     _log.warning("Invalid attached brief %s: %s", current, error)
                     return False
 
+        codex_thread = args.codex_thread or codex_delivery.own_thread(channel)
         try:
-            result = store.watch_next(inbox, still_attached, args.timeout)
-        except (ValueError, TimeoutError) as error:
+            result = store.watch_next(
+                inbox,
+                still_attached,
+                args.timeout,
+                find=(
+                    (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
+                    if codex_thread
+                    else store.take_next
+                ),
+            )
+        except (ValueError, TimeoutError, RuntimeError) as error:
             _fail(str(error))
+
+        if codex_thread:
+            print(result[1], end="")
+            return
     else:
         result = store.take_next(inbox)
 
@@ -196,4 +210,9 @@ def add_inbox_parsers(subparsers: argparse._SubParsersAction) -> None:
         parser.add_argument("--channel", help="This lemon's channel, overriding self detection")
         if name == "watch":
             parser.add_argument("--timeout", type=float, help="Maximum seconds to wait")
-        parser.set_defaults(func=command)
+            parser.add_argument(
+                "--codex-thread",
+                metavar="THREAD",
+                help="Queue the message into this Codex thread (default: $CODEX_THREAD_ID when watching that thread)",
+            )
+        parser.set_defaults(func=command, codex_thread="")

@@ -413,3 +413,7 @@ ID also identifies self without tmux. Otherwise, lemonaid resolves the current
 tmux pane and refuses ambiguous matches. Pass `--channel <your-channel>` to
 override receive identity. Both print one message and move it to `done/`;
 watch waits until one exists, or use `--timeout <seconds>` to bound the wait.
+Inside Codex, `watch` queues the message into your thread (`$CODEX_THREAD_ID`)
+with `codex queue` and moves it to `done/` only once the queue succeeds, so a
+failed queue leaves it pending. `--codex-thread <thread>` names the thread
+explicitly.

@@ -162,7 +162,7 @@ def test_watch_follows_the_id_when_the_brief_filename_changes(capsys, monkeypatc
     inbox = _inbox("recipient")
     store.send(inbox, "After rename", "claude:sender")
 
-    def renamed_watch(inbox_path, still_attached, timeout):
+    def renamed_watch(inbox_path, still_attached, timeout, find):
         old = brief_store.briefs_dir() / "recipient.md"
         renamed = old.rename(old.with_name("new-name.md"))
         with db.connect() as conn:
@@ -172,7 +172,7 @@ def test_watch_follows_the_id_when_the_brief_filename_changes(capsys, monkeypatc
             )
             conn.commit()
         assert still_attached()
-        return store.take_next(inbox_path)
+        return find(inbox_path)
 
     monkeypatch.setattr(store, "watch_next", renamed_watch)
     _run(_parser(), "inbox", "watch", "--self", "--channel", "codex:recipient")
@@ -185,7 +185,7 @@ def test_watch_stops_when_the_brief_moves_to_another_channel(capsys, monkeypatch
     inbox = _inbox("recipient")
     store.send(inbox, "After reattach", "claude:sender")
 
-    def moved_watch(inbox_path, still_attached, timeout):
+    def moved_watch(inbox_path, still_attached, timeout, find):
         with db.connect() as conn:
             attached.attach(conn, "codex:new", brief_store.briefs_dir() / "recipient.md")
         assert not still_attached()

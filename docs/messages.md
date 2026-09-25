@@ -42,6 +42,17 @@ requires that the recipient's brief is currently attached to a session.
 bounds that wait. The watch keeps the stable ID if the brief file is renamed,
 and ends with an error if the brief moves to another channel or is detached.
 
+Inside Codex, `inbox watch --self` wakes the lemon by queueing the message into
+its own thread. When `CODEX_THREAD_ID` is set and the watched channel is that
+thread's, the watch runs `codex queue --thread "$CODEX_THREAD_ID" --message
+"lemonaid message: <message>"` and moves the file to `done/` only after that
+command succeeds. `--codex-thread <thread>` names the thread explicitly. If
+`codex queue` fails or cannot be run, the watch exits with status 1 and the
+message stays pending for the next watch. Receivers of one inbox take turns: a
+plain `next` or `watch` waits while a Codex watch queues, so each message is
+handed out once. A watch killed after Codex
+accepts the message but before the move delivers it again.
+
 Receiving claims the file by moving it to `done/`. A failure while reading or
 printing restores it to the pending folder. A process killed between the move
 and printing can still leave an unread message in `done/`; check that folder
