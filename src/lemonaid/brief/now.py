@@ -79,6 +79,10 @@ def parse(now: str) -> Now:
     return Now(needs_label=needs_label if cleaned["needs"] else "Needs", **cleaned)
 
 
+def is_list(text: str) -> bool:
+    return bool(_TOP_LEVEL_BULLET.match(text))
+
+
 def summary(text: str) -> str:
     """One line for a part: its lead line, or its first item and how many more there are."""
     lines = [line for line in text.splitlines() if line.strip()]

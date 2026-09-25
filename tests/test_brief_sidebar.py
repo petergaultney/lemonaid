@@ -110,6 +110,7 @@ def test_brief_view_replaces_the_inbox_then_restores_it(tmp_path):
             await pilot.pause()
             assert "Changed." in view._rendered_markdown
             assert "blocked" in view._rendered_markdown
+            assert len(view.query("_Card")) == 1
 
             app._set_brief_view(None)
             await pilot.pause()

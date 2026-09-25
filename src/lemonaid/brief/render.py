@@ -1,12 +1,14 @@
-"""Markdown for where a place's work stands, shared by the popup, pager and sidebar.
+"""Where a place's work stands, shared by the popup, pager and sidebar.
 
-Each brief opens with who its lemon is and its status, then what it needs from
-a person, whatever order the worker wrote `## Now` in. Where the lemon runs, which
-file the brief is, and how old it is come once, at the bottom.
+`view` sorts out what to show: one section per brief, each with who its lemon
+is, its status and PRs, and a body of what the worker wrote, starting with what
+it needs from a person, whatever order `## Now` was written in. The popup and
+sidebar draw each section's identity as a card; `markdown` writes the whole
+view as plain Markdown for lemons and scripts.
 """
 
+import dataclasses
 import re
-from collections import abc
 from pathlib import Path
 
 from . import display, now, pr, status, target
@@ -33,7 +35,8 @@ def _part(label: str, text: str) -> str:
     if not label:
         return text
 
-    return f"**{label}:** {text}" if "\n" not in text else f"**{label}:**\n\n{text}"
+    inline = "\n" not in text and not now.is_list(text)
+    return f"**{label}:** {text}" if inline else f"**{label}:**\n\n{text}"
 
 
 def _needs(label: str, text: str) -> str:
@@ -57,37 +60,42 @@ def _labelled(parsed: now.Now, compact: bool) -> list[str]:
     ]
 
 
-def _prs(text: str, cwd: Path | None, pr_state: pr.Lookup) -> str:
-    states = [
-        " ".join(part for part in (pr.label(ref), pr_state(ref, cwd)) if part)
-        for ref in pr.refs(text)
-    ]
-    return f"**PR:** {', '.join(states)}" if states else ""
+@dataclasses.dataclass(frozen=True)
+class Section:
+    lemon: target.Identity | None
+    title: str
+    state: str  # one of store.STATES, or ""
+    raw_status: str
+    prs: tuple[tuple[str, str], ...]  # (label, live state or "")
+    path: Path
+    mtime: float
+    body: str  # Markdown: Needs, the title under a lemon, the rest of Now, then the task
 
 
-def _block(
+@dataclasses.dataclass(frozen=True)
+class View:
+    header: str  # Markdown: a session's name (`# ...`), or why no lemon is named
+    in_session: bool  # the sections are the lemons of one tmux session
+    sections: tuple[Section, ...]
+    fallback: str  # Markdown shown when there is no brief
+
+
+def _prs(text: str, cwd: Path | None, pr_state: pr.Lookup) -> tuple[tuple[str, str], ...]:
+    return tuple((pr.label(ref), pr_state(ref, cwd)) for ref in pr.refs(text))
+
+
+def _section(
     brief: status.Brief,
     lemon: target.Identity | None,
-    in_session: bool,
     detail: str,  # "full" (the task below a rule), "now", or "compact"
     pr_state: pr.Lookup,
-) -> str:
+) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
     title = _display_title(parts.title) or brief.name or "Work status"
-    cwd = Path(lemon.place) if lemon and lemon.place else brief.path.parent
-    return "\n\n".join(
+    body = "\n\n".join(
         part
         for part in (
-            f"### {_who(lemon, in_session)}" if lemon else f"### {title}",
-            "  \n".join(
-                line
-                for line in (
-                    f"**Status:** {parts.status or parts.raw_status or '(no Status line)'}",
-                    _prs(brief.text, cwd, pr_state),
-                )
-                if line
-            ),
             _needs(parsed.needs_label, parsed.needs) if parsed.needs else "",
             f"**{title}**" if lemon else "",
             *_labelled(parsed, detail == "compact"),
@@ -95,33 +103,18 @@ def _block(
         )
         if part
     )
-
-
-def _footer(
-    briefs: abc.Sequence[status.Brief],
-    lemons: abc.Mapping[Path, target.Identity],
-    in_session: bool,
-    now_seconds: float,
-) -> str:
-    places = [
-        " · ".join(part for part in (lemon.directory, lemon.branch) if part)
-        for brief in briefs
-        if (lemon := lemons.get(brief.path))
-    ]
-    files = [
-        " · ".join(
-            part
-            for part in (
-                f"w{lemon.tmux_window}" if in_session and lemon else "",
-                f"`{display.home_path(brief.path)}`",
-                f"updated {status.age(now_seconds - brief.mtime)}",
-            )
-            if part
-        )
-        for brief in briefs
-        for lemon in [lemons.get(brief.path)]
-    ]
-    return "  \n".join(f"*{line}*" for line in [*dict.fromkeys(p for p in places if p), *files])
+    return Section(
+        lemon,
+        title,
+        parts.status,
+        parts.raw_status,
+        _prs(
+            brief.text, Path(lemon.place) if lemon and lemon.place else brief.path.parent, pr_state
+        ),
+        brief.path,
+        brief.mtime,
+        body,
+    )
 
 
 def _window_order(lemon: target.Identity | None) -> tuple[int, str]:
@@ -129,39 +122,91 @@ def _window_order(lemon: target.Identity | None) -> tuple[int, str]:
     return (int(window), "") if window.isdigit() else (1 << 30, window)
 
 
-def _briefs(
-    briefs: abc.Sequence[status.Brief],
-    found: target.Target,
-    now_seconds: float,
-    pr_state: pr.Lookup,
-) -> str:
+def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+    located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
+    if isinstance(located, str):
+        return View(found.header, False, (), located)
+
     lemons = (
-        {brief.path: found.lemon for brief in briefs}
+        {brief.path: found.lemon for brief in located}
         if found.lemon
-        else {b.path: lemon for b in briefs if (lemon := found.identities.get(b.path))}
+        else {b.path: lemon for b in located if (lemon := found.identities.get(b.path))}
     )
     in_session = found.lemon is None and bool(lemons)
     ordered = (
-        sorted(briefs, key=lambda b: _window_order(lemons.get(b.path))) if in_session else briefs
+        sorted(located, key=lambda b: _window_order(lemons.get(b.path))) if in_session else located
     )
-    blocks = [
-        _block(
-            brief,
-            lemons.get(brief.path),
-            in_session,
-            "full" if len(briefs) == 1 else "now" if i == 0 or not in_session else "compact",
-            pr_state,
+    return View(
+        found.header,
+        in_session,
+        tuple(
+            _section(
+                brief,
+                lemons.get(brief.path),
+                "full" if len(located) == 1 else "now" if i == 0 or not in_session else "compact",
+                pr_state,
+            )
+            for i, brief in enumerate(ordered)
+        ),
+        "",
+    )
+
+
+def status_text(section: Section) -> str:
+    return section.state or section.raw_status or "(no Status line)"
+
+
+def where(lemon: target.Identity) -> str:
+    return " · ".join(part for part in (lemon.directory, lemon.branch) if part)
+
+
+def file_line(section: Section, in_session: bool, now_seconds: float) -> str:
+    return " · ".join(
+        part
+        for part in (
+            f"w{section.lemon.tmux_window}" if in_session and section.lemon else "",
+            f"`{display.home_path(section.path)}`",
+            f"updated {status.age(now_seconds - section.mtime)}",
         )
-        for i, brief in enumerate(ordered)
-    ]
-    return "\n\n---\n\n".join([*blocks, _footer(ordered, lemons, in_session, now_seconds)])
+        if part
+    )
+
+
+def _markdown_section(section: Section, in_session: bool) -> str:
+    prs = ", ".join(" ".join(part for part in pair if part) for pair in section.prs)
+    return "\n\n".join(
+        part
+        for part in (
+            f"### {_who(section.lemon, in_session)}" if section.lemon else f"### {section.title}",
+            "  \n".join(
+                line
+                for line in (f"**Status:** {status_text(section)}", f"**PR:** {prs}" if prs else "")
+                if line
+            ),
+            section.body,
+        )
+        if part
+    )
+
+
+def to_markdown(shown: View, now_seconds: float) -> str:
+    places = dict.fromkeys(where(s.lemon) for s in shown.sections if s.lemon)
+    footer = "  \n".join(
+        f"*{line}*"
+        for line in [
+            *(p for p in places if p),
+            *(file_line(s, shown.in_session, now_seconds) for s in shown.sections),
+        ]
+    )
+    body = shown.fallback or "\n\n---\n\n".join(
+        [*(_markdown_section(s, shown.in_session) for s in shown.sections), footer]
+    )
+    return "\n\n".join(
+        part
+        for part in (shown.header, "---" if shown.header.startswith("# ") else "", body)
+        if part
+    )
 
 
 def markdown(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> str:
-    located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
-    body = located if isinstance(located, str) else _briefs(located, found, now_seconds, pr_state)
-    return "\n\n".join(
-        part
-        for part in (found.header, "---" if found.header.startswith("# ") else "", body)
-        if part
-    )
+    return to_markdown(view(found, now_seconds, pr_state), now_seconds)

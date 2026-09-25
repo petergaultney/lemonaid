@@ -54,18 +54,20 @@ visible. `prefix+b` toggles it from the lemon pane, and switching windows or ses
 restores the inbox. `prefix+l` also restores the inbox, then focuses it; use the
 mouse wheel to scroll the brief while it stays visible beside the lemon.
 
-Otherwise, `b` opens a tmux popup over your client with the selected lemon's identity and
-`Status:`, then its `Needs` part in a highlighted block, then the rest of `## Now` with `Done`
-last (or an older session's `.z/brief.md`). The rest of the brief appears below a rule, and the
-lemon's directory, branch, brief path and age at the bottom. A `PR #N` or pull-request URL in the
-brief gets its live state (`open`, `draft`, `merged`, `closed`) from `gh` beside the status.
+Otherwise, `b` opens a tmux popup over your client. Both views start each lemon with its inbox
+card, opened up: name and model, then tmux location, directory and branch, then status, brief age,
+and the live state (`open`, `draft`, `merged`, `closed`, from `gh`) of any `PR #N` or pull-request
+URL in the brief. The card uses the inbox's colours, including the filled headline for `blocked`
+and `done`. Below it come the brief's `Needs` part in the attention colour, then the rest of
+`## Now` with `Done` last (or an older session's `.z/brief.md`), the rest of the brief below a
+rule, and the brief's path at the bottom.
 
 A session with several lemons, opened from a window with none, starts with the session's name as a
-yellow bar. Each lemon's section opens with `w<window> · name · backend / model`; the
-lowest-numbered window's lemon shows its whole `## Now`, the others only their status, `Needs`,
-and one line of `Waiting on`.
-Press `q` or `Escape` to close it. Rich renders the Markdown and colours `working`
-yellow, `done` green, and `blocked` red. `lemonaid brief
+yellow bar, then one card per lemon, located by window (`w2`). The lowest-numbered window's
+lemon shows its whole `## Now`, the others only their `Needs` and one line of `Waiting on`.
+
+
+Press `q` or `Escape` to close the popup. `lemonaid brief
 show <session> --popup` uses the same sidebar-or-popup behavior from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-view)). The popup has a yellow border and uses 90% of the
 client width up to a 140-column maximum.
 

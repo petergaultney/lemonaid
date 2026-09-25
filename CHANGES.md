@@ -8,6 +8,8 @@
 
 - **Briefs show the live state of PRs they mention.** `PR #N` and pull-request URLs get `open`, `draft`, `merged` or `closed` from `gh` beside the status, so a stale brief is visible. Without `gh`, the number appears alone.
 
+- **The brief popup and sidebar draw each lemon as its inbox card, opened up.** The name, model, working directory and branch use the card's colours, `blocked` and `done` fill the headline the same way, and status, age and PR states sit on the card's third line. What the worker wrote follows as Markdown, with `Needs` in the inbox's attention colour.
+
 - **Cards show a lemon's `Needs` line under the brief age**, ahead of what a waiting lemon is waiting on.
 
 # 0.26.0 (2026-09-24)
