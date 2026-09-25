@@ -286,6 +286,23 @@ def test_waiting_brief_lines_keep_the_current_session_edge_and_age():
     assert "●" in lines[0]
 
 
+def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour():
+    (body,) = app._as_card(
+        _brief_cells(),
+        50,
+        gutter_width=2,
+        card_brief=CardBrief("waiting", "CI", 0, "approve the release", "Needs Peter"),
+        now=60,
+    )
+    lines = body.plain.splitlines()
+    need = body.plain.index("Needs Peter: approve the release")
+    style = body.get_style_at_offset(Console(color_system="truecolor"), need)
+
+    assert lines[2].strip() == "Needs Peter: approve the release"
+    assert lines[3].strip() == "updated 1m ago" and lines[4].strip() == "CI"
+    assert style.color.name == ATTENTION_COLOR and not style.dim
+
+
 def test_done_headline_is_blue_with_white_text():
     (body,) = app._as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("done", "", 0))
     style = body.get_style_at_offset(Console(color_system="truecolor"), 0)

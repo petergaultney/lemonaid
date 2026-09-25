@@ -19,8 +19,8 @@ from ..log import get_logger
 
 _log = get_logger("brief.pr")
 
-_URL = re.compile(r"https://[\w.-]+/[\w.-]+/[\w.-]+/pulls?/(?P<number>\d+)")
-_NUMBER = re.compile(r"\bPR\s*#(?P<number>\d+)", re.IGNORECASE)
+_URL = re.compile(r"https://[\w.-]+/(?P<repo>[\w.-]+/[\w.-]+)/pulls?/(?P<number>\d+)")
+_REF = re.compile(rf"(?P<url>{_URL.pattern})|\bPR\s*#(?P<bare>\d+)", re.IGNORECASE)
 _STATES = ("open", "draft", "merged", "closed")
 _MAX_REFS = 3
 _TIMEOUT_SECONDS = 5
@@ -29,16 +29,44 @@ _CACHE_SECONDS = 120
 Lookup = abc.Callable[[str, Path | None], str]
 
 
-def refs(text: str) -> list[str]:
-    """PR references in *text*, in order: URLs, then numbers no URL already covers."""
-    urls = {match["number"]: match[0] for match in _URL.finditer(text)}
-    numbers = [n for match in _NUMBER.finditer(text) if (n := match["number"]) not in urls]
-    return list(dict.fromkeys([*urls.values(), *numbers]))[:_MAX_REFS]
-
-
-def label(ref: str) -> str:
+def _number(ref: str) -> str:
     match = _URL.fullmatch(ref)
-    return f"#{match['number']}" if match else f"#{ref}"
+    return match["number"] if match else ref
+
+
+def refs(text: str) -> list[str]:
+    """PR references in *text*, in the order written, each once.
+
+    A bare `PR #N` is the same PR as a URL for #N only when every URL in the
+    brief is in one repository; otherwise nothing says which repository it
+    means, and both are kept.
+    """
+    matches = list(_REF.finditer(text))
+    one_repo = len({_URL.fullmatch(m["url"])["repo"] for m in matches if m["url"]}) == 1
+    found: list[str] = []
+    for match in matches:
+        number = match["number"] or match["bare"]
+        slot = next((i for i, ref in enumerate(found) if one_repo and _number(ref) == number), None)
+        if slot is None:
+            found.append(match["url"] or match["bare"])
+        elif match["url"] and found[slot] == number:
+            found[slot] = match["url"]  # the bare mention's place, now with its URL
+
+    return list(dict.fromkeys(found))[:_MAX_REFS]
+
+
+def label(ref: str, refs_shown: abc.Collection[str] = ()) -> str:
+    """`#N`, or `repo#N` for a URL when the refs shown with it span repositories."""
+    match = _URL.fullmatch(ref)
+    if not match:
+        return f"#{ref}"
+
+    repos = {m["repo"] for r in refs_shown if (m := _URL.fullmatch(r))}
+    return (
+        f"#{match['number']}"
+        if len(repos) <= 1
+        else f"{match['repo'].split('/')[-1]}#{match['number']}"
+    )
 
 
 def no_state(ref: str, cwd: Path | None) -> str:

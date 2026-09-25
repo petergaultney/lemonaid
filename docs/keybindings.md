@@ -69,7 +69,9 @@ passes hyperlinks through when `terminal-features` includes `hyperlinks`. Markdo
 spans are left as written.
 
 A session with several lemons, opened from a window with none, starts with the session's name as a
-yellow bar, then one card per lemon, located by window (`w2`). The lowest-numbered window's
+yellow bar, then one card for every lemon recorded in it, located by window (`w2`). A lemon
+without an attached brief uses the `.z/` brief named for it, or an unclaimed `brief.md`, and
+otherwise says it has none. The lowest-numbered window's
 lemon shows its whole `## Now`, the others only their `Needs` and one line of `Waiting on`.
 
 

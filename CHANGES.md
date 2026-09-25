@@ -4,7 +4,7 @@
 
 - **Briefs put what a lemon needs from you first.** The popup, sidebar and cards pull `Needs` (`Needs Peter`, `Needs you`, ...) out of `## Now` into a highlighted block under the lemon's name and status, whatever order the worker wrote. `## Now` can use `### Needs Peter`-style sub-headings as well as `- Needs Peter:` bullets, and `Done` always comes last.
 
-- **A session with several lemons opens with its name as a bar, then one section per lemon.** Each starts `w2 · name · backend / model`; the lowest window's lemon shows its whole `## Now`, the others only their status, `Needs` and one line of `Waiting on`. Directory, branch, brief paths and ages come once, at the bottom.
+- **A session with several lemons opens with its name as a bar, then one section for every lemon recorded in it.** A lemon without an attached brief uses the one in `.z/` named for it (or an unclaimed `brief.md`), and otherwise says it has none. The lowest window's lemon shows its whole `## Now`; the others show `Needs` and one line of `Waiting on`.
 
 - **Briefs can show the live state of PRs they mention.** Set `[brief] pr_state` to a command that prints `open`, `draft`, `merged` or `closed` for `{ref}`, and each `PR #N` or pull-request URL gets that state beside the status, so a stale brief is visible. Unset, the number appears alone.
 
@@ -12,7 +12,7 @@
 
 - **Paths and URLs in a brief open with cmd-click in the popup and sidebar, even when they wrap.** Bare `~/work/vault/...md` and `~/trove/...md` paths become Obsidian links, and bare `https://` and `obsidian://` URLs get short labels (`lemonaid#74`, a note's name). Each label is a terminal hyperlink on every line it wraps onto. Existing Markdown links and code are left as written.
 
-- **Cards show a lemon's `Needs` line under the brief age**, ahead of what a waiting lemon is waiting on.
+- **Cards show what a lemon needs from you right under its name and location**, with the label the worker wrote (`Needs Peter: ...`) in the attention colour, even on a dimmed waiting card. The brief age and what a waiting lemon is waiting on follow.
 
 # 0.26.0 (2026-09-24)
 

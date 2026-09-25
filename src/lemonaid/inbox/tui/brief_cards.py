@@ -13,14 +13,21 @@ class CardBrief:
     waiting_on: str
     mtime: float
     needs: str = ""
+    needs_label: str = "Needs"
 
     @property
-    def subtitle(self) -> str:
-        """What a person has to do, else what a waiting lemon is waiting on."""
-        if self.needs and self.status != "done":
-            return self.needs
+    def needs_line(self) -> str:
+        """What a person has to do, under the label the worker wrote; "" once done."""
+        return f"{self.needs_label}: {self.needs}" if self.needs and self.status != "done" else ""
 
+    @property
+    def waiting_line(self) -> str:
         return self.waiting_on if self.status == "waiting" else ""
+
+    @property
+    def extra_lines(self) -> int:
+        """Lines the brief adds to its card: the age, and each of the two above it has."""
+        return 1 + bool(self.needs_line) + bool(self.waiting_line)
 
     def age(self, now: float, stale_hours: float) -> str:
         elapsed = max(0, now - self.mtime)
@@ -42,6 +49,7 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
         brief_now.summary(now.waiting_on),
         mtime,
         brief_now.summary(now.needs),
+        now.needs_label,
     )
 
 
