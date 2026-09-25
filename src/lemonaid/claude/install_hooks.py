@@ -15,6 +15,7 @@ import typing as ty
 from pathlib import Path
 
 _SESSION_START_COMMAND = "lemonaid claude session-start"
+WAITER_CHECK_COMMAND = "lemonaid claude waiter-check"
 
 
 def settings_path() -> Path:
@@ -65,36 +66,44 @@ def _write(path: Path, settings: dict) -> None:
     tmp.replace(target)
 
 
-def install_session_start(path: Path | None = None, dry_run: bool = False) -> str:
-    """Add the SessionStart hook. Returns the line to print."""
+def install(event: str, command: str, path: Path | None = None, dry_run: bool = False) -> str:
+    """Add a hook running `command` on `event`. Returns the line to print."""
     path = path or settings_path()
     settings = _load(path)
-    settings, changed = _with_hook(settings, "SessionStart", _SESSION_START_COMMAND)
+    settings, changed = _with_hook(settings, event, command)
 
     if not changed:
-        return f"SessionStart hook already installed in {path}"
+        return f"{event} hook already installed in {path}"
 
     if dry_run:
-        return f"would add SessionStart -> {_SESSION_START_COMMAND} in {path}"
+        return f"would add {event} -> {command} in {path}"
 
     _write(path, settings)
-    return f"installed SessionStart -> {_SESSION_START_COMMAND} in {path}"
+    return f"installed {event} -> {command} in {path}"
+
+
+def uninstall(event: str, command: str, path: Path | None = None) -> str:
+    """Remove the `event` hook lemonaid installed for `command`, and nothing else."""
+    path = path or settings_path()
+    settings = _load(path)
+    entries = settings.get("hooks", {}).get(event, [])
+
+    kept = [entry for entry in entries if not _has_command([entry], command)]
+    if len(kept) == len(entries):
+        return f"no lemonaid {event} hook in {path}"
+
+    if kept:
+        settings["hooks"][event] = kept
+    else:
+        del settings["hooks"][event]
+
+    _write(path, settings)
+    return f"removed {event} hook from {path}"
+
+
+def install_session_start(path: Path | None = None, dry_run: bool = False) -> str:
+    return install("SessionStart", _SESSION_START_COMMAND, path, dry_run)
 
 
 def uninstall_session_start(path: Path | None = None) -> str:
-    """Remove the SessionStart hook lemonaid installed, and nothing else."""
-    path = path or settings_path()
-    settings = _load(path)
-    entries = settings.get("hooks", {}).get("SessionStart", [])
-
-    kept = [entry for entry in entries if not _has_command([entry], _SESSION_START_COMMAND)]
-    if len(kept) == len(entries):
-        return f"no lemonaid SessionStart hook in {path}"
-
-    if kept:
-        settings["hooks"]["SessionStart"] = kept
-    else:
-        del settings["hooks"]["SessionStart"]
-
-    _write(path, settings)
-    return f"removed SessionStart hook from {path}"
+    return uninstall("SessionStart", _SESSION_START_COMMAND, path)

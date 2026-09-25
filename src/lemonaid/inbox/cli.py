@@ -166,6 +166,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     decorate_cli.add_parsers(inbox_subparsers)
     messages.cli.add_inbox_parsers(inbox_subparsers)
+    messages.service_cli.add_parser(inbox_subparsers)
 
     # inbox snoozed
     snoozed_parser = inbox_subparsers.add_parser(
