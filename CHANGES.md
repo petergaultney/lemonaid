@@ -1,3 +1,9 @@
+# 0.29.0 (2026-09-25)
+
+#### Added
+
+- **`inbox watch --self` inside Codex queues the message into its own thread without losing it.** When `CODEX_THREAD_ID` is the watched channel's thread, the watch runs `codex queue` and moves the message to `done/` only once that succeeds; a failed queue leaves it pending for the next watch. `--codex-thread <thread>` names the thread explicitly.
+
 # 0.28.0 (2026-09-25)
 
 #### Added
