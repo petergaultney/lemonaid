@@ -417,3 +417,7 @@ Inside Codex, `watch` queues the message into your thread (`$CODEX_THREAD_ID`)
 with `codex queue` and moves it to `done/` only once the queue succeeds, so a
 failed queue leaves it pending. `--codex-thread <thread>` names the thread
 explicitly.
+
+When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
+`lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
+described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
