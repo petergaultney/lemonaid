@@ -1,6 +1,6 @@
 """Which inbox channel is the lemon calling from this tmux pane?
 
-A channel (backend session id) is the identity; a tty is only where the pane
+A channel identifies the backend session; a tty is only where the pane
 happens to be now, and ttys are reused. So a channel is chosen only when its
 newest live row records this pane's tty, tmux session, and window, and exactly
 one channel does. Anything else is an error that names `--id` or `--channel`,
@@ -83,7 +83,10 @@ def resolve(conn: sqlite3.Connection, where: PaneLocation) -> tuple[str, str]:
 
     at = f"{where.session}:{where.window} ({where.tty})"
     if matches:
-        return "", f"{len(matches)} live sessions are recorded at {at}: {', '.join(matches)}. {_GUIDANCE}"
+        return (
+            "",
+            f"{len(matches)} live sessions are recorded at {at}: {', '.join(matches)}. {_GUIDANCE}",
+        )
 
     on_tty = [n for n in live if n.metadata.get("tty") == where.tty]
     detail = (

@@ -310,15 +310,17 @@ runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.
 
 ## Briefs
 
-A brief is a Markdown file attached to one lemon session: one Claude session or Codex thread, keyed by
-its inbox channel, so it survives compaction and `--resume`, and an author and its reviewer sharing a
-place each have their own. Briefs live in `~/.brief-lemons/<YYYY-MM-DD>-<slug>.md`, never in the repo.
+A brief is a Markdown file attached to one lemon session: one Claude session or Codex thread,
+found by its inbox channel. Its `Lemon-ID` is the durable identity across brief renames and
+session changes. An author and reviewer sharing a place each have their own brief. Briefs live in
+`~/.brief-lemons/<YYYY-MM-DD>-<slug>.md`, never in the repo.
 A brief is how a parent hands a lemon its task, and how that lemon reports where the work stands.
 
 ```bash
 lemonaid brief new --self "Fix the thing"      # create ~/.brief-lemons/<today>-fix-the-thing.md, attach it
 lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.brief-lemons/)
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
+lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
 lemonaid brief status --self waiting            # Status: waiting  (working | waiting | done | blocked)
 lemonaid brief detach --self                   # the file stays
@@ -333,6 +335,18 @@ takes `--json`.
 
 `brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
 with `brief now`. Readers still recognize older `Status: done - PR #12` lines as `done`.
+
+New briefs include a readable slug and WordyBin suffix, such as
+`Lemon-ID: mc-tars-no-mops-leases.SkullHen`, generated from the brief filename
+and two random bytes. The slug omits the leading date and is trimmed to about
+40 characters at a hyphen boundary.
+Attaching or messaging an existing brief adds the line if it is missing. The ID names its
+message inbox and stays with the brief when its filename or attached channel changes.
+`brief id` also backfills an existing attached brief.
+Older hexadecimal and hand-made IDs remain valid and keep their inbox folders.
+An ID's shape is not validated; only folder safety is checked. It must be
+non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control
+character, or leading dot.
 
 A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with `brief now` and
 `brief status`; any other lemon may do the same or edit the file directly.
@@ -388,3 +402,14 @@ Status: working
 Each part can instead be a sub-heading (`### Needs`, `### Waiting on`, `### Next`, `### Done`)
 with anything under it. `Needs` may name who it needs (`Needs Peter`); readers show it first
 whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.
+
+## Lemon-to-lemon messages
+
+With a brief attached to the recipient's channel, `lemonaid tell <lemon-id-or-channel-or-brief>
+"<message>"` writes a Markdown file to its inbox. Set `LEMONAID_CHANNEL` to
+your own channel to identify the sender and to use `lemonaid inbox next --self`
+or `lemonaid inbox watch --self`. An exported Claude session ID or Codex thread
+ID also identifies self without tmux. Otherwise, lemonaid resolves the current
+tmux pane and refuses ambiguous matches. Pass `--channel <your-channel>` to
+override receive identity. Both print one message and move it to `done/`;
+watch waits until one exists, or use `--timeout <seconds>` to bound the wait.

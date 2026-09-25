@@ -15,6 +15,8 @@ import tempfile
 from collections import abc
 from pathlib import Path
 
+import wordybin
+
 STATES = ("working", "waiting", "done", "blocked")
 
 _EDIT_ATTEMPTS = 5
@@ -27,6 +29,8 @@ _TEMPLATE = """\
 # {title}
 
 Status: working
+
+Lemon-ID: {lemon_id}
 
 ## Now
 - Starting.
@@ -69,13 +73,24 @@ def _slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60].strip("-") or "brief"
 
 
+def new_lemon_id(path: Path) -> str:
+    """Give a brief a short name plus a random, two-byte WordyBin suffix."""
+    stem = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", path.stem)
+    slug = _slug(stem)
+    if len(slug) > 40:
+        prefix = slug[:40]
+        slug = (prefix.rsplit("-", 1)[0] if "-" in prefix else prefix).rstrip("-") or "brief"
+
+    return f"{slug}.{wordybin.encode(os.urandom(2))}"
+
+
 def create(title: str, today: datetime.date) -> Path:
     """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
     directory = briefs_dir()
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{today.isoformat()}-{_slug(title)}.md"
     with path.open("x") as f:
-        f.write(_TEMPLATE.format(title=title.strip()))
+        f.write(_TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)))
 
     return path.resolve()
 

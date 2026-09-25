@@ -1,3 +1,10 @@
+# 0.28.0 (2026-09-25)
+
+#### Added
+
+- **Lemons can send Markdown messages to each other's stable-ID inboxes.** Each new brief gets a `Lemon-ID` made from its slug and a short WordyBin suffix; existing hex and hand-made IDs remain valid. Other attached briefs receive one when used. `brief id` prints it. `lemonaid tell` accepts that ID, a channel, or an attached brief name. `lemonaid inbox next --self` handles one pending message, while `inbox watch --self` waits for one. Both print the message and move its file to `done/`.
+- **Message commands resolve self from harness session IDs or the current tmux pane.** A send from a person's shell uses their username as the sender. Watches keep the ID across brief renames, stop when the brief changes channel, and accept a timeout; messages include a send time and can be read from stdin.
+
 # 0.27.0 (2026-09-24)
 
 #### Changed
