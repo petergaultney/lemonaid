@@ -325,8 +325,10 @@ def _as_card(
     brief_lines: list[Text] = []
     if card_brief:
         brief_lines.append(Text(card_brief.age(now, stale_hours), style="dim"))
-        if card_brief.status == "waiting" and card_brief.waiting_on:
-            brief_lines.append(Text(card_brief.waiting_on, style="dim"))
+        if card_brief.subtitle:
+            brief_lines.append(
+                Text(card_brief.subtitle, style="dim" if card_brief.status == "waiting" else "bold")
+            )
 
     lines = [
         headline,
@@ -1258,7 +1260,7 @@ class LemonaidApp(App):
         }
         extra_lines = max(
             (
-                1 + int(card.status == "waiting" and bool(card.waiting_on))
+                1 + int(bool(card.subtitle))
                 for card in card_briefs.values()
                 if card
             ),

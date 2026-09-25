@@ -1,3 +1,15 @@
+# 0.27.0 (2026-09-24)
+
+#### Changed
+
+- **Briefs put what a lemon needs from you first.** The popup, sidebar and cards pull `Needs` (`Needs Peter`, `Needs you`, ...) out of `## Now` into a highlighted block under the lemon's name and status, whatever order the worker wrote. `## Now` can use `### Needs Peter`-style sub-headings as well as `- Needs Peter:` bullets, and `Done` always comes last.
+
+- **A session with several lemons opens with its name as a bar, then one section per lemon.** Each starts `w2 · name · backend / model`; the lowest window's lemon shows its whole `## Now`, the others only their status, `Needs` and one line of `Waiting on`. Directory, branch, brief paths and ages come once, at the bottom.
+
+- **Briefs show the live state of PRs they mention.** `PR #N` and pull-request URLs get `open`, `draft`, `merged` or `closed` from `gh` beside the status, so a stale brief is visible. Without `gh`, the number appears alone.
+
+- **Cards show a lemon's `Needs` line under the brief age**, ahead of what a waiting lemon is waiting on.
+
 # 0.26.0 (2026-09-24)
 
 #### Added

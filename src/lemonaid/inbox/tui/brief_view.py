@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown
 
-from ...brief import status, target
+from ...brief import pr, render, target
 
 
 class BriefView(VerticalScroll):
@@ -20,6 +20,7 @@ class BriefView(VerticalScroll):
     def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self._rendered_markdown: str | None = None
+        self._pr_states = pr.Cache()
 
     def compose(self) -> ComposeResult:
         yield Markdown(id="brief_markdown")
@@ -30,10 +31,7 @@ class BriefView(VerticalScroll):
         self.scroll_home(animate=False)
 
     def update_brief(self, found: target.Target) -> None:
-        body = status.render(
-            found.attached, found.dirs, found.place, found.names, time.time(), found.brief_headers
-        )
-        rendered = f"{found.header}\n\n{body}" if found.header else body
+        rendered = render.markdown(found, time.time(), self._pr_states.get)
         if rendered != self._rendered_markdown:
             self.query_one(Markdown).update(rendered)
             self._rendered_markdown = rendered

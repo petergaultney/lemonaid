@@ -92,8 +92,9 @@ The name may come from the interpreter's command line or the pane title. Add
 | `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
 
 With `brief_status = true`, attached briefs give `blocked` cards a yellow
-headline, `done` cards a blue headline, and `waiting` cards dimmer text plus
-the `Waiting on:` line from `## Now`. `working` cards retain the read style.
+headline, `done` cards a blue headline, and `waiting` cards dimmer text.
+Below the brief age, a card shows the first line of `Needs` from `## Now`, or,
+for a `waiting` brief without one, the first line of `Waiting on`. `working` cards retain the read style.
 Every brief card shows its age. Unread remains a separate dot, including when
 `card_unread_style = "bar"`. Cards without an attached brief retain their
 current appearance. This setting only changes cards, not the column layout.

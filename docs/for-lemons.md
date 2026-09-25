@@ -355,8 +355,9 @@ lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
 ```
 
-Output for a recorded session starts with its identity and brief path, followed by the brief's `Status:` line and its `## Now` section, then the rest of the brief below
-a rule. `--file` resolves an attached session from the inbox, while `--dir` has no session header. The briefs attached to the session's lemons come first; when the session holds several lemons
+Output for a recorded session starts with its identity and the brief's `Status:` line, then its `Needs` part as a
+blockquote, then the rest of `## Now` with `Done` last, then the rest of the brief below a rule; the
+directory, branch, brief path and age come last. `--file` resolves an attached session from the inbox, while `--dir` has no session header. The briefs attached to the session's lemons come first; when the session holds several lemons
 and no window picks one, each attached brief names its lemon above its Status and Now. `b` in the TUI
 opens the same popup for the selected session.
 
@@ -381,4 +382,9 @@ Status: working
 - Done: <what is finished, with PR numbers>
 - Next: <what you are doing now>
 - Needs: <a decision or action from a person, or "nothing">
+- Waiting on: <who or what has the next move, or "nothing">
 ```
+
+Each part can instead be a sub-heading (`### Needs`, `### Waiting on`, `### Next`, `### Done`)
+with anything under it. `Needs` may name who it needs (`Needs Peter`); readers show it first
+whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention.

@@ -54,3 +54,19 @@ def test_unknown_status_has_no_card_state(tmp_path: Path) -> None:
     path.write_text("Status: reviewing - soon\n")
 
     assert BriefCache().get(path) is None
+
+
+def test_needs_peter_is_the_subtitle_in_either_form(tmp_path: Path) -> None:
+    path = tmp_path / "brief.md"
+    path.write_text("Status: blocked\n\n## Now\n### Waiting on\nCI\n\n### Needs Peter\n- a\n- b\n")
+
+    card = BriefCache().get(path)
+
+    assert card is not None
+    assert (card.needs, card.waiting_on, card.subtitle) == ("a (+1 more)", "CI", "a (+1 more)")
+
+
+def test_waiting_on_is_the_subtitle_only_while_waiting() -> None:
+    assert CardBrief("waiting", "review", 0).subtitle == "review"
+    assert CardBrief("working", "review", 0).subtitle == ""
+    assert CardBrief("done", "", 0, "answer").subtitle == ""

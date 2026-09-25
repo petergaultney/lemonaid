@@ -1,12 +1,10 @@
 """Cached brief details used by inbox cards."""
 
 import dataclasses
-import re
 from pathlib import Path
 
+from ...brief import now as brief_now
 from ...brief import status as brief_status
-
-_WAITING = re.compile(r"\s*-\s*Waiting on:\s*(.*)", re.IGNORECASE)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -14,6 +12,15 @@ class CardBrief:
     status: str
     waiting_on: str
     mtime: float
+    needs: str = ""
+
+    @property
+    def subtitle(self) -> str:
+        """What a person has to do, else what a waiting lemon is waiting on."""
+        if self.needs and self.status != "done":
+            return self.needs
+
+        return self.waiting_on if self.status == "waiting" else ""
 
     def age(self, now: float, stale_hours: float) -> str:
         elapsed = max(0, now - self.mtime)
@@ -29,11 +36,13 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
     if not parts.status:
         return None
 
-    waiting_on = next(
-        (match[1].strip() for line in parts.now.splitlines() if (match := _WAITING.fullmatch(line))),
-        "",
+    now = brief_now.parse(parts.now)
+    return CardBrief(
+        parts.status,
+        brief_now.summary(now.waiting_on),
+        mtime,
+        brief_now.summary(now.needs),
     )
-    return CardBrief(parts.status, "" if waiting_on.lower() == "nothing" else waiting_on, mtime)
 
 
 class BriefCache:
