@@ -32,6 +32,8 @@ FIELD_STYLES = {
 # error. One value feeds both the marker and the table's attention bar.
 ATTENTION_COLOR = "#e3cf65"
 UNREAD_MARKER_STYLE = f"bold {ATTENTION_COLOR}"
+# Links in a brief: a sky blue, lighter than the blue that marks a directory.
+LINK_COLOR = "#6cb6ff"
 
 # Fields that stay plain even when a row is demanding attention.
 _NEVER_BOLD = frozenset({"message"})

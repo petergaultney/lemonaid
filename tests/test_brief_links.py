@@ -106,3 +106,33 @@ def test_the_sidebar_adds_a_terminal_hyperlink_to_each_markdown_link():
             ]
 
     assert asyncio.run(check()) == [_LONG, "https://k.example/"]
+
+
+def test_a_click_in_the_sidebar_opens_each_link_as_written(monkeypatch):
+    opened: list[list[str]] = []
+    monkeypatch.setattr(brief_view.subprocess, "Popen", lambda argv, **_: opened.append(argv))
+    source = (
+        "- first [PR #74](https://github.com/o/r/pull/74) here\n"
+        "- then ~/trove/94 System Lemons/pr-reviews/lemonaid-74.md there\n"
+    )
+
+    class _Show(App):
+        def compose(self) -> ComposeResult:
+            yield brief_view._Markdown(links.linkify(source))
+
+    async def check() -> None:
+        app = _Show()
+        async with app.run_test(size=(80, 10)) as pilot:
+            await pilot.pause()
+            for paragraph in app.query(brief_view._LinkedParagraph):
+                text = paragraph._content.plain
+                label = "PR #74" if "PR #74" in text else "lemonaid-74"
+                await pilot.click(paragraph, offset=(text.index(label) + 1, 0))
+                await pilot.pause()
+
+    asyncio.run(check())
+
+    assert [argv[-1] for argv in opened] == [
+        "https://github.com/o/r/pull/74",
+        "obsidian://open?vault=trove&file=94%20System%20Lemons%2Fpr-reviews%2Flemonaid-74",
+    ]

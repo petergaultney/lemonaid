@@ -10,7 +10,7 @@
 
 - **The brief popup and sidebar draw each lemon as its inbox card, opened up.** The name, model, working directory and branch use the card's colours, `blocked` and `done` fill the headline the same way, and status, age and PR states sit on the card's third line. What the worker wrote follows as Markdown, with `Needs` in the inbox's attention colour.
 
-- **Paths and URLs in a brief open with cmd-click in the popup and sidebar, even when they wrap.** Bare `~/work/vault/...md` and `~/trove/...md` paths become Obsidian links, and bare `https://` and `obsidian://` URLs get short labels (`lemonaid#74`, a note's name). Each label is a terminal hyperlink on every line it wraps onto. Existing Markdown links and code are left as written.
+- **Paths and URLs in a brief open with cmd-click in the popup and sidebar, even when they wrap.** Bare `~/work/vault/...md` and `~/trove/...md` paths become Obsidian links, and bare `https://` and `obsidian://` URLs get short labels (`lemonaid#74`, a note's name). Each label is a terminal hyperlink on every line it wraps onto, drawn in its own sky blue. A click in the sidebar opens the link with the system opener (`open`, or `xdg-open` off macOS), so `obsidian://` links reach Obsidian rather than the browser. Existing Markdown links and code are left as written.
 
 - **Cards show what a lemon needs from you right under its name and location**, with the label the worker wrote (`Needs Peter: ...`) in the attention colour, even on a dimmed waiting card. The brief age and what a waiting lemon is waiting on follow.
 

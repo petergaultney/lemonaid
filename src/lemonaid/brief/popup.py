@@ -16,8 +16,14 @@ from . import dismiss, links, render, target
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
 _LESSKEY_CONTENT = r"#command;\e quit"
-# A lemon's Needs block, in the colour the inbox uses for what wants you.
-_THEME = rich.theme.Theme({"markdown.block_quote": utils.ATTENTION_COLOR})
+# A lemon's Needs block in the colour the inbox uses for what wants you, and
+# links in their own colour.
+_THEME = rich.theme.Theme(
+    {
+        "markdown.block_quote": utils.ATTENTION_COLOR,
+        "markdown.link": f"underline {utils.LINK_COLOR}",
+    }
+)
 
 
 def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
