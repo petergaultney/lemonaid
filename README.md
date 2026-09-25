@@ -86,6 +86,8 @@ using follow mode, especially the file-descriptor limit and window options.
 
 Before running or extending the test suite, read [docs/testing.md](docs/testing.md),
 especially its watcher-isolation safety invariant.
+For this repo's multi-lemon merge and live-install workflow, see
+[docs/development.md](docs/development.md).
 
 ## 🍋 Integrations
 
