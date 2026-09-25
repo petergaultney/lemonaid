@@ -1,3 +1,9 @@
+# 0.29.1 (2026-09-25)
+
+#### Added
+
+- **Turn-end questions appear as a derived blocked state.** When a Claude Stop or Codex turn-complete message ends with a paragraph containing `?` outside URLs and inline code, an attached brief that is not already blocked appears blocked in the inbox and brief view. The paragraph is shown as the ask; the brief file is unchanged. Each hit is logged for review.
+
 # 0.29.0 (2026-09-25)
 
 #### Added

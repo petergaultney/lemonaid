@@ -24,6 +24,7 @@ from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, S
 
 from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
+from ...brief import turn_end_question
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
 from ...handlers import check_pane_exists_by_tty, handle_notification
@@ -1262,6 +1263,18 @@ class LemonaidApp(App):
             for n in current_notifications
             if n.channel in attached
         }
+        for n in current_notifications:
+            card = card_briefs.get(str(n.id))
+            if card:
+                status, needs, label = turn_end_question.effective(
+                    card.status,
+                    card.needs,
+                    card.needs_label,
+                    n.metadata.get(turn_end_question.METADATA_KEY, ""),
+                )
+                card_briefs[str(n.id)] = dataclasses.replace(
+                    card, status=status, needs=needs, needs_label=label
+                )
         extra_lines = max(
             (card.extra_lines for card in card_briefs.values() if card),
             default=0,
@@ -2451,6 +2464,8 @@ class LemonaidApp(App):
     def _mark_channel_read(self, channel: str) -> int:
         """Mark all notifications for a channel as read."""
         with db.connect() as conn:
+            if channel.startswith("codex:"):
+                turn_end_question.clear(conn, channel)
             return db.mark_all_read_for_channel(conn, channel)
 
     def _mark_channel_unread(self, channel: str) -> int:
