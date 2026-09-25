@@ -169,12 +169,24 @@ lemonaid inbox
 lemonaid inbox list
 ```
 
+### Session order
+
+The inbox and the scratch sidebar list sessions in the same order:
+
+1. Pinned sessions, in the order you put them.
+2. Sessions whose attached brief says `blocked`, read or not.
+3. Every other unread session.
+4. Read sessions whose brief says `done`, since one may have a PR ready to merge.
+5. Every other read session: `working`, `waiting`, or no brief.
+
+Within each group other than the pins, unread comes first, then newest first.
+
 ### TUI Keybindings
 
 | Key | Action |
 |-----|--------|
 | `Enter` | Open notification (switches to that session) |
-| `u` | Jump directly to earliest unread session |
+| `u` | Jump directly to the oldest unread session |
 | `m` / `M` | Mark as read / unread |
 | `a` | Archive (remove from list) |
 | `s` / `S` | Snooze session / list snoozed |

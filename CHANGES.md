@@ -1,3 +1,10 @@
+# 0.30.0 (2026-09-25)
+
+#### Changed
+
+- **Blocked sessions sort right below the pins, even when read, and read `done` sessions sort above other read ones.** The rest keep the old order: unread above read, newest first. The inbox and the sidebar sort the same way.
+- **`u` and mark-read find unread sessions wherever they sit in the list.** `u` jumps to the oldest one, and marking a row read moves to the next unread below it. Both used to count rows from the top, which missed once pins or status bands came first.
+
 # 0.29.0 (2026-09-25)
 
 #### Added

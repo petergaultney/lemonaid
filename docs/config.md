@@ -99,6 +99,8 @@ brief age, then, for a `waiting` brief, the first line of `Waiting on`. `working
 Every brief card shows its age. Unread remains a separate dot, including when
 `card_unread_style = "bar"`. Cards without an attached brief retain their
 current appearance. This setting only changes cards, not the column layout.
+Sessions sort by brief status in both layouts whether or not it is set; see
+[Session order](../README.md#session-order).
 
 ```toml
 [tui]
