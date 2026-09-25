@@ -24,6 +24,7 @@ from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, S
 
 from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
+from ...brief import turn_end_question
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import load_config
 from ...handlers import check_pane_exists_by_tty, handle_notification
@@ -240,7 +241,9 @@ def _as_card(
     is_here = name.plain.startswith(HERE_BLOCK)
     selector = Text(_INDENT)
     if gutter_width:
-        selector = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else name[: len(_INDENT)]
+        selector = (
+            Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else name[: len(_INDENT)]
+        )
         name = name[gutter_width:]
     if emoji and name.plain.startswith(f"{emoji} "):
         name = name[len(emoji) + 1 :]
@@ -324,11 +327,7 @@ def _as_card(
     # colour whatever the state: a waiting card dims everything else, not this.
     brief_lines = (
         [
-            *(
-                [Text(card_brief.needs_line, style=UNREAD_MARKER_STYLE)]
-                if card_brief.needs_line
-                else []
-            ),
+            *([Text(card_brief.needs_line, style=UNREAD_MARKER_STYLE)] if card_brief.needs_line else []),
             Text(card_brief.age(now, stale_hours), style="dim"),
             *([Text(card_brief.waiting_line, style="dim")] if card_brief.waiting_line else []),
         ]
@@ -592,9 +591,7 @@ def _stretch_columns(
 class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
-    CSS = (
-        f"$attention: {ATTENTION_COLOR};\n"
-        + """
+    CSS = f"$attention: {ATTENTION_COLOR};\n" + """
     #content_switcher, #inbox_content {
         height: 1fr;
     }
@@ -671,7 +668,6 @@ class LemonaidApp(App):
         height: 1fr;
     }
     """
-    )
 
     def __init__(self, scratch_mode: bool = False) -> None:
         super().__init__()
@@ -1140,7 +1136,9 @@ class LemonaidApp(App):
 
         return self._focused
 
-    def _backend_value(self, n: db.Notification, is_unread: bool, *, history: bool = False) -> Text:
+    def _backend_value(
+        self, n: db.Notification, is_unread: bool, *, history: bool = False
+    ) -> Text:
         remembered = self._models_by_channel.get(n.channel)
         model = n.metadata.get("model")
         if isinstance(model, str) and model:
@@ -1267,12 +1265,15 @@ class LemonaidApp(App):
         }
         for n in current_notifications:
             card = card_briefs.get(str(n.id))
-            if card and card.status != "blocked" and n.metadata.get("turn_end_question"):
+            if card:
+                status, needs, label = turn_end_question.effective(
+                    card.status,
+                    card.needs,
+                    card.needs_label,
+                    n.metadata.get(turn_end_question.METADATA_KEY, ""),
+                )
                 card_briefs[str(n.id)] = dataclasses.replace(
-                    card,
-                    status="blocked",
-                    needs=n.metadata["turn_end_question"],
-                    needs_label="Needs Peter",
+                    card, status=status, needs=needs, needs_label=label
                 )
         extra_lines = max(
             (card.extra_lines for card in card_briefs.values() if card),
@@ -2463,6 +2464,8 @@ class LemonaidApp(App):
     def _mark_channel_read(self, channel: str) -> int:
         """Mark all notifications for a channel as read."""
         with db.connect() as conn:
+            if channel.startswith("codex:"):
+                turn_end_question.clear(conn, channel)
             return db.mark_all_read_for_channel(conn, channel)
 
     def _mark_channel_unread(self, channel: str) -> int:

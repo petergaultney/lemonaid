@@ -12,7 +12,7 @@ import re
 from collections import abc
 from pathlib import Path
 
-from . import display, now, pr, status, target
+from . import display, now, pr, status, target, turn_end_question
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -95,16 +95,15 @@ def _section(
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
-    derived = question if parts.status != "blocked" else ""
+    state, needs, needs_label = turn_end_question.effective(
+        parts.status, parsed.needs, parsed.needs_label, question
+    )
+    derived = state == "blocked" and parts.status != "blocked"
     title = _display_title(parts.title) or brief.name or "Work status"
     body = "\n\n".join(
         part
         for part in (
-            _needs("Needs Peter", derived)
-            if derived
-            else _needs(parsed.needs_label, parsed.needs)
-            if parsed.needs
-            else "",
+            _needs(needs_label, needs) if needs else "",
             f"**{title}**" if lemon else "",
             *_labelled(parsed, detail == "compact"),
             *(["---", parts.rest] if detail == "full" and parts.rest else []),
@@ -114,7 +113,7 @@ def _section(
     return Section(
         lemon,
         title,
-        "blocked" if derived else parts.status,
+        state,
         "blocked (turn-end question)" if derived else parts.raw_status,
         _prs(
             brief.text, Path(lemon.place) if lemon and lemon.place else brief.path.parent, pr_state

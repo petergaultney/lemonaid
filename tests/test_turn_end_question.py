@@ -7,6 +7,7 @@ from lemonaid.brief import attached, render, target, turn_end_question
 from lemonaid.claude import notify as claude_notify
 from lemonaid.codex import notify as codex_notify
 from lemonaid.inbox import db
+from lemonaid.inbox.tui.app import LemonaidApp
 
 
 @pytest.fixture
@@ -120,6 +121,70 @@ def test_claude_stop_reads_final_transcript_message(
     assert row.metadata["turn_end_question"] == "Which option?"
 
 
+def test_claude_stop_prefers_hook_message_over_transcript(
+    monkeypatch, tmp_path: Path, brief: Path
+) -> None:
+    _attach("claude:session", brief)
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(
+        json.dumps(
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": "Old ask?"}]}}
+        )
+    )
+    monkeypatch.setattr(
+        claude_notify,
+        "_resolve_session",
+        lambda data, kind: (
+            "claude:session",
+            "session",
+            "Test",
+            "unknown",
+            {"transcript_path": str(transcript)},
+        ),
+    )
+
+    claude_notify.handle_notification(
+        json.dumps(
+            {
+                "session_id": "session",
+                "cwd": "/tmp/project",
+                "hook_event_name": "Stop",
+                "last_assistant_message": "New ask?",
+            }
+        )
+    )
+
+    assert _row("claude:session").metadata["turn_end_question"] == "New ask?"
+
+
+def test_codex_answer_clears_derived_question(brief: Path) -> None:
+    _attach("codex:thread", brief)
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "codex:thread",
+            "Old ask?",
+            metadata={"turn_end_question": "Old ask?", "cwd": "/tmp/project"},
+        )
+    LemonaidApp()._mark_channel_read("codex:thread")
+
+    assert _row("codex:thread").metadata == {"cwd": "/tmp/project"}
+    assert _row("codex:thread").is_read
+
+
+def test_derived_state_and_ask_share_precedence() -> None:
+    assert turn_end_question.effective("waiting", "review", "Waiting on", "New ask?") == (
+        "blocked",
+        "New ask?",
+        "Needs Peter",
+    )
+    assert turn_end_question.effective("blocked", "Existing ask", "Needs Peter", "New ask?") == (
+        "blocked",
+        "Existing ask",
+        "Needs Peter",
+    )
+
+
 def test_explicit_blocked_brief_wins(brief: Path) -> None:
     brief.write_text("# Task\n\nStatus: blocked\n\n## Now\n- Needs Peter: Existing ask\n")
     _attach("codex:thread", brief)
@@ -143,3 +208,15 @@ def test_explicit_blocked_brief_wins(brief: Path) -> None:
 def test_question_only_in_earlier_paragraph_does_not_count() -> None:
     assert turn_end_question.last_paragraph("Question?\n\nFinal statement.") == ""
     assert turn_end_question.last_paragraph("Statement.\n\nFinal question?") == "Final question?"
+
+
+def test_question_mark_inside_url_or_code_does_not_count() -> None:
+    assert turn_end_question.last_paragraph("`obsidian://open?vault=trove&file=note`") == ""
+    assert turn_end_question.last_paragraph("[note](obsidian://open?vault=trove&file=note)") == ""
+    assert turn_end_question.last_paragraph("See https://example.com/search?q=lemons") == ""
+    assert turn_end_question.last_paragraph("Use `is_ready?` to check.") == ""
+
+
+def test_question_outside_url_or_code_still_counts() -> None:
+    message = "Can you review [the note](obsidian://open?vault=trove&file=note)?"
+    assert turn_end_question.last_paragraph(message) == message

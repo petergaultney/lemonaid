@@ -62,7 +62,7 @@ Codex passes a JSON argument with these fields:
 | `input-messages` | User messages that triggered the turn |
 | `last-assistant-message` | Final assistant response text |
 
-On `agent-turn-complete`, if the final paragraph of `last-assistant-message` contains `?`, an attached brief that is not already blocked appears blocked in lemonaid. The paragraph becomes the inbox ask; the brief file stays unchanged.
+On `agent-turn-complete`, if the final paragraph of `last-assistant-message` contains `?` outside URLs and inline code, an attached brief that is not already blocked appears blocked in lemonaid. The paragraph becomes the inbox ask; the brief file stays unchanged.
 
 Lemonaid also checks for alternative key names (`session_id`, `sessionId`, `thread_id`, etc.) for compatibility.
 

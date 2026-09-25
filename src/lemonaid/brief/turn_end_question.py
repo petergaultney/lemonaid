@@ -10,12 +10,15 @@ from . import attached, status
 
 _log = get_logger("brief.turn_end_question")
 METADATA_KEY = "turn_end_question"
+_INLINE_CODE = re.compile(r"`+[^`]*`+")
+_URL = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s)]+", re.IGNORECASE)
 
 
 def last_paragraph(message: str) -> str:
     paragraphs = re.split(r"\n\s*\n", message.strip())
     paragraph = paragraphs[-1].strip() if paragraphs else ""
-    return paragraph if "?" in paragraph else ""
+    prose = _URL.sub("", _INLINE_CODE.sub("", paragraph))
+    return paragraph if "?" in prose else ""
 
 
 def claude_final_message(path: Path) -> str:
@@ -69,3 +72,20 @@ def by_brief(conn: sqlite3.Connection) -> dict[Path, str]:
         for item in attached.everything(conn)
         if item.notification and item.notification.metadata.get(METADATA_KEY)
     }
+
+
+def effective(
+    brief_status: str, needs: str, needs_label: str, question: str
+) -> tuple[str, str, str]:
+    if not question or brief_status == "blocked":
+        return brief_status, needs, needs_label
+
+    return "blocked", question, "Needs Peter"
+
+
+def clear(conn: sqlite3.Connection, channel: str) -> None:
+    conn.execute(
+        "UPDATE notifications SET metadata = json_remove(metadata, ?) WHERE channel = ?",
+        (f"$.{METADATA_KEY}", channel),
+    )
+    conn.commit()

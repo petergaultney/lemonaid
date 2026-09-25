@@ -212,6 +212,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
     channel = channel_id("codex", session_id)
     with db.connect() as conn:
+        turn_end_question.clear(conn, channel)
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
             print(

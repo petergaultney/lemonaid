@@ -420,14 +420,14 @@ def handle_notification(stdin_data: str | None = None) -> None:
     # Check existing state before upsert for logging
     with db.connect() as conn:
         if notification_type == "Stop":
-            transcript = metadata.get("transcript_path")
-            if transcript:
-                question = turn_end_question.add_ask(
-                    conn,
-                    channel,
-                    turn_end_question.claude_final_message(Path(transcript)),
-                    metadata,
+            final_message = data.get("last_assistant_message")
+            if not isinstance(final_message, str):
+                transcript = metadata.get("transcript_path")
+                final_message = (
+                    turn_end_question.claude_final_message(Path(transcript)) if transcript else ""
                 )
+            if final_message:
+                question = turn_end_question.add_ask(conn, channel, final_message, metadata)
                 if question:
                     message = question
                     tells_us_what_was_said = True
