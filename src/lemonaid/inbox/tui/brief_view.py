@@ -2,6 +2,8 @@
 
 import ast
 import re
+import subprocess
+import sys
 import time
 import typing as ty
 
@@ -14,7 +16,11 @@ from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock, MarkdownParagraph  # no public name
 
 from ...brief import links, pr, render, target
+from ...log import get_logger
 from . import brief_card, utils
+
+_log = get_logger("tui.brief_view")
+_OPENER = ["open"] if sys.platform == "darwin" else ["xdg-open"]
 
 _CLICK_LINK = re.compile(r"link\((?P<href>'[^']*'|\"[^\"]*\")\)")
 
@@ -45,12 +51,29 @@ class _Card(Static):
         return brief_card.header(self._section, self._in_session, self.now, self.size.width)
 
 
+def open_link(url: str) -> None:
+    """Hand *url* to the system opener, which knows which app owns its scheme.
+
+    Textual's default goes through `webbrowser`, which gives an `obsidian://`
+    link to the browser instead of Obsidian.
+    """
+    try:
+        subprocess.Popen([*_OPENER, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as e:
+        _log.warning("could not open %s with %s: %s", url, _OPENER[0], e)
+
+
 class _LinkedParagraph(MarkdownParagraph):
-    """A paragraph whose links are terminal hyperlinks too.
+    """A paragraph whose links are terminal hyperlinks too, and open in their own app.
 
     Textual makes a link clickable inside the app only. A hyperlink lets the
-    terminal open it on cmd-click, from any line a wrapped label lands on.
+    terminal open it on cmd-click, from any line a wrapped label lands on. A
+    click here opens the URL as written: Textual's own click message decodes it,
+    which breaks an encoded `obsidian://` file path.
     """
+
+    async def action_link(self, href: str) -> None:
+        open_link(href)
 
     def _token_to_content(self, token: Token) -> Content:
         content = super()._token_to_content(token)
@@ -97,6 +120,12 @@ class BriefView(VerticalScroll):
     BriefView Markdown {{
         margin: 0;
         padding: 0;
+    }}
+    BriefView MarkdownBlock {{
+        link-color: {utils.LINK_COLOR};
+        link-style: underline;
+        link-color-hover: {utils.LINK_COLOR};
+        link-style-hover: bold underline;
     }}
     BriefView MarkdownBlockQuote {{
         border-left: outer {utils.ATTENTION_COLOR};

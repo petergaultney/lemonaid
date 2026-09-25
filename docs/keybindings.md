@@ -64,8 +64,10 @@ rule, and the brief's path at the bottom.
 
 Bare `~/work/vault/...md` and `~/trove/...md` paths in the brief open in Obsidian, and bare
 `https://` and `obsidian://` URLs are shortened to a label (`lemonaid#74`, a note's name). Each
-label is a terminal hyperlink (OSC 8), so cmd-click opens it from any line it wraps onto; tmux
-passes hyperlinks through when `terminal-features` includes `hyperlinks`. Markdown links and code
+label is a terminal hyperlink (OSC 8) in its own colour, so cmd-click opens it from any line it
+wraps onto; tmux passes hyperlinks through when `terminal-features` includes `hyperlinks`. A plain
+click on a link in the sidebar opens it with `open` (`xdg-open` off macOS), which sends each scheme
+to the app registered for it. Markdown links and code
 spans are left as written.
 
 A session with several lemons, opened from a window with none, starts with the session's name as a
