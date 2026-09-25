@@ -1,7 +1,5 @@
 """Live PR state for the PRs a brief names."""
 
-import json
-import subprocess
 import threading
 from pathlib import Path
 
@@ -15,37 +13,22 @@ def test_refs_prefer_urls_and_skip_numbers_they_cover():
     assert [pr.label(ref) for ref in pr.refs(text)] == ["#74", "#75", "#76"]
 
 
-def _gh(monkeypatch, stdout: str = "", error: Exception | None = None) -> list[dict]:
-    calls: list[dict] = []
+def test_the_configured_command_gets_the_quoted_ref_in_the_places_directory(tmp_path):
+    (tmp_path / "marker").touch()
+    command = """[ -f marker ] && [ {ref} = 'https://x/o/r/pull/1 x' ] && echo MERGED extra"""
 
-    def run(argv, **kwargs):
-        calls.append({"argv": argv, **kwargs})
-        if error:
-            raise error
-        return subprocess.CompletedProcess(argv, 0, stdout, "")
-
-    monkeypatch.setattr(pr.subprocess, "run", run)
-    return calls
+    assert pr.lookup(command, "https://x/o/r/pull/1 x", tmp_path) == "merged"
 
 
-def test_lookup_reports_draft_open_merged(monkeypatch, tmp_path):
-    for data, expected in (
-        ({"state": "OPEN", "isDraft": True}, "draft"),
-        ({"state": "OPEN", "isDraft": False}, "open"),
-        ({"state": "MERGED", "isDraft": False}, "merged"),
-    ):
-        calls = _gh(monkeypatch, json.dumps(data))
-        assert pr.lookup("74", tmp_path) == expected
-        assert calls[0]["argv"][:4] == ["gh", "pr", "view", "74"]
-        assert calls[0]["cwd"] == tmp_path
+def test_anything_but_a_state_word_shows_nothing(tmp_path):
+    assert pr.lookup("echo pending", "74", tmp_path) == ""
+    assert pr.lookup("echo open; exit 1", "74", tmp_path) == ""
+    assert pr.lookup("true", "74", Path("/no/such/dir")) == ""
 
 
-def test_lookup_is_empty_when_gh_cannot_say(monkeypatch):
-    _gh(monkeypatch, error=subprocess.CalledProcessError(1, "gh"))
-    assert pr.lookup("74", None) == ""
-
-    _gh(monkeypatch, error=FileNotFoundError("gh"))
-    assert pr.lookup("74", Path("/no/such/dir")) == ""
+def test_an_unset_command_runs_nothing():
+    assert pr.configured("  ") is pr.no_state
+    assert pr.configured("echo draft")("74", None) == "draft"
 
 
 def test_cache_answers_immediately_and_fills_in_the_background():

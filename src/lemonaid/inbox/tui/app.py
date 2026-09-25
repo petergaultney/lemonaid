@@ -802,7 +802,7 @@ class LemonaidApp(App):
                 yield DataTable(id="history_table")
                 yield DataTable(id="snoozed_table")
                 yield Static("", id="status")
-            yield BriefView(id="brief_view")
+            yield BriefView(brief.pr.configured(self.config.brief.pr_state), id="brief_view")
         yield Footer()
 
     def on_mount(self) -> None:

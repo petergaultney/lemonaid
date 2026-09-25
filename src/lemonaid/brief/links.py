@@ -60,7 +60,7 @@ def _label(url: str) -> str:
         return _short(file.rsplit("/", 1)[-1] or "obsidian")
 
     parts = [part for part in parsed.path.split("/") if part]
-    if parsed.netloc == "github.com" and len(parts) >= 4 and parts[2] in {"pull", "issues"}:
+    if len(parts) >= 4 and parts[2] in {"pull", "pulls", "issues"} and parts[3].isdigit():
         return f"{parts[1]}#{parts[3]}"
 
     return _short("/".join([parsed.netloc, *(["…"] if len(parts) > 1 else []), *parts[-1:]]))
