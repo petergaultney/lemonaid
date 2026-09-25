@@ -4,11 +4,13 @@ import contextlib
 import dataclasses
 import os
 import shlex
+import sqlite3
 import subprocess
 import threading
 import time
 from collections import abc
 from datetime import datetime
+from pathlib import Path
 from typing import cast
 
 from rich.console import Console
@@ -48,7 +50,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, pins, undo
+from .. import db, emoji, order, pins, undo
 from . import backend_indicators, brief_cards
 from .brief_view import BriefView
 from .help_screen import HelpScreen
@@ -1205,6 +1207,28 @@ class LemonaidApp(App):
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
 
+    def _brief_statuses(self, briefs: abc.Mapping[str, Path]) -> dict[str, str]:
+        return {
+            channel: card.status
+            for channel, path in briefs.items()
+            if (card := self._brief_cache.get(path))
+        }
+
+    def _ordered_active(
+        self, conn: sqlite3.Connection, switch_source: str | None
+    ) -> tuple[list[db.Notification], dict[str, Path]]:
+        """Active sessions in the order they are drawn, and the brief attached to each.
+
+        Both layouts go through here, so the sidebar and the wide inbox list
+        sessions in the same order whether or not either shows brief status.
+        """
+        rows = db.get_active(conn, switch_source=switch_source)
+        attached = brief.attached.for_rows(conn, rows)
+        return (
+            order.by_status(rows, self._brief_statuses(attached), pins.pinned_positions(conn)),
+            attached,
+        )
+
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
         if self._brief_target is not None:
             self._wake_expired_snoozes()
@@ -1235,12 +1259,12 @@ class LemonaidApp(App):
         with db.connect() as conn:
             env_filter = self.current_env if self.current_env != "unknown" else None
             # Main table: only sessions switchable from the current environment
-            current_notifications = db.get_active(conn, switch_source=env_filter)
+            current_notifications, attached = self._ordered_active(conn, env_filter)
             # Lower pane: live sessions from other switchable terminals.
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
             # switched to from anywhere, so they belong in history instead.
             if env_filter:
-                all_notifications = db.get_active(conn, switch_source=None)
+                all_notifications, _ = self._ordered_active(conn, None)
                 other_notifications = [
                     n
                     for n in all_notifications
@@ -1251,17 +1275,16 @@ class LemonaidApp(App):
 
             pinned = frozenset(pins.pinned_positions(conn))
             emojis = emoji.by_channel(conn)
-            attached = (
-                brief.attached.for_rows(conn, current_notifications)
-                if self.config.tui.brief_status and self._card_width()
-                else {}
-            )
 
-        card_briefs = {
-            str(n.id): self._brief_cache.get(attached[n.channel])
-            for n in current_notifications
-            if n.channel in attached
-        }
+        card_briefs = (
+            {
+                str(n.id): self._brief_cache.get(attached[n.channel])
+                for n in current_notifications
+                if n.channel in attached
+            }
+            if self.config.tui.brief_status and self._card_width()
+            else {}
+        )
         extra_lines = max(
             (card.extra_lines for card in card_briefs.values() if card),
             default=0,
@@ -1320,9 +1343,13 @@ class LemonaidApp(App):
         # it every tick is what made the list flash back to the top.
         if main_table.row_count > 0 and (rebuilt or stay_on_unread):
             target_index = None
-            if stay_on_unread and unread_count > 0:
-                # Stay on an unread item: use current index but cap at last unread
-                target_index = min(current_index, unread_count - 1)
+            unread_rows = [i for i, n in enumerate(current_notifications) if n.is_unread]
+            if stay_on_unread and unread_rows:
+                # The next unread at or below the cursor, else the last one above.
+                # Pins and blocked rows mean unread rows need not be contiguous.
+                target_index = next(
+                    (i for i in unread_rows if i >= current_index), unread_rows[-1]
+                )
             elif stay_on_unread:
                 # No unread left, go to top
                 target_index = 0
@@ -2328,18 +2355,17 @@ class LemonaidApp(App):
         """Jump directly to the earliest unread session."""
         with db.connect() as conn:
             env_filter = self.current_env if self.current_env != "unknown" else None
-            notifications = db.get_active(conn, switch_source=env_filter)
+            notifications, _ = self._ordered_active(conn, env_filter)
 
-        # Find the earliest (oldest) unread - they're sorted newest first
-        unread = [n for n in notifications if n.is_unread]
+        unread = [(n.created_at, row) for row, n in enumerate(notifications) if n.is_unread]
         if not unread:
             self.notify("No unread notifications", severity="information")
             return
 
-        # Move cursor to earliest unread row, then select it (same path as Enter)
-        earliest_row = len(unread) - 1
+        # Pins and status bands spread unread rows through the list, so the
+        # earliest is found by age rather than by position.
         table = self.query_one("#main_table", DataTable)
-        table.move_cursor(row=earliest_row)
+        table.move_cursor(row=min(unread)[1])
         table.action_select_cursor()
 
     def action_jump_to_number(self, digit: str) -> None:
