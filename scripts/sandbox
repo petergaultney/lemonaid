@@ -35,6 +35,7 @@ DB = SANDBOX / "lemonaid.db"
 CONFIG = SANDBOX / "config.toml"
 STATE = SANDBOX / "state"
 BRIEFS = SANDBOX / "briefs"
+MESSAGES = SANDBOX / "messages"
 SOCKET = SANDBOX / "tmux.sock"
 BIN = SANDBOX / "bin"
 
@@ -78,6 +79,7 @@ def _environment() -> dict[str, str]:
         "LEMONAID_CONFIG": str(CONFIG),
         "LEMONAID_STATE_DIR": str(STATE),
         "LEMONAID_BRIEFS_DIR": str(BRIEFS),
+        "LEMONAID_MESSAGES_DIR": str(MESSAGES),
         # A tmux client with no -S/-L talks to the server $TMUX names, so every
         # tmux call lemonaid makes lands on the sandbox server.
         "TMUX": f"{SOCKET},0,0",

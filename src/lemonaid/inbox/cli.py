@@ -6,6 +6,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime
 
+from .. import messages
 from . import db, decorate_cli
 
 
@@ -164,6 +165,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser.set_defaults(func=cmd_read)
 
     decorate_cli.add_parsers(inbox_subparsers)
+    messages.cli.add_inbox_parsers(inbox_subparsers)
 
     # inbox snoozed
     snoozed_parser = inbox_subparsers.add_parser(

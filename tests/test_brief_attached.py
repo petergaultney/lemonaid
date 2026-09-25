@@ -2,12 +2,13 @@
 
 import argparse
 import contextlib
+import datetime
 import json
 from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, render, session, status, store, target, write_cli
+from lemonaid.brief import attached, identity, render, session, status, store, target, write_cli
 from lemonaid.inbox import db, self_session
 
 
@@ -75,6 +76,46 @@ def test_attaching_a_brief_elsewhere_moves_it(capsys):
 
     assert moved["moved_from"] == "claude:a"
     assert _attached_to("claude:a") is None
+
+
+def test_attach_backfills_an_id_and_id_command_reports_it(capsys):
+    _lemon("claude:mine", "work", "2", 1)
+    path = _brief("mine")
+
+    attached_result = _run(capsys, "attach", "--channel", "claude:mine", "mine")
+    id_result = _run(capsys, "id", "--channel", "claude:mine")
+
+    assert attached_result["lemon_id"] == id_result["lemon_id"]
+    assert attached_result["lemon_id"] == identity.from_path(path)
+
+
+def test_new_brief_registers_id_and_retries_collision(capsys, monkeypatch):
+    values = iter((b"\xbd\xbb", b"\xbd\xbb", b"\0\0"))
+    monkeypatch.setattr(store.os, "urandom", lambda size: next(values))
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    first = store.create("same slug", yesterday)
+    with db.connect() as conn:
+        identity.ensure(conn, first, regenerate_on_collision=True)
+
+    created = _run(capsys, "new", "--session", "new:2", "same slug")
+
+    assert created["lemon_id"] == identity.from_path(Path(created["path"]))
+    assert created["lemon_id"] != identity.from_path(first)
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM lemon_identities").fetchone()[0] == 2
+
+
+def test_new_brief_removes_file_when_id_registration_fails(capsys, monkeypatch):
+    def fail(*args, **kwargs):
+        raise ValueError("registry failed")
+
+    monkeypatch.setattr(identity, "ensure", fail)
+    path = store.briefs_dir() / f"{datetime.date.today().isoformat()}-failed.md"
+
+    with pytest.raises(ValueError, match="registry failed"):
+        _run(capsys, "new", "--session", "new:2", "failed")
+
+    assert not path.exists()
 
 
 def test_a_waiting_brief_goes_to_the_first_lemon_started_after_it():

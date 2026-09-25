@@ -13,7 +13,7 @@ from collections import abc
 from pathlib import Path
 
 from ..inbox import db
-from . import attached, selector, store
+from . import attached, identity, query_cli, selector, store
 
 
 def _finish(args: argparse.Namespace, result: dict, error: str, message: str = "") -> None:
@@ -36,10 +36,20 @@ def _attach(
     if chosen is None:
         return {}, error, ""
 
+    try:
+        lemon_id = identity.ensure(conn, path)
+    except (ValueError, store.ChangedUnderneath) as cause:
+        return {}, str(cause), ""
+
     if chosen.channel:
         moved_from = attached.attach(conn, chosen.channel, path)
         return (
-            {"path": str(path), "channel": chosen.channel, "moved_from": moved_from or None},
+            {
+                "path": str(path),
+                "lemon_id": lemon_id,
+                "channel": chosen.channel,
+                "moved_from": moved_from or None,
+            },
             "",
             f"{path} -> {chosen.channel}" + (f" (moved from {moved_from})" if moved_from else ""),
         )
@@ -49,7 +59,7 @@ def _attach(
         conn, chosen.tmux_session, chosen.tmux_window, path, attached.newest_id(conn)
     )
     return (
-        {"path": str(path), "channel": None, "pending": window},
+        {"path": str(path), "lemon_id": lemon_id, "channel": None, "pending": window},
         "",
         f"{path} -> the next lemon to start in {window}",
     )
@@ -74,6 +84,13 @@ def _cmd_new(args: argparse.Namespace) -> None:
     except FileExistsError as e:
         _finish(args, {}, f"{e.filename} already exists; attach it instead")
         return
+
+    try:
+        with db.connect() as conn:
+            identity.ensure(conn, path, regenerate_on_collision=True)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
 
     with db.connect() as conn:
         result, error, message = _attach(conn, args, path)
@@ -137,32 +154,6 @@ def _cmd_detach(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_list(args: argparse.Namespace) -> None:
-    with db.connect() as conn:
-        attached.claim_pending(conn)
-        entries = [
-            {
-                "path": str(a.path),
-                "channel": a.channel or None,
-                "pending": not a.channel,
-                "id": a.notification.id if a.notification else None,
-                "name": a.notification.name if a.notification else None,
-                "archived": a.notification.is_archived if a.notification else None,
-                "tmux_session": a.tmux_session or None,
-                "tmux_window": a.tmux_window or None,
-            }
-            for a in attached.everything(conn)
-        ]
-
-    if args.json:
-        print(json.dumps(entries, ensure_ascii=False))
-        return
-
-    for e in entries:
-        who = e["channel"] or f"(next lemon in {e['tmux_session']}:{e['tmux_window']})"
-        print(f"{e['path']}  {who}")
-
-
 def _parser(
     subparsers: argparse._SubParsersAction, name: str, summary: str, with_target: bool = True
 ) -> argparse.ArgumentParser:
@@ -174,6 +165,9 @@ def _parser(
 
 
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
+    own_id = _parser(brief_subparsers, "id", "Print the stable ID stored with a lemon's brief")
+    own_id.set_defaults(func=query_cli.cmd_id)
+
     attach = _parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")
     attach.add_argument("file", help="A path, or a name inside ~/.brief-lemons/ (.md optional)")
     attach.set_defaults(func=_cmd_attach)
@@ -199,4 +193,4 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         "Every attached brief and its session, and briefs waiting for a lemon to start",
         with_target=False,
     )
-    listing.set_defaults(func=_cmd_list)
+    listing.set_defaults(func=query_cli.cmd_list)

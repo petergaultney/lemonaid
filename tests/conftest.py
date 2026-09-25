@@ -33,6 +33,7 @@ def _own_state_and_config(monkeypatch, tmp_path):
     """Scratch-pane and back-location state, the config, and briefs stay out of $HOME."""
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(tmp_path / "briefs"))
+    monkeypatch.delenv("LEMONAID_MESSAGES_DIR", raising=False)
     monkeypatch.setenv("LEMONAID_CONFIG", str(tmp_path / "config.toml"))
 
 

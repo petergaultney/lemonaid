@@ -1,10 +1,13 @@
 [project]
 name = "lemonaid"
-version = "0.27.0"
+version = "0.28.0"
 description = "Attention inbox for managing notifications from lemons and other background tools"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["textual>=0.89.0"]
+dependencies = [
+    "textual>=0.89.0",
+    "wordybin==0.2.0",
+]
 
 [dependency-groups]
 dev = ["pre-commit", "pytest", "ruff"]
