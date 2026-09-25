@@ -2,6 +2,7 @@ import pytest
 
 from lemonaid.inbox import db
 from lemonaid.lemon_watchers import watcher
+from lemonaid.messages import service
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +36,16 @@ def _own_state_and_config(monkeypatch, tmp_path):
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(tmp_path / "briefs"))
     monkeypatch.delenv("LEMONAID_MESSAGES_DIR", raising=False)
     monkeypatch.setenv("LEMONAID_CONFIG", str(tmp_path / "config.toml"))
+
+
+@pytest.fixture(autouse=True)
+def _no_detached_delivery_service(monkeypatch):
+    """A spawned service outlives the test, and its database is the real one.
+
+    The database override above patches a function, which a child process
+    never sees. Tests of starting the service stub `subprocess.Popen` instead.
+    """
+    monkeypatch.setattr(service, "ensure_running", lambda: None)
 
 
 @pytest.fixture(autouse=True)

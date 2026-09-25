@@ -10,7 +10,7 @@ from .. import brief
 from ..inbox import db, self_session
 from ..inbox.channel import channel_id
 from ..log import get_logger
-from . import codex_delivery, store
+from . import codex_delivery, service, store, waiter
 
 _log = get_logger("messages.cli")
 
@@ -29,7 +29,7 @@ def _attachment(conn: sqlite3.Connection, channel: str) -> Path:
     return path
 
 
-def _target(conn: sqlite3.Connection, target: str) -> Path:
+def _target(conn: sqlite3.Connection, target: str) -> brief.attached.Attachment:
     brief.attached.claim_pending(conn)
     all_briefs = brief.attached.everything(conn)
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
@@ -52,7 +52,7 @@ def _target(conn: sqlite3.Connection, target: str) -> Path:
     if len(found) != 1:
         _fail(f"Expected one attached lemon for {target!r}; found {len(found)}")
 
-    return found[0].path
+    return found[0]
 
 
 def _self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "") -> str:
@@ -99,9 +99,9 @@ def cmd_tell(args: argparse.Namespace) -> None:
         _fail("Usage: lemonaid tell <lemon-id-or-channel-or-brief> <message>")
 
     with db.connect() as conn:
-        brief_path = _target(conn, args.target)
+        recipient = _target(conn, args.target)
         try:
-            lemon_id = brief.identity.ensure(conn, brief_path)
+            lemon_id = brief.identity.ensure(conn, recipient.path)
         except (ValueError, brief.store.ChangedUnderneath) as error:
             _fail(str(error))
 
@@ -119,6 +119,8 @@ def cmd_tell(args: argparse.Namespace) -> None:
     except ValueError as error:
         _fail(str(error))
 
+    if recipient.channel.startswith("codex:"):
+        service.ensure_running()
     print(path)
 
 
@@ -148,17 +150,18 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
 
         codex_thread = args.codex_thread or codex_delivery.own_thread(channel)
         try:
-            result = store.watch_next(
-                inbox,
-                still_attached,
-                args.timeout,
-                find=(
-                    (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
-                    if codex_thread
-                    else store.take_next
-                ),
-            )
-        except (ValueError, TimeoutError, RuntimeError) as error:
+            with waiter.armed(inbox):
+                result = store.watch_next(
+                    inbox,
+                    still_attached,
+                    args.timeout,
+                    find=(
+                        (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
+                        if codex_thread
+                        else store.take_next
+                    ),
+                )
+        except (ValueError, TimeoutError, RuntimeError, waiter.AlreadyArmed) as error:
             _fail(str(error))
 
         if codex_thread:

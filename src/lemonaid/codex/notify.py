@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+from .. import messages
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
@@ -192,8 +193,11 @@ def handle_notification(
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
         )
+        pending = messages.service.has_pending(conn, channel)
 
     _log.info("added: channel=%s, type=%s", channel, notification_type)
+    if pending:
+        messages.service.ensure_running()  # messages that waited while this lemon was archived
 
 
 def dismiss_session(session_id: str, debug: bool = False) -> int:

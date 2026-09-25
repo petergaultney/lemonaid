@@ -42,16 +42,44 @@ requires that the recipient's brief is currently attached to a session.
 bounds that wait. The watch keeps the stable ID if the brief file is renamed,
 and ends with an error if the brief moves to another channel or is detached.
 
-Inside Codex, `inbox watch --self` wakes the lemon by queueing the message into
-its own thread. When `CODEX_THREAD_ID` is set and the watched channel is that
-thread's, the watch runs `codex queue --thread "$CODEX_THREAD_ID" --message
-"lemonaid message: <message>"` and moves the file to `done/` only after that
-command succeeds. `--codex-thread <thread>` names the thread explicitly. If
-`codex queue` fails or cannot be run, the watch exits with status 1 and the
-message stays pending for the next watch. Receivers of one inbox take turns: a
-plain `next` or `watch` waits while a Codex watch queues, so each message is
-handed out once. A watch killed after Codex
-accepts the message but before the move delivers it again.
+## Delivery
+
+A Codex lemon arms nothing. The delivery service queues each pending message
+into the recipient's thread with `codex queue --thread <thread> --message
+"lemonaid message: <message>"`, and moves the file to `done/` only after that
+succeeds. A failed queue leaves the message pending, and the service retries
+that inbox every 30 seconds. An archived Codex session is skipped; its
+messages wait until the lemon is seen again.
+
+The service starts itself: `tell` starts it when the recipient is a Codex
+lemon, and a Codex turn ending with messages pending starts it too. It runs
+detached (no terminal or tmux needed), and it exits once no Codex inbox has
+had anything pending for two minutes. One service runs at a time, held by
+`<inbox root>/.delivery.lock`, so starting it again does nothing. To run it
+yourself, for example under launchd or systemd:
+
+```bash
+lemonaid inbox deliver                 # until idle for 120s
+lemonaid inbox deliver --idle-exit 0   # forever
+```
+
+Its log lines go to `/tmp/lemonaid.log` (`messages.service`).
+
+A Claude lemon can only be woken by its own background task, so it keeps
+`lemonaid inbox watch --self` running. The watch holds
+`<inbox>/.waiter.lock` while it waits, and a second watch for the same lemon
+exits with an error naming the first one's pid. The optional Stop hook
+`lemonaid claude waiter-check` blocks a lemon with an attached brief (unless it
+is `done`) from ending its turn while no watch holds that lock. It waits up to
+three seconds for a watch that is still starting, and lets the second
+consecutive stop through, so a lemon that cannot arm one is never stuck.
+Install it with `lemonaid claude hooks --waiter-check` (`--uninstall` removes it).
+
+`inbox watch --self` inside Codex still works: when `CODEX_THREAD_ID` is the
+watched channel's thread (or `--codex-thread <thread>` names one), it queues the
+message the same way instead of printing it. Receivers of one inbox take turns,
+so the service and a watch never hand out the same message twice. A process
+killed after Codex accepts a message but before the move delivers it again.
 
 Receiving claims the file by moving it to `done/`. A failure while reading or
 printing restores it to the pending folder. A process killed between the move

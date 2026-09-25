@@ -3,6 +3,7 @@
 import argparse
 
 from .bootstrap import run_bootstrap
+from . import install_hooks, waiter_check
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
     dismiss_session,
@@ -32,12 +33,26 @@ def cmd_session_start(args: argparse.Namespace) -> None:
 
 
 def cmd_hooks(args: argparse.Namespace) -> None:
-    """Install or remove the optional SessionStart hook."""
+    """Install or remove the optional SessionStart hook, or the Stop waiter check."""
+    if args.waiter_check:
+        command = install_hooks.WAITER_CHECK_COMMAND
+        if args.uninstall:
+            print(install_hooks.uninstall("Stop", command))
+            return
+
+        print(install_hooks.install("Stop", command, dry_run=args.dry_run))
+        return
+
     if args.uninstall:
         print(uninstall_session_start())
         return
 
     print(install_session_start(dry_run=args.dry_run))
+
+
+def cmd_waiter_check(args: argparse.Namespace) -> None:
+    """Handle the Stop hook that keeps a briefed lemon's inbox waiter armed."""
+    waiter_check.handle()
 
 
 def cmd_dismiss(args: argparse.Namespace) -> None:
@@ -190,7 +205,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     # claude hooks
     hooks_parser = claude_subparsers.add_parser(
         "hooks",
-        help="Install the optional SessionStart hook",
+        help="Install the optional SessionStart hook, or the Stop waiter check",
         description="Adds a SessionStart hook so every Claude session registers "
         "itself - and where it is running - the moment it starts or is resumed.\n\n"
         "The other hooks need a turn: a session that has not been spoken to yet "
@@ -207,7 +222,20 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     hooks_parser.add_argument(
         "--uninstall", action="store_true", help="Remove the hook lemonaid installed"
     )
+    hooks_parser.add_argument(
+        "--waiter-check",
+        action="store_true",
+        help="Act on the Stop hook that blocks a briefed lemon from ending a turn "
+        "without `lemonaid inbox watch --self` running",
+    )
     hooks_parser.set_defaults(func=cmd_hooks)
+
+    # claude waiter-check
+    waiter_check_parser = claude_subparsers.add_parser(
+        "waiter-check",
+        help="Block a Stop until a briefed lemon's inbox waiter is armed (reads JSON from stdin)",
+    )
+    waiter_check_parser.set_defaults(func=cmd_waiter_check)
 
     # claude dismiss
     dismiss_parser = claude_subparsers.add_parser(
