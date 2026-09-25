@@ -322,13 +322,17 @@ def _as_card(
                 3,
             )
 
-    brief_lines: list[Text] = []
-    if card_brief:
-        brief_lines.append(Text(card_brief.age(now, stale_hours), style="dim"))
-        if card_brief.subtitle:
-            brief_lines.append(
-                Text(card_brief.subtitle, style="dim" if card_brief.status == "waiting" else "bold")
-            )
+    # What the lemon needs from you sits right under who it is, in the attention
+    # colour whatever the state: a waiting card dims everything else, not this.
+    brief_lines = (
+        [
+            *([Text(card_brief.needs_line, style=UNREAD_MARKER_STYLE)] if card_brief.needs_line else []),
+            Text(card_brief.age(now, stale_hours), style="dim"),
+            *([Text(card_brief.waiting_line, style="dim")] if card_brief.waiting_line else []),
+        ]
+        if card_brief
+        else []
+    )
 
     lines = [
         headline,
@@ -1259,11 +1263,7 @@ class LemonaidApp(App):
             if n.channel in attached
         }
         extra_lines = max(
-            (
-                1 + int(bool(card.subtitle))
-                for card in card_briefs.values()
-                if card
-            ),
+            (card.extra_lines for card in card_briefs.values() if card),
             default=0,
         )
 

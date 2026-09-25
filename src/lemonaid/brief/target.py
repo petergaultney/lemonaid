@@ -39,24 +39,29 @@ class Target:
     header: str = ""  # Markdown above everything: a session's name, or why no lemon is shown
     lemon: Identity | None = None  # the one lemon this target is for, if it is for one
     identities: dict[Path, Identity] = dataclasses.field(default_factory=dict)
+    # One target per lemon when this covers a tmux session, so each lemon is
+    # shown with its own brief, or with none, rather than only those attached.
+    members: list["Target"] = dataclasses.field(default_factory=list)
+
+
+def _as_dict(found: Target) -> dict:
+    return {
+        "attached": [str(path) for path in found.attached],
+        "dirs": [str(path) for path in found.dirs],
+        "place": str(found.place) if found.place else "",
+        "names": found.names,
+        "title": found.title,
+        "header": found.header,
+        "lemon": dataclasses.asdict(found.lemon) if found.lemon else None,
+        "identities": {
+            str(path): dataclasses.asdict(identity) for path, identity in found.identities.items()
+        },
+        "members": [_as_dict(member) for member in found.members],
+    }
 
 
 def to_json(found: Target) -> str:
-    return json.dumps(
-        {
-            "attached": [str(path) for path in found.attached],
-            "dirs": [str(path) for path in found.dirs],
-            "place": str(found.place) if found.place else "",
-            "names": found.names,
-            "title": found.title,
-            "header": found.header,
-            "lemon": dataclasses.asdict(found.lemon) if found.lemon else None,
-            "identities": {
-                str(path): dataclasses.asdict(identity)
-                for path, identity in found.identities.items()
-            },
-        }
-    )
+    return json.dumps(_as_dict(found))
 
 
 def from_json(data: abc.Mapping) -> Target:
@@ -70,6 +75,7 @@ def from_json(data: abc.Mapping) -> Target:
         data["header"],
         Identity(**data["lemon"]) if data["lemon"] else None,
         {Path(path): Identity(**value) for path, value in data["identities"].items()},
+        [from_json(member) for member in data["members"]],
     )
 
 
@@ -99,14 +105,11 @@ def identity(notification: db.Notification, emoji: str = "", place: Path | None 
     )
 
 
-def for_notification(
-    notification: db.Notification, attached: abc.Mapping[str, Path], emoji: str = ""
+def _for_row(
+    notification: db.Notification, attached: abc.Mapping[str, Path], emoji: str, place: Path | None
 ) -> Target:
-    """The target for one inbox row: its attached brief, else its lemon's cwd, then its
-    tmux session's directory. *attached* maps channels to their briefs."""
     tmux_session = notification.metadata.get("tmux_session") or ""
     cwd = notification.metadata.get("cwd")
-    place = session.session_dir(tmux_session) if tmux_session else None
     return Target(
         [attached[notification.channel]] if notification.channel in attached else [],
         _unique([Path(cwd) if cwd else None, place]),
@@ -115,6 +118,16 @@ def for_notification(
         notification.name or tmux_session or (Path(cwd).name if cwd else ""),
         lemon=identity(notification, emoji, place),
     )
+
+
+def for_notification(
+    notification: db.Notification, attached: abc.Mapping[str, Path], emoji: str = ""
+) -> Target:
+    """The target for one inbox row: its attached brief, else its lemon's cwd, then its
+    tmux session's directory. *attached* maps channels to their briefs."""
+    tmux_session = notification.metadata.get("tmux_session") or ""
+    place = session.session_dir(tmux_session) if tmux_session else None
+    return _for_row(notification, attached, emoji, place)
 
 
 def for_session(
@@ -127,9 +140,7 @@ def for_session(
     """The target for a tmux session, from every active inbox row recorded in it.
 
     A session can hold several lemons (a worker and its reviewer). A *window*
-    holding one of them picks it; otherwise, only when the session holds exactly
-    one does that lemon's backend count as a brief name, since no one of them is
-    more likely than the rest.
+    holding one of them picks it; otherwise the target has a member for each.
     """
     rows = sorted(
         (n for n in notifications if n.metadata.get("tmux_session") == tmux_session),
@@ -152,9 +163,5 @@ def for_session(
         f"# {tmux_session} · {len(rows)} lemons"
         if rows
         else f"**No lemon recorded in {tmux_session}**",
-        identities={
-            attached[n.channel]: identity(n, (emojis or {}).get(n.channel, ""), place)
-            for n in rows
-            if n.channel in attached
-        },
+        members=[_for_row(n, attached, (emojis or {}).get(n.channel, ""), place) for n in rows],
     )

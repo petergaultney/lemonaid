@@ -23,9 +23,7 @@ def _section(state: str, prs: tuple[tuple[str, str], ...] = ()) -> render.Sectio
 
 def _styles(text, fragment: str) -> set[str]:
     start = text.plain.index(fragment)
-    return {
-        str(span.style) for span in text.spans if span.start <= start < span.end and span.style
-    }
+    return {str(span.style) for span in text.spans if span.start <= start < span.end and span.style}
 
 
 def test_header_has_the_cards_fields_in_the_cards_colours():

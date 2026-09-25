@@ -9,6 +9,7 @@ view as plain Markdown for lemons and scripts.
 
 import dataclasses
 import re
+from collections import abc
 from pathlib import Path
 
 from . import display, now, pr, status, target
@@ -67,7 +68,7 @@ class Section:
     state: str  # one of store.STATES, or ""
     raw_status: str
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
-    path: Path
+    path: Path | None  # None for a lemon with no brief
     mtime: float
     body: str  # Markdown: Needs, the title under a lemon, the rest of Now, then the task
 
@@ -81,7 +82,8 @@ class View:
 
 
 def _prs(text: str, cwd: Path | None, pr_state: pr.Lookup) -> tuple[tuple[str, str], ...]:
-    return tuple((pr.label(ref), pr_state(ref, cwd)) for ref in pr.refs(text))
+    refs = pr.refs(text)
+    return tuple((pr.label(ref, refs), pr_state(ref, cwd)) for ref in refs)
 
 
 def _section(
@@ -122,7 +124,63 @@ def _window_order(lemon: target.Identity | None) -> tuple[int, str]:
     return (int(window), "") if window.isdigit() else (1 << 30, window)
 
 
+def _without_brief(lemon: target.Identity | None, why: str) -> Section:
+    return Section(lemon, "", "", "no brief", (), None, 0, why)
+
+
+def _member_brief(
+    member: target.Target, taken: abc.Container[Path], now_seconds: float
+) -> status.Brief | str:
+    """This lemon's own brief, or Markdown saying why it has none.
+
+    A `.z/` fallback counts only when it is named for this lemon or unnamed
+    (`brief.md`), and no earlier lemon is already showing it: a name can be the
+    session's, which every lemon in it shares, and a brief is one lemon's work.
+    """
+    located = status.find(member.attached, member.dirs, member.place, member.names, now_seconds)
+    if isinstance(located, str):
+        return located if member.attached else "No brief is attached, and there is none in `.z/`."
+
+    if member.attached:
+        return located[0]
+
+    names = {name.lower() for name in member.names}
+    candidates = [b for b in located if not b.name or b.name.lower() in names]
+    own = [b for b in candidates if b.path not in taken]
+    if len(own) == 1:
+        return own[0]
+
+    if own:
+        return "No brief is attached, and several in `.z/` could be its."
+
+    return (
+        "No brief is attached; the one in `.z/` is shown for another lemon above."
+        if candidates
+        else "No brief is attached, and none in `.z/` is named for it."
+    )
+
+
+def _session_view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+    members = sorted(found.members, key=lambda m: _window_order(m.lemon))
+    sections: list[Section] = []
+    taken: set[Path] = set()
+    for member in members:
+        brief = _member_brief(member, taken, now_seconds)
+        if isinstance(brief, str):
+            sections.append(_without_brief(member.lemon, brief))
+            continue
+
+        taken.add(brief.path)
+        detail = "now" if not sections else "compact"
+        sections.append(_section(brief, member.lemon, detail, pr_state))
+
+    return View(found.header, True, tuple(sections), "")
+
+
 def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+    if found.members:
+        return _session_view(found, now_seconds, pr_state)
+
     located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
     if isinstance(located, str):
         return View(found.header, False, (), located)
@@ -165,8 +223,8 @@ def file_line(section: Section, in_session: bool, now_seconds: float) -> str:
         part
         for part in (
             f"w{section.lemon.tmux_window}" if in_session and section.lemon else "",
-            f"`{display.home_path(section.path)}`",
-            f"updated {status.age(now_seconds - section.mtime)}",
+            f"`{display.home_path(section.path)}`" if section.path else "",
+            f"updated {status.age(now_seconds - section.mtime)}" if section.path else "",
         )
         if part
     )
@@ -195,7 +253,7 @@ def to_markdown(shown: View, now_seconds: float) -> str:
         f"*{line}*"
         for line in [
             *(p for p in places if p),
-            *(file_line(s, shown.in_session, now_seconds) for s in shown.sections),
+            *(file_line(s, shown.in_session, now_seconds) for s in shown.sections if s.path),
         ]
     )
     body = shown.fallback or "\n\n---\n\n".join(

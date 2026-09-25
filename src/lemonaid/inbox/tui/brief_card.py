@@ -80,7 +80,11 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
     return _SEPARATOR.join(
         [
             Text(render.status_text(section), style=_STATE_STYLES.get(section.state, "dim")),
-            Text(f"updated {status.age(now_seconds - section.mtime)}", style="dim"),
+            *(
+                [Text(f"updated {status.age(now_seconds - section.mtime)}", style="dim")]
+                if section.path
+                else []
+            ),
             *prs,
         ]
     )
@@ -120,6 +124,7 @@ def files(shown: render.View) -> Text:
                 if part
             )
             for s in shown.sections
+            if s.path
         ),
         style="dim",
     )

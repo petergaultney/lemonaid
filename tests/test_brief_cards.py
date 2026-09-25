@@ -56,17 +56,22 @@ def test_unknown_status_has_no_card_state(tmp_path: Path) -> None:
     assert BriefCache().get(path) is None
 
 
-def test_needs_peter_is_the_subtitle_in_either_form(tmp_path: Path) -> None:
+def test_needs_keeps_its_label_in_either_form(tmp_path: Path) -> None:
     path = tmp_path / "brief.md"
-    path.write_text("Status: blocked\n\n## Now\n### Waiting on\nCI\n\n### Needs Peter\n- a\n- b\n")
+    path.write_text("Status: waiting\n\n## Now\n### Waiting on\nCI\n\n### Needs Peter\n- a\n- b\n")
 
     card = BriefCache().get(path)
 
     assert card is not None
-    assert (card.needs, card.waiting_on, card.subtitle) == ("a (+1 more)", "CI", "a (+1 more)")
+    assert (card.needs_line, card.waiting_line, card.extra_lines) == (
+        "Needs Peter: a (+1 more)",
+        "CI",
+        3,
+    )
 
 
-def test_waiting_on_is_the_subtitle_only_while_waiting() -> None:
-    assert CardBrief("waiting", "review", 0).subtitle == "review"
-    assert CardBrief("working", "review", 0).subtitle == ""
-    assert CardBrief("done", "", 0, "answer").subtitle == ""
+def test_waiting_on_shows_only_while_waiting_and_needs_not_once_done() -> None:
+    assert CardBrief("waiting", "review", 0).waiting_line == "review"
+    assert CardBrief("working", "review", 0).waiting_line == ""
+    assert CardBrief("done", "", 0, "answer").needs_line == ""
+    assert CardBrief("blocked", "", 0, "answer").needs_line == "Needs: answer"

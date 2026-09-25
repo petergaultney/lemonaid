@@ -90,3 +90,61 @@ def test_a_session_shows_window_two_in_full_and_the_rest_compact(tmp_path):
     assert "pass one" not in out and "pass two" not in out
     assert "**Next:** tests" in out
     assert out.count("~/work · feat/x") == 1
+
+
+def test_every_lemon_in_a_session_gets_a_section_with_its_own_brief_or_none(tmp_path):
+    author = _brief(tmp_path, "a", "# Build\n\nStatus: working\n\n## Now\n- Next: tests\n")
+    notes = tmp_path / "place" / ".z"
+    notes.mkdir(parents=True)
+    (notes / "brief-codex.md").write_text(
+        "# Review\n\nStatus: waiting\n\n## Now\n- Waiting on: CI\n"
+    )
+    place = tmp_path / "place"
+    third = target.Identity(name="helper", backend="Claude", tmux_window="5", **_WHERE)
+    found = target.Target(
+        [author],
+        [place],
+        place,
+        ["work"],
+        "work",
+        "# work · 3 lemons",
+        members=[
+            target.Target([], [place], place, ["codex"], "r", lemon=_REVIEWER),
+            target.Target([author], [place], place, ["claude"], "a", lemon=_AUTHOR),
+            target.Target([], [place], place, ["helper"], "h", lemon=third),
+        ],
+    )
+
+    shown = render.view(found, 0, _no_prs)
+    out = render.to_markdown(shown, 0)
+
+    assert [s.lemon.name for s in shown.sections] == ["author", "reviewer", "helper"]
+    assert [s.title for s in shown.sections] == ["Build", "Review", ""]
+    assert out.index("### w4 · reviewer") < out.index("**Waiting on:** CI") < out.index("### w5")
+    assert out.endswith("updated just now*") and out.count("updated") == 2
+    assert shown.sections[2].body == "No brief is attached, and none in `.z/` is named for it."
+
+
+def test_a_brief_named_for_the_session_is_shown_for_one_lemon_only(tmp_path):
+    place = tmp_path / "place"
+    (place / ".z").mkdir(parents=True)
+    (place / ".z" / "brief-work.md").write_text("# Shared\n\nStatus: working\n")
+    found = target.Target(
+        [],
+        [place],
+        place,
+        ["work"],
+        "work",
+        "# work · 2 lemons",
+        members=[
+            target.Target([], [place], place, ["codex", "work"], "r", lemon=_REVIEWER),
+            target.Target([], [place], place, ["claude", "work"], "a", lemon=_AUTHOR),
+        ],
+    )
+
+    shown = render.view(found, 0, _no_prs)
+
+    assert [s.path for s in shown.sections] == [place / ".z" / "brief-work.md", None]
+    assert shown.sections[1].body == (
+        "No brief is attached; the one in `.z/` is shown for another lemon above."
+    )
