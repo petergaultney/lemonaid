@@ -4,8 +4,9 @@ from pathlib import Path
 
 from lemonaid.brief import render, target
 
-_AUTHOR = target.Identity("author", "", "Claude", "Opus", "work", "2", "~/work", "feat/x", "")
-_REVIEWER = target.Identity("reviewer", "", "Codex", "", "work", "4", "~/work", "feat/x", "")
+_WHERE = {"tmux_session": "work", "directory": "~/work", "branch": "feat/x"}
+_AUTHOR = target.Identity(name="author", backend="Claude", model="Opus", tmux_window="2", **_WHERE)
+_REVIEWER = target.Identity(name="reviewer", backend="Codex", tmux_window="4", **_WHERE)
 
 
 def _brief(tmp_path: Path, name: str, text: str) -> Path:

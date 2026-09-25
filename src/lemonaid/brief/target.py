@@ -21,6 +21,7 @@ class Identity:
     emoji: str = ""
     backend: str = ""
     model: str = ""
+    provider: str = ""  # whose model it is, for colouring the model label
     tmux_session: str = ""
     tmux_window: str = ""
     directory: str = ""  # shortened for display
@@ -89,6 +90,7 @@ def identity(notification: db.Notification, emoji: str = "", place: Path | None 
         emoji,
         _backend(notification).capitalize(),
         model[0] if model else "",
+        model[1] if model else "",
         str(metadata.get("tmux_session") or ""),
         str(metadata.get("tmux_window") or ""),
         display.home_path(Path(cwd)) if cwd else "",

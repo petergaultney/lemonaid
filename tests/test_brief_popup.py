@@ -6,8 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import rich.console
-
 from lemonaid.brief import attached, cli, display, popup, render, target
 from lemonaid.inbox import db
 
@@ -21,27 +19,6 @@ def test_the_fallback_pager_quits_on_escape_as_well_as_q():
 
 def test_the_fallback_pager_leaves_the_space_past_the_end_blank():
     assert "--tilde" in popup._less_command()
-
-
-def test_rich_colours_statuses_by_state():
-    console = rich.console.Console(force_terminal=True, width=80)
-    segments = popup._render_markdown(
-        console,
-        "\n\n---\n\n".join(
-            [
-                "**Status:** working",
-                "**Status:** done - merged",
-                "**Status:** blocked - need a key",
-                "**Status:** (no Status line)",
-            ]
-        ),
-    )
-    styles = {segment.text: segment.style for segment in segments if segment.text.strip()}
-
-    assert styles["working"].color.name == "yellow"
-    assert styles["done - merged"].color.name == "green"
-    assert styles["blocked - need a key"].color.name == "red"
-    assert styles["(no Status line)"].dim
 
 
 def test_the_popup_command_carries_everything_it_needs(tmp_path):

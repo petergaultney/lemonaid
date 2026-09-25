@@ -85,11 +85,12 @@ def cmd_show(args: argparse.Namespace) -> None:
             popup.open_popup(found)
         return
 
-    markdown = render.markdown(found, time.time(), pr.lookup)
+    now = time.time()
+    shown = render.view(found, now, pr.lookup)
     if args.page:
-        popup.page(markdown, args.dismiss)
+        popup.page(shown, now, args.dismiss)
     else:
-        print(markdown)
+        print(render.to_markdown(shown, now))
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:

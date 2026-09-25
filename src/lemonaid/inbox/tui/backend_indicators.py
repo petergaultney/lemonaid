@@ -20,6 +20,13 @@ _PROVIDER_STYLES = {
 }
 
 
+def provider_style(channel: str, model_provider: str = "") -> str:
+    """The colour of a lemon's model label: its provider's, else its backend's provider's."""
+    prefix = channel.split(":")[0] if ":" in channel else channel
+    provider = model_provider or _BACKEND_PROVIDERS.get(prefix, "")
+    return _PROVIDER_STYLES.get(provider.lower(), "")
+
+
 def backend_label(channel: str, overrides: dict[str, str]) -> str:
     prefix = channel.split(":")[0] if ":" in channel else channel
     return overrides.get(prefix, _DEFAULT_BACKEND_LABELS.get(prefix, prefix))

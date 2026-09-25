@@ -1,55 +1,23 @@
 """Showing a brief to a person: in a pager, and in a tmux popup around one."""
 
-import re
 import subprocess
 import sys
-import typing as ty
 from collections import abc
 
-import rich.align
 import rich.console
 import rich.markdown
-import rich.segment
-import rich.style
+import rich.rule
+import rich.text
 import rich.theme
 
-from . import dismiss, target
+from ..inbox.tui import brief_card, utils
+from . import dismiss, render, target
 
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
 _LESSKEY_CONTENT = r"#command;\e quit"
-_STATUS_LINE = re.compile(
-    r"^(?P<label>\s*Status:\s*)(?P<value>.*?)(?P<trailing>\s*)$", re.IGNORECASE
-)
-_STATUS_STYLES = {
-    "working": rich.style.Style(color="yellow"),
-    "waiting": rich.style.Style(color="bright_black"),
-    "done": rich.style.Style(color="green"),
-    "blocked": rich.style.Style(color="red"),
-}
-_UNKNOWN_STATUS_STYLE = rich.style.Style(dim=True)
-_SESSION_BAR_STYLE = rich.style.Style(color="black", bgcolor="yellow", bold=True)
-_THEME = rich.theme.Theme({"markdown.block_quote": "bright_yellow"})  # a lemon's Needs block
-
-
-class _Heading(rich.markdown.Heading):
-    """A top-level heading is a session's name: a bar across the whole popup."""
-
-    def __rich_console__(
-        self, console: rich.console.Console, options: rich.console.ConsoleOptions
-    ) -> rich.console.RenderResult:
-        if self.tag != "h1":
-            yield from super().__rich_console__(console, options)
-            return
-
-        yield rich.align.Align.center(self.text, style=_SESSION_BAR_STYLE)
-
-
-class _Markdown(rich.markdown.Markdown):
-    elements: ty.ClassVar[dict[str, type[rich.markdown.MarkdownElement]]] = {
-        **rich.markdown.Markdown.elements,
-        "heading_open": _Heading,
-    }
+# A lemon's Needs block, in the colour the inbox uses for what wants you.
+_THEME = rich.theme.Theme({"markdown.block_quote": utils.ATTENTION_COLOR})
 
 
 def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
@@ -61,36 +29,38 @@ def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
     return ["less", "-R", "--tilde", f"--lesskey-content={lesskey}"]
 
 
-def _render_markdown(console: rich.console.Console, markdown: str) -> list[rich.segment.Segment]:
-    """Render Markdown, colouring each brief status by its state."""
-    rendered: list[rich.segment.Segment] = []
-    for line in rich.segment.Segment.split_lines(console.render(_Markdown(markdown))):
-        plain = "".join(segment.text for segment in line)
-        match = _STATUS_LINE.fullmatch(plain)
-        if match:
-            value = match["value"]
-            rendered.extend(
-                [
-                    rich.segment.Segment(match["label"], rich.style.Style(bold=True)),
-                    rich.segment.Segment(
-                        value,
-                        _STATUS_STYLES.get(value.partition(" ")[0].lower(), _UNKNOWN_STATUS_STYLE),
-                    ),
-                    rich.segment.Segment(match["trailing"]),
-                ]
-            )
-        else:
-            rendered.extend(line)
-        rendered.append(rich.segment.Segment.line())
+def _renderables(shown: render.View, now: float, width: int) -> list[rich.console.RenderableType]:
+    """The view as the inbox would draw it: a session bar, then a card and its brief per lemon."""
+    if not shown.sections:
+        return [rich.markdown.Markdown(render.to_markdown(shown, now))]
 
-    return rendered
+    gap = rich.text.Text("")
+    rule = rich.rule.Rule(style="bright_black")
+    top = (
+        [brief_card.session_bar(shown.header, width), gap]
+        if shown.header.startswith("# ")
+        else [rich.markdown.Markdown(shown.header), gap]
+        if shown.header
+        else []
+    )
+    sections = [
+        part
+        for i, section in enumerate(shown.sections)
+        for part in (
+            *([gap, rule, gap] if i else []),
+            brief_card.header(section, shown.in_session, now, width),
+            *([rich.markdown.Markdown(section.body)] if section.body else []),
+        )
+    ]
+    return [*top, *sections, gap, rule, brief_card.files(shown)]
 
 
-def page(markdown: str, quit_keys: abc.Iterable[str] = ()) -> None:
-    """Show Markdown rendered by Rich in an ANSI-aware pager."""
+def page(shown: render.View, now: float, quit_keys: abc.Iterable[str] = ()) -> None:
+    """Show a view rendered by Rich in an ANSI-aware pager."""
     console = rich.console.Console(force_terminal=True, theme=_THEME)
     with console.capture() as capture:
-        console.print(rich.segment.Segments(_render_markdown(console, markdown)), end="")
+        for renderable in _renderables(shown, now, console.width):
+            console.print(renderable)
     subprocess.run(_less_command(quit_keys), input=capture.get(), text=True)
 
 
