@@ -6,7 +6,7 @@
 
 - **A session with several lemons opens with its name as a bar, then one section per lemon.** Each starts `w2 · name · backend / model`; the lowest window's lemon shows its whole `## Now`, the others only their status, `Needs` and one line of `Waiting on`. Directory, branch, brief paths and ages come once, at the bottom.
 
-- **Briefs show the live state of PRs they mention.** `PR #N` and pull-request URLs get `open`, `draft`, `merged` or `closed` from `gh` beside the status, so a stale brief is visible. Without `gh`, the number appears alone.
+- **Briefs can show the live state of PRs they mention.** Set `[brief] pr_state` to a command that prints `open`, `draft`, `merged` or `closed` for `{ref}`, and each `PR #N` or pull-request URL gets that state beside the status, so a stale brief is visible. Unset, the number appears alone.
 
 - **The brief popup and sidebar draw each lemon as its inbox card, opened up.** The name, model, working directory and branch use the card's colours, `blocked` and `done` fill the headline the same way, and status, age and PR states sit on the card's third line. What the worker wrote follows as Markdown, with `Needs` in the inbox's attention colour.
 

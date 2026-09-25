@@ -136,3 +136,8 @@ def test_build_bindings_hidden():
     assert len(bindings) == 2
     assert bindings[0].show is False
     assert bindings[1].show is False
+
+
+def test_brief_pr_state_command_is_read_from_config():
+    assert _parse_config({}).brief.pr_state == ""
+    assert _parse_config({"brief": {"pr_state": "tool {ref}"}}).brief.pr_state == "tool {ref}"

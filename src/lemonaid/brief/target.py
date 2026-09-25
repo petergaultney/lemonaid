@@ -26,7 +26,7 @@ class Identity:
     tmux_window: str = ""
     directory: str = ""  # shortened for display
     branch: str = ""
-    place: str = ""  # the directory `gh` resolves `PR #N` from
+    place: str = ""  # where `[brief] pr_state` runs, so `PR #N` means this repo's
 
 
 @dataclasses.dataclass(frozen=True)

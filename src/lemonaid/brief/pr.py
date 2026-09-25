@@ -1,22 +1,29 @@
-"""The live state of pull requests a brief names, from `gh`.
+"""The live state of pull requests a brief names, from a command in lemonaid's config.
 
 A brief says what its worker last wrote; the PR says what has happened since.
-Only explicit references count: a pull-request URL, or `PR #N`, which `gh`
-resolves against the repository of the brief's directory.
+Only explicit references count: a pull-request URL, or `PR #N`. lemonaid knows
+nothing about the forge: `[brief] pr_state` is a shell command that prints one
+word for `{ref}`, run in the lemon's place so a bare number resolves against
+that directory's repository.
 """
 
-import json
 import re
+import shlex
 import subprocess
 import threading
 import time
 from collections import abc
 from pathlib import Path
 
-_URL = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/(?P<number>\d+)")
+from ..log import get_logger
+
+_log = get_logger("brief.pr")
+
+_URL = re.compile(r"https://[\w.-]+/[\w.-]+/[\w.-]+/pulls?/(?P<number>\d+)")
 _NUMBER = re.compile(r"\bPR\s*#(?P<number>\d+)", re.IGNORECASE)
+_STATES = ("open", "draft", "merged", "closed")
 _MAX_REFS = 3
-_GH_TIMEOUT_SECONDS = 5
+_TIMEOUT_SECONDS = 5
 _CACHE_SECONDS = 120
 
 Lookup = abc.Callable[[str, Path | None], str]
@@ -34,23 +41,44 @@ def label(ref: str) -> str:
     return f"#{match['number']}" if match else f"#{ref}"
 
 
-def lookup(ref: str, cwd: Path | None) -> str:
-    """`open`, `draft`, `merged` or `closed`; "" when `gh` can't say."""
+def no_state(ref: str, cwd: Path | None) -> str:
+    return ""
+
+
+def lookup(command: str, ref: str, cwd: Path | None) -> str:
+    """The first word *command* prints for *ref*, if it is a state; "" otherwise.
+
+    A failing command is a configuration or environment problem the reader of a
+    brief can't act on, so it logs and shows no state.
+    """
+    filled = command.replace("{ref}", shlex.quote(ref))
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", ref, "--json", "state,isDraft"],
+            filled,
+            shell=True,
+            cwd=cwd if cwd and cwd.is_dir() else None,
             capture_output=True,
             text=True,
-            check=True,
-            cwd=cwd if cwd and cwd.is_dir() else None,
-            timeout=_GH_TIMEOUT_SECONDS,
+            timeout=_TIMEOUT_SECONDS,
         )
-        data = json.loads(result.stdout)
-    except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _log.warning("pr_state %r failed to run: %s", filled, e)
         return ""
 
-    state = str(data.get("state", "")).lower()
-    return "draft" if state == "open" and data.get("isDraft") else state
+    if result.returncode != 0:
+        _log.warning("pr_state %r exited %d: %s", filled, result.returncode, result.stderr.strip())
+        return ""
+
+    word = next(iter(result.stdout.split()), "").lower()
+    return word if word in _STATES else ""
+
+
+def configured(command: str) -> Lookup:
+    """A lookup running *command*, or one that shows no state when it is unset."""
+    if not command.strip():
+        return no_state
+
+    return lambda ref, cwd: lookup(command, ref, cwd)
 
 
 class Cache:
@@ -59,7 +87,7 @@ class Cache:
     A miss answers "" and fetches in the background; a later render sees it.
     """
 
-    def __init__(self, fetch: Lookup = lookup, max_age: float = _CACHE_SECONDS) -> None:
+    def __init__(self, fetch: Lookup, max_age: float = _CACHE_SECONDS) -> None:
         self._fetch = fetch
         self._max_age = max_age
         self._states: dict[tuple[str, Path | None], tuple[float, str]] = {}

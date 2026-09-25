@@ -387,4 +387,4 @@ Status: working
 
 Each part can instead be a sub-heading (`### Needs`, `### Waiting on`, `### Next`, `### Done`)
 with anything under it. `Needs` may name who it needs (`Needs Peter`); readers show it first
-whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention.
+whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.

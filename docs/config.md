@@ -136,6 +136,27 @@ When the session transcript names a recognized model family, its friendly name a
 
 See [keybindings.md](keybindings.md).
 
+## `[brief]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `pr_state` | `""` | Shell command that prints a PR's state for `{ref}`; unset shows PR numbers without a state. |
+
+The brief popup and sidebar run `pr_state` for each `PR #N` or pull-request URL
+in a brief (up to three), in the lemon's place, so a bare number resolves against
+that directory's repository. `{ref}` is the number or URL, shell-quoted. The
+first word printed must be `open`, `draft`, `merged` or `closed`; anything else,
+a non-zero exit, or more than 5 seconds shows no state. lemonaid knows nothing
+about the forge, so any tool works. With GitHub's `gh`:
+
+```toml
+[brief]
+pr_state = "gh pr view {ref} --json state,isDraft --jq 'if .isDraft then \"draft\" else (.state | ascii_downcase) end'"
+```
+
+The popup runs it once per open. The sidebar re-renders on a timer, so it caches
+each answer for two minutes and fetches in the background.
+
 ## Environment variables
 
 | Variable | Effect |

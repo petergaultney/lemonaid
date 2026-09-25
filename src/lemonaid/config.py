@@ -134,6 +134,15 @@ class TuiConfig:
 
 
 @dataclass
+class BriefConfig:
+    """Configuration for showing briefs."""
+
+    # Shell command printing a PR's state (open, draft, merged, closed) for
+    # `{ref}`, a PR number or URL, run in the lemon's place. Unset shows no state.
+    pr_state: str = ""
+
+
+@dataclass
 class OpenclawConfig:
     """Configuration for OpenClaw integration."""
 
@@ -229,6 +238,7 @@ class Config:
     tmux_session: TmuxSessionConfig = field(default_factory=TmuxSessionConfig)
     tmux_window: TmuxWindowConfig = field(default_factory=TmuxWindowConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
+    brief: BriefConfig = field(default_factory=BriefConfig)
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
     backends: dict[str, BackendConfig] = field(default_factory=dict)
     places: PlacesConfig = field(default_factory=PlacesConfig)
@@ -315,6 +325,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
         backend_labels=tui_data.get("backend_labels", {}),
     )
 
+    brief = BriefConfig(pr_state=data.get("brief", {}).get("pr_state", ""))
+
     openclaw_data = data.get("openclaw", {})
     openclaw = OpenclawConfig(
         remote_host=openclaw_data.get("remote_host"),
@@ -351,6 +363,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         tmux_session=tmux_session,
         tmux_window=tmux_window,
         tui=tui,
+        brief=brief,
         openclaw=openclaw,
         backends=backends,
         places=places,

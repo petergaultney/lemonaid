@@ -112,10 +112,10 @@ class BriefView(VerticalScroll):
     }}
     """
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, pr_state: pr.Lookup = pr.no_state, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self._rendered_markdown: str | None = None
-        self._pr_states = pr.Cache()
+        self._pr_states = pr.Cache(pr_state)
 
     def show(self, found: target.Target) -> None:
         self._rendered_markdown = None
