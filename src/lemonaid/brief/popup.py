@@ -11,7 +11,7 @@ import rich.text
 import rich.theme
 
 from ..inbox.tui import brief_card, utils
-from . import dismiss, render, target
+from . import dismiss, links, render, target
 
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
@@ -32,7 +32,7 @@ def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
 def _renderables(shown: render.View, now: float, width: int) -> list[rich.console.RenderableType]:
     """The view as the inbox would draw it: a session bar, then a card and its brief per lemon."""
     if not shown.sections:
-        return [rich.markdown.Markdown(render.to_markdown(shown, now))]
+        return [rich.markdown.Markdown(links.linkify(render.to_markdown(shown, now)))]
 
     gap = rich.text.Text("")
     rule = rich.rule.Rule(style="bright_black")
@@ -49,7 +49,7 @@ def _renderables(shown: render.View, now: float, width: int) -> list[rich.consol
         for part in (
             *([gap, rule, gap] if i else []),
             brief_card.header(section, shown.in_session, now, width),
-            *([rich.markdown.Markdown(section.body)] if section.body else []),
+            *([rich.markdown.Markdown(links.linkify(section.body))] if section.body else []),
         )
     ]
     return [*top, *sections, gap, rule, brief_card.files(shown)]
