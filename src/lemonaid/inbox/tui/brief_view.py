@@ -15,8 +15,9 @@ from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock, MarkdownParagraph  # no public name
 
-from ...brief import links, pr, render, target
+from ...brief import links, pr, render, target, turn_end_question
 from ...log import get_logger
+from .. import db
 from . import brief_card, utils
 
 _log = get_logger("tui.brief_view")
@@ -180,7 +181,9 @@ class BriefView(VerticalScroll):
 
     def update_brief(self, found: target.Target) -> None:
         now = time.time()
-        shown = render.view(found, now, self._pr_states.get)
+        with db.connect() as conn:
+            questions = turn_end_question.by_brief(conn)
+        shown = render.view(found, now, self._pr_states.get, questions)
         rendered = render.to_markdown(shown, now)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):

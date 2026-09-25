@@ -27,6 +27,7 @@ import sys
 import typing as ty
 from pathlib import Path
 
+from ..brief import turn_end_question
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
@@ -418,6 +419,18 @@ def handle_notification(stdin_data: str | None = None) -> None:
 
     # Check existing state before upsert for logging
     with db.connect() as conn:
+        if notification_type == "Stop":
+            transcript = metadata.get("transcript_path")
+            if transcript:
+                question = turn_end_question.add_ask(
+                    conn,
+                    channel,
+                    turn_end_question.claude_final_message(Path(transcript)),
+                    metadata,
+                )
+                if question:
+                    message = question
+                    tells_us_what_was_said = True
         existing = db.get_by_channel(conn, channel, unread_only=False)
         existing_status = existing.status if existing else None
         existing_type = existing.metadata.get("notification_type") if existing else None

@@ -91,14 +91,20 @@ def _section(
     lemon: target.Identity | None,
     detail: str,  # "full" (the task below a rule), "now", or "compact"
     pr_state: pr.Lookup,
+    question: str = "",
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
+    derived = question if parts.status != "blocked" else ""
     title = _display_title(parts.title) or brief.name or "Work status"
     body = "\n\n".join(
         part
         for part in (
-            _needs(parsed.needs_label, parsed.needs) if parsed.needs else "",
+            _needs("Needs Peter", derived)
+            if derived
+            else _needs(parsed.needs_label, parsed.needs)
+            if parsed.needs
+            else "",
             f"**{title}**" if lemon else "",
             *_labelled(parsed, detail == "compact"),
             *(["---", parts.rest] if detail == "full" and parts.rest else []),
@@ -108,8 +114,8 @@ def _section(
     return Section(
         lemon,
         title,
-        parts.status,
-        parts.raw_status,
+        "blocked" if derived else parts.status,
+        "blocked (turn-end question)" if derived else parts.raw_status,
         _prs(
             brief.text, Path(lemon.place) if lemon and lemon.place else brief.path.parent, pr_state
         ),
@@ -160,7 +166,12 @@ def _member_brief(
     )
 
 
-def _session_view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+def _session_view(
+    found: target.Target,
+    now_seconds: float,
+    pr_state: pr.Lookup,
+    questions: abc.Mapping[Path, str],
+) -> View:
     members = sorted(found.members, key=lambda m: _window_order(m.lemon))
     sections: list[Section] = []
     taken: set[Path] = set()
@@ -172,14 +183,22 @@ def _session_view(found: target.Target, now_seconds: float, pr_state: pr.Lookup)
 
         taken.add(brief.path)
         detail = "now" if not sections else "compact"
-        sections.append(_section(brief, member.lemon, detail, pr_state))
+        sections.append(
+            _section(brief, member.lemon, detail, pr_state, questions.get(brief.path, ""))
+        )
 
     return View(found.header, True, tuple(sections), "")
 
 
-def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+def view(
+    found: target.Target,
+    now_seconds: float,
+    pr_state: pr.Lookup,
+    questions: abc.Mapping[Path, str] | None = None,
+) -> View:
+    questions = questions or {}
     if found.members:
-        return _session_view(found, now_seconds, pr_state)
+        return _session_view(found, now_seconds, pr_state, questions)
 
     located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
     if isinstance(located, str):
@@ -203,6 +222,7 @@ def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
                 lemons.get(brief.path),
                 "full" if len(located) == 1 else "now" if i == 0 or not in_session else "compact",
                 pr_state,
+                questions.get(brief.path, ""),
             )
             for i, brief in enumerate(ordered)
         ),

@@ -55,6 +55,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Briefs**: `b` on a session shows its identity, `Status:`, what it needs from you, and the rest of `## Now` in a tmux popup, without switching to it, with the live state of any PR the brief names when `[brief] pr_state` is configured. `lemonaid brief show` prints the same from anywhere
 - **Lemon messages**: Each brief carries a stable ID for its file inbox. Send Markdown by ID, channel, or brief name with `lemonaid tell`; receive one with `lemonaid inbox next --self` or wait with `lemonaid inbox watch --self`
 - **Brief status cards**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
+- **Turn-end question check**: A final paragraph containing `?` in a Claude or Codex response shows an attached brief as blocked with that paragraph as the ask, without changing the brief file
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive

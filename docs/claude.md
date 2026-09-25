@@ -60,6 +60,7 @@ Add to `~/.claude/settings.json`:
 This gives you:
 - **UserPromptSubmit hook**: Registers the session in the inbox the moment you submit a prompt, as a read/working entry (not flagged for attention). This is what makes a session appear while it's still working, rather than only once it stops.
 - **Stop hook**: Notification when Claude finishes responding and is waiting for input
+- At Stop, if the final transcript message's last paragraph contains `?`, an attached brief that is not already blocked appears blocked in lemonaid. The paragraph becomes the inbox ask; the brief file stays unchanged.
 - **PermissionRequest hook**: Notification when Claude asks a question mid-turn via the `AskUserQuestion` tool (the interactive picker). Without this, questions go unnoticed if you've tabbed away - `Stop` doesn't fire because Claude hasn't finished its turn.
 - **Notification hook**: Notification when Claude needs tool permission
 
