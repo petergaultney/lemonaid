@@ -1,13 +1,14 @@
 """The popup: where it opens, and that its command stands on its own."""
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 import rich.console
 
-from lemonaid.brief import attached, cli, display, popup, status, target
+from lemonaid.brief import attached, cli, display, popup, render, target
 from lemonaid.inbox import db
 
 
@@ -45,34 +46,27 @@ def test_rich_colours_statuses_by_state():
 
 def test_the_popup_command_carries_everything_it_needs(tmp_path):
     found = target.Target(
-        [tmp_path / "brief.md"], [tmp_path, tmp_path / "b"], tmp_path, ["Pliny", "my-session"], ""
+        [tmp_path / "brief.md"],
+        [tmp_path, tmp_path / "b"],
+        tmp_path,
+        ["Pliny", "my-session"],
+        "",
+        lemon=target.Identity(name="Pliny", tmux_window="2"),
     )
 
     cmd = popup.popup_command(found)
 
     assert cmd[:3] == [sys.executable, "-m", "lemonaid.cli"]
-    assert cmd[3:] == [
-        "brief",
-        "show",
-        "--file",
-        str(tmp_path / "brief.md"),
-        "--dir",
-        str(tmp_path),
-        "--dir",
-        str(tmp_path / "b"),
-        "--place",
-        str(tmp_path),
-        "--name",
-        "Pliny",
-        "--name",
-        "my-session",
-        "--header",
-        "",
-        "--page",
-    ]
+    assert cmd[3:6] == ["brief", "show", "--target"]
+    assert target.from_json(json.loads(cmd[6])) == found
+    assert cmd[7:] == ["--page"]
 
 
-def test_session_header_precedes_brief_path_and_status(tmp_path, monkeypatch):
+def _no_prs(ref: str, cwd: Path | None) -> str:
+    return ""
+
+
+def test_identity_comes_first_and_where_it_runs_comes_last(tmp_path, monkeypatch):
     monkeypatch.setattr(target.session, "session_dir", lambda _: tmp_path)
     brief = tmp_path / "task.md"
     brief.write_text("# Task\n\nStatus: working\n\n## Now\n- Building.\n")
@@ -91,16 +85,13 @@ def test_session_header_precedes_brief_path_and_status(tmp_path, monkeypatch):
     )
 
     found = target.for_notification(row, {row.channel: brief}, "🍋")
-    rendered = (
-        found.header
-        + "\n\n"
-        + status.render(found.attached, found.dirs, found.place, found.names, 1000)
-    )
+    rendered = render.markdown(found, 1000, _no_prs)
 
-    assert "🍋 popup header | Claude / Opus 4.1 | work:2" in rendered
-    assert "feature/header" in rendered
-    assert " @ " not in rendered and "PR #" not in rendered
-    assert rendered.index("popup header") < rendered.index("task.md") < rendered.index("Status:")
+    assert rendered.startswith("### 🍋 popup header · Claude / Opus 4.1 · work:2")
+    assert " @ " not in rendered and "PR" not in rendered
+    assert rendered.index("popup header") < rendered.index("Status:") < rendered.index("**Task**")
+    assert rendered.index("Building.") < rendered.index("feature/header")
+    assert rendered.index("feature/header") < rendered.index("task.md")
 
 
 def _show_file(path: Path, capsys) -> str:
@@ -132,7 +123,7 @@ def test_attached_file_shows_its_session_header(tmp_path, capsys):
 
     rendered = _show_file(brief, capsys)
 
-    assert "Claude | work:2" in rendered
+    assert "Claude · work:2" in rendered
     assert "No attached session" not in rendered
 
 
@@ -160,14 +151,11 @@ def test_multi_lemon_briefs_each_show_their_owner(tmp_path, monkeypatch):
     ]
     found = target.for_session("work", rows, {rows[0].channel: author, rows[1].channel: reviewer})
 
-    rendered = status.render(
-        found.attached, found.dirs, found.place, found.names, 1000, found.brief_headers
-    )
+    rendered = render.markdown(found, 1000, _no_prs)
 
-    assert found.header == "**work | 2 lemons**"
-    assert rendered.index("Author | Codex | work:2") < rendered.index("author.md")
-    assert rendered.index("Reviewer | Claude | work:4") < rendered.index("reviewer.md")
-    assert popup.popup_command(found).count("--brief-identity") == 2
+    assert rendered.startswith("# work · 2 lemons\n\n---\n\n### w2 · Author · Codex")
+    assert rendered.index("### w2 · Author") < rendered.index("### w4 · Reviewer · Claude")
+    assert rendered.index("### w4") < rendered.index("*w2 · `") < rendered.index("*w4 · `")
 
 
 def test_session_without_a_recorded_lemon_says_so(tmp_path, monkeypatch):

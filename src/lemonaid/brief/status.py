@@ -1,17 +1,16 @@
-"""Find and render the brief attached to a lemon or stored in a place's `.z/`."""
+"""Find and parse the brief attached to a lemon or stored in a place's `.z/`."""
 
 import dataclasses
 import re
 from collections import abc
 from pathlib import Path
 
-from . import display, store
+from . import store
 
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)
 _SECTION_END = re.compile(r"#{1,2}\s")
-_GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -121,57 +120,24 @@ def age(seconds: float) -> str:
     return "just now"
 
 
-def _display_title(title: str) -> str:
-    """The task itself, without the template's generic label."""
-    return _GENERIC_TITLE_PREFIX.sub("", title, count=1).strip()
-
-
-def _render_brief(brief: Brief, now: float, full: bool, identity: str = "") -> str:
-    parts = split(brief.text)
-    title = _display_title(parts.title) or brief.name or "Work status"
-    return "\n\n".join(
-        [
-            *([identity] if identity else []),
-            f"## {title}",
-            f"*updated {age(now - brief.mtime)}*",
-            f"`{display.home_path(brief.path)}`",
-            f"**Status:** {parts.status or parts.raw_status or '(no Status line)'}",
-            *([f"## Now\n\n{parts.now}"] if parts.now else []),
-            *(["---", parts.rest] if full and parts.rest else []),
-        ]
-    )
-
-
-def _render_all(briefs: abc.Sequence[Brief], now: float, identities: abc.Mapping[Path, str]) -> str:
-    return "\n\n---\n\n".join(
-        _render_brief(b, now, full=len(briefs) == 1, identity=identities.get(b.path, ""))
-        for b in briefs
-    )
-
-
-def render(
+def find(
     attached: abc.Sequence[Path],
     dirs: abc.Sequence[Path],
     place: Path | None,
     names: abc.Sequence[str],
     now: float,
-    identities: abc.Mapping[Path, str] | None = None,
-) -> str:
-    """Markdown for where the work in a place stands.
+) -> list[Brief] | str:
+    """The briefs saying where the work in a place stands, or Markdown saying why none do.
 
     Briefs attached to the session's lemons come first, and when there are any,
     nothing else is read. Otherwise the first directory holding a brief is used.
-    One brief is shown with its task statement below a rule, out of the way;
-    when several could be the one, each shows only its Status and Now. Without a
-    brief anywhere, the first `.z/state.md` (written by lemons before
+    Without a brief anywhere, the first `.z/state.md` (written by lemons before
     compaction) stands in.
     """
     if attached:
         present = [load(path) for path in attached if path.is_file()]
         if present:
-            return _render_all(
-                sorted(present, key=lambda b: b.mtime, reverse=True), now, identities or {}
-            )
+            return sorted(present, key=lambda b: b.mtime, reverse=True)
 
         missing = ", ".join(f"`{path}`" for path in attached)
         return f"## Work status\n\nThe attached brief {missing} does not exist."
@@ -179,7 +145,7 @@ def render(
     notes_dirs = [notes for d in dirs if (notes := notes_dir(d, place))]
     for notes in notes_dirs:
         if briefs := pick(find_briefs(notes), names):
-            return _render_all(briefs, now, identities or {})
+            return briefs
 
     for state in (notes / "state.md" for notes in notes_dirs):
         if not state.is_file():

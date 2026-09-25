@@ -151,8 +151,10 @@ staying in the lemon pane.
 
 When the scratch pane is on top, parked, or not following, the brief opens as a popup over
 the client that pressed the key. Pressing the same key again closes it.
-Its first lines identify the selected lemon and its working directory from the inbox, then show
-the brief path and current status. A brief without an attached session says so in that header.
+Its first lines identify the selected lemon and its status, then what it needs from you; where it
+runs and the brief's path come last. A brief without an attached session says so in that header.
+From a window with no lemon, a session holding several shows its name as a bar across the top,
+then one section per lemon (see [keybindings.md](keybindings.md#brief)).
 The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is
 told which prefix + key sequences run `brief show` and quits on them.
 

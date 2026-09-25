@@ -54,9 +54,16 @@ visible. `prefix+b` toggles it from the lemon pane, and switching windows or ses
 restores the inbox. `prefix+l` also restores the inbox, then focuses it; use the
 mouse wheel to scroll the brief while it stays visible beside the lemon.
 
-Otherwise, `b` opens a tmux popup over your client with the selected session's identity and
-brief path, then its `Status:` and `## Now` (or an older session's `.z/brief.md`).
-The rest of the brief appears below.
+Otherwise, `b` opens a tmux popup over your client with the selected lemon's identity and
+`Status:`, then its `Needs` part in a highlighted block, then the rest of `## Now` with `Done`
+last (or an older session's `.z/brief.md`). The rest of the brief appears below a rule, and the
+lemon's directory, branch, brief path and age at the bottom. A `PR #N` or pull-request URL in the
+brief gets its live state (`open`, `draft`, `merged`, `closed`) from `gh` beside the status.
+
+A session with several lemons, opened from a window with none, starts with the session's name as a
+yellow bar. Each lemon's section opens with `w<window> · name · backend / model`; the
+lowest-numbered window's lemon shows its whole `## Now`, the others only their status, `Needs`,
+and one line of `Waiting on`.
 Press `q` or `Escape` to close it. Rich renders the Markdown and colours `working`
 yellow, `done` green, and `blocked` red. `lemonaid brief
 show <session> --popup` uses the same sidebar-or-popup behavior from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-view)). The popup has a yellow border and uses 90% of the

@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 from ..config import load_config
 from ..tmux import follow, scratch
@@ -26,35 +25,13 @@ def window_id(target_pane: str) -> str:
 
 
 def _encode(found: target.Target, window: str) -> str:
-    return json.dumps(
-        {
-            "window": window,
-            "attached": [str(path) for path in found.attached],
-            "dirs": [str(path) for path in found.dirs],
-            "place": str(found.place) if found.place else "",
-            "names": found.names,
-            "title": found.title,
-            "header": found.header,
-            "brief_headers": {str(path): value for path, value in found.brief_headers.items()},
-        }
-    )
+    return json.dumps({"window": window, "target": target.to_json(found)})
 
 
 def decode(value: str) -> tuple[target.Target, str] | None:
     try:
         data = json.loads(value)
-        return (
-            target.Target(
-                [Path(path) for path in data["attached"]],
-                [Path(path) for path in data["dirs"]],
-                Path(data["place"]) if data["place"] else None,
-                data["names"],
-                data["title"],
-                data["header"],
-                {Path(path): identity for path, identity in data["brief_headers"].items()},
-            ),
-            data["window"],
-        )
+        return target.from_json(json.loads(data["target"])), data["window"]
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -85,7 +62,10 @@ def toggle(found: target.Target, window: str) -> bool:
     if current and current[1] == window:
         clear(pane)
     else:
-        if _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window)) is None:
+        if (
+            _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window))
+            is None
+        ):
             return False
 
         _tmux("send-keys", "-t", pane, follow.BRIEF_WAKE_KEY)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, session, status, store, target, write_cli
+from lemonaid.brief import attached, render, session, status, store, target, write_cli
 from lemonaid.inbox import db, self_session
 
 
@@ -221,9 +221,9 @@ def test_an_attached_brief_wins_over_the_places_notes(tmp_path):
     row = _lemon("claude:a", "work", "2", 1)
     found = target.for_notification(row, {"claude:a": _brief("mine")})
 
-    out = status.render(found.attached, found.dirs, found.place, found.names, now=1)
+    out = render.markdown(found, 1, lambda ref, cwd: "")
 
-    assert out.startswith("## mine")
+    assert "**mine**" in out
     assert "the place's" not in out
 
 
@@ -239,9 +239,9 @@ def test_the_window_picks_one_lemons_brief_from_a_shared_session():
 
 
 def test_a_missing_attached_brief_says_so(tmp_path):
-    out = status.render([tmp_path / "gone.md"], [], None, [], now=1)
+    out = status.find([tmp_path / "gone.md"], [], None, [], now=1)
 
-    assert "does not exist" in out
+    assert isinstance(out, str) and "does not exist" in out
 
 
 def test_self_is_the_one_lemon_recorded_at_the_calling_pane(capsys, monkeypatch):

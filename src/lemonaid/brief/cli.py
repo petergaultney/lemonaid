@@ -2,29 +2,41 @@
 
 import argparse
 import dataclasses
+import json
 import os
 import sys
 import time
 from pathlib import Path
 
 from ..inbox import db, emoji
-from . import attached, popup, session, sidebar, status, target, write_cli
+from . import attached, popup, pr, render, session, sidebar, target, write_cli
 
 
-def _file_header(files: list[Path]) -> tuple[str, dict[Path, str]]:
+def _file_target(
+    files: list[Path], dirs: list[Path], place: Path | None, names: list[str]
+) -> target.Target:
     with db.connect() as conn:
         attachments = {item.path.resolve(): item for item in attached.everything(conn)}
         emojis = emoji.by_channel(conn)
 
     identities = {
-        path: target.header_for_notification(item.notification, emojis.get(item.channel, ""))
+        path: target.identity(item.notification, emojis.get(item.channel, ""))
         for path in files
         if (item := attachments.get(path.resolve())) and item.notification
     }
-    if len(files) == 1:
-        return identities.get(files[0], "**No attached session**"), {}
+    title = (files or dirs)[0].name
+    if len(files) == 1 and files[0] in identities:
+        return target.Target(files, dirs, place, names, title, lemon=identities[files[0]])
 
-    return (f"**{len(files)} briefs**" if identities else "**No attached session**"), identities
+    return target.Target(
+        files,
+        dirs,
+        place,
+        names,
+        title,
+        "" if identities or not files else "**No attached session**",
+        identities=identities,
+    )
 
 
 def _target(
@@ -33,26 +45,17 @@ def _target(
     dir_args: list[str],
     place_arg: str,
     name_args: list[str],
-    header_arg: str,
-    brief_identity_args: list[list[str]],
+    target_arg: str,
 ) -> target.Target:
+    if target_arg:
+        return target.from_json(json.loads(target_arg))
+
     if file_args or dir_args:
-        files = [Path(f) for f in file_args]
-        header, identities = (
-            (header_arg, {Path(path): identity for path, identity in brief_identity_args})
-            if header_arg
-            else _file_header(files)
-            if files
-            else ("", {})
-        )
-        return target.Target(
-            files,
+        return _file_target(
+            [Path(f) for f in file_args],
             [Path(d) for d in dir_args],
             Path(place_arg) if place_arg else None,
             name_args,
-            Path((file_args or dir_args)[0]).name,
-            header,
-            identities,
         )
 
     tmux_session, _, window = (session_arg or session.current_session()).partition(":")
@@ -74,9 +77,7 @@ def _target(
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    found = _target(
-        args.session, args.file, args.dir, args.place, args.name, args.header, args.brief_identity
-    )
+    found = _target(args.session, args.file, args.dir, args.place, args.name, args.target)
     if args.popup:
         if not sidebar.toggle(
             found, sidebar.window_id(args.session or os.environ.get("TMUX_PANE", ""))
@@ -84,10 +85,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             popup.open_popup(found)
         return
 
-    body = status.render(
-        found.attached, found.dirs, found.place, found.names, time.time(), found.brief_headers
-    )
-    markdown = f"{found.header}\n\n{body}" if found.header else body
+    markdown = render.markdown(found, time.time(), pr.lookup)
     if args.page:
         popup.page(markdown, args.dismiss)
     else:
@@ -148,10 +146,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         default=[],
         help="Also prefer .z/brief-NAME.md (repeatable)",
     )
-    show_parser.add_argument("--header", default="", help=argparse.SUPPRESS)
-    show_parser.add_argument(
-        "--brief-identity", nargs=2, action="append", default=[], help=argparse.SUPPRESS
-    )
+    show_parser.add_argument("--target", default="", help=argparse.SUPPRESS)
     show_parser.add_argument(
         "--dismiss",
         action="append",

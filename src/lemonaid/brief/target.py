@@ -5,11 +5,27 @@ whichever way it is asked for.
 """
 
 import dataclasses
+import json
 from collections import abc
 from pathlib import Path
 
 from ..inbox import db, model_label
 from . import display, session
+
+
+@dataclasses.dataclass(frozen=True)
+class Identity:
+    """Who a lemon is and where it runs, as recorded in its inbox row."""
+
+    name: str = ""
+    emoji: str = ""
+    backend: str = ""
+    model: str = ""
+    tmux_session: str = ""
+    tmux_window: str = ""
+    directory: str = ""  # shortened for display
+    branch: str = ""
+    place: str = ""  # the directory `gh` resolves `PR #N` from
 
 
 @dataclasses.dataclass(frozen=True)
@@ -19,8 +35,41 @@ class Target:
     place: Path | None  # the session's directory; no brief is looked for above it
     names: list[str]  # candidate <name>s for .z/brief-<name>.md, most specific first
     title: str
-    header: str = ""
-    brief_headers: dict[Path, str] = dataclasses.field(default_factory=dict)
+    header: str = ""  # Markdown above everything: a session's name, or why no lemon is shown
+    lemon: Identity | None = None  # the one lemon this target is for, if it is for one
+    identities: dict[Path, Identity] = dataclasses.field(default_factory=dict)
+
+
+def to_json(found: Target) -> str:
+    return json.dumps(
+        {
+            "attached": [str(path) for path in found.attached],
+            "dirs": [str(path) for path in found.dirs],
+            "place": str(found.place) if found.place else "",
+            "names": found.names,
+            "title": found.title,
+            "header": found.header,
+            "lemon": dataclasses.asdict(found.lemon) if found.lemon else None,
+            "identities": {
+                str(path): dataclasses.asdict(identity)
+                for path, identity in found.identities.items()
+            },
+        }
+    )
+
+
+def from_json(data: abc.Mapping) -> Target:
+    """Raises KeyError, TypeError or ValueError for anything `to_json` didn't write."""
+    return Target(
+        [Path(path) for path in data["attached"]],
+        [Path(path) for path in data["dirs"]],
+        Path(data["place"]) if data["place"] else None,
+        list(data["names"]),
+        data["title"],
+        data["header"],
+        Identity(**data["lemon"]) if data["lemon"] else None,
+        {Path(path): Identity(**value) for path, value in data["identities"].items()},
+    )
 
 
 def _unique(paths: abc.Iterable[Path | None]) -> list[Path]:
@@ -31,24 +80,21 @@ def _backend(notification: db.Notification) -> str:
     return notification.channel.partition(":")[0]
 
 
-def header_for_notification(notification: db.Notification, emoji: str = "") -> str:
+def identity(notification: db.Notification, emoji: str = "", place: Path | None = None) -> Identity:
     metadata = notification.metadata
-    backend = _backend(notification).capitalize()
     model = model_label.model_label(metadata.get("model"))
-    identity = " ".join(part for part in (emoji, notification.name or backend) if part)
-    location = ":".join(
-        str(part) for part in (metadata.get("tmux_session"), metadata.get("tmux_window")) if part
-    )
-    first = " | ".join(
-        part
-        for part in (identity, f"{backend} / {model[0]}" if model else backend, location)
-        if part
-    )
     cwd = metadata.get("cwd")
-    directory = display.home_path(Path(cwd)) if cwd else ""
-    branch = metadata.get("git_branch")
-    second = " | ".join(part for part in (directory, branch) if part)
-    return f"**{first}**  \n{second}" if second else f"**{first}**"
+    return Identity(
+        notification.name or "",
+        emoji,
+        _backend(notification).capitalize(),
+        model[0] if model else "",
+        str(metadata.get("tmux_session") or ""),
+        str(metadata.get("tmux_window") or ""),
+        display.home_path(Path(cwd)) if cwd else "",
+        str(metadata.get("git_branch") or ""),
+        str(place or cwd or ""),
+    )
 
 
 def for_notification(
@@ -65,7 +111,7 @@ def for_notification(
         place,
         session.names(tmux_session, _backend(notification), notification.name or ""),
         notification.name or tmux_session or (Path(cwd).name if cwd else ""),
-        header_for_notification(notification, emoji),
+        lemon=identity(notification, emoji, place),
     )
 
 
@@ -101,11 +147,11 @@ def for_session(
         place,
         session.names(tmux_session),
         tmux_session,
-        f"**{tmux_session} | {len(rows)} lemons**"
+        f"# {tmux_session} · {len(rows)} lemons"
         if rows
         else f"**No lemon recorded in {tmux_session}**",
-        {
-            attached[n.channel]: header_for_notification(n, (emojis or {}).get(n.channel, ""))
+        identities={
+            attached[n.channel]: identity(n, (emojis or {}).get(n.channel, ""), place)
             for n in rows
             if n.channel in attached
         },
