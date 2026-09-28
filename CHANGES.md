@@ -1,3 +1,9 @@
+# 0.31.1 (2026-09-28)
+
+#### Fixed
+
+- **Codex subagents and approval reviewers no longer archive the session that spawned them.** Their turn-complete notifications are ignored, because they share the parent's tty and the watcher kept only the newest session on it. Resolving a session by cwd also skips them.
+
 # 0.31.0 (2026-09-28)
 
 #### Added

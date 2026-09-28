@@ -20,6 +20,7 @@ from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
     find_session_path,
+    is_spawned_thread,
     read_session_meta,
 )
 
@@ -123,6 +124,22 @@ def handle_notification(
     session_path_obj = _resolve_session_path(
         session_id or payload_session_id, resolved_cwd, session_path
     )
+    meta = read_session_meta(session_path_obj) if session_path_obj else None
+    if session_path_obj and meta is None:
+        # Codex writes session_meta when a thread starts, so this is a damaged
+        # rollout - and possibly a subagent's, which must not get a row.
+        _log.warning("ignored a thread whose rollout has no session_meta: %s", session_path_obj)
+        return
+
+    if meta and is_spawned_thread(meta):
+        _log.info(
+            "ignored a spawned thread: thread=%s parent=%s source=%s",
+            meta.get("id"),
+            meta.get("parent_thread_id"),
+            meta.get("thread_source"),
+        )
+        return
+
     canonical_session_id = _extract_session_id({}, session_path_obj)
     session_id = session_id or canonical_session_id or payload_session_id
     cwd = _resolve_cwd(resolved_cwd, session_path_obj)

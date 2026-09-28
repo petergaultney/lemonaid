@@ -40,6 +40,15 @@ def read_session_meta(path: Path) -> dict | None:
     return None
 
 
+def is_spawned_thread(meta: dict) -> bool:
+    """A subagent or approval-reviewer thread running inside another session.
+
+    Such threads share their parent's terminal, so an inbox row of their own
+    would compete with the parent's on the same tty.
+    """
+    return bool(meta.get("parent_thread_id"))
+
+
 def find_session_path(session_id: str) -> Path | None:
     """Find a Codex session file by session ID."""
     if not session_id:
@@ -58,7 +67,7 @@ def find_session_path(session_id: str) -> Path | None:
 
 
 def find_latest_session_for_cwd(cwd: str) -> Path | None:
-    """Find the most recently modified session file for a cwd."""
+    """Find the most recently modified top-level session file for a cwd."""
     if not cwd:
         return None
 
@@ -73,7 +82,7 @@ def find_latest_session_for_cwd(cwd: str) -> Path | None:
         meta = read_session_meta(path)
         if not meta:
             continue
-        if meta.get("cwd") != cwd:
+        if meta.get("cwd") != cwd or is_spawned_thread(meta):
             continue
         try:
             mtime = path.stat().st_mtime
