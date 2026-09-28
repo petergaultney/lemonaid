@@ -306,7 +306,7 @@ def format_window(
     # apps leave the shell's generic title in place, so the title has no name to
     # recover even though the Python/Node entrypoint does.
     detectable_apps = set(named_processes)
-    if process and (process == "node" or process.startswith("node")):
+    if process and (process.startswith("node") or _SHELL_INTERPRETERS_RE.match(process)):
         detectable_apps.update(_NODE_APP_NAMES)
     if pane_pid and detectable_apps:
         detected = _detect_named_app(pane_pid, detectable_apps)
