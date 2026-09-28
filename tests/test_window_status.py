@@ -1,8 +1,38 @@
 """Tests for tmux status-line window names."""
 
+import re
+import shlex
+from pathlib import Path
 from subprocess import CompletedProcess
 
 from lemonaid.tmux import window_status
+
+
+def test_documented_tmux_status_command_keeps_empty_positional_arguments():
+    docs = (Path(__file__).resolve().parents[1] / "docs" / "tmux.md").read_text()
+    arguments = {
+        "pane_path": "",
+        "pane_current_path": "/work/a folder",
+        "pane_current_command": "python3.14",
+        "pane_title": "Unable to read Peter's $context | project",
+        "window_active": "1",
+        "pane_pid": "123",
+    }
+    expected = ["lemonaid-tmux-window-status", *arguments.values()]
+
+    for option in ("window-status-format", "window-status-current-format"):
+        line = next(line for line in docs.splitlines() if line.startswith(f"setw -g {option} "))
+        command = line.split("#(", 1)[1].split(")", 1)[0]
+        for name, value in arguments.items():
+            # tmux q: backslash-escapes metacharacters but emits nothing for an
+            # empty value. shlex.quote("") would emit "''" and mask this bug.
+            escaped = re.sub(r"([^\w@%+=:,./-])", r"\\\1", value)
+            command = command.replace(f"#{{q:{name}}}", escaped)
+
+        assert shlex.split(command) == expected
+        # Without the documented wrappers, the empty path disappears and the
+        # next five values shift left, as they did in the broken configuration.
+        assert len(shlex.split(command.replace("''", ""))) == len(expected) - 1
 
 
 def test_configured_exact_process_replaces_the_directory():

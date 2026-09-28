@@ -390,9 +390,11 @@ set-option -g default-terminal "tmux-256color"
 set-option -sa terminal-features ',xterm-256color:RGB'
 
 # Window status with colored directory names
-# Third argument is pane_title - used to show app names instead of "python3.12"
-setw -g window-status-format " #I:#(lemonaid-tmux-window-status #{q:pane_path} #{q:pane_current_path} #{q:pane_current_command} #{q:pane_title} #{q:window_active} #{q:pane_pid}) "
-setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status #{q:pane_path} #{q:pane_current_path} #{q:pane_current_command} #{q:pane_title} #{q:window_active} #{q:pane_pid}) "
+# q: shell-quotes each value; adjacent empty quotes keep empty fields as arguments.
+# In particular, pane_path is often empty for Codex, and dropping it shifts every
+# later argument, causing the task title to be mistaken for the process name.
+setw -g window-status-format " #I:#(lemonaid-tmux-window-status ''#{q:pane_path}'' ''#{q:pane_current_path}'' ''#{q:pane_current_command}'' ''#{q:pane_title}'' ''#{q:window_active}'' ''#{q:pane_pid}'') "
+setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status ''#{q:pane_path}'' ''#{q:pane_current_path}'' ''#{q:pane_current_command}'' ''#{q:pane_title}'' ''#{q:window_active}'' ''#{q:pane_pid}'') "
 setw -g window-status-style none
 setw -g window-status-current-style "bg=colour238,bold"
 setw -g window-status-separator "│"

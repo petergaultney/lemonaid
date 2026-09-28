@@ -13,9 +13,8 @@ Required tmux settings for OSC 7 support:
     set -as terminal-features 'xterm*:osc7'
     set -g set-titles on
 
-Example window-status-format:
-
-    setw -g window-status-format " #I:#(lemonaid-tmux-window-status #{q:pane_path} #{q:pane_current_path} #{q:pane_current_command} #{q:pane_title}) "
+For a complete window-status-format example, see docs/tmux.md. Its quoting
+preserves empty values such as a missing OSC 7 pane_path.
 
 For session name with inverted colors:
 
@@ -366,7 +365,8 @@ def format_session(name: str) -> str:
 def main() -> None:
     """CLI entry point for window status formatting.
 
-    Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]
+    Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path>
+           [process] [title] [active] [pane_pid]
 
     pane_path: from OSC 7 (xonsh sends this on every prompt)
     pane_current_path: from process cwd (works for fish, bash but not xonsh)
@@ -399,7 +399,8 @@ def main() -> None:
         )
     else:
         print(
-            "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> [process] [title]",
+            "Usage: lemonaid-tmux-window-status <pane_path> <pane_current_path> "
+            "[process] [title] [active] [pane_pid]",
             file=sys.stderr,
         )
         sys.exit(1)
