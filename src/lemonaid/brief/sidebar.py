@@ -4,7 +4,8 @@ import json
 import os
 import subprocess
 
-from ..config import load_config
+from .. import handlers
+from ..config import Config, load_config
 from ..tmux import follow, scratch
 from . import target
 
@@ -45,10 +46,9 @@ def clear(pane: str) -> None:
     _tmux("send-keys", "-t", pane, follow.BRIEF_WAKE_KEY)
 
 
-def toggle(found: target.Target, window: str) -> bool:
-    """Use the sidebar when it is beside *window*; otherwise let the caller use a popup."""
+def _available(window: str) -> str | None:
     if not os.environ.get("TMUX") or not scratch.is_follow_enabled():
-        return False
+        return None
 
     pane = scratch.marked_pane()
     if (
@@ -56,18 +56,53 @@ def toggle(found: target.Target, window: str) -> bool:
         or scratch.current_position(load_config().tmux_session.scratch_position) != "left"
         or window_id(pane) != window
     ):
+        return None
+    return pane
+
+
+def show(found: target.Target, window: str) -> bool:
+    """Replace the visible sidebar brief and focus the pane displaying it."""
+    pane = _available(window)
+    if pane is None:
+        return False
+    if _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window)) is None:
+        return False
+    _tmux("send-keys", "-t", pane, follow.BRIEF_WAKE_KEY)
+    if _tmux("switch-client", "-t", pane) is None:
+        clear(pane)
+        return False
+    return True
+
+
+def switch_beside(
+    metadata: dict[str, object], switch_source: str, config: Config, found: target.Target
+) -> bool:
+    """Put the main pane on a lemon and show *found* beside it, focus staying here.
+
+    Called off the TUI's event loop: the switch is the slow part of browsing,
+    and the brief is already drawn by the time it runs.
+    """
+    follow.publish({follow.KEEP_FOCUS_OPTION: "1"})
+    try:
+        if not handlers.handle_notification(metadata, config, switch_source=switch_source):
+            return False
+    finally:
+        follow.publish({follow.KEEP_FOCUS_OPTION: None})  # a switch within one window fires no hook
+
+    pane = os.environ.get("TMUX_PANE", "")
+    return bool(pane) and show(found, window_id(pane))
+
+
+def toggle(found: target.Target, window: str) -> bool:
+    """Use the sidebar when it is beside *window*; otherwise let the caller use a popup."""
+    pane = _available(window)
+    if pane is None:
         return False
 
     current = read(pane)
     if current and current[1] == window:
         clear(pane)
     else:
-        if (
-            _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window))
-            is None
-        ):
-            return False
-
-        _tmux("send-keys", "-t", pane, follow.BRIEF_WAKE_KEY)
+        return show(found, window)
 
     return True

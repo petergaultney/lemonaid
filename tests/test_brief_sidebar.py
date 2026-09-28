@@ -1,4 +1,4 @@
-"""The scratch sidebar keeps a brief visible without taking the lemon's focus."""
+"""The scratch sidebar keeps a brief visible and focused beside its lemon."""
 
 import argparse
 import asyncio
@@ -59,9 +59,61 @@ def test_sidebar_toggle_wakes_scratch_and_closes_on_second_press(monkeypatch, tm
 
     assert sidebar.toggle(found, "@target")
     assert sidebar.read("%2") == (found, "@target")
+    assert ("switch-client", "-t", "%2") in calls
     assert sidebar.toggle(found, "@target")
     assert sidebar.read("%2") is None
     assert calls.count(("send-keys", "-t", "%2", follow.BRIEF_WAKE_KEY)) == 2
+    assert calls.count(("switch-client", "-t", "%2")) == 1
+
+
+def test_sidebar_show_replaces_brief_in_same_window(monkeypatch, tmp_path):
+    options: dict[str, str] = {}
+    calls: list[tuple[str, ...]] = []
+
+    def tmux(*args: str) -> str:
+        calls.append(args)
+        if args[0] == "show-option":
+            return options.get(follow.BRIEF_OPTION, "")
+        if args[0] == "set-option":
+            options[follow.BRIEF_OPTION] = args[-1]
+        return ""
+
+    monkeypatch.setattr(sidebar, "_tmux", tmux)
+    monkeypatch.setattr(sidebar.scratch, "is_follow_enabled", lambda: True)
+    monkeypatch.setattr(sidebar.scratch, "marked_pane", lambda: "%2")
+    monkeypatch.setattr(sidebar.scratch, "current_position", lambda _: "left")
+    monkeypatch.setattr(sidebar, "window_id", lambda _: "@target")
+    first = _target(tmp_path)
+    second = target.Target([], [], None, [], "second")
+
+    assert sidebar.show(first, "@target")
+    assert sidebar.read("%2") == (first, "@target")
+    assert sidebar.show(second, "@target")
+    assert sidebar.read("%2") == (second, "@target")
+    assert calls.count(("switch-client", "-t", "%2")) == 2
+
+
+def test_sidebar_falls_back_if_it_cannot_focus_scratch(monkeypatch, tmp_path):
+    options: dict[str, str] = {}
+
+    def tmux(*args: str) -> str | None:
+        if args[0] == "switch-client":
+            return None
+        if args[0] == "set-option":
+            if "-pu" in args:
+                options.pop(follow.BRIEF_OPTION, None)
+            else:
+                options[follow.BRIEF_OPTION] = args[-1]
+        return ""
+
+    monkeypatch.setattr(sidebar, "_tmux", tmux)
+    monkeypatch.setattr(sidebar.scratch, "is_follow_enabled", lambda: True)
+    monkeypatch.setattr(sidebar.scratch, "marked_pane", lambda: "%2")
+    monkeypatch.setattr(sidebar.scratch, "current_position", lambda _: "left")
+    monkeypatch.setattr(sidebar, "window_id", lambda _: "@target")
+
+    assert not sidebar.show(_target(tmp_path), "@target")
+    assert follow.BRIEF_OPTION not in options
 
 
 def test_popup_command_prefers_the_sidebar_when_available(monkeypatch, tmp_path):
@@ -121,7 +173,7 @@ def test_brief_view_replaces_the_inbox_then_restores_it(tmp_path):
     asyncio.run(check())
 
 
-def test_b_in_the_sidebar_switches_to_the_selected_lemon(monkeypatch, tmp_path):
+def test_b_in_the_sidebar_keeps_focus_on_the_inbox(monkeypatch, tmp_path):
     found = _target(tmp_path)
     with db.connect() as conn:
         row = db.add(
@@ -154,8 +206,16 @@ def test_b_in_the_sidebar_switches_to_the_selected_lemon(monkeypatch, tmp_path):
             await pilot.pause()
             app.action_brief()
             await pilot.pause()
-            assert switched == [row.id]
+            assert switched == []
             assert app.query_one(ContentSwitcher).current == "brief_view"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.query_one(ContentSwitcher).current == "inbox_content"
+            app.action_brief()
+            await pilot.pause()
+            await pilot.press("q")
+            await pilot.pause()
+            assert app.query_one(ContentSwitcher).current == "inbox_content"
 
     asyncio.run(check())
 

@@ -6,7 +6,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Open notification (switches to that session) |
+| `Enter` | Open notification (switches to that session). A click does the same, except a click on the already-selected row while the scratch pane has focus, which keeps focus in the inbox |
 | `1`-`9`, `0` | Switch to that row of the list, counting from the top |
 | `u` | Jump directly to earliest unread session |
 | `m` | Mark as read |
@@ -48,11 +48,15 @@ stay until you press `?` a second time. `?` is not configurable.
 
 ## Brief
 
-When the scratch pane follows on the left, `b` switches to the selected lemon and
-shows its brief in place of the inbox. You can type in the lemon while the brief stays
-visible. `prefix+b` toggles it from the lemon pane, and switching windows or sessions
-restores the inbox. `prefix+l` also restores the inbox, then focuses it; use the
-mouse wheel to scroll the brief while it stays visible beside the lemon.
+When the scratch pane follows on the left, `b` shows the selected lemon's brief
+in place of the inbox without leaving the inbox pane. Up/down arrows (or the configured
+`up_down` keys) move between briefs. Each brief is drawn at once and the main pane
+follows it to that lemon a moment later, while focus stays on the brief. A dot before
+the lemon's name means its inbox entry is unread; `m`, `M`, `r` and `z` mark it read,
+mark it unread, rename it, and undo, as in the list. `q` or `Escape` restores the inbox. `prefix+b` toggles
+the brief from the lemon pane, and switching windows or sessions restores the inbox.
+`prefix+l` focuses the scratch pane and keeps the brief; use the mouse wheel to scroll
+the brief while staying in the lemon pane.
 
 Otherwise, `b` opens a tmux popup over your client. Both views start each lemon with its inbox
 card, opened up: name and model, then tmux location, directory and branch, then status, brief age,

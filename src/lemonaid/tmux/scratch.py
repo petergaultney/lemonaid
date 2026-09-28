@@ -550,14 +550,12 @@ def _select_pane(pane_id: str) -> bool:
 
 
 def _clear_brief(pane_id: str) -> None:
-    """Restore the inbox before focusing or repositioning its scratch pane."""
+    """Restore the inbox before repositioning its scratch pane."""
     subprocess.run(
         ["tmux", "set-option", "-pu", "-t", pane_id, follow.BRIEF_OPTION],
         capture_output=True,
     )
-    subprocess.run(
-        ["tmux", "send-keys", "-t", pane_id, follow.BRIEF_WAKE_KEY], capture_output=True
-    )
+    subprocess.run(["tmux", "send-keys", "-t", pane_id, follow.BRIEF_WAKE_KEY], capture_output=True)
 
 
 def _get_current_pane() -> str | None:
@@ -754,7 +752,8 @@ def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool
 
             return "hidden"
         else:
-            _clear_brief(pane_id)
+            # A brief shown here stays: it belongs to this window, and focusing
+            # the pane is how you get back to reading it.
             if not _select_pane(pane_id):
                 return _create_and_show(size, position)
 

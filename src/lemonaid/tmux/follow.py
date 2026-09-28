@@ -34,6 +34,9 @@ HEIGHT_OPTION = "@lemonaid_scratch_height"  # rows, for a top pane
 MARKER_OPTION = "@lemonaid_scratch"  # set on the pane itself; how it is found again
 BRIEF_OPTION = "@lemonaid_brief_sidebar"  # a brief belongs to the window being left
 BRIEF_WAKE_KEY = "F12"
+# Set just before a switch made while browsing briefs: the hook hands focus back
+# to the pane after the swap, then unsets it, so keys never reach the lemon.
+KEEP_FOCUS_OPTION = "@lemonaid_keep_focus"
 RECENT_PLACEHOLDER_OPTION = "@lemonaid_recent_placeholder"  # most recently left slot
 
 # Recognised by its start command rather than an option: an option could only be
@@ -209,15 +212,22 @@ def hook_command() -> str:
     tmux fires no window-pane-changed for a command a hook runs, so the orphan
     hook never sees it. Older slots are reaped as well. Both sweeps name every
     pane they touch, so they can come after the select-pane.
+
+    A switch made while browsing briefs asks for the opposite, through
+    KEEP_FOCUS_OPTION. The pane takes focus in the same command as the swap:
+    tmux services other clients between one run-shell and the next, and a key
+    typed then would reach the lemon.
     """
-    swap = f"run-shell -C 'swap-pane -d -s #{{{PANE_OPTION}}} -t {_placeholder_id_here()}'"
-    split = f"run-shell -C 'split-window -d {_split_size()} -t #{{pane_id}} {' '.join(PLACEHOLDER_COMMAND)}'"
-    remember = (
-        f"run-shell -C 'set-option -g {RECENT_PLACEHOLDER_OPTION} {_placeholder_id_here()}'"
+    keep_focus = f"#{{?#{{{KEEP_FOCUS_OPTION}}},select-pane -t #{{{PANE_OPTION}}},}}"
+    swap = (
+        f"run-shell -C 'swap-pane -d -s #{{{PANE_OPTION}}} -t {_placeholder_id_here()} ; "
+        f"{keep_focus}'"
     )
+    split = f"run-shell -C 'split-window -d {_split_size()} -t #{{pane_id}} {' '.join(PLACEHOLDER_COMMAND)}'"
+    remember = f"run-shell -C 'set-option -g {RECENT_PLACEHOLDER_OPTION} {_placeholder_id_here()}'"
     resize = f"run-shell -C 'resize-pane -t #{{{PANE_OPTION}}} {_resize_size()}'"
     unfocus_here = (
-        f"if-shell -F '{_pane_is_active_here()}' {{\n"
+        f"if-shell -F '#{{&&:#{{!:#{{{KEEP_FOCUS_OPTION}}}}},{_pane_is_active_here()}}}' {{\n"
         f"    run-shell -C 'select-pane -t {_focus_target_here()}'\n"
         f"  }}"
     )
@@ -238,6 +248,7 @@ def hook_command() -> str:
         f"  run-shell -C '{_unfocus_placeholders()}'\n"
         f"  run-shell -C '{_kill_orphan_placeholders()}'\n"
         f"  run-shell -C '{_kill_older_placeholders()}'\n"
+        f"  run-shell -C 'set-option -gu {KEEP_FOCUS_OPTION}'\n"
         f"}}"
     )
 

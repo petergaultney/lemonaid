@@ -48,6 +48,17 @@ def test_the_marker_is_reasserted(monkeypatch):
     assert ["tmux", "set-option", "-p", "-t", "%7", "@lemonaid_scratch", "1"] in calls
 
 
+def test_follow_hooks_are_reinstalled(monkeypatch):
+    calls: list[list[str]] = []
+    _tmux(monkeypatch, calls)
+    monkeypatch.setattr(scratch, "marked_pane", lambda: "%7")
+    monkeypatch.setattr(scratch, "is_follow_enabled", lambda: True)
+
+    restart.restart_scratch()
+
+    assert [c for c in calls if "set-hook" in c]
+
+
 def test_no_pane_is_not_an_error(monkeypatch):
     """Nothing is running, which is what `prefix+l` is for - not a failure."""
     calls: list[list[str]] = []

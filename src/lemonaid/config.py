@@ -126,6 +126,8 @@ class TuiConfig:
     card_unread_style: str = "dot"  # "dot" or a full-width "bar"
     brief_status: bool = False
     brief_stale_hours: float = 6.0
+    # The scratch pane's title bar and bottom edge while it will receive keys.
+    focus_color: str = "#2bd9cf"
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -321,6 +323,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         card_unread_style=tui_data.get("card_unread_style", "dot"),
         brief_status=tui_data.get("brief_status", False),
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
+        focus_color=tui_data.get("focus_color", "#2bd9cf"),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),
     )

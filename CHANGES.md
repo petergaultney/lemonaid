@@ -1,3 +1,14 @@
+# 0.32.0 (2026-09-28)
+
+#### Changed
+
+- **Opening a brief focuses the scratch pane.** Up/down navigation shows each lemon's brief as soon as the key is pressed, then switches the main pane to that lemon while retaining keyboard focus; `Escape` or `q` returns to the list.
+- **The brief shows whether its inbox entry is unread**, and `m`, `M`, `r` and `z` mark it read, mark it unread, rename it, and undo without leaving the brief.
+- **`prefix+l` keeps a brief open when it focuses the scratch pane.** The brief toggle, `Escape` and `q` still close it.
+- **Clicking the already-selected row in a focused scratch pane keeps focus in the inbox.** Enter still switches to that lemon, and so does a click from another pane.
+- **The scratch inbox title and bottom edge turn teal when its tmux pane will receive keys.** The colour is `[tui] focus_color`.
+- **`lemonaid tmux scratch --restart` reinstalls the follow hooks**, so an upgrade's hook changes take effect with its TUI.
+
 # 0.31.3 (2026-09-28)
 
 #### Fixed

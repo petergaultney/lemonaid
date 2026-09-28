@@ -168,7 +168,7 @@ def test_moving_to_top_dismisses_the_sidebar_brief(monkeypatch):
     assert ["tmux", "send-keys", "-t", "%7", scratch.follow.BRIEF_WAKE_KEY] in commands
 
 
-def test_focusing_scratch_restores_inbox_before_selecting_it(monkeypatch):
+def test_focusing_scratch_keeps_its_brief(monkeypatch):
     commands: list[list[str]] = []
     monkeypatch.setattr(scratch, "bootstrap_follow", lambda _: None)
     monkeypatch.setattr(scratch, "is_follow_enabled", lambda: True)
@@ -186,11 +186,7 @@ def test_focusing_scratch_restores_inbox_before_selecting_it(monkeypatch):
     )
 
     assert scratch.toggle_scratch(position="left") == "selected"
-    assert commands == [
-        ["tmux", "set-option", "-pu", "-t", "%7", scratch.follow.BRIEF_OPTION],
-        ["tmux", "send-keys", "-t", "%7", scratch.follow.BRIEF_WAKE_KEY],
-        ["tmux", "select-pane", "-t", "%7"],
-    ]
+    assert commands == [["tmux", "select-pane", "-t", "%7"]]
 
 
 def test_the_size_is_capped_against_the_smaller_of_client_and_window():

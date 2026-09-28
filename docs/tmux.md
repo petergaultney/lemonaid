@@ -143,11 +143,14 @@ Passing the window shows the brief of the lemon in it when a session holds sever
 and its reviewer); from any other window, every lemon's brief is shown.
 
 With the scratch pane following on the left, the brief replaces the inbox inside that pane.
-`b` in the inbox switches to the selected lemon so you can type while reading. The binding
-above shows the current lemon's brief without changing focus. Press `prefix+b` again to
+`b` in the inbox keeps focus there, so `Escape` or `q` restores the inbox. Up/down
+arrows (or the configured alternatives) move between briefs; each is drawn at once, and
+the main pane switches to its lemon just after, with the inbox pane keeping focus. The binding
+above shows the current lemon's brief and focuses the inbox pane. Press `prefix+b` again to
 restore the inbox; switching to another window or session also restores it. `prefix+l`
-restores the inbox and focuses it. Use the mouse wheel to scroll a visible brief while
-staying in the lemon pane.
+focuses the pane and keeps the brief. Use the mouse wheel to scroll a visible brief. The inbox
+title and bottom edge turn teal (`[tui] focus_color`) when its tmux pane is selected
+to receive keys; this reflects tmux focus, not whether the terminal app is frontmost.
 
 When the scratch pane is on top, parked, or not following, the brief opens as a popup over
 the client that pressed the key. Pressing the same key again closes it.
@@ -201,7 +204,8 @@ lemonaid tmux scratch --restart
 Replaces the `lma` process in place - the pane keeps its id, window, size, and
 the recent placeholder follow mode has kept. Killing
 the pane instead discards that arrangement, which is what `prefix+: kill-pane`
-followed by `prefix+l` used to do.
+followed by `prefix+l` used to do. In follow mode it also reinstalls the follow hooks,
+so a new version's hooks take effect with its TUI.
 
 ### Follow mode
 

@@ -90,6 +90,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `brief_status` | `false` | In card layout, color sessions with attached briefs by their `Status:` and show brief age. |
 | `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
+| `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
 With `brief_status = true`, attached briefs give `blocked` cards a yellow
 headline, `done` cards a blue headline, and `waiting` cards dimmer text.

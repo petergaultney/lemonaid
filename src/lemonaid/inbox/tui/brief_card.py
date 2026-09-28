@@ -29,7 +29,7 @@ def _edge() -> Text:
     return Text(f"{utils.HERE_BAR} ", style=utils.HERE_BAR_STYLE)
 
 
-def _headline(section: render.Section, width: int) -> Text:
+def _headline(section: render.Section, width: int, unread: bool) -> Text:
     lemon = section.lemon
     name = (
         " ".join(part for part in (lemon.emoji, lemon.name or lemon.backend) if part)
@@ -42,7 +42,9 @@ def _headline(section: render.Section, width: int) -> Text:
         if lemon
         else "",
     )
-    left = Text(name, style=f"bold {utils.FIELD_STYLES['name']}")
+    left = (Text("● ", style=utils.UNREAD_MARKER_STYLE) if unread else Text("")) + Text(
+        name, style=f"bold {utils.FIELD_STYLES['name']}"
+    )
     left.truncate(max(1, width - model.cell_len - 1), overflow="ellipsis")
     line = left + Text(" " * max(1, width - left.cell_len - model.cell_len)) + model
     if fill := _HEADLINE_FILLS.get(section.state):
@@ -90,10 +92,15 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
     )
 
 
-def header(section: render.Section, in_session: bool, now_seconds: float, width: int) -> Text:
-    """Three lines: name and model, where it runs, then status, age and PRs."""
+def header(
+    section: render.Section, in_session: bool, now_seconds: float, width: int, unread: bool = False
+) -> Text:
+    """Three lines: name and model, where it runs, then status, age and PRs.
+
+    *unread* puts the inbox card's dot before the name.
+    """
     body = max(1, width - 2)
-    lines = [_headline(section, body), _context(section, in_session)]
+    lines = [_headline(section, body, unread), _context(section, in_session)]
     if section.state == "waiting":
         for line in lines:
             line.stylize("dim")

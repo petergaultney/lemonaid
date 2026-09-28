@@ -15,7 +15,7 @@ Until now the only way to pick up new code was `prefix+:kill-pane` then
 import subprocess
 
 from ..log import get_logger
-from . import scratch
+from . import follow, scratch
 
 _log = get_logger("tmux.restart")
 
@@ -52,5 +52,7 @@ def restart_scratch() -> str:
     # Set anyway: the marker is the only handle the rest of lemonaid has on this
     # pane, and it is cheaper to re-assert than to depend on that staying true.
     scratch.remark_pane(pane_id)
+    if scratch.is_follow_enabled():
+        follow.install_hooks()  # the hooks are code too, and a restart picks up new code
     _log.info("restarted scratch pane %s", pane_id)
     return f"restarted {pane_id}"

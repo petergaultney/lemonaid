@@ -41,14 +41,17 @@ class _Card(Static):
     }
     """
 
-    def __init__(self, section: render.Section, in_session: bool, now: float) -> None:
+    def __init__(self, section: render.Section, in_session: bool, now: float, unread: bool) -> None:
         super().__init__()
         self._section = section
         self._in_session = in_session
         self.now = now
+        self.unread = unread
 
     def render(self) -> Text:
-        return brief_card.header(self._section, self._in_session, self.now, self.size.width)
+        return brief_card.header(
+            self._section, self._in_session, self.now, self.size.width, self.unread
+        )
 
 
 def open_link(url: str) -> None:
@@ -146,12 +149,14 @@ class BriefView(VerticalScroll):
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
 
-    def show(self, found: target.Target) -> None:
+    def show(self, found: target.Target, unread: bool = False) -> None:
         self._rendered_markdown = None
-        self.update_brief(found)
+        self.update_brief(found, unread)
         self.scroll_home(animate=False)
 
-    def _widgets(self, shown: render.View, now: float) -> list[Static | Markdown | Rule]:
+    def _widgets(
+        self, shown: render.View, now: float, unread: bool
+    ) -> list[Static | Markdown | Rule]:
         if not shown.sections:
             return [_Markdown(links.linkify(render.to_markdown(shown, now)))]
 
@@ -167,7 +172,7 @@ class BriefView(VerticalScroll):
             for i, section in enumerate(shown.sections)
             for widget in (
                 *([Rule()] if i else []),
-                _Card(section, shown.in_session, now),
+                _Card(section, shown.in_session, now, unread),
                 *([_Markdown(links.linkify(section.body))] if section.body else []),
             )
         ]
@@ -178,16 +183,18 @@ class BriefView(VerticalScroll):
             Static(brief_card.files(shown), classes="brief-files"),
         ]
 
-    def update_brief(self, found: target.Target) -> None:
+    def update_brief(self, found: target.Target, unread: bool = False) -> None:
+        """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
         shown = render.view(found, now, self._pr_states.get)
         rendered = render.to_markdown(shown, now)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):
                 card.now = now
+                card.unread = unread
                 card.refresh()
             return
 
         self._rendered_markdown = rendered
         self.remove_children()
-        self.mount_all(self._widgets(shown, now))
+        self.mount_all(self._widgets(shown, now, unread))

@@ -2,7 +2,9 @@
 
 from textual import events
 from textual.coordinate import Coordinate
+from textual.message import Message
 from textual.widgets import DataTable
+from textual.widgets.data_table import RowKey
 
 
 class ClickToActTable(DataTable):
@@ -23,7 +25,16 @@ class ClickToActTable(DataTable):
     field's identity, so the selected row loses exactly what the list is read
     for. The mouse-hover highlight is left alone: it is transient and follows
     the pointer rather than marking a choice.
+
+    A click on the row the cursor already holds posts SelectedRowClicked instead
+    of RowSelected, so the app can tell it from Enter.
     """
+
+    class SelectedRowClicked(Message):
+        def __init__(self, table: "ClickToActTable", row_key: RowKey) -> None:
+            super().__init__()
+            self.data_table = table
+            self.row_key = row_key
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         kwargs.setdefault("cursor_foreground_priority", "renderable")
@@ -42,8 +53,13 @@ class ClickToActTable(DataTable):
         if row < 0 or not self.show_cursor or self.cursor_type != "row":
             return
 
-        if (row, meta["column"]) == tuple(self.cursor_coordinate):
-            return  # the base posts this one itself
+        if row == self.cursor_row:
+            event.prevent_default()
+            event.stop()
+            self.post_message(
+                self.SelectedRowClicked(self, self.coordinate_to_cell_key(Coordinate(row, 0))[0])
+            )
+            return
 
         self.post_message(
             DataTable.RowSelected(self, row, self.coordinate_to_cell_key(Coordinate(row, 0))[0])

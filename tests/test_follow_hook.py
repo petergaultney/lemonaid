@@ -220,6 +220,26 @@ def test_the_switch_target_keeps_focus(tmux):
     assert tmux("display", "-p", "#{pane_id}").stdout.strip() != scratch._get_pane_id()
 
 
+def test_a_brief_switch_takes_focus_in_the_swap_command_itself():
+    """tmux serves other clients between run-shells; a key typed then reaches the lemon."""
+    (swap,) = {line for line in follow.hook_command().splitlines() if "swap-pane" in line}
+
+    assert f"select-pane -t #{{{follow.PANE_OPTION}}}" in swap
+
+
+def test_a_brief_switch_leaves_focus_on_the_inbox_once(tmux):
+    pane = _followed_pane(tmux)
+    tmux("select-pane", "-t", pane)
+    tmux("set-option", "-g", follow.KEEP_FOCUS_OPTION, "1")
+
+    tmux("switch-client", "-t", "b:w1")
+
+    assert tmux("display", "-p", "-t", "b:w1", "#{pane_id}").stdout.strip() == pane
+    assert tmux("show-option", "-gqv", follow.KEEP_FOCUS_OPTION).stdout.strip() == ""
+    tmux("switch-client", "-t", "a:w2")
+    assert tmux("display", "-p", "-t", "a:w2", "#{pane_id}").stdout.strip() != pane
+
+
 def _where_the_client_is(run) -> str:
     """The attached client's window.
 
