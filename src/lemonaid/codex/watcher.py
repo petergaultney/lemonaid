@@ -80,14 +80,19 @@ def get_session_path(session_id: str, cwd: str) -> Path | None:
         if path.is_file():
             return path
 
-    # Try partial match (first 8 chars of UUID)
-    if len(session_id) >= 8:
+    # A short id matches by prefix. A full one must not: UUIDv7 prefixes are
+    # shared by threads started within a minute of each other.
+    if 8 <= len(session_id) < 36:
         for path in root.rglob("*.jsonl"):
             if session_id[:8] in path.name:
                 return path
 
-    # Some Codex notify payloads contain a turn ID where older lemonaid
-    # versions expected a rollout ID. Recover those existing inbox rows from
+    # A full id with no rollout yet is a thread still starting; the latest
+    # rollout in its cwd may belong to a sibling started beside it.
+    if len(session_id) >= 36:
+        return None
+
+    # Some older inbox rows hold an id that names no rollout. Recover them from
     # the cwd rather than leaving them permanently on the provider fallback.
     return find_latest_session_for_cwd(cwd)
 

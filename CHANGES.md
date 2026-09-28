@@ -1,3 +1,9 @@
+# 0.31.2 (2026-09-28)
+
+#### Fixed
+
+- **Codex threads started within a minute of each other no longer share one inbox row.** A Codex channel is now `codex:<thread id>` instead of its first 8 characters, which UUIDv7 threads from the same minute share, so a thread no longer inherits another's brief, name, emoji, pin, or messages. Upgrading moves existing Codex rows, pins, emoji, and brief attachments to the full id recorded in each row.
+
 # 0.31.1 (2026-09-28)
 
 #### Fixed

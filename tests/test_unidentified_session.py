@@ -51,7 +51,7 @@ def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch):
         )
     )
 
-    assert [r["channel"] for r in _rows()] == ["codex:01a03bff"]
+    assert [r["channel"] for r in _rows()] == ["codex:01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"]
 
 
 def test_codex_resolves_a_generic_notification_id_through_the_cwd(tmp_path, monkeypatch):
@@ -88,7 +88,7 @@ def test_codex_resolves_a_generic_notification_id_through_the_cwd(tmp_path, monk
     with db.connect() as conn:
         row = conn.execute("SELECT channel, metadata FROM notifications").fetchone()
 
-    assert row["channel"] == "codex:01a03bff"
+    assert row["channel"] == "codex:01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"
     assert json.loads(row["metadata"])["session_path"] == str(session_path)
 
 

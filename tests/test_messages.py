@@ -272,7 +272,7 @@ def test_claude_session_id_resolves_self_and_labels_sender(capsys, monkeypatch):
 
 
 def test_codex_thread_id_resolves_self(capsys, monkeypatch):
-    _attach("codex:abcdefgh", "mine")
+    _attach("codex:abcdefgh-long-thread-id", "mine")
     monkeypatch.setenv("CODEX_THREAD_ID", "abcdefgh-long-thread-id")
     store.send(_inbox("mine"), "Hello", "claude:sender")
 

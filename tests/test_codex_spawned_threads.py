@@ -90,7 +90,7 @@ def test_spawned_threads_leave_the_open_parent_in_the_inbox(sessions, monkeypatc
     archived: list[str] = []
     watcher._archive_stale_sessions(rows, archived.append, {}, {None: {_TTY: ("hq", "2")}})
 
-    assert [row[0] for row in rows] == ["codex:01a0ca2f"]
+    assert [row[0] for row in rows] == [f"codex:{_PARENT}"]
     assert archived == []
 
 
@@ -112,4 +112,4 @@ def test_a_rollout_without_session_meta_gets_no_row(sessions):
 
     _turn_complete(unreadable)
 
-    assert [row[0] for row in _watcher_rows()] == ["codex:01a0ca2f"]
+    assert [row[0] for row in _watcher_rows()] == [f"codex:{_PARENT}"]

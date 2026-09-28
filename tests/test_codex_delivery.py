@@ -121,9 +121,9 @@ def test_watch_without_codex_thread_claims_as_before(capsys, fake_codex):
 
 def test_watch_inside_codex_queues_into_its_own_thread(capsys, fake_codex, monkeypatch):
     monkeypatch.setenv("CODEX_THREAD_ID", "01a0d8ce-long-thread-id")
-    inbox = _inbox_with_message("Please review.", channel="codex:01a0d8ce")
+    inbox = _inbox_with_message("Please review.", channel="codex:01a0d8ce-long-thread-id")
 
-    _watch(channel="codex:01a0d8ce")
+    _watch(channel="codex:01a0d8ce-long-thread-id")
 
     assert fake_codex.read_text().splitlines()[:3] == [
         "queue",

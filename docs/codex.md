@@ -38,7 +38,7 @@ These commands write under `~/.brief-lemons/` and `~/.local/share/lemonaid/`, ou
 1. Codex completes a turn (or requests approval)
 2. Codex calls `lemonaid codex notify '<json>'` with event data
 3. Lemonaid extracts session ID, cwd, and notification type
-4. Notification appears in `lma` inbox with channel `codex:<session_id_prefix>`
+4. Notification appears in `lma` inbox with channel `codex:<thread_id>`
 
 ### Auto-dismiss
 

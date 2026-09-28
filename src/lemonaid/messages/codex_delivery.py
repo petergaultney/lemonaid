@@ -7,19 +7,27 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
-from ..inbox.channel import channel_id
+from ..inbox.channel import full_channel_id
 from . import store
+
 
 def own_thread(channel: str) -> str:
     """This process's Codex thread, when the watched channel is that thread's own."""
     thread = os.environ.get("CODEX_THREAD_ID", "")
-    return thread if thread and channel == channel_id("codex", thread) else ""
+    return thread if thread and channel == full_channel_id("codex", thread) else ""
 
 
 def _queue(thread: str, path: Path, message: str) -> None:
     try:
         result = subprocess.run(
-            ["codex", "queue", "--thread", thread, "--message", f"lemonaid message: {message.rstrip()}"],
+            [
+                "codex",
+                "queue",
+                "--thread",
+                thread,
+                "--message",
+                f"lemonaid message: {message.rstrip()}",
+            ],
             capture_output=True,
             text=True,
         )

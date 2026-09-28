@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .. import messages
 from ..inbox import db
-from ..inbox.channel import UnidentifiedSession, channel_id
+from ..inbox.channel import UnidentifiedSession, full_channel_id
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_git_branch,
@@ -195,7 +195,7 @@ def handle_notification(
         metadata["tty"] = tty
 
     try:
-        channel = channel_id("codex", session_id)
+        channel = full_channel_id("codex", session_id)
     except UnidentifiedSession:
         _log.warning("dropped a notification with no session id: cwd=%s", cwd)
         return
@@ -224,7 +224,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
             print("[dismiss] no session_id provided", file=sys.stderr)
         return 0
 
-    channel = channel_id("codex", session_id)
+    channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:

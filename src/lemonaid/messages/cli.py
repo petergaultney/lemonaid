@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .. import brief
 from ..inbox import db, self_session
-from ..inbox.channel import channel_id
+from ..inbox.channel import channel_id, full_channel_id
 from ..log import get_logger
 from . import codex_delivery, service, store, waiter
 
@@ -64,7 +64,7 @@ def _self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = 
         return channel_id("claude", session_id)
 
     if session_id := os.environ.get("CODEX_THREAD_ID"):
-        return channel_id("codex", session_id)
+        return full_channel_id("codex", session_id)
 
     if pane_id := os.environ.get("TMUX_PANE"):
         where = self_session.pane_location(pane_id)
