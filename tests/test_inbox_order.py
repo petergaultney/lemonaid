@@ -1,4 +1,4 @@
-"""Below the pins: blocked, then unread, then read done, then everything else read."""
+"""Below the pins: blocked, then done, then other unread, then everything else read."""
 
 import asyncio
 import itertools
@@ -80,7 +80,7 @@ def test_a_read_blocked_session_sorts_above_an_unread_one():
     ]
 
 
-def test_unread_sorts_above_every_read_status_but_blocked():
+def test_unread_sorts_above_every_read_status_but_blocked_and_done():
     rows = [
         ("c:waiting", "waiting", False),
         ("c:done", "done", False),
@@ -90,11 +90,31 @@ def test_unread_sorts_above_every_read_status_but_blocked():
     ]
 
     assert _sorted(rows) == [
-        "c:unread-waiting",
         "c:unread-done",
         "c:done",
+        "c:unread-waiting",
         "c:waiting",
         "c:plain",
+    ]
+
+
+def test_done_sessions_stay_together_unread_first():
+    rows = [
+        ("c:unread-done", "done", True),
+        ("c:unread-working", "working", True),
+        ("c:unread-done-2", "done", True),
+        ("c:unread-none", "", True),
+        ("c:done", "done", False),
+        ("c:working", "working", False),
+    ]
+
+    assert _sorted(rows) == [
+        "c:unread-done",
+        "c:unread-done-2",
+        "c:done",
+        "c:unread-working",
+        "c:unread-none",
+        "c:working",
     ]
 
 
@@ -147,7 +167,7 @@ def test_the_sidebar_and_the_wide_inbox_agree():
     wide = _drawn((120, 40))
 
     assert wide == _drawn((40, 60))
-    assert wide == [channels[4], channels[1], channels[2], channels[0], channels[3]]
+    assert wide == [channels[4], channels[1], channels[0], channels[2], channels[3]]
 
 
 def test_a_pin_trades_places_with_a_pin_of_another_status():
@@ -171,9 +191,9 @@ def test_jumping_to_unread_finds_the_oldest_in_any_band(monkeypatch):
     with db.connect() as conn:
         _session(conn, "blocked-read", age=5)
         oldest = _session(conn, "oldest", unread=True, age=600)
-        _session(conn, "newer", unread=True, age=60)
+        newer = _session(conn, "newer", unread=True, age=60)
         _brief(conn, "claude:blocked-read", "blocked")
-        _brief(conn, oldest, "done")
+        _brief(conn, newer, "done")
 
     selected = []
     monkeypatch.setattr(
@@ -205,3 +225,24 @@ def test_marking_a_blocked_row_read_moves_to_the_unread_below_it():
         return app._row_channels()[app.query_one("#main_table", DataTable).cursor_row]
 
     assert _run(steps, (120, 40)) == other
+
+
+def test_done_rows_are_contiguous_in_the_wide_inbox_and_the_sidebar():
+    with db.connect() as conn:
+        new_done = _session(conn, "new-done", unread=True, age=10)
+        working = _session(conn, "working", unread=True, age=20)
+        old_done = _session(conn, "old-done", unread=True, age=30)
+        read_done = _session(conn, "read-done", age=5)
+        plain = _session(conn, "plain", age=1)
+        blocked = _session(conn, "blocked", age=40)
+        pinned = _session(conn, "pinned", age=50)
+        pins.pin(conn, pinned)
+        for channel in (new_done, old_done, read_done, pinned):
+            _brief(conn, channel, "done")
+        _brief(conn, working, "working")
+        _brief(conn, blocked, "blocked")
+
+    wide = _drawn((120, 40))
+
+    assert wide == _drawn((40, 60))
+    assert wide == [pinned, blocked, new_done, old_done, read_done, working, plain]

@@ -1,3 +1,9 @@
+# 0.31.3 (2026-09-28)
+
+#### Fixed
+
+- **`done` sessions sort together, right below `blocked`, whether read or not.** Unread ones come first, and the rest of the unread sessions follow. Unread `done` sessions used to sort among the other unread ones, apart from the read ones.
+
 # 0.31.2 (2026-09-28)
 
 #### Fixed
