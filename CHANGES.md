@@ -1,3 +1,14 @@
+# 0.32.1 (2026-09-28)
+
+#### Fixed
+
+- **Enter on a history session that is still running returns it to the inbox for good.** It comes back as the newest session on its tty, so the watcher's "keep the newest session per tty" rule no longer archives it again on the next tick.
+- **Enter on a history session whose pane outlived its harness resumes it** instead of switching to the shell left in that pane. A session counts as running only when its harness process is still on its tty, the same check the watcher archives on.
+
+#### Changed
+
+- **A key that fails to act says why in a pop-up** instead of a toast that is easy to miss: a switch or resume with nowhere to go, a failed tmux resume, a brief that can't be shown, a failed Claude patch. Any key closes it.
+
 # 0.32.0 (2026-09-28)
 
 #### Changed

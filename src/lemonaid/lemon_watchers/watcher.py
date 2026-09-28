@@ -123,6 +123,15 @@ def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
         return True  # On error, assume alive to avoid false archiving
 
 
+def harness_process(channel: str) -> str:
+    """The process name `is_process_running_on_tty` looks for on a channel's tty."""
+    for prefix in ("claude", "openclaw", "opencode"):
+        if channel.startswith(f"{prefix}:"):
+            return prefix
+
+    return "codex"
+
+
 def get_latest_activity(
     session_path: Path,
     describe_activity: Callable[[dict], str | None],
@@ -357,14 +366,7 @@ def _archive_stale_sessions(
                 _log.warning("%s has no tty recorded; cannot auto-archive it", channel)
             continue
 
-        if channel.startswith("claude:"):
-            process_name = "claude"
-        elif channel.startswith("openclaw:"):
-            process_name = "openclaw"
-        elif channel.startswith("opencode:"):
-            process_name = "opencode"
-        else:
-            process_name = "codex"
+        process_name = harness_process(channel)
         key = (tty, process_name)
 
         if key not in tty_groups:

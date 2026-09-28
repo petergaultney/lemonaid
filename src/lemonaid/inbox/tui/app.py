@@ -30,7 +30,7 @@ from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
 from ...claude.patcher import apply_patch, check_status, find_binary
 from ...config import TuiConfig, load_config
-from ...handlers import check_pane_exists_by_tty, handle_notification
+from ...handlers import handle_notification
 from ...lemon_watchers import (
     ModelInfo,
     detect_terminal_switch_source,
@@ -52,9 +52,10 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, undo
+from .. import db, emoji, order, pins, unarchive, undo
 from . import backend_indicators, brief_cards
 from .brief_view import BriefView
+from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
@@ -1816,6 +1817,10 @@ class LemonaidApp(App):
         self._refresh_snoozed()
         self.notify(f"{entry.description} — press {self._undo_key()} to undo")
 
+    def _show_error(self, title: str, message: str) -> None:
+        _log.warning("%s: %s", title, message)
+        self.push_screen(ErrorScreen(title, message))
+
     def _switch_to_notification(self, notification) -> bool:
         """Put the terminal on this session, recreating its pane if it is gone."""
         # Channel drives cwd-based fallback resolution; name is the
@@ -1829,7 +1834,10 @@ class LemonaidApp(App):
             self.config,
             switch_source=notification.switch_source,
         ):
-            self.notify("Could not switch to or recreate that session", severity="warning")
+            self._show_error(
+                "Could not switch to that session",
+                "Its pane is gone and lemonaid could not recreate one for it.",
+            )
             return False
 
         # We already know where a successful in-app switch went. Reflect that
@@ -1848,32 +1856,6 @@ class LemonaidApp(App):
 
         return True
 
-    def _still_running(self, notification) -> bool:
-        """Whether this session's pane is still there to switch to.
-
-        Archiving is a guess made from outside the session - a watcher that
-        could not find the pane - and it is wrong often enough that history
-        holds sessions which never stopped running. Asked of the server the
-        session was recorded on, since a pane on another one is absent from
-        this one's listing for reasons that have nothing to do with it.
-
-        A tty alone does not identify a session across a reboot, so a pane in a
-        tmux session younger than this notification does not count as it.
-        """
-        tty = notification.metadata.get("tty")
-        if not tty or not notification.switch_source:
-            return False
-
-        return (
-            check_pane_exists_by_tty(
-                tty,
-                notification.switch_source,
-                notification.metadata.get("tmux_socket"),
-                notification.created_at,
-            )
-            is True
-        )
-
     def _resume_session(self, *, copy_only: bool = False) -> None:
         """Resume the selected history session."""
         history_table = self.query_one("#history_table", DataTable)
@@ -1889,13 +1871,17 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
 
         if not notification:
+            self._show_error(
+                "That session is gone",
+                "Its row was removed from the inbox since the list was drawn.",
+            )
             return
 
         # A session that never stopped needs returning to the inbox, not a
         # second copy of itself started next to the one already running.
-        if not copy_only and self._still_running(notification):
+        if not copy_only and unarchive.running(notification):
             with db.connect() as conn:
-                db.mark_unread(conn, notification.id)
+                unarchive.restore(conn, notification.channel)
 
             self._set_history_mode(False)
             self._refresh_notifications()
@@ -1909,7 +1895,10 @@ class LemonaidApp(App):
             self.config, notification.channel, notification.metadata
         )
         if not resume:
-            self.notify("No cwd metadata — can't build resume command", severity="warning")
+            self._show_error(
+                "Could not resume that session",
+                "No working directory is recorded for it, so there is nowhere to resume it.",
+            )
             return
 
         cwd, argv = resume
@@ -1970,13 +1959,20 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
 
         if not notification:
+            self._show_error(
+                "That session is gone",
+                "Its row was removed from the inbox since the list was drawn.",
+            )
             return
 
         resume = resume_mod.build_resume_command(
             self.config, notification.channel, notification.metadata
         )
         if not resume:
-            self.notify("No cwd metadata — can't build resume command", severity="warning")
+            self._show_error(
+                "Could not resume that session",
+                "No working directory is recorded for it, so there is nowhere to resume it.",
+            )
             return
 
         cwd, argv = resume
@@ -1999,7 +1995,7 @@ class LemonaidApp(App):
         )
         if error:
             _log.warning("tmux_resume failed: %s", error)
-            self.notify(error, severity="error")
+            self._show_error("Could not start a tmux session", error)
 
     def action_filter_history(self) -> None:
         """Show the filter input in history mode."""
@@ -2186,7 +2182,9 @@ class LemonaidApp(App):
             return
 
         if not switched:
-            self.notify("Could not show that session beside its brief", severity="warning")
+            self._show_error(
+                "Could not show that session", "Its pane could not be found beside its brief."
+            )
             self._select_row_id(self._brief_row_id)
         self._sync_brief_view()
 
@@ -2594,7 +2592,9 @@ class LemonaidApp(App):
             else None
         )
         if not target or not (target.attached or target.dirs):
-            self.notify("No brief or directory recorded for this session", severity="warning")
+            self._show_error(
+                "No brief to show", "No brief or directory is recorded for this session."
+            )
             return
 
         if (
@@ -2664,9 +2664,9 @@ class LemonaidApp(App):
                 self._claude_patch_status = "patched"
                 self.notify(f"Patched Claude Code ({count} locations). Restart Claude for effect.")
             else:
-                self.notify("No patterns found to patch", severity="warning")
+                self._show_error("Nothing to patch", "No patterns were found in the Claude binary.")
         except Exception as e:
-            self.notify(f"Patch failed: {e}", severity="error")
+            self._show_error("Patch failed", str(e))
 
         self._refresh_notifications()
 
