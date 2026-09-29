@@ -27,6 +27,8 @@ writes his real inbox. A lemon working on lemonaid must not change either.
 3. **Update docs/** if the change affects user-facing behavior (new config options go in `docs/config.md`)
 4. **Update README.md** if adding significant features (add to Features list)
 
+Only a change to the product gets a version bump and a CHANGES.md entry. A change that touches only docs or tests gets neither.
+
 ## Version Scheme
 
 - Patch (0.1.x → 0.1.y): Bug fixes, minor tweaks
