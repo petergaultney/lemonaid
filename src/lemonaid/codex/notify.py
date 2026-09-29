@@ -16,6 +16,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
+from . import hosting
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -189,8 +190,9 @@ def handle_notification(
     if branch:
         metadata["git_branch"] = branch
 
-    # Try to get TTY for pane matching
-    tty = get_tty()
+    # Under the app-server daemon, the tty found is the daemon's, not this
+    # session's pane; recording it would put every Codex session in one pane.
+    tty = None if hosting.under_app_server() else get_tty()
     if tty:
         metadata["tty"] = tty
 

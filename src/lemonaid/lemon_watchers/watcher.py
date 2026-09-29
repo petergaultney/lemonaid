@@ -15,6 +15,7 @@ from typing import Protocol
 
 from .. import tmux
 from ..log import get_logger
+from . import untracked
 from .common import ModelInfo
 
 _log = get_logger("watcher")
@@ -279,6 +280,7 @@ def _archive_stale_sessions(
     archive_channel: Callable[[str], None],
     sockets: dict[str, str],
     pane_locations: dict[str | None, dict[str, tuple[str, str]] | None],
+    codex_directories: set[str] | None = None,
 ) -> set[str]:
     """Archive stale sessions based on TTY occupancy and pane existence.
 
@@ -289,6 +291,8 @@ def _archive_stale_sessions(
 
     `pane_locations` is the pre-fetched result of one `tmux list-panes -a` per
     server, shared with `_record_locations` so tmux is only asked once per tick.
+    `codex_directories` is where every Codex process is working, for the rows
+    with no tty that `untracked.gone` can judge; None judges none of them.
 
     Returns set of archived channel names.
     """
@@ -357,8 +361,22 @@ def _archive_stale_sessions(
         _switch_source,
     ) in remaining:
         if not tty:
-            # Every check here keys on the tty, so a row without one is never
-            # archived automatically - it survives any number of session kills.
+            item = (
+                channel,
+                _session_id,
+                _cwd,
+                created_at,
+                _is_unread,
+                tty,
+                _db_message,
+                _switch_source,
+            )
+            if untracked.gone(item, codex_directories):
+                archive(item, "no-codex-in-cwd")
+                continue
+
+            # Every other check keys on the tty, so a row without one is never
+            # archived by them - it survives any number of session kills.
             # Logged once, because that presents as the archiver being broken
             # rather than as a field being absent.
             if channel not in _warned_no_tty:
@@ -410,6 +428,9 @@ def _archive_stale_sessions(
     return archived
 
 
+_CODEX_CHECK_SECONDS = 10.0  # lsof costs ~75ms; a dead row can wait this long
+
+
 def unified_watch_loop(
     backends: list[WatcherBackend],
     get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
@@ -454,6 +475,7 @@ def unified_watch_loop(
     # session hook commonly arrives just before the backend creates its file.
     session_cache: dict[str, Path] = {}
     session_retry_after: dict[str, float] = {}
+    codex_checked_at = 0.0
 
     while stop_event is None or not stop_event.is_set():
         try:
@@ -476,11 +498,19 @@ def unified_watch_loop(
 
             # Archive stale sessions: group by TTY and keep only the newest per TTY
             if archive_channel:
+                codex_directories = None
+                if time.time() - codex_checked_at >= _CODEX_CHECK_SECONDS and any(
+                    map(untracked.is_untracked, active)
+                ):
+                    codex_checked_at = time.time()
+                    codex_directories = untracked.codex_directories()
+
                 archived_channels = _archive_stale_sessions(
                     active,
                     archive_channel,
                     by_channel,
                     pane_locations,
+                    codex_directories,
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
@@ -529,9 +559,7 @@ def unified_watch_loop(
                         continue
                     session_path = backend.get_session_path(session_id, cwd)
                     if session_path is None:
-                        session_retry_after[cache_key] = (
-                            now + _MISSING_SESSION_RETRY_SECONDS
-                        )
+                        session_retry_after[cache_key] = now + _MISSING_SESSION_RETRY_SECONDS
                         continue
                     session_cache[cache_key] = session_path
                     session_retry_after.pop(cache_key, None)

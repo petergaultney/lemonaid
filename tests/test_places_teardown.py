@@ -12,6 +12,7 @@ import uuid
 import pytest
 
 from lemonaid.config import PlaceRoot
+from lemonaid.inbox import db
 from lemonaid.places import ownership, teardown
 
 
@@ -152,6 +153,7 @@ def test_toss_of_a_session_with_no_places_is_just_a_kill(monkeypatch, tmp_path):
 
         class _Result:
             returncode = 0
+            stdout = ""
 
         return _Result()
 
@@ -169,6 +171,7 @@ def _reaper_script(monkeypatch, session: str, places, cwd) -> str:
 
         class _Result:
             returncode = 0
+            stdout = ""
 
         return _Result()
 
@@ -213,6 +216,7 @@ def test_reaper_names_itself_after_the_places_when_there_is_no_session(monkeypat
 
         class _Result:
             returncode = 0
+            stdout = ""
 
         return _Result()
 
@@ -253,6 +257,7 @@ def test_reaper_does_not_sit_in_a_directory_it_is_removing(monkeypatch, tmp_path
 
         class _Result:
             returncode = 0
+            stdout = ""
 
         return _Result()
 
@@ -297,6 +302,7 @@ def test_reaper_passes_the_shell_and_its_flag_as_separate_arguments(monkeypatch,
 
         class _Result:
             returncode = 0
+            stdout = ""
 
         return _Result()
 
@@ -399,3 +405,88 @@ def test_attention_only_counts_sessions_that_are_actually_live(monkeypatch):
     monkeypatch.setattr(teardown.db, "get_unread", lambda conn: [_N()])
 
     assert teardown._escape_target("doomed") == "live-one"
+
+
+def _lemon(channel: str, cwd, tty: str | None = None) -> None:
+    metadata = {"cwd": str(cwd), **({"tty": tty} if tty else {})}
+    with db.connect() as conn:
+        db.add(conn, channel=channel, message="waiting", metadata=metadata)
+
+
+def _active_channels() -> set[str]:
+    with db.connect() as conn:
+        return {n.channel for n in db.get_active(conn)}
+
+
+def _session_panes(monkeypatch, ttys: set[str]) -> None:
+    monkeypatch.setattr(teardown.tmux.navigation, "session_ttys", lambda session: ttys)
+
+
+def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
+    """Including a Codex row with no tty, which the watcher cannot place."""
+    place = _place(tmp_path, "review")
+    (place.directory / "sub").mkdir()
+    _lemon("codex:reviewer", place.directory)
+    _lemon("claude:author", place.directory / "sub")
+    _lemon("claude:elsewhere", tmp_path / "other")
+    _session_panes(monkeypatch, set())
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    assert teardown.toss("review", [place], from_inside=False) is None
+    assert _active_channels() == {"claude:elsewhere"}
+
+
+def test_toss_archives_the_lemons_on_the_killed_sessions_panes(monkeypatch, tmp_path):
+    """With no place released at all, as for a place whose root keeps its directory."""
+    _lemon("claude:window-2", tmp_path, tty="/dev/ttys041")
+    _lemon("claude:elsewhere", tmp_path, tty="/dev/ttys042")
+    _session_panes(monkeypatch, {"/dev/ttys041"})
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    teardown.toss("review", [], from_inside=False)
+
+    assert _active_channels() == {"claude:elsewhere"}
+
+
+def test_toss_keeps_a_codex_row_whose_tty_is_on_the_killed_session(monkeypatch, tmp_path):
+    """Older rows under the app-server recorded the tty of the TUI that started it."""
+    _lemon("codex:elsewhere", tmp_path / "other", tty="/dev/ttys012")
+    _session_panes(monkeypatch, {"/dev/ttys012"})
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    teardown.toss("docs", [], from_inside=False)
+
+    assert _active_channels() == {"codex:elsewhere"}
+
+
+def test_toss_keeps_no_tty_lemons_in_a_place_it_does_not_destroy(monkeypatch, tmp_path):
+    """Its directory stays, and another session may be working in it."""
+    place = _place(tmp_path, "plain", PlaceRoot(path=tmp_path))
+    _lemon("codex:reviewer", place.directory)
+    _session_panes(monkeypatch, set())
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    teardown.toss("plain", [place], from_inside=False)
+
+    assert _active_channels() == {"codex:reviewer"}
+
+
+def test_a_reaper_that_finishes_first_still_leaves_its_rows_archived(monkeypatch, tmp_path):
+    place = _place(tmp_path, "review")
+    _lemon("codex:reviewer", place.directory)
+    _session_panes(monkeypatch, set())
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: shutil.rmtree(place.directory))
+
+    teardown.toss("review", [place], from_inside=False)
+
+    assert _active_channels() == set()
+
+
+def test_a_failed_toss_archives_nothing(monkeypatch, tmp_path):
+    place = _place(tmp_path, "review")
+    _lemon("codex:reviewer", place.directory)
+    _session_panes(monkeypatch, set())
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: "Could not start teardown")
+
+    assert teardown.toss("review", [place], from_inside=False)
+    assert _active_channels() == {"codex:reviewer"}

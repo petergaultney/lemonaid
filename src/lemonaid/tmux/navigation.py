@@ -176,6 +176,23 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]] | 
     }
 
 
+def session_ttys(session: str) -> set[str]:
+    """The ttys of every pane in *session*, empty if it is gone or tmux did not answer."""
+    try:
+        result = subprocess.run(
+            ["tmux", "list-panes", "-s", "-t", f"={session}", "-F", "#{pane_tty}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_QUERY_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not list the panes of %s: %s", session, e)
+        return set()
+
+    return {line for line in result.stdout.splitlines() if line}
+
+
 def focused_ttys(socket: str | None = None) -> set[str]:
     """The ttys a user is actually looking at, one per attached client."""
     try:

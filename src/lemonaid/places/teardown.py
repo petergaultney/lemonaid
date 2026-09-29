@@ -146,7 +146,11 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
     script = "; ".join(
         [
             f"echo {shlex.quote(f'--- tossing {what} ---')} >> {log}",
-            *([f"tmux kill-session -t {shlex.quote('=' + session)} >> {log} 2>&1"] if session else []),
+            *(
+                [f"tmux kill-session -t {shlex.quote('=' + session)} >> {log} 2>&1"]
+                if session
+                else []
+            ),
             *_release_commands(places, log),
             f"echo {shlex.quote(f'--- done {what} ---')} >> {log}",
             f"tmux kill-session -t {shlex.quote('=' + reaper)}",
@@ -198,6 +202,45 @@ def _reaper_cwd(places: abc.Sequence[ownership.Place]) -> Path:
     return next((place.root.path for place in places), Path.home())
 
 
+def _doomed_rows(session: str, places: abc.Sequence[ownership.Place]) -> list[int]:
+    """Inbox rows on *session*'s panes, or whose cwd is inside a place about to be destroyed.
+
+    Chosen before the reaper starts, which may kill the panes and remove the
+    directories before this could look at them. A Codex row's tty is not
+    trusted: under the shared app-server, older rows recorded the pane of the
+    TUI that started it, which may be in this session while they run elsewhere.
+    The watcher judges those, and Codex rows in a directory that survives.
+    """
+    ttys = tmux.navigation.session_ttys(session) if session else set()
+    doomed = [place.directory.resolve() for place in places if place.root.destroy and place.exists]
+    try:
+        with db.connect() as conn:
+            rows = db.get_active(conn)
+    except sqlite3.Error as e:
+        _log.warning("could not read the inbox to archive %s's lemons: %s", session, e)
+        return []
+
+    return [
+        n.id
+        for n in rows
+        if (n.metadata.get("tty") in ttys and not n.channel.startswith("codex:"))
+        or (
+            (cwd := n.metadata.get("cwd"))
+            and any(Path(cwd).resolve().is_relative_to(d) for d in doomed)
+        )
+    ]
+
+
+def _archive(row_ids: abc.Iterable[int]) -> None:
+    try:
+        with db.connect() as conn:
+            for row_id in row_ids:
+                db.archive(conn, row_id)
+                _log.info("archived row %d: its session or directory is being torn down", row_id)
+    except sqlite3.Error as e:
+        _log.warning("could not archive torn-down lemons: %s", e)
+
+
 def toss(
     session: str,
     places: abc.Sequence[ownership.Place],
@@ -219,4 +262,10 @@ def toss(
         if not _switch_client(target):
             return f"Could not switch away to '{target}'; nothing was torn down"
 
-    return _spawn_reaper(session, places, _reaper_cwd(places))
+    doomed = _doomed_rows(session, places)
+    error = _spawn_reaper(session, places, _reaper_cwd(places))
+    if error:
+        return error
+
+    _archive(doomed)
+    return None

@@ -35,6 +35,7 @@ def sessions(tmp_path, monkeypatch) -> Path:
     root.mkdir()
     monkeypatch.setattr(utils, "get_sessions_root", lambda: root)
     monkeypatch.setattr(codex_notify, "get_tty", lambda: _TTY)
+    monkeypatch.setattr(codex_notify.hosting, "under_app_server", lambda: False)
     monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
     monkeypatch.setattr(codex_notify, "get_git_branch", lambda cwd: None)
 
