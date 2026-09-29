@@ -1851,9 +1851,12 @@ class LemonaidApp(App):
             self.config,
             switch_source=notification.switch_source,
         ):
-            self._show_error(
-                "Could not switch to that session",
-                "Its pane is gone and lemonaid could not recreate one for it.",
+            title = "Could not switch to that session"
+            message = "Its pane is gone and lemonaid could not recreate one for it."
+            _log.warning("%s: %s", title, message)
+            self.push_screen(
+                ErrorScreen(title, message, offer="archive it"),
+                lambda archive: self._archive_notification(notification.id) if archive else None,
             )
             return False
 
@@ -2299,7 +2302,9 @@ class LemonaidApp(App):
         if not row_key:
             return
 
-        notification_id = int(row_key.value)
+        self._archive_notification(int(row_key.value))
+
+    def _archive_notification(self, notification_id: int) -> None:
         with db.connect() as conn:
             n = db.get(conn, notification_id)
             if not n:

@@ -6,6 +6,10 @@
 - **The watcher archives a Codex row with no tty once no Codex process other than the daemon is working in its directory**, so killing its session removes it from the inbox. Two Codex sessions sharing a directory keep each other's rows; `codex --no-daemon` avoids all of this (see `docs/codex.md`).
 - **`lemonaid place toss` archives the rows on the killed session's panes and in the directories it releases**, whether or not the watcher could place them. Codex rows are matched by directory only, since an older one may carry another pane's tty.
 
+#### Changed
+
+- **Selecting a row whose pane and directory are both gone offers to archive it**: `a` in the error pop-up archives, with the usual undo.
+
 # 0.34.1 (2026-09-29)
 
 #### Fixed

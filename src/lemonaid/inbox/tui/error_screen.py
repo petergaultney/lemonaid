@@ -7,11 +7,13 @@ from textual.screen import ModalScreen
 from textual.widgets import Label
 
 
-class ErrorScreen(ModalScreen[None]):
+class ErrorScreen(ModalScreen[bool]):
     """Says why an action did nothing. Any key or click dismisses it.
 
     A toast is easy to miss, and in a narrow scratch pane it may not show at
     all, which leaves a keypress that apparently did nothing.
+
+    With an *offer*, `a` dismisses it with True, for the caller to act on.
     """
 
     CSS = """
@@ -44,20 +46,26 @@ class ErrorScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, title: str, message: str) -> None:
+    def __init__(self, title: str, message: str, offer: str = "") -> None:
         super().__init__()
         self._title = title
         self._message = message
+        self._offer = offer
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(self._title, classes="title")
             yield Label(self._message)
-            yield Label("Press any key to close", classes="hint")
+            yield Label(
+                f"Press a to {self._offer}, any other key to close"
+                if self._offer
+                else "Press any key to close",
+                classes="hint",
+            )
 
     def on_key(self, event: events.Key) -> None:
         event.stop()
-        self.dismiss(None)
+        self.dismiss(bool(self._offer) and event.key == "a")
 
     def on_click(self) -> None:
-        self.dismiss(None)
+        self.dismiss(False)
