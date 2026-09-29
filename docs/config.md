@@ -28,6 +28,10 @@ To add flags to Claude resumes:
 resume_command = "lemonaid claude --allow-dangerously-skip-permissions --resume {session_id}"
 ```
 
+`lemonaid claude` followed by a flag runs `claude` with the same arguments,
+after changing to the project directory recorded for the `--resume` session.
+`claude --resume` alone finds only sessions from the current directory.
+
 ## `[wezterm]`
 
 See [wezterm.md](wezterm.md).
@@ -87,20 +91,25 @@ The name may come from the interpreter's command line or the pane title. Add
 | Key | Default | Description |
 |-----|---------|-------------|
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
+| `refresh_interval` | `0.33` | Seconds between inbox refreshes. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
-With `brief_status = true`, attached briefs give `blocked` cards a yellow
-headline, `done` cards a blue headline, and `waiting` cards dimmer text. On blocked and
-done cards the model label becomes a badge in its provider colour.
-Right under the name and location, a card shows the first line of `Needs` from
-`## Now` with its label (`Needs Peter: ...`) in the attention colour, then the
-brief age, then, for a `waiting` brief, the first line of `Waiting on`. `working` cards retain the read style.
-Every brief card shows its age. Unread remains a separate dot, including when
-`card_unread_style = "bar"`. Cards without an attached brief retain their
-current appearance.
+With `brief_status = true`, a card whose session has an attached brief with a
+`Status:` line is drawn from that brief:
+
+- `blocked` fills the headline yellow, and `done` fills it blue. On both, the
+  model label becomes a badge in its provider colour.
+- A read `waiting` card is dimmed. An unread one is not.
+- `working` keeps the ordinary read style.
+- Under the name and location come the first line of `Needs` from `## Now`,
+  with its label (`Needs Peter: ...`) in the attention colour, then the brief's
+  age, marked `(stale)` for a `working` or `waiting` brief older than
+  `brief_stale_hours`, then, for `waiting`, the first line of `Waiting on`.
+- Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
+  only for cards without a brief.
 
 In the column layout, a `blocked` row fills amber (deeper than the header's
 unread yellow, which it sorts right under) and a `done` row blue, with
@@ -108,7 +117,8 @@ the model as the same badge, and a read `waiting` row dims. The green bar that
 marks the current session stays green. Rows carry no age, `Needs` or
 `Waiting on` lines; there is no room for them.
 
-Sessions sort by brief status in both layouts whether or not it is set; see
+Sessions without an attached brief look the same whether or not this is set.
+Sessions sort by brief status in both layouts either way; see
 [Session order](../README.md#session-order).
 
 ```toml
@@ -117,8 +127,8 @@ brief_status = true
 brief_stale_hours = 6
 ```
 
-With `card_unread_style = "bar"`, an unread card drops the dot and paints its
-first line instead. The selector and title use a lemon-yellow background with
+With `card_unread_style = "bar"`, an unread card without a brief (see above)
+drops the dot and paints its first line instead. The selector and title use a lemon-yellow background with
 black text; the model label uses its provider colour as the background, with
 one coloured space on each side. Session emojis appear at the right end of the
 second line, just before the pin marker when present. A green selected-session
@@ -174,7 +184,10 @@ each answer for two minutes and fetches in the background.
 | `LEMONAID_DB` | Path to the inbox database, replacing `~/.local/share/lemonaid/lemonaid.db`. A second `lma` pointed at its own file cannot archive rows in your real inbox, which is what makes demos and experiments safe - `scripts/demo-inbox.py` uses it. |
 | `LEMONAID_CONFIG` | Path to the config file, replacing `~/.config/lemonaid/config.toml`. |
 | `LEMONAID_STATE_DIR` | Directory for scratch-pane and back-location state, replacing `~/.local/state/lemonaid`. |
-
-`scripts/sandbox` sets all three, plus a private tmux socket, to run a checkout against a snapshot of your state without touching the real one.
+| `LEMONAID_BRIEFS_DIR` | Directory of briefs, replacing `~/.brief-lemons`. |
+| `LEMONAID_MESSAGES_DIR` | Root of the lemon message inboxes, replacing `<briefs dir>/inbox`. |
+| `LEMONAID_CHANNEL` | The channel `lemonaid tell` sends from and the `lemonaid inbox` message commands read for, ahead of the harness session id or tmux pane. |
 | `LEMONAID_DEBUG` | `1` turns on debug logging in the hook entry points. |
 | `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
+
+`scripts/sandbox` sets the first five, plus a private tmux socket, to run a checkout against a snapshot of your state without touching the real one.

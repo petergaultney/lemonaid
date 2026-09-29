@@ -14,6 +14,8 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `a` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
+| `p` | Pin the session below any other pins, or unpin it |
+| `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
 | `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
@@ -152,7 +154,9 @@ move_pin_up = "shift+up"
 move_pin_down = "shift+down"
 undo = "z"
 rename = "r"
-brief = "b"  # show the session's brief in a popup
+brief = "b"  # show the session's brief
+history = "h"  # toggle history view
+copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
