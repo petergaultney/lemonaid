@@ -7,6 +7,7 @@ import pytest
 import rich.console
 import rich.markdown
 from textual.app import App, ComposeResult
+from textual.widgets._markdown import MarkdownTableCellContents
 
 from lemonaid.brief import links
 from lemonaid.inbox.tui import brief_view
@@ -136,3 +137,36 @@ def test_a_click_in_the_sidebar_opens_each_link_as_written(monkeypatch):
         "https://github.com/o/r/pull/74",
         "obsidian://open?vault=trove&file=94%20System%20Lemons%2Fpr-reviews%2Flemonaid-74",
     ]
+
+
+def test_a_click_on_a_table_cell_link_opens_it_as_written(monkeypatch):
+    opened: list[list[str]] = []
+    browsed: list[str] = []
+    monkeypatch.setattr(brief_view.subprocess, "Popen", lambda argv, **_: opened.append(argv))
+    review = "obsidian://open?vault=trove&file=94%20System%20Lemons%2Fpr-reviews%2Flemonaid-81"
+    source = (
+        "| Work | PR | Review |\n|---|---|---|\n"
+        f"| delivery | [lemonaid#81](https://github.com/o/r/pull/81) | [review doc]({review}) |\n"
+    )
+
+    class _Show(App):
+        def compose(self) -> ComposeResult:
+            yield brief_view._Markdown(links.linkify(source))
+
+        def open_url(self, url: str, *, new_tab: bool = True) -> None:
+            browsed.append(url)
+
+    async def check() -> None:
+        app = _Show()
+        async with app.run_test(size=(80, 10)) as pilot:
+            await pilot.pause()
+            cell = next(
+                c for c in app.query(MarkdownTableCellContents) if "review" in str(c.content)
+            )
+            await pilot.click(cell, offset=(2, 0))
+            await pilot.pause()
+
+    asyncio.run(check())
+
+    assert browsed == []
+    assert [argv[-1] for argv in opened] == [review]

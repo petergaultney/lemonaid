@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import typing as ty
+import urllib.parse
 
 from markdown_it.token import Token
 from rich.text import Text
@@ -13,7 +14,12 @@ from textual.containers import VerticalScroll
 from textual.content import Content, Span
 from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
-from textual.widgets._markdown import MarkdownBlock, MarkdownParagraph  # no public name
+from textual.widgets._markdown import (  # no public names
+    MarkdownBlock,
+    MarkdownParagraph,
+    MarkdownTD,
+    MarkdownTH,
+)
 
 from ...brief import links, pr, render, target
 from ...log import get_logger
@@ -66,36 +72,59 @@ def open_link(url: str) -> None:
         _log.warning("could not open %s with %s: %s", url, _OPENER[0], e)
 
 
-class _LinkedParagraph(MarkdownParagraph):
-    """A paragraph whose links are terminal hyperlinks too, and open in their own app.
+def _linked(content: Content) -> Content:
+    """*content* with each link a terminal hyperlink too, clicked with its URL quoted once more.
 
     Textual makes a link clickable inside the app only. A hyperlink lets the
-    terminal open it on cmd-click, from any line a wrapped label lands on. A
-    click here opens the URL as written: Textual's own click message decodes it,
-    which breaks an encoded `obsidian://` file path.
+    terminal open it on cmd-click, from any line a wrapped label lands on.
+    Textual's click message unquotes the URL, which breaks an encoded
+    `obsidian://` file path, so the click action carries it quoted.
     """
+    return Content(
+        content.plain,
+        spans=[
+            Span(
+                span.start,
+                span.end,
+                span.style
+                + Style(link=href)
+                + Style.from_meta({"@click": f"link({urllib.parse.quote(href, safe='')!r})"}),
+            )
+            if isinstance(span.style, Style) and (href := _href(span.style))
+            else span
+            for span in content.spans
+        ],
+    )
 
-    async def action_link(self, href: str) -> None:
-        open_link(href)
 
+class _LinkedParagraph(MarkdownParagraph):
     def _token_to_content(self, token: Token) -> Content:
-        content = super()._token_to_content(token)
-        return Content(
-            content.plain,
-            spans=[
-                Span(span.start, span.end, span.style + Style(link=href))
-                if isinstance(span.style, Style) and (href := _href(span.style))
-                else span
-                for span in content.spans
-            ],
-        )
+        return _linked(super()._token_to_content(token))
+
+
+class _LinkedTH(MarkdownTH):
+    def _token_to_content(self, token: Token) -> Content:
+        return _linked(super()._token_to_content(token))
+
+
+class _LinkedTD(MarkdownTD):
+    def _token_to_content(self, token: Token) -> Content:
+        return _linked(super()._token_to_content(token))
 
 
 class _Markdown(Markdown):
+    """Markdown whose links open in their own app, from a paragraph or a table cell."""
+
     BLOCKS: ty.ClassVar[dict[str, type[MarkdownBlock]]] = {
         **Markdown.BLOCKS,
         "paragraph_open": _LinkedParagraph,
+        "th_open": _LinkedTH,
+        "td_open": _LinkedTD,
     }
+
+    def on_markdown_link_clicked(self, event: Markdown.LinkClicked) -> None:
+        event.prevent_default()
+        open_link(event.href)
 
 
 class _SessionBar(Static):

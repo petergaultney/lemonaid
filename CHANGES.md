@@ -1,3 +1,9 @@
+# 0.34.1 (2026-09-29)
+
+#### Fixed
+
+- **A link in a brief's table opens in its own app from the sidebar.** A click on a table cell's `obsidian://` review-doc link went to the browser with its file path decoded, and cmd-click had no terminal hyperlink to follow.
+
 # 0.34.0 (2026-09-29)
 
 #### Added
