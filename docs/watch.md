@@ -112,7 +112,7 @@ therefore run side by side during migration:
 - An OpenClaw watch list is served by whichever waiter holds it; `start` from either
   launcher reuses a running waiter.
 
-The one difference: `lemonaid watch openclaw start` has no `--watch-doc` flag. The unit it starts runs the same lemonaid as the launcher (`python -m lemonaid watch doc`), so there is no separate script path to choose.
+There are two differences. `--status` checks the lock without taking it, so it never makes a waiter that is starting at the same moment refuse to start, and a starting waiter retries for a second if something else is holding the lock for a moment. And `lemonaid watch openclaw start` has no `--watch-doc` flag. The unit it starts runs the same lemonaid as the launcher (`python -m lemonaid watch doc`), so there is no separate script path to choose.
 
 Moving a caller over means changing the command it runs at its next rearm; no state needs to
 be migrated. Waiters already running under the old script keep working until they exit.

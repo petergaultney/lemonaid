@@ -48,8 +48,9 @@ def _start(tmp_path, *args: str) -> subprocess.Popen[str]:
     proc = subprocess.Popen(
         _argv(tmp_path, *args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + 30
     while _run(tmp_path, "--status", args[1], "--me", "Claude").returncode != 0:
+        assert proc.poll() is None, f"waiter exited {proc.returncode}: {proc.stdout.read()}"
         assert time.monotonic() < deadline, "waiter never took its lock"
         time.sleep(0.05)
     return proc

@@ -53,15 +53,16 @@ def run(a: argparse.Namespace, repo: str) -> int:
     pr = a.wait or a.status
     stem = pr_wait.state_stem(a.state_dir, repo, pr, a.me)
     lock_path = stem.with_suffix(".lock")
-    lock = waiter_lock.acquire(lock_path)
     if a.status:
+        running = waiter_lock.held(lock_path)
         print(
             f"waiter running: {waiter_lock.lock_holder(lock_path)}"
-            if lock is None
+            if running
             else "no waiter running"
         )
-        return 0 if lock is None else 1
+        return 0 if running else 1
 
+    lock = waiter_lock.acquire(lock_path)
     if lock is None:
         print(
             f"not started: a waiter for PR #{pr} as {a.me or '(no --me)'} is already running ({waiter_lock.lock_holder(lock_path)})"

@@ -37,15 +37,16 @@ def run(a: argparse.Namespace) -> int:
     paths = a.wait or a.status
     a.state_dir.mkdir(parents=True, exist_ok=True)
     lock_path = file_events.state_stem(a.state_dir, paths, a.me).with_suffix(".lock")
-    lock = waiter_lock.acquire(lock_path)
     if a.status:
+        running = waiter_lock.held(lock_path)
         print(
             f"waiter running: {waiter_lock.lock_holder(lock_path)}"
-            if lock is None
+            if running
             else "no waiter running"
         )
-        return 0 if lock is None else 1
+        return 0 if running else 1
 
+    lock = waiter_lock.acquire(lock_path)
     if lock is None:
         print(
             f"not started: a waiter for {', '.join(map(str, paths))} as {a.me or '(no --me)'} is already running ({waiter_lock.lock_holder(lock_path)})"
