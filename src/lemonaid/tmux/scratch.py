@@ -586,7 +586,7 @@ def _create_and_show(size: str, position: str) -> str:
     return "created"
 
 
-def ensure_scratch(size: str = "10", position: str = "top") -> str:
+def ensure_scratch(size: str = "10", position: str = "left") -> str:
     """Ensure the scratch pane is visible in the current window.
 
     Like toggle, but never hides — only creates or shows.
@@ -690,7 +690,7 @@ def _sibling_pane(pane_id: str) -> str | None:
     return next((p for p in result.stdout.split() if p != pane_id), None)
 
 
-def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> str:
+def set_follow(size: str = "10", position: str = "left", enable: bool = True) -> str:
     """Enable or disable follow mode for this tmux server.
 
     Enabling shows the pane and installs the hooks on the running server; nothing
@@ -714,7 +714,7 @@ def set_follow(size: str = "10", position: str = "top", enable: bool = True) -> 
     return "follow enabled"
 
 
-def toggle_scratch(size: str = "10", position: str = "top", follow_default: bool = False) -> str:
+def toggle_scratch(size: str = "10", position: str = "left", follow_default: bool = False) -> str:
     """Toggle the scratch lma pane. Returns 'shown', 'hidden', 'selected', or 'created'.
 
     In follow mode, the pane is never hidden via toggle — use q in lma to dismiss.

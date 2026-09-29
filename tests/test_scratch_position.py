@@ -8,6 +8,7 @@ number as the other and producing a 10-column pane nobody can read.
 
 import subprocess
 
+from lemonaid import config
 from lemonaid.tmux import scratch
 
 
@@ -132,6 +133,12 @@ def test_position_falls_back_to_config_until_something_sets_it(monkeypatch, tmp_
 
     assert scratch.current_position("left") == "left"
     assert scratch.current_position("top") == "top"
+
+
+def test_a_fresh_server_starts_on_the_left(monkeypatch, tmp_path):
+    monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
+
+    assert scratch.current_position(config.Config().tmux_session.scratch_position) == "left"
 
 
 def test_a_set_position_outlives_the_config_default(monkeypatch, tmp_path):

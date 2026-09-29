@@ -36,7 +36,7 @@ See [wezterm.md](wezterm.md).
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `scratch_position` | `"top"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `f` in `lma`; that choice is remembered per tmux server. |
+| `scratch_position` | `"left"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `f` in `lma`; that choice is remembered per tmux server. |
 | `scratch_height` | `"10"` | Height of the scratch pane on top, in rows. |
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `follow_scratch` | `false` | Bootstrap follow mode for new tmux servers. When the scratch pane is first toggled on a server, this determines whether follow is enabled by default. See [tmux.md](tmux.md#follow-mode). |
@@ -115,8 +115,6 @@ black text; the model label uses its provider colour as the background, with
 one coloured space on each side. Session emojis appear at the right end of the
 second line, just before the pin marker when present. A green selected-session
 bar remains green.
-The otherwise-empty blue/yellow table header is hidden in card layout because
-the unread rows now carry the status themselves.
 
 ```toml
 [tui]

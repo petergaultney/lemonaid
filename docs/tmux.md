@@ -176,7 +176,7 @@ bind-key l run-shell 'lemonaid tmux scratch'
 
 ### Usage
 
-1. Press `prefix + l` to show the lma inbox as a split at the top of your current window
+1. Press `prefix + l` to show the lma inbox as a sidebar on the left of your current window
 2. Select a notification with Enter — you'll switch to that session and the lma pane auto-hides
 3. Press `prefix + l` again to bring it back
 
@@ -189,7 +189,7 @@ The keybinding is "idempotent" in that pressing it always gets you to the scratc
 ### How it works
 
 1. First toggle creates a tmux session (`_lma_scratch`) running `lma --scratch`
-2. The pane is joined into your current window as a top split
+2. The pane is joined into your current window as a left split (or a top one; see [Moving between top and left](#moving-between-top-and-left))
 3. When you select a notification, lma auto-dismisses by breaking the pane to its own window
 4. Subsequent toggles show/select/hide the same pane (no restart, instant response)
 

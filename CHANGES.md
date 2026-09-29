@@ -1,3 +1,10 @@
+# 0.33.0 (2026-09-29)
+
+#### Changed
+
+- **The tmux scratch pane starts as a left sidebar.** `scratch_position` in `[tmux-session]` now defaults to `left`; a configured `top`, or a position already saved with `--flip`, `--position` or `f`, still wins.
+- **The sidebar no longer draws an empty coloured row above its cards.** The top strip keeps its labelled header, including its unread and history colours.
+
 # 0.32.1 (2026-09-28)
 
 #### Fixed

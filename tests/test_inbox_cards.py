@@ -195,9 +195,7 @@ def test_the_message_uses_width_that_only_the_header_label_needs():
 
 
 def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
-    backend = backend_indicators.backend_text(
-        "claude:session", {}, True, model="claude-opus-5-5"
-    )
+    backend = backend_indicators.backend_text("claude:session", {}, True, model="claude-opus-5-5")
     cells = [
         Text("15:24"),
         Text("●"),
@@ -218,9 +216,9 @@ def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
     assert body.get_style_at_offset(console, model_start - 1).bgcolor.name == "#d88760"
     assert body.get_style_at_offset(console, model_start).color.name == "#000000"
     assert body.get_style_at_offset(console, 0).color.name == "#000000"
-    assert body.get_style_at_offset(
-        console, model_start + len("Opus 5.5")
-    ).bgcolor.name == "#d88760"
+    assert (
+        body.get_style_at_offset(console, model_start + len("Opus 5.5")).bgcolor.name == "#d88760"
+    )
 
 
 def test_bar_mode_does_not_paint_over_the_selected_green_edge():
@@ -381,24 +379,47 @@ def test_card_emoji_uses_the_right_edge_when_there_is_no_pin():
     assert context.endswith(emoji)
 
 
-def test_bar_mode_hides_the_empty_card_header():
-    class Table:
-        id = "main_table"
-        columns = {}
-        cursor_type = ""
-        cell_padding = -1
-        show_header = True
+def _shown_headers(position: str, unread_style: str = "dot") -> dict[str, bool]:
+    """Which tables draw a header row in a scratch pane at `position`, with one unread session."""
+    scratch.set_position(position)
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "claude:header-test",
+            "waiting",
+            "work",
+            {"cwd": "/tmp", "tty": "/dev/test"},
+            switch_source="tmux",
+        )
 
-        def add_column(self, *_args, **_kwargs):
-            pass
+    async def check() -> dict[str, bool]:
+        tui = app.LemonaidApp(scratch_mode=True)
+        tui.config.tui.card_unread_style = unread_style
+        async with tui.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            assert tui.query_one("#main_table", app.DataTable).row_count == 1
+            assert tui.has_class("-unread")
+            return {
+                table.id: table.show_header
+                for table in tui.query(app.DataTable)
+                if table.id is not None
+            }
 
-    pane = app.LemonaidApp()
-    pane.config.tui.card_unread_style = "bar"
-    table = Table()
+    return asyncio.run(check())
 
-    pane._setup_table(table, width=58, height=89)
 
-    assert not table.show_header
+def test_a_sidebar_draws_no_header_row_above_its_cards():
+    """The card column has no label, so its header would be an empty coloured bar."""
+    assert not any(_shown_headers("left").values())
+    assert not any(_shown_headers("left", unread_style="bar").values())
+
+
+def test_a_top_strip_keeps_its_labelled_header():
+    shown = _shown_headers("top")
+
+    assert shown["main_table"]
+    assert shown["history_table"]
+    assert not shown["other_sources_table"]
 
 
 def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
@@ -429,7 +450,7 @@ def test_building_a_card_does_not_mutate_column_layout_justification():
 
 def test_the_marker_does_not_share_the_name_colour():
     """Sharing it made the dot read as the first glyph of the name."""
-    assert app.UNREAD_MARKER_STYLE != f"bold {app.FIELD_STYLES['name']}"
+    assert f"bold {app.FIELD_STYLES['name']}" != app.UNREAD_MARKER_STYLE
 
 
 def test_a_long_message_uses_every_line_it_is_given():

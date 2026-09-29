@@ -108,7 +108,7 @@ _CARD_BODY_COLUMN = 0
 # when its model becomes known, and the labels share their right edge.
 _BACKEND_WIDTH = 11
 _CARD_MIN_TEXT = 16
-_CARD_CHROME_ROWS = 4  # header, status row, and a little slack
+_CARD_CHROME_ROWS = 3  # title, status row, and a little slack
 _INDENT = " "  # one column, so a card's body clears the marker but little else
 # Cards draw their own gutter - a single space, with the marker in the column
 # before it - so the table adds none. Every column a narrow pane spends on
@@ -654,8 +654,7 @@ class LemonaidApp(App):
         text-style: bold;
     }
 
-    /* The bar above the list is the table's header row, which carries no labels
-       in card layout - so it is free to carry the state of the list instead:
+    /* The column layout's header row also carries the state of the list:
        whether anything in it wants you, and which list you are looking at.
        The attention colour is shared with the unread marker, so the bar and
        dot remain the same lemon yellow by construction. */
@@ -1169,8 +1168,7 @@ class LemonaidApp(App):
 
         if self._cards(width, height):
             table.cell_padding = _CARD_CELL_PADDING
-            if table.id != "other_sources_table":
-                table.show_header = self.config.tui.card_unread_style != "bar"
+            table.show_header = False  # The card column has no label
             table.add_column("", width=20)  # The card body, stretched on resize
             return
 

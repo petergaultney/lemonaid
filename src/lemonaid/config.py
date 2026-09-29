@@ -55,7 +55,7 @@ class TmuxSessionConfig:
     # follows resume_window, since both normally identify the lemon window.
     harness_window: int | None = None
     # Where the scratch pane sits: "top" or "left".
-    scratch_position: str = "top"
+    scratch_position: str = "left"
     # Size of the scratch pane along the axis it splits. A top pane is measured
     # in rows and a left one in columns, so the two are stored separately -
     # switching position keeps the size you chose for each.

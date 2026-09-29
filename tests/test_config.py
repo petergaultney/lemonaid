@@ -63,6 +63,12 @@ def test_parse_keybindings_missing_section():
     assert kb.up_down == ""
 
 
+def test_scratch_position_defaults_to_left_and_can_be_overridden():
+    assert _parse_config({}).tmux_session.scratch_position == "left"
+    top = _parse_config({"tmux-session": {"scratch_position": "top"}})
+    assert top.tmux_session.scratch_position == "top"
+
+
 def test_card_unread_style_defaults_to_dot_and_can_be_overridden():
     assert _parse_config({}).tui.card_unread_style == "dot"
     assert _parse_config({"tui": {"card_unread_style": "bar"}}).tui.card_unread_style == "bar"
