@@ -75,6 +75,34 @@ def test_send_and_receive_by_channel_without_tmux(capsys, monkeypatch):
         _run(parser, "inbox", "next", "--self", "--channel", "codex:recipient")
 
 
+def test_tell_still_delivers_when_pending_briefs_have_a_newer_schema(capsys, monkeypatch):
+    _attach("codex:recipient", "recipient")
+    with db.connect() as conn:
+        conn.executescript(
+            """
+            DROP TABLE pending_briefs;
+            CREATE TABLE pending_briefs (
+                tmux_session TEXT NOT NULL,
+                tmux_window TEXT NOT NULL,
+                path TEXT NOT NULL,
+                tmux_window_id TEXT,
+                live_before TEXT,
+                requested_at REAL NOT NULL,
+                PRIMARY KEY (tmux_session, tmux_window)
+            );
+            INSERT INTO pending_briefs
+                (tmux_session, tmux_window, path, live_before, requested_at)
+            VALUES ('work', '2', '/tmp/pending.md', '[]', 1);
+            """
+        )
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
+
+    _run(_parser(), "tell", "codex:recipient", "Still here")
+
+    assert len(list(_inbox("recipient").glob("*.md"))) == 1
+    assert "recipient" in capsys.readouterr().out
+
+
 def test_brief_name_selects_target_and_self_uses_environment(capsys, monkeypatch):
     _attach("codex:recipient", "recipient")
     monkeypatch.setenv("LEMONAID_CHANNEL", "codex:recipient")

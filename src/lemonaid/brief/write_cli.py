@@ -55,9 +55,12 @@ def _attach(
         )
 
     window = f"{chosen.tmux_session}:{chosen.tmux_window}"
-    attached.attach_pending(
-        conn, chosen.tmux_session, chosen.tmux_window, path, attached.newest_id(conn)
-    )
+    try:
+        attached.attach_pending(
+            conn, chosen.tmux_session, chosen.tmux_window, path, attached.newest_id(conn)
+        )
+    except attached.UnsupportedPendingSchema as cause:
+        return {}, str(cause), ""
     return (
         {"path": str(path), "lemon_id": lemon_id, "channel": None, "pending": window},
         "",

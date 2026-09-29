@@ -12,12 +12,29 @@ refreshes that row's `created_at`.
 """
 
 import dataclasses
+import functools
 import sqlite3
 import time
 from collections import abc
 from pathlib import Path
 
 from ..inbox import db
+from ..log import get_logger
+
+_log = get_logger("brief.attached")
+
+
+class UnsupportedPendingSchema(Exception):
+    """This install cannot write pending briefs to the database's schema."""
+
+
+def supports_pending_schema(conn: sqlite3.Connection) -> bool:
+    return "after_id" in {row["name"] for row in conn.execute("PRAGMA table_info(pending_briefs)")}
+
+
+@functools.cache
+def _warn_newer_pending_schema() -> None:
+    _log.warning("pending briefs use a newer schema; leaving them unclaimed")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,6 +78,10 @@ def attach_pending(
     conn: sqlite3.Connection, tmux_session: str, tmux_window: str, path: Path, after_id: int
 ) -> None:
     """Attach *path* to the first new channel in this window with a row newer than *after_id*."""
+    if not supports_pending_schema(conn):
+        raise UnsupportedPendingSchema(
+            "This database has a newer pending-brief schema; update lemonaid before attaching a brief"
+        )
     conn.execute(
         """
         INSERT OR REPLACE INTO pending_briefs
@@ -96,7 +117,12 @@ def claim_pending(conn: sqlite3.Connection) -> None:
     Runs before every lookup rather than from the hooks that record sessions, so
     which lemon gets a brief never depends on when someone happened to look.
     """
-    for row in conn.execute("SELECT * FROM pending_briefs").fetchall():
+    rows = conn.execute("SELECT * FROM pending_briefs").fetchall()
+    if rows and "after_id" not in set(rows[0].keys()):
+        _warn_newer_pending_schema()
+        return
+
+    for row in rows:
         channel = _first_lemon_after(conn, row["tmux_session"], row["tmux_window"], row["after_id"])
         if not channel:
             continue

@@ -215,3 +215,31 @@ def test_a_missing_brief_is_refused_before_opening(monkeypatch, tmp_path):
         cli.cmd_open(_args(key="notes", brief="nosuch"))
 
     assert not sessions
+
+
+def test_a_newer_pending_schema_is_refused_before_opening(monkeypatch, tmp_path, capsys):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    brief_file = store.briefs_dir() / "task.md"
+    brief_file.parent.mkdir(parents=True)
+    brief_file.write_text("# task\n\nStatus: working\n")
+    with db.connect() as conn:
+        conn.executescript(
+            """
+            DROP TABLE pending_briefs;
+            CREATE TABLE pending_briefs (
+                tmux_session TEXT NOT NULL,
+                tmux_window TEXT NOT NULL,
+                path TEXT NOT NULL,
+                tmux_window_id TEXT NOT NULL,
+                live_before TEXT NOT NULL,
+                requested_at REAL NOT NULL,
+                PRIMARY KEY (tmux_session, tmux_window)
+            );
+            """
+        )
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", brief="task"))
+
+    assert "newer pending-brief schema" in capsys.readouterr().err
+    assert not sessions

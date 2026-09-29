@@ -1,3 +1,10 @@
+# 0.34.4 (2026-09-29)
+
+#### Fixed
+
+- **The inbox stays open when the database has a pending-brief schema from a newer lemonaid build.** It leaves those pending briefs unclaimed until a compatible build is installed, instead of crashing during refresh.
+- **Pending-brief commands refuse an incompatible newer schema with a clear error.** `place open --brief` checks before creating a session, so it does not leave a new session without its brief.
+
 # 0.34.3 (2026-09-29)
 
 #### Fixed

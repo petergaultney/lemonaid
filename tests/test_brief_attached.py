@@ -1,6 +1,7 @@
 """Briefs attached to lemon sessions: what `show` finds, and who a waiting brief goes to."""
 
 import argparse
+import asyncio
 import contextlib
 import datetime
 import json
@@ -10,6 +11,7 @@ import pytest
 
 from lemonaid.brief import attached, identity, render, session, status, store, target, write_cli
 from lemonaid.inbox import db, self_session
+from lemonaid.inbox.tui.app import LemonaidApp
 
 
 @pytest.fixture(autouse=True)
@@ -143,6 +145,65 @@ def test_a_running_lemon_that_speaks_again_is_not_new():
     _lemon("codex:started", "fresh", "2", 10**10 + 1)
 
     assert _attached_to("codex:started") == _brief("task")
+
+
+def _newer_pending_schema() -> None:
+    with db.connect() as conn:
+        conn.executescript(
+            """
+            DROP TABLE pending_briefs;
+            CREATE TABLE pending_briefs (
+                tmux_session TEXT NOT NULL,
+                tmux_window TEXT NOT NULL,
+                path TEXT NOT NULL,
+                tmux_window_id TEXT NOT NULL,
+                live_before TEXT NOT NULL,
+                requested_at REAL NOT NULL,
+                PRIMARY KEY (tmux_session, tmux_window)
+            );
+            INSERT INTO pending_briefs
+                (tmux_session, tmux_window, path, tmux_window_id, live_before, requested_at)
+            VALUES ('work', '2', '/tmp/pending.md', '@1', '[]', 1);
+            """
+        )
+
+
+def test_inbox_starts_when_pending_briefs_have_a_newer_schema():
+    _newer_pending_schema()
+
+    async def mount() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(58, 30)) as pilot:
+            await pilot.pause()
+
+    asyncio.run(mount())
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 1
+
+
+def test_newer_pending_schema_warns_only_once_per_process(monkeypatch):
+    _newer_pending_schema()
+    warnings = []
+    monkeypatch.setattr(attached._log, "warning", warnings.append)
+    attached._warn_newer_pending_schema.cache_clear()
+    try:
+        with db.connect() as conn:
+            attached.claim_pending(conn)
+            attached.claim_pending(conn)
+        assert warnings == ["pending briefs use a newer schema; leaving them unclaimed"]
+    finally:
+        attached._warn_newer_pending_schema.cache_clear()
+
+
+def test_attaching_to_an_empty_window_reports_newer_schema(capsys):
+    _brief("task")
+    _newer_pending_schema()
+
+    result = _run(capsys, "attach", "--session", "fresh:2", "task")
+
+    assert "newer pending-brief schema" in result["error"]
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 1
 
 
 def test_a_brief_outside_the_briefs_folder_is_refused(capsys, tmp_path):

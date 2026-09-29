@@ -40,9 +40,12 @@ def _attach_brief(
         return f"Opened, but could not tell which session is {directory}'s to attach {path}"
 
     with db.connect() as conn:
-        brief.attached.attach_pending(
-            conn, session, lifecycle.harness_window(config, harness), path, after_id
-        )
+        try:
+            brief.attached.attach_pending(
+                conn, session, lifecycle.harness_window(config, harness), path, after_id
+            )
+        except brief.attached.UnsupportedPendingSchema as cause:
+            return f"Opened without its brief: {cause}"
     return None
 
 
@@ -62,6 +65,13 @@ def cmd_open(args: argparse.Namespace) -> None:
     after_id = 0
     if brief_path:
         with db.connect() as conn:
+            if not brief.attached.supports_pending_schema(conn):
+                print(
+                    "This database has a newer pending-brief schema; "
+                    "update lemonaid before opening a place with a brief",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             after_id = brief.attached.newest_id(conn)
 
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
