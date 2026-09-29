@@ -1,9 +1,3 @@
-# 0.34.1 (2026-09-29)
-
-#### Fixed
-
-- **The inbox shows the Claude binary's real patch status again** instead of `unknown`. The check runs in a plain child process rather than a multiprocessing pool, which failed to start under Textual and leaked a POSIX named semaphore each time the inbox opened.
-
 # 0.34.0 (2026-09-29)
 
 #### Added
