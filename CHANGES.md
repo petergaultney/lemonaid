@@ -1,3 +1,10 @@
+# 0.35.0 (2026-09-29)
+
+#### Fixed
+
+- **A pending brief reaches a lemon resumed from the archive into its window.** It used to wait only for inbox rows newer than the request, and a resumed session keeps its old row.
+- **`brief attach --session S:NAME` finds a window by its tmux name, and follows it if tmux renumbers it.** A name tmux doesn't know is an error; before, a name was accepted and never matched.
+
 # 0.34.3 (2026-09-29)
 
 #### Fixed

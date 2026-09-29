@@ -32,17 +32,17 @@ def _attach_brief(
     in_root: bool,
     config: Config,
     harness: str,
-    after_id: int,
+    live_before: list[str],
 ) -> str | None:
     """Wait on the new session's harness window for its lemon. Returns an error, or None."""
     session = lifecycle.session_for(key, directory, in_root)
     if not session:
         return f"Opened, but could not tell which session is {directory}'s to attach {path}"
 
+    index = lifecycle.harness_window(config, harness)
+    _, window_id = brief.session.window(session, index)
     with db.connect() as conn:
-        brief.attached.attach_pending(
-            conn, session, lifecycle.harness_window(config, harness), path, after_id
-        )
+        brief.attached.attach_pending(conn, session, index, path, live_before, window_id)
     return None
 
 
@@ -59,10 +59,10 @@ def cmd_open(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # Taken before the session exists, so a lemon that starts quickly still counts.
-    after_id = 0
+    live_before: list[str] = []
     if brief_path:
         with db.connect() as conn:
-            after_id = brief.attached.newest_id(conn)
+            live_before = brief.attached.live_channels(conn)
 
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
@@ -94,7 +94,7 @@ def cmd_open(args: argparse.Namespace) -> None:
 
     if brief_path and directory and not error:
         error = _attach_brief(
-            brief_path, args.key, directory, root is not None, config, args.harness, after_id
+            brief_path, args.key, directory, root is not None, config, args.harness, live_before
         )
 
     if args.json:

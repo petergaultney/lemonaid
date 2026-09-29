@@ -121,7 +121,7 @@ def test_new_brief_removes_file_when_id_registration_fails(capsys, monkeypatch):
 def test_a_waiting_brief_goes_to_the_first_lemon_started_after_it():
     _lemon("claude:old", "fresh", "2", 100)
     with db.connect() as conn:
-        attached.attach_pending(conn, "fresh", "2", _brief("task"), attached.newest_id(conn))
+        attached.attach_pending(conn, "fresh", "2", _brief("task"), attached.live_channels(conn))
     _lemon("claude:elsewhere", "fresh", "3", 300)
     _lemon("claude:new", "fresh", "2", 400)
     _lemon("claude:newer", "fresh", "2", 500)
@@ -135,7 +135,7 @@ def test_a_waiting_brief_goes_to_the_first_lemon_started_after_it():
 def test_a_running_lemon_that_speaks_again_is_not_new():
     _lemon("codex:running", "fresh", "2", 100)
     with db.connect() as conn:
-        attached.attach_pending(conn, "fresh", "2", _brief("task"), attached.newest_id(conn))
+        attached.attach_pending(conn, "fresh", "2", _brief("task"), attached.live_channels(conn))
     _lemon("codex:running", "fresh", "2", 10**10)  # a notification refreshes created_at
 
     assert _attached_to("codex:running") is None

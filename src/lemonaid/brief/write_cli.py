@@ -56,7 +56,12 @@ def _attach(
 
     window = f"{chosen.tmux_session}:{chosen.tmux_window}"
     attached.attach_pending(
-        conn, chosen.tmux_session, chosen.tmux_window, path, attached.newest_id(conn)
+        conn,
+        chosen.tmux_session,
+        chosen.tmux_window,
+        path,
+        attached.live_channels(conn),
+        chosen.tmux_window_id,
     )
     return (
         {"path": str(path), "lemon_id": lemon_id, "channel": None, "pending": window},

@@ -4,7 +4,8 @@
 the one live channel recorded at the pane's tty, tmux session, and window.
 `--session` picks the one live lemon in a tmux session, or in one window of it
 when the session holds several; a window with no lemon yet is a pending target,
-for the next lemon to start there.
+for the next lemon to start there. A window is named by index or by name; a
+name must be one tmux knows now.
 """
 
 import argparse
@@ -13,13 +14,15 @@ import os
 import sqlite3
 
 from ..inbox import db, self_session
+from . import session
 
 
 @dataclasses.dataclass(frozen=True)
 class Selected:
     channel: str  # "" when the target is a window no lemon has started in yet
     tmux_session: str
-    tmux_window: str
+    tmux_window: str  # tmux's index
+    tmux_window_id: str = ""  # tmux's stable ID, when a pending target's window exists
 
 
 def _live_rows(conn: sqlite3.Connection, where: str, params: tuple) -> list[db.Notification]:
@@ -59,9 +62,14 @@ def _session(conn: sqlite3.Connection, spec: str) -> tuple[Selected | None, str]
     tmux_session, _, window = spec.partition(":")
     rows = _live_rows(conn, "json_extract(metadata, '$.tmux_session') = ?", (tmux_session,))
     if window:
-        rows = [r for r in rows if str(r.metadata.get("tmux_window") or "") == window]
+        index, window_id = session.window(tmux_session, window)
+        if not index and not window.isdigit():
+            return None, f"No window {window!r} in tmux session {tmux_session!r}"
+
+        index = index or window
+        rows = [r for r in rows if str(r.metadata.get("tmux_window") or "") == index]
         if not rows:
-            return Selected("", tmux_session, window), ""
+            return Selected("", tmux_session, index, window_id), ""
 
     if len(rows) == 1:
         return _selected(rows[0]), ""

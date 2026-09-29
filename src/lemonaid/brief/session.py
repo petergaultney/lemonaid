@@ -38,3 +38,28 @@ def lemon_name(session: str) -> str:
 def names(session: str, backend: str = "", display: str = "") -> list[str]:
     """What a brief for this session could be named after, most specific first."""
     return [n for n in (lemon_name(session) if session else "", backend, session, display) if n]
+
+
+def _windows(*args: str) -> list[list[str]]:
+    """Rows of `list-windows`, since `display-message` answers for the current window
+    when its target doesn't exist."""
+    out = _tmux(
+        "list-windows",
+        *args,
+        "-F",
+        "#{session_name}\t#{window_index}\t#{window_id}\t#{window_name}",
+    )
+    return [line.split("\t", 3) for line in out.splitlines() if line.count("\t") == 3]
+
+
+def window(session: str, window: str) -> tuple[str, str]:
+    """(index, ID) of the one window *window* numbers or names in *session*, or ("", "")."""
+    rows = _windows("-t", f"={session}")
+    found = [r for r in rows if r[1] == window] or [r for r in rows if r[3] == window]
+    return (found[0][1], found[0][2]) if len(found) == 1 else ("", "")
+
+
+def window_location(window_id: str) -> tuple[str, str]:
+    """(session, index) where tmux's window *window_id* is now, or ("", "") if it is gone."""
+    found = [r for r in _windows("-a") if r[2] == window_id]
+    return (found[0][0], found[0][1]) if found else ("", "")

@@ -6,18 +6,21 @@ a place each have their own. An attachment can also wait on a tmux window for
 the first lemon that starts there after it was requested, which is how a brief
 reaches a session that `place open` has only just created.
 
-"Starts after" means a channel the inbox had never seen when the brief was
-requested. Timestamps can't say it: a notification on an existing channel
-refreshes that row's `created_at`.
+"Starts after" means a channel that was not live when the brief was
+requested: a new one, or one revived from the archive. Timestamps and row ids
+can't say it: a notification on an existing channel refreshes that row's
+`created_at`, and a revived session keeps its old row.
 """
 
 import dataclasses
+import json
 import sqlite3
 import time
 from collections import abc
 from pathlib import Path
 
 from ..inbox import db
+from . import session
 
 
 @dataclasses.dataclass(frozen=True)
@@ -52,40 +55,71 @@ def detach(conn: sqlite3.Connection, channel: str) -> Path | None:
     return Path(row["path"]) if row else None
 
 
-def newest_id(conn: sqlite3.Connection) -> int:
-    """The newest inbox row now; a lemon whose row is newer started after this call."""
-    return conn.execute("SELECT COALESCE(MAX(id), 0) FROM notifications").fetchone()[0]
+def live_channels(conn: sqlite3.Connection) -> list[str]:
+    """The channels live now; a lemon on any other channel starts, or returns, after this."""
+    return [
+        row["channel"]
+        for row in conn.execute(
+            "SELECT DISTINCT channel FROM notifications WHERE status != 'archived' ORDER BY channel"
+        )
+    ]
 
 
 def attach_pending(
-    conn: sqlite3.Connection, tmux_session: str, tmux_window: str, path: Path, after_id: int
+    conn: sqlite3.Connection,
+    tmux_session: str,
+    tmux_window: str,
+    path: Path,
+    live_before: abc.Iterable[str],
+    tmux_window_id: str = "",
 ) -> None:
-    """Attach *path* to the first new channel in this window with a row newer than *after_id*."""
+    """Attach *path* to the first lemon in this window on a channel not in *live_before*.
+
+    *tmux_window_id* follows the window if tmux renumbers it; without one, the
+    window is the index *tmux_window*.
+    """
     conn.execute(
         """
         INSERT OR REPLACE INTO pending_briefs
-            (tmux_session, tmux_window, path, after_id, requested_at)
-        VALUES (?, ?, ?, ?, ?)
+            (tmux_session, tmux_window, path, tmux_window_id, live_before, requested_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (tmux_session, tmux_window, str(path), after_id, time.time()),
+        (
+            tmux_session,
+            tmux_window,
+            str(path),
+            tmux_window_id,
+            json.dumps(sorted(set(live_before))),
+            time.time(),
+        ),
     )
     conn.commit()
 
 
+def _where_now(row: sqlite3.Row) -> tuple[str, str]:
+    """The pending row's window as (session, index), following its ID when tmux knows it."""
+    if row["tmux_window_id"]:
+        now = session.window_location(row["tmux_window_id"])
+        if now[0]:
+            return now
+
+    return row["tmux_session"], row["tmux_window"]
+
+
 def _first_lemon_after(
-    conn: sqlite3.Connection, tmux_session: str, tmux_window: str, after_id: int
+    conn: sqlite3.Connection, tmux_session: str, tmux_window: str, live_before: list[str]
 ) -> str:
     row = conn.execute(
-        """
+        f"""
         SELECT channel FROM notifications
         WHERE json_extract(metadata, '$.tmux_session') = ?
           AND CAST(json_extract(metadata, '$.tmux_window') AS TEXT) = ?
-          AND id > ?
-          AND channel NOT IN (SELECT channel FROM notifications WHERE id <= ?)
+          AND status != 'archived'
+          AND channel NOT IN ({",".join("?" * len(live_before))})
           AND channel NOT IN (SELECT channel FROM session_briefs)
         ORDER BY id LIMIT 1
         """,
-        (tmux_session, tmux_window, after_id, after_id),
+        (tmux_session, tmux_window, *live_before),
     ).fetchone()
     return row["channel"] if row else ""
 
@@ -97,7 +131,7 @@ def claim_pending(conn: sqlite3.Connection) -> None:
     which lemon gets a brief never depends on when someone happened to look.
     """
     for row in conn.execute("SELECT * FROM pending_briefs").fetchall():
-        channel = _first_lemon_after(conn, row["tmux_session"], row["tmux_window"], row["after_id"])
+        channel = _first_lemon_after(conn, *_where_now(row), json.loads(row["live_before"]))
         if not channel:
             continue
 
