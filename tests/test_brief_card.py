@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from lemonaid.brief import render, target
-from lemonaid.inbox.tui import brief_card, utils
+from lemonaid.inbox.tui import brief_card, brief_cards, utils
 
 _LEMON = target.Identity(
     name="author",
@@ -49,3 +49,14 @@ def test_blocked_fills_the_headline_like_a_blocked_card():
 
 def test_the_session_bar_spans_the_width():
     assert brief_card.session_bar("# work · 2 lemons", 30).plain == "work · 2 lemons".center(30)
+
+
+def test_merge_and_alert_fill_the_headline_green_and_red():
+    assert any(
+        brief_cards.MERGE_COLOR in s
+        for s in _styles(brief_card.header(_section("merge"), True, 0, 40), "author")
+    )
+    assert any(
+        brief_cards.ALERT_COLOR in s
+        for s in _styles(brief_card.header(_section("alert"), True, 0, 40), "author")
+    )

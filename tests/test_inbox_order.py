@@ -1,4 +1,4 @@
-"""Below the pins: blocked, then done, then other unread, then everything else read."""
+"""Below the pins: alert, blocked, merge, then done, then other unread, then everything else read."""
 
 import asyncio
 import itertools
@@ -246,3 +246,23 @@ def test_done_rows_are_contiguous_in_the_wide_inbox_and_the_sidebar():
 
     assert wide == _drawn((40, 60))
     assert wide == [pinned, blocked, new_done, old_done, read_done, working, plain]
+
+
+def test_alert_sorts_above_blocked_above_merge_above_done():
+    rows = [
+        ("c:unread-done", "done", True),
+        ("c:merge", "merge", False),
+        ("c:unread-working", "working", True),
+        ("c:blocked", "blocked", False),
+        ("c:alert", "alert", False),
+        ("c:unread-merge", "merge", True),
+    ]
+
+    assert _sorted(rows) == [
+        "c:alert",
+        "c:blocked",
+        "c:merge",
+        "c:unread-merge",
+        "c:unread-done",
+        "c:unread-working",
+    ]

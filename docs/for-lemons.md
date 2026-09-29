@@ -324,7 +324,7 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
-lemonaid brief status --self waiting            # Status: waiting  (working | waiting | done | blocked)
+lemonaid brief status --self waiting            # Status: waiting  (working | waiting | blocked | merge | alert | done)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session

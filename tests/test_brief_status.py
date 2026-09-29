@@ -167,3 +167,8 @@ def test_a_brief_in_a_later_directory_beats_state_in_an_earlier_one(tmp_path):
     _write(session_dir / ".z", "brief.md", "# the task\n\nStatus: working\n", 1000)
 
     assert _render([lemon_cwd, session_dir], session_dir, [], now=1000).startswith("### the task")
+
+
+def test_merge_and_alert_are_states():
+    assert status.split("# x\n\nStatus: MERGE\n").status == "merge"
+    assert status.split("# x\n\nStatus: alert\n").status == "alert"

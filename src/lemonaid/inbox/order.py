@@ -1,26 +1,29 @@
 """The order the inbox lists sessions in, the same in the wide table and the sidebar.
 
-Pins come first. Below them, `blocked` sessions, then `done` sessions, unread
-above read, since a done lemon may have a PR ready to merge, then every other
-unread session, then everything else read: `working`, `waiting`, and no brief.
-Within each band rows keep `db.get_active` order: pins by position, everything
-else unread first and then newest first.
+Pins come first. Below them, `alert` sessions, then `blocked`, then `merge`,
+then `done` sessions, unread above read, then every other unread session, then
+everything else read: `working`, `waiting`, and no brief. Within each band rows
+keep `db.get_active` order: pins by position, everything else unread first and
+then newest first.
 """
 
 from collections import abc
 
 from . import db
 
-_BLOCKED = 0
-_UNREAD_DONE = 1
-_DONE = 2
-_UNREAD = 3  # working, waiting, or no brief
-_READ = 4  # working, waiting, or no brief
+_ALERT = 0
+_BLOCKED = 1
+_MERGE = 2
+_UNREAD_DONE = 3
+_DONE = 4
+_UNREAD = 5  # working, waiting, or no brief
+_READ = 6  # working, waiting, or no brief
+_BANDS = {"alert": _ALERT, "blocked": _BLOCKED, "merge": _MERGE}
 
 
 def _band(status: str, is_unread: bool) -> int:
-    if status == "blocked":
-        return _BLOCKED
+    if status in _BANDS:
+        return _BANDS[status]
 
     if status == "done":
         return _UNREAD_DONE if is_unread else _DONE

@@ -353,7 +353,7 @@ def _as_card(
             )
         if marker.plain:
             headline.stylize(
-                "bold #000000" if card_brief.status == "blocked" else UNREAD_MARKER_STYLE,
+                brief_cards.DOT_STYLES.get(card_brief.status, UNREAD_MARKER_STYLE),
                 2,
                 3,
             )

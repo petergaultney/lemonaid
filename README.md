@@ -18,11 +18,11 @@ lemonaid tmux scratch --flip            # move it to the other edge
 On the left, above, each session is a card: name, then time, cwd and branch,
 then the message wrapped over as many lines as the pane can spare. With
 [`brief_status`](docs/config.md#tui) on, a card also shows its lemon's brief:
-a yellow headline and what it needs from you when `blocked`, blue when `done`,
-dimmed while `waiting`.
+a red headline and what it needs from you when `alert`, yellow when `blocked`,
+green when `merge`, blue when `done`, dimmed while `waiting`.
 
 Across the top, it has room for columns instead, one row per session, with
-`blocked` rows amber and `done` rows blue:
+`alert` rows red, `blocked` rows amber, `merge` rows green, and `done` rows blue:
 
 <img width="900" alt="The inbox as a top strip, one row per session, above a Claude Code session" src="docs/images/inbox-top.png" />
 
@@ -188,10 +188,12 @@ lemonaid inbox list
 The inbox and the scratch sidebar list sessions in the same order:
 
 1. Pinned sessions, in the order you put them.
-2. Sessions whose attached brief says `blocked`.
-3. Sessions whose brief says `done`, since one may have a PR ready to merge.
-4. Every other unread session.
-5. Every other read session: `working`, `waiting`, or no brief.
+2. Sessions whose attached brief says `alert`: your move, and harm grows while it waits.
+3. Sessions whose brief says `blocked`: a decision, answer, or review for you.
+4. Sessions whose brief says `merge`: only your merge is left.
+5. Sessions whose brief says `done`.
+6. Every other unread session.
+7. Every other read session: `working`, `waiting`, or no brief.
 
 Within each group other than the pins, unread comes first, then newest first.
 

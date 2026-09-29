@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from .brief_cards import STATUS_STYLES, CardBrief
+from .brief_cards import DOT_STYLES, STATUS_STYLES, CardBrief
 from .utils import ATTENTION_COLOR
 
 _CONSOLE = Console()
@@ -38,7 +38,7 @@ def styled(
 ) -> list[Text]:
     """`cells` recoloured for the brief's status, or unchanged without one.
 
-    Under a blocked or done fill every field takes the fill's text colour, since
+    Under a status fill every field takes the fill's text colour, since
     the field colours were picked for the plain background. The model label
     becomes a badge in its provider colour, as it does on an unread card in bar
     mode, and the gutter keeps its jump digit or green bar. A read `waiting` row
@@ -56,8 +56,8 @@ def styled(
 
     def recoloured(index: int, cell: Text) -> Text:
         if index == unread_cell:
-            # A yellow dot would vanish into the blocked fill.
-            return _restyled(cell, "bold #000000") if brief.status == "blocked" else cell
+            dot = DOT_STYLES.get(brief.status)
+            return _restyled(cell, dot) if dot else cell
         if index == backend_cell:
             provider = cell.get_style_at_offset(_CONSOLE, 0).color if cell.plain else None
             return _restyled(cell, Style(color="#000000", bgcolor=provider or ATTENTION_COLOR))

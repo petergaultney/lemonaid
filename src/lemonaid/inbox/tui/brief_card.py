@@ -1,6 +1,6 @@
 """A brief section's identity drawn the way the inbox draws that lemon's card.
 
-The same field colours, model colour, and `blocked` / `done` headline fills, so
+The same field colours, model colour, and status headline fills, so
 a brief in the sidebar or popup reads as the card opened up. What the worker
 wrote stays Markdown, below.
 """
@@ -8,15 +8,19 @@ wrote stays Markdown, below.
 from rich.text import Text
 
 from ...brief import display, render, status
-from . import backend_indicators, utils
+from . import backend_indicators, brief_cards, utils
 
 _SEPARATOR = Text(" · ", style=utils.FIELD_STYLES["backend"])
 _HEADLINE_FILLS = {
+    "alert": f"#ffffff on {brief_cards.ALERT_COLOR}",
     "blocked": f"#000000 on {utils.ATTENTION_COLOR}",
+    "merge": f"#000000 on {brief_cards.MERGE_COLOR}",
     "done": "#ffffff on #285995",
 }
 _STATE_STYLES = {
+    "alert": "bold #ff5c5c",
     "blocked": f"bold {utils.ATTENTION_COLOR}",
+    "merge": f"bold {brief_cards.MERGE_COLOR}",
     "done": "bold #6f9fe0",
     "working": "bold",
     "waiting": "bright_black",

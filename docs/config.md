@@ -100,8 +100,8 @@ The name may come from the interpreter's command line or the pane title. Add
 With `brief_status = true`, a card whose session has an attached brief with a
 `Status:` line is drawn from that brief:
 
-- `blocked` fills the headline yellow, and `done` fills it blue. On both, the
-  model label becomes a badge in its provider colour.
+- `alert` fills the headline red, `blocked` yellow, `merge` green, and `done`
+  blue. On each, the model label becomes a badge in its provider colour.
 - A read `waiting` card is dimmed. An unread one is not.
 - `working` keeps the ordinary read style.
 - Under the name and location come the first line of `Needs` from `## Now`,
@@ -111,8 +111,8 @@ With `brief_status = true`, a card whose session has an attached brief with a
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
   only for cards without a brief.
 
-In the column layout, a `blocked` row fills amber (deeper than the header's
-unread yellow, which it sorts right under) and a `done` row blue, with
+In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
+than the header's unread yellow), a `merge` row green, and a `done` row blue, with
 the model as the same badge, and a read `waiting` row dims. The green bar that
 marks the current session stays green. Rows carry no age, `Needs` or
 `Waiting on` lines; there is no room for them.

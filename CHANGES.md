@@ -1,3 +1,10 @@
+# 0.36.0 (2026-09-29)
+
+#### Added
+
+- **`merge` and `alert` brief statuses.** `lemonaid brief status` accepts both, and the inbox reads them from any brief. `merge` (green) means only your merge is left; `alert` (red) means your move is urgent because harm grows while it waits.
+- **The inbox sorts `alert` above `blocked` above `merge`**, all below the pins and above `done`. Cards, top-strip rows, and the brief popup and sidebar fill `alert` red and `merge` green.
+
 # 0.35.0 (2026-09-29)
 
 #### Added

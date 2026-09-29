@@ -114,3 +114,15 @@ def test_the_top_strip_fills_blocked_and_done_rows(monkeypatch, tmp_path):
 
     assert (blocked, done) == ("#c9a93a", "#285995")
     assert working not in (blocked, done)
+
+
+def test_a_merge_row_is_green_and_an_alert_row_red():
+    merge = _row("merge", unread=True)
+    alert = _row("alert", unread=True)
+
+    assert app.brief_rows.background(CardBrief("merge", "", 0)).bgcolor.name == "#4fb35a"
+    assert _style(merge[6]).color.name == "#000000"
+    assert _style(merge[1]).color.name == "#000000"
+    assert app.brief_rows.background(CardBrief("alert", "", 0)).bgcolor.name == "#c62828"
+    assert _style(alert[6]).color.name == "#ffffff"
+    assert _style(alert[1]).color.name == "#ffffff"

@@ -9,12 +9,19 @@ from ...brief import now as brief_now
 from ...brief import status as brief_status
 from .utils import ATTENTION_COLOR
 
-# Headline colours for the statuses that want a look: a blocked lemon waits on
-# you, and a done one is ready to clean up.
+MERGE_COLOR = "#4fb35a"
+ALERT_COLOR = "#c62828"
+# Headline colours for the statuses that want a look: an alert lemon needs you
+# urgently, a blocked one waits on you, a merge one waits only on your merge,
+# and a done one is ready to clean up.
 STATUS_STYLES = {
+    "alert": Style(color="#ffffff", bgcolor=ALERT_COLOR),
     "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
+    "merge": Style(color="#000000", bgcolor=MERGE_COLOR),
     "done": Style(color="#ffffff", bgcolor="#285995"),
 }
+# The unread dot on a filled headline or row, where the yellow one would vanish.
+DOT_STYLES = {"alert": "bold #ffffff", "blocked": "bold #000000", "merge": "bold #000000"}
 
 
 @dataclasses.dataclass(frozen=True)
