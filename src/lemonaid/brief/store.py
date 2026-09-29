@@ -1,4 +1,4 @@
-"""Brief files in `~/.brief-lemons/`: naming, creating, and the two edits a worker makes.
+"""Brief files in `~/.lemons/brief/`: naming, creating, and the two edits a worker makes.
 
 Everything but the `Status:` line and the `## Now` section is left as written,
 so sections other tools add (such as `## Waiters`) survive every edit here.
@@ -6,6 +6,7 @@ so sections other tools add (such as `## Waiters`) survive every edit here.
 Only files inside `briefs_dir()` count as briefs. Lemonaid writes to them for
 sandboxed lemons (a Codex exec-policy rule runs `lemonaid brief ...` outside
 the sandbox), so the folder is the boundary of what those commands can touch.
+Until `lemonaid home migrate` has run, that folder is `~/.brief-lemons/`.
 """
 
 import datetime
@@ -16,6 +17,8 @@ from collections import abc
 from pathlib import Path
 
 import wordybin
+
+from .. import home
 
 STATES = ("working", "waiting", "done", "blocked")
 
@@ -47,7 +50,7 @@ Lemon-ID: {lemon_id}
 
 def briefs_dir() -> Path:
     override = os.environ.get("LEMONAID_BRIEFS_DIR")
-    return Path(override) if override else Path.home() / ".brief-lemons"
+    return Path(override) if override else home.layout.briefs_dir()
 
 
 def resolve(name: str) -> Path:
@@ -63,6 +66,9 @@ def resolve(name: str) -> Path:
 
 def outside_error(path: Path) -> str:
     """Why *path* can't be a brief, or "" if its real path is inside `briefs_dir()`."""
+    if paused := home.layout.paused():
+        return paused
+
     if path.resolve().is_relative_to(briefs_dir().resolve()):
         return ""
 
@@ -86,11 +92,12 @@ def new_lemon_id(path: Path) -> str:
 
 def create(title: str, today: datetime.date) -> Path:
     """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
-    directory = briefs_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{today.isoformat()}-{_slug(title)}.md"
-    with path.open("x") as f:
-        f.write(_TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)))
+    with home.guard.operation():
+        directory = briefs_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{today.isoformat()}-{_slug(title)}.md"
+        with path.open("x") as f:
+            f.write(_TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)))
 
     return path.resolve()
 
@@ -120,12 +127,13 @@ def edit(path: Path, change: abc.Callable[[str], str]) -> None:
     rename itself; the edits here touch one section, so re-applying them to
     the newer text keeps both.
     """
-    for _ in range(_EDIT_ATTEMPTS):
-        before = path.read_text()
-        after = change(before)
-        if path.read_text() == before:
-            _replace(path, after)
-            return
+    with home.guard.operation():
+        for _ in range(_EDIT_ATTEMPTS):
+            before = path.read_text()
+            after = change(before)
+            if path.read_text() == before:
+                _replace(path, after)
+                return
 
     raise ChangedUnderneath(f"{path} kept changing while it was being edited; try again")
 

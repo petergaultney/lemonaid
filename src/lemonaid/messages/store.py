@@ -10,15 +10,23 @@ import uuid
 from collections import abc
 from pathlib import Path
 
-from .. import brief
+from .. import brief, home
 
 
 def inbox_root() -> Path:
-    override = os.environ.get("LEMONAID_MESSAGES_DIR")
-    return Path(override) if override else brief.store.briefs_dir() / "inbox"
+    if override := os.environ.get("LEMONAID_MESSAGES_DIR"):
+        return Path(override)
+
+    if os.environ.get("LEMONAID_BRIEFS_DIR"):
+        return brief.store.briefs_dir() / "inbox"
+
+    return home.layout.inbox_root()
 
 
 def inbox_for_id(lemon_id: str) -> Path:
+    if paused := home.layout.paused():
+        raise ValueError(paused)
+
     if not brief.identity.valid(lemon_id):
         raise ValueError(f"Invalid lemon ID: {lemon_id!r}")
 
@@ -29,13 +37,7 @@ def inbox_for_id(lemon_id: str) -> Path:
     return inbox
 
 
-def send(inbox: Path, body: str, sender: str) -> Path:
-    if not body.strip():
-        raise ValueError("Message cannot be empty")
-
-    if inbox.is_symlink():
-        raise ValueError(f"Inbox is a symlink: {inbox}")
-
+def _write(inbox: Path, body: str, sender: str) -> Path:
     inbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
     path = inbox / f"{stamp}-{uuid.uuid4().hex}.md"
@@ -50,6 +52,17 @@ def send(inbox: Path, body: str, sender: str) -> Path:
         Path(temporary).unlink(missing_ok=True)
 
     return path
+
+
+def send(inbox: Path, body: str, sender: str) -> Path:
+    if not body.strip():
+        raise ValueError("Message cannot be empty")
+
+    if inbox.is_symlink():
+        raise ValueError(f"Inbox is a symlink: {inbox}")
+
+    with home.guard.operation():
+        return _write(inbox, body, sender)
 
 
 def _pending(inbox: Path) -> abc.Iterator[Path]:
@@ -97,7 +110,7 @@ def receive_lock(inbox: Path, wait: bool = True) -> abc.Iterator[bool]:
 
 
 def take_next(inbox: Path) -> tuple[Path, str] | None:
-    with receive_lock(inbox) as held:
+    with home.guard.operation(), receive_lock(inbox) as held:
         return _take_next_locked(inbox) if held else None
 
 

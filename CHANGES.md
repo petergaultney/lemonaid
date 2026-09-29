@@ -6,6 +6,7 @@
 - **`place open --brief F --parent self` records the parent when it opens the place**, before the child starts.
 - **The brief view shows a brief's parent and its children's status** under its card, in the sidebar, popup and `brief show`.
 - **`lemonaid tell --parent` and `tell --child <lemon>` follow those links.** A child whose lemon hasn't started yet gets the message in its inbox.
+- **Briefs and inboxes move to `~/.lemons/brief/` and `~/.lemons/inbox/`, with `lemonaid home migrate`.** Lemonaid keeps using `~/.brief-lemons/` until the migration finishes. The migration copies and verifies every file, rewrites the database's brief paths, and keeps the old home as a backup, refusing while any inbox waiter is running. See `docs/home.md`.
 
 #### Fixed
 

@@ -98,7 +98,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     brief_parser = subparsers.add_parser(
         "brief",
         help="Where a lemon's work stands, from its brief",
-        description="A brief is a Markdown file in ~/.brief-lemons/ attached to one "
+        description="A brief is a Markdown file in ~/.lemons/brief/ attached to one "
         "lemon session (or, for older sessions, .z/brief.md or .z/brief-<name>.md in its "
         "place). Its Status line and `## Now` section are what the worker keeps current.",
     )

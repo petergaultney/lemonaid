@@ -7,6 +7,7 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
+from .. import home
 from ..inbox.channel import full_channel_id
 from . import store
 
@@ -55,7 +56,7 @@ def deliver_next(
     being current while the queue ran: the move happens inside `while_current`,
     only if it yields True, and otherwise the file stays pending and this returns None.
     """
-    with store.receive_lock(inbox, wait=False) as held:
+    with home.guard.operation(), store.receive_lock(inbox, wait=False) as held:
         found = store.peek_next(inbox) if held else None
         if found is None:
             return None

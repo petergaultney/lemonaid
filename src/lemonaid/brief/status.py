@@ -5,6 +5,7 @@ import re
 from collections import abc
 from pathlib import Path
 
+from .. import home
 from . import store
 
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
@@ -134,6 +135,9 @@ def find(
     Without a brief anywhere, the first `.z/state.md` (written by lemons before
     compaction) stands in.
     """
+    if attached and (paused := home.layout.paused()):
+        return f"## Work status\n\n{paused}."
+
     if attached:
         present = [load(path) for path in attached if path.is_file()]
         if present:

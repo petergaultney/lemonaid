@@ -29,7 +29,7 @@ prefix_rule(pattern=["lemonaid", "inbox", "watch"], decision="allow")
 prefix_rule(pattern=["lemonaid", "inbox", "next"], decision="allow")
 ```
 
-These commands write under `~/.brief-lemons/` and `~/.local/share/lemonaid/`, outside the project workspace. An `allow` rule lets a matching command run outside the sandbox without prompting. Restart running Codex sessions after changing `default.rules`, since they read the rules at session start.
+These commands write under `~/.lemons/` (`~/.brief-lemons/` before `lemonaid home migrate`) and `~/.local/share/lemonaid/`, outside the project workspace. An `allow` rule lets a matching command run outside the sandbox without prompting. Restart running Codex sessions after changing `default.rules`, since they read the rules at session start.
 
 ## How it works
 

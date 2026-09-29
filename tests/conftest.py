@@ -1,10 +1,27 @@
+import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
 from lemonaid.inbox import db
 from lemonaid.lemon_watchers import watcher
 from lemonaid.messages import service
+
+# The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
+# reverts them all, which once pointed a test's migration at the live database and
+# the real homes. These process-wide defaults are what an undone test falls back to.
+_LAST_RESORT = Path(tempfile.mkdtemp(prefix="lemonaid-tests-"))
+for _name, _path in (
+    ("LEMONAID_DB", "lemonaid.db"),
+    ("LEMONAID_CONFIG", "config.toml"),
+    ("LEMONAID_STATE_DIR", "state"),
+    ("LEMONAID_BRIEFS_DIR", "briefs"),
+    ("LEMONAID_LEMONS_DIR", "lemons"),
+    ("LEMONAID_LEGACY_BRIEFS_DIR", "brief-lemons"),
+):
+    os.environ[_name] = str(_LAST_RESORT / _path)
+os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
 
 
 @pytest.fixture(autouse=True)

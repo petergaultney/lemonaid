@@ -184,10 +184,12 @@ each answer for two minutes and fetches in the background.
 | `LEMONAID_DB` | Path to the inbox database, replacing `~/.local/share/lemonaid/lemonaid.db`. A second `lma` pointed at its own file cannot archive rows in your real inbox, which is what makes demos and experiments safe - `scripts/demo-inbox.py` uses it. |
 | `LEMONAID_CONFIG` | Path to the config file, replacing `~/.config/lemonaid/config.toml`. |
 | `LEMONAID_STATE_DIR` | Directory for scratch-pane and back-location state, replacing `~/.local/state/lemonaid`. |
-| `LEMONAID_BRIEFS_DIR` | Directory of briefs, replacing `~/.brief-lemons`. |
-| `LEMONAID_MESSAGES_DIR` | Root of the lemon message inboxes, replacing `<briefs dir>/inbox`. |
+| `LEMONAID_LEMONS_DIR` | Home of briefs and inboxes, replacing `~/.lemons` (see `docs/home.md`). |
+| `LEMONAID_LEGACY_BRIEFS_DIR` | The older home that `lemonaid home migrate` moves, replacing `~/.brief-lemons`. |
+| `LEMONAID_BRIEFS_DIR` | One directory of briefs, replacing the home's `brief/`. Pins it: `home migrate` refuses while it is set. |
+| `LEMONAID_MESSAGES_DIR` | Root of the lemon message inboxes, replacing the home's `inbox/` (`<briefs dir>/inbox` when `LEMONAID_BRIEFS_DIR` is set). |
 | `LEMONAID_CHANNEL` | The channel `lemonaid tell` sends from and the `lemonaid inbox` message commands read for, ahead of the harness session id or tmux pane. |
 | `LEMONAID_DEBUG` | `1` turns on debug logging in the hook entry points. |
 | `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
 
-`scripts/sandbox` sets the first five, plus a private tmux socket, to run a checkout against a snapshot of your state without touching the real one.
+`scripts/sandbox` sets the first seven, plus a private tmux socket, to run a checkout against a snapshot of your state without touching the real one.

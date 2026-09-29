@@ -4,7 +4,8 @@ Each lemon with an attached brief has a stable `Lemon-ID` stored in the brief.
 New IDs combine a brief slug with a short WordyBin suffix, such as
 `mc-tars-no-mops-leases.SkullHen`. The ID is set once and keeps the same value
 if the brief is renamed. Its file inbox is
-`~/.brief-lemons/inbox/<lemon-id>/`. The ID and
+`~/.lemons/inbox/<lemon-id>/` (`~/.brief-lemons/inbox/` before `lemonaid home
+migrate`; see `docs/home.md`). The ID and
 inbox stay the same when the brief is renamed or attached to another session.
 New briefs receive an ID when created; lemonaid adds one to an existing brief
 when it is attached or first used for messaging. `lemonaid brief id --channel
@@ -89,9 +90,10 @@ printing restores it to the pending folder. A process killed between the move
 and printing can still leave an unread message in `done/`; check that folder
 if delivery is interrupted.
 
-`--parent` and `--child <name>` are reserved for parent links. Until those links
-are stored by stable ID, they report an error; address the ID, channel, or
-brief directly.
+`lemonaid tell --parent "..."` sends to the caller's parent, and
+`tell --child <lemon> "..."` to one of its children, by the links in
+`lemonaid lemon parent` (see `docs/lineage.md`). A child that hasn't started
+yet has an inbox already, so its messages wait there.
 
 `LEMONAID_MESSAGES_DIR` overrides the inbox root. When `LEMONAID_BRIEFS_DIR`
 is set, the default inbox root follows it, at `<briefs-dir>/inbox/`.

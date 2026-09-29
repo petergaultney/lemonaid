@@ -37,6 +37,8 @@ CONFIG = SANDBOX / "config.toml"
 STATE = SANDBOX / "state"
 BRIEFS = SANDBOX / "briefs"
 MESSAGES = SANDBOX / "messages"
+LEMONS = SANDBOX / "lemons"
+LEGACY_BRIEFS = SANDBOX / "brief-lemons"
 SOCKET = SANDBOX / "tmux.sock"
 BIN = SANDBOX / "bin"
 WATCH_TMP = SANDBOX / "tmp"
@@ -91,6 +93,10 @@ def _environment() -> dict[str, str]:
         "LEMONAID_STATE_DIR": str(STATE),
         "LEMONAID_BRIEFS_DIR": str(BRIEFS),
         "LEMONAID_MESSAGES_DIR": str(MESSAGES),
+        # `home migrate` ignores the two above and moves these, so it never
+        # reaches ~/.brief-lemons or ~/.lemons.
+        "LEMONAID_LEMONS_DIR": str(LEMONS),
+        "LEMONAID_LEGACY_BRIEFS_DIR": str(LEGACY_BRIEFS),
         # Doc waiters keep their locks and reported threads in $TMPDIR/watch-doc,
         # shared with every live waiter on the machine.
         "TMPDIR": str(WATCH_TMP),

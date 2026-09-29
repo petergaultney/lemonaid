@@ -298,7 +298,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--brief",
         default="",
         metavar="FILE",
-        help="Attach this brief (a path, or a name in ~/.brief-lemons/) to the first "
+        help="Attach this brief (a path, or a name in ~/.lemons/brief/) to the first "
         "lemon that starts in the session's harness window",
     )
     open_parser.add_argument(

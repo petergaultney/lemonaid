@@ -112,7 +112,7 @@ def test_an_edit_keeps_the_mode_and_leaves_no_temp_file(tmp_path):
     store.edit(path, lambda text: store.with_now(text, "- x"))
 
     assert oct(path.stat().st_mode & 0o777) == "0o640"
-    assert [p.name for p in tmp_path.iterdir()] == ["brief.md"]
+    assert [p.name for p in tmp_path.iterdir() if p.name != "state"] == ["brief.md"]
 
 
 def test_a_file_that_never_settles_is_refused(tmp_path):
