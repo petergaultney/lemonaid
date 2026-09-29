@@ -41,7 +41,9 @@ def codex_setup_problem() -> str:
     return ""
 
 
-def to_codex(thread: str) -> Deliver:
+def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
+    """Queues `<kind> event: <message>. <instruction>` into a Codex thread."""
+
     def deliver(message: str) -> None:
         try:
             subprocess.run(
@@ -51,7 +53,7 @@ def to_codex(thread: str) -> Deliver:
                     "--thread",
                     thread,
                     "--message",
-                    f"watch-doc event: {message}. Use $watch-doc to handle every pending thread, then rearm the waiter.",
+                    f"{kind} event: {message}. {instruction}",
                 ],
                 check=True,
             )

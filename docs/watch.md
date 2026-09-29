@@ -1,4 +1,4 @@
-# Watching documents
+# Watching documents, PRs, and files
 
 `lemonaid watch doc` blocks until someone responds to a Markdown document through
 Relay Comments (inline CriticMarkup blocks written by an Obsidian plugin), and
@@ -54,16 +54,40 @@ is.
 - OpenClaw watch lists: `~/.local/state/watch-doc/lists/` (`LEMONAID_WATCH_LISTS_DIR` moves
   it).
 
+## Watching a PR
+
+`lemonaid watch pr` blocks until a GitHub PR changes, using one `gh api graphql` call per
+`--interval` (60 seconds by default).
+
+```bash
+lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "Author (MotorHoe)" --once
+lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" --codex-thread "$CODEX_THREAD_ID"
+lemonaid watch pr --status 90 --me "Author (MotorHoe)"
+```
+
+It reports a push (the head differs from `--head`), a merge or close, a move to or from
+draft, a review decision change, and with `--comments` a new human comment. A comment
+counts as human when it is in an unresolved, non-outdated review thread, a submitted
+review's body, or the PR conversation, is not from a bot, and does not start with 🍋 (lemons
+post with the human's account, so the marker is the only way to tell). Comments already
+reported, and the last reported draft flag and decision, are kept per PR and `--me` in
+`$TMPDIR/watch-pr/`, so a rearm reports what changed in between and nothing it already
+reported. Pass the head you just handled as `--head` when rearming; without it the first
+fetch is the baseline. `--repo owner/name` defaults to the current directory's repo. It
+wakes Claude and Codex the same way `watch doc` does.
+
 ## Compatibility with the standalone `watch-doc.py`
 
-This command replaces the `watch-doc` skill's `watch-doc.py` and `openclaw_watch.py`. The
-flags are the same (`python3 watch-doc.py <args>` becomes `lemonaid watch doc <args>`), and
-so are the state files, lock files, watch-list files, event text and wake messages. The two
-can therefore run side by side during migration:
+`lemonaid watch doc` replaces the `watch-doc` skill's `watch-doc.py` and
+`openclaw_watch.py`, and `lemonaid watch pr` replaces the `watch-pr` skill's `watch-pr.py`.
+The flags are the same (`python3 watch-doc.py <args>` becomes `lemonaid watch doc <args>`,
+and `python3 watch-pr.py <args>` becomes `lemonaid watch pr <args>`), and so are the state
+files, lock files, watch-list files, event text and wake messages. Old and new can
+therefore run side by side during migration:
 
-- A waiter started by either blocks a second one from the other for the same document and
-  name, and `--status` from either reports it.
-- A thread reported by one is not reported again by the other.
+- A waiter started by either blocks a second one from the other for the same document or
+  PR and name, and `--status` from either reports it.
+- A thread or comment reported by one is not reported again by the other.
 - An OpenClaw watch list is served by whichever waiter holds it; `start` from either
   launcher reuses a running waiter.
 

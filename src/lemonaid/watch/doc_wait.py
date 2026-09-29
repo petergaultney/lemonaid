@@ -1,36 +1,11 @@
 """The waiting loops behind `lemonaid watch doc`: one doc, or every doc on an actor's list."""
 
-import fcntl
-import os
 import pathlib
-import sys
 import time
 import typing as ty
 from collections import abc
 
 from . import delivery, doc_events, watch_list
-
-
-def lock_holder(lock_path: pathlib.Path) -> str:
-    try:
-        return lock_path.read_text().strip() or "unknown process"
-    except OSError:
-        return "unknown process"
-
-
-def acquire(lock_path: pathlib.Path) -> ty.IO[str] | None:
-    """The open lock file (held until this process exits), or None if another waiter holds it."""
-    f = lock_path.open("a+")
-    try:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        f.close()
-        return None
-
-    f.truncate(0)
-    f.write(f"pid {os.getpid()} since {time.strftime('%Y-%m-%d %H:%M:%S')}: {' '.join(sys.argv)}\n")
-    f.flush()
-    return f
 
 
 def _deliverer(deliver: delivery.Deliver, once: bool) -> ty.Callable[[str], bool]:

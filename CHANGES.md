@@ -3,6 +3,7 @@
 #### Added
 
 - **`lemonaid watch doc` waits for Relay Comments on a document and wakes the lemon that wrote it**, by exiting (Claude background task), queueing into a Codex thread, or running an OpenClaw agent turn. It takes the standalone `watch-doc.py`'s flags and shares its state and locks, so the two can run side by side. See `docs/watch.md`.
+- **`lemonaid watch pr` waits for a push, merge, draft or review-decision change, or new human comment on a GitHub PR.** It takes the standalone `watch-pr.py`'s flags and shares its state and locks.
 - **`lemonaid watch openclaw start|stop|list`** manages one watch list and one waiter unit per OpenClaw session, sharing lists with `openclaw_watch.py`.
 
 # 0.33.0 (2026-09-29)

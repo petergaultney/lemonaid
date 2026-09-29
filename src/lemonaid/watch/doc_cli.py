@@ -35,7 +35,7 @@ import argparse
 import pathlib
 import sys
 
-from . import delivery, doc_events, doc_wait, watch_list
+from . import delivery, doc_events, doc_wait, waiter_lock, watch_list
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
 
@@ -59,10 +59,10 @@ def run(a: argparse.Namespace) -> int:
         lock_path = doc_events.state_stem(a.state_dir, a.wait or a.status, a.me).with_suffix(
             ".lock"
         )
-        lock = doc_wait.acquire(lock_path)
+        lock = waiter_lock.acquire(lock_path)
     if a.status:
         print(
-            f"waiter running: {doc_wait.lock_holder(lock_path)}"
+            f"waiter running: {waiter_lock.lock_holder(lock_path)}"
             if lock is None
             else "no waiter running"
         )
@@ -70,14 +70,18 @@ def run(a: argparse.Namespace) -> int:
 
     if lock is None:
         print(
-            f"not started: a waiter for {a.wait or a.watch_list} as {a.me} is already running ({doc_wait.lock_holder(lock_path)})"
+            f"not started: a waiter for {a.wait or a.watch_list} as {a.me} is already running ({waiter_lock.lock_holder(lock_path)})"
         )
         return 3
 
     if a.codex_thread:
         problem, deliver, once = (
             delivery.codex_setup_problem(),
-            delivery.to_codex(a.codex_thread),
+            delivery.to_codex(
+                a.codex_thread,
+                "watch-doc",
+                "Use $watch-doc to handle every pending thread, then rearm the waiter.",
+            ),
             True,
         )
     elif a.openclaw_session:

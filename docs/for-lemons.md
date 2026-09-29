@@ -432,3 +432,8 @@ Codex thread instead. `--status <doc> --me <name>` says whether a waiter is alre
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
 `lemonaid watch openclaw start <doc> --session-key <key>`. Flags and state match the
 standalone `watch-doc.py`, so the two can run side by side. Details: [watch.md](watch.md).
+
+`lemonaid watch pr --wait <n> --head <sha you handled> --comments --me <name> --once` does
+the same for a GitHub PR: a push, merge or close, draft or review-decision change, or new
+human comment. Rearm with `--head` set to the head you just handled. It replaces
+`watch-pr.py`, with the same flags and state.
