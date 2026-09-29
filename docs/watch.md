@@ -76,6 +76,27 @@ reported. Pass the head you just handled as `--head` when rearming; without it t
 fetch is the baseline. `--repo owner/name` defaults to the current directory's repo. It
 wakes Claude and Codex the same way `watch doc` does.
 
+## Watching files and directories
+
+`lemonaid watch file` blocks until a file or directory changes. It wakes Claude and Codex
+the same way the other watchers do.
+
+```bash
+lemonaid watch file --wait notes.md --me "Author (MotorHoe)" --once
+lemonaid watch file --wait ~/some/inbox --wait other.md --me "Author (MotorHoe)" --codex-thread "$CODEX_THREAD_ID"
+lemonaid watch file --status notes.md --me "Author (MotorHoe)"
+```
+
+- A file is reported when it is created, removed, or its contents change.
+- A directory is reported when a regular file directly in it is added, removed, or
+  rewritten. Hidden files and subdirectories are ignored, so a lock file or a `done/`
+  folder does not wake anyone.
+- A change is reported once it has been quiet for `--quiet` seconds (2 by default); paths
+  are read every `--interval` seconds (5 by default).
+- What was last reported is kept per set of paths and `--me` in
+  `$TMPDIR/lemonaid-watch-file/`, so a rearmed waiter reports anything that changed in
+  between. The first waiter for a set of paths takes their current state as its baseline.
+
 ## Compatibility with the standalone `watch-doc.py`
 
 `lemonaid watch doc` replaces the `watch-doc` skill's `watch-doc.py` and

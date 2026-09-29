@@ -437,3 +437,6 @@ standalone `watch-doc.py`, so the two can run side by side. Details: [watch.md](
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, or new
 human comment. Rearm with `--head` set to the head you just handled. It replaces
 `watch-pr.py`, with the same flags and state.
+
+`lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
+to change, or for a file directly in a directory to be added, removed, or rewritten.
