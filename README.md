@@ -3,7 +3,7 @@
 Monitor progress of and switch between lemons (go on... say 'LLMs' three times fast)
 running in the terminal.
 
-<img width="899" height="511" alt="The lemonaid inbox as a top strip, one row per session, above a Claude Code session" src="https://github.com/user-attachments/assets/bdb98206-b0f3-44e9-a395-541130edb2b9" />
+<img width="900" alt="The lemonaid inbox as a left sidebar, a card per session, beside a Claude Code session" src="docs/images/inbox-left.png" />
 
 ## An inbox that stays in view
 
@@ -15,15 +15,21 @@ lemonaid tmux scratch --follow          # left or top, from config
 lemonaid tmux scratch --flip            # move it to the other edge
 ```
 
-Above, as a top strip, it draws the columns. On the left it has no room for
-them, so each session becomes a card instead - name, then time, cwd and branch,
-then the message wrapped over as many lines as the pane can spare:
+On the left, above, each session is a card: name, then time, cwd and branch,
+then the message wrapped over as many lines as the pane can spare. With
+[`brief_status`](docs/config.md#tui) on, a card also shows its lemon's brief:
+a yellow headline and what it needs from you when `blocked`, blue when `done`,
+dimmed while `waiting`.
 
-<img width="899" height="511" alt="The inbox as a left sidebar, cards for each session, beside a Claude Code session" src="https://github.com/user-attachments/assets/9b82c2df-abf3-40ef-a529-f0e95a110abb" />
+Across the top, it has room for columns instead, one row per session, with
+`blocked` rows amber and `done` rows blue:
 
-The bar above the list turns the unread marker's colour while something is
-waiting for you. `prefix+l` toggles focus between the inbox and your work; `q`
-parks it until you want it back.
+<img width="900" alt="The inbox as a top strip, one row per session, above a Claude Code session" src="docs/images/inbox-top.png" />
+
+The inbox's title turns teal while it has keyboard focus, and in the top strip
+the column header turns the unread marker's colour while something is waiting
+for you. `prefix+l` toggles focus between the inbox and your work; `q` parks it
+until you want it back.
 
 To see it with invented sessions before wiring up your own:
 
@@ -31,6 +37,10 @@ To see it with invented sessions before wiring up your own:
 uv run scripts/demo-inbox.py            # a throwaway tmux server, own inbox
 uv run scripts/demo-inbox.py --kill
 ```
+
+The screenshots here come from that demo:
+`uv run scripts/demo-inbox.py --no-attach` (add `--top` for the strip), then
+`uv run scripts/demo-screenshot.py docs/images/inbox-left.png`.
 
 Full setup, keybindings, and behaviour: [docs/tmux.md](docs/tmux.md).
 
@@ -52,9 +62,10 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md) and [WezTerm](docs/wezterm.md)). If the session has since died, its pane is recreated in the same directory rather than the jump failing
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **[Places](docs/places.md)**: Spin up a directory and its session in one command, and tear both down in one command. What "spin up a directory" means is a shell command you configure per repo, so worktrees (or whatever else you use) stay out of lemonaid's model
-- **Briefs**: `b` on a session shows its identity, `Status:`, what it needs from you, and the rest of `## Now` in a tmux popup, without switching to it, with the live state of any PR the brief names when `[brief] pr_state` is configured. `lemonaid brief show` prints the same from anywhere
-- **Lemon messages**: Each brief carries a stable ID for its file inbox. Send Markdown by ID, channel, or brief name with `lemonaid tell`; receive one with `lemonaid inbox next --self` or wait with `lemonaid inbox watch --self`. Codex lemons get messages queued into their threads by a self-starting delivery service; an optional Stop hook keeps each Claude lemon's waiter armed
-- **Brief status cards**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
+- **Briefs**: `b` on a session shows its identity, `Status:`, what it needs from you, and the rest of `## Now` beside the lemon or in a tmux popup, without switching to it, with the live state of any PR the brief names when `[brief] pr_state` is configured. `lemonaid brief show` prints the same from anywhere
+- **[Lemon messages](docs/messages.md)**: Each brief carries a stable ID for its file inbox. Send Markdown by ID, channel, or brief name with `lemonaid tell`; receive one with `lemonaid inbox next --self` or wait with `lemonaid inbox watch --self`. Codex lemons get messages queued into their threads by a self-starting delivery service; an optional Stop hook keeps each Claude lemon's waiter armed
+- **[Brief status cards](docs/config.md#tui)**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
+- **Pins**: Hold a session at the top of the list, in an order you choose
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
@@ -100,12 +111,13 @@ Add hooks to `~/.claude/settings.json`:
   "hooks": {
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "lemonaid claude submit" }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }],
+    "PermissionRequest": [{ "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }],
     "Notification": [{ "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "lemonaid claude notify" }] }]
   }
 }
 ```
 
-Features: sessions appear in the inbox the moment a prompt is submitted (`UserPromptSubmit`), auto-dismiss via transcript watching, live activity updates, binary patch for faster notifications.
+Features: sessions appear in the inbox the moment a prompt is submitted (`UserPromptSubmit`), questions asked mid-turn with `AskUserQuestion` notify you (`PermissionRequest`), auto-dismiss via transcript watching, live activity updates, binary patch for faster notifications.
 
 **Full documentation**: [docs/claude.md](docs/claude.md) | [Binary patch](docs/claude-patch.md)
 
@@ -174,9 +186,9 @@ lemonaid inbox list
 The inbox and the scratch sidebar list sessions in the same order:
 
 1. Pinned sessions, in the order you put them.
-2. Sessions whose attached brief says `blocked`, read or not.
-3. Every other unread session.
-4. Read sessions whose brief says `done`, since one may have a PR ready to merge.
+2. Sessions whose attached brief says `blocked`.
+3. Sessions whose brief says `done`, since one may have a PR ready to merge.
+4. Every other unread session.
 5. Every other read session: `working`, `waiting`, or no brief.
 
 Within each group other than the pins, unread comes first, then newest first.
@@ -185,25 +197,21 @@ Within each group other than the pins, unread comes first, then newest first.
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Open notification (switches to that session) |
-| `u` | Jump directly to the oldest unread session |
+| `Enter` | Switch to the session's pane |
+| `1`-`9`, `0` | Switch to that row |
+| `u` | Jump to the oldest unread session |
 | `m` / `M` | Mark as read / unread |
-| `a` | Archive (remove from list) |
-| `s` / `S` | Snooze session / list snoozed |
-| `p` | Pin session to a place in the list, or unpin it |
-| `Shift`+`↑`/`↓` | Move a pinned session up or down one slot |
+| `a` | Archive |
+| `s` / `S` | Snooze / list snoozed |
+| `p` | Pin below the other pins, or unpin; `Shift`+`↑`/`↓` moves a pin |
+| `b` | Show the session's brief |
 | `z` | Undo the last inbox change |
-| `r` | Rename session (clear to revert to auto-name) |
-| `h` | Toggle session history |
-| `c` | Copy resume command (in history mode) |
-| `/` | Filter history |
+| `h` | Session history (`Enter` resumes, `c` copies the resume command) |
 | `f` | Move the scratch pane between top and left |
-| `H` | Save scratch pane size (follow mode, once it has drifted) |
-| `g` | Refresh |
 | `?` | Show the key reference |
 | `q` / `Escape` | Quit |
 
-All keybindings are configurable. See [docs/keybindings.md](docs/keybindings.md).
+The full list, including rename, history filtering, and the brief view's own keys, is in [docs/keybindings.md](docs/keybindings.md), along with how to rebind them.
 
 ### Programmatic Access
 
@@ -225,3 +233,6 @@ Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/conf
 - **codex**: Codex CLI hook integration with session watching
 - **openclaw**: OpenClaw integration with turn-complete detection
 - **opencode**: OpenCode integration with plugin events and live activity watching
+- **brief** and **messages**: attached briefs, their popup and sidebar views, and the per-lemon file inboxes behind `lemonaid tell`
+- **places**: per-repo hooks that create and remove directories, and the tmux sessions opened in them
+- **tmux** / **wezterm**: pane switching, the scratch pane and follow mode, session templates

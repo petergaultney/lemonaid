@@ -9,13 +9,15 @@ showing. It reads your own `~/.tmux.conf`, so the demo looks like your tmux
 (set `LEMONAID_DEMO_NO_CONFIG=1` for tmux's stock defaults instead). Your
 prefix detaches it as usual; `--kill` tears the server and its inbox down.
 
-Everything it touches is its own: `LEMONAID_DB` points the inbox at a scratch
-file and the server has its own socket, so the real inbox is never read, written,
-or archived by the demo's watchers.
+Everything it touches is its own: the inbox, config, state, briefs and message
+inboxes all live under one scratch directory, and the server has its own socket,
+so the real inbox is never read, written, or archived by the demo's watchers.
+`scripts/demo-screenshot.py` renders the staged server to a PNG.
 """
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,7 +27,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 SERVER = "lemonaid-demo"
-DB = Path(tempfile.gettempdir()) / "lemonaid-demo" / "demo.db"
+ROOT = Path(tempfile.gettempdir()) / "lemonaid-demo"
+DB = ROOT / "demo.db"
+BRIEFS = ROOT / "briefs"
+
+# Set before any lemonaid import, so nothing can resolve a real path even
+# transiently: seeding or archiving the wrong inbox is the one unrecoverable
+# mistake this script could make. The demo server's panes get the same values.
+ENVIRONMENT = {
+    "LEMONAID_DB": str(DB),
+    "LEMONAID_CONFIG": str(ROOT / "config.toml"),
+    "LEMONAID_STATE_DIR": str(ROOT / "state"),
+    "LEMONAID_BRIEFS_DIR": str(BRIEFS),
+    "LEMONAID_MESSAGES_DIR": str(ROOT / "messages"),
+}
+os.environ.update(ENVIRONMENT)
+# Nothing here should reach the tmux server this shell is in; the demo server is
+# always named with `-L`, and attaching to it from inside tmux needs these unset.
+os.environ.pop("TMUX", None)
+os.environ.pop("TMUX_PANE", None)
+
+# Brief-status cards are opt-in; the demo shows them, since they are what a
+# session with a brief looks like.
+_CONFIG = """\
+[tui]
+brief_status = true
+"""
 
 # Ages, not timestamps: the inbox sorts unread first and then by recency, and a
 # screenshot wants that ordering to look like an afternoon's work.
@@ -43,6 +70,7 @@ SESSIONS = [
         "feat/expiry-alerts",
         "All four checks green. The notifier now fires 3 days out instead of "
         "on the morning of, which is what the yoghurt incident called for.",
+        "",
     ),
     (
         "sourdough-hydration-calc",
@@ -53,6 +81,7 @@ SESSIONS = [
         "fix/baker-percentage",
         "Found the bug: `hydration()` divides by total dough weight rather "
         "than flour weight, so every loaf above 70% came out as 41%.",
+        "blocked",
     ),
     (
         "grocery-list-dedupe",
@@ -61,7 +90,8 @@ SESSIONS = [
         "codex",
         "src/pantry",
         "chore/dedupe",
-        "Working...",
+        "Opened the PR. Nothing left to do until someone reviews it.",
+        "waiting",
     ),
     (
         "recipe-import-from-url",
@@ -72,6 +102,7 @@ SESSIONS = [
         "main",
         "Done. Handles JSON-LD, microdata, and the three blog themes that "
         "put the ingredients in a table. Falls back to asking rather than guessing.",
+        "done",
     ),
     (
         "spice-rack-inventory",
@@ -81,6 +112,7 @@ SESSIONS = [
         "notes",
         "",
         "Synced - 7843 bytes, matching the corrected version.",
+        "",
     ),
     (
         "leftovers-what-can-i-make",
@@ -90,8 +122,26 @@ SESSIONS = [
         "notes",
         "",
         "Here's what I can and can't tell you.",
+        "",
     ),
 ]
+
+# What each session's transcript would have named, so cards show a model rather
+# than the provider fallback. OpenClaw's is left unknown: its fallback is the 🦞.
+_MODELS = {
+    "pantry-expiry-notifier": ("anthropic", "claude-opus-5-5"),
+    "sourdough-hydration-calc": ("anthropic", "claude-opus-5-5"),
+    "grocery-list-dedupe": ("openai", "gpt-5.6-sol"),
+    "recipe-import-from-url": ("anthropic", "claude-fable-5-1"),
+    "leftovers-what-can-i-make": ("anthropic", "claude-sonnet-5-5"),
+}
+
+# `## Now` for each brief status a session above carries.
+_NOW = {
+    "blocked": "### Needs Peter\n\n- Pick a rounding rule for hydration above 100%\n",
+    "waiting": "### Waiting on\n\n- Review of the dedupe PR\n",
+    "done": "### Done\n\n- Recipe import merged\n",
+}
 
 
 # The main panes end up in the same screenshot as the sidebar, so they show
@@ -101,7 +151,7 @@ SESSIONS = [
 # copied from Claude Code's TUI - the glyphs are the real ones, hence the noqa;
 # the content is the invented recipe project.
 _CLAUDE = """\033[38;5;210m ▛▀▖▗▀▖\033[0m  \033[1mClaude Code\033[0m \033[2mv2.1.241\033[0m
-\033[38;5;210m ▙▄▘▝▄▘\033[0m  \033[2mOpus 5 · ~/src/pantry\033[0m
+\033[38;5;210m ▙▄▘▝▄▘\033[0m  \033[2mOpus 5.5 · ~/src/pantry\033[0m
 
 \033[2m✻ Conversation compacted (ctrl+o for history)\033[0m
 
@@ -124,7 +174,7 @@ _CLAUDE = """\033[38;5;210m ▛▀▖▗▀▖\033[0m  \033[1mClaude Code\033[0m
 
 \033[38;5;110m›\033[0m \033[2mTry "add a test for the leap-year case"\033[0m
 
-  \033[2mOpus 5 · feat/expiry-alerts · 34% context\033[0m"""  # noqa: RUF001
+  \033[2mOpus 5.5 · feat/expiry-alerts · 34% context\033[0m"""  # noqa: RUF001
 
 _PYTEST = """\033[2m$\033[0m uv run pytest -q
 ........................................................ [ 71%]
@@ -147,36 +197,51 @@ def _show(text: str, title: str) -> list[str]:
     return [sys.executable, "-c", script]
 
 
+def _brief(name: str, status: str, modified: float) -> Path:
+    path = BRIEFS / f"{name}.md"
+    path.write_text(f"# {name}\n\nStatus: {status}\n\n## Now\n\n{_NOW[status]}")
+    os.utime(path, (modified, modified))  # cards show the brief's age
+    return path
+
+
 def _seed() -> None:
-    # Set before the import so nothing can resolve the real inbox path, even
-    # transiently: seeding the wrong database is the one unrecoverable mistake
-    # this script could make.
-    os.environ["LEMONAID_DB"] = str(DB)
+    from lemonaid.brief import attached
     from lemonaid.inbox import db
 
     assert db.get_db_path() == DB, db.get_db_path()
     DB.parent.mkdir(parents=True, exist_ok=True)
     DB.unlink(missing_ok=True)
+    shutil.rmtree(BRIEFS, ignore_errors=True)
+    BRIEFS.mkdir()
+    Path(ENVIRONMENT["LEMONAID_CONFIG"]).write_text(_CONFIG)
     now = time.time()
     with db.connect() as conn:
-        for i, (name, status, age, backend, cwd, branch, message) in enumerate(SESSIONS):
+        for i, (name, status, age, backend, cwd, branch, message, brief) in enumerate(SESSIONS):
+            channel = f"{backend}:demo-{i}"
             db.add(
                 conn,
-                f"{backend}:demo-{i}",
+                channel,
                 message,
                 name,
                 {
                     # Absolute, as a real hook records it: `fish_path` shortens
                     # `$HOME` to `~` and leaves an unexpanded `~/...` string as
                     # the unrecognisable `/s/pantry`.
-                    "tty": f"/dev/ttys{100 + i}",
+                    "tty": f"/dev/ttys{900 + i}",  # far from the ptys the demo panes get
                     "cwd": str(Path.home() / cwd),
                     "git_branch": branch,
+                    **(
+                        {"model_provider": _MODELS[name][0], "model": _MODELS[name][1]}
+                        if name in _MODELS
+                        else {}
+                    ),
                 },
                 switch_source="tmux",
                 created_at=now - age,
                 status=status,
             )
+            if brief:
+                attached.attach(conn, channel, _brief(name, brief, now - age))
 
 
 def _tmux(*args: str) -> subprocess.CompletedProcess:
@@ -205,7 +270,6 @@ def _socket() -> str:
 
 def _position_state(position: str) -> None:
     """Write the position this server will start with, before anything reads it."""
-    os.environ["TMUX"] = ""  # state paths key off the server name, not this shell's
     from lemonaid.tmux import scratch
 
     path = scratch.get_state_path() / f"tmux-scratch-{SERVER}-position"
@@ -215,20 +279,16 @@ def _position_state(position: str) -> None:
 
 def _kill() -> None:
     _tmux("kill-server")
-    DB.unlink(missing_ok=True)
-    os.environ["TMUX"] = ""
-    from lemonaid.tmux import scratch
-
-    for stale in scratch.get_state_path().glob(f"tmux-scratch-{SERVER}-*"):
-        stale.unlink(missing_ok=True)
-    print(f"killed {SERVER}, removed {DB} and its state files")
+    shutil.rmtree(ROOT, ignore_errors=True)
+    print(f"killed {SERVER}, removed {ROOT}")
 
 
 def _stage(position: str, attach: bool = True) -> None:
-    _seed()
+    # A previous run's `lma` would otherwise watch the new rows as they are
+    # seeded, and the layout is decided when the pane is built, so a leftover
+    # pane would render the previous position. Everything is torn down first.
     _tmux("kill-server")
-    # The layout is decided when the pane is built, so a leftover pane from a
-    # previous run would render the previous position. Everything is torn down.
+    _seed()
     _position_state(position)
 
     _tmux(
@@ -251,7 +311,8 @@ def _stage(position: str, attach: bool = True) -> None:
     _tmux("set-window-option", "-t", "demo", "automatic-rename", "off")
     # The pane the CLI spawns is a child of the server, so this is what points
     # the demo's own `lma` at the demo inbox rather than the real one.
-    _tmux("set-environment", "-g", "LEMONAID_DB", str(DB))
+    for name, value in ENVIRONMENT.items():
+        _tmux("set-environment", "-g", name, value)
     _tmux(
         "respawn-pane",
         "-k",
@@ -267,7 +328,7 @@ def _stage(position: str, attach: bool = True) -> None:
         "new-window", "-t", "demo", "-n", "tests", "-c", str(Path.home()), *_show(_PYTEST, "tests")
     )
     _tmux("set-window-option", "-t", "demo:tests", "automatic-rename", "off")
-    _tmux("select-window", "-t", "demo:tests")
+    _tmux("select-window", "-t", "demo:pantry")
 
     # Created through the CLI so the demo exercises the real path - position,
     # sizing, and the follow hooks all come from the code under review.
@@ -281,10 +342,15 @@ def _stage(position: str, attach: bool = True) -> None:
             "--follow",
             f"--position={position}",
         ],
-        env={**os.environ, "TMUX": _socket(), "LEMONAID_DB": str(DB)},
+        env={**os.environ, "TMUX": _socket()},
         capture_output=True,
     )
     time.sleep(2)
+    # The cursor starts on the first row and would hide its brief colour; put it
+    # on the session the main pane shows instead.
+    scratch_pane = _tmux("show-options", "-gqv", "@lemonaid_scratch_pane").stdout.strip()
+    _tmux("send-keys", "-t", scratch_pane, "Down", "Down")
+    time.sleep(1)
     print(f"staged on tmux -L {SERVER} ({position}).")
     if attach:
         print("attaching; Ctrl-b d to detach.")
