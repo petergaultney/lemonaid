@@ -28,7 +28,8 @@ from textual.widgets.data_table import RowDoesNotExist, RowKey
 
 from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
-from ...claude.patcher import apply_patch, check_status, find_binary
+from ...claude import patch_status
+from ...claude.patcher import apply_patch, find_binary
 from ...config import TuiConfig, load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
@@ -966,30 +967,14 @@ class LemonaidApp(App):
         stop_unified_watcher()
 
     def _check_claude_patch(self) -> None:
-        """Check Claude Code patch status in a child process (avoids GIL stall).
-
-        The check does regex over a ~180MB binary. Running it in-process
-        via a thread starves the Textual event loop because CPython's re
-        module holds the GIL for the entire scan. A separate process has
-        its own GIL.
-        """
         if not self._claude_binary:
             self._claude_patch_status = None
             return
 
-        from concurrent.futures import ProcessPoolExecutor
+        self.run_worker(self._run_claude_patch_check(self._claude_binary), exclusive=True)
 
-        binary = self._claude_binary
-
-        def check():
-            try:
-                with ProcessPoolExecutor(max_workers=1) as pool:
-                    status = pool.submit(check_status, binary).result(timeout=10)
-            except Exception:
-                status = "unknown"
-            self.call_from_thread(self._set_patch_status, status)
-
-        threading.Thread(target=check, daemon=True).start()
+    async def _run_claude_patch_check(self, binary: Path) -> None:
+        self._set_patch_status(await patch_status.check_status_in_child(binary))
 
     def _set_patch_status(self, status: str) -> None:
         """Set patch status and refresh UI (called from main thread)."""
