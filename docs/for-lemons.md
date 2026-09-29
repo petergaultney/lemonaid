@@ -417,7 +417,14 @@ A Codex lemon needs no waiter: lemonaid's delivery service queues each message
 into your thread with `codex queue`, and starts itself when a message is sent.
 A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a
 background task; if the `waiter-check` Stop hook is installed, it refuses to
-let your turn end until that watch is running.
+let your turn end until that watch is running. Start it with
+`run_in_background` and `timeout: 2147483647`: since Claude Code 2.1.285 a
+background task otherwise stops after 30 minutes. That timeout needs
+`BASH_MAX_TIMEOUT_MS` raised in the user's settings (see
+[Claude setup](claude.md#2-keep-background-waiters-running)). If the
+harness stops the watch anyway, rearm it, even though its notice says not to
+restart a task that already had the maximum timeout. The same goes for
+`watch doc` and `watch pr` waiters.
 
 When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
 `lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules

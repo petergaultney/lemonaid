@@ -66,7 +66,10 @@ lemonaid inbox deliver --idle-exit 0   # forever
 Its log lines go to `/tmp/lemonaid.log` (`messages.service`).
 
 A Claude lemon can only be woken by its own background task, so it keeps
-`lemonaid inbox watch --self` running. The watch holds
+`lemonaid inbox watch --self` running, and rearms it whenever the harness
+stops it. Claude Code stops background tasks after 30 minutes unless the
+user raises the limit; see [Claude setup](claude.md#2-keep-background-waiters-running).
+The watch holds
 `<inbox>/.waiter.lock` while it waits, and a second watch for the same lemon
 exits with an error naming the first one's pid. The optional Stop hook
 `lemonaid claude waiter-check` blocks a lemon with an attached brief (unless it

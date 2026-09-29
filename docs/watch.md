@@ -29,7 +29,9 @@ reports only threads that are new or changed since.
 ## Waking the lemon
 
 - **Claude Code:** run with `--once` as a background Bash task. It prints the first event and
-  exits, and the task's completion wakes the session. Rearm after handling it.
+  exits, and the task's completion wakes the session. Rearm after handling it, and after the
+  harness stops it at its background time limit
+  ([Claude setup](claude.md#2-keep-background-waiters-running)).
 - **Codex:** `--codex-thread <id>` queues the first event into that thread with `codex queue`
   and exits. The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
   it refuses to start if it cannot.
