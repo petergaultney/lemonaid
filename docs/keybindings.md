@@ -72,7 +72,7 @@ Bare `~/work/vault/...md` and `~/trove/...md` paths in the brief open in Obsidia
 `https://` and `obsidian://` URLs are shortened to a label (`lemonaid#74`, a note's name). Each
 label is a terminal hyperlink (OSC 8) in its own colour, so cmd-click opens it from any line it
 wraps onto; tmux passes hyperlinks through when `terminal-features` includes `hyperlinks`. A plain
-click on a link in the sidebar, in text or a table, opens it with `open` (`xdg-open` off macOS), which sends each scheme
+click on a link in the sidebar, in text, a heading or a table, opens it with `open` (`xdg-open` off macOS), which sends each scheme
 to the app registered for it. Markdown links and code
 spans are left as written.
 

@@ -1,3 +1,9 @@
+# 0.34.3 (2026-09-29)
+
+#### Fixed
+
+- **A link in a brief's heading opens in its own app from the sidebar**, and is a terminal hyperlink, like links in paragraphs and tables.
+
 # 0.34.2 (2026-09-29)
 
 #### Fixed

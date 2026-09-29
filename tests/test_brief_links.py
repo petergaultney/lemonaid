@@ -7,7 +7,7 @@ import pytest
 import rich.console
 import rich.markdown
 from textual.app import App, ComposeResult
-from textual.widgets._markdown import MarkdownTableCellContents
+from textual.widgets._markdown import MarkdownH2, MarkdownParagraph, MarkdownTableCellContents
 
 from lemonaid.brief import links
 from lemonaid.inbox.tui import brief_view
@@ -99,7 +99,7 @@ def test_the_sidebar_adds_a_terminal_hyperlink_to_each_markdown_link():
         app = _Show()
         async with app.run_test(size=(20, 10)) as pilot:
             await pilot.pause()
-            paragraph = app.query_one(brief_view._LinkedParagraph)
+            paragraph = app.query_one(MarkdownParagraph)
             return [
                 span.style.link
                 for span in paragraph._content.spans
@@ -125,7 +125,7 @@ def test_a_click_in_the_sidebar_opens_each_link_as_written(monkeypatch):
         app = _Show()
         async with app.run_test(size=(80, 10)) as pilot:
             await pilot.pause()
-            for paragraph in app.query(brief_view._LinkedParagraph):
+            for paragraph in app.query(MarkdownParagraph):
                 text = paragraph._content.plain
                 label = "PR #74" if "PR #74" in text else "lemonaid-74"
                 await pilot.click(paragraph, offset=(text.index(label) + 1, 0))
@@ -156,7 +156,7 @@ def test_a_click_on_a_table_cell_link_opens_it_as_written(monkeypatch):
         def open_url(self, url: str, *, new_tab: bool = True) -> None:
             browsed.append(url)
 
-    async def check() -> None:
+    async def check() -> list[str]:
         app = _Show()
         async with app.run_test(size=(80, 10)) as pilot:
             await pilot.pause()
@@ -165,8 +165,30 @@ def test_a_click_on_a_table_cell_link_opens_it_as_written(monkeypatch):
             )
             await pilot.click(cell, offset=(2, 0))
             await pilot.pause()
+            return [s.style.link for s in cell.content.spans if getattr(s.style, "link", None)]
 
-    asyncio.run(check())
-
+    assert asyncio.run(check()) == [review]
     assert browsed == []
+    assert [argv[-1] for argv in opened] == [review]
+
+
+def test_a_heading_link_is_a_terminal_hyperlink_and_opens_as_written(monkeypatch):
+    opened: list[list[str]] = []
+    monkeypatch.setattr(brief_view.subprocess, "Popen", lambda argv, **_: opened.append(argv))
+    review = "obsidian://open?vault=trove&file=94%20System%20Lemons%2Fpr-reviews%2Flemonaid-81"
+
+    class _Show(App):
+        def compose(self) -> ComposeResult:
+            yield brief_view._Markdown(f"## see the [review doc]({review})")
+
+    async def check() -> list[str]:
+        app = _Show()
+        async with app.run_test(size=(80, 10)) as pilot:
+            await pilot.pause()
+            heading = app.query_one(MarkdownH2)
+            await pilot.click(heading, offset=(heading._content.plain.index("review") + 1, 0))
+            await pilot.pause()
+            return [s.style.link for s in heading._content.spans if getattr(s.style, "link", None)]
+
+    assert asyncio.run(check()) == [review]
     assert [argv[-1] for argv in opened] == [review]

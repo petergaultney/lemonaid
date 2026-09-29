@@ -1,11 +1,11 @@
 """The scratch pane's scrollable brief view, drawn as the lemon's card opened up."""
 
 import ast
+import functools
 import re
 import subprocess
 import sys
 import time
-import typing as ty
 import urllib.parse
 
 from markdown_it.token import Token
@@ -14,12 +14,7 @@ from textual.containers import VerticalScroll
 from textual.content import Content, Span
 from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
-from textual.widgets._markdown import (  # no public names
-    MarkdownBlock,
-    MarkdownParagraph,
-    MarkdownTD,
-    MarkdownTH,
-)
+from textual.widgets._markdown import MarkdownBlock  # no public name
 
 from ...brief import links, pr, render, target
 from ...log import get_logger
@@ -97,30 +92,21 @@ def _linked(content: Content) -> Content:
     )
 
 
-class _LinkedParagraph(MarkdownParagraph):
-    def _token_to_content(self, token: Token) -> Content:
-        return _linked(super()._token_to_content(token))
+@functools.cache
+def _linked_block(block: type[MarkdownBlock]) -> type[MarkdownBlock]:
+    """*block* with its links made by `_linked`; a direct subclass, so its CSS is unchanged."""
 
+    def _token_to_content(self: MarkdownBlock, token: Token) -> Content:
+        return _linked(block._token_to_content(self, token))
 
-class _LinkedTH(MarkdownTH):
-    def _token_to_content(self, token: Token) -> Content:
-        return _linked(super()._token_to_content(token))
-
-
-class _LinkedTD(MarkdownTD):
-    def _token_to_content(self, token: Token) -> Content:
-        return _linked(super()._token_to_content(token))
+    return type(block.__name__, (block,), {"_token_to_content": _token_to_content})
 
 
 class _Markdown(Markdown):
-    """Markdown whose links open in their own app, from a paragraph or a table cell."""
+    """Markdown whose links open in their own app, from any block: a heading, paragraph or table cell."""
 
-    BLOCKS: ty.ClassVar[dict[str, type[MarkdownBlock]]] = {
-        **Markdown.BLOCKS,
-        "paragraph_open": _LinkedParagraph,
-        "th_open": _LinkedTH,
-        "td_open": _LinkedTD,
-    }
+    def get_block_class(self, block_name: str) -> type[MarkdownBlock]:
+        return _linked_block(super().get_block_class(block_name))
 
     def on_markdown_link_clicked(self, event: Markdown.LinkClicked) -> None:
         event.prevent_default()
@@ -192,7 +178,7 @@ class BriefView(VerticalScroll):
         top: list[Static | Markdown | Rule] = (
             [_SessionBar(shown.header)]
             if shown.header.startswith("# ")
-            else [Markdown(shown.header)]
+            else [_Markdown(shown.header)]
             if shown.header
             else []
         )
