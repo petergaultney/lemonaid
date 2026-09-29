@@ -11,9 +11,10 @@ import json
 
 import pytest
 
-from lemonaid.brief import attached, store
+from lemonaid.brief import attached, identity, store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
 from lemonaid.inbox import db
+from lemonaid.lineage import links
 from lemonaid.places import cli, lifecycle
 
 
@@ -27,6 +28,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "harness": "default",
             "prompt": "",
             "brief": "",
+            "parent": "",
             **kwargs,
         }
     )
@@ -148,6 +150,8 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
         "dir": str(tmp_path),
         "root": None,
         "brief": None,
+        "lemon_id": None,
+        "parent": None,
         "error": None,
     }
 
@@ -213,5 +217,45 @@ def test_a_missing_brief_is_refused_before_opening(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit):
         cli.cmd_open(_args(key="notes", brief="nosuch"))
+
+    assert not sessions
+
+
+def _parent_brief(channel: str) -> str:
+    path = store.briefs_dir() / "parent.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# parent\n\nStatus: working\n")
+    with db.connect() as conn:
+        db.add(conn, channel, "", metadata={})
+        attached.attach(conn, channel, path)
+        return identity.ensure(conn, path)
+
+
+def test_parent_self_links_the_briefs_lemon_to_the_caller(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:parent")
+    parent = _parent_brief("claude:parent")
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="self", json=True))
+
+    opened = json.loads(capsys.readouterr().out)
+    assert opened["parent"] == parent
+    assert opened["lemon_id"] == identity.from_path(child_brief)
+    with db.connect() as conn:
+        assert links.parent_of(conn, opened["lemon_id"]) == parent
+
+
+def test_a_parent_that_cannot_be_resolved_is_refused_before_opening(monkeypatch, tmp_path):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:no-brief")
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.parent.mkdir(parents=True)
+    child_brief.write_text("# task\n\nStatus: working\n")
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", brief="task", parent="self"))
 
     assert not sessions

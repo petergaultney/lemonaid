@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db, emoji
-from . import attached, popup, pr, render, session, sidebar, target, write_cli
+from . import attached, family, popup, pr, render, session, sidebar, target, write_cli
 
 
 def _file_target(
@@ -87,7 +87,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         return
 
     now = time.time()
-    shown = render.view(found, now, pr.configured(load_config().brief.pr_state))
+    shown = family.added(render.view(found, now, pr.configured(load_config().brief.pr_state)))
     if args.page:
         popup.page(shown, now, args.dismiss)
     else:

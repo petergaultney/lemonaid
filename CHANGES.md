@@ -1,5 +1,12 @@
 # 0.35.0 (2026-09-29)
 
+#### Added
+
+- **Parent links between lemons, by Lemon-ID.** `lemonaid lemon parent` shows, sets or clears a lemon's parent, and `lemonaid lemon children` lists its children with their brief's `Status:` and channel. A link that would make a lemon its own ancestor is refused.
+- **`place open --brief F --parent self` records the parent when it opens the place**, before the child starts.
+- **The brief view shows a brief's parent and its children's status** under its card, in the sidebar, popup and `brief show`.
+- **`lemonaid tell --parent` and `tell --child <lemon>` follow those links.** A child whose lemon hasn't started yet gets the message in its inbox.
+
 #### Fixed
 
 - **A pending brief reaches a lemon resumed from the archive into its window.** It used to wait only for inbox rows newer than the request, and a resumed session keeps its old row.

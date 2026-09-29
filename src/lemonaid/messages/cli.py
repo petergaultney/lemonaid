@@ -6,9 +6,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from .. import brief
-from ..inbox import db, self_session
-from ..inbox.channel import channel_id, full_channel_id
+from .. import brief, lineage
+from ..inbox import db
 from ..log import get_logger
 from . import codex_delivery, service, store, waiter
 
@@ -29,83 +28,59 @@ def _attachment(conn: sqlite3.Connection, channel: str) -> Path:
     return path
 
 
-def _target(conn: sqlite3.Connection, target: str) -> brief.attached.Attachment:
-    brief.attached.claim_pending(conn)
-    all_briefs = brief.attached.everything(conn)
-    found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
-    if not found and brief.identity.valid(target):
-        for entry in all_briefs:
-            if not entry.channel or not entry.path.is_file():
-                continue
-            try:
-                if brief.identity.from_path(entry.path) == target:
-                    found.append(entry)
-            except ValueError as error:
-                _log.warning("Skipping invalid brief %s: %s", entry.path, error)
+def _linked(conn: sqlite3.Connection, args: argparse.Namespace) -> str:
+    """The Lemon-ID of the caller's parent, or of its child `--child` names."""
+    try:
+        own = brief.lemon.own_id(conn, args.channel or "")
+        if args.parent:
+            parent = lineage.links.parent_of(conn, own)
+            if not parent:
+                _fail(f"{own} has no parent link; `lemonaid lemon parent --self --set <parent>`")
 
-    if not found:
-        found = [
-            entry
-            for entry in all_briefs
-            if entry.channel and (entry.path.stem == target or entry.path.name == target)
-        ]
-    if len(found) != 1:
-        _fail(f"Expected one attached lemon for {target!r}; found {len(found)}")
+            return parent
 
-    return found[0]
+        child = brief.lemon.lemon_id(conn, args.child)
+    except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
+        _fail(str(error))
+        raise
+
+    if lineage.links.parent_of(conn, child) != own:
+        _fail(f"{child} is not a child of {own}")
+
+    return child
 
 
-def _self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "") -> str:
-    channel = explicit or os.environ.get("LEMONAID_CHANNEL", "")
-    if channel:
-        return channel
-
-    if session_id := os.environ.get("CLAUDE_CODE_SESSION_ID"):
-        return channel_id("claude", session_id)
-
-    if session_id := os.environ.get("CODEX_THREAD_ID"):
-        return full_channel_id("codex", session_id)
-
-    if pane_id := os.environ.get("TMUX_PANE"):
-        where = self_session.pane_location(pane_id)
-        if where is None:
-            if fallback:
-                return fallback
-
-            _fail(f"Could not ask tmux where pane {pane_id} is")
-
-        channel, error = self_session.resolve(conn, where)
-        if error:
-            if fallback:
-                return fallback
-
-            _fail(error)
-
-        return channel
-
-    if fallback:
-        return fallback
-
-    _fail("Cannot identify this lemon; set LEMONAID_CHANNEL or use a tmux pane")
+def _recipient(conn: sqlite3.Connection, target: str) -> tuple[str, str]:
+    """(Lemon-ID, channel) for *target*."""
+    try:
+        recipient = brief.lemon.attachment(conn, target)
+        return brief.identity.ensure(conn, recipient.path), recipient.channel
+    except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
+        _fail(str(error))
+        raise
 
 
 def cmd_tell(args: argparse.Namespace) -> None:
-    if args.parent or args.child:
+    linked = args.parent or args.child
+    message = args.target if linked and args.message is None else args.message
+    if (not linked and not args.target) or message is None:
         _fail(
-            "--parent and --child require lemon parent links (planned in item 3); use a stable ID, channel, or brief name"
+            "Usage: lemonaid tell (<lemon-id-or-channel-or-brief> | --parent | --child <lemon>) <message>"
         )
 
-    if not args.target or args.message is None:
-        _fail("Usage: lemonaid tell <lemon-id-or-channel-or-brief> <message>")
-
     with db.connect() as conn:
-        recipient = _target(conn, args.target)
-        try:
-            lemon_id = brief.identity.ensure(conn, recipient.path)
-        except (ValueError, brief.store.ChangedUnderneath) as error:
-            _fail(str(error))
+        if linked:
+            lemon_id = _linked(conn, args)
+            try:
+                channel = brief.lemon.attachment(conn, lemon_id).channel
+            except LookupError:
+                channel = ""  # not started yet; its messages wait in its inbox
+        else:
+            lemon_id, channel = _recipient(conn, args.target)
 
-        sender = _self_channel(conn, args.channel or "", os.environ.get("USER") or "unknown")
+        sender = brief.lemon.self_channel(
+            conn, args.channel or "", os.environ.get("USER") or "unknown"
+        )
         sender_brief = brief.attached.by_channel(conn, [sender]).get(sender)
         if sender_brief is not None:
             try:
@@ -115,18 +90,21 @@ def cmd_tell(args: argparse.Namespace) -> None:
                 _fail(str(error))
     try:
         inbox = store.inbox_for_id(lemon_id)
-        path = store.send(inbox, sys.stdin.read() if args.message == "-" else args.message, sender)
+        path = store.send(inbox, sys.stdin.read() if message == "-" else message, sender)
     except ValueError as error:
         _fail(str(error))
 
-    if recipient.channel.startswith("codex:"):
+    if channel.startswith("codex:"):
         service.ensure_running()
     print(path)
 
 
 def _receive(args: argparse.Namespace, wait: bool) -> None:
     with db.connect() as conn:
-        channel = _self_channel(conn, args.channel or "")
+        try:
+            channel = brief.lemon.self_channel(conn, args.channel or "")
+        except LookupError as error:
+            _fail(str(error))
         brief_path = _attachment(conn, channel)
         try:
             lemon_id = brief.identity.ensure(conn, brief_path)
@@ -193,8 +171,12 @@ def cmd_watch(args: argparse.Namespace) -> None:
 def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("tell", help="Send a Markdown message to a lemon's inbox")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--parent", action="store_true", help="Parent link (requires item 3)")
-    group.add_argument("--child", metavar="NAME", help="Child link (requires item 3)")
+    group.add_argument("--parent", action="store_true", help="Send to this lemon's parent")
+    group.add_argument(
+        "--child",
+        metavar="LEMON",
+        help="Send to this lemon's child (a Lemon-ID, channel, or brief)",
+    )
     parser.add_argument("--channel", help="Sender channel, overriding self detection")
     parser.add_argument(
         "target", nargs="?", help="Stable lemon ID, channel, or attached brief name"

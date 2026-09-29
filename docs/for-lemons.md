@@ -326,7 +326,11 @@ lemonaid brief status --self waiting            # Status: waiting  (working | wa
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
+lemonaid place open feat/thing --brief <file> --parent self  # and record yourself as its parent
+lemonaid lemon children --self --json          # your children, with their brief Status:
 ```
+
+Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
 `--self` is the lemon in the calling tmux pane, resolved the same way as `inbox emoji --self`.
 `--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet

@@ -3,10 +3,11 @@
 import argparse
 import dataclasses
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
-from .. import brief
+from .. import brief, lineage
 from ..config import Config, PlaceRoot, load_config
 from ..inbox import db
 from . import lifecycle, ownership, toss_cli
@@ -46,6 +47,21 @@ def _attach_brief(
     return None
 
 
+def _parent_link(conn: sqlite3.Connection, child_brief: Path, parent: str) -> tuple[str, str]:
+    """(child, parent) Lemon-IDs, checked before anything is opened; exits on an error."""
+    try:
+        child = brief.identity.ensure(conn, child_brief)
+        parent_id = (
+            brief.lemon.own_id(conn) if parent == "self" else brief.lemon.lemon_id(conn, parent)
+        )
+        lineage.links.check(conn, child, parent_id)
+    except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
+        print(f"--parent {parent}: {error}", file=sys.stderr)
+        sys.exit(1)
+
+    return child, parent_id
+
+
 def cmd_open(args: argparse.Namespace) -> None:
     """Get a session for a key, acquiring its directory if it doesn't exist yet."""
     config = load_config()
@@ -58,11 +74,18 @@ def cmd_open(args: argparse.Namespace) -> None:
         print(f"No brief at {brief_path}", file=sys.stderr)
         sys.exit(1)
 
+    if args.parent and not brief_path:
+        print("--parent needs --brief: a link is between two Lemon-IDs", file=sys.stderr)
+        sys.exit(1)
+
     # Taken before the session exists, so a lemon that starts quickly still counts.
     live_before: list[str] = []
+    link: tuple[str, str] | None = None
     if brief_path:
         with db.connect() as conn:
             live_before = brief.attached.live_channels(conn)
+            if args.parent:
+                link = _parent_link(conn, brief_path, args.parent)
 
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
@@ -97,6 +120,10 @@ def cmd_open(args: argparse.Namespace) -> None:
             brief_path, args.key, directory, root is not None, config, args.harness, live_before
         )
 
+    if link and not error:
+        with db.connect() as conn:
+            lineage.links.set_parent(conn, *link)
+
     if args.json:
         print(
             json.dumps(
@@ -105,6 +132,8 @@ def cmd_open(args: argparse.Namespace) -> None:
                     "dir": str(directory) if directory else None,
                     "root": str(root.path) if root else None,
                     "brief": str(brief_path) if brief_path else None,
+                    "lemon_id": link[0] if link else None,
+                    "parent": link[1] if link else None,
                     "error": error,
                 }
             )
@@ -271,6 +300,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="FILE",
         help="Attach this brief (a path, or a name in ~/.brief-lemons/) to the first "
         "lemon that starts in the session's harness window",
+    )
+    open_parser.add_argument(
+        "--parent",
+        default="",
+        metavar="LEMON",
+        help="Record LEMON (`self`, a Lemon-ID, channel, or brief) as the parent of "
+        "the --brief's lemon",
     )
     open_parser.add_argument(
         "-d",

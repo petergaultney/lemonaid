@@ -71,6 +71,7 @@ class Section:
     path: Path | None  # None for a lemon with no brief
     mtime: float
     body: str  # Markdown: Needs, the title under a lemon, the rest of Now, then the task
+    family: str = ""  # Markdown naming its parent and children, filled in by `family.added`
 
 
 @dataclasses.dataclass(frozen=True)
@@ -238,7 +239,11 @@ def _markdown_section(section: Section, in_session: bool) -> str:
             f"### {_who(section.lemon, in_session)}" if section.lemon else f"### {section.title}",
             "  \n".join(
                 line
-                for line in (f"**Status:** {status_text(section)}", f"**PR:** {prs}" if prs else "")
+                for line in (
+                    f"**Status:** {status_text(section)}",
+                    f"**PR:** {prs}" if prs else "",
+                    section.family,
+                )
                 if line
             ),
             section.body,

@@ -16,7 +16,7 @@ from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock  # no public name
 
-from ...brief import links, pr, render, target
+from ...brief import family, links, pr, render, target
 from ...log import get_logger
 from . import brief_card, utils
 
@@ -188,6 +188,7 @@ class BriefView(VerticalScroll):
             for widget in (
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
+                *([_Markdown(section.family)] if section.family else []),
                 *([_Markdown(links.linkify(section.body))] if section.body else []),
             )
         ]
@@ -201,7 +202,7 @@ class BriefView(VerticalScroll):
     def update_brief(self, found: target.Target, unread: bool = False) -> None:
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
-        shown = render.view(found, now, self._pr_states.get)
+        shown = family.added(render.view(found, now, self._pr_states.get))
         rendered = render.to_markdown(shown, now)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):

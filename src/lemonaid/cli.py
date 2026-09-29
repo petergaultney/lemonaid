@@ -13,6 +13,7 @@ from . import (
     codex,
     for_lemons,
     inbox,
+    lineage,
     messages,
     openclaw,
     opencode,
@@ -128,6 +129,7 @@ def main() -> None:
 
     inbox.cli.setup_parser(subparsers)
     messages.cli.add_tell_parser(subparsers)
+    lineage.cli.setup_parser(subparsers)
     claude.cli.setup_parser(subparsers)
     codex.cli.setup_parser(subparsers)
     openclaw.cli.setup_parser(subparsers)

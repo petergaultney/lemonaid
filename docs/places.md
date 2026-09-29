@@ -79,7 +79,7 @@ lemonaid place open feat/thing --harness codex --prompt 'read .z/brief.md and do
 
 `--brief <file>` attaches a brief (a path, or a name in `~/.brief-lemons/`) to the
 first lemon that starts in the session's harness window, so the prompt can just
-say to read it. See `lemonaid for-lemons` for the `brief` commands.
+say to read it. See `lemonaid for-lemons` for the `brief` commands. `--parent self` (or a Lemon-ID) also records the caller as that brief's lemon's parent; see [parent links](lineage.md).
 
 The prompt is shell-quoted and appended as a positional argument to the command
 in `harness_window` (or `resume_window` when `harness_window` is unset). These

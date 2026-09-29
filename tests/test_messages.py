@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, identity
+from lemonaid.brief import attached, identity, lemon
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, self_session
 from lemonaid.messages import cli, store
@@ -208,7 +208,7 @@ def test_direct_id_target_skips_another_invalid_brief(capsys, monkeypatch):
     bad.write_text(bad.read_text().replace("Lemon-ID: ", "Lemon-ID: ."))
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
     warnings = []
-    monkeypatch.setattr(cli._log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(lemon._log, "warning", lambda *args: warnings.append(args))
 
     _run(_parser(), "tell", inbox.name, "Hello")
 
@@ -233,15 +233,6 @@ def test_watch_delivers_one_message_then_exits(tmp_path):
         assert results[0][0].parent == inbox / "done"
     finally:
         thread.join(timeout=2)
-
-
-def test_parent_and_child_selectors_report_missing_links(capsys):
-    parser = _parser()
-    for selection in (("--parent", "Hello"), ("--child", "reviewer", "Hello")):
-        with pytest.raises(SystemExit, match="1"):
-            _run(parser, "tell", *selection)
-
-        assert "require lemon parent links" in capsys.readouterr().err
 
 
 def test_receiving_requires_known_channel_and_attached_brief(capsys, monkeypatch):
