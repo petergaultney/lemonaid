@@ -88,18 +88,26 @@ The name may come from the interpreter's command line or the pane title. Add
 |-----|---------|-------------|
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
-| `brief_status` | `false` | In card layout, color sessions with attached briefs by their `Status:` and show brief age. |
+| `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
 With `brief_status = true`, attached briefs give `blocked` cards a yellow
-headline, `done` cards a blue headline, and `waiting` cards dimmer text.
+headline, `done` cards a blue headline, and `waiting` cards dimmer text. On blocked and
+done cards the model label becomes a badge in its provider colour.
 Right under the name and location, a card shows the first line of `Needs` from
 `## Now` with its label (`Needs Peter: ...`) in the attention colour, then the
 brief age, then, for a `waiting` brief, the first line of `Waiting on`. `working` cards retain the read style.
 Every brief card shows its age. Unread remains a separate dot, including when
 `card_unread_style = "bar"`. Cards without an attached brief retain their
-current appearance. This setting only changes cards, not the column layout.
+current appearance.
+
+In the column layout, a `blocked` row fills amber (deeper than the header's
+unread yellow, which it sorts right under) and a `done` row blue, with
+the model as the same badge, and a read `waiting` row dims. The green bar that
+marks the current session stays green. Rows carry no age, `Needs` or
+`Waiting on` lines; there is no room for them.
+
 Sessions sort by brief status in both layouts whether or not it is set; see
 [Session order](../README.md#session-order).
 

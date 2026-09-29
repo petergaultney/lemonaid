@@ -3,8 +3,18 @@
 import dataclasses
 from pathlib import Path
 
+from rich.style import Style
+
 from ...brief import now as brief_now
 from ...brief import status as brief_status
+from .utils import ATTENTION_COLOR
+
+# Headline colours for the statuses that want a look: a blocked lemon waits on
+# you, and a done one is ready to clean up.
+STATUS_STYLES = {
+    "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
+    "done": Style(color="#ffffff", bgcolor="#285995"),
+}
 
 
 @dataclasses.dataclass(frozen=True)

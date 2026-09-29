@@ -267,6 +267,15 @@ def test_blocked_unread_dot_contrasts_with_its_headline():
     assert style.bold
 
 
+def test_a_blocked_headline_keeps_the_model_in_its_provider_colour():
+    cells = _brief_cells()
+    cells[2] = Text("Opus 5.5", style="#d88760")
+    (body,) = app._as_card(cells, 40, gutter_width=2, card_brief=CardBrief("blocked", "", 0))
+    style = body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index("Opus"))
+
+    assert (style.color.name, style.bgcolor.name) == ("#000000", "#d88760")
+
+
 def test_waiting_brief_lines_keep_the_current_session_edge_and_age():
     (body,) = app._as_card(
         _brief_cells(unread=True, here=True),

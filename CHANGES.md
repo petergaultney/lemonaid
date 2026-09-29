@@ -3,6 +3,7 @@
 #### Changed
 
 - **The tmux scratch pane starts as a left sidebar.** `scratch_position` in `[tmux-session]` now defaults to `left`; a configured `top`, or a position already saved with `--flip`, `--position` or `f`, still wins.
+- **`[tui] brief_status` colours the top strip's rows too.** A `blocked` row fills amber and a `done` row blue, like their cards' headlines, and a read `waiting` row dims. The current session's green bar stays, and on a coloured row or headline the model is a badge in its provider colour.
 - **The sidebar no longer draws an empty coloured row above its cards.** The top strip keeps its labelled header, including its unread and history colours.
 
 # 0.32.1 (2026-09-28)

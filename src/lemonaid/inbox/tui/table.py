@@ -1,5 +1,6 @@
 """The inbox's table, which switches to a session on the first click."""
 
+from rich.style import Style
 from textual import events
 from textual.coordinate import Coordinate
 from textual.message import Message
@@ -39,6 +40,17 @@ class ClickToActTable(DataTable):
     def __init__(self, *args: object, **kwargs: object) -> None:
         kwargs.setdefault("cursor_foreground_priority", "renderable")
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        # Fills a whole row, padding included, which a cell's own style can't.
+        # Keyed by row key; set it before the cell updates that repaint the rows.
+        self.row_backgrounds: dict[str, Style] = {}
+
+    def _get_row_style(self, row_index: int, base_style: Style) -> Style:
+        style = super()._get_row_style(row_index, base_style)
+        if row_index < 0 or row_index >= len(self.ordered_rows):
+            return style
+
+        fill = self.row_backgrounds.get(str(self.ordered_rows[row_index].key.value))
+        return style + fill if fill else style
 
     def on_click(self, event: events.Click) -> None:
         # Public on_click runs alongside the base _on_click rather than replacing
