@@ -18,6 +18,7 @@ from . import (
     opencode,
     places,
     tmux,
+    watch,
     wezterm,
 )
 from .config import ensure_config_exists, get_config_path
@@ -134,6 +135,7 @@ def main() -> None:
     places.cli.setup_parser(subparsers)
     brief.cli.setup_parser(subparsers)
     tmux.cli.setup_parser(subparsers)
+    watch.cli.setup_parser(subparsers)
     wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)

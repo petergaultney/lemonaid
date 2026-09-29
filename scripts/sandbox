@@ -19,7 +19,8 @@ shell rebuilds PATH, so call this checkout's code there as
 
 Commands that write outside lemonaid's own state - `claude hooks`, `claude
 patch`, `claude patch-restore` - are refused, since no environment variable can
-redirect ~/.claude or the Claude binary.
+redirect ~/.claude or the Claude binary. So is `watch openclaw start`, whose
+waiter runs as a systemd unit outside this environment.
 """
 
 import os
@@ -38,13 +39,22 @@ BRIEFS = SANDBOX / "briefs"
 MESSAGES = SANDBOX / "messages"
 SOCKET = SANDBOX / "tmux.sock"
 BIN = SANDBOX / "bin"
+WATCH_TMP = SANDBOX / "tmp"
+WATCH_LISTS = SANDBOX / "watch-lists"
 
 LIVE_DB = Path(os.environ.get("LEMONAID_DB") or "~/.local/share/lemonaid/lemonaid.db").expanduser()
 LIVE_CONFIG = Path(
     os.environ.get("LEMONAID_CONFIG") or "~/.config/lemonaid/config.toml"
 ).expanduser()
 
-_REFUSED = [("claude", "hooks"), ("claude", "patch"), ("claude", "patch-restore")]
+_REFUSED = [
+    ("claude", "hooks"),
+    ("claude", "patch"),
+    ("claude", "patch-restore"),
+    # Starts a systemd user unit, which sees none of this environment and delivers to real
+    # OpenClaw sessions.
+    ("watch", "openclaw", "start"),
+]
 
 
 def _snapshot() -> None:
@@ -73,6 +83,7 @@ def _snapshot() -> None:
 
 
 def _environment() -> dict[str, str]:
+    WATCH_TMP.mkdir(parents=True, exist_ok=True)
     env = {
         **os.environ,
         "LEMONAID_DB": str(DB),
@@ -80,6 +91,10 @@ def _environment() -> dict[str, str]:
         "LEMONAID_STATE_DIR": str(STATE),
         "LEMONAID_BRIEFS_DIR": str(BRIEFS),
         "LEMONAID_MESSAGES_DIR": str(MESSAGES),
+        # Doc waiters keep their locks and reported threads in $TMPDIR/watch-doc,
+        # shared with every live waiter on the machine.
+        "TMPDIR": str(WATCH_TMP),
+        "LEMONAID_WATCH_LISTS_DIR": str(WATCH_LISTS),
         # A tmux client with no -S/-L talks to the server $TMUX names, so every
         # tmux call lemonaid makes lands on the sandbox server.
         "TMUX": f"{SOCKET},0,0",
@@ -99,7 +114,7 @@ def _refusal(argv: list[str]) -> str:
             f"sandbox: `lemonaid {' '.join(pair)}` writes outside the sandbox; run it for real "
             "only if Peter asks"
             for pair in _REFUSED
-            if tuple(words[1:3]) == pair
+            if tuple(words[1 : 1 + len(pair)]) == pair
         ),
         "",
     )

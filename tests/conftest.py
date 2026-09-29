@@ -1,3 +1,5 @@
+import tempfile
+
 import pytest
 
 from lemonaid.inbox import db
@@ -36,6 +38,19 @@ def _own_state_and_config(monkeypatch, tmp_path):
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(tmp_path / "briefs"))
     monkeypatch.delenv("LEMONAID_MESSAGES_DIR", raising=False)
     monkeypatch.setenv("LEMONAID_CONFIG", str(tmp_path / "config.toml"))
+
+
+@pytest.fixture(autouse=True)
+def _own_watch_state(monkeypatch, tmp_path_factory):
+    """Doc waiters' locks, reported threads, and watch lists are shared with live waiters.
+
+    Deleting a live waiter's lock breaks its duplicate detection until it restarts, so
+    `$TMPDIR/watch-doc` and the OpenClaw watch lists both move to the test's own
+    directories, outside `tmp_path` so tests that list it see only their own files.
+    """
+    monkeypatch.setenv("TMPDIR", str(tmp_path_factory.mktemp("tmpdir")))
+    monkeypatch.setattr(tempfile, "tempdir", None)
+    monkeypatch.setenv("LEMONAID_WATCH_LISTS_DIR", str(tmp_path_factory.mktemp("watch-lists")))
 
 
 @pytest.fixture(autouse=True)

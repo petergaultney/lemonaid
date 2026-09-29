@@ -422,3 +422,13 @@ let your turn end until that watch is running.
 When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
 `lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
 described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
+
+## Watching a document for comments
+
+`lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a Relay Comment
+thread in `<doc>` is waiting on you, prints one line, and exits. Run it as a background task
+(Claude), or pass `--codex-thread "$CODEX_THREAD_ID"` to have the event queued into your
+Codex thread instead. `--status <doc> --me <name>` says whether a waiter is already running;
+a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
+`lemonaid watch openclaw start <doc> --session-key <key>`. Flags and state match the
+standalone `watch-doc.py`, so the two can run side by side. Details: [watch.md](watch.md).

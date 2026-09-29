@@ -1,0 +1,195 @@
+"""`lemonaid watch doc`: a blocking waiter on Markdown documents with Relay Comments.
+
+With `--wait DOC`, watches one doc. By default it prints one line per event and never
+exits on its own. With `--once`, it prints the first event and exits, so a Claude
+background Bash task wakes its session once on completion. With `--codex-thread`, it
+queues the first event into that Codex thread and exits. In both one-shot modes the woken
+turn handles the event and starts a fresh waiter.
+
+With `--watch-list FILE`, one waiter serves one actor: it watches every doc on that list
+(see watch_list.py), re-reading the list on each pass, drops a doc after `--idle-expire`
+seconds with no event, and exits when the list is empty. With `--openclaw-session`, each
+event runs one OpenClaw agent turn in that session; `lemonaid watch openclaw` manages these.
+
+Events:
+- a Relay Comment thread whose last block is not by `--me` (or a `--legacy` name)
+  appeared, or an unanswered one gained a block (always on)
+- the document body changed outside comment threads, after `--quiet` seconds of no further
+  change (only with `--edits`; a human types incrementally, and the session's own edits
+  also trigger this - the event names the line delta so the reader can tell)
+
+Threads already reported, and with `--edits` the body as of the last reported edit, are
+remembered per (doc, --me) in `--state-dir`, so a restarted waiter does not re-report a
+thread nobody has touched since, and does report body edits made while no waiter ran. One
+waiter per (doc, --me), and one per watch list, may run; a second exits at once, naming
+the first. Flags, state files and locks match the standalone watch-doc.py, so either can
+replace the other without losing what has been reported.
+
+    lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--edits] [--once]
+    lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"
+    lemonaid watch doc --watch-list <list.json> --me Meyer --openclaw-session <key> --idle-expire 604800
+    lemonaid watch doc --status <doc> --me Pliny
+"""
+
+import argparse
+import pathlib
+import sys
+
+from . import delivery, doc_events, doc_wait, watch_list
+
+_OPENCLAW_TURN_TIMEOUT_MS = 600_000
+
+
+def run(a: argparse.Namespace) -> int:
+    if a.codex_thread and a.openclaw_session:
+        print("not started: --codex-thread and --openclaw-session are exclusive")
+        return 2
+
+    if a.watch_list and (a.once or a.codex_thread):
+        print(
+            "not started: --watch-list keeps watching, so it takes neither --once nor --codex-thread"
+        )
+        return 2
+
+    a.state_dir.mkdir(parents=True, exist_ok=True)
+    if a.watch_list:
+        lock = watch_list.hold_waiter(a.watch_list)
+        lock_path = a.watch_list.with_suffix(".waiter")
+    else:
+        lock_path = doc_events.state_stem(a.state_dir, a.wait or a.status, a.me).with_suffix(
+            ".lock"
+        )
+        lock = doc_wait.acquire(lock_path)
+    if a.status:
+        print(
+            f"waiter running: {doc_wait.lock_holder(lock_path)}"
+            if lock is None
+            else "no waiter running"
+        )
+        return 0 if lock is None else 1
+
+    if lock is None:
+        print(
+            f"not started: a waiter for {a.wait or a.watch_list} as {a.me} is already running ({doc_wait.lock_holder(lock_path)})"
+        )
+        return 3
+
+    if a.codex_thread:
+        problem, deliver, once = (
+            delivery.codex_setup_problem(),
+            delivery.to_codex(a.codex_thread),
+            True,
+        )
+    elif a.openclaw_session:
+        problem = delivery.openclaw_setup_problem(a.openclaw_cli)
+        deliver = delivery.to_openclaw(
+            a.openclaw_session, a.me, a.hq_session, a.openclaw_cli, _OPENCLAW_TURN_TIMEOUT_MS
+        )
+        once = a.once
+    else:
+        problem, deliver, once = "", delivery.to_stdout, a.once
+    if problem:
+        print(f"not started: {problem}")
+        return 2
+
+    try:
+        if a.watch_list:
+            doc_wait.wait_list(
+                a.state_dir,
+                a.watch_list,
+                lock,
+                a.me,
+                a.legacy,
+                a.edits,
+                a.quiet,
+                deliver,
+                a.idle_expire,
+                a.interval,
+            )
+        else:
+            doc_wait.wait_doc(
+                doc_events.open_watch(a.state_dir, a.wait, a.me, a.legacy, a.edits, a.quiet),
+                deliver,
+                once,
+                a.interval,
+            )
+    except KeyboardInterrupt:
+        pass
+    except delivery.Failed as e:
+        print(f"{e}; the event was not recorded and will be reported to the next waiter")
+        return 1
+    return 0
+
+
+def _cmd(a: argparse.Namespace) -> None:
+    sys.exit(run(a))
+
+
+def add_parser(subparsers: argparse._SubParsersAction) -> None:
+    ap = subparsers.add_parser(
+        "doc",
+        help="Wait for Relay Comments (and optionally body edits) on vault documents",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--wait", type=pathlib.Path, metavar="DOC", help="document to watch")
+    mode.add_argument(
+        "--watch-list",
+        type=pathlib.Path,
+        metavar="FILE",
+        help="watch every doc on this actor's list",
+    )
+    mode.add_argument(
+        "--status", type=pathlib.Path, metavar="DOC", help="report whether a waiter is running"
+    )
+    ap.add_argument("--me", required=True, help="author name you sign replies with")
+    ap.add_argument(
+        "--legacy",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="another author name whose blocks count as your replies, e.g. your harness name (repeatable)",
+    )
+    ap.add_argument(
+        "--edits", action="store_true", help="also report body edits outside comment threads"
+    )
+    ap.add_argument("--interval", type=float, default=15.0, help="seconds between reads")
+    ap.add_argument(
+        "--quiet",
+        type=float,
+        default=45.0,
+        help="seconds of no further change before a body edit is reported",
+    )
+    ap.add_argument("--once", action="store_true", help="print the first event and exit")
+    ap.add_argument(
+        "--codex-thread",
+        default="",
+        metavar="THREAD_ID",
+        help="queue one event into this Codex thread and exit instead of printing events forever",
+    )
+    ap.add_argument(
+        "--openclaw-session",
+        default="",
+        metavar="SESSION_KEY",
+        help="run an OpenClaw agent turn in this session for each event",
+    )
+    ap.add_argument(
+        "--hq-session",
+        default="agent:main:main",
+        help="OpenClaw session that reaches the human directly",
+    )
+    ap.add_argument("--openclaw-cli", default="openclaw", help="the openclaw executable")
+    ap.add_argument(
+        "--idle-expire",
+        type=float,
+        default=0.0,
+        help="with --watch-list: drop a doc after this many seconds with no event (0: never)",
+    )
+    ap.add_argument(
+        "--state-dir",
+        type=pathlib.Path,
+        default=doc_events.default_state_dir(),
+        help="where reported threads and waiter locks live (default: $TMPDIR/watch-doc)",
+    )
+    ap.set_defaults(func=_cmd)
