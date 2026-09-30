@@ -243,10 +243,9 @@ def test_a_brief_switch_leaves_focus_on_the_inbox_once(tmux):
 def _where_the_client_is(run) -> str:
     """The attached client's window.
 
-    Asked of the client rather than of `display` with no target: $TMUX carries a
-    pane id as its third field, and the fixture has no real pane to name there,
-    so tmux resolves "current" to whichever session owns %0 - the parking
-    session - however the client has since been switched.
+    Asked of the client rather than of `display` with no target: with no pane
+    to name, tmux resolves that to the session with the newest activity, which
+    need not be the one the client shows.
     """
     return run("list-clients", "-F", "#{session_name}:#{window_index}").stdout.strip()
 

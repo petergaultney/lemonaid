@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from ..log import get_logger
-from . import follow
+from . import follow, here
 from .navigation import get_state_path
 
 _log = get_logger("tmux.scratch")
@@ -347,15 +347,23 @@ def _get_pane_window(pane_id: str) -> str | None:
 
 
 def _get_current_window() -> str | None:
-    """Get the current window ID."""
+    """The invoking window's ID, or None when there is no invoking pane or session.
+
+    Never tmux's untargeted "current", which is whichever session was active last.
+    """
+    target = here.target()
+    if not target:
+        return None
+
     result = subprocess.run(
-        ["tmux", "display-message", "-p", "#{window_id}"],
+        ["tmux", "display-message", *target, "-p", "#{window_id}"],
         capture_output=True,
         text=True,
     )
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return None
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
 
 
 def _session_exists() -> bool:
@@ -407,7 +415,7 @@ def _create_pane() -> str:
     # Get current window dimensions to size the detached session properly
     # (otherwise detached sessions get tiny default dimensions)
     size_result = subprocess.run(
-        ["tmux", "display-message", "-p", "#{window_width} #{window_height}"],
+        ["tmux", "display-message", *here.target(), "-p", "#{window_width} #{window_height}"],
         capture_output=True,
         text=True,
     )
@@ -458,7 +466,7 @@ def _capped(size: str, position: str) -> str:
     """`size`, unless the client cannot hold it and still leave the main pane
     follow.MIN_MAIN. Same rule as the hook, so a show and a swap agree."""
     result = subprocess.run(
-        ["tmux", "display-message", "-p", _window_size_format(position)],
+        ["tmux", "display-message", *here.target(), "-p", _window_size_format(position)],
         capture_output=True,
         text=True,
     )
@@ -490,14 +498,16 @@ def _show(pane_id: str, size: str, position: str, target_pane: str | None = None
     requested = size
     size = _capped(size, position)
     target = target_pane or _get_current_window()
-    placeholder = next(iter(follow.placeholders(target) if target else []), None)
+    if target is None:
+        return False
+
+    placeholder = next(iter(follow.placeholders(target)), None)
     if placeholder:
         if not _swap_into(pane_id, placeholder, size, position):
             return False
     else:
         cmd = ["tmux", "join-pane", _split_flag(position), "-b", "-l", size, "-s", pane_id]
-        if target_pane:
-            cmd.extend(["-t", target_pane])
+        cmd.extend(["-t", target])
         if subprocess.run(cmd, capture_output=True).returncode != 0:
             return False
 
@@ -559,15 +569,23 @@ def _clear_brief(pane_id: str) -> None:
 
 
 def _get_current_pane() -> str | None:
-    """Get the current pane ID."""
+    """The invoking pane's ID, or None when there is no invoking pane or session.
+
+    Never tmux's untargeted "current", which is whichever session was active last.
+    """
+    target = here.target()
+    if not target:
+        return None
+
     result = subprocess.run(
-        ["tmux", "display-message", "-p", "#{pane_id}"],
+        ["tmux", "display-message", *target, "-p", "#{pane_id}"],
         capture_output=True,
         text=True,
     )
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return None
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
 
 
 def _create_and_show(size: str, position: str) -> str:
@@ -590,13 +608,18 @@ def ensure_scratch(size: str = "10", position: str = "left") -> str:
     """Ensure the scratch pane is visible in the current window.
 
     Like toggle, but never hides — only creates or shows.
-    Returns 'shown', 'created', or 'already_visible'.
+    Returns 'shown', 'created', 'already_visible', or 'no target'.
     """
     if is_follow_enabled():
         _publish_all(size, position)
         follow.install_hooks()
 
     current_pane = _get_current_pane()
+    current_window = _get_current_window()
+    if current_pane is None or current_window is None:
+        _log.info("no invoking pane or session; leaving the scratch pane where it is")
+        return "no target"
+
     pane_id = _get_pane_id()
 
     if pane_id is None or not _pane_exists(pane_id):
@@ -604,7 +627,6 @@ def ensure_scratch(size: str = "10", position: str = "left") -> str:
     if pane_id is None or not _pane_exists(pane_id):
         return _create_and_show(size, position)
 
-    current_window = _get_current_window()
     pane_window = _get_pane_window(pane_id)
 
     if pane_window == current_window:
@@ -715,7 +737,8 @@ def set_follow(size: str = "10", position: str = "left", enable: bool = True) ->
 
 
 def toggle_scratch(size: str = "10", position: str = "left", follow_default: bool = False) -> str:
-    """Toggle the scratch lma pane. Returns 'shown', 'hidden', 'selected', or 'created'.
+    """Toggle the scratch lma pane. Returns 'shown', 'hidden', 'selected', 'defocused',
+    'created', or 'no target' when there is no invoking pane or session to act in.
 
     In follow mode, the pane is never hidden via toggle — use q in lma to dismiss.
     follow_default is the config value, used to bootstrap the follow file on first run.
@@ -727,6 +750,11 @@ def toggle_scratch(size: str = "10", position: str = "left", follow_default: boo
         follow.install_hooks()
 
     current_pane = _get_current_pane()
+    current_window = _get_current_window()
+    if current_pane is None or current_window is None:
+        _log.info("no invoking pane or session; leaving the scratch pane where it is")
+        return "no target"
+
     pane_id = _get_pane_id()
 
     if pane_id is None or not _pane_exists(pane_id):
@@ -734,15 +762,22 @@ def toggle_scratch(size: str = "10", position: str = "left", follow_default: boo
     if pane_id is None or not _pane_exists(pane_id):
         return _create_and_show(size, position)
 
-    current_window = _get_current_window()
     pane_window = _get_pane_window(pane_id)
+    _log.info(
+        "toggle: here %s %s, pane %s in %s, follow=%s",
+        current_window,
+        current_pane,
+        pane_id,
+        pane_window,
+        following,
+    )
 
     if pane_window == current_window:
         if current_pane == pane_id:
             if following:
                 # Focus the next pane (the main content pane below)
                 subprocess.run(
-                    ["tmux", "select-pane", "-t", ":.+"],
+                    ["tmux", "select-pane", "-t", f"{current_window}.+"],
                     capture_output=True,
                 )
                 return "defocused"

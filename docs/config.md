@@ -237,6 +237,7 @@ lemons on the machine can learn the convention.
 | `LEMONAID_BRIEFS_DIR` | One directory of briefs, replacing the home's `brief/`. Pins it: `home migrate` refuses while it is set. |
 | `LEMONAID_MESSAGES_DIR` | Root of the lemon message inboxes, replacing the home's `inbox/` (`<briefs dir>/inbox` when `LEMONAID_BRIEFS_DIR` is set). |
 | `LEMONAID_CHANNEL` | The channel `lemonaid tell` sends from and the `lemonaid inbox` message commands read for, ahead of the harness session id or tmux pane. |
+| `LEMONAID_LOG` | Path of the shared log, replacing `/tmp/lemonaid.log`. The test suite sets it, so test runs stay out of the real log. |
 | `LEMONAID_DEBUG` | `1` turns on debug logging in the hook entry points. |
 | `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
 

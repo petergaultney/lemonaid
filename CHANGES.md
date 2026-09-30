@@ -1,3 +1,10 @@
+# 0.41.1 (2026-09-30)
+
+#### Fixed
+
+- **The scratch toggle acts on the session whose key ran it.** A `run-shell` binding has no pane of its own, so lemonaid asked tmux for "the current window", and tmux answered with whichever session was active most recently. A session another process created or attached in that moment took the scratch pane out of your window. lemonaid now names the session from `$TMUX`.
+- **`LEMONAID_LOG` moves the shared log** away from `/tmp/lemonaid.log`.
+
 # 0.41.0 (2026-09-30)
 
 #### Added

@@ -2,16 +2,19 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
+# Set before lemonaid is imported, since its log handler opens the file at import.
+_LAST_RESORT = Path(tempfile.mkdtemp(prefix="lemonaid-tests-"))
+os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 
-from lemonaid.inbox import db
-from lemonaid.lemon_watchers import watcher
-from lemonaid.messages import service
+import pytest  # noqa: E402
+
+from lemonaid.inbox import db  # noqa: E402
+from lemonaid.lemon_watchers import watcher  # noqa: E402
+from lemonaid.messages import service  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
 # reverts them all, which once pointed a test's migration at the live database and
 # the real homes. These process-wide defaults are what an undone test falls back to.
-_LAST_RESORT = Path(tempfile.mkdtemp(prefix="lemonaid-tests-"))
 for _name, _path in (
     ("LEMONAID_DB", "lemonaid.db"),
     ("LEMONAID_CONFIG", "config.toml"),
