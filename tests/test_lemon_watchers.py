@@ -182,6 +182,74 @@ def test_watch_loop_retries_transcript_that_appears_after_session_hook(tmp_path,
     assert recorded == [ModelInfo("anthropic", "claude-opus-5-5")]
 
 
+def test_watch_loop_backs_off_transcript_that_never_appears(monkeypatch):
+    lookups_at: list[float] = []
+    clock = 0.0
+
+    class Backend:
+        CHANNEL_PREFIX = "claude:"
+
+        @staticmethod
+        def get_session_path(_session_id, _cwd):
+            lookups_at.append(clock)
+
+    def finish_poll(seconds: float) -> None:
+        nonlocal clock
+        clock += seconds
+        if clock >= 300:
+            raise StopIteration
+
+    monkeypatch.setattr(watcher.time, "monotonic", lambda: clock)
+    monkeypatch.setattr(watcher.time, "sleep", finish_poll)
+
+    with pytest.raises(StopIteration):
+        watcher.unified_watch_loop(
+            [Backend],
+            lambda: [("claude:abc", "abc", "/tmp", 0.0, False, None, "", None)],
+            lambda _channel: 0,
+            lambda _channel, _message: 0,
+            poll_interval=1.0,
+        )
+
+    assert lookups_at == [0, 5, 15, 35, 75, 155, 275]
+
+
+def test_watch_loop_new_notification_restarts_transcript_backoff(monkeypatch):
+    lookups_at: list[float] = []
+    clock = 0.0
+
+    class Backend:
+        CHANNEL_PREFIX = "claude:"
+
+        @staticmethod
+        def get_session_path(_session_id, _cwd):
+            lookups_at.append(clock)
+
+    def finish_poll(seconds: float) -> None:
+        nonlocal clock
+        clock += seconds
+        if clock >= 200:
+            raise StopIteration
+
+    def get_active():
+        created_at = 0.0 if clock < 180 else 180.0  # the session notifies again at 180 s
+        return [("claude:abc", "abc", "/tmp", created_at, False, None, "", None)]
+
+    monkeypatch.setattr(watcher.time, "monotonic", lambda: clock)
+    monkeypatch.setattr(watcher.time, "sleep", finish_poll)
+
+    with pytest.raises(StopIteration):
+        watcher.unified_watch_loop(
+            [Backend],
+            get_active,
+            lambda _channel: 0,
+            lambda _channel, _message: 0,
+            poll_interval=1.0,
+        )
+
+    assert lookups_at == [0, 5, 15, 35, 75, 155, 180, 185, 195]
+
+
 def test_parse_timestamp_zulu():
     ts = parse_timestamp("2026-01-24T12:34:56Z")
     assert ts == datetime(2026, 1, 24, 12, 34, 56, tzinfo=UTC).timestamp()

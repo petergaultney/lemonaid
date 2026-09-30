@@ -22,9 +22,12 @@ _log = get_logger("watcher")
 
 # A hook can announce a session just before its transcript is created. Keep
 # successful path lookups forever, but retry a miss instead of making that
-# startup race permanent. The delay avoids repeatedly scanning backend session
-# directories for rows that genuinely have no transcript.
+# startup race permanent. Each further miss doubles the delay, up to the cap: a
+# lookup miss costs tens of milliseconds (a Claude miss parses all of
+# history.jsonl), and rows whose transcript never appears can number in the
+# dozens and are never archived.
 _MISSING_SESSION_RETRY_SECONDS = 5.0
+_MISSING_SESSION_RETRY_MAX_SECONDS = 120.0
 
 
 class WatcherBackend(Protocol):
@@ -474,7 +477,8 @@ def unified_watch_loop(
     # Successful transcript lookups are stable. Missing paths are retried: a
     # session hook commonly arrives just before the backend creates its file.
     session_cache: dict[str, Path] = {}
-    session_retry_after: dict[str, float] = {}
+    # (retry at, next delay, (cwd, created_at) the delay was built up against)
+    session_retry_after: dict[str, tuple[float, float, tuple[str, float]]] = {}
     codex_checked_at = 0.0
 
     while stop_event is None or not stop_event.is_set():
@@ -555,11 +559,23 @@ def unified_watch_loop(
                 session_path = session_cache.get(cache_key)
                 if session_path is None:
                     now = time.monotonic()
-                    if now < session_retry_after.get(cache_key, 0.0):
+                    # A new notification on the row, or a changed cwd, is when a
+                    # late transcript turns up, so either restarts the backoff.
+                    row = (cwd, created_at)
+                    retry_at, delay, retry_row = session_retry_after.get(
+                        cache_key, (0.0, _MISSING_SESSION_RETRY_SECONDS, row)
+                    )
+                    if retry_row != row:
+                        retry_at, delay = 0.0, _MISSING_SESSION_RETRY_SECONDS
+                    if now < retry_at:
                         continue
                     session_path = backend.get_session_path(session_id, cwd)
                     if session_path is None:
-                        session_retry_after[cache_key] = now + _MISSING_SESSION_RETRY_SECONDS
+                        session_retry_after[cache_key] = (
+                            now + delay,
+                            min(delay * 2, _MISSING_SESSION_RETRY_MAX_SECONDS),
+                            row,
+                        )
                         continue
                     session_cache[cache_key] = session_path
                     session_retry_after.pop(cache_key, None)

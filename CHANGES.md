@@ -1,3 +1,9 @@
+# 0.36.2 (2026-09-30)
+
+#### Fixed
+
+- **The inbox watcher backs off rows whose transcript never appears.** It retried each one every 5 s forever, and a Claude miss parses all of `~/.claude/history.jsonl`; a few dozen such rows kept the sidebar near a quarter of a core. Retries now double from 5 s up to 2 minutes, and start over when the row gets a new notification.
+
 # 0.36.1 (2026-09-29)
 
 #### Fixed
