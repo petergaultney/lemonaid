@@ -138,7 +138,7 @@ _MODELS = {
 
 # `## Now` for each brief status a session above carries.
 _NOW = {
-    "blocked": "### Needs Peter\n\n- Pick a rounding rule for hydration above 100%\n",
+    "blocked": "### Needs you\n\n- Pick a rounding rule for hydration above 100%\n",
     "waiting": "### Waiting on\n\n- Review of the dedupe PR\n",
     "done": "### Done\n\n- Recipe import merged\n",
 }

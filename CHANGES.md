@@ -1,3 +1,9 @@
+# 0.36.3 (2026-09-30)
+
+#### Fixed
+
+- **The watch-doc turn sent to an OpenClaw worker refers to "the user"** instead of naming the maintainer.
+
 # 0.36.2 (2026-09-30)
 
 #### Fixed

@@ -217,8 +217,8 @@ def shorten_path(path: str) -> str:
 def fish_path(path: str) -> str:
     """Shorten a path fish-shell style: abbreviate intermediate dirs to first char.
 
-    ~/work/project/libs/tool     -> ~/w/p/l/tool
-    /Users/example/play/lemonaid -> ~/p/lemonaid
+    $HOME/work/project/libs/tool -> ~/w/p/l/tool
+    $HOME/play/lemonaid          -> ~/p/lemonaid
     /etc/nginx/conf.d            -> /e/n/conf.d
     """
     if not path:
