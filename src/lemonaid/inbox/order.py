@@ -2,7 +2,7 @@
 
 Pins come first. Below them, `alert` sessions, then `blocked`, then `merge`,
 then `review`, then `done` sessions, unread above read, then every other unread session, then
-everything else read: `working`, `waiting`, and no brief. Within each band rows
+read `running` sessions, then everything else read: `working`, `waiting`, and no brief. Within each band rows
 keep `db.get_active` order: pins by position, everything else unread first and
 then newest first.
 
@@ -20,8 +20,9 @@ _MERGE = 2
 _REVIEW = 3
 _UNREAD_DONE = 4
 _DONE = 5
-_UNREAD = 6  # working, waiting, or no brief
-_READ = 7  # working, waiting, or no brief
+_UNREAD = 6  # working, running, waiting, or no brief
+_RUNNING = 7
+_READ = 8  # working, waiting, or no brief
 _BANDS = {"alert": _ALERT, "blocked": _BLOCKED, "merge": _MERGE, "review": _REVIEW}
 
 
@@ -32,7 +33,10 @@ def _band(status: str, is_unread: bool) -> int:
     if status == "done":
         return _UNREAD_DONE if is_unread else _DONE
 
-    return _UNREAD if is_unread else _READ
+    if is_unread:
+        return _UNREAD
+
+    return _RUNNING if status == "running" else _READ
 
 
 def by_status(

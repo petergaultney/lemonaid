@@ -1,3 +1,9 @@
+# 0.45.0 (2026-09-30)
+
+#### Added
+
+- **A `running` brief status: the lemon is minding a pipeline run or another long process.** `lemonaid brief status` accepts it, and the inbox fills its card and top-strip row teal, shows the first line of `## Now`'s `Running` part on its card, and sorts a read one just above the other read sessions.
+
 # 0.44.0 (2026-09-30)
 
 #### Added

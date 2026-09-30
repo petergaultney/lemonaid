@@ -148,3 +148,27 @@ def test_a_brief_named_for_the_session_is_shown_for_one_lemon_only(tmp_path):
     assert shown.sections[1].body == (
         "No brief is attached; the one in `.z/` is shown for another lemon above."
     )
+
+
+def test_running_shows_before_waiting_on_in_full_and_compact(tmp_path):
+    text = (
+        "# Task\n\nStatus: running\n\n## Now\n- Waiting on: CI\n"
+        "- Running:\n  - UA run in work:3\n  - console in work:5\n"
+    )
+    author = _brief(tmp_path, "a", text)
+    reviewer = _brief(tmp_path, "r", text)
+    found = target.Target(
+        [reviewer, author],
+        [],
+        None,
+        [],
+        "work",
+        "# work · 2 lemons",
+        identities={author: _AUTHOR, reviewer: _REVIEWER},
+    )
+
+    out = render.markdown(found, 0, _no_prs)
+
+    author_part, reviewer_part = out.split("### w4 · reviewer · Codex")
+    assert author_part.index("**Running:**\n\n- UA run") < author_part.index("**Waiting on:** CI")
+    assert "**Running:** UA run in work:3 (+1 more)" in reviewer_part

@@ -67,3 +67,10 @@ def test_review_fills_the_headline_brown():
         brief_cards.REVIEW_COLOR in s
         for s in _styles(brief_card.header(_section("review"), True, 0, 40), "author")
     )
+
+
+def test_running_fills_the_headline_teal():
+    assert any(
+        brief_cards.RUNNING_COLOR in s
+        for s in _styles(brief_card.header(_section("running"), True, 0, 40), "author")
+    )

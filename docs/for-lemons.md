@@ -359,7 +359,7 @@ lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the 
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
-lemonaid brief status --self waiting            # Status: waiting  (working | waiting | blocked | merge | review | alert | done)
+lemonaid brief status --self waiting            # Status: waiting  (working | running | waiting | blocked | merge | review | alert | done)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
@@ -382,6 +382,8 @@ takes `--json`.
 with `brief now`. Readers still recognize older `Status: done - PR #12` lines as `done`.
 Use `review` when the next move is a teammate's approving review rather than your user's; say whose
 under `Needs`, which its card shows as it does for `blocked`.
+Use `running` when nothing waits on your user but you are minding a pipeline run or another long
+process; name it and its tmux `session:window` under `Running`, whose first line its card shows.
 
 New briefs include a readable slug and WordyBin suffix, such as
 `Lemon-ID: mc-tars-no-mops-leases.SkullHen`, generated from the brief filename
@@ -449,9 +451,10 @@ Status: working
 - Next: <what you are doing now>
 - Needs: <a decision or action from a person, or "nothing">
 - Waiting on: <who or what has the next move, or "nothing">
+- Running: <the long process you are minding, and its tmux session:window>
 ```
 
-Each part can instead be a sub-heading (`### Needs`, `### Waiting on`, `### Next`, `### Done`)
+Each part can instead be a sub-heading (`### Needs`, `### Running`, `### Waiting on`, `### Next`, `### Done`)
 with anything under it. `Needs` may name who it needs (`Needs you`); readers show it first
 whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.
 

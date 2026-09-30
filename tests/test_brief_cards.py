@@ -79,3 +79,18 @@ def test_waiting_on_shows_only_while_waiting_and_needs_not_once_done() -> None:
     assert CardBrief("merge", "", 0, "PR #9").needs_line == "Needs: PR #9"
     assert CardBrief("review", "", 0, "Sam on PR #9").needs_line == "Needs: Sam on PR #9"
     assert CardBrief("alert", "", 0, "disk full").needs_line == "Needs: disk full"
+
+
+def test_running_shows_its_first_line_only_while_running(tmp_path: Path) -> None:
+    path = tmp_path / "brief.md"
+    path.write_text(
+        "# Task\n\nStatus: running\n\n## Now\n\n### Running\n\n- UA run in work:3\n- CI\n"
+    )
+
+    card = BriefCache().get(path)
+
+    assert card is not None
+    assert card.running_line == "UA run in work:3 (+1 more)"
+    assert card.extra_lines == 2
+    assert CardBrief("working", "", 0, running="UA run").running_line == ""
+    assert CardBrief("running", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"

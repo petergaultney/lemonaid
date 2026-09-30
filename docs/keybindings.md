@@ -65,7 +65,7 @@ Otherwise, `b` opens a tmux popup over your client. Both views start each lemon 
 card, opened up: name and model, then tmux location, directory and branch, then status, brief age,
 and each `PR #N` or pull-request URL in the brief, with its live state (`open`, `draft`, `merged`,
 `closed`) when [`[brief] pr_state`](config.md#brief) is set. The card uses the inbox's colours, including the filled headline for `alert`, `blocked`,
-`merge`, `review` and `done`. Below it come the brief's `Needs` part in the attention colour, then the rest of
+`merge`, `review`, `done` and `running`. Below it come the brief's `Needs` part in the attention colour, then the rest of
 `## Now` with `Done` last (or an older session's `.z/brief.md`), the rest of the brief below a
 rule, and the brief's path at the bottom.
 
@@ -82,7 +82,7 @@ A session with several lemons, opened from a window with none, starts with the s
 yellow bar, then one card for every lemon recorded in it, located by window (`w2`). A lemon
 without an attached brief uses the `.z/` brief named for it, or an unclaimed `brief.md`, and
 otherwise says it has none. The lowest-numbered window's
-lemon shows its whole `## Now`, the others only their `Needs` and one line of `Waiting on`.
+lemon shows its whole `## Now`, the others only their `Needs` and one line each of `Running` and `Waiting on`.
 
 
 Press `q` or `Escape` to close the popup. `lemonaid brief

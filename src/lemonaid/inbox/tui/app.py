@@ -369,6 +369,11 @@ def _as_card(
                 else []
             ),
             Text(card_brief.age(now, stale_hours), style="dim"),
+            *(
+                [Text(card_brief.running_line, style=brief_cards.RUNNING_TEXT_COLOR)]
+                if card_brief.running_line
+                else []
+            ),
             *([Text(card_brief.waiting_line, style="dim")] if card_brief.waiting_line else []),
         ]
         if card_brief

@@ -12,15 +12,19 @@ from .utils import ATTENTION_COLOR
 MERGE_COLOR = "#4fb35a"
 ALERT_COLOR = "#c62828"
 REVIEW_COLOR = "#8a5a2b"
+RUNNING_COLOR = "#00838f"
+# The running process named on a card, lighter than the headline fill so it reads on the plain background.
+RUNNING_TEXT_COLOR = "#4fc3cc"
 # Headline colours for the statuses that want a look: an alert lemon needs you
 # urgently, a blocked one waits on you, a merge one waits only on your merge, a
-# review one waits on a teammate's approving review, and a done one is ready to
-# clean up.
+# review one waits on a teammate's approving review, a running one is minding a
+# long process, and a done one is ready to clean up.
 STATUS_STYLES = {
     "alert": Style(color="#ffffff", bgcolor=ALERT_COLOR),
     "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
     "merge": Style(color="#000000", bgcolor=MERGE_COLOR),
     "review": Style(color="#ffffff", bgcolor=REVIEW_COLOR),
+    "running": Style(color="#ffffff", bgcolor=RUNNING_COLOR),
     "done": Style(color="#ffffff", bgcolor="#285995"),
 }
 # The unread dot on a filled headline or row, where the yellow one would vanish.
@@ -29,6 +33,7 @@ DOT_STYLES = {
     "blocked": "bold #000000",
     "merge": "bold #000000",
     "review": "bold #ffffff",
+    "running": "bold #ffffff",
 }
 
 
@@ -39,6 +44,7 @@ class CardBrief:
     mtime: float
     needs: str = ""
     needs_label: str = "Needs"
+    running: str = ""
 
     @property
     def needs_line(self) -> str:
@@ -50,14 +56,21 @@ class CardBrief:
         return self.waiting_on if self.status == "waiting" else ""
 
     @property
+    def running_line(self) -> str:
+        return self.running if self.status == "running" else ""
+
+    @property
     def extra_lines(self) -> int:
-        """Lines the brief adds to its card: the age, and each of the two above it has."""
-        return 1 + bool(self.needs_line) + bool(self.waiting_line)
+        """Lines the brief adds to its card: the age, and each of the three above it has."""
+        return 1 + bool(self.needs_line) + bool(self.waiting_line) + bool(self.running_line)
 
     def age(self, now: float, stale_hours: float) -> str:
         elapsed = max(0, now - self.mtime)
         age = brief_status.age(elapsed)
-        if self.status in {"working", "waiting"} and now - self.mtime >= stale_hours * 3600:
+        if (
+            self.status in {"working", "running", "waiting"}
+            and now - self.mtime >= stale_hours * 3600
+        ):
             return f"updated {age} (stale)"
 
         return f"updated {age}"
@@ -75,6 +88,7 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
         mtime,
         brief_now.summary(now.needs),
         now.needs_label,
+        brief_now.summary(now.running),
     )
 
 

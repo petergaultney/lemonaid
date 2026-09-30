@@ -62,3 +62,8 @@ def test_needs_names_whoever_the_worker_wrote():
     assert now.parse("### Needs you\nan answer\n") == now.Now(
         needs="an answer", needs_label="Needs you"
     )
+
+
+def test_running_is_a_part_in_either_form():
+    assert now.parse("- Running: UA run in work:3\n").running == "UA run in work:3"
+    assert now.parse("### Running\n- UA run in work:3\n").running == "- UA run in work:3"

@@ -19,11 +19,12 @@ On the left, above, each session is a card: name, then time, cwd and branch,
 then the message wrapped over as many lines as the pane can spare. With
 [`brief_status`](docs/config.md#tui) on, a card also shows its lemon's brief:
 a red headline and what it needs from you when `alert`, yellow when `blocked`,
-green when `merge`, brown when `review`, blue when `done`, dimmed while `waiting`.
+green when `merge`, brown when `review`, blue when `done`, teal while `running`,
+dimmed while `waiting`.
 
 Across the top, it has room for columns instead, one row per session, with
 `alert` rows red, `blocked` rows amber, `merge` rows green, `review` rows brown,
-and `done` rows blue:
+`done` rows blue, and `running` rows teal:
 
 <img width="900" alt="The inbox as a top strip, one row per session, above a Claude Code session" src="docs/images/inbox-top.png" />
 
@@ -198,7 +199,8 @@ The inbox and the scratch sidebar list sessions in the same order:
 5. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
 6. Sessions whose brief says `done`.
 7. Every other unread session.
-8. Every other read session: `working`, `waiting`, or no brief.
+8. Read sessions whose brief says `running`: a lemon minding a pipeline or other long process.
+9. Every other read session: `working`, `waiting`, or no brief.
 
 With [`[tui] fold_statuses`](docs/config.md#folding-sessions-by-brief-status) set,
 read sessions of those statuses fold into one line at the bottom, which `w` opens.

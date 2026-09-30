@@ -14,6 +14,7 @@ import textwrap
 from collections import abc
 
 _LABELS = {
+    "running": "running",
     "waiting on": "waiting_on",
     "next": "next",
     "done": "done",
@@ -29,6 +30,7 @@ _EMPTY = {"", "nothing", "none", "n/a", "-"}
 class Now:
     needs: str = ""
     needs_label: str = "Needs"
+    running: str = ""
     waiting_on: str = ""
     next: str = ""
     done: str = ""

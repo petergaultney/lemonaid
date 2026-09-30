@@ -45,13 +45,18 @@ def _needs(label: str, text: str) -> str:
 
 
 def _labelled(parsed: now.Now, compact: bool) -> list[str]:
-    """Everything in Now but Needs and Done; compact keeps one line of Waiting on."""
+    """Everything in Now but Needs and Done; compact keeps one line each of Running and Waiting on."""
     if compact:
-        return [_part("Waiting on", now.summary(parsed.waiting_on))] if parsed.waiting_on else []
+        return [
+            _part(label, now.summary(text))
+            for label, text in (("Running", parsed.running), ("Waiting on", parsed.waiting_on))
+            if text
+        ]
 
     return [
         _part(label, text)
         for label, text in (
+            ("Running", parsed.running),
             ("Waiting on", parsed.waiting_on),
             ("Next", parsed.next),
             ("", parsed.other),

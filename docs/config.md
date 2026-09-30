@@ -97,7 +97,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `refresh_interval` | `0.33` | Seconds between inbox refreshes. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
-| `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
+| `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
@@ -105,21 +105,22 @@ With `brief_status = true`, a card whose session has an attached brief with a
 `Status:` line is drawn from that brief:
 
 - `alert` fills the headline red, `blocked` yellow, `merge` green, `review`
-  brown, and `done` blue. On each, the model label becomes a badge in its
+  brown, `done` blue, and `running` teal. On each, the model label becomes a badge in its
   provider colour.
 - A read `waiting` card is dimmed. An unread one is not.
 - `working` keeps the ordinary read style.
 - Under the name and location come the first line of `Needs` from `## Now`,
   with its label (`Needs you: ...`) in the attention colour, then the brief's
-  age, marked `(stale)` for a `working` or `waiting` brief older than
-  `brief_stale_hours`, then, for `waiting`, the first line of `Waiting on`.
+  age, marked `(stale)` for a `working`, `running` or `waiting` brief older than
+  `brief_stale_hours`, then, for `running`, the first line of `Running`, and for
+  `waiting`, the first line of `Waiting on`.
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
   only for cards without a brief.
 
 In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
-than the header's unread yellow), a `merge` row green, a `review` row brown, and a `done` row blue, with
+than the header's unread yellow), a `merge` row green, a `review` row brown, a `done` row blue, and a `running` row teal, with
 the model as the same badge, and a read `waiting` row dims. The green bar that
-marks the current session stays green. Rows carry no age, `Needs` or
+marks the current session stays green. Rows carry no age, `Needs`, `Running` or
 `Waiting on` lines; there is no room for them.
 
 Sessions without an attached brief look the same whether or not this is set.

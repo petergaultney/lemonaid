@@ -134,3 +134,11 @@ def test_a_review_row_is_brown():
     assert app.brief_rows.background(CardBrief("review", "", 0)).bgcolor.name == "#8a5a2b"
     assert _style(review[6]).color.name == "#ffffff"
     assert _style(review[1]).color.name == "#ffffff"
+
+
+def test_a_running_row_is_teal():
+    running = _row("running", unread=True)
+
+    assert app.brief_rows.background(CardBrief("running", "", 0)).bgcolor.name == "#00838f"
+    assert _style(running[6]).color.name == "#ffffff"
+    assert _style(running[1]).color.name == "#ffffff"
