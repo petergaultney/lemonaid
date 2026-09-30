@@ -1,3 +1,9 @@
+# 0.45.1 (2026-09-30)
+
+#### Fixed
+
+- **`scripts/demo-screenshot.py` draws the inbox in your terminal's colors.** It takes the 16 ANSI colors, bold handling and minimum contrast from `scripts/demo-palette.json` (`--palette` for another), which `scripts/terminal_palette.py` extracts from an iTerm2 profile, and it draws faint text. `scripts/demo-inbox.py` takes `transparent` from your lemonaid config, so the demo inbox uses the ANSI colors when yours does.
+
 # 0.45.0 (2026-09-30)
 
 #### Added

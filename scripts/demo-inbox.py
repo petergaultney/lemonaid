@@ -5,8 +5,9 @@
     uv run scripts/demo-inbox.py --top      # top strip, columns
 
 Attaches a tmux server named `lemonaid-demo` with the scratch pane already
-showing. It reads your own `~/.tmux.conf`, so the demo looks like your tmux
-(set `LEMONAID_DEMO_NO_CONFIG=1` for tmux's stock defaults instead). Your
+showing. It reads your own `~/.tmux.conf`, and takes `transparent` from your
+lemonaid config, so the demo looks like your tmux and inbox (set
+`LEMONAID_DEMO_NO_CONFIG=1` for the stock defaults of both instead). Your
 prefix detaches it as usual; `--kill` tears the server and its inbox down.
 
 Everything it touches is its own: the inbox, config, state, briefs and message
@@ -22,12 +23,15 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 SERVER = "lemonaid-demo"
 ROOT = Path(tempfile.gettempdir()) / "lemonaid-demo"
+# Read once, for `transparent`, before `LEMONAID_CONFIG` points at the demo's.
+USER_CONFIG = Path(os.environ.get("LEMONAID_CONFIG", "~/.config/lemonaid/config.toml")).expanduser()
 DB = ROOT / "demo.db"
 BRIEFS = ROOT / "briefs"
 
@@ -53,6 +57,21 @@ _CONFIG = """\
 [tui]
 brief_status = true
 """
+
+
+def _config() -> str:
+    """The demo's config: `_CONFIG`, plus your `transparent`.
+
+    `transparent` switches the inbox to the terminal's ANSI colors, so without
+    it a screenshot shows a different palette from the one you see.
+    """
+    if os.environ.get("LEMONAID_DEMO_NO_CONFIG") or not USER_CONFIG.exists():
+        return _CONFIG
+
+    with USER_CONFIG.open("rb") as f:
+        transparent = tomllib.load(f).get("tui", {}).get("transparent", False)
+    return _CONFIG + f"transparent = {str(bool(transparent)).lower()}\n"
+
 
 # Ages, not timestamps: the inbox sorts unread first and then by recency, and a
 # screenshot wants that ordering to look like an afternoon's work.
@@ -213,7 +232,7 @@ def _seed() -> None:
     DB.unlink(missing_ok=True)
     shutil.rmtree(BRIEFS, ignore_errors=True)
     BRIEFS.mkdir()
-    Path(ENVIRONMENT["LEMONAID_CONFIG"]).write_text(_CONFIG)
+    Path(ENVIRONMENT["LEMONAID_CONFIG"]).write_text(_config())
     now = time.time()
     with db.connect() as conn:
         for i, (name, status, age, backend, cwd, branch, message, brief) in enumerate(SESSIONS):
