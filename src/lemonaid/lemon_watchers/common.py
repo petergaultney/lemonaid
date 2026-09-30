@@ -195,7 +195,7 @@ def shorten_path(path: str) -> str:
     """Shorten a path for display, using last 2 components.
 
     Examples:
-        /Users/peter/play/lemonaid -> play/lemonaid
+        /Users/example/play/lemonaid -> play/lemonaid
         ~/work/project/subdir -> project/subdir
     """
     if not path:
@@ -217,8 +217,8 @@ def shorten_path(path: str) -> str:
 def fish_path(path: str) -> str:
     """Shorten a path fish-shell style: abbreviate intermediate dirs to first char.
 
-    ~/work/ds-monorepo/libs/gent -> ~/w/d/l/gent
-    /Users/peter/play/lemonaid   -> ~/p/lemonaid
+    ~/work/project/libs/tool     -> ~/w/p/l/tool
+    /Users/example/play/lemonaid -> ~/p/lemonaid
     /etc/nginx/conf.d            -> /e/n/conf.d
     """
     if not path:

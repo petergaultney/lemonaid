@@ -18,7 +18,7 @@ _HISTORY_PATH = Path.home() / ".claude" / "history.jsonl"
 def cwd_to_project_dir(cwd: str) -> str:
     """Convert a cwd path to Claude's project directory format.
 
-    /Users/peter.gaultney/play/lemonaid -> -Users-peter-gaultney-play-lemonaid
+    /Users/first.last/play/lemonaid -> -Users-first-last-play-lemonaid
 
     Claude replaces / and . with - in the directory name.
     """

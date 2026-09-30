@@ -118,7 +118,7 @@ def _refusal(argv: list[str]) -> str:
     return next(
         (
             f"sandbox: `lemonaid {' '.join(pair)}` writes outside the sandbox; run it for real "
-            "only if Peter asks"
+            "only if the user asks"
             for pair in _REFUSED
             if tuple(words[1 : 1 + len(pair)]) == pair
         ),

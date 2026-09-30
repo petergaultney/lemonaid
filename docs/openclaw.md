@@ -107,14 +107,14 @@ Add to `~/.config/lemonaid/config.toml`:
 
 ```toml
 [openclaw]
-remote_host = "lemon-grove"  # SSH host where session files live
+remote_host = "my-server"  # SSH host where session files live
 ```
 
-The value is passed directly to `ssh`, so it supports `user@host` format (e.g., `"lemonlime@lemon-grove"`). You can also configure the user in `~/.ssh/config` instead:
+The value is passed directly to `ssh`, so it supports `user@host` format (e.g., `"me@my-server"`). You can also configure the user in `~/.ssh/config` instead:
 
 ```
-Host lemon-grove
-    User lemonlime
+Host my-server
+    User me
 ```
 
 With `remote_host` enabled, registration prefers the most recent remote session that is not
@@ -126,7 +126,7 @@ already registered to a different OpenClaw TTY. You can also target a specific s
 The watcher polls every 0.5s. To avoid opening a new SSH connection each time, configure connection multiplexing in `~/.ssh/config`:
 
 ```
-Host lemon-grove
+Host my-server
     ControlMaster auto
     ControlPath ~/.ssh/sockets/%r@%h-%p
     ControlPersist 600
@@ -134,7 +134,7 @@ Host lemon-grove
 
 Create the sockets directory: `mkdir -p ~/.ssh/sockets`
 
-The first `ssh lemon-grove` opens a real connection. Subsequent ones reuse the socket (near-instant).
+The first `ssh my-server` opens a real connection. Subsequent ones reuse the socket (near-instant).
 
 ### How It Works
 
@@ -148,7 +148,7 @@ The first `ssh lemon-grove` opens a real connection. Subsequent ones reuse the s
 
 1. Check OpenClaw is storing sessions in `~/.openclaw/agents/`
 2. Verify session files exist with `ls ~/.openclaw/agents/*/sessions/*.jsonl`
-3. For remote: `ssh lemon-grove "ls ~/.openclaw/agents/*/sessions/*.jsonl"`
+3. For remote: `ssh my-server "ls ~/.openclaw/agents/*/sessions/*.jsonl"`
 4. Check watcher logs: `grep openclaw /tmp/lemonaid.log`
 
 ### Activity not updating (local)
@@ -157,7 +157,7 @@ The watcher reads the last 64KB of each session file. If sessions are very large
 
 ### Activity not updating (remote)
 
-1. Verify SSH works: `ssh lemon-grove "tail -c 100 ~/.openclaw/agents/*/sessions/*.jsonl"`
+1. Verify SSH works: `ssh my-server "tail -c 100 ~/.openclaw/agents/*/sessions/*.jsonl"`
 2. Check for SSH timeouts in logs: `grep "ssh.*timed out" /tmp/lemonaid.log`
 3. Ensure ControlMaster is configured (see above) to avoid connection overhead
 

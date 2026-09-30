@@ -57,8 +57,8 @@ Both are decoration on one harness session - the Claude session or Codex thread 
 not your place or tmux session. Neither changes your name for signing and watching, nor the
 tmux session name.
 
-When the person asks you to choose an emoji, pick one yourself: see which are taken,
-choose one that fits your work, and set it without asking them to choose.
+When the user asks you to set an emoji, pick one yourself: see which are taken, choose one
+that fits your work, and set it without asking them which.
 
 ```bash
 lemonaid inbox emojis --json                 # emojis live sessions already hold
