@@ -22,6 +22,7 @@ from textual.binding import Binding
 from textual.color import Color, ColorParseError
 from textual.containers import Container
 from textual.coordinate import Coordinate
+from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
 from textual.widgets.data_table import RowDoesNotExist, RowKey
@@ -829,6 +830,10 @@ class LemonaidApp(App):
 
         for b in _build_bindings(kb.brief, "brief", "Brief"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
+        if kb.brief_key:
+            # Textual gives Tab to focus-next, so this has to come first; check_action
+            # hands the key back where something else wants it. App.bind can't set priority.
+            self._bindings.bind(kb.brief_key, "brief", "Brief", show=False, priority=True)
 
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -876,6 +881,11 @@ class LemonaidApp(App):
             self.bind(down, "cursor_down", description="Down", show=False)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "brief" and (
+            isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
+        ):
+            return False
+
         if self._brief_target is not None:
             # Only what acts on the row whose brief is shown and leaves it in the list.
             return action in {

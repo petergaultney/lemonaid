@@ -1,3 +1,9 @@
+# 0.40.0 (2026-09-30)
+
+#### Added
+
+- **Tab opens the brief, like `b`.** It shows the highlighted row's brief, or returns to the inbox from one. The new `[tui.keybindings] brief_key` names the key (`"tab"` by default, `""` to unbind), since `brief` takes only single characters.
+
 # 0.39.0 (2026-09-30)
 
 #### Added

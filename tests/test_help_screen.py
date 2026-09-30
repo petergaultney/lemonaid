@@ -67,3 +67,11 @@ def test_both_columns_get_something():
     left, right = _halves([(t, r) for t, r in help_lines(KeybindingsConfig()) if r])
 
     assert left and right
+
+
+def test_the_brief_row_shows_its_named_key_too():
+    brief = "Show where its work stands, from its brief"
+
+    assert _entries(KeybindingsConfig())[brief] == "b / Tab"
+    assert _entries(KeybindingsConfig(brief_key=""))[brief] == "b"
+    assert _entries(KeybindingsConfig(brief=""))[brief] == "Tab"

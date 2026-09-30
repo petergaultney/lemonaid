@@ -73,6 +73,14 @@ def _key_display(value: str, field: str) -> str:
     return " / ".join(value)
 
 
+def _keys(kb: KeybindingsConfig, field: str) -> str:
+    """The displayed keys for a field, with brief_key shown alongside brief's."""
+    keys = [_key_display(getattr(kb, field), field)] if getattr(kb, field, "") else []
+    if field == "brief" and kb.brief_key:
+        keys.append(kb.brief_key.capitalize())
+    return " / ".join(keys)
+
+
 def help_lines(kb: KeybindingsConfig) -> list[tuple[str, list[tuple[str, str]]]]:
     """The reference as (section, [(keys, description)]), skipping unbound keys.
 
@@ -82,11 +90,7 @@ def help_lines(kb: KeybindingsConfig) -> list[tuple[str, list[tuple[str, str]]]]
     return [
         (
             title,
-            [
-                (_key_display(getattr(kb, field), field), description)
-                for field, description in entries
-                if getattr(kb, field, "")
-            ],
+            [(_keys(kb, field), description) for field, description in entries if _keys(kb, field)],
         )
         for title, entries in _SECTIONS
     ]

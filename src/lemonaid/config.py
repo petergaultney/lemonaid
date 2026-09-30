@@ -109,8 +109,9 @@ class KeybindingsConfig:
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     brief: str = "b"  # Show the session's brief in a tmux popup
     pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it
-    # Unlike the fields above, these two name one key each rather than a set of
-    # single-character alternatives, so that they can carry a modifier.
+    # Unlike the fields above, these name one key each rather than a set of
+    # single-character alternatives, so that they can be a named key or carry a modifier.
+    brief_key: str = "tab"  # A second key for brief
     move_pin_up: str = "shift+up"
     move_pin_down: str = "shift+down"
     save_size: str = "H"  # Save the scratch pane size (follow mode only)

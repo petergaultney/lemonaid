@@ -19,7 +19,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
-| `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
+| `b` / `Tab` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
@@ -51,7 +51,7 @@ stay until you press `?` a second time. `?` is not configurable.
 
 ## Brief
 
-When the scratch pane follows on the left, `b` shows the selected lemon's brief
+When the scratch pane follows on the left, `b` (or Tab) shows the selected lemon's brief
 in place of the inbox without leaving the inbox pane. Up/down arrows (or the configured
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
@@ -157,6 +157,7 @@ move_pin_down = "shift+down"
 undo = "z"
 rename = "r"
 brief = "b"  # show the session's brief
+brief_key = "tab"  # a second key for brief, as a key name
 history = "h"  # toggle history view
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
@@ -174,12 +175,17 @@ For example, to use `o` for selecting sessions:
 select = "o"
 ```
 
-### Keys that carry a modifier
+### Keys given by name
 
-`move_pin_up` and `move_pin_down` name one key each, written the way Textual
-writes it - `"shift+up"`, `"ctrl+k"`, `"K"`. They are the exception to the rule
-below: their value is a single key name, not a set of one-character
-alternatives. Set either to `""` to leave it unbound.
+`brief_key`, `move_pin_up` and `move_pin_down` name one key each, written the way
+Textual writes it - `"tab"`, `"shift+up"`, `"ctrl+k"`, `"K"`. They are the exception
+to the rule below: their value is a single key name, not a set of one-character
+alternatives. Set any of them to `""` to leave it unbound.
+
+`brief_key` defaults to `Tab`, so that a tmux binding which opens the scratch pane
+can be followed by Tab to reach the brief. Tab is taken before Textual's own
+focus-next, except in the snooze, rename and help dialogs and in the history
+filter, where it still moves focus.
 
 ### Multiple keys per action
 
