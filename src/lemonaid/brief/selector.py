@@ -4,8 +4,9 @@
 the one live channel recorded at the pane's tty, tmux session, and window.
 `--session` picks the one live lemon in a tmux session, or in one window of it
 when the session holds several; a window with no lemon yet is a pending target,
-for the next lemon to start there, unless one is already running in it, which
-is an error naming candidates for `--channel`. A window is named by index or by name; a
+for the next lemon to start or be placed there. A Codex on the shared
+app-server can't be placed, so a window running one is an error naming
+candidates for `--channel`. A window is named by index or by name; a
 name must be one tmux knows now.
 """
 
@@ -13,12 +14,14 @@ import argparse
 import dataclasses
 import os
 import sqlite3
+import subprocess
 
 from ..inbox import db, self_session
 from ..lemon_watchers import watcher
 from . import session
 
 _HARNESSES = ("claude", "codex")
+_PS_TIMEOUT_SECONDS = 2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,31 +65,62 @@ def _self(conn: sqlite3.Connection) -> tuple[Selected | None, str]:
     return Selected(channel, where.session, where.window), ""
 
 
-def _running_in(tmux_session: str, index: str) -> list[tuple[str, str]]:
-    """(harness, directory) of each lemon process in the window's panes."""
+def _running_in(tmux_session: str, index: str) -> list[tuple[str, str, bool]]:
+    """(harness, directory, on the shared Codex app-server) of each lemon in the window's panes."""
     return [
-        (harness, path)
+        (harness, path, harness == "codex" and _codex_on_daemon(tty))
         for tty, path in session.panes(tmux_session, index)
         for harness in _HARNESSES
         if watcher.process_on_tty(tty, harness)
     ]
 
 
+def _codex_on_daemon(tty: str) -> bool:
+    """Whether the Codex on *tty* was started without `--no-daemon`, or that can't be told.
+
+    Only the Codex executable's own arguments count: the shell and anything else on
+    the tty can mention the flag too.
+    """
+    try:
+        result = subprocess.run(
+            ["ps", "-t", tty.removeprefix("/dev/"), "-o", "args="],
+            capture_output=True,
+            text=True,
+            timeout=_PS_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+
+    codex = [
+        words
+        for words in (line.split() for line in result.stdout.splitlines())
+        if words and os.path.basename(words[0]) == "codex"
+    ]
+    return not codex or any("--no-daemon" not in words for words in codex)
+
+
 def _unlocated(
     conn: sqlite3.Connection, tmux_session: str, index: str, window_id: str
 ) -> tuple[Selected | None, str]:
-    """A pending target for an empty window, or why a running lemon there can't be named.
+    """A pending target for the window, or why the lemon running there can't claim one.
 
-    A pending target in a window whose lemon is already running would never be
-    claimed. A Codex on the shared app-server records no tmux location, and its
+    A lemon already running but not yet placed claims the brief once the watcher
+    records its window, but only when it is the only one there. A Codex on the shared app-server never is, and its
     directory doesn't identify it: another Codex, or one that has exited, can
-    share it. So the error lists those rows as candidates for --channel.
+    share it. So that is an error listing those rows as candidates for --channel.
     """
     running = _running_in(tmux_session, index)
-    if not running:
+    if len(running) > 1:
+        harnesses = ", ".join(harness for harness, _, _ in running)
+        return None, (
+            f"{tmux_session}:{index} is already running {harnesses}, so a brief waiting on "
+            "the window could go to either; pass --channel"
+        )
+
+    if not any(on_daemon for _, _, on_daemon in running):
         return Selected("", tmux_session, index, window_id), ""
 
-    dirs = {path for harness, path in running if harness == "codex"}
+    dirs = {path for _, path, on_daemon in running if on_daemon}
     candidates = sorted(
         {
             row.channel
@@ -98,10 +132,10 @@ def _unlocated(
             if row.metadata.get("cwd") in dirs
         }
     )
-    harnesses = ", ".join(sorted({harness for harness, _ in running}))
     return None, (
-        f"{harnesses} is already running in {tmux_session}:{index}, but no inbox row places "
-        "it there, so it would never claim a brief waiting on the window; pass --channel"
+        f"A Codex on the shared app-server is running in {tmux_session}:{index}; its inbox "
+        "row will never place it there, so it would never claim a brief waiting on the "
+        "window. Pass --channel"
         + (
             f" (sessions with no tmux location in its directory: {', '.join(candidates)})"
             if candidates

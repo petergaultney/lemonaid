@@ -6,6 +6,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import time
 import uuid
 from pathlib import Path
 
@@ -175,30 +176,114 @@ def test_a_waiting_name_is_given_to_the_lemon_that_claims_the_brief():
         assert db.get_by_channel(conn, "codex:reviewer", unread_only=False).name == "REVIEW #9"
 
 
-def test_a_running_codex_the_inbox_cannot_place_is_refused_with_candidates(
-    capsys, tmux, monkeypatch
-):
-    """Its directory doesn't identify it: a Codex that exited there may still have a live row."""
+def test_a_codex_on_the_shared_daemon_is_refused_with_candidates(capsys, tmux, monkeypatch):
+    """Its row is never placed, and its directory doesn't identify it."""
     _brief("review")
-    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("codex", "/w")])
+    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("codex", "/w", True)])
     with db.connect() as conn:
         db.add(conn, "codex:maybe-exited", "", metadata={"cwd": "/w"})
         db.add(conn, "codex:elsewhere", "", metadata={"cwd": "/other"})
 
     refused = _attach(capsys, "work:reviewer", "review")
 
-    assert "pass --channel" in refused["error"]
+    assert "shared app-server" in refused["error"]
     assert "codex:maybe-exited" in refused["error"]
     assert "codex:elsewhere" not in refused["error"]
-    assert _attached_to("codex:maybe-exited") is None
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 0
 
 
-def test_a_running_lemon_with_no_row_is_refused_rather_than_waited_for(capsys, tmux, monkeypatch):
+def test_a_running_codex_not_yet_placed_claims_the_brief_once_it_is(capsys, tmux, monkeypatch):
+    """Its row already exists when the brief starts waiting, so it isn't counted as live before."""
     _brief("review")
-    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("claude", "/w")])
+    index = tmux("display", "-p", "-t", "=work:reviewer", "#{window_index}")
+    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("codex", "/w", False)])
+    with db.connect() as conn:
+        db.add(conn, "codex:starting", "", metadata={"cwd": "/w", "tty": "/dev/ttys9"})
+
+    waiting = _attach(capsys, "work:reviewer", "review")
+    assert waiting["pending"] == f"work:{index}"
+    assert _attached_to("codex:starting") is None
+
+    with db.connect() as conn:
+        db.record_location(conn, "codex:starting", "work", index)
+
+    assert _attached_to("codex:starting") == _brief("review")
+
+
+def test_a_placed_lemon_live_before_the_brief_waited_does_not_claim_it():
+    _lemon("claude:already-there", "fresh", "4")
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "4", _brief("task"), attached.live_channels(conn))
+
+    assert _attached_to("claude:already-there") is None
+
+
+def test_a_waiting_brief_attached_by_channel_since_stops_waiting():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "4", _brief("task"), [])
+        conn.execute("UPDATE pending_briefs SET requested_at = requested_at - 60")
+        conn.commit()
+    _lemon("codex:by-channel", "elsewhere", "2")
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO session_briefs (channel, path, attached_at) VALUES (?, ?, ?)",
+            ("codex:by-channel", str(_brief("task")), time.time()),
+        )
+        conn.commit()
+        attached.claim_pending(conn)
+
+        assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 0
+
+
+def test_a_brief_moved_to_a_new_window_keeps_waiting():
+    """Attached before it was set waiting, so the new window's lemon still gets it."""
+    _lemon("claude:old", "fresh", "2")
+    with db.connect() as conn:
+        attached.attach(conn, "claude:old", _brief("task"))
+        attached.attach_pending(conn, "fresh", "4", _brief("task"), attached.live_channels(conn))
+    _lemon("codex:new", "fresh", "4")
+
+    assert _attached_to("codex:new") == _brief("task")
+
+
+def test_a_window_already_running_two_lemons_is_refused(capsys, tmux, monkeypatch):
+    """Whichever is placed first would get the brief, which may be meant for the other."""
+    _brief("review")
+    monkeypatch.setattr(
+        selector,
+        "_running_in",
+        lambda session, index: [("claude", "/w", False), ("codex", "/w", False)],
+    )
 
     refused = _attach(capsys, "work:reviewer", "review")
 
-    assert "claude is already running" in refused["error"]
+    assert "could go to either" in refused["error"]
     with db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 0
+
+
+def _ps(monkeypatch, out: str) -> None:
+    monkeypatch.setattr(
+        selector.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, out, ""),
+    )
+
+
+def test_only_the_codex_process_arguments_say_it_is_local(monkeypatch):
+    _ps(monkeypatch, "xonsh -c 'echo --no-daemon'\nnode /bin/codex\n/vendor/bin/codex\n")
+
+    assert selector._codex_on_daemon("/dev/ttys1")
+
+
+def test_a_codex_started_with_no_daemon_is_local(monkeypatch):
+    _ps(monkeypatch, "xonsh -c codex --no-daemon\n/vendor/bin/codex --no-daemon go\n")
+
+    assert not selector._codex_on_daemon("/dev/ttys1")
+
+
+def test_a_tty_with_no_codex_process_counts_as_on_the_daemon(monkeypatch):
+    _ps(monkeypatch, "xonsh\n")
+
+    assert selector._codex_on_daemon("/dev/ttys1")

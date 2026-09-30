@@ -1,3 +1,11 @@
+# 0.43.2 (2026-09-30)
+
+#### Fixed
+
+- **A brief waiting on a window reaches a lemon that was already running there before the inbox placed it.** `brief attach --session S:W` right after a `codex --no-daemon` started recorded the Codex as live before the brief, so it could never claim it. A Codex on the shared app-server is still refused, since it is never placed, and so is a window already running more than one lemon.
+- **A waiting brief that is then attached by channel stops waiting.** Its leftover row no longer shows in `brief list` as waiting for the window.
+- **`lemon start` recognizes Claude's current folder-trust prompt.** It reads "Is this a project you created or one you trust?" and opens on "No, exit", so lemonaid reports it rather than answering.
+
 # 0.43.1 (2026-09-30)
 
 #### Fixed

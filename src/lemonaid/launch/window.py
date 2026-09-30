@@ -14,7 +14,7 @@ _log = get_logger("launch.window")
 _STARTUP_DIALOGS = {
     "Trust this folder?": "Codex's folder-trust prompt",
     "Update available": "Codex's update prompt",
-    "Do you trust the files in this folder?": "Claude's folder-trust prompt",
+    "Is this a project you created or one you trust?": "Claude's folder-trust prompt",
 }
 _DIALOG_WAIT_SECONDS = 5.0
 

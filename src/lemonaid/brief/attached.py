@@ -39,6 +39,7 @@ def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
         (str(path), channel),
     ).fetchone()
     conn.execute("DELETE FROM session_briefs WHERE path = ?", (str(path),))
+    conn.execute("DELETE FROM pending_briefs WHERE path = ?", (str(path),))
     conn.execute(
         "INSERT OR REPLACE INTO session_briefs (channel, path, attached_at) VALUES (?, ?, ?)",
         (channel, str(path), time.time()),
@@ -56,11 +57,17 @@ def detach(conn: sqlite3.Connection, channel: str) -> Path | None:
 
 
 def live_channels(conn: sqlite3.Connection) -> list[str]:
-    """The channels live now; a lemon on any other channel starts, or returns, after this."""
+    """The channels live and placed in tmux now; a lemon on any other channel starts, returns,
+    or is first placed after this.
+
+    A lemon already running but not yet placed - a Codex whose row the watcher hasn't
+    located - is left out, so it can still claim a brief waiting on its window.
+    """
     return [
         row["channel"]
         for row in conn.execute(
-            "SELECT DISTINCT channel FROM notifications WHERE status != 'archived' ORDER BY channel"
+            "SELECT DISTINCT channel FROM notifications WHERE status != 'archived' "
+            "AND json_extract(metadata, '$.tmux_session') IS NOT NULL ORDER BY channel"
         )
     ]
 
@@ -132,7 +139,13 @@ def claim_pending(conn: sqlite3.Connection) -> None:
 
     Runs before every lookup rather than from the hooks that record sessions, so
     which lemon gets a brief never depends on when someone happened to look.
+    A brief attached by channel since it started waiting stops waiting.
     """
+    conn.execute(
+        "DELETE FROM pending_briefs WHERE EXISTS (SELECT 1 FROM session_briefs s "
+        "WHERE s.path = pending_briefs.path AND s.attached_at > pending_briefs.requested_at)"
+    )
+    conn.commit()
     for row in conn.execute("SELECT * FROM pending_briefs").fetchall():
         channel = _first_lemon_after(conn, *_where_now(row), json.loads(row["live_before"]))
         if not channel:

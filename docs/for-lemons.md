@@ -372,9 +372,9 @@ Parent links are between Lemon-IDs; see `docs/lineage.md`.
 `--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet
 waits for the first lemon live there that wasn't live when the brief was attached, including one
 resumed from the archive; this is also what `place open --brief` does. The window is an index or a
-tmux window name, and it is followed if tmux renumbers it. If a lemon is already running in
-the window but no inbox row places it there (a Codex on the shared app-server), the command
-fails and asks for `--channel` rather than waiting for a lemon that has already started. Every command
+tmux window name, and it is followed if tmux renumbers it. A lemon already running there that
+the inbox hasn't placed in the window yet gets the brief once it is. A Codex on the shared
+app-server is never placed, so for one of those the command fails and asks for `--channel`. Every command
 takes `--json`.
 
 `brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
