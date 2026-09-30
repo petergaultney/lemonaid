@@ -14,6 +14,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `a` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
+| `w` | Show or hide the folded sessions, when `[tui] fold_statuses` is set |
 | `p` | Pin the session below any other pins, or unpin it |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot |
 | `z` | Undo the last inbox change |
@@ -161,6 +162,7 @@ copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
+fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
 ```

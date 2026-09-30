@@ -1,3 +1,9 @@
+# 0.38.0 (2026-09-30)
+
+#### Added
+
+- **`[tui] fold_statuses` folds sessions of those brief statuses into one line at the bottom of the inbox.** With `["waiting"]`, read `waiting` sessions collapse into `▸ waiting (N)`, and `w` shows or hides them. Pinned and unread sessions stay in the list. Empty by default, so nothing folds until you set it.
+
 # 0.37.0 (2026-09-30)
 
 #### Added

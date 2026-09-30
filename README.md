@@ -196,6 +196,9 @@ The inbox and the scratch sidebar list sessions in the same order:
 6. Every other unread session.
 7. Every other read session: `working`, `waiting`, or no brief.
 
+With [`[tui] fold_statuses`](docs/config.md#folding-sessions-by-brief-status) set,
+read sessions of those statuses fold into one line at the bottom, which `w` opens.
+
 Within each group other than the pins, unread comes first, then newest first.
 
 ### TUI Keybindings

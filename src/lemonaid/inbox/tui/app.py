@@ -698,6 +698,12 @@ class LemonaidApp(App):
         background: ansi_blue;
     }
 
+    #fold_label {
+        height: 1;
+        color: $text-muted;
+        padding: 0 1;
+    }
+
     #other_sources_label {
         height: 1;
         background: $surface;
@@ -746,6 +752,7 @@ class LemonaidApp(App):
         self._scratch_mode = scratch_mode
         self._history_mode = False
         self._snoozed_mode = False
+        self._fold_open = False
         self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
@@ -826,6 +833,10 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
+        if self.config.tui.fold_statuses:
+            for b in _build_bindings(kb.fold, "toggle_fold", "Folded"):
+                self.bind(b.key, b.action, description=b.description, show=b.show)
+
         # Named keys rather than a string of alternatives: these carry a modifier.
         if kb.move_pin_up:
             self.bind(kb.move_pin_up, "move_pin_up", description="Move Up", show=False)
@@ -899,6 +910,7 @@ class LemonaidApp(App):
         with ContentSwitcher(initial="inbox_content", id="content_switcher"):
             with Container(id="inbox_content"):
                 yield ClickToActTable(id="main_table")
+                yield Static("", id="fold_label")
                 yield Static("", id="other_sources_label")
                 yield DataTable(id="other_sources_table", show_header=False)
                 yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
@@ -931,6 +943,7 @@ class LemonaidApp(App):
         self._setup_table(snoozed_table, wake_column=True)
 
         # Hide other sources section and the alternate views initially
+        self.query_one("#fold_label", Static).display = False
         self.query_one("#other_sources_label", Static).display = False
         other_table.display = False
         history_table.display = False
@@ -1343,6 +1356,7 @@ class LemonaidApp(App):
         self._refresh_session_names()
 
         main_table = self.query_one("#main_table", DataTable)
+        fold_label = self.query_one("#fold_label", Static)
         other_table = self.query_one("#other_sources_table", DataTable)
         other_label = self.query_one("#other_sources_label", Static)
 
@@ -1354,8 +1368,13 @@ class LemonaidApp(App):
 
         with db.connect() as conn:
             env_filter = self.current_env if self.current_env != "unknown" else None
+            pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
-            current_notifications, attached = self._ordered_active(conn, env_filter)
+            active, attached = self._ordered_active(conn, env_filter)
+            shown, folded = order.fold(
+                active, self._brief_statuses(attached), pinned, self.config.tui.fold_statuses
+            )
+            current_notifications = [*shown, *folded] if self._fold_open else shown
             # Lower pane: live sessions from other switchable terminals.
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
             # switched to from anywhere, so they belong in history instead.
@@ -1369,7 +1388,6 @@ class LemonaidApp(App):
             else:
                 other_notifications = []
 
-            pinned = frozenset(pins.pinned_positions(conn))
             emojis = emoji.by_channel(conn)
 
         briefs = (
@@ -1405,10 +1423,13 @@ class LemonaidApp(App):
             time.time(),
         )
 
+        fold_label.display = bool(folded)
+        fold_label.update(self._fold_label(len(folded)))
+
         # Populate non-switchable table (always dim, not interactive).
         # Hide it if the terminal is too short — main table gets priority.
         _MIN_MAIN_ROWS = 5
-        chrome = 3  # header + other_label + the shared status/footer row
+        chrome = 3 + bool(folded)  # header, other_label, the status/footer row, the fold line
         other_height = min(len(other_notifications), 8)
         room_for_main = self.size.height - chrome - other_height
         show_other = other_notifications and room_for_main >= _MIN_MAIN_ROWS
@@ -1457,7 +1478,7 @@ class LemonaidApp(App):
                     target_index = min(current_index, main_table.row_count - 1)
             main_table.move_cursor(row=target_index)
 
-        read_count = main_table.row_count - unread_count
+        read_count = len(active) - unread_count
         env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
 
@@ -1473,6 +1494,22 @@ class LemonaidApp(App):
             )
 
         self._set_status(status_text)
+
+    def _fold_label(self, count: int) -> str:
+        """The folded group's one line: which statuses, how many, and the key that opens it."""
+        key = self.config.tui.keybindings.fold[:1]
+        group = f"{', '.join(self.config.tui.fold_statuses)} ({count})"
+        if self._fold_open:
+            return f"▴ {group} above" + (f" · {key} to fold" if key else "")
+
+        return f"▸ {group}" + (f" · {key} to show" if key else "")
+
+    def action_toggle_fold(self) -> None:
+        if self._history_mode or self._snoozed_mode:
+            return
+
+        self._fold_open = not self._fold_open
+        self._refresh_notifications()
 
     def action_quit(self) -> None:
         """Quit the app, or just hide the pane in scratch mode.
@@ -1519,7 +1556,13 @@ class LemonaidApp(App):
             self._hint_timer = None
 
         self._show_keys(False)
-        self.push_screen(HelpScreen(self.config.tui.keybindings, wide=not self._card_layout))
+        kb = self.config.tui.keybindings
+        self.push_screen(
+            HelpScreen(
+                kb if self.config.tui.fold_statuses else dataclasses.replace(kb, fold=""),
+                wide=not self._card_layout,
+            )
+        )  # the fold key is bound only when something folds, so only then is it listed
 
     def action_toggle_keys(self) -> None:
         # An explicit toggle outranks the startup timer, which would otherwise
@@ -1643,7 +1686,14 @@ class LemonaidApp(App):
         history_filter = self.query_one("#history_filter", Input)
 
         # Inbox-only actions
-        for action in ("jump_unread", "mark_read", "mark_unread", "archive", "snooze"):
+        for action in (
+            "jump_unread",
+            "mark_read",
+            "mark_unread",
+            "archive",
+            "snooze",
+            "toggle_fold",
+        ):
             self._set_binding_footer(action, show=not enabled)
 
         # History-only actions
@@ -1666,6 +1716,7 @@ class LemonaidApp(App):
         if enabled:
             self.sub_title = "session history"
             main_table.display = False
+            self.query_one("#fold_label", Static).display = False
             other_label.display = False
             other_table.display = False
             history_table.display = True
@@ -1732,7 +1783,7 @@ class LemonaidApp(App):
         other_table = self.query_one("#other_sources_table", DataTable)
 
         # Inbox-only actions don't apply to the snoozed list
-        for action in ("jump_unread", "mark_read", "mark_unread", "snooze"):
+        for action in ("jump_unread", "mark_read", "mark_unread", "snooze", "toggle_fold"):
             self._set_binding_footer(action, show=not enabled)
 
         self._set_binding_footer(
@@ -1745,6 +1796,7 @@ class LemonaidApp(App):
         if enabled:
             self.sub_title = "snoozed"
             main_table.display = False
+            self.query_one("#fold_label", Static).display = False
             other_label.display = False
             other_table.display = False
             snoozed_table.display = True

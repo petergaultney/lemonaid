@@ -95,6 +95,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working` and `waiting` cards stale after this many hours without a brief edit. |
+| `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
 With `brief_status = true`, a card whose session has an attached brief with a
@@ -125,6 +126,22 @@ Sessions sort by brief status in both layouts either way; see
 [tui]
 brief_status = true
 brief_stale_hours = 6
+```
+
+### Folding sessions by brief status
+
+`fold_statuses = ["waiting"]` takes read sessions whose attached brief says
+`waiting` out of the list and shows one line at its bottom in their place:
+`▸ waiting (4) · w to show`. `w` (the `fold` key) opens the group, listing those
+sessions at the bottom of the list, and closes it again. It works the same in the
+column layout and the sidebar.
+
+A folded session comes back into the list while it is unread, and a pinned session
+never folds. Any status can be listed; the default folds nothing.
+
+```toml
+[tui]
+fold_statuses = ["waiting"]
 ```
 
 With `card_unread_style = "bar"`, an unread card without a brief (see above)

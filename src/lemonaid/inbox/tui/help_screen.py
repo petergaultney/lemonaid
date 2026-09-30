@@ -41,11 +41,12 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "Pinning",
+        "Pinning and folding",
         [
             ("pin", "Pin the selected session, or unpin it"),
             ("move_pin_up", "Move a pinned session up one slot"),
             ("move_pin_down", "Move a pinned session down one slot"),
+            ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
         ],
     ),
     (

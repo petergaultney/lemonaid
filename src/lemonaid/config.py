@@ -115,6 +115,7 @@ class KeybindingsConfig:
     move_pin_down: str = "shift+down"
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
     flip_position: str = "f"  # Move the scratch pane between top and left
+    fold: str = "w"  # Show or hide the sessions folded at the bottom of the list
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.
     jump_by_number: bool = True
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
@@ -129,6 +130,9 @@ class TuiConfig:
     card_unread_style: str = "dot"  # "dot" or a full-width "bar"
     brief_status: bool = False
     brief_stale_hours: float = 6.0
+    # Brief statuses whose read, unpinned sessions fold into one group at the
+    # bottom of the list. Empty folds nothing.
+    fold_statuses: list[str] = field(default_factory=list)
     # The scratch pane's title bar and bottom edge while it will receive keys.
     focus_color: str = "#2bd9cf"
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
@@ -336,6 +340,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         card_unread_style=tui_data.get("card_unread_style", "dot"),
         brief_status=tui_data.get("brief_status", False),
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
+        fold_statuses=list(tui_data.get("fold_statuses", [])),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),

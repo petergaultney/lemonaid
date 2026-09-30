@@ -5,6 +5,9 @@ then `done` sessions, unread above read, then every other unread session, then
 everything else read: `working`, `waiting`, and no brief. Within each band rows
 keep `db.get_active` order: pins by position, everything else unread first and
 then newest first.
+
+`fold` takes the rows of configured statuses out of that list, for the inbox
+to show as one group at its bottom.
 """
 
 from collections import abc
@@ -46,3 +49,26 @@ def by_status(
             -1 if n.channel in pinned else _band(statuses.get(n.channel, ""), n.is_unread)
         ),
     )
+
+
+def fold(
+    rows: abc.Iterable[db.Notification],
+    statuses: abc.Mapping[str, str],
+    pinned: abc.Container[str],
+    folded_statuses: abc.Container[str],
+) -> tuple[list[db.Notification], list[db.Notification]]:
+    """`rows` split into the main list and the group folded at its bottom, order kept.
+
+    A row folds when its brief status is in `folded_statuses`, unless it is
+    pinned or unread: those stay where they would be without folding.
+    """
+    shown: list[db.Notification] = []
+    folded: list[db.Notification] = []
+    for n in rows:
+        folds = (
+            statuses.get(n.channel, "") in folded_statuses
+            and n.channel not in pinned
+            and not n.is_unread
+        )
+        (folded if folds else shown).append(n)
+    return shown, folded
