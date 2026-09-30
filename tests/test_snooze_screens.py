@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from lemonaid.inbox.tui.screens import format_wake_time, next_morning, parse_duration
+from lemonaid.inbox.snooze_time import next_morning, parse_duration, parse_wake
+from lemonaid.inbox.tui.screens import format_wake_time
 
 
 def test_parse_bare_number_is_minutes():
@@ -24,7 +25,7 @@ def test_parse_accepts_fractional():
 
 
 def test_parse_rejects_nonsense():
-    for bad in ("", "   ", "soon", "m", "-5m", "0", "0h"):
+    for bad in ("", "   ", "soon", "m", "-5m", "0", "0h", "inf", "1e309h", "nan"):
         assert parse_duration(bad) is None, bad
 
 
@@ -44,6 +45,20 @@ def test_next_morning_is_strictly_future_at_exactly_nine():
     now = datetime(2026, 7, 30, 9, 0).timestamp()
     target = datetime.fromtimestamp(next_morning(now))
     assert target.day == 31
+
+
+def test_parse_wake_morning_is_the_next_nine_am():
+    now = datetime(2026, 7, 30, 14, 0).timestamp()
+    assert parse_wake(" Morning ", now) == next_morning(now)
+
+
+def test_parse_wake_duration_counts_from_now():
+    assert parse_wake("2h", 1000.0) == 1000.0 + 7200
+    assert parse_wake("soon", 1000.0) is None
+
+
+def test_parse_wake_refuses_a_time_past_any_date():
+    assert parse_wake("1e300d", 1000.0) is None
 
 
 def test_format_wake_time_today_is_clock_only():

@@ -24,6 +24,7 @@ _UNDOABLE_COLUMNS: ty.Final = (
     "metadata",
     "snooze_until",
     "snooze_prev_status",
+    "snooze_through_turns",
 )
 
 

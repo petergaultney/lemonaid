@@ -227,6 +227,7 @@ def handle_notification(
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
             status=_status_after(notification_type, channel, data),
+            ends_turn=notification_type in _TURN_ENDED,
         )
         pending = messages.service.has_pending(conn, channel)
 

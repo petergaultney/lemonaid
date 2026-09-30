@@ -26,6 +26,7 @@ class Notification:
     switch_source: str | None = None
     snooze_until: float | None = None
     snooze_prev_status: str | None = None
+    snooze_through_turns: bool = False
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Self:
@@ -35,6 +36,7 @@ class Notification:
         name = None
         snooze_until = None
         snooze_prev_status = None
+        snooze_through_turns = False
         with suppress(IndexError, KeyError):
             switch_source = row["switch_source"]
         with suppress(IndexError, KeyError):
@@ -43,6 +45,8 @@ class Notification:
             snooze_until = row["snooze_until"]
         with suppress(IndexError, KeyError):
             snooze_prev_status = row["snooze_prev_status"]
+        with suppress(IndexError, KeyError):
+            snooze_through_turns = bool(row["snooze_through_turns"])
 
         return cls(
             id=row["id"],
@@ -56,6 +60,7 @@ class Notification:
             switch_source=switch_source,
             snooze_until=snooze_until,
             snooze_prev_status=snooze_prev_status,
+            snooze_through_turns=snooze_through_turns,
         )
 
     @property
@@ -462,6 +467,7 @@ def add(
     created_at: float | None = None,
     status: str = "unread",
     keep_existing_message: bool = False,
+    ends_turn: bool = False,
 ) -> Notification:
     """Add a notification or update existing one if upsert=True.
 
@@ -473,6 +479,10 @@ def add(
     callers that know a turn ended but not what was said in it: the transcript
     watcher writes the better message, and only rewrites when the transcript
     itself changes, so a message overwritten here does not come back.
+
+    Any notification cancels a snooze, except that one marked
+    `snooze_through_turns` stays snoozed when `ends_turn`; it then wakes unread
+    if any turn it held ended unread.
     """
     now = created_at if created_at is not None else time.time()
     metadata = metadata or {}
@@ -487,11 +497,14 @@ def add(
             if keep_existing_message and existing.message:
                 message = existing.message
 
+            held = ends_turn and existing.is_snoozed and existing.snooze_through_turns
+            woken_as = "unread" if "unread" in (status, existing.snooze_prev_status) else status
+            snooze = (existing.snooze_until, woken_as, True) if held else (None, None, False)
             conn.execute(
                 """
                 UPDATE notifications
                 SET message = ?, name = ?, metadata = ?, created_at = ?, status = ?, read_at = ?, switch_source = ?,
-                    snooze_until = NULL, snooze_prev_status = NULL
+                    snooze_until = ?, snooze_prev_status = ?, snooze_through_turns = ?
                 WHERE id = ?
                 """,
                 (
@@ -499,9 +512,10 @@ def add(
                     name,
                     json.dumps(metadata),
                     now,
-                    status,
+                    "snoozed" if held else status,
                     read_at,
                     switch_source,
+                    *snooze,
                     existing.id,
                 ),
             )
@@ -512,9 +526,12 @@ def add(
                 message=message,
                 name=name,
                 metadata=metadata,
-                status=status,
+                status="snoozed" if held else status,
                 created_at=now,
                 switch_source=switch_source,
+                snooze_until=snooze[0],
+                snooze_prev_status=snooze[1],
+                snooze_through_turns=snooze[2],
             )
 
     cursor = conn.execute(
@@ -645,7 +662,7 @@ def mark_unread_for_channel(conn: sqlite3.Connection, channel: str) -> int:
         """
         UPDATE notifications
         SET status = 'unread', read_at = NULL, created_at = ?,
-            snooze_until = NULL, snooze_prev_status = NULL
+            snooze_until = NULL, snooze_prev_status = NULL, snooze_through_turns = 0
         WHERE channel = ? AND status IN ('read', 'snoozed')
         """,
         (now, channel),
@@ -863,12 +880,15 @@ def archive(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
-def snooze(conn: sqlite3.Connection, notification_id: int, until: float) -> None:
+def snooze(
+    conn: sqlite3.Connection, notification_id: int, until: float, through_turns: bool = False
+) -> None:
     """Hold a session out of the inbox until `until`, then return it as unread.
 
     Applies to every row on the channel, matching archive()'s scope. The current
     status is recorded so wake_expired() can tell whether the session was
-    demanding attention when it was snoozed.
+    demanding attention when it was snoozed; snoozing again only moves the wake
+    time. `through_turns` keeps the snooze through the session's turn ends; see add().
     """
     row = conn.execute(
         "SELECT channel, status FROM notifications WHERE id = ?", (notification_id,)
@@ -879,10 +899,11 @@ def snooze(conn: sqlite3.Connection, notification_id: int, until: float) -> None
     conn.execute(
         """
         UPDATE notifications
-        SET status = 'snoozed', snooze_until = ?, snooze_prev_status = status
-        WHERE channel = ? AND status != 'snoozed'
+        SET snooze_prev_status = CASE WHEN status = 'snoozed' THEN snooze_prev_status ELSE status END,
+            status = 'snoozed', snooze_until = ?, snooze_through_turns = ?
+        WHERE channel = ?
         """,
-        (until, row["channel"]),
+        (until, through_turns, row["channel"]),
     )
     conn.commit()
 
@@ -898,7 +919,8 @@ def unsnooze(conn: sqlite3.Connection, channel: str) -> int:
         UPDATE notifications
         SET status = COALESCE(snooze_prev_status, 'unread'),
             snooze_until = NULL,
-            snooze_prev_status = NULL
+            snooze_prev_status = NULL,
+            snooze_through_turns = 0
         WHERE channel = ? AND status = 'snoozed'
         """,
         (channel,),

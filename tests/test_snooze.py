@@ -126,3 +126,78 @@ def test_snooze_covers_whole_channel():
             "SELECT status FROM notifications WHERE channel = 'claude:abc'"
         ).fetchall()
         assert [r["status"] for r in rows] == ["snoozed", "snoozed"]
+
+
+def test_snooze_through_turns_holds_through_a_turn_end():
+    """A turn ending unread leaves it snoozed, and it wakes unread."""
+    with tempfile.TemporaryDirectory() as tmpdir, _conn(tmpdir) as conn:
+        n = db.add(conn, channel="claude:abc", message="x", switch_source="tmux")
+        db.mark_read(conn, n.id)
+        until = time.time() + 3600
+        db.snooze(conn, n.id, until, through_turns=True)
+
+        db.add(conn, channel="claude:abc", message="Turn ended", ends_turn=True)
+        db.add(conn, channel="claude:abc", message="(quiet)", status="read", ends_turn=True)
+
+        held = db.get(conn, n.id)
+        assert held is not None
+        assert (held.status, held.snooze_until, held.message) == ("snoozed", until, "(quiet)")
+
+        db.wake_expired(conn, now=until + 1)
+        woken = db.get(conn, n.id)
+        assert woken is not None
+        assert (woken.status, woken.snooze_through_turns) == ("unread", False)
+
+
+def test_snooze_through_turns_wakes_read_when_every_turn_was_read():
+    with tempfile.TemporaryDirectory() as tmpdir, _conn(tmpdir) as conn:
+        n = db.add(conn, channel="claude:abc", message="x", status="read")
+        db.snooze(conn, n.id, time.time() - 1, through_turns=True)
+        db.add(conn, channel="claude:abc", message="(quiet)", status="read", ends_turn=True)
+
+        db.wake_expired(conn)
+        woken = db.get(conn, n.id)
+        assert woken is not None
+        assert woken.status == "read"
+
+
+def test_a_prompt_wakes_a_snooze_through_turns():
+    """A notification that is not a turn end, such as a permission prompt, wakes it."""
+    with tempfile.TemporaryDirectory() as tmpdir, _conn(tmpdir) as conn:
+        n = db.add(conn, channel="claude:abc", message="x", status="read")
+        db.snooze(conn, n.id, time.time() + 3600, through_turns=True)
+
+        db.add(conn, channel="claude:abc", message="Needs permission")
+
+        woken = db.get(conn, n.id)
+        assert woken is not None
+        assert (woken.status, woken.snooze_until, woken.snooze_through_turns) == (
+            "unread",
+            None,
+            False,
+        )
+
+
+def test_a_turn_end_still_wakes_a_tui_snooze():
+    with tempfile.TemporaryDirectory() as tmpdir, _conn(tmpdir) as conn:
+        n = db.add(conn, channel="claude:abc", message="x", status="read")
+        db.snooze(conn, n.id, time.time() + 3600)
+
+        db.add(conn, channel="claude:abc", message="Turn ended", ends_turn=True)
+
+        woken = db.get(conn, n.id)
+        assert woken is not None
+        assert woken.is_unread
+
+
+def test_snoozing_again_moves_the_wake_time_and_keeps_the_prior_status():
+    with tempfile.TemporaryDirectory() as tmpdir, _conn(tmpdir) as conn:
+        n = db.add(conn, channel="claude:abc", message="x", status="read")
+        db.snooze(conn, n.id, time.time() + 60)
+        later = time.time() + 7200
+        db.snooze(conn, n.id, later, through_turns=True)
+
+        snoozed = db.get(conn, n.id)
+        assert snoozed is not None
+        assert (snoozed.snooze_until, snoozed.snooze_prev_status) == (later, "read")
+        assert snoozed.snooze_through_turns

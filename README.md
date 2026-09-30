@@ -73,7 +73,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[Brief status cards](docs/config.md#tui)**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
 - **[Auto-read](docs/config.md#inbox)**: Regexes in `[inbox] auto_read` leave a session read when its turn ends with a matching final message, so routine turns don't ask for attention
 - **Pins**: Hold a session at the top of the list, in an order you choose
-- **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
+- **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing. A lemon can snooze itself with `lemonaid inbox snooze --self`
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
 - **Always-visible sidebar** (`tmux`): [Follow mode](docs/tmux.md#follow-mode) keeps the inbox in view across every window and session switch, on the left or across the top. Sessions render as cards when the pane is too narrow for columns. Without follow mode it is still a scratch pane you toggle with a keybinding, with no startup delay

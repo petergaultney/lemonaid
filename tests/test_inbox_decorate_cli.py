@@ -18,6 +18,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "use_self": False,
             "id": None,
             "channel": None,
+            "lemon": None,
             "name": "",
             "emoji": "",
             "clear": False,

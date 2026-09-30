@@ -1,3 +1,10 @@
+# 0.46.0 (2026-09-30)
+
+#### Added
+
+- **`lemonaid inbox snooze --self 2h` lets a lemon snooze its own inbox row.** It takes the TUI picker's syntax (`45m`, `2h`, `3d`, `morning`) and the targets of `inbox rename`, and `--clear` wakes the row. Unlike a TUI snooze, it lasts through the lemon's turn ends, including the one it was set in, and wakes unread if any of them ended unread; a permission prompt or a question still wakes it at once.
+- **`inbox rename`, `inbox emoji` and `inbox snooze` take `--lemon <Lemon-ID or brief name>`.**
+
 # 0.45.1 (2026-09-30)
 
 #### Fixed

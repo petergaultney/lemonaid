@@ -104,6 +104,11 @@ same list from the shell.
 New agent output cancels a snooze early. Snoozing means "not this state, not
 yet"; if the session produces something new, it wants you again.
 
+A lemon can snooze its own row with `lemonaid inbox snooze --self 2h` (or
+`morning`, or `--clear`), in the same syntax. That snooze lasts through the
+lemon's turn ends, since the lemon sets it mid-turn; a permission prompt or a
+question still wakes it. See `docs/for-lemons.md`.
+
 ## Jump by number
 
 The first ten rows carry a number, shown before the session name. Pressing that

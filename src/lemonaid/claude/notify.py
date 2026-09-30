@@ -480,6 +480,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
             switch_source=switch_source if switch_source != "unknown" else None,
             keep_existing_message=not tells_us_what_was_said,
             status=_status_after(notification_type, channel, data),
+            ends_turn=notification_type in _TURN_ENDED,
         )
 
     if existing:

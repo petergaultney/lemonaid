@@ -12,10 +12,11 @@ import os
 import sqlite3
 import sys
 
+from .. import brief
 from . import db, emoji, self_session
 
 
-def _channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, str]:
+def target_channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, str]:
     """(channel, "") for the session the arguments name, else ("", why not)."""
     if args.id is not None:
         found = db.get(conn, args.id)
@@ -24,6 +25,12 @@ def _channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, s
     if args.channel:
         found = db.get_by_channel(conn, args.channel, unread_only=False)
         return (found.channel, "") if found else ("", f"No inbox session {args.channel!r}")
+
+    if args.lemon:
+        try:
+            return brief.lemon.attachment(conn, args.lemon).channel, ""
+        except LookupError as e:
+            return "", str(e)
 
     pane_id = os.environ.get("TMUX_PANE", "")
     if not pane_id:
@@ -36,7 +43,7 @@ def _channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, s
     return self_session.resolve(conn, where)
 
 
-def _finish(args: argparse.Namespace, result: dict, error: str) -> None:
+def finish(args: argparse.Namespace, result: dict, error: str) -> None:
     if args.json:
         print(json.dumps({**result, "error": error or None}, ensure_ascii=False))
     elif error:
@@ -50,7 +57,7 @@ def _cmd_rename(args: argparse.Namespace) -> None:
     name = "" if args.clear else args.name.strip()
     renamed: db.Notification | None = None
     with db.connect() as conn:
-        channel, error = _channel(conn, args)
+        channel, error = target_channel(conn, args)
         if channel and not args.clear and not name:
             error = "Give a name, or --clear"
 
@@ -59,7 +66,7 @@ def _cmd_rename(args: argparse.Namespace) -> None:
             db.update_name(conn, newest.id, name or None)
             renamed = db.get(conn, newest.id)
 
-    _finish(
+    finish(
         args,
         {"channel": channel or None, "name": renamed.name if renamed else None},
         error,
@@ -69,7 +76,7 @@ def _cmd_rename(args: argparse.Namespace) -> None:
 def _cmd_emoji(args: argparse.Namespace) -> None:
     value = "" if args.clear else args.emoji.strip()
     with db.connect() as conn:
-        channel, error = _channel(conn, args)
+        channel, error = target_channel(conn, args)
         if channel and not args.clear and not value:
             error = "Give an emoji, or --clear"
 
@@ -86,7 +93,7 @@ def _cmd_emoji(args: argparse.Namespace) -> None:
             else:
                 emoji.clear(conn, channel)
 
-    _finish(args, {"channel": channel or None, "emoji": value}, error)
+    finish(args, {"channel": channel or None, "emoji": value}, error)
 
 
 def _cmd_emojis(args: argparse.Namespace) -> None:
@@ -101,7 +108,7 @@ def _cmd_emojis(args: argparse.Namespace) -> None:
         print(f"{entry['emoji']}  {entry['channel']} {entry['name'] or ''}".rstrip())
 
 
-def _add_target(parser: argparse.ArgumentParser) -> None:
+def add_target(parser: argparse.ArgumentParser) -> None:
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument(
         "--self",
@@ -112,6 +119,7 @@ def _add_target(parser: argparse.ArgumentParser) -> None:
     )
     target.add_argument("--id", type=int, help="The session a notification id belongs to")
     target.add_argument("--channel", help="An inbox channel, e.g. claude:1a2b3c4d")
+    target.add_argument("--lemon", help="A Lemon-ID or brief name, e.g. tars-views.QuickOdd")
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
 
 
@@ -127,7 +135,7 @@ def add_parsers(inbox_subparsers: argparse._SubParsersAction) -> None:
         "  lemonaid inbox rename --channel claude:1a2b3c4d --clear",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    _add_target(rename)
+    add_target(rename)
     rename.add_argument("name", nargs="?", default="", help="The new display name")
     rename.add_argument("--clear", action="store_true", help="Restore the backend's name")
     rename.set_defaults(func=_cmd_rename)
@@ -141,7 +149,7 @@ def add_parsers(inbox_subparsers: argparse._SubParsersAction) -> None:
         epilog="Examples:\n  lemonaid inbox emoji --self 🦫\n  lemonaid inbox emoji --self --clear",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    _add_target(emoji_parser)
+    add_target(emoji_parser)
     emoji_parser.add_argument("emoji", nargs="?", default="", help="The emoji to show")
     emoji_parser.add_argument("--clear", action="store_true", help="Remove the emoji")
     emoji_parser.set_defaults(func=_cmd_emoji)

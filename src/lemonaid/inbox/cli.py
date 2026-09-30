@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import datetime
 
 from .. import messages
-from . import db, decorate_cli
+from . import db, decorate_cli, snooze_cli
 
 
 def _notification_to_json(n: db.Notification) -> dict:
@@ -165,6 +165,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser.set_defaults(func=cmd_read)
 
     decorate_cli.add_parsers(inbox_subparsers)
+    snooze_cli.add_parser(inbox_subparsers)
     messages.cli.add_inbox_parsers(inbox_subparsers)
     messages.service_cli.add_parser(inbox_subparsers)
 

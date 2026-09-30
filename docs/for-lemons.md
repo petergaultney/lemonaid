@@ -78,7 +78,7 @@ lemonaid inbox rename --self --clear         # back to the backend's name
   It refuses, rather than guessing, when none or several match - for example before your
   harness has sent lemonaid a notification, or when the recorded location is out of date.
   Then name yourself explicitly with `--channel <channel>` or `--id <n>`, from
-  `inbox list --json`.
+  `inbox list --json`, or by `--lemon <Lemon-ID or brief name>` once a brief is attached.
 - An emoji another live session holds is refused. Snoozed sessions count as live; an
   archived session keeps its emoji but no longer holds it.
 - The rename is the same override the TUI's rename key sets.
@@ -86,6 +86,31 @@ lemonaid inbox rename --self --clear         # back to the backend's name
 `inbox emojis --json` prints `[{"emoji", "id", "channel", "name", "cwd"}]`. `rename` and
 `emoji` take `--json` and print `{"channel", "name"}` or `{"channel", "emoji"}`, plus
 `"error"`.
+
+### Snoozing yourself
+
+`inbox snooze` holds your row out of the user's active inbox until a time, as the TUI's `s`
+key does. It takes the TUI's syntax: a duration (`45m`, `2h`, `3d`; a bare number is minutes)
+or `morning`, the next 9am. It takes the same targets as `rename` and `emoji`.
+
+```bash
+lemonaid inbox snooze --self 2h
+lemonaid inbox snooze --self morning
+lemonaid inbox snooze --self --clear   # back in the inbox now
+```
+
+- The snooze lasts through the end of your turns, including the one you set it in. A turn
+  that ends while you're snoozed updates your row but leaves it snoozed.
+- When it wakes, your row comes back unread if any of those turns ended unread, and read
+  if every one matched `[inbox] auto_read`.
+- A permission prompt or a question wakes it at once. So does the user, from the TUI's
+  snoozed list (`S`).
+- If a later turn has something the user should see now, run `--clear` before you end it.
+- Snoozing again moves the wake time. An archived session is refused.
+
+`--json` prints `{"channel", "snooze_until", "wakes", "woke", "error"}`: `snooze_until` is
+epoch seconds, `wakes` the same time as local ISO, and `woke` whether `--clear` woke a
+snoozed row.
 
 ## Notification Fields
 

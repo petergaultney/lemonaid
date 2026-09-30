@@ -2,7 +2,7 @@
 
 import time
 import typing as ty
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -10,41 +10,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
-_MORNING_HOUR: ty.Final = 9
-
-
-def next_morning(now: float) -> float:
-    """The next 9am strictly after `now`."""
-    dt = datetime.fromtimestamp(now)
-    target = dt.replace(hour=_MORNING_HOUR, minute=0, second=0, microsecond=0)
-    if target <= dt:
-        target += timedelta(days=1)
-
-    return target.timestamp()
-
-
-def parse_duration(text: str) -> float | None:
-    """Parse a relative duration like '45m', '2h', '3d' into seconds.
-
-    A bare number is read as minutes. Returns None if unparseable or not
-    positive, which the caller surfaces rather than snoozing by accident.
-    """
-    text = text.strip().lower()
-    if not text:
-        return None
-
-    units = {"m": 60, "h": 3600, "d": 86400}
-    multiplier = 60
-    if text[-1] in units:
-        multiplier = units[text[-1]]
-        text = text[:-1]
-
-    try:
-        value = float(text)
-    except ValueError:
-        return None
-
-    return value * multiplier if value > 0 else None
+from .. import snooze_time
 
 
 def format_wake_time(until: float, now: float | None = None) -> str:
@@ -141,7 +107,7 @@ class SnoozeScreen(ModalScreen[float | None]):
             return
 
         if key == "morning":
-            self.dismiss(next_morning(time.time()))
+            self.dismiss(snooze_time.next_morning(time.time()))
             return
 
         for preset_key, _, seconds in self._PRESETS:
@@ -150,12 +116,12 @@ class SnoozeScreen(ModalScreen[float | None]):
                 return
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        seconds = parse_duration(event.value)
-        if seconds is None:
-            self.notify("Enter a duration like 45m, 2h, or 3d", severity="warning")
+        until = snooze_time.parse_wake(event.value, time.time())
+        if until is None:
+            self.notify(f"Enter {snooze_time.SYNTAX}", severity="warning")
             return
 
-        self.dismiss(time.time() + seconds)
+        self.dismiss(until)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
