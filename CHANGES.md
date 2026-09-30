@@ -1,3 +1,9 @@
+# 0.36.5 (2026-09-30)
+
+#### Changed
+
+- **A brief's children are listed one per line, after the rest of `## Now` and before `Done`.** Each line shows the child's brief status, coloured as on its card, then its session's name, or its Lemon-ID's slug when it has no session. The pager now shows `Parent:` and `Children:` too.
+
 # 0.36.4 (2026-09-30)
 
 #### Fixed

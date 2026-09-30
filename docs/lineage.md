@@ -19,5 +19,5 @@ A `<lemon>` is a Lemon-ID, an attached lemon's channel, or a brief's name or pat
 - **`--parent` on `place open` requires `--brief`.** The link is between two Lemon-IDs, and the child's comes from its brief. Without `--brief`, `place open` records nothing about lemons.
 - **Checked before anything opens.** `place open` resolves the parent and checks the link first, and records it only once the place is open.
 - **No parent means the default owner.** A lemon with no parent belongs to whoever you treat as the default, for many a control center; lemonaid doesn't record who that is.
-- **In the brief view.** The sidebar, popup and `brief show` put `Parent:` and `Children:` (with each child's `Status:`) under a brief's card.
+- **In the brief view.** The sidebar, popup and `brief show` put `Parent:` under a brief's card, and list its `Children:` one per line, each child's `Status:` then its session's name, just before `Done`.
 - **Children for cleanup.** `lemon children --json` gives each child's brief `Status:` and whether a lemon is attached, which is what a parent checks before tearing down a finished child's place. Links say which lemons to check, not which windows or directories are theirs.

@@ -116,6 +116,25 @@ def header(
     return Text("\n").join(_edge() + line for line in lines)
 
 
+def children(section: render.Section) -> Text:
+    """A brief's children, one per line: its status coloured as on its card, then its name."""
+    width = max(len(state or "-") for state, _ in section.children)
+    return Text("\n").join(
+        [
+            Text("Children:", style="bold"),
+            *(
+                Text.assemble(
+                    "  ",
+                    (state or "-", _STATE_STYLES.get(state, "dim")),
+                    " " * (width - len(state or "-") + 2),
+                    name,
+                )
+                for state, name in section.children
+            ),
+        ]
+    )
+
+
 def session_bar(header: str, width: int) -> Text:
     """A session's name from a view's `# ...` header, as a bar across the width."""
     name = header.removeprefix("# ").strip()

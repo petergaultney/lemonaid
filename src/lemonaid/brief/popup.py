@@ -55,7 +55,14 @@ def _renderables(shown: render.View, now: float, width: int) -> list[rich.consol
         for part in (
             *([gap, rule, gap] if i else []),
             brief_card.header(section, shown.in_session, now, width),
+            *(
+                [rich.markdown.Markdown(f"**Parent:** `{section.parent}`")]
+                if section.parent
+                else []
+            ),
             *([rich.markdown.Markdown(links.linkify(section.body))] if section.body else []),
+            *([gap, brief_card.children(section)] if section.children else []),
+            *([gap, rich.markdown.Markdown(links.linkify(section.tail))] if section.tail else []),
         )
     ]
     return [*top, *sections, gap, rule, brief_card.files(shown)]

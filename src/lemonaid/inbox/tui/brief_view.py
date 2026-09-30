@@ -154,6 +154,9 @@ class BriefView(VerticalScroll):
         color: $foreground 30%;
         margin: 0;
     }}
+    BriefView .brief-children {{
+        margin-bottom: 1;
+    }}
     BriefView .brief-files {{
         color: $text-muted;
     }}
@@ -188,8 +191,14 @@ class BriefView(VerticalScroll):
             for widget in (
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
-                *([_Markdown(section.family)] if section.family else []),
+                *([_Markdown(f"**Parent:** `{section.parent}`")] if section.parent else []),
                 *([_Markdown(links.linkify(section.body))] if section.body else []),
+                *(
+                    [Static(brief_card.children(section), classes="brief-children")]
+                    if section.children
+                    else []
+                ),
+                *([_Markdown(links.linkify(section.tail))] if section.tail else []),
             )
         ]
         return [

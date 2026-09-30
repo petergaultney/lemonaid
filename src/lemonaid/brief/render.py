@@ -45,7 +45,7 @@ def _needs(label: str, text: str) -> str:
 
 
 def _labelled(parsed: now.Now, compact: bool) -> list[str]:
-    """Everything in Now but Needs, with Done last; compact keeps one line of Waiting on."""
+    """Everything in Now but Needs and Done; compact keeps one line of Waiting on."""
     if compact:
         return [_part("Waiting on", now.summary(parsed.waiting_on))] if parsed.waiting_on else []
 
@@ -55,7 +55,6 @@ def _labelled(parsed: now.Now, compact: bool) -> list[str]:
             ("Waiting on", parsed.waiting_on),
             ("Next", parsed.next),
             ("", parsed.other),
-            ("Done", parsed.done),
         )
         if text
     ]
@@ -70,8 +69,11 @@ class Section:
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
     path: Path | None  # None for a lemon with no brief
     mtime: float
-    body: str  # Markdown: Needs, the title under a lemon, the rest of Now, then the task
-    family: str = ""  # Markdown naming its parent and children, filled in by `family.added`
+    body: str  # Markdown: Needs, the title under a lemon, then Now up to Done
+    tail: str = ""  # Markdown after the children: Done, then the task
+    # The rest are filled in by `family.added`.
+    parent: str = ""  # its parent's Lemon-ID
+    children: tuple[tuple[str, str], ...] = ()  # (brief status, name)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,6 +104,13 @@ def _section(
             _needs(parsed.needs_label, parsed.needs) if parsed.needs else "",
             f"**{title}**" if lemon else "",
             *_labelled(parsed, detail == "compact"),
+        )
+        if part
+    )
+    tail = "\n\n".join(
+        part
+        for part in (
+            _part("Done", parsed.done) if parsed.done and detail != "compact" else "",
             *(["---", parts.rest] if detail == "full" and parts.rest else []),
         )
         if part
@@ -117,6 +126,7 @@ def _section(
         brief.path,
         brief.mtime,
         body,
+        tail,
     )
 
 
@@ -231,6 +241,14 @@ def file_line(section: Section, in_session: bool, now_seconds: float) -> str:
     )
 
 
+def _children(section: Section) -> str:
+    if not section.children:
+        return ""
+
+    lines = "\n".join(f"- {state or '-'} · {name}" for state, name in section.children)
+    return f"**Children:**\n\n{lines}"
+
+
 def _markdown_section(section: Section, in_session: bool) -> str:
     prs = ", ".join(" ".join(part for part in pair if part) for pair in section.prs)
     return "\n\n".join(
@@ -242,11 +260,13 @@ def _markdown_section(section: Section, in_session: bool) -> str:
                 for line in (
                     f"**Status:** {status_text(section)}",
                     f"**PR:** {prs}" if prs else "",
-                    section.family,
+                    f"**Parent:** `{section.parent}`" if section.parent else "",
                 )
                 if line
             ),
             section.body,
+            _children(section),
+            section.tail,
         )
         if part
     )
