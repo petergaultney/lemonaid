@@ -27,6 +27,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "json": False,
             "harness": "default",
             "prompt": "",
+            "no_check": False,
             "brief": "",
             "parent": "",
             "name": "",
@@ -52,7 +53,7 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
         "open_key",
         lambda key, cfg, root, attach=True, harness="default", prompt="": (
             keyed.append((key, root.path, attach, harness, prompt)),
-            (cwd, None),
+            (cwd, lifecycle.Opened(key, created=True)),
         )[1],
     )
 
@@ -60,9 +61,10 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
     monkeypatch.setattr(
         lifecycle,
         "open_session",
-        lambda name, directory, cfg, attach=True, harness="default", prompt="": sessions.append(
-            (name, directory, attach, harness, prompt)
-        ),
+        lambda name, directory, cfg, attach=True, harness="default", prompt="": (
+            sessions.append((name, directory, attach, harness, prompt)),
+            lifecycle.Opened(name, created=True),
+        )[1],
     )
 
     return keyed, sessions
@@ -148,6 +150,7 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
 
     assert json.loads(capsys.readouterr().out) == {
         "key": "notes",
+        "session": "notes",
         "dir": str(tmp_path),
         "root": None,
         "brief": None,
@@ -260,3 +263,42 @@ def test_a_parent_that_cannot_be_resolved_is_refused_before_opening(monkeypatch,
         cli.cmd_open(_args(key="notes", brief="task", parent="self"))
 
     assert not sessions
+
+
+def _dialog_checks(monkeypatch, created: bool) -> list[str]:
+    monkeypatch.setattr(
+        lifecycle,
+        "open_session",
+        lambda name, directory, cfg, attach=True, harness="default", prompt="": lifecycle.Opened(
+            name, created=created
+        ),
+    )
+    monkeypatch.setattr(cli.brief.session, "window", lambda session, index: (index, "@9"))
+    checked: list[str] = []
+    monkeypatch.setattr(
+        cli.launch.window,
+        "startup_dialog",
+        lambda target: checked.append(target) or "Codex's folder-trust prompt",
+    )
+    return checked
+
+
+def test_a_new_lemon_stuck_at_a_startup_dialog_is_reported(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    checked = _dialog_checks(monkeypatch, created=True)
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", prompt="go", json=True))
+
+    assert checked == ["@9"]
+    assert "waiting at Codex's folder-trust prompt" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_an_existing_session_is_not_checked_for_a_dialog(monkeypatch, tmp_path):
+    """No prompt is sent to a session that already exists, so there is nothing to wait for."""
+    _records(monkeypatch, _config(), tmp_path)
+    checked = _dialog_checks(monkeypatch, created=False)
+
+    cli.cmd_open(_args(key="notes", prompt="go"))
+
+    assert not checked

@@ -1,3 +1,11 @@
+# 0.43.1 (2026-09-30)
+
+#### Fixed
+
+- **`place open --prompt` starts the lemon whatever the prompt contains and whatever your shell is.** The prompt used to be typed into the harness window POSIX-quoted, which xonsh rejects, so a prompt with an apostrophe never started its lemon. It now reaches the harness through the window's environment as `"$LEMONAID_PROMPT"`, and `lemon start` does the same.
+- **`place open --brief` attaches the brief to the session it just opened.** It used to find that session again by its directory, and lemonaid's scratch pane, in whichever session you're looking at, often reports the same directory, so the lookup failed as ambiguous with "could not tell which session". `--json` now also reports the `session`.
+- **`place open --prompt` reports a new lemon stuck at a startup dialog**, such as Claude's folder-trust prompt, instead of reporting success. `--no-check` skips the check.
+
 # 0.43.0 (2026-09-30)
 
 #### Added

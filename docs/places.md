@@ -81,8 +81,14 @@ lemonaid place open feat/thing --harness codex --prompt 'read .z/brief.md and do
 first lemon that starts in the session's harness window, so the prompt can just
 say to read it. See `lemonaid for-lemons` for the `brief` commands. `--parent self` (or a Lemon-ID) also records the caller as that brief's lemon's parent; see [parent links](lineage.md).
 
-The prompt is shell-quoted and appended as a positional argument to the command
-in `harness_window` (or `resume_window` when `harness_window` is unset). These
+The prompt is set as `LEMONAID_PROMPT` in the environment of the window's shell, and the
+command in `harness_window` (or `resume_window` when `harness_window` is unset) gets
+`"$LEMONAID_PROMPT"` appended. A POSIX shell, fish, and xonsh all read that as one
+argument, whatever the prompt contains, so lemonaid needn't know your shell's quoting.
+A one-command line runs as `env -u LEMONAID_PROMPT <command> "$LEMONAID_PROMPT"`, so the
+lemon and its tool calls don't inherit the variable. The window's shell keeps it, since
+unsetting a variable is spelled differently in each shell, and so does a compound line's
+harness. Nothing but the launch line reads it. These
 options only affect creation; if the place already has a session, `open` keeps
 its idempotent behavior and switches to that session without injecting a new
 prompt. See [the configuration reference](config.md#tmux-sessiontemplates).

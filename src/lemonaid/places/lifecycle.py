@@ -5,6 +5,7 @@ the same operations whether the directory already exists, has to be acquired
 first, or is about to be released - so they share one path.
 """
 
+import dataclasses
 from pathlib import Path
 
 from .. import tmux
@@ -17,37 +18,31 @@ _log = get_logger("places.lifecycle")
 _ACQUIRE_TIMEOUT_SECONDS = 900  # acquiring a directory may install dependencies
 
 
-def open_place(
-    directory: Path,
-    config: Config,
-    session_name: str = "",
-    attach: bool = True,
-    harness: str = "default",
-    prompt: str = "",
-) -> str | None:
-    """Switch to a session rooted at *directory*, creating one if none exists.
+@dataclasses.dataclass(frozen=True)
+class Opened:
+    session: str = ""  # "" when none could be told apart
+    created: bool = False  # False when an existing session was switched to
+    error: str | None = None
 
-    Returns an error message on failure, or None on success.
+
+def _switch(session: str, pane_id: str, attach: bool) -> Opened:
+    """Switch to an existing session, unless *attach* is off."""
+    if attach and not tmux.navigation.switch_to_pane(session, pane_id):
+        return Opened(session, error=f"Could not switch to existing session '{session}'")
+
+    return Opened(session)
+
+
+def _spawn(
+    directory: Path, config: Config, session_name: str, attach: bool, harness: str, prompt: str
+) -> Opened:
+    """A new session from the *harness* template.
+
+    The name comes from the spawn, not from looking the directory up again: a
+    pane in another session can report the same directory, as lemonaid's scratch
+    pane does while it runs a command there.
     """
-    session, pane_id = tmux.navigation.get_pane_for_cwd(str(directory))
-
-    if session == tmux.navigation.AMBIGUOUS:
-        return (
-            f"Several tmux sessions have a window in {directory}; "
-            "not guessing which one you meant. Switch to it yourself, or close "
-            "the ones that aren't the session working there."
-        )
-
-    if session and pane_id:
-        if not attach:
-            return None  # it already exists; nothing to do but say so
-
-        if not tmux.navigation.switch_to_pane(session, pane_id):
-            return f"Could not switch to existing session '{session}'"
-
-        return None
-
-    return tmux.session.spawn_session(
+    error = tmux.session.spawn_session(
         cwd=str(directory),
         config=config.tmux_session,
         session_name=session_name,
@@ -55,6 +50,31 @@ def open_place(
         template_name=harness,
         initial_prompt=prompt,
     )
+    return Opened(tmux.session.spawned_name(session_name, str(directory)), True, error)
+
+
+def open_place(
+    directory: Path,
+    config: Config,
+    session_name: str = "",
+    attach: bool = True,
+    harness: str = "default",
+    prompt: str = "",
+) -> Opened:
+    """Switch to a session rooted at *directory*, creating one if none exists."""
+    session, pane_id = tmux.navigation.get_pane_for_cwd(str(directory))
+
+    if session == tmux.navigation.AMBIGUOUS:
+        return Opened(
+            error=f"Several tmux sessions have a window in {directory}; "
+            "not guessing which one you meant. Switch to it yourself, or close "
+            "the ones that aren't the session working there."
+        )
+
+    if session and pane_id:
+        return _switch(session, pane_id, attach)
+
+    return _spawn(directory, config, session_name, attach, harness, prompt)
 
 
 def open_session(
@@ -64,7 +84,7 @@ def open_session(
     attach: bool = True,
     harness: str = "default",
     prompt: str = "",
-) -> str | None:
+) -> Opened:
     """Get a session called *name* sitting in *directory*, acquiring nothing.
 
     For directories no root claims the names of, where a name can only have meant
@@ -76,22 +96,9 @@ def open_session(
     """
     session, pane_id = tmux.navigation.get_pane_for_session(tmux.session.sanitize_name(name))
     if session and pane_id:
-        if not attach:
-            return None
+        return _switch(session, pane_id, attach)
 
-        if not tmux.navigation.switch_to_pane(session, pane_id):
-            return f"Could not switch to existing session '{session}'"
-
-        return None
-
-    return tmux.session.spawn_session(
-        cwd=str(directory),
-        config=config.tmux_session,
-        session_name=name,
-        attach=attach,
-        template_name=harness,
-        initial_prompt=prompt,
-    )
+    return _spawn(directory, config, name, attach, harness, prompt)
 
 
 def harness_window(config: Config, template_name: str) -> str:
@@ -100,15 +107,6 @@ def harness_window(config: Config, template_name: str) -> str:
     configured = config.tmux_session.harness_window
     idx = config.tmux_session.resume_window if configured is None else configured
     return str(tmux.session.get_base_index() + max(0, min(idx, len(windows) - 1)))
-
-
-def session_for(key: str, directory: Path, in_root: bool) -> str:
-    """The name of the session `open_key` (*in_root*) or `open_session` got for *key*."""
-    if not in_root:
-        return tmux.session.sanitize_name(key)
-
-    session, _ = tmux.navigation.get_pane_for_cwd(str(directory))
-    return session if session and session != tmux.navigation.AMBIGUOUS else ""
 
 
 def acquire_key(key: str, root: PlaceRoot) -> tuple[Path | None, str | None]:
@@ -145,7 +143,7 @@ def open_key(
     attach: bool = True,
     harness: str = "default",
     prompt: str = "",
-) -> tuple[Path | None, str | None]:
+) -> tuple[Path | None, Opened]:
     """Get a session for *key* under *root*, acquiring its directory if needed.
 
     Idempotent at three levels: an existing directory is not re-created, an
@@ -153,11 +151,11 @@ def open_key(
     an error. So asking for a session is always safe, and no caller - person or
     agent - has to check first.
 
-    Returns (directory, error message).
+    Returns (directory, what was opened there).
     """
     directory, error = acquire_key(key, root)
     if directory is None:
-        return None, error
+        return None, Opened(error=error)
 
     return directory, open_place(
         directory,

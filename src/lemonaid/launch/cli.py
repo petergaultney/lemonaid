@@ -34,7 +34,8 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if given.brief and (error := command.unclaimable(line)):
         return {}, error
 
-    pane, error = window.open_window(session, index, directory)
+    typed, environment = command.harness_line(line, directory, args.prompt)
+    pane, error = window.open_window(session, index, directory, environment)
     if pane is None:
         return {}, error
 
@@ -50,10 +51,10 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         "name": given.name or None,
     }
     handoff.complete(given, session, index, pane.window_id)
-    if error := window.run(pane, command.harness_line(line, directory, args.prompt)):
+    if error := window.run(pane, typed):
         return result, error
 
-    if not args.no_check and (dialog := window.startup_dialog(pane)):
+    if not args.no_check and (dialog := window.startup_dialog(pane.pane_id)):
         return result, f"The lemon in {session}:{index} is waiting at {dialog}"
 
     return result, ""

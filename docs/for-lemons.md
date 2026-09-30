@@ -205,7 +205,8 @@ lemonaid place open <key> --harness codex --prompt 'read .z/brief.md' --json
 Idempotent: the directory is acquired only if it doesn't exist, its session is switched to
 only if there isn't one, and neither case is an error. Always safe to run without checking
 first, so don't probe for existence beforehand. `--json` returns
-`{"key", "dir", "root", "error"}`.
+`{"key", "session", "dir", "root", "brief", "lemon_id", "parent", "error"}`, where
+`session` is the tmux session opened or switched to.
 
 `--detach` still creates the session, it just doesn't switch to it — so it is not the polite
 way to acquire a directory. Use it when a session is wanted but the terminal shouldn't move.
@@ -214,15 +215,22 @@ list and competes for the directory when something later tries to resolve who wo
 
 `--harness NAME` selects `[tmux-session.templates].NAME`; omitting it selects
 `default`. Commands are config-owned — Lemonaid does not hardcode how Claude,
-Codex, or another harness starts. `--prompt TEXT` shell-quotes the text and
-appends it as a positional argument to the command in `harness_window`, falling
-back to `resume_window` when that setting is absent. Both options matter only
+Codex, or another harness starts. `--prompt TEXT` reaches the command in
+`harness_window` (falling back to `resume_window` when that setting is absent) as
+one positional argument, through the window's environment, so any text is safe
+in any shell. Both options matter only
 when `open` creates the session. If a session already exists, `open` switches to
 it without starting another harness or sending the prompt.
 
 A template line whose program is `codex` also gets `-c` overrides that trust the
 directory and skip the update check, so Codex reads its prompt instead of stopping
 at a dialog. Nothing is written to `~/.codex/config.toml`.
+
+With `--prompt`, a new session's harness window is checked once, a few seconds after
+it starts. If the lemon is stuck at a startup dialog (Claude's folder-trust prompt has
+no override), `open` fails with `"error": "Opened, but the lemon in <session>:<window> is
+waiting at ..."`. The session and any `--brief` are still set up, and the brief attaches
+once someone answers the dialog. `--no-check` skips the wait.
 
 The tmux session is named after the key (with `.` and `:` replaced, since tmux forbids them),
 so `tmux send-keys -t <key>` and similar work afterward. `place list --json` reports the

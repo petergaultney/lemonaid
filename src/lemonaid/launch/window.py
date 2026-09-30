@@ -3,6 +3,7 @@
 import dataclasses
 import subprocess
 import time
+from collections import abc
 from pathlib import Path
 
 from ..log import get_logger
@@ -52,8 +53,15 @@ def session_dir(session: str) -> Path | None:
     return Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
 
 
-def open_window(session: str, index: str, directory: Path) -> tuple[Pane | None, str]:
-    """A fresh pane at *session*:*index*, and "" - or None and why there isn't one.
+def environment_args(environment: abc.Mapping[str, str]) -> list[str]:
+    """tmux's `-e` arguments setting *environment* in a pane it starts."""
+    return [arg for name, value in environment.items() for arg in ("-e", f"{name}={value}")]
+
+
+def open_window(
+    session: str, index: str, directory: Path, environment: abc.Mapping[str, str]
+) -> tuple[Pane | None, str]:
+    """A fresh pane at *session*:*index* started with *environment*, and "" - or None and why not.
 
     A window that doesn't exist is made; one whose only panes are dead is
     respawned. A live process there is refused, whatever it is.
@@ -67,7 +75,13 @@ def open_window(session: str, index: str, directory: Path) -> tuple[Pane | None,
         # With no command, tmux would rerun whatever the pane last ran.
         shell = _tmux("show-options", "-gv", "default-shell").stdout.strip()
         result = _tmux(
-            "respawn-pane", "-t", pane, "-c", str(directory), *([shell] if shell else [])
+            "respawn-pane",
+            "-t",
+            pane,
+            "-c",
+            str(directory),
+            *environment_args(environment),
+            *([shell] if shell else []),
         )
         if result.returncode != 0:
             return None, f"Could not respawn {session}:{index}: {result.stderr.strip()}"
@@ -81,6 +95,7 @@ def open_window(session: str, index: str, directory: Path) -> tuple[Pane | None,
         f"={session}:{index}",
         "-c",
         str(directory),
+        *environment_args(environment),
         "-P",
         "-F",
         "#{pane_id}\t#{window_id}",
@@ -98,15 +113,15 @@ def run(pane: Pane, line: str) -> str:
     return "" if result.returncode == 0 else f"Could not start the lemon: {result.stderr.strip()}"
 
 
-def startup_dialog(pane: Pane, wait: float = _DIALOG_WAIT_SECONDS) -> str:
-    """The startup dialog *pane* shows after *wait* seconds, described, or "" for none.
+def startup_dialog(target: str, wait: float = _DIALOG_WAIT_SECONDS) -> str:
+    """The startup dialog pane or window *target* shows after *wait* seconds, described, or "".
 
     Only reported: answering one means typing into a lemon, which lemonaid doesn't do.
     """
     time.sleep(wait)
-    screen = _tmux("capture-pane", "-p", "-t", pane.pane_id).stdout
+    screen = _tmux("capture-pane", "-p", "-t", target).stdout
     found = [what for text, what in _STARTUP_DIALOGS.items() if text in screen]
     if found:
-        _log.warning("pane %s stopped at %s", pane.pane_id, found[0])
+        _log.warning("%s stopped at %s", target, found[0])
 
     return found[0] if found else ""

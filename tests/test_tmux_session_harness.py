@@ -37,7 +37,7 @@ def test_spawn_session_selects_a_named_harness_template(monkeypatch, tmp_path):
     assert created[0]["windows"] == ["editor", "codex", ""]
 
 
-def test_spawn_session_shell_quotes_prompt_on_the_harness_command(monkeypatch, tmp_path):
+def test_spawn_session_passes_the_prompt_by_environment(monkeypatch, tmp_path):
     created = _created_sessions(monkeypatch)
     config = TmuxSessionConfig(
         templates={"default": ["editor", "claude", ""]},
@@ -58,8 +58,13 @@ def test_spawn_session_shell_quotes_prompt_on_the_harness_command(monkeypatch, t
 
     assert created[0]["windows"] == [
         "editor",
-        "claude 'read Peter'\"'\"'s brief; then go'",
+        'env -u LEMONAID_PROMPT claude "$LEMONAID_PROMPT"',
         "",
+    ]
+    assert created[0]["environments"] == [
+        {},
+        {"LEMONAID_PROMPT": "read Peter's brief; then go"},
+        {},
     ]
 
 
@@ -96,7 +101,8 @@ def test_prompt_can_target_a_window_other_than_resume(monkeypatch, tmp_path):
         attach=False,
     )
 
-    assert created[0]["windows"] == ["harness 'start here'", "editor"]
+    assert created[0]["windows"] == ['env -u LEMONAID_PROMPT harness "$LEMONAID_PROMPT"', "editor"]
+    assert created[0]["environments"] == [{"LEMONAID_PROMPT": "start here"}, {}]
 
 
 def test_unknown_harness_template_is_an_error(monkeypatch, tmp_path):

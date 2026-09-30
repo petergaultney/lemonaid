@@ -36,7 +36,7 @@ def test_open_place_switches_to_an_existing_session(monkeypatch, tmp_path):
     monkeypatch.setattr(lifecycle.tmux.navigation, "switch_to_pane", _switch)
     spawned = _spawns_into(monkeypatch)
 
-    assert lifecycle.open_place(tmp_path, _CONFIG) is None
+    assert lifecycle.open_place(tmp_path, _CONFIG) == lifecycle.Opened("live")
     assert switched == [("live", "%2")]
     assert not spawned
 
@@ -45,7 +45,9 @@ def test_open_place_spawns_when_nothing_is_there(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     spawned = _spawns_into(monkeypatch)
 
-    assert lifecycle.open_place(tmp_path, _CONFIG, session_name="named") is None
+    assert lifecycle.open_place(tmp_path, _CONFIG, session_name="named") == lifecycle.Opened(
+        "named", created=True
+    )
     assert spawned[0]["cwd"] == str(tmp_path)
     assert spawned[0]["session_name"] == "named"
 
@@ -60,7 +62,7 @@ def test_open_place_passes_harness_and_prompt_to_spawn(monkeypatch, tmp_path):
             _CONFIG,
             harness="codex",
             prompt="read .z/brief.md",
-        )
+        ).error
         is None
     )
 
@@ -74,9 +76,9 @@ def test_open_key_acquires_then_opens(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     spawned = _spawns_into(monkeypatch)
 
-    directory, error = lifecycle.open_key("acquired", _CONFIG, root)
+    directory, opened = lifecycle.open_key("acquired", _CONFIG, root)
 
-    assert error is None
+    assert opened == lifecycle.Opened("acquired", created=True)
     assert directory == tmp_path / "acquired"
     assert spawned[0]["cwd"] == str(tmp_path / "acquired")
 
@@ -92,9 +94,9 @@ def test_open_key_opens_an_existing_directory_without_creating(monkeypatch, tmp_
     _no_existing_session(monkeypatch)
     _spawns_into(monkeypatch)
 
-    directory, error = lifecycle.open_key("already", _CONFIG, root)
+    directory, opened = lifecycle.open_key("already", _CONFIG, root)
 
-    assert error is None
+    assert opened.error is None
     assert directory == tmp_path / "already"
     assert not (tmp_path / "created-marker").exists()
 
@@ -103,10 +105,10 @@ def test_open_key_reports_a_root_that_cannot_create(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     _spawns_into(monkeypatch)
 
-    directory, error = lifecycle.open_key("k", _CONFIG, PlaceRoot(path=tmp_path))
+    directory, opened = lifecycle.open_key("k", _CONFIG, PlaceRoot(path=tmp_path))
 
     assert directory is None
-    assert error and "No create command" in error
+    assert opened.error and "No create command" in opened.error
 
 
 def test_open_key_reports_a_create_that_produced_nothing(monkeypatch, tmp_path):
@@ -114,10 +116,30 @@ def test_open_key_reports_a_create_that_produced_nothing(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     _spawns_into(monkeypatch)
 
-    directory, error = lifecycle.open_key("k", _CONFIG, root)
+    directory, opened = lifecycle.open_key("k", _CONFIG, root)
 
     assert directory is None
-    assert error and "Could not acquire" in error
+    assert opened.error and "Could not acquire" in opened.error
+
+
+def test_a_new_session_is_named_by_the_spawn_not_found_by_its_directory(monkeypatch, tmp_path):
+    """Right after the spawn, a pane in another session can report the same directory.
+
+    lemonaid's scratch pane does, while it runs a command there, so looking the
+    directory up again reads as ambiguous.
+    """
+    lookups = iter([(None, None), (lifecycle.tmux.navigation.AMBIGUOUS, None)])
+    monkeypatch.setattr(
+        lifecycle.tmux.navigation, "get_pane_for_cwd", lambda cwd, process=None: next(lookups)
+    )
+    _spawns_into(monkeypatch)
+    (tmp_path / "feat").mkdir()
+    root = PlaceRoot(path=tmp_path, path_of=f"echo {tmp_path}/feat")
+
+    assert lifecycle.open_key("feat/new.one", _CONFIG, root) == (
+        tmp_path / "feat",
+        lifecycle.Opened("feat/new-one", created=True),
+    )
 
 
 def test_open_key_passes_the_spawn_error_through(monkeypatch, tmp_path):
@@ -126,10 +148,10 @@ def test_open_key_passes_the_spawn_error_through(monkeypatch, tmp_path):
     _no_existing_session(monkeypatch)
     _spawns_into(monkeypatch, error="name already exists")
 
-    directory, error = lifecycle.open_key("d", _CONFIG, root)
+    directory, opened = lifecycle.open_key("d", _CONFIG, root)
 
     assert directory == tmp_path / "d"
-    assert error == "name already exists"
+    assert opened.error == "name already exists"
 
 
 def test_acquire_creates_and_returns_the_directory(tmp_path):
@@ -198,7 +220,9 @@ def test_open_session_spawns_in_the_given_directory(monkeypatch, tmp_path):
     _no_session_named(monkeypatch)
     spawned = _spawns_into(monkeypatch)
 
-    assert lifecycle.open_session("notes", tmp_path, _CONFIG) is None
+    assert lifecycle.open_session("notes", tmp_path, _CONFIG) == lifecycle.Opened(
+        "notes", created=True
+    )
     assert spawned[0]["cwd"] == str(tmp_path)
     assert spawned[0]["session_name"] == "notes"
 
@@ -225,7 +249,7 @@ def test_open_session_reuses_by_name(monkeypatch, tmp_path):
     )
     spawned = _spawns_into(monkeypatch)
 
-    assert lifecycle.open_session("notes", tmp_path, _CONFIG) is None
+    assert lifecycle.open_session("notes", tmp_path, _CONFIG) == lifecycle.Opened("notes")
     assert switched == [("notes", "%7")]
     assert not spawned
 
@@ -248,7 +272,9 @@ def test_open_session_distinguishes_names_in_one_directory(monkeypatch, tmp_path
     )
     spawned = _spawns_into(monkeypatch)
 
-    assert lifecycle.open_session("scratch", tmp_path, _CONFIG) is None
+    assert lifecycle.open_session("scratch", tmp_path, _CONFIG) == lifecycle.Opened(
+        "scratch", created=True
+    )
     assert asked == ["scratch"]
     assert spawned[0]["session_name"] == "scratch"
 
@@ -290,7 +316,8 @@ def test_open_place_refuses_an_ambiguous_directory(monkeypatch, tmp_path):
     )
     spawned = _spawns_into(monkeypatch)
 
-    error = lifecycle.open_place(tmp_path, _CONFIG)
+    opened = lifecycle.open_place(tmp_path, _CONFIG)
 
-    assert error and "not guessing" in error
+    assert not opened.session
+    assert opened.error and "not guessing" in opened.error
     assert not spawned

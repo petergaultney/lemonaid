@@ -3,6 +3,7 @@
 import shlex
 import subprocess
 import time
+from collections import abc
 from pathlib import Path
 
 from .. import launch
@@ -34,6 +35,7 @@ def create_session(
     directory: str | Path | None = None,
     claude_rename: bool = False,
     attach: bool = True,
+    environments: abc.Sequence[abc.Mapping[str, str]] = (),
 ) -> bool:
     """Create a new tmux session with the specified windows.
 
@@ -43,6 +45,7 @@ def create_session(
         directory: Working directory for all windows (default: cwd)
         claude_rename: If True, send /rename to any window running 'claude'
         attach: If True, attach to the session after creation
+        environments: Variables each window's shell starts with, by position
 
     Returns True on success.
     """
@@ -53,11 +56,27 @@ def create_session(
     # Create session with first window
     try:
         first_cmd = windows[0] if windows else ""
+        first_environment = environments[0] if environments else {}
         subprocess.run(
-            ["tmux", "new-session", "-d", "-s", name, "-c", directory],
+            [
+                "tmux",
+                "new-session",
+                "-d",
+                "-s",
+                name,
+                "-c",
+                directory,
+                *launch.window.environment_args(first_environment),
+            ],
             check=True,
             capture_output=True,
         )
+        # new-session's -e sets the session's environment, which every later
+        # window would inherit; the first window's shell already has it.
+        for variable in first_environment:
+            subprocess.run(
+                ["tmux", "set-environment", "-u", "-t", name, variable], capture_output=True
+            )
 
         # Query base-index after new-session so the server is guaranteed to exist.
         # On a fresh boot with no tmux server, querying before would fall back to 0
@@ -74,8 +93,17 @@ def create_session(
 
         # Create remaining windows
         for i, cmd in enumerate(windows[1:], start=1):
+            environment = environments[i] if i < len(environments) else {}
             subprocess.run(
-                ["tmux", "new-window", "-t", name, "-c", directory],
+                [
+                    "tmux",
+                    "new-window",
+                    "-t",
+                    name,
+                    "-c",
+                    directory,
+                    *launch.window.environment_args(environment),
+                ],
                 check=True,
                 capture_output=True,
             )
@@ -159,6 +187,11 @@ def auto_session_name(directory: Path, max_len: int = 15) -> str:
     return last
 
 
+def spawned_name(session_name: str, cwd: str) -> str:
+    """The name `spawn_session` gives the session it creates for these arguments."""
+    return sanitize_name(session_name or auto_session_name(Path(cwd)))
+
+
 def spawn_session(
     cwd: str,
     config: TmuxSessionConfig,
@@ -201,19 +234,28 @@ def spawn_session(
     if initial_prompt and not windows[idx].strip():
         return f"Tmux-session template {template_name!r} has no harness command in window {idx}"
 
+    environments: list[dict[str, str]] = [{} for _ in windows]
     if windows[idx].strip():
-        windows[idx] = launch.command.harness_line(windows[idx], Path(cwd), initial_prompt)
+        windows[idx], environments[idx] = launch.command.harness_line(
+            windows[idx], Path(cwd), initial_prompt
+        )
 
     if resume_argv:
         idx = min(config.resume_window, len(windows) - 1)
         resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
         windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
 
-    session_name = sanitize_name(session_name or auto_session_name(Path(cwd)))
+    session_name = spawned_name(session_name, cwd)
 
     _log.info("spawn_session: %s -> session '%s' in %s", channel or "no channel", session_name, cwd)
 
-    if not create_session(name=session_name, windows=windows, directory=cwd, attach=attach):
+    if not create_session(
+        name=session_name,
+        windows=windows,
+        directory=cwd,
+        attach=attach,
+        environments=environments,
+    ):
         return f"Failed to create tmux session '{session_name}' (name may already exist)"
 
     return None

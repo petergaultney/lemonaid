@@ -12,6 +12,8 @@ from pathlib import Path
 
 from ..config import TmuxSessionConfig
 
+PROMPT_VARIABLE = "LEMONAID_PROMPT"
+
 
 def template_window(config: TmuxSessionConfig, windows: list[str]) -> int:
     """The 0-based position in *windows* of the template's harness window."""
@@ -45,10 +47,29 @@ def unclaimable(line: str) -> str:
     return ""
 
 
-def harness_line(line: str, directory: Path, prompt: str = "") -> str:
-    """*line* with the flags its harness needs to start in *directory*, then *prompt*."""
+def _is_simple(line: str) -> bool:
+    """Whether *line* is one command, with no operator or newline joining or redirecting it."""
+    lexer = shlex.shlex(line.strip(), posix=True, punctuation_chars=True)
+    return "\n" not in line.strip() and not any(set(token) <= set("();<>|&") for token in lexer)
+
+
+def harness_line(line: str, directory: Path, prompt: str = "") -> tuple[str, dict[str, str]]:
+    """*line* with the flags its harness needs to start in *directory*, and the
+    environment the line's shell must be started with.
+
+    The line is typed into the user's shell, whose quoting rules lemonaid doesn't
+    know, so the prompt goes through the environment: `"$VAR"` is one word to a
+    POSIX shell, fish, and xonsh alike, whatever the prompt contains.
+    """
     program, _, rest = line.strip().partition(" ")
     if _is_codex(shlex.split(program)):
         line = " ".join([program, *(shlex.quote(f) for f in _codex_flags(directory)), rest]).strip()
 
-    return f"{line} {shlex.quote(prompt)}" if prompt else line
+    if not prompt:
+        return line, {}
+
+    # The shell expands the argument before `env` drops the variable, so the
+    # harness's own children never see it. A compound line (`a && b`) would only
+    # have its first command wrapped, so it is left as is.
+    wrapped = f"env -u {PROMPT_VARIABLE} {line}" if _is_simple(line) else line
+    return f'{wrapped} "${PROMPT_VARIABLE}"', {PROMPT_VARIABLE: prompt}

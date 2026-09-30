@@ -24,23 +24,10 @@ def root_or_exit(config: Config, directory: str | Path) -> PlaceRoot:
     return root
 
 
-def _hand_off(
-    given: launch.handoff.Handoff,
-    key: str,
-    directory: Path,
-    in_root: bool,
-    config: Config,
-    harness: str,
-) -> str | None:
-    """Wait on the new session's harness window for its lemon. Returns an error, or None."""
-    session = lifecycle.session_for(key, directory, in_root)
-    if not session:
-        return f"Opened, but could not tell which session is {directory}'s to attach {given.brief}"
-
+def _harness_window(config: Config, harness: str, session: str) -> tuple[str, str]:
+    """(index, window ID) of the harness window in *session*."""
     index = lifecycle.harness_window(config, harness)
-    _, window_id = brief.session.window(session, index)
-    launch.handoff.complete(given, session, index, window_id)
-    return None
+    return index, brief.session.window(session, index)[1]
 
 
 def cmd_open(args: argparse.Namespace) -> None:
@@ -65,8 +52,8 @@ def cmd_open(args: argparse.Namespace) -> None:
     )
 
     if root is None:
-        directory = Path.cwd()
-        error = lifecycle.open_session(
+        directory: Path | None = Path.cwd()
+        opened = lifecycle.open_session(
             args.key,
             directory,
             config,
@@ -75,7 +62,7 @@ def cmd_open(args: argparse.Namespace) -> None:
             prompt=args.prompt,
         )
     else:
-        directory, error = lifecycle.open_key(
+        directory, opened = lifecycle.open_key(
             args.key,
             config,
             root,
@@ -84,14 +71,25 @@ def cmd_open(args: argparse.Namespace) -> None:
             prompt=args.prompt,
         )
 
-    if given.brief and directory and not error:
-        error = _hand_off(given, args.key, directory, root is not None, config, args.harness)
+    session, error = opened.session, opened.error
+    if session and not error and (given.brief or args.prompt):
+        index, window_id = _harness_window(config, args.harness, session)
+        launch.handoff.complete(given, session, index, window_id)
+        if (
+            opened.created
+            and args.prompt
+            and window_id
+            and not args.no_check
+            and (dialog := launch.window.startup_dialog(window_id))
+        ):
+            error = f"Opened, but the lemon in {session}:{index} is waiting at {dialog}"
 
     if args.json:
         print(
             json.dumps(
                 {
                     "key": args.key,
+                    "session": session or None,
                     "dir": str(directory) if directory else None,
                     "root": str(root.path) if root else None,
                     "brief": str(given.brief) if given.brief else None,
@@ -273,6 +271,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     open_parser.add_argument(
         "--name", default="", help="Name the --brief's lemon's session once it starts"
+    )
+    open_parser.add_argument(
+        "--no-check",
+        action="store_true",
+        help="With --prompt, don't wait to check the harness window for a startup dialog",
     )
     open_parser.add_argument(
         "-d",
