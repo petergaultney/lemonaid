@@ -1,3 +1,9 @@
+# 0.40.1 (2026-09-30)
+
+#### Fixed
+
+- **`brief show <session> --popup` from a key binding shows the lemon in the window you pressed it from.** A binding that passes only `#{session_name}` showed every lemon in the session, so a lemon with no brief looked like it had its neighbour's `Status:`. A named window, and callers outside that session, still get what they asked for.
+
 # 0.40.0 (2026-09-30)
 
 #### Added

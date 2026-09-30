@@ -140,7 +140,9 @@ bind-key b run-shell -b 'lemonaid brief show "#{session_name}:#{window_index}" -
 ```
 
 Passing the window shows the brief of the lemon in it when a session holds several (an author
-and its reviewer); from any other window, every lemon's brief is shown.
+and its reviewer); from any other window, every lemon's brief is shown. With `--popup`, a
+binding that passes only `#{session_name}` now also picks the window the key was pressed in,
+as the binding above does.
 
 With the scratch pane following on the left, the brief replaces the inbox inside that pane.
 `b` in the inbox keeps focus there, so `Escape` or `q` restores the inbox. Up/down

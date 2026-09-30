@@ -47,6 +47,7 @@ def _target(
     place_arg: str,
     name_args: list[str],
     target_arg: str,
+    popup: bool = False,
 ) -> target.Target:
     if target_arg:
         return target.from_json(json.loads(target_arg))
@@ -60,6 +61,8 @@ def _target(
         )
 
     tmux_session, _, window = (session_arg or session.current_session()).partition(":")
+    if popup and tmux_session and not window:
+        window = session.client_window(tmux_session)  # a binding that passes only the session
     if not tmux_session:
         print("Not in tmux; name a session or pass --dir.", file=sys.stderr)
         sys.exit(1)
@@ -78,7 +81,9 @@ def _target(
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    found = _target(args.session, args.file, args.dir, args.place, args.name, args.target)
+    found = _target(
+        args.session, args.file, args.dir, args.place, args.name, args.target, args.popup
+    )
     if args.popup:
         if not sidebar.toggle(
             found, sidebar.window_id(args.session or os.environ.get("TMUX_PANE", ""))

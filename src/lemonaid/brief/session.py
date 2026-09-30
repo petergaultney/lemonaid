@@ -22,6 +22,24 @@ def current_session() -> str:
     return _tmux("display-message", "-p", "-t", pane, "#{session_name}:#{window_index}")
 
 
+def client_window(session: str) -> str:
+    """The index of the window the calling client shows in *session*, or "" if it
+    shows another session or the caller is not in tmux.
+
+    A key binding's `run-shell` has no `TMUX_PANE`, but its `TMUX` names the
+    session the key was pressed in, and an untargeted query answers for that.
+    """
+    if not os.environ.get("TMUX"):
+        return ""
+
+    pane = os.environ.get("TMUX_PANE")
+    here = _tmux(
+        "display-message", "-p", *(("-t", pane) if pane else ()), "#{session_name}\t#{window_index}"
+    )
+    name, _, index = here.partition("\t")
+    return index if name == session else ""
+
+
 def session_dir(session: str) -> Path | None:
     """The directory a session was started in, which for a place is the place."""
     path = _tmux("display-message", "-p", "-t", f"={session}:", "#{session_path}")
