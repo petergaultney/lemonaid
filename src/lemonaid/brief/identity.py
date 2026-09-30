@@ -89,6 +89,16 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
         generated = (not in_file and not recorded) or regenerate_on_collision
         lemon_id = in_file or recorded or store.new_lemon_id(path)
         while True:
+            alias = conn.execute(
+                "SELECT lemon_id FROM lemon_aliases WHERE old_id = ?", (lemon_id,)
+            ).fetchone()
+            if alias and generated:
+                lemon_id = store.new_lemon_id(path)
+                continue
+
+            if alias:
+                raise ValueError(f"Lemon-ID {lemon_id} is an old ID of {alias['lemon_id']}")
+
             holder = conn.execute(
                 "SELECT path FROM lemon_identities WHERE lemon_id = ?", (lemon_id,)
             ).fetchone()

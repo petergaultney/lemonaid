@@ -357,6 +357,7 @@ lemonaid brief new --self "Fix the thing"      # create ~/.lemons/brief/<today>-
 lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.lemons/brief/)
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
+lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
 lemonaid brief status --self waiting            # Status: waiting  (working | waiting | blocked | merge | review | alert | done)
 lemonaid brief detach --self                   # the file stays
@@ -389,6 +390,11 @@ and two random bytes. The slug omits the leading date and is trimmed to about
 Attaching or messaging an existing brief adds the line if it is missing. The ID names its
 message inbox and stays with the brief when its filename or attached channel changes.
 `brief id` also backfills an existing attached brief.
+`brief id --reroll` (or `--set <WordyBin>`) replaces the WordyBin and moves the inbox, parent
+links, and brief line to the new ID; the old ID stays an alias, so messages sent to it still
+arrive. It prints `old -> new`; with `--json`, `lemon_id`, `old_lemon_id`, `signing_name`, and
+`old_signing_name`. Pass the old signing name to doc waiters as `--legacy`, and rearm your inbox
+waiter, which exits. See `docs/messages.md`.
 Older hexadecimal and hand-made IDs remain valid and keep their inbox folders.
 An ID's shape is not validated; only folder safety is checked. It must be
 non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control

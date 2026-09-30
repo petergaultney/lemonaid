@@ -79,15 +79,19 @@ def _slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60].strip("-") or "brief"
 
 
+def lemon_id_slug(path: Path) -> str:
+    """The readable part of a Lemon-ID for the brief at *path*, before its WordyBin."""
+    slug = _slug(re.sub(r"^\d{4}-\d{2}-\d{2}-", "", path.stem))
+    if len(slug) <= 40:
+        return slug
+
+    prefix = slug[:40]
+    return (prefix.rsplit("-", 1)[0] if "-" in prefix else prefix).rstrip("-") or "brief"
+
+
 def new_lemon_id(path: Path) -> str:
     """Give a brief a short name plus a random, two-byte WordyBin suffix."""
-    stem = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", path.stem)
-    slug = _slug(stem)
-    if len(slug) > 40:
-        prefix = slug[:40]
-        slug = (prefix.rsplit("-", 1)[0] if "-" in prefix else prefix).rstrip("-") or "brief"
-
-    return f"{slug}.{wordybin.encode(os.urandom(2))}"
+    return f"{lemon_id_slug(path)}.{wordybin.encode(os.urandom(2))}"
 
 
 def create(title: str, today: datetime.date) -> Path:

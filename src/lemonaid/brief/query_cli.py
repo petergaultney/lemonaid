@@ -5,7 +5,7 @@ import json
 import sys
 
 from ..inbox import db
-from . import attached, identity, selector, store
+from . import attached, identity, reroll, selector, store
 
 
 def _fail(args: argparse.Namespace, error: str) -> None:
@@ -55,15 +55,30 @@ def cmd_id(args: argparse.Namespace) -> None:
             _fail(args, f"No brief attached to {chosen.channel!r}")
 
         try:
-            lemon_id = identity.ensure(conn, path)
-        except (ValueError, store.ChangedUnderneath) as cause:
+            if args.reroll or args.set:
+                rerolled = reroll.reroll(conn, path, args.set)
+                lemon_id = rerolled.new_id
+            else:
+                rerolled = None
+                lemon_id = identity.ensure(conn, path)
+        except (ValueError, OSError, store.ChangedUnderneath) as cause:
             _fail(args, str(cause))
 
     if args.json:
+        result = {"lemon_id": lemon_id, "channel": chosen.channel, "path": str(path)}
+        if rerolled:
+            result |= {
+                "old_lemon_id": rerolled.old_id,
+                "signing_name": reroll.signing_name(rerolled.new_id),
+                "old_signing_name": reroll.signing_name(rerolled.old_id),
+            }
+        print(json.dumps({**result, "error": None}))
+    elif rerolled:
+        print(f"{rerolled.old_id} -> {rerolled.new_id}")
         print(
-            json.dumps(
-                {"lemon_id": lemon_id, "channel": chosen.channel, "path": str(path), "error": None}
-            )
+            f"Sign as {reroll.signing_name(rerolled.new_id) or '$LEMON_NAME'}, pass "
+            f"--legacy {reroll.signing_name(rerolled.old_id) or '$LEMON_NAME'} to doc waiters, "
+            "and rearm your inbox waiter."
         )
     else:
         print(lemon_id)

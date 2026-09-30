@@ -18,6 +18,26 @@ An ID is accepted as an opaque string when it is safe as one folder name:
 non-empty, at most 255 UTF-8 bytes, with no slash, backslash, control
 character, or leading dot.
 
+## Rerolling an ID
+
+`lemonaid brief id --self --reroll` gives a lemon a new random WordyBin, keeping the slug;
+`--set QuickOdd` picks one (any two-word WordyBin, in any case). It refuses a WordyBin
+another lemon has, or had. Everything recorded against the old ID moves to the new one:
+
+- the brief's `Lemon-ID:` line;
+- the inbox folder, with its pending messages and `done/`;
+- parent links, as parent and as child.
+
+The old ID stays an alias. `tell`, `lemon parent --set`, and `place open --parent` accept it,
+and its inbox folder is left holding only a `.forward` file naming the new ID. A message
+written there by a sender that looked up the ID before the reroll follows the forward, so none
+is left behind. The reroll holds the lock every brief and message write takes, so no write lands
+halfway through it.
+
+A running `inbox watch` for the old ID exits with `Lemon-ID changed to <new>; rearm the waiter`.
+The command prints the old and new signing names (the WordyBin halves); pass the old one to
+doc waiters as `--legacy`.
+
 ```bash
 lemonaid tell codex:thread-id "Please review the PR."
 lemonaid tell <lemon-id> "Please review the PR."

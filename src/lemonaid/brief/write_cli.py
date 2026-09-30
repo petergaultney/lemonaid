@@ -175,6 +175,17 @@ def _parser(
 
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     own_id = _parser(brief_subparsers, "id", "Print the stable ID stored with a lemon's brief")
+    own_id.add_argument(
+        "--reroll",
+        action="store_true",
+        help="Replace the ID's WordyBin with a random unused one; the old ID keeps working",
+    )
+    own_id.add_argument(
+        "--set",
+        default="",
+        metavar="WORDYBIN",
+        help="Reroll to this two-word WordyBin (e.g. QuickOdd) instead of a random one",
+    )
     own_id.set_defaults(func=query_cli.cmd_id)
 
     attach = _parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")

@@ -50,17 +50,26 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
     raise LookupError("Cannot identify this lemon; set LEMONAID_CHANNEL or use a tmux pane")
 
 
+def current(conn: sqlite3.Connection, lemon_id: str) -> str:
+    """*lemon_id*, or the Lemon-ID it was rerolled to."""
+    row = conn.execute(
+        "SELECT lemon_id FROM lemon_aliases WHERE old_id = ?", (lemon_id,)
+    ).fetchone()
+    return row["lemon_id"] if row else lemon_id
+
+
 def attachment(conn: sqlite3.Connection, target: str) -> attached.Attachment:
-    """The one attached lemon *target* names: a channel, a Lemon-ID, or a brief's name."""
+    """The one attached lemon *target* names: a channel, a Lemon-ID (or an old one), or a brief's name."""
     attached.claim_pending(conn)
     all_briefs = attached.everything(conn)
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):
+        lemon_id = current(conn, target)
         for entry in all_briefs:
             if not entry.channel or not entry.path.is_file():
                 continue
             try:
-                if identity.from_path(entry.path) == target:
+                if identity.from_path(entry.path) == lemon_id:
                     found.append(entry)
             except ValueError as error:
                 _log.warning("Skipping invalid brief %s: %s", entry.path, error)
@@ -78,9 +87,9 @@ def attachment(conn: sqlite3.Connection, target: str) -> attached.Attachment:
 
 
 def brief_of(conn: sqlite3.Connection, lemon_id: str) -> Path | None:
-    """The brief registered for *lemon_id*, attached or not."""
+    """The brief registered for *lemon_id* (or the ID it was rerolled to), attached or not."""
     row = conn.execute(
-        "SELECT path FROM lemon_identities WHERE lemon_id = ?", (lemon_id,)
+        "SELECT path FROM lemon_identities WHERE lemon_id = ?", (current(conn, lemon_id),)
     ).fetchone()
     return Path(row["path"]) if row else None
 
@@ -103,7 +112,7 @@ def lemon_id(conn: sqlite3.Connection, target: str) -> str:
     for its lemon to start can be named.
     """
     if identity.valid(target) and brief_of(conn, target) is not None:
-        return target
+        return current(conn, target)
 
     try:
         return identity.ensure(conn, attachment(conn, target).path)

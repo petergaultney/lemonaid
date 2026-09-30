@@ -1,3 +1,9 @@
+# 0.44.0 (2026-09-30)
+
+#### Added
+
+- **`lemonaid brief id --reroll` gives a lemon a new WordyBin; `--set QuickOdd` picks it.** The brief line, inbox (pending and `done/`), and parent links move to the new ID. The old ID stays an alias, and its inbox folder forwards, so a message sent to it by a lemon that cached it still arrives.
+
 # 0.43.2 (2026-09-30)
 
 #### Fixed

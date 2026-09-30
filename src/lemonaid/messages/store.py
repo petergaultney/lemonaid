@@ -12,6 +12,9 @@ from pathlib import Path
 
 from .. import brief, home
 
+FORWARD = ".forward"  # in an inbox left behind by a reroll: the Lemon-ID it moved to
+_MAX_HOPS = 16
+
 
 def inbox_root() -> Path:
     if override := os.environ.get("LEMONAID_MESSAGES_DIR"):
@@ -37,6 +40,19 @@ def inbox_for_id(lemon_id: str) -> Path:
     return inbox
 
 
+def _forwarded(inbox: Path) -> Path:
+    """Where *inbox*'s messages go now, following rerolls."""
+    for _ in range(_MAX_HOPS):
+        try:
+            lemon_id = (inbox / FORWARD).read_text().strip()
+        except FileNotFoundError:
+            return inbox
+
+        inbox = inbox_for_id(lemon_id)
+
+    raise ValueError(f"Inbox forwards more than {_MAX_HOPS} times: {inbox}")
+
+
 def _write(inbox: Path, body: str, sender: str) -> Path:
     inbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
@@ -58,10 +74,11 @@ def send(inbox: Path, body: str, sender: str) -> Path:
     if not body.strip():
         raise ValueError("Message cannot be empty")
 
-    if inbox.is_symlink():
-        raise ValueError(f"Inbox is a symlink: {inbox}")
-
     with home.guard.operation():
+        inbox = _forwarded(inbox)
+        if inbox.is_symlink():
+            raise ValueError(f"Inbox is a symlink: {inbox}")
+
         return _write(inbox, body, sender)
 
 

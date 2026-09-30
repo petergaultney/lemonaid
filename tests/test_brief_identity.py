@@ -10,7 +10,7 @@ import wordybin
 
 from lemonaid.brief import identity, store
 from lemonaid.inbox import db
-from lemonaid.inbox.migrations import m009_add_lemon_identities
+from lemonaid.inbox.migrations import m009_add_lemon_identities, m014_add_lemon_aliases
 
 
 def _legacy(name: str):
@@ -132,6 +132,7 @@ def test_v8_attachment_can_be_backfilled_after_schema_migration(tmp_path):
             ("claude:old", str(path), 1),
         )
         m009_add_lemon_identities.migrate(conn)
+        m014_add_lemon_aliases.migrate(conn)
         conn.commit()
 
         lemon_id = identity.ensure(conn, path)

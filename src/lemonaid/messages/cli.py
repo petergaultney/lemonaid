@@ -121,10 +121,15 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                 if current is None or not current.is_file():
                     return False
                 try:
-                    return brief.identity.from_path(current) == lemon_id
+                    now_id = brief.identity.from_path(current)
                 except ValueError as error:
                     _log.warning("Invalid attached brief %s: %s", current, error)
                     return False
+
+                if now_id != lemon_id and brief.lemon.current(conn, lemon_id) == now_id:
+                    raise ValueError(f"Lemon-ID changed to {now_id}; rearm the waiter")
+
+                return now_id == lemon_id
 
         codex_thread = args.codex_thread or codex_delivery.own_thread(channel)
         try:
