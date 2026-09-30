@@ -1,3 +1,9 @@
+# 0.42.0 (2026-09-30)
+
+#### Changed
+
+- **The Obsidian vaults that brief links open come from `[brief] vaults`, and none are configured by default.** It lists vault directories; a bare `.md` path under one, from `~` or in full, opens that note in the vault named after the directory. With none listed, such paths stay plain text.
+
 # 0.41.1 (2026-09-30)
 
 #### Fixed

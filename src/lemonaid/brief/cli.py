@@ -92,9 +92,10 @@ def cmd_show(args: argparse.Namespace) -> None:
         return
 
     now = time.time()
-    shown = family.added(render.view(found, now, pr.configured(load_config().brief.pr_state)))
+    config = load_config().brief
+    shown = family.added(render.view(found, now, pr.configured(config.pr_state)))
     if args.page:
-        popup.page(shown, now, args.dismiss)
+        popup.page(shown, now, config.vaults, args.dismiss)
     else:
         print(render.to_markdown(shown, now))
 

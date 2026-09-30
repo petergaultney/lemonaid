@@ -1,5 +1,7 @@
 """Tests for configuration parsing."""
 
+from pathlib import Path
+
 from lemonaid.config import KeybindingsConfig, _parse_config
 from lemonaid.inbox.tui.app import _build_bindings
 
@@ -147,3 +149,24 @@ def test_build_bindings_hidden():
 def test_brief_pr_state_command_is_read_from_config():
     assert _parse_config({}).brief.pr_state == ""
     assert _parse_config({"brief": {"pr_state": "tool {ref}"}}).brief.pr_state == "tool {ref}"
+
+
+def test_brief_vaults_expand_their_roots_and_default_to_none():
+    assert _parse_config({}).brief.vaults == ()
+    assert _parse_config({"brief": {"vaults": ["~/notes", "/srv/kb"]}}).brief.vaults == (
+        Path.home() / "notes",
+        Path("/srv/kb"),
+    )
+
+
+def test_brief_vaults_that_are_not_directories_are_reported_and_skipped(capsys):
+    assert _parse_config({"brief": {"vaults": [7, "", "~/c"]}}).brief.vaults == (Path.home() / "c",)
+    assert capsys.readouterr().err.splitlines() == [
+        "Warning: [brief] vaults: ignoring 7",
+        "Warning: [brief] vaults: ignoring ''",
+    ]
+
+
+def test_brief_vaults_that_is_not_a_list_is_reported(capsys):
+    assert _parse_config({"brief": {"vaults": {"~/a": "a"}}}).brief.vaults == ()
+    assert "[brief] vaults must be a list of directories, not dict" in capsys.readouterr().err

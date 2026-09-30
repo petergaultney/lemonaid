@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from pathlib import Path
 
 import pytest
 import rich.console
@@ -12,6 +13,7 @@ from textual.widgets._markdown import MarkdownH2, MarkdownParagraph, MarkdownTab
 from lemonaid.brief import links
 from lemonaid.inbox.tui import brief_view
 
+_VAULTS = (Path.home() / "work/vault", Path.home() / "trove")
 _LONG = "https://example.com/" + "/".join(f"segment-{i}" for i in range(12)) + "/end?x=1&y=2"
 _OSC8 = re.compile(r"\x1b\]8;[^;]*;(?P<url>[^\x1b]*)\x1b\\(?P<text>.*?)\x1b\]8;;\x1b\\", re.DOTALL)
 
@@ -43,11 +45,11 @@ _OSC8 = re.compile(r"\x1b\]8;[^;]*;(?P<url>[^\x1b]*)\x1b\\(?P<text>.*?)\x1b\]8;;
     ],
 )
 def test_bare_paths_and_urls_get_short_labels(source, expected):
-    assert links.linkify(source) == expected
+    assert links.linkify(source, _VAULTS) == expected
 
 
 def test_a_long_url_gets_a_short_label_and_keeps_its_whole_target():
-    linked = links.linkify(f"- Waiting on: {_LONG}")
+    linked = links.linkify(f"- Waiting on: {_LONG}", _VAULTS)
 
     assert linked == f"- Waiting on: [example.com/…/end](<{_LONG}>)"
 
@@ -63,11 +65,31 @@ def test_a_long_url_gets_a_short_label_and_keeps_its_whole_target():
     ],
 )
 def test_existing_links_code_and_near_misses_are_left_alone(source):
-    assert links.linkify(source) == source
+    assert links.linkify(source, _VAULTS) == source
+
+
+def test_a_full_path_under_a_vault_root_links_like_its_tilde_form():
+    assert links.linkify(f"{Path.home()}/trove/notes/a b.md", _VAULTS) == (
+        "[a b](<obsidian://open?vault=trove&file=notes%2Fa%20b>)"
+    )
+
+
+def test_without_configured_vaults_paths_stay_as_written_and_urls_still_link():
+    assert links.linkify("~/trove/a.md and https://example.com/a", ()) == (
+        "~/trove/a.md and [example.com/a](<https://example.com/a>)"
+    )
+
+
+def test_a_root_nested_in_another_links_to_its_own_vault():
+    vaults = (Path.home() / "notes", Path.home() / "notes/inner")
+
+    assert links.linkify("~/notes/inner/x.md ~/notes/y.md", vaults) == (
+        "[x](<obsidian://open?vault=inner&file=x>) [y](<obsidian://open?vault=notes&file=y>)"
+    )
 
 
 def test_brackets_in_a_label_are_escaped():
-    assert links.linkify("obsidian://open?vault=trove&file=%5Bdraft%5D%20x") == (
+    assert links.linkify("obsidian://open?vault=trove&file=%5Bdraft%5D%20x", _VAULTS) == (
         r"[\[draft\] x](<obsidian://open?vault=trove&file=%5Bdraft%5D%20x>)"
     )
 
@@ -79,7 +101,7 @@ def _hyperlinks(ansi: str) -> list[tuple[str, str]]:
 def test_rich_wraps_a_label_with_the_link_on_every_line():
     console = rich.console.Console(force_terminal=True, width=12, color_system="truecolor")
     with console.capture() as capture:
-        console.print(rich.markdown.Markdown(links.linkify(f"x {_LONG}")))
+        console.print(rich.markdown.Markdown(links.linkify(f"x {_LONG}", _VAULTS)))
 
     found = _hyperlinks(capture.get())
 
@@ -92,7 +114,7 @@ def test_the_sidebar_adds_a_terminal_hyperlink_to_each_markdown_link():
     class _Show(App):
         def compose(self) -> ComposeResult:
             yield brief_view._Markdown(
-                links.linkify(f"Waiting on {_LONG} and [kept](https://k.example/)")
+                links.linkify(f"Waiting on {_LONG} and [kept](https://k.example/)", _VAULTS)
             )
 
     async def check() -> list[str]:
@@ -119,7 +141,7 @@ def test_a_click_in_the_sidebar_opens_each_link_as_written(monkeypatch):
 
     class _Show(App):
         def compose(self) -> ComposeResult:
-            yield brief_view._Markdown(links.linkify(source))
+            yield brief_view._Markdown(links.linkify(source, _VAULTS))
 
     async def check() -> None:
         app = _Show()
@@ -151,7 +173,7 @@ def test_a_click_on_a_table_cell_link_opens_it_as_written(monkeypatch):
 
     class _Show(App):
         def compose(self) -> ComposeResult:
-            yield brief_view._Markdown(links.linkify(source))
+            yield brief_view._Markdown(links.linkify(source, _VAULTS))
 
         def open_url(self, url: str, *, new_tab: bool = True) -> None:
             browsed.append(url)

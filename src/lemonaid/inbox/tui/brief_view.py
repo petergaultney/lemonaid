@@ -7,6 +7,8 @@ import subprocess
 import sys
 import time
 import urllib.parse
+from collections import abc
+from pathlib import Path
 
 from markdown_it.token import Token
 from rich.text import Text
@@ -162,10 +164,16 @@ class BriefView(VerticalScroll):
     }}
     """
 
-    def __init__(self, pr_state: pr.Lookup = pr.no_state, **kwargs: object) -> None:
+    def __init__(
+        self,
+        pr_state: pr.Lookup = pr.no_state,
+        vaults: abc.Collection[Path] = (),
+        **kwargs: object,
+    ) -> None:
         super().__init__(**kwargs)
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
+        self._vaults = vaults
 
     def show(self, found: target.Target, unread: bool = False) -> None:
         self._rendered_markdown = None
@@ -176,7 +184,7 @@ class BriefView(VerticalScroll):
         self, shown: render.View, now: float, unread: bool
     ) -> list[Static | Markdown | Rule]:
         if not shown.sections:
-            return [_Markdown(links.linkify(render.to_markdown(shown, now)))]
+            return [_Markdown(links.linkify(render.to_markdown(shown, now), self._vaults))]
 
         top: list[Static | Markdown | Rule] = (
             [_SessionBar(shown.header)]
@@ -192,13 +200,13 @@ class BriefView(VerticalScroll):
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
                 *([_Markdown(f"**Parent:** `{section.parent}`")] if section.parent else []),
-                *([_Markdown(links.linkify(section.body))] if section.body else []),
+                *([_Markdown(links.linkify(section.body, self._vaults))] if section.body else []),
                 *(
                     [Static(brief_card.children(section), classes="brief-children")]
                     if section.children
                     else []
                 ),
-                *([_Markdown(links.linkify(section.tail))] if section.tail else []),
+                *([_Markdown(links.linkify(section.tail, self._vaults))] if section.tail else []),
             )
         ]
         return [

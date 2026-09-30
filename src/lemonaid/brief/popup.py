@@ -3,6 +3,7 @@
 import subprocess
 import sys
 from collections import abc
+from pathlib import Path
 
 import rich.console
 import rich.markdown
@@ -35,10 +36,12 @@ def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
     return ["less", "-R", "--tilde", f"--lesskey-content={lesskey}"]
 
 
-def _renderables(shown: render.View, now: float, width: int) -> list[rich.console.RenderableType]:
+def _renderables(
+    shown: render.View, now: float, width: int, vaults: abc.Collection[Path]
+) -> list[rich.console.RenderableType]:
     """The view as the inbox would draw it: a session bar, then a card and its brief per lemon."""
     if not shown.sections:
-        return [rich.markdown.Markdown(links.linkify(render.to_markdown(shown, now)))]
+        return [rich.markdown.Markdown(links.linkify(render.to_markdown(shown, now), vaults))]
 
     gap = rich.text.Text("")
     rule = rich.rule.Rule(style="bright_black")
@@ -60,19 +63,32 @@ def _renderables(shown: render.View, now: float, width: int) -> list[rich.consol
                 if section.parent
                 else []
             ),
-            *([rich.markdown.Markdown(links.linkify(section.body))] if section.body else []),
+            *(
+                [rich.markdown.Markdown(links.linkify(section.body, vaults))]
+                if section.body
+                else []
+            ),
             *([gap, brief_card.children(section)] if section.children else []),
-            *([gap, rich.markdown.Markdown(links.linkify(section.tail))] if section.tail else []),
+            *(
+                [gap, rich.markdown.Markdown(links.linkify(section.tail, vaults))]
+                if section.tail
+                else []
+            ),
         )
     ]
     return [*top, *sections, gap, rule, brief_card.files(shown)]
 
 
-def page(shown: render.View, now: float, quit_keys: abc.Iterable[str] = ()) -> None:
+def page(
+    shown: render.View,
+    now: float,
+    vaults: abc.Collection[Path],
+    quit_keys: abc.Iterable[str] = (),
+) -> None:
     """Show a view rendered by Rich in an ANSI-aware pager."""
     console = rich.console.Console(force_terminal=True, theme=_THEME)
     with console.capture() as capture:
-        for renderable in _renderables(shown, now, console.width):
+        for renderable in _renderables(shown, now, console.width, vaults):
             console.print(renderable)
     subprocess.run(_less_command(quit_keys), input=capture.get(), text=True)
 

@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
@@ -150,6 +151,9 @@ class BriefConfig:
     # Shell command printing a PR's state (open, draft, merged, closed) for
     # `{ref}`, a PR number or URL, run in the lemon's place. Unset shows no state.
     pr_state: str = ""
+    # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
+    # `obsidian://` link.
+    vaults: tuple[Path, ...] = ()
 
 
 @dataclass
@@ -290,6 +294,22 @@ def load_config(config_path: Path | None = None) -> Config:
     return _parse_config(data)
 
 
+def _vaults(raw: object) -> tuple[Path, ...]:
+    """`[brief] vaults`, reporting and skipping anything that is not a directory."""
+    if not isinstance(raw, list):
+        if raw is not None:
+            print(
+                f"Warning: [brief] vaults must be a list of directories, not {type(raw).__name__}",
+                file=sys.stderr,
+            )
+        return ()
+
+    for root in raw:
+        if not isinstance(root, str) or not root:
+            print(f"Warning: [brief] vaults: ignoring {root!r}", file=sys.stderr)
+    return tuple(Path(root).expanduser() for root in raw if isinstance(root, str) and root)
+
+
 def _parse_config(data: dict[str, Any]) -> Config:
     """Parse config dict into Config object."""
     handlers = data.get("handlers", {})
@@ -347,7 +367,11 @@ def _parse_config(data: dict[str, Any]) -> Config:
         backend_labels=tui_data.get("backend_labels", {}),
     )
 
-    brief = BriefConfig(pr_state=data.get("brief", {}).get("pr_state", ""))
+    brief_data = data.get("brief", {})
+    brief = BriefConfig(
+        pr_state=brief_data.get("pr_state", ""),
+        vaults=_vaults(brief_data.get("vaults")),
+    )
 
     inbox = InboxConfig(
         auto_read=auto_read.compile_patterns(data.get("inbox", {}).get("auto_read"))

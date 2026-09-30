@@ -69,8 +69,8 @@ and each `PR #N` or pull-request URL in the brief, with its live state (`open`, 
 `## Now` with `Done` last (or an older session's `.z/brief.md`), the rest of the brief below a
 rule, and the brief's path at the bottom.
 
-Bare `.md` paths under the two Obsidian vault roots lemonaid currently recognizes (`~/work/vault`
-and `~/trove`, not yet configurable) open in Obsidian, and bare
+Bare `.md` paths under an Obsidian vault in [`[brief] vaults`](config.md#brief) open in
+Obsidian, and bare
 `https://` and `obsidian://` URLs are shortened to a label (`lemonaid#74`, a note's name). Each
 label is a terminal hyperlink (OSC 8) in its own colour, so cmd-click opens it from any line it
 wraps onto; tmux passes hyperlinks through when `terminal-features` includes `hyperlinks`. A plain
