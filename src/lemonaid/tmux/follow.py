@@ -187,11 +187,18 @@ def _kill_older_placeholders() -> str:
 
 
 def hook_condition() -> str:
-    """Follow is on, the pane exists, and here is not an internal session."""
+    """Follow is on, the pane exists, and here is a session a client is showing
+    that is not an internal one.
+
+    A session nobody is attached to changes window whenever something creates or
+    selects one there, and following it would leave a placeholder in the window
+    that is on screen.
+    """
     return (
         f"#{{&&:#{{==:#{{{FOLLOW_OPTION}}},on}},"
+        f"#{{&&:#{{session_attached}},"
         f"#{{&&:#{{!:#{{m:{_INTERNAL_SESSION_GLOB},#{{session_name}}}}}},"
-        f"#{{&&:{_pane_exists()},#{{!:{_pane_is_here()}}}}}}}}}"
+        f"#{{&&:{_pane_exists()},#{{!:{_pane_is_here()}}}}}}}}}}}"
     )
 
 

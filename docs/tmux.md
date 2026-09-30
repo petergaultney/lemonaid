@@ -230,6 +230,10 @@ join - with no shell process. A switch fires both hooks, and hooks run one after
 another in the server, so the second finds the pane already joined and does
 nothing. The pane is in place before tmux redraws the window you switched to.
 
+Only a session some client is showing pulls the pane in. A window created or
+selected in a session nobody is attached to - a script opening a session, a lemon
+adding a window to its own - leaves the pane where you can see it.
+
 The pane is swapped, not moved. The last window it left keeps a placeholder pane
 in its slot - a bare `sleep`, visible as an empty pane - so switching straight
 back does not resize that window's own panes. Older placeholders are removed:

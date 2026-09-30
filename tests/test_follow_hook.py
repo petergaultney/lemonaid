@@ -534,3 +534,21 @@ def test_the_resize_hook_is_installed_under_a_name_tmux_fires():
 
     source = Path(f.__file__).read_text()
     assert '"window-resized": resize_hook_command()' in source
+
+
+def test_a_window_change_in_an_unattached_session_leaves_the_pane_alone(tmux):
+    """A session nobody is looking at changes its window whenever something
+    creates or selects one there - a script opening a session, a lemon adding a
+    window. The pane followed it there, leaving a placeholder in the window the
+    client was actually showing: an empty sidebar until prefix+l swapped it back.
+    """
+    pane = _followed_pane(tmux)
+    tmux("select-window", "-t", "a:w2")
+    assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
+
+    tmux("select-window", "-t", "b:w2")
+    tmux("new-window", "-t", "b", "-n", "w3")
+
+    assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
+    assert follow.placeholders("a:w2") == []
+    assert follow.placeholders("b", whole_session=True) == []

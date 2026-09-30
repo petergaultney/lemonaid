@@ -1,3 +1,9 @@
+# 0.36.1 (2026-09-29)
+
+#### Fixed
+
+- **The scratch sidebar no longer goes blank when another session changes window.** A window created or selected in a session no client was showing pulled the pane there, leaving an empty placeholder in the window on screen until `prefix+l`.
+
 # 0.36.0 (2026-09-29)
 
 #### Added
