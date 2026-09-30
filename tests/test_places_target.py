@@ -53,7 +53,6 @@ def test_unnamed_toss_is_the_session_you_are_attached_to(monkeypatch, tmp_path):
     assert doomed is not None
     assert doomed.session == "work"
     assert [p.key for p in doomed.places] == ["feat"]
-    assert doomed.from_inside is True
 
 
 def test_unnamed_toss_works_from_a_window_that_wandered(monkeypatch, tmp_path):
@@ -107,7 +106,6 @@ def test_a_named_key_resolves_the_session_sitting_in_it(monkeypatch, tmp_path):
     assert why_not == ""
     assert doomed is not None
     assert doomed.session == "its_session"
-    assert doomed.from_inside is False  # nothing to switch away from
 
 
 def test_naming_a_key_acts_on_the_whole_session(monkeypatch, tmp_path):
@@ -120,17 +118,6 @@ def test_naming_a_key_acts_on_the_whole_session(monkeypatch, tmp_path):
 
     assert doomed is not None
     assert [p.key for p in doomed.places] == ["base", "on-top"]
-
-
-def test_naming_the_session_you_are_in_still_switches_you_out(monkeypatch, tmp_path):
-    _managed(tmp_path, "here")
-    _panes(monkeypatch, here=[tmp_path / "here"])
-    _attached_to(monkeypatch, "here")
-
-    doomed, _ = target.resolve_toss_target(_config(_root(tmp_path)), "here")
-
-    assert doomed is not None
-    assert doomed.from_inside is True
 
 
 def test_an_unknown_key_is_rejected(monkeypatch, tmp_path):
@@ -166,18 +153,6 @@ def test_a_sessionless_place_never_takes_others_with_it(monkeypatch, tmp_path):
 
     assert doomed is not None
     assert [place.key for place in doomed.places] == ["idle"]
-
-
-def test_a_sessionless_place_is_not_torn_down_from_inside(monkeypatch, tmp_path):
-    """Nothing to switch away from - the client isn't in a session being killed."""
-    _managed(tmp_path, "idle")
-    _panes(monkeypatch)
-    _attached_to(monkeypatch, "mine")
-
-    doomed, _ = target.resolve_toss_target(_config(_root(tmp_path)), "idle")
-
-    assert doomed is not None
-    assert doomed.from_inside is False
 
 
 def test_a_protected_place_with_no_session_is_refused(monkeypatch, tmp_path):

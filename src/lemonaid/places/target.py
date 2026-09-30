@@ -31,10 +31,6 @@ class TossTarget(ty.NamedTuple):
     # already excluded by `ownership.places_of`. May be empty: a session with no
     # managed place is still a session, and closing it is legitimate.
     places: list[ownership.Place]
-    # Is the caller's client attached to this session? Not the same as being in
-    # its directory - you can cd into a place from a window belonging to another
-    # session, in which case nothing needs switching away.
-    from_inside: bool
 
 
 def _refusal(config: Config, session: str) -> str:
@@ -72,7 +68,7 @@ def _named(config: Config, key: str) -> tuple[TossTarget | None, str]:
                 f"for {place.root.path} under [[places.roots]] if that is wrong."
             )
 
-        return TossTarget("", [place], from_inside=False), ""
+        return TossTarget("", [place]), ""
 
     if len(holding) > 1:
         return None, (
@@ -88,12 +84,7 @@ def _named(config: Config, key: str) -> tuple[TossTarget | None, str]:
     if refusal := _refusal(config, session):
         return None, refusal
 
-    current, _ = tmux.navigation.get_current_location()
-
-    return (
-        TossTarget(session, ownership.places_of(session, config), session == current),
-        "",
-    )
+    return TossTarget(session, ownership.places_of(session, config)), ""
 
 
 def resolve_toss_target(config: Config, key: str | None) -> tuple[TossTarget | None, str]:
@@ -113,4 +104,4 @@ def resolve_toss_target(config: Config, key: str | None) -> tuple[TossTarget | N
     if refusal := _refusal(config, current):
         return None, refusal
 
-    return TossTarget(current, ownership.places_of(current, config), from_inside=True), ""
+    return TossTarget(current, ownership.places_of(current, config)), ""

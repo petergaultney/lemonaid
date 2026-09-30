@@ -85,7 +85,7 @@ def cmd_toss(args: argparse.Namespace) -> None:
         print("Nothing was torn down.", file=sys.stderr)
         sys.exit(1)
 
-    error = teardown.toss(doomed.session, doomed.places, from_inside=doomed.from_inside)
+    error = teardown.toss(doomed.session, doomed.places)
 
     if args.json:
         # The whole set is reported: a named toss acts on everything its session
@@ -120,7 +120,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "which places go together before acting.\n\n"
         "Protected places (main, master by default) are never released and never "
         "count as owned. Protected sessions are refused outright. Teardown switches "
-        "you away first, then runs detached, logging to "
+        "every client attached to the session elsewhere first (or refuses if one has "
+        "nowhere to go), then runs detached, logging to "
         "~/.local/state/lemonaid/reap.log.",
         epilog="Examples:\n"
         "  place toss feat/thing --json   # what an agent should use: names the target\n"

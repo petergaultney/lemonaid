@@ -1,3 +1,10 @@
+# 0.42.1 (2026-09-30)
+
+#### Fixed
+
+- **`place toss` no longer detaches a client watching the session it kills.** It switched a client away only when the caller's own pane was in that session, so a lemon tossing a place by key from elsewhere detached anyone looking at it. Every attached client now goes back to its last session (or the usual fallback) first, and `toss` refuses if one has nowhere to go or tmux can't say who is attached.
+- **`place toss` from inside a session nobody is watching leaves other clients alone.** It used to run an untargeted `switch-client`, which tmux could apply to a client in some other session.
+
 # 0.42.0 (2026-09-30)
 
 #### Changed

@@ -207,12 +207,15 @@ commits you haven't pushed.
 1. Ask `inspect` about each place being released; refuse if it reports anything (`--force`
    overrides).
 2. Show the set and confirm (`--yes` skips).
-3. Switch you to another session — wherever you came from, else one that wants attention in
-   the inbox, else the most recently active.
+3. Switch every client attached to the session to another one — that client's last session,
+   else wherever you came from, else one that wants attention in the inbox, else the most
+   recently active.
 4. Kill the session and run `destroy` for each place, in a detached process.
 
-Step 3 exists because you're usually inside what's being destroyed; if there's nowhere to
-switch to, `toss` refuses rather than stranding your client. Step 4 is detached because
+Step 3 covers every client, not just the caller's: an agent tossing a place by key usually
+runs in some other session while you watch the one going away. If any client has nowhere to
+switch to, or tmux can't list the session's clients, `toss` refuses rather than risk
+detaching one. Step 4 is detached because
 releasing a large directory takes a while. Output goes to `~/.local/state/lemonaid/reap.log`.
 
 The session is killed *before* any directory is released: your shell's working directory is

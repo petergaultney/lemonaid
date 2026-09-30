@@ -28,124 +28,45 @@ def _place(tmp_path, key: str = "k", root: PlaceRoot | None = None) -> ownership
     return ownership.Place(key, root or _destroyable(tmp_path), directory)
 
 
-def _tmux_sessions(monkeypatch, listing: str) -> None:
-    def _run(argv, **kwargs):
-        class _Result:
-            stdout = listing
-            returncode = 0
-
-        return _Result()
-
-    monkeypatch.setattr(teardown.subprocess, "run", _run)
-
-
-def test_escape_target_prefers_where_you_came_from(monkeypatch):
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: ("earlier", "%1"))
-
-    assert teardown._escape_target("doomed") == "earlier"
-
-
-def test_escape_target_ignores_a_back_location_that_is_the_doomed_session(monkeypatch):
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: ("doomed", "%1"))
-    _tmux_sessions(monkeypatch, "100 older\n200 newer\n300 doomed\n")
-
-    assert teardown._escape_target("doomed") == "newer"
-
-
-def test_escape_target_falls_back_to_most_recently_active(monkeypatch):
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "100 older\n300 newest\n200 middle\n")
-
-    assert teardown._escape_target("doomed") == "newest"
-
-
-def test_escape_target_skips_lemonaid_internal_sessions(monkeypatch):
-    """The scratch pane and reapers are not places to be dropped into."""
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "100 real\n900 _lma_scratch\n800 _lma_reap_x\n")
-
-    assert teardown._escape_target("doomed") == "real"
-
-
-def test_escape_target_empty_when_nowhere_to_go(monkeypatch):
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "100 doomed\n")
-
-    assert teardown._escape_target("doomed") == ""
-
-
-def test_toss_from_inside_refuses_when_there_is_nowhere_to_go(monkeypatch, tmp_path):
-    """Killing the session you're in with no destination would strand the client."""
-    monkeypatch.setattr(teardown, "_escape_target", lambda session: "")
+def test_toss_does_not_tear_down_if_a_client_cannot_escape(monkeypatch, tmp_path):
+    monkeypatch.setattr(teardown.escape, "evacuate", lambda session: "Nowhere to switch")
     spawned = []
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: spawned.append(a))
 
-    error = teardown.toss("doomed", [_place(tmp_path)], from_inside=True)
-
-    assert error and "Nowhere to switch to" in error
-    assert not spawned
-
-
-def test_toss_does_not_tear_down_if_the_escape_fails(monkeypatch, tmp_path):
-    monkeypatch.setattr(teardown, "_escape_target", lambda session: "elsewhere")
-    monkeypatch.setattr(teardown, "_switch_client", lambda session: False)
-    spawned = []
-    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: spawned.append(a))
-
-    error = teardown.toss("doomed", [_place(tmp_path)], from_inside=True)
-
-    assert error and "nothing was torn down" in error
+    assert teardown.toss("doomed", [_place(tmp_path)]) == "Nowhere to switch"
     assert not spawned
 
 
 def test_toss_without_a_session_switches_nothing(monkeypatch, tmp_path):
-    """There is no session being killed, so the client is not standing in danger."""
-    switched = []
-    monkeypatch.setattr(teardown, "_switch_client", lambda session: switched.append(session))
+    """There is no session being killed, so no client is standing in danger."""
+    evacuated = []
+    monkeypatch.setattr(teardown.escape, "evacuate", lambda session: evacuated.append(session))
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
-    assert teardown.toss("", [_place(tmp_path)], from_inside=False) is None
-    assert not switched
+    assert teardown.toss("", [_place(tmp_path)]) is None
+    assert not evacuated
 
 
 def test_toss_switches_away_before_spawning_the_reaper(monkeypatch, tmp_path):
     order = []
 
-    def _switch(session):
-        order.append("switch")
-        return True
+    def _evacuate(session):
+        order.append("evacuate")
+        return ""
 
     def _reap(*args):
         order.append("reap")
         return None
 
-    monkeypatch.setattr(teardown, "_escape_target", lambda session: "elsewhere")
-    monkeypatch.setattr(teardown, "_switch_client", _switch)
+    monkeypatch.setattr(teardown.escape, "evacuate", _evacuate)
     monkeypatch.setattr(teardown, "_spawn_reaper", _reap)
 
-    assert teardown.toss("doomed", [_place(tmp_path)], from_inside=True) is None
-    assert order == ["switch", "reap"]
-
-
-def test_toss_from_outside_does_not_switch_anything(monkeypatch, tmp_path):
-    """Tearing down something you aren't in needs no escape."""
-    switched = []
-
-    def _switch(session):
-        switched.append(session)
-        return True
-
-    monkeypatch.setattr(teardown, "_switch_client", _switch)
-    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
-
-    assert teardown.toss("other", [_place(tmp_path)], from_inside=False) is None
-    assert not switched
+    assert teardown.toss("doomed", [_place(tmp_path)]) is None
+    assert order == ["evacuate", "reap"]
 
 
 def test_toss_of_a_session_with_no_places_is_just_a_kill(monkeypatch, tmp_path):
     """Sometimes there is no worktree, and closing the session is the whole ask."""
-    monkeypatch.setattr(teardown, "_switch_client", lambda session: True)
-    monkeypatch.setattr(teardown, "_escape_target", lambda session: "elsewhere")
     captured = {}
 
     def _run(argv, **kwargs):
@@ -159,7 +80,7 @@ def test_toss_of_a_session_with_no_places_is_just_a_kill(monkeypatch, tmp_path):
 
     monkeypatch.setattr(teardown.subprocess, "run", _run)
 
-    assert teardown.toss("notes", [], from_inside=True) is None
+    assert teardown.toss("notes", []) is None
     assert "kill-session -t =notes" in captured["script"]
 
 
@@ -263,7 +184,7 @@ def test_reaper_does_not_sit_in_a_directory_it_is_removing(monkeypatch, tmp_path
 
     monkeypatch.setattr(teardown.subprocess, "run", _run)
 
-    teardown.toss("doomed", [_place(tmp_path, "feat")], from_inside=False)
+    teardown.toss("doomed", [_place(tmp_path, "feat")])
 
     assert captured["argv"][captured["argv"].index("-c") + 1] == str(tmp_path)
 
@@ -377,36 +298,6 @@ def test_reaper_does_not_kill_a_prefix_named_session(monkeypatch, tmp_path):
         tmux("kill-server")
 
 
-def test_escape_prefers_a_session_that_wants_attention(monkeypatch):
-    """The most recently active session is often the one you just left."""
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "300 just-left\n100 waiting-on-you\n")
-    monkeypatch.setattr(teardown, "_wants_attention", lambda available: "waiting-on-you")
-
-    assert teardown._escape_target("doomed") == "waiting-on-you"
-
-
-def test_escape_falls_back_to_recency_when_nothing_is_waiting(monkeypatch):
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "100 older\n300 newest\n")
-    monkeypatch.setattr(teardown, "_wants_attention", lambda available: "")
-
-    assert teardown._escape_target("doomed") == "newest"
-
-
-def test_attention_only_counts_sessions_that_are_actually_live(monkeypatch):
-    """An archived notification may name a session that no longer exists."""
-    monkeypatch.setattr(teardown.tmux.navigation, "load_back_location", lambda: (None, None))
-    _tmux_sessions(monkeypatch, "100 live-one\n")
-
-    class _N:
-        name = "long-gone"
-
-    monkeypatch.setattr(teardown.db, "get_unread", lambda conn: [_N()])
-
-    assert teardown._escape_target("doomed") == "live-one"
-
-
 def _lemon(channel: str, cwd, tty: str | None = None) -> None:
     metadata = {"cwd": str(cwd), **({"tty": tty} if tty else {})}
     with db.connect() as conn:
@@ -419,7 +310,9 @@ def _active_channels() -> set[str]:
 
 
 def _session_panes(monkeypatch, ttys: set[str]) -> None:
+    """*ttys* are the doomed session's panes, and no client is watching it."""
     monkeypatch.setattr(teardown.tmux.navigation, "session_ttys", lambda session: ttys)
+    monkeypatch.setattr(teardown.escape, "evacuate", lambda session: "")
 
 
 def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
@@ -432,7 +325,7 @@ def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
     _session_panes(monkeypatch, set())
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
-    assert teardown.toss("review", [place], from_inside=False) is None
+    assert teardown.toss("review", [place]) is None
     assert _active_channels() == {"claude:elsewhere"}
 
 
@@ -443,7 +336,7 @@ def test_toss_archives_the_lemons_on_the_killed_sessions_panes(monkeypatch, tmp_
     _session_panes(monkeypatch, {"/dev/ttys041"})
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
-    teardown.toss("review", [], from_inside=False)
+    teardown.toss("review", [])
 
     assert _active_channels() == {"claude:elsewhere"}
 
@@ -454,7 +347,7 @@ def test_toss_keeps_a_codex_row_whose_tty_is_on_the_killed_session(monkeypatch, 
     _session_panes(monkeypatch, {"/dev/ttys012"})
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
-    teardown.toss("docs", [], from_inside=False)
+    teardown.toss("docs", [])
 
     assert _active_channels() == {"codex:elsewhere"}
 
@@ -466,7 +359,7 @@ def test_toss_keeps_no_tty_lemons_in_a_place_it_does_not_destroy(monkeypatch, tm
     _session_panes(monkeypatch, set())
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
-    teardown.toss("plain", [place], from_inside=False)
+    teardown.toss("plain", [place])
 
     assert _active_channels() == {"codex:reviewer"}
 
@@ -477,7 +370,7 @@ def test_a_reaper_that_finishes_first_still_leaves_its_rows_archived(monkeypatch
     _session_panes(monkeypatch, set())
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: shutil.rmtree(place.directory))
 
-    teardown.toss("review", [place], from_inside=False)
+    teardown.toss("review", [place])
 
     assert _active_channels() == set()
 
@@ -488,5 +381,5 @@ def test_a_failed_toss_archives_nothing(monkeypatch, tmp_path):
     _session_panes(monkeypatch, set())
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: "Could not start teardown")
 
-    assert teardown.toss("review", [place], from_inside=False)
+    assert teardown.toss("review", [place])
     assert _active_channels() == {"codex:reviewer"}

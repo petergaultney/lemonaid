@@ -3,8 +3,8 @@
 Ordering matters here, because the caller is usually standing inside the thing
 being destroyed. You have to be moved out before anything is removed, and the
 removal itself is slow enough (dependency trees, large working copies) that
-waiting on it defeats the purpose. So teardown switches you away first, then does
-the work in a detached process.
+waiting on it defeats the purpose. So teardown switches every client away first,
+then does the work in a detached process.
 """
 
 import shlex
@@ -16,7 +16,7 @@ from pathlib import Path
 from .. import tmux
 from ..inbox import db
 from ..log import get_logger
-from . import hooks, ownership
+from . import escape, hooks, ownership
 
 _log = get_logger("places.teardown")
 
@@ -25,84 +25,6 @@ _REAP_TIMEOUT_SECONDS = 1800  # a large working copy can take a while to remove
 
 def reap_log_path() -> Path:
     return tmux.navigation.get_state_path() / "reap.log"
-
-
-def _live_sessions_by_recency(doomed_session: str) -> list[str]:
-    """Other sessions, most recently active first, excluding lemonaid's own."""
-    try:
-        result = subprocess.run(
-            ["tmux", "list-sessions", "-F", "#{session_activity} #{session_name}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as e:
-        _log.warning("could not list sessions to find an escape target: %s", e)
-        return []
-
-    return [
-        name
-        for _, name in sorted(
-            (
-                (int(activity), name)
-                for activity, _, name in (
-                    line.partition(" ") for line in result.stdout.splitlines()
-                )
-                if activity.isdigit() and name != doomed_session and not name.startswith("_lma")
-            ),
-            reverse=True,
-        )
-    ]
-
-
-def _wants_attention(available: abc.Container[str]) -> str:
-    """The live session with something unread in the inbox, if any.
-
-    Preferred over bare recency: the most recently *active* session is often the
-    one you just left, while the inbox knows which one is actually waiting on you.
-    """
-    try:
-        with db.connect() as conn:
-            unread = db.get_unread(conn)
-    except sqlite3.Error as e:
-        _log.warning("could not read the inbox for an escape target: %s", e)
-        return ""
-
-    return next((n.name for n in unread if n.name and n.name in available), "")
-
-
-def _escape_target(doomed_session: str) -> str:
-    """Where to send the client before killing *doomed_session*.
-
-    Wherever you came from first - finishing a piece of work usually means going
-    back to what you left. Otherwise a session that wants attention, and failing
-    that the most recently active one.
-    """
-    back_session, _ = tmux.navigation.load_back_location()
-    if back_session and back_session != doomed_session:
-        return back_session
-
-    by_recency = _live_sessions_by_recency(doomed_session)
-
-    return _wants_attention(set(by_recency)) or next(iter(by_recency), "")
-
-
-def _switch_client(session: str) -> bool:
-    """Move this client to *session* by name.
-
-    Not `navigation.switch_to_pane`, which targets a pane id; here the
-    destination is a whole session and tmux picks its active pane.
-    """
-    try:
-        subprocess.run(
-            ["tmux", "switch-client", "-t", session],
-            check=True,
-            capture_output=True,
-        )
-        return True
-    except (OSError, subprocess.CalledProcessError) as e:
-        _log.warning("could not switch to %s: %s", session, e)
-        return False
 
 
 def _reaper_session_name(what: str) -> str:
@@ -241,12 +163,8 @@ def _archive(row_ids: abc.Iterable[int]) -> None:
         _log.warning("could not archive torn-down lemons: %s", e)
 
 
-def toss(
-    session: str,
-    places: abc.Sequence[ownership.Place],
-    from_inside: bool,
-) -> str | None:
-    """Kill *session* and release *places*, moving the client out first if needed.
+def toss(session: str, places: abc.Sequence[ownership.Place]) -> str | None:
+    """Kill *session* and release *places*, moving its clients out first.
 
     An empty *session* releases the places without killing anything - a directory
     that never had a session is still worth releasing.
@@ -254,13 +172,8 @@ def toss(
     Returns an error message on failure, or None once teardown is under way.
     Teardown itself finishes after this returns; see `reap_log_path`.
     """
-    if from_inside:
-        target = _escape_target(session)
-        if not target:
-            return "Nowhere to switch to - refusing to kill the session you're in"
-
-        if not _switch_client(target):
-            return f"Could not switch away to '{target}'; nothing was torn down"
+    if session and (error := escape.evacuate(session)):
+        return error
 
     doomed = _doomed_rows(session, places)
     error = _spawn_reaper(session, places, _reaper_cwd(places))
