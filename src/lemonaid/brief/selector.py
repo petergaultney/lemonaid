@@ -4,7 +4,8 @@
 the one live channel recorded at the pane's tty, tmux session, and window.
 `--session` picks the one live lemon in a tmux session, or in one window of it
 when the session holds several; a window with no lemon yet is a pending target,
-for the next lemon to start there. A window is named by index or by name; a
+for the next lemon to start there, unless one is already running in it, which
+is an error naming candidates for `--channel`. A window is named by index or by name; a
 name must be one tmux knows now.
 """
 
@@ -14,7 +15,10 @@ import os
 import sqlite3
 
 from ..inbox import db, self_session
+from ..lemon_watchers import watcher
 from . import session
+
+_HARNESSES = ("claude", "codex")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -58,6 +62,54 @@ def _self(conn: sqlite3.Connection) -> tuple[Selected | None, str]:
     return Selected(channel, where.session, where.window), ""
 
 
+def _running_in(tmux_session: str, index: str) -> list[tuple[str, str]]:
+    """(harness, directory) of each lemon process in the window's panes."""
+    return [
+        (harness, path)
+        for tty, path in session.panes(tmux_session, index)
+        for harness in _HARNESSES
+        if watcher.process_on_tty(tty, harness)
+    ]
+
+
+def _unlocated(
+    conn: sqlite3.Connection, tmux_session: str, index: str, window_id: str
+) -> tuple[Selected | None, str]:
+    """A pending target for an empty window, or why a running lemon there can't be named.
+
+    A pending target in a window whose lemon is already running would never be
+    claimed. A Codex on the shared app-server records no tmux location, and its
+    directory doesn't identify it: another Codex, or one that has exited, can
+    share it. So the error lists those rows as candidates for --channel.
+    """
+    running = _running_in(tmux_session, index)
+    if not running:
+        return Selected("", tmux_session, index, window_id), ""
+
+    dirs = {path for harness, path in running if harness == "codex"}
+    candidates = sorted(
+        {
+            row.channel
+            for row in _live_rows(
+                conn,
+                "channel LIKE 'codex:%' AND json_extract(metadata, '$.tmux_session') IS NULL",
+                (),
+            )
+            if row.metadata.get("cwd") in dirs
+        }
+    )
+    harnesses = ", ".join(sorted({harness for harness, _ in running}))
+    return None, (
+        f"{harnesses} is already running in {tmux_session}:{index}, but no inbox row places "
+        "it there, so it would never claim a brief waiting on the window; pass --channel"
+        + (
+            f" (sessions with no tmux location in its directory: {', '.join(candidates)})"
+            if candidates
+            else ""
+        )
+    )
+
+
 def _session(conn: sqlite3.Connection, spec: str) -> tuple[Selected | None, str]:
     tmux_session, _, window = spec.partition(":")
     rows = _live_rows(conn, "json_extract(metadata, '$.tmux_session') = ?", (tmux_session,))
@@ -69,7 +121,7 @@ def _session(conn: sqlite3.Connection, spec: str) -> tuple[Selected | None, str]
         index = index or window
         rows = [r for r in rows if str(r.metadata.get("tmux_window") or "") == index]
         if not rows:
-            return Selected("", tmux_session, index, window_id), ""
+            return _unlocated(conn, tmux_session, index, window_id)
 
     if len(rows) == 1:
         return _selected(rows[0]), ""

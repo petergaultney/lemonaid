@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, store, write_cli
+from lemonaid.brief import attached, selector, store, write_cli
 from lemonaid.inbox import db
 from lemonaid.inbox.migrations import m011_pending_briefs_live_before
 
@@ -163,3 +163,32 @@ def test_a_brief_waiting_from_before_the_upgrade_keeps_waiting(tmp_path):
         assert json.loads(row["live_before"]) == ["claude:running"]
         assert row["tmux_window_id"] == ""
         assert attached.by_channel(conn, ["claude:running", "claude:gone"]) == {}
+
+
+def test_a_running_codex_the_inbox_cannot_place_is_refused_with_candidates(
+    capsys, tmux, monkeypatch
+):
+    """Its directory doesn't identify it: a Codex that exited there may still have a live row."""
+    _brief("review")
+    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("codex", "/w")])
+    with db.connect() as conn:
+        db.add(conn, "codex:maybe-exited", "", metadata={"cwd": "/w"})
+        db.add(conn, "codex:elsewhere", "", metadata={"cwd": "/other"})
+
+    refused = _attach(capsys, "work:reviewer", "review")
+
+    assert "pass --channel" in refused["error"]
+    assert "codex:maybe-exited" in refused["error"]
+    assert "codex:elsewhere" not in refused["error"]
+    assert _attached_to("codex:maybe-exited") is None
+
+
+def test_a_running_lemon_with_no_row_is_refused_rather_than_waited_for(capsys, tmux, monkeypatch):
+    _brief("review")
+    monkeypatch.setattr(selector, "_running_in", lambda session, index: [("claude", "/w")])
+
+    refused = _attach(capsys, "work:reviewer", "review")
+
+    assert "claude is already running" in refused["error"]
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 0

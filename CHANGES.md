@@ -1,3 +1,9 @@
+# 0.43.0 (2026-09-30)
+
+#### Fixed
+
+- **`brief attach --session S:W` fails, rather than waiting forever, when a lemon already runs in that window with no inbox row placing it there.** A Codex on the shared app-server records no tmux location, so the brief used to wait for a new lemon that never came. The error lists that directory's unplaced Codex sessions as candidates for `--channel`.
+
 # 0.42.1 (2026-09-30)
 
 #### Fixed

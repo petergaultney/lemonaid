@@ -77,6 +77,16 @@ def window(session: str, window: str) -> tuple[str, str]:
     return (found[0][1], found[0][2]) if len(found) == 1 else ("", "")
 
 
+def panes(session: str, index: str) -> list[tuple[str, str]]:
+    """(tty, current directory) of each pane in window *index* of *session*."""
+    out = _tmux(
+        "list-panes", "-t", f"={session}:{index}", "-F", "#{pane_tty}\t#{pane_current_path}"
+    )
+    return [
+        (tty, path) for tty, tab, path in (line.partition("\t") for line in out.splitlines()) if tab
+    ]
+
+
 def window_location(window_id: str) -> tuple[str, str]:
     """(session, index) where tmux's window *window_id* is now, or ("", "") if it is gone."""
     found = [r for r in _windows("-a") if r[2] == window_id]
