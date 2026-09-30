@@ -60,3 +60,10 @@ def test_merge_and_alert_fill_the_headline_green_and_red():
         brief_cards.ALERT_COLOR in s
         for s in _styles(brief_card.header(_section("alert"), True, 0, 40), "author")
     )
+
+
+def test_review_fills_the_headline_brown():
+    assert any(
+        brief_cards.REVIEW_COLOR in s
+        for s in _styles(brief_card.header(_section("review"), True, 0, 40), "author")
+    )

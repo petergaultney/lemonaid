@@ -1,3 +1,9 @@
+# 0.41.0 (2026-09-30)
+
+#### Added
+
+- **A `review` brief status: the next move is a teammate's approving review, not yours.** `lemonaid brief status` accepts it, and the inbox fills its card and top-strip row brown, shows its `Needs` line as for `blocked`, and sorts it below `merge` and above `done`.
+
 # 0.40.1 (2026-09-30)
 
 #### Fixed

@@ -126,3 +126,11 @@ def test_a_merge_row_is_green_and_an_alert_row_red():
     assert app.brief_rows.background(CardBrief("alert", "", 0)).bgcolor.name == "#c62828"
     assert _style(alert[6]).color.name == "#ffffff"
     assert _style(alert[1]).color.name == "#ffffff"
+
+
+def test_a_review_row_is_brown():
+    review = _row("review", unread=True)
+
+    assert app.brief_rows.background(CardBrief("review", "", 0)).bgcolor.name == "#8a5a2b"
+    assert _style(review[6]).color.name == "#ffffff"
+    assert _style(review[1]).color.name == "#ffffff"

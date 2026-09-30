@@ -11,17 +11,25 @@ from .utils import ATTENTION_COLOR
 
 MERGE_COLOR = "#4fb35a"
 ALERT_COLOR = "#c62828"
+REVIEW_COLOR = "#8a5a2b"
 # Headline colours for the statuses that want a look: an alert lemon needs you
-# urgently, a blocked one waits on you, a merge one waits only on your merge,
-# and a done one is ready to clean up.
+# urgently, a blocked one waits on you, a merge one waits only on your merge, a
+# review one waits on a teammate's approving review, and a done one is ready to
+# clean up.
 STATUS_STYLES = {
     "alert": Style(color="#ffffff", bgcolor=ALERT_COLOR),
     "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
     "merge": Style(color="#000000", bgcolor=MERGE_COLOR),
+    "review": Style(color="#ffffff", bgcolor=REVIEW_COLOR),
     "done": Style(color="#ffffff", bgcolor="#285995"),
 }
 # The unread dot on a filled headline or row, where the yellow one would vanish.
-DOT_STYLES = {"alert": "bold #ffffff", "blocked": "bold #000000", "merge": "bold #000000"}
+DOT_STYLES = {
+    "alert": "bold #ffffff",
+    "blocked": "bold #000000",
+    "merge": "bold #000000",
+    "review": "bold #ffffff",
+}
 
 
 @dataclasses.dataclass(frozen=True)

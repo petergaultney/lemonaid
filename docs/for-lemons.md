@@ -328,7 +328,7 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
-lemonaid brief status --self waiting            # Status: waiting  (working | waiting | blocked | merge | alert | done)
+lemonaid brief status --self waiting            # Status: waiting  (working | waiting | blocked | merge | review | alert | done)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
@@ -347,6 +347,8 @@ takes `--json`.
 
 `brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
 with `brief now`. Readers still recognize older `Status: done - PR #12` lines as `done`.
+Use `review` when the next move is a teammate's approving review rather than your user's; say whose
+under `Needs`, which its card shows as it does for `blocked`.
 
 New briefs include a readable slug and WordyBin suffix, such as
 `Lemon-ID: mc-tars-no-mops-leases.SkullHen`, generated from the brief filename

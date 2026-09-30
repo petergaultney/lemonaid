@@ -15,12 +15,14 @@ _HEADLINE_FILLS = {
     "alert": f"#ffffff on {brief_cards.ALERT_COLOR}",
     "blocked": f"#000000 on {utils.ATTENTION_COLOR}",
     "merge": f"#000000 on {brief_cards.MERGE_COLOR}",
+    "review": f"#ffffff on {brief_cards.REVIEW_COLOR}",
     "done": "#ffffff on #285995",
 }
 _STATE_STYLES = {
     "alert": "bold #ff5c5c",
     "blocked": f"bold {utils.ATTENTION_COLOR}",
     "merge": f"bold {brief_cards.MERGE_COLOR}",
+    "review": "bold #c08a52",
     "done": "bold #6f9fe0",
     "working": "bold",
     "waiting": "bright_black",

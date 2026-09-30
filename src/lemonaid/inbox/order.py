@@ -1,7 +1,7 @@
 """The order the inbox lists sessions in, the same in the wide table and the sidebar.
 
 Pins come first. Below them, `alert` sessions, then `blocked`, then `merge`,
-then `done` sessions, unread above read, then every other unread session, then
+then `review`, then `done` sessions, unread above read, then every other unread session, then
 everything else read: `working`, `waiting`, and no brief. Within each band rows
 keep `db.get_active` order: pins by position, everything else unread first and
 then newest first.
@@ -17,11 +17,12 @@ from . import db
 _ALERT = 0
 _BLOCKED = 1
 _MERGE = 2
-_UNREAD_DONE = 3
-_DONE = 4
-_UNREAD = 5  # working, waiting, or no brief
-_READ = 6  # working, waiting, or no brief
-_BANDS = {"alert": _ALERT, "blocked": _BLOCKED, "merge": _MERGE}
+_REVIEW = 3
+_UNREAD_DONE = 4
+_DONE = 5
+_UNREAD = 6  # working, waiting, or no brief
+_READ = 7  # working, waiting, or no brief
+_BANDS = {"alert": _ALERT, "blocked": _BLOCKED, "merge": _MERGE, "review": _REVIEW}
 
 
 def _band(status: str, is_unread: bool) -> int:

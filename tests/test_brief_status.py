@@ -172,3 +172,7 @@ def test_a_brief_in_a_later_directory_beats_state_in_an_earlier_one(tmp_path):
 def test_merge_and_alert_are_states():
     assert status.split("# x\n\nStatus: MERGE\n").status == "merge"
     assert status.split("# x\n\nStatus: alert\n").status == "alert"
+
+
+def test_review_is_a_state():
+    assert status.split("# x\n\nStatus: Review\n").status == "review"
