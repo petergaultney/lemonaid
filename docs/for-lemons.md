@@ -57,8 +57,8 @@ Both are decoration on one harness session - the Claude session or Codex thread 
 not your place or tmux session. Neither changes your name for signing and watching, nor the
 tmux session name.
 
-When Peter says you need an emoji, pick one yourself: see which are taken, choose one that
-fits your work, and set it. He does not want to be asked to choose.
+When the person asks you to choose an emoji, pick one yourself: see which are taken,
+choose one that fits your work, and set it without asking them to choose.
 
 ```bash
 lemonaid inbox emojis --json                 # emojis live sessions already hold
@@ -408,7 +408,7 @@ Status: working
 ```
 
 Each part can instead be a sub-heading (`### Needs`, `### Waiting on`, `### Next`, `### Done`)
-with anything under it. `Needs` may name who it needs (`Needs Peter`); readers show it first
+with anything under it. `Needs` may name who it needs (`Needs you`); readers show it first
 whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.
 
 ## Lemon-to-lemon messages

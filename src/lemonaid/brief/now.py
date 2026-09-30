@@ -1,11 +1,11 @@
 """The labelled parts of a brief's `## Now` section.
 
-A worker writes each part either as a sub-heading (`### Needs Peter`) with
-anything under it, or as a top-level bullet (`- Needs Peter: ...`) with its
+A worker writes each part either as a sub-heading (`### Needs you`) with
+anything under it, or as a top-level bullet (`- Needs you: ...`) with its
 own indented sub-bullets. Lines under no known label are kept, in order.
 
 The request for a person is `Needs` followed by at most one word naming them
-(`Needs`, `Needs Peter`, `Needs you`), kept as written.
+(`Needs`, `Needs you`, `Needs Alex`), kept as written.
 """
 
 import dataclasses

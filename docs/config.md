@@ -105,7 +105,7 @@ With `brief_status = true`, a card whose session has an attached brief with a
 - A read `waiting` card is dimmed. An unread one is not.
 - `working` keeps the ordinary read style.
 - Under the name and location come the first line of `Needs` from `## Now`,
-  with its label (`Needs Peter: ...`) in the attention colour, then the brief's
+  with its label (`Needs you: ...`) in the attention colour, then the brief's
   age, marked `(stale)` for a `working` or `waiting` brief older than
   `brief_stale_hours`, then, for `waiting`, the first line of `Waiting on`.
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is

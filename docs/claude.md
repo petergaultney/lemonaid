@@ -208,7 +208,7 @@ for `lemonaid claude bootstrap`, which imports historical sessions.
 Claude stores session data in `~/.claude/projects/<encoded_dir>/`:
 
 ```
-~/.claude/projects/-Users-peter-play-lemonaid/
+~/.claude/projects/-Users-example-play-lemonaid/
   sessions-index.json    # Legacy session index (no longer written by current versions)
   <session_id>.jsonl     # Full conversation history, including ai-title entries
 ```
