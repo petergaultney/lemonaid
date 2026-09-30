@@ -6,6 +6,7 @@ Provides shared watcher loop logic that can be used by multiple backends
 
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -14,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from .. import tmux
+from .. import auto_read, tmux
 from ..log import get_logger
 from . import untracked
 from .common import ModelInfo
@@ -453,6 +454,8 @@ def unified_watch_loop(
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
+    auto_read_patterns: tuple[re.Pattern[str], ...] = (),
+    mark_read_after_turn: Callable[[str], int] | None = None,
     poll_interval: float = 2.0,
     stop_event: threading.Event | None = None,
 ) -> None:
@@ -469,6 +472,9 @@ def unified_watch_loop(
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
+        auto_read_patterns: A finished turn whose final message matches one of
+            these stays read rather than being marked unread
+        mark_read_after_turn: Optional callback recording such a turn on a read channel
         poll_interval: How often to poll (seconds)
     """
     # Build prefix -> backend mapping
@@ -637,10 +643,19 @@ def unified_watch_loop(
                     needs_attention_fn = getattr(backend, "needs_attention", None)
                     if needs_attention_fn:
                         since_ts = last_attention_ts.get(channel, created_at)
-                        for entry in recent:
+                        final_message_fn = getattr(backend, "final_message", None)
+                        for i, entry in enumerate(recent):
                             ts = parse_timestamp(entry.get("timestamp", ""))
                             if ts and ts > since_ts and needs_attention_fn(entry):
                                 last_attention_ts[channel] = ts
+                                if final_message_fn and auto_read.matching(
+                                    auto_read_patterns, final_message_fn(recent[i:])
+                                ):
+                                    if mark_read_after_turn:
+                                        mark_read_after_turn(channel)
+                                    _log.info("left read by [inbox] auto_read: %s", channel)
+                                    break
+
                                 mark_unread(channel)
                                 _log.info(
                                     "marked unread: %s (agent waiting at %s)",
@@ -684,6 +699,8 @@ def start_unified_watcher(
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
+    auto_read_patterns: tuple[re.Pattern[str], ...] = (),
+    mark_read_after_turn: Callable[[str], int] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -698,6 +715,8 @@ def start_unified_watcher(
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
+        auto_read_patterns: Final-message patterns that keep a finished turn read
+        mark_read_after_turn: Optional callback recording such a turn on a read channel
     """
     global _watcher_stop, _watcher_thread
 
@@ -715,6 +734,8 @@ def start_unified_watcher(
             "record_model": record_model,
             "models": models,
             "sockets": sockets,
+            "auto_read_patterns": auto_read_patterns,
+            "mark_read_after_turn": mark_read_after_turn,
             "stop_event": _watcher_stop,
         },
         daemon=True,

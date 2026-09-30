@@ -466,7 +466,8 @@ def add(
     """Add a notification or update existing one if upsert=True.
 
     If upsert=True and a notification exists for the channel (even if read or archived),
-    it will be updated and set back to unread status.
+    it will be updated and set to `status` - unread unless the caller decided a
+    finished turn needs no attention.
 
     `keep_existing_message` leaves a row's existing message text alone. It is for
     callers that know a turn ended but not what was said in it: the transcript
@@ -475,6 +476,7 @@ def add(
     """
     now = created_at if created_at is not None else time.time()
     metadata = metadata or {}
+    read_at = time.time() if status == "read" else None
 
     if upsert:
         # Look for any existing notification for this channel (including read/archived)
@@ -488,11 +490,20 @@ def add(
             conn.execute(
                 """
                 UPDATE notifications
-                SET message = ?, name = ?, metadata = ?, created_at = ?, status = 'unread', read_at = NULL, switch_source = ?,
+                SET message = ?, name = ?, metadata = ?, created_at = ?, status = ?, read_at = ?, switch_source = ?,
                     snooze_until = NULL, snooze_prev_status = NULL
                 WHERE id = ?
                 """,
-                (message, name, json.dumps(metadata), now, switch_source, existing.id),
+                (
+                    message,
+                    name,
+                    json.dumps(metadata),
+                    now,
+                    status,
+                    read_at,
+                    switch_source,
+                    existing.id,
+                ),
             )
             conn.commit()
             return Notification(
@@ -501,17 +512,17 @@ def add(
                 message=message,
                 name=name,
                 metadata=metadata,
-                status="unread",
+                status=status,
                 created_at=now,
                 switch_source=switch_source,
             )
 
     cursor = conn.execute(
         """
-        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO notifications (channel, message, name, metadata, created_at, switch_source, status, read_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (channel, message, name, json.dumps(metadata), now, switch_source, status),
+        (channel, message, name, json.dumps(metadata), now, switch_source, status, read_at),
     )
     conn.commit()
 
@@ -638,6 +649,22 @@ def mark_unread_for_channel(conn: sqlite3.Connection, channel: str) -> int:
         WHERE channel = ? AND status IN ('read', 'snoozed')
         """,
         (now, channel),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+def mark_read_after_turn(conn: sqlite3.Connection, channel: str) -> int:
+    """Record a finished turn on a read session without flagging it.
+
+    created_at moves to now, as mark_unread_for_channel() does, so the watcher's
+    dismissal only considers activity after this turn; otherwise a user who
+    marked the session unread would see that same turn mark it read again.
+    """
+    now = time.time()
+    cursor = conn.execute(
+        "UPDATE notifications SET created_at = ?, read_at = ? WHERE channel = ? AND status = 'read'",
+        (now, now, channel),
     )
     conn.commit()
     return cursor.rowcount

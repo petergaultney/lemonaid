@@ -6,6 +6,7 @@ Provides Claude-specific functions for the unified watcher:
 - should_dismiss: Detect when to auto-dismiss notifications
 """
 
+from collections import abc
 from pathlib import Path
 
 from ..lemon_watchers.common import ModelInfo, short_filename
@@ -118,6 +119,40 @@ def should_dismiss(entry: dict) -> bool:
             return True
 
     return False
+
+
+def final_message(recent: abc.Iterable[dict]) -> str:
+    """The text of Claude's final assistant message, from entries newest first.
+
+    Claude writes one entry per content block, sharing the message's id. ""
+    when that message has no text, or when a prompt or tool result is newer
+    than it: the turn did not end by saying something.
+    """
+    final_id = None
+    for entry in recent:
+        if entry.get("type") == "user":
+            return ""
+
+        if entry.get("type") != "assistant":
+            continue
+
+        message = entry.get("message", {})
+        if final_id is not None and message.get("id") != final_id:
+            return ""
+
+        final_id = message.get("id")
+        texts = [
+            block.get("text", "")
+            for block in message.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        if said := next((text for text in reversed(texts) if text.strip()), ""):
+            return said
+
+        if final_id is None:
+            return ""
+
+    return ""
 
 
 def needs_attention(entry: dict) -> bool:

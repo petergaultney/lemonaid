@@ -17,6 +17,7 @@ OpenClaw session entries have these types:
 import functools
 import shlex
 import subprocess
+from collections import abc
 from pathlib import Path
 
 from ..config import load_config
@@ -283,3 +284,36 @@ def _describe_tool_use(block: dict) -> str:
         return "Web search"
 
     return f"Using {name}"
+
+
+def _texts(content: list | str) -> list[str]:
+    if isinstance(content, str):
+        return [content]
+
+    if not isinstance(content, list):
+        return []
+
+    return [
+        block.get("text", "")
+        for block in content
+        if isinstance(block, dict) and block.get("type") in ("text", "output_text")
+    ]
+
+
+def final_message(recent: abc.Iterable[dict]) -> str:
+    """The text of OpenClaw's final assistant message, from entries newest first.
+
+    "" when that message has no text, or a user message is newer than it.
+    """
+    for entry in recent:
+        if entry.get("type") != "message":
+            continue
+
+        msg = entry.get("message", {})
+        if (entry.get("role") or msg.get("role")) != "assistant":
+            return ""
+
+        content = entry.get("content") or msg.get("content", [])
+        return next((text for text in reversed(_texts(content)) if text.strip()), "")
+
+    return ""

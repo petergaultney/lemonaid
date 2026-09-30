@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from collections import abc
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -170,3 +171,28 @@ def needs_attention(entry: dict) -> bool:
     part: dict[str, object] = part_obj
 
     return part.get("type") == "step-finish" and part.get("reason") == "stop"
+
+
+def final_message(recent: abc.Iterable[dict]) -> str:
+    """The text of OpenCode's final assistant message, from entries newest first.
+
+    "" when that message has no text part, or a user part is newer than it.
+    """
+    final_id = None
+    for entry in recent:
+        part = entry.get("part")
+        if entry.get("role") != "assistant" or not isinstance(part, dict):
+            return ""
+
+        if final_id is not None and part.get("messageID") != final_id:
+            return ""
+
+        final_id = part.get("messageID")
+        text = part.get("text")
+        if part.get("type") == "text" and isinstance(text, str) and text.strip():
+            return text
+
+        if final_id is None:
+            return ""
+
+    return ""

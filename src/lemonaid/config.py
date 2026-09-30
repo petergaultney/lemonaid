@@ -1,11 +1,14 @@
 """Configuration management for lemonaid."""
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
+
+from . import auto_read
 
 
 def get_config_path() -> Path:
@@ -145,6 +148,15 @@ class BriefConfig:
 
 
 @dataclass
+class InboxConfig:
+    """Configuration for the inbox rows themselves."""
+
+    # A completed turn whose final message matches one of these, from its
+    # start, leaves its session read instead of unread.
+    auto_read: tuple[re.Pattern[str], ...] = ()
+
+
+@dataclass
 class OpenclawConfig:
     """Configuration for OpenClaw integration."""
 
@@ -241,6 +253,7 @@ class Config:
     tmux_window: TmuxWindowConfig = field(default_factory=TmuxWindowConfig)
     tui: TuiConfig = field(default_factory=TuiConfig)
     brief: BriefConfig = field(default_factory=BriefConfig)
+    inbox: InboxConfig = field(default_factory=InboxConfig)
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
     backends: dict[str, BackendConfig] = field(default_factory=dict)
     places: PlacesConfig = field(default_factory=PlacesConfig)
@@ -330,6 +343,10 @@ def _parse_config(data: dict[str, Any]) -> Config:
 
     brief = BriefConfig(pr_state=data.get("brief", {}).get("pr_state", ""))
 
+    inbox = InboxConfig(
+        auto_read=auto_read.compile_patterns(data.get("inbox", {}).get("auto_read"))
+    )
+
     openclaw_data = data.get("openclaw", {})
     openclaw = OpenclawConfig(
         remote_host=openclaw_data.get("remote_host"),
@@ -367,6 +384,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         tmux_window=tmux_window,
         tui=tui,
         brief=brief,
+        inbox=inbox,
         openclaw=openclaw,
         backends=backends,
         places=places,

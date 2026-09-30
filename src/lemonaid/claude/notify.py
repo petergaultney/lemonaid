@@ -27,6 +27,8 @@ import sys
 import typing as ty
 from pathlib import Path
 
+from .. import auto_read
+from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..lemon_watchers import (
@@ -37,9 +39,11 @@ from ..lemon_watchers import (
     get_tmux_socket,
     get_tmux_window_index,
     get_tty,
+    read_jsonl_tail,
     shorten_path,
 )
 from ..log import get_logger
+from . import watcher
 
 _log = get_logger("claude.notify")
 
@@ -359,6 +363,13 @@ def handle_session_start(stdin_data: str | None = None) -> None:
     )
 
 
+_FINAL_MESSAGE_TAIL_BYTES = 1024 * 1024
+
+# Both say the turn is over: idle_prompt repeats Stop's news a minute later, and
+# must not flag a session that Stop left read.
+_TURN_ENDED = ("Stop", "idle_prompt")
+
+
 def _describe(notification_type: str, short_path: str) -> tuple[str, bool]:
     """A hook's inbox message, and whether it is worth more than what is there.
 
@@ -382,6 +393,34 @@ def _describe(notification_type: str, short_path: str) -> tuple[str, bool]:
         return f"Question in {short_path}", True
 
     return f"{notification_type} in {short_path}", True
+
+
+def _final_message(data: dict) -> str:
+    """What Claude ended the turn with, from the hook payload or the transcript."""
+    if isinstance(said := data.get("last_assistant_message"), str) and said:
+        return said
+
+    transcript = watcher.get_session_path(
+        data.get("session_id", ""), data.get("cwd", ""), data.get("transcript_path", "")
+    )
+    if transcript is None:
+        return ""
+
+    # Wider than the watcher's tail: attachments after the final text can fill 64 KiB.
+    lines = read_jsonl_tail(transcript, max_bytes=_FINAL_MESSAGE_TAIL_BYTES)
+    return watcher.final_message(auto_read.newest_first(lines))
+
+
+def _status_after(notification_type: str, channel: str, data: dict) -> str:
+    """Unread, or read when a finished turn's final message matches `[inbox] auto_read`."""
+    if notification_type not in _TURN_ENDED:
+        return "unread"
+
+    patterns = load_config().inbox.auto_read
+    if not patterns:
+        return "unread"
+
+    return auto_read.status_after_turn(patterns, channel, _final_message(data))
 
 
 def handle_notification(stdin_data: str | None = None) -> None:
@@ -440,6 +479,7 @@ def handle_notification(stdin_data: str | None = None) -> None:
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
             keep_existing_message=not tells_us_what_was_said,
+            status=_status_after(notification_type, channel, data),
         )
 
     if existing:

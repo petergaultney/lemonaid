@@ -4,6 +4,8 @@ import json
 import os
 import sys
 
+from .. import auto_read
+from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession
 from ..lemon_watchers import (
@@ -14,6 +16,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
+from . import watcher
 from .utils import get_cwd_and_name
 
 _log = get_logger("opencode.notify")
@@ -72,6 +75,20 @@ def _default_message(notification_type: str, cwd: str | None) -> str:
     if notification_type == "session.idle":
         return f"Waiting in {short_path}"
     return f"{notification_type} in {short_path}"
+
+
+def _status_after(notification_type: str, channel: str, session_id: str | None) -> str:
+    """Unread, or read when a finished turn's final message matches `[inbox] auto_read`."""
+    if notification_type != "session.idle" or not session_id:
+        return "unread"
+
+    patterns = load_config().inbox.auto_read
+    session = watcher.get_session_path(session_id, "")
+    if not patterns or session is None:
+        return "unread"
+
+    said = watcher.final_message(auto_read.newest_first(watcher.read_lines(session)))
+    return auto_read.status_after_turn(patterns, channel, said)
 
 
 def handle_notification(
@@ -166,6 +183,7 @@ def handle_notification(
             name=name,
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
+            status=_status_after(notification_type, channel, session_id),
         )
 
     _log.info("added: channel=%s, type=%s", channel, notification_type)

@@ -45,6 +45,10 @@ Returns a single notification object, or `null` if not found.
 lemonaid inbox read 42
 ```
 
+A session whose turn ends with a final message matching the user's `[inbox] auto_read`
+patterns is marked read automatically. `lemonaid for-lemons` lists this machine's patterns
+at the end of this guide.
+
 ### Add a notification
 
 ```bash

@@ -954,6 +954,8 @@ class LemonaidApp(App):
             record_model=self._record_channel_model,
             models=self._recorded_models,
             sockets=self._recorded_sockets,
+            auto_read_patterns=self.config.inbox.auto_read,
+            mark_read_after_turn=self._mark_channel_read_after_turn,
         )
         self.call_later(self._check_claude_patch)
         self.call_later(self._stretch_all_tables)
@@ -2753,6 +2755,10 @@ class LemonaidApp(App):
         """Mark all notifications for a channel as unread (needs attention)."""
         with db.connect() as conn:
             return db.mark_unread_for_channel(conn, channel)
+
+    def _mark_channel_read_after_turn(self, channel: str) -> int:
+        with db.connect() as conn:
+            return db.mark_read_after_turn(conn, channel)
 
     def _update_channel_message(self, channel: str, message: str) -> int:
         """Update the message for a channel."""

@@ -1,3 +1,9 @@
+# 0.37.0 (2026-09-30)
+
+#### Added
+
+- **`[inbox] auto_read` leaves a session read when its turn ends with a matching final message.** Patterns are regexes matched from the start of the final assistant message, for Claude, Codex, OpenCode and OpenClaw. None are configured by default, and `lemonaid for-lemons` lists the configured ones.
+
 # 0.36.5 (2026-09-30)
 
 #### Changed

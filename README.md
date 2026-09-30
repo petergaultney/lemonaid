@@ -67,6 +67,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[Parent links](docs/lineage.md)**: Record which lemon handed another its work, by Lemon-ID, with `place open --parent self` or `lemonaid lemon parent`. `lemon children` lists a parent's children with their brief status, and `tell --parent` and `tell --child` message along the links
 - **[Watches](docs/watch.md)**: `lemonaid watch doc`, `watch pr`, and `watch file` wait, at no token cost, for a Relay Comment on a document, activity on a GitHub PR, or a changed file, then wake the lemon: a Claude background task exits or a Codex thread gets a queued message. OpenClaw sessions get an agent turn for document comments
 - **[Brief status cards](docs/config.md#tui)**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
+- **[Auto-read](docs/config.md#inbox)**: Regexes in `[inbox] auto_read` leave a session read when its turn ends with a matching final message, so routine turns don't ask for attention
 - **Pins**: Hold a session at the top of the list, in an order you choose
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed

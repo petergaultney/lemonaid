@@ -5,7 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-from .. import messages
+from .. import auto_read, messages
+from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, full_channel_id
 from ..lemon_watchers import (
@@ -90,6 +91,20 @@ def _resolve_cwd(cwd: str | None, session_path: Path | None) -> str | None:
     return None
 
 
+_TURN_ENDED = ("agent-turn-complete", "turn-complete", "idle_prompt")
+
+
+def _status_after(notification_type: str, channel: str, data: dict) -> str:
+    """Unread, or read when a finished turn's final message matches `[inbox] auto_read`."""
+    if notification_type not in _TURN_ENDED:
+        return "unread"
+
+    said = data.get("last-assistant-message") or data.get("last_assistant_message")
+    return auto_read.status_after_turn(
+        load_config().inbox.auto_read, channel, said if isinstance(said, str) else ""
+    )
+
+
 def handle_notification(
     stdin_data: str | None = None,
     *,
@@ -156,7 +171,7 @@ def handle_notification(
         short_path = shorten_path(cwd or "")
         if "approval" in notification_type or "permission" in notification_type:
             message = f"Permission needed in {short_path}"
-        elif notification_type in ("agent-turn-complete", "turn-complete", "idle_prompt"):
+        elif notification_type in _TURN_ENDED:
             message = f"Waiting in {short_path}"
         else:
             message = f"{notification_type} in {short_path}"
@@ -211,6 +226,7 @@ def handle_notification(
             name=name,
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
+            status=_status_after(notification_type, channel, data),
         )
         pending = messages.service.has_pending(conn, channel)
 

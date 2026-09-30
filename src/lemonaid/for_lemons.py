@@ -7,8 +7,12 @@ whatever the install looks like.
 """
 
 import argparse
+import re
 import sys
+from collections import abc
 from pathlib import Path
+
+from .config import load_config
 
 _INSTALLED = Path(__file__).parent / "docs" / "for-lemons.md"
 # An editable install points at the source tree, where docs/ is a sibling of src/.
@@ -17,6 +21,30 @@ _IN_CHECKOUT = Path(__file__).parent.parent.parent / "docs" / "for-lemons.md"
 
 def guide_path() -> Path | None:
     return next((path for path in (_INSTALLED, _IN_CHECKOUT) if path.is_file()), None)
+
+
+def auto_read_section(patterns: abc.Sequence[re.Pattern[str]]) -> str:
+    """This machine's `[inbox] auto_read` patterns, for lemons deciding how to end a turn."""
+    if not patterns:
+        return (
+            "\n## Auto-read on this machine\n\n"
+            "No `[inbox] auto_read` patterns are configured, so every finished turn "
+            "marks its session unread.\n"
+        )
+
+    return "\n".join(
+        [
+            "",
+            "## Auto-read on this machine",
+            "",
+            "A finished turn whose final message matches one of these regexes, from its "
+            "start, leaves your session read instead of unread. Begin the final message "
+            "with a match only when the user has nothing to look at.",
+            "",
+            *(f"- `{pattern.pattern}`" for pattern in patterns),
+            "",
+        ]
+    )
 
 
 def cmd_for_lemons(args: argparse.Namespace) -> None:
@@ -35,6 +63,7 @@ def cmd_for_lemons(args: argparse.Namespace) -> None:
         return
 
     print(path.read_text(), end="")
+    print(auto_read_section(load_config().inbox.auto_read), end="")
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:

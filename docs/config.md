@@ -177,6 +177,36 @@ pr_state = "gh pr view {ref} --json state,isDraft --jq 'if .isDraft then \"draft
 The popup runs it once per open. The sidebar re-renders on a timer, so it caches
 each answer for two minutes and fetches in the background.
 
+## `[inbox]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `auto_read` | `[]` | Regexes; a finished turn whose final message matches one leaves its session read. |
+
+When a lemon's turn completes, lemonaid normally marks its session unread. If the
+final assistant message of that turn matches one of the `auto_read` patterns,
+the session is marked read instead. Patterns match from the start of the message
+(Python `re.match`, after leading whitespace), so a convention such as ending
+routine turns with a marker line works:
+
+```toml
+[inbox]
+auto_read = ['^\(quiet\)', '^Nothing new']
+```
+
+- Only turn completion consults the patterns. A permission prompt or a question
+  from the harness is always unread.
+- A turn whose final message can't be found stays unread.
+- The session is marked read, never archived or hidden.
+- A session you mark unread stays unread until a later turn ends with a match.
+- An invalid pattern is skipped with a warning on stderr when the config loads.
+
+Claude sessions are read from the Stop and `idle_prompt` hooks (the final
+message comes from the transcript), Codex from `notify`'s
+`last-assistant-message`, OpenCode from `session.idle`, and OpenClaw from the
+transcript watcher. `lemonaid for-lemons` lists the configured patterns, so
+lemons on the machine can learn the convention.
+
 ## Environment variables
 
 | Variable | Effect |
