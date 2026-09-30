@@ -3,8 +3,9 @@
 Reports when the PR's head commit moves, its state changes (OPEN -> MERGED / CLOSED), it
 is marked ready for review or back to draft, or its review decision changes; and with
 `--comments` also when a human comment appears in an unresolved, non-outdated review
-thread, in a submitted review's body, or in the PR conversation. Makes one GraphQL call
-per interval through `gh`.
+thread, in a submitted review's body, or in the PR conversation, and when the PR
+conflicts with its base or its CI fails. `--comments` is the author's mode, so only the
+author is woken to fix those. Makes one GraphQL call per interval through `gh`.
 
 By default prints one line per event and never exits on its own. With `--once`, prints
 the first event and exits, so a Claude background Bash task wakes its session once on
@@ -132,7 +133,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--comments",
         action="store_true",
-        help="also report new human review and conversation comments",
+        help="also report new human review and conversation comments, a conflict with the base, and failed CI",
     )
     ap.add_argument("--me", default="", help="your lemon name; required with --comments")
     ap.add_argument("--once", action="store_true", help="print the first event and exit")

@@ -9,13 +9,27 @@ import sys
 
 import pytest
 
-from lemonaid.watch import delivery, pr_activity, pr_wait
+from lemonaid.watch import delivery, merge_health, pr_activity, pr_wait
 
 _HEAD = "a" * 40
 
 
-def _snap(head=_HEAD, state="OPEN", draft=True, decision="", comments=()):
-    return pr_activity.Snapshot(head, state, draft, decision, list(comments))
+def _snap(
+    head=_HEAD,
+    state="OPEN",
+    draft=True,
+    decision="",
+    comments=(),
+    mergeable="MERGEABLE",
+    checks=(),
+):
+    return pr_activity.Snapshot(
+        head, state, draft, decision, list(comments), "main", mergeable, list(checks)
+    )
+
+
+def _check(name="test", required=False, outcome="passed"):
+    return pr_activity.Check(name, required, outcome)
 
 
 def _comment(i: str, body="please fix"):
@@ -89,6 +103,83 @@ def test_a_failed_delivery_records_nothing(stem):
     assert _run_once(stem, [_snap(comments=[_comment("c1")])])[0].startswith(
         "PR #90: 1 new comment(s)"
     )
+
+
+def test_a_conflict_is_reported_once_per_head(stem):
+    assert _run_once(stem, [_snap(mergeable="CONFLICTING")])[0].startswith(
+        f"PR #90 conflicts with main at {'a' * 10}"
+    )
+    rearmed = _run_once(
+        stem, [_snap(mergeable="CONFLICTING"), _snap(head="b" * 40, mergeable="CONFLICTING")]
+    )
+
+    assert rearmed[0].startswith(f"PR #90 head moved {'a' * 10} -> {'b' * 10}; PR #90 conflicts")
+
+
+def test_an_unknown_mergeable_state_is_not_a_conflict():
+    seen = merge_health.Seen("", "")
+
+    assert merge_health.events(90, _snap(mergeable="UNKNOWN"), seen) == ([], seen)
+
+
+def test_ci_is_reported_once_every_check_has_finished(stem):
+    running = [_check("lint", outcome="failed"), _check("test", outcome="pending")]
+    done = [_check("lint", outcome="failed"), _check("test")]
+
+    sent = _run_once(stem, [_snap(checks=running), _snap(checks=done)], head="")
+
+    assert sent == [
+        f"PR #90 CI failed at {'a' * 10}: lint: read `gh pr checks 90`,"
+        " fix it and push (or rerun a flaky job), then tell your reviewer"
+    ]
+    assert (
+        merge_health.events(
+            90, _snap(checks=done), merge_health.load(stem.with_suffix(".merge.json"))
+        )[0]
+        == []
+    )
+
+
+def test_only_required_checks_count_when_there_are_any():
+    checks = [_check("allow-merge", required=True), _check("flaky", outcome="failed")]
+
+    assert merge_health.events(90, _snap(checks=checks), merge_health.Seen("", ""))[0] == []
+
+
+def test_a_reviewer_is_not_woken_for_conflicts_or_ci(stem):
+    blocked = _snap(mergeable="CONFLICTING", checks=[_check(outcome="failed")])
+
+    assert _run_once(stem, [blocked, _snap(head="b" * 40)], comments=False) == [
+        f"PR #90 head moved {'a' * 10} -> {'b' * 10}"
+    ]
+
+
+def test_check_runs_and_status_contexts_are_read():
+    nodes = [
+        {
+            "__typename": "CheckRun",
+            "name": "a",
+            "status": "IN_PROGRESS",
+            "conclusion": None,
+            "isRequired": False,
+        },
+        {
+            "__typename": "CheckRun",
+            "name": "b",
+            "status": "COMPLETED",
+            "conclusion": "TIMED_OUT",
+            "isRequired": True,
+        },
+        {"__typename": "StatusContext", "context": "c", "state": "EXPECTED", "isRequired": False},
+        {"__typename": "StatusContext", "context": "d", "state": "SUCCESS", "isRequired": False},
+    ]
+
+    assert [pr_activity._check(n) for n in nodes] == [
+        _check("a", outcome="pending"),
+        _check("b", required=True, outcome="failed"),
+        _check("c", outcome="pending"),
+        _check("d"),
+    ]
 
 
 def test_the_lemon_marker_and_pending_reviews_are_not_human():
@@ -168,9 +259,14 @@ def _write_snapshot(path, head):
                     "repository": {
                         "pullRequest": {
                             "headRefOid": head,
+                            "baseRefName": "main",
                             "state": "OPEN",
                             "isDraft": True,
                             "reviewDecision": None,
+                            "mergeable": "MERGEABLE",
+                            "commits": {
+                                "nodes": [{"commit": {"oid": head, "statusCheckRollup": None}}]
+                            },
                             "reviewThreads": {"nodes": []},
                             "reviews": {"nodes": []},
                             "comments": {"nodes": []},

@@ -1,8 +1,9 @@
 """The waiting loop behind `lemonaid watch pr`, and the state it keeps between waiters.
 
-Comments already reported, and the last reported draft flag and review decision, are
-remembered per (PR, --me) in a state directory, by default $TMPDIR/watch-pr. The file
-names match the standalone watch-pr.py, so the two share state and locks.
+Comments already reported, the last reported draft flag and review decision, and the heads
+whose conflict or CI failure was reported, are remembered per (PR, --me) in a state
+directory, by default $TMPDIR/watch-pr. The file names match the standalone watch-pr.py,
+so the two share state and locks.
 """
 
 import hashlib
@@ -12,7 +13,7 @@ import tempfile
 import time
 import typing as ty
 
-from . import delivery, pr_activity
+from . import delivery, merge_health, pr_activity
 
 
 def default_state_dir() -> pathlib.Path:
@@ -89,13 +90,18 @@ def wait(
     once: bool,
     stem: pathlib.Path,
 ) -> None:
-    """Raises `delivery.Failed` with the event unrecorded if `deliver` fails."""
-    reported_path, review_path = (
+    """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
+
+    Raises `delivery.Failed` with the event unrecorded if `deliver` fails.
+    """
+    reported_path, review_path, merge_path = (
         stem.with_suffix(".reported.json"),
         stem.with_suffix(".review.json"),
+        stem.with_suffix(".merge.json"),
     )
     reported = _load_reported(reported_path)
     saved_review = review = _load_review(review_path)
+    seen = merge_health.load(merge_path)
     sha, state = head, "OPEN" if head else ""
     first = True
     while True:
@@ -110,11 +116,23 @@ def wait(
             sha, state = snap.head, snap.state
         review = review or (snap.draft, snap.decision)
         candidates = {c.id: c for c in snap.comments} if comments else {}
-        events = _events(
-            pr, snap, sha, state, review, [c for i, c in candidates.items() if i not in reported]
-        )
+        blockers, now_seen = merge_health.events(pr, snap, seen) if comments else ([], seen)
+        events = [
+            *_events(
+                pr,
+                snap,
+                sha,
+                state,
+                review,
+                [c for i, c in candidates.items() if i not in reported],
+            ),
+            *blockers,
+        ]
         if events:
             deliver("; ".join(events))
+        if now_seen != seen:
+            seen = now_seen
+            merge_health.save(merge_path, seen)
         if set(candidates) != reported:
             reported = set(candidates)
             reported_path.write_text(json.dumps(sorted(reported)))

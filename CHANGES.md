@@ -1,3 +1,9 @@
+# 0.39.0 (2026-09-30)
+
+#### Added
+
+- **`lemonaid watch pr --comments` wakes the author when the PR conflicts with its base or its CI fails.** Each is reported once per head commit, so a rearm on the same head stays quiet. CI counts only required checks when the PR has any, and waits until every check on the head has finished.
+
 # 0.38.0 (2026-09-30)
 
 #### Added
