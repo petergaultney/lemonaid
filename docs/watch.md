@@ -20,8 +20,10 @@ lemonaid watch openclaw stop <doc>
   `{{author="..." ...>>text<<}}` blocks with nothing between them. It is unanswered when its
   last block is not signed `--me` or one of the `--legacy` names. The waiter reports a thread
   when it becomes unanswered, and again when an unanswered thread gains a block.
-- **The body changed** (only with `--edits`), once the text outside comment threads has been
-  unchanged for `--quiet` seconds (45 by default).
+- **The body changed**, once the text outside comment threads has been unchanged for
+  `--quiet` seconds (20 by default). A human can get the lemon's attention by editing the
+  doc, without writing a comment. Replies inside threads don't count, but the lemon's own
+  edits to the body do; the event gives the line delta. `--no-edits` turns this off.
 
 Reported threads are remembered per document and `--me` name, so a waiter started later
 reports only threads that are new or changed since.
@@ -116,8 +118,9 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 `openclaw_watch.py`, and `lemonaid watch pr` replaces the `watch-pr` skill's `watch-pr.py`.
 The flags are the same (`python3 watch-doc.py <args>` becomes `lemonaid watch doc <args>`,
 and `python3 watch-pr.py <args>` becomes `lemonaid watch pr <args>`), and so are the state
-files, lock files, watch-list files, event text and wake messages. Old and new can
-therefore run side by side during migration:
+files, lock files, watch-list files, event text and wake messages. One default differs:
+`lemonaid watch doc` reports body edits unless given `--no-edits`, after 20 seconds of quiet
+rather than 45. Old and new can therefore run side by side during migration:
 
 - A waiter started by either blocks a second one from the other for the same document or
   PR and name, and `--status` from either reports it.

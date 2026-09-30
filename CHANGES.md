@@ -6,6 +6,10 @@
 - **Your own additions to a skill go in `~/.lemons/skills/<name>/overlay.md`**, which install appends after the packaged text (a `SKILL.md` there replaces it instead). Install renders when it runs, so after adding or editing an overlay, or upgrading lemonaid, run it again; it rewrites the rendered copy and the links stay put.
 - **`lemonaid watch pr --comments` wakes the author when the PR conflicts with its base or its CI fails.** Each is reported once per head commit, so a rearm on the same head stays quiet. CI counts only required checks when the PR has any, and waits until every check on the head has finished.
 
+#### Changed
+
+- **`lemonaid watch doc` reports body edits by default, after 20 seconds of quiet.** Editing a watched doc now wakes its lemon without a comment. `--no-edits` restores comments-only, and `--quiet` still sets the delay (it was 45 seconds).
+
 # 0.38.0 (2026-09-30)
 
 #### Added

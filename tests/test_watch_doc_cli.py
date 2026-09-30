@@ -158,3 +158,29 @@ def test_exclusive_modes_refuse_to_start(tmp_path, doc, extra):
 
     assert result.returncode == 2
     assert result.stdout.startswith("not started: ")
+
+
+def _edit_while_waiting(tmp_path, doc, *args: str) -> subprocess.CompletedProcess[str]:
+    doc.write_text("# Review\n")
+    proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once", *args)
+    doc.write_text("# Review\n\nPlease look at the second section.\n")
+    try:
+        out, _ = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, _ = proc.communicate()
+    return subprocess.CompletedProcess(proc.args, proc.returncode, out, "")
+
+
+def test_body_edits_are_reported_by_default(tmp_path, doc):
+    result = _edit_while_waiting(tmp_path, doc)
+
+    assert result.returncode == 0
+    assert result.stdout.startswith(f"body of {doc} changed (+2/-0 lines), quiet for 0s")
+
+
+def test_no_edits_reports_comments_only(tmp_path, doc):
+    result = _edit_while_waiting(tmp_path, doc, "--no-edits")
+
+    assert result.returncode != 0  # still waiting when killed
+    assert result.stdout == ""

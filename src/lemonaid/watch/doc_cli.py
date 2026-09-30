@@ -15,17 +15,17 @@ Events:
 - a Relay Comment thread whose last block is not by `--me` (or a `--legacy` name)
   appeared, or an unanswered one gained a block (always on)
 - the document body changed outside comment threads, after `--quiet` seconds of no further
-  change (only with `--edits`; a human types incrementally, and the session's own edits
+  change (unless `--no-edits`; a human types incrementally, and the session's own edits
   also trigger this - the event names the line delta so the reader can tell)
 
-Threads already reported, and with `--edits` the body as of the last reported edit, are
+Threads already reported, and with edits on the body as of the last reported edit, are
 remembered per (doc, --me) in `--state-dir`, so a restarted waiter does not re-report a
 thread nobody has touched since, and does report body edits made while no waiter ran. One
 waiter per (doc, --me), and one per watch list, may run; a second exits at once, naming
-the first. Flags, state files and locks match the standalone watch-doc.py, so either can
-replace the other without losing what has been reported.
+the first. State files and locks match the standalone watch-doc.py, so either can replace
+the other without losing what has been reported; unlike it, edits are on by default.
 
-    lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--edits] [--once]
+    lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--no-edits] [--once]
     lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"
     lemonaid watch doc --watch-list <list.json> --me Meyer --openclaw-session <key> --idle-expire 604800
     lemonaid watch doc --status <doc> --me Pliny
@@ -131,7 +131,7 @@ def _cmd(a: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
         "doc",
-        help="Wait for Relay Comments (and optionally body edits) on vault documents",
+        help="Wait for Relay Comments and body edits on vault documents",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -155,13 +155,16 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="another author name whose blocks count as your replies, e.g. your harness name (repeatable)",
     )
     ap.add_argument(
-        "--edits", action="store_true", help="also report body edits outside comment threads"
+        "--edits",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="also report body edits outside comment threads (default: on)",
     )
     ap.add_argument("--interval", type=float, default=15.0, help="seconds between reads")
     ap.add_argument(
         "--quiet",
         type=float,
-        default=45.0,
+        default=20.0,
         help="seconds of no further change before a body edit is reported",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")

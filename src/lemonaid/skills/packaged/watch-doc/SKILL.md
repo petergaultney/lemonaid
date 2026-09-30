@@ -1,15 +1,15 @@
 ---
 name: watch-doc
-description: Wait, at zero token cost, for a human to respond to a Markdown document via Relay Comments (or body edits), then reply inline in the same thread. Use whenever a document you wrote is the channel for feedback - reviews, design drafts, anything a human will annotate in Obsidian.
+description: Wait, at zero token cost, for a human to respond to a Markdown document via Relay Comments or body edits, then reply inline in the same thread or act on the edit. Use whenever a document you wrote is the channel for feedback - reviews, design drafts, anything a human will annotate in Obsidian.
 ---
 
 # Watch a document for Relay Comments
 
-You wrote a document; the human reads it in Obsidian and responds with Relay Comments (inline CriticMarkup). This skill is how you wait for that without spending tokens, and how you reply so the conversation stays in the document.
+You wrote a document; the human reads it in Obsidian and responds with Relay Comments (inline CriticMarkup), or just edits it. This skill is how you wait for that without spending tokens, and how you reply so the conversation stays in the document.
 
 ## Arguments
 
-`<doc-path>` (absolute). Optional: `--edits` also reports body edits after they have been quiet for 45 seconds.
+`<doc-path>` (absolute). Body edits are reported once the doc has been quiet for 20 seconds (`--quiet` changes it). Pass `--no-edits` only when you want comments alone.
 
 ## Reply identity
 
@@ -25,13 +25,13 @@ Tell the human the doc is ready, with its absolute path.
 
 Before starting a waiter, check for one: `lemonaid watch doc --status <doc> --me <name>`, and again with each legacy name in case an older waiter is still up. If one is running, you are already watching; don't start another. A second waiter for the same doc and name refuses to start. Then read the doc and handle any unanswered threads; the waiter reports only threads that are new or have changed since a waiter last reported them.
 
-The waiter reads the document every 15 seconds. It reports when a thread becomes unanswered or an unanswered thread gains a block, and with `--edits` when body edits have been quiet for 45 seconds.
+The waiter reads the document every 15 seconds. It reports when a thread becomes unanswered or an unanswered thread gains a block, and when the body outside comment threads has changed and then been quiet for 20 seconds.
 
 In Claude Code, start the waiter with `--once` as a background Bash task and end the turn:
 
 ```
 Bash(
-  command: lemonaid watch doc --wait <absolute-doc-path> --me <name> [--legacy <old name>] [--edits] --once,
+  command: lemonaid watch doc --wait <absolute-doc-path> --me <name> [--legacy <old name>] --once,
   description: "Wait for Relay Comments on <doc basename>",
   run_in_background: true,
   timeout: 2147483647,
@@ -58,7 +58,8 @@ Never use a hand-rolled polling loop or scheduled wakeups; they wake the session
 
 - The `{==...==}` highlight may be absent (a comment anchored to a point).
 - A thread is the highlight plus every `{{...>>...<<}}` block that immediately follows it, with nothing in between. Replies are appended as further blocks. A thread is **unanswered** when its last block's `author` is not your name or a legacy name. Human authors are never matched by name; anyone can comment, and several people can share a thread.
-- A human may also just edit your prose. Don't revert it. If an edit changes a conclusion you disagree with, add a comment block beside it saying so.
+- A human may also just edit your prose; the waiter reports it as `body of <doc> changed (+N/-M lines)`. Read what changed: it may be a request, a correction, or a note to you in the text itself. Don't revert it. If an edit changes a conclusion you disagree with, add a comment block beside it saying so.
+- Your own edits to the body wake you too, once, after you rearm; replies inside threads don't. If the reported change is yours, rearm without doing anything else.
 
 To find unanswered threads by hand, `rg -o 'author="[^"]*">>' <doc-path>` lists the blocks in order.
 
