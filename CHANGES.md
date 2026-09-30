@@ -1,3 +1,10 @@
+# 0.36.4 (2026-09-30)
+
+#### Fixed
+
+- **Selecting a live Codex row switches to its pane.** Rows with no tty were matched by pane title, which names neither Codex nor Claude, so a running Codex read as gone. The lookup now checks for the harness process on each pane's tty, matching the executable's name rather than any path that contains it. Two matching panes, or a pane `ps` can't read, stop the switch rather than guess.
+- **Recreating a dead session resumes that session.** It started the template's harness as-is, so a Codex row got a fresh Claude. It now runs the backend's resume command, and refuses a row it cannot resume or whose name another tmux session holds.
+
 # 0.36.3 (2026-09-30)
 
 #### Fixed

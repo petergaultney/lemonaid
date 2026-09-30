@@ -2,11 +2,11 @@
 
 import json
 import subprocess
-from pathlib import Path
 from typing import Any
 
 from . import tmux, wezterm
 from .config import Config, load_config
+from .lemon_watchers import watcher
 from .log import get_logger
 
 _log = get_logger("handlers")
@@ -118,30 +118,16 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
     return None, None
 
 
-def _recreate_tmux_session(metadata: dict[str, Any], config: Config) -> bool:
-    """Spawn a session rooted at the notification's cwd, for a session that has ended.
+class _Unknown(Exception):
+    """`ps` could not say what runs on a pane's tty."""
 
-    Selecting a session whose pane is gone used to be a dead end. Recreating it
-    in the same directory is what was wanted either way, and it lets the archive
-    serve as a list of places to pick work back up rather than only a record of
-    where it happened.
-    """
-    cwd = metadata.get("cwd")
-    if not cwd or not Path(cwd).is_dir():
-        return False
 
-    error = tmux.session.spawn_session(
-        cwd=cwd,
-        config=config.tmux_session,
-        channel=metadata.get("channel", ""),
-        session_metadata=metadata,
-        session_name=metadata.get("name", ""),
-    )
-    if error:
-        _log.warning("could not recreate a session in %s: %s", cwd, error)
-        return False
+def _runs(tty: str, harness: str) -> bool:
+    found = watcher.process_on_tty(tty, harness)
+    if found is None:
+        raise _Unknown(tty)
 
-    return True
+    return found
 
 
 def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
@@ -156,22 +142,21 @@ def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
     if tty:
         session, pane_id = tmux.navigation.get_pane_for_tty(tty)
 
-    # Fallback: resolve from cwd (for hooks that run outside user's shell)
+    # Fallback: resolve from cwd, for rows with no tty (a Codex session hosted on
+    # the app-server daemon records none) or whose tty is no longer a pane.
     if session is None or pane_id is None:
         cwd = metadata.get("cwd")
         if cwd:
-            # Infer process name from channel prefix if available
-            channel = metadata.get("channel", "")
-            process_name = None
-            if channel.startswith("openclaw:"):
-                process_name = "openclaw"
-            elif channel.startswith("claude:"):
-                process_name = "claude"
-            elif channel.startswith("codex:"):
-                process_name = "codex"
-            elif channel.startswith("opencode:"):
-                process_name = "opencode"
-            session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, process_name)
+            harness = watcher.harness_process(metadata.get("channel", ""))
+            try:
+                session, pane_id = tmux.navigation.get_pane_for_cwd(
+                    cwd, lambda pane_tty: _runs(pane_tty, harness)
+                )
+            except _Unknown:
+                # Either answer could be wrong: a switch may land on a stranger,
+                # and a recreate may start a second copy of a live session.
+                _log.warning("not switching to %s: could not tell which pane runs %s", cwd, harness)
+                return False
 
     if session == tmux.navigation.AMBIGUOUS:
         # One of the matches is the right session, so recreating would add a
@@ -183,6 +168,6 @@ def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
         return False
 
     if session is None or pane_id is None:
-        return _recreate_tmux_session(metadata, config)
+        return tmux.recreate.recreate(metadata, config)
 
     return tmux.navigation.switch_to_pane(session, pane_id)

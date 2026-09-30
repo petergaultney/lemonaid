@@ -26,7 +26,7 @@ def _resolution(monkeypatch, *, tty=(None, None), cwd=(None, None)) -> list[str]
         lambda s, p, save_current=True: calls.append(f"switch:{s}") or True,
     )
     monkeypatch.setattr(
-        handlers, "_recreate_tmux_session", lambda m, c: calls.append("recreate") or True
+        handlers.tmux.recreate, "recreate", lambda m, c: calls.append("recreate") or True
     )
     return calls
 

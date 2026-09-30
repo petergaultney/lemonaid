@@ -12,7 +12,7 @@ from lemonaid.tmux import navigation
 
 
 def _panes(monkeypatch, *rows: str) -> None:
-    """Stand in for `tmux list-panes -a` with cwd|cmd|session|pane_id rows."""
+    """Stand in for `tmux list-panes -a` with cwd|tty|session|pane_id rows."""
 
     def _run(argv, **kwargs):
         return subprocess.CompletedProcess(argv, 0, stdout="\n".join(rows) + "\n", stderr="")
@@ -28,13 +28,13 @@ def _fails(monkeypatch) -> None:
 
 
 def test_one_pane_at_the_directory(monkeypatch):
-    _panes(monkeypatch, "/work/feat|claude|feat|%3")
+    _panes(monkeypatch, "/work/feat|/dev/ttys0|feat|%3")
 
     assert navigation.get_pane_for_cwd("/work/feat") == ("feat", "%3")
 
 
 def test_no_pane_there(monkeypatch):
-    _panes(monkeypatch, "/work/other|claude|other|%1")
+    _panes(monkeypatch, "/work/other|/dev/ttys0|other|%1")
 
     assert navigation.get_pane_for_cwd("/work/feat") == (None, None)
 
@@ -43,8 +43,8 @@ def test_several_panes_in_one_session_take_the_first(monkeypatch):
     """Ambiguity is about sessions, not panes - a session's own windows are fine."""
     _panes(
         monkeypatch,
-        "/work/feat|emacsclient|feat|%1",
-        "/work/feat|claude|feat|%2",
+        "/work/feat|/dev/ttys0|feat|%1",
+        "/work/feat|/dev/ttys0|feat|%2",
     )
 
     assert navigation.get_pane_for_cwd("/work/feat") == ("feat", "%1")
@@ -54,8 +54,8 @@ def test_two_sessions_at_one_directory_is_refused(monkeypatch):
     """The case behind switching to the wrong session."""
     _panes(
         monkeypatch,
-        "/work/feat|claude|feat|%1",
-        "/work/feat|claude|onlooker|%9",
+        "/work/feat|/dev/ttys0|feat|%1",
+        "/work/feat|/dev/ttys0|onlooker|%9",
     )
 
     session, pane_id = navigation.get_pane_for_cwd("/work/feat")
@@ -64,21 +64,24 @@ def test_two_sessions_at_one_directory_is_refused(monkeypatch):
     assert pane_id is None
 
 
-def test_the_process_filter_can_resolve_ambiguity(monkeypatch):
+def test_the_harness_filter_can_resolve_ambiguity(monkeypatch):
     """Only one of the two is running the agent, so there is no real contest."""
     _panes(
         monkeypatch,
-        "/work/feat|claude|feat|%1",
-        "/work/feat|zsh|onlooker|%9",
+        "/work/feat|/dev/ttys1|feat|%1",
+        "/work/feat|/dev/ttys9|onlooker|%9",
     )
 
-    assert navigation.get_pane_for_cwd("/work/feat", "claude") == ("feat", "%1")
+    assert navigation.get_pane_for_cwd("/work/feat", lambda tty: tty == "/dev/ttys1") == (
+        "feat",
+        "%1",
+    )
 
 
-def test_the_process_filter_narrowing_to_nothing_is_not_ambiguous(monkeypatch):
-    _panes(monkeypatch, "/work/feat|zsh|onlooker|%9")
+def test_the_harness_filter_narrowing_to_nothing_is_not_ambiguous(monkeypatch):
+    _panes(monkeypatch, "/work/feat|/dev/ttys9|onlooker|%9")
 
-    assert navigation.get_pane_for_cwd("/work/feat", "claude") == (None, None)
+    assert navigation.get_pane_for_cwd("/work/feat", lambda tty: False) == (None, None)
 
 
 def test_a_failed_tmux_call_is_not_ambiguous(monkeypatch):
@@ -89,6 +92,6 @@ def test_a_failed_tmux_call_is_not_ambiguous(monkeypatch):
 
 
 def test_malformed_rows_are_skipped(monkeypatch):
-    _panes(monkeypatch, "garbage", "/work/feat|claude|feat|%3", "|||")
+    _panes(monkeypatch, "garbage", "/work/feat|/dev/ttys0|feat|%3", "|||")
 
     assert navigation.get_pane_for_cwd("/work/feat") == ("feat", "%3")

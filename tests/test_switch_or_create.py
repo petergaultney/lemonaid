@@ -1,8 +1,9 @@
-"""Selecting a session whose pane is gone recreates it instead of failing.
+"""Selecting a session whose pane is gone resumes it instead of failing.
 
 A session's pane disappears whenever its tmux session is killed, which happens
 constantly - `:kill-session`, a closed window, a rebooted machine. The archive
-still knows where that work was happening, so the cwd is enough to put you back.
+still knows where that work was happening and which session it was, so the row
+is enough to put you back.
 """
 
 from pathlib import Path
@@ -10,7 +11,9 @@ from pathlib import Path
 from lemonaid import handlers
 from lemonaid.config import Config, TmuxSessionConfig
 
-_TEMPLATE = Config(tmux_session=TmuxSessionConfig(templates={"default": ["", "claude", ""]}))
+_TEMPLATE = Config(
+    tmux_session=TmuxSessionConfig(templates={"default": ["", "claude", ""]}, resume_window=1)
+)
 
 
 def _no_pane(monkeypatch) -> None:
@@ -18,6 +21,11 @@ def _no_pane(monkeypatch) -> None:
     monkeypatch.setattr(
         handlers.tmux.navigation, "get_pane_for_cwd", lambda cwd, process=None: (None, None)
     )
+    monkeypatch.setattr(handlers.tmux.recreate, "_session_path", lambda name: None)
+
+
+def _row(cwd, **extra) -> dict:
+    return {"channel": "claude:abc", "session_id": "abc", "cwd": str(cwd), **extra}
 
 
 def _spawns_into(monkeypatch) -> list[dict]:
@@ -53,7 +61,7 @@ def test_dead_session_respawns_in_its_cwd(monkeypatch, tmp_path):
     spawned = _spawns_into(monkeypatch)
 
     assert handlers.handle_notification(
-        {"tty": "/dev/ttys001", "cwd": str(tmp_path), "name": "old-session"},
+        _row(tmp_path, tty="/dev/ttys001", name="old-session"),
         _TEMPLATE,
         switch_source="tmux",
     )
@@ -61,14 +69,57 @@ def test_dead_session_respawns_in_its_cwd(monkeypatch, tmp_path):
     assert spawned[0]["session_name"] == "old-session"
 
 
-def test_no_resume_command_is_passed_when_recreating(monkeypatch, tmp_path):
-    """Recreating is not resuming - the template is used as-is."""
+def test_recreating_resumes_the_rows_own_session(monkeypatch, tmp_path):
     _no_pane(monkeypatch)
     spawned = _spawns_into(monkeypatch)
 
-    handlers.handle_notification({"cwd": str(tmp_path)}, _TEMPLATE, switch_source="tmux")
+    handlers.handle_notification(_row(tmp_path), _TEMPLATE, switch_source="tmux")
 
-    assert not spawned[0].get("resume_argv")
+    assert spawned[0]["resume_argv"] == ["lemonaid", "claude", "resume", "abc"]
+
+
+def test_a_codex_row_resumes_codex_not_the_templates_harness(monkeypatch, tmp_path):
+    """The template's harness window starts Claude, a stranger to a Codex row's work."""
+    _no_pane(monkeypatch)
+    spawned = _spawns_into(monkeypatch)
+
+    handlers.handle_notification(
+        {"channel": "codex:0199", "session_id": "0199", "cwd": str(tmp_path)},
+        _TEMPLATE,
+        switch_source="tmux",
+    )
+
+    assert spawned[0]["resume_argv"] == ["codex", "resume", "0199"]
+
+
+def test_a_row_that_cannot_be_resumed_is_not_recreated(monkeypatch, tmp_path):
+    """No session id means no resume command, and the template alone would start a stranger."""
+    _no_pane(monkeypatch)
+    spawned = _spawns_into(monkeypatch)
+
+    assert not handlers.handle_notification(
+        {"channel": "codex:0199", "cwd": str(tmp_path)}, _TEMPLATE, switch_source="tmux"
+    )
+    assert not spawned
+
+
+def test_a_session_holding_the_name_is_left_alone(monkeypatch, tmp_path):
+    """The incident's bad recreate left a Claude in a session named after the Codex row."""
+    _no_pane(monkeypatch)
+    monkeypatch.setattr(handlers.tmux.recreate, "_session_path", lambda name: str(tmp_path))
+    switched = []
+    monkeypatch.setattr(
+        handlers.tmux.navigation,
+        "switch_to_pane",
+        lambda session, pane: switched.append((session, pane)) is None,
+    )
+    spawned = _spawns_into(monkeypatch)
+
+    assert not handlers.handle_notification(
+        _row(tmp_path, name="old-session"), _TEMPLATE, switch_source="tmux"
+    )
+    assert not switched
+    assert not spawned
 
 
 def test_vanished_directory_does_not_respawn(monkeypatch, tmp_path):
@@ -77,7 +128,7 @@ def test_vanished_directory_does_not_respawn(monkeypatch, tmp_path):
     spawned = _spawns_into(monkeypatch)
 
     assert not handlers.handle_notification(
-        {"cwd": str(tmp_path / "removed-worktree")}, _TEMPLATE, switch_source="tmux"
+        _row(tmp_path / "removed-worktree"), _TEMPLATE, switch_source="tmux"
     )
     assert not spawned
 
@@ -98,7 +149,7 @@ def test_failed_spawn_is_reported_as_failure(monkeypatch, tmp_path):
         handlers.tmux.session, "spawn_session", lambda **kwargs: "name already exists"
     )
 
-    assert not handlers.handle_notification({"cwd": str(tmp_path)}, _TEMPLATE, switch_source="tmux")
+    assert not handlers.handle_notification(_row(tmp_path), _TEMPLATE, switch_source="tmux")
 
 
 def test_unnamed_session_gets_a_name_derived_from_its_directory(monkeypatch, tmp_path):
@@ -113,11 +164,11 @@ def test_unnamed_session_gets_a_name_derived_from_its_directory(monkeypatch, tmp
     worktree = tmp_path / "protostellar" / "enums"
     worktree.mkdir(parents=True)
 
-    assert handlers.handle_notification({"cwd": str(worktree)}, _TEMPLATE, switch_source="tmux")
+    assert handlers.handle_notification(_row(worktree), _TEMPLATE, switch_source="tmux")
 
     assert created[0]["name"] == "enums"
     assert created[0]["directory"] == str(worktree)
-    assert created[0]["windows"] == ["", "claude", ""]
+    assert created[0]["windows"] == ["", "lemonaid claude resume abc", ""]
 
 
 def test_auto_session_name_uses_two_components_when_short(tmp_path):

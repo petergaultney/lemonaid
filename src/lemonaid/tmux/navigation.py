@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+from collections import abc
 from pathlib import Path
 
 from ..log import get_logger
@@ -215,10 +216,11 @@ def focused_ttys(socket: str | None = None) -> set[str]:
     return {line for line in result.stdout.strip().split("\n") if line}
 
 
-def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | None, str | None]:
+def get_pane_for_cwd(
+    cwd: str, runs_harness: abc.Callable[[str], bool] | None = None
+) -> tuple[str | None, str | None]:
     """Find a tmux pane by its current working directory.
 
-    Optionally filter by a process running in the pane.
     Returns (session_name, pane_id) or (None, None) if not found.
 
     A directory does not identify a session: two agents started in one worktree
@@ -227,21 +229,21 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
     first - which sends you somewhere unrelated and looks like a switching bug -
     that returns `(AMBIGUOUS, None)` and names the candidates in the log.
 
-    *process_name* is matched against `pane_current_command`, which is the process
-    title and not necessarily the command you launched: Claude sets its title to
-    its version (`2.1.220`), so passing "claude" matches nothing and every
-    candidate is discarded. Callers relying on this filter to find an agent pane
-    should expect it to find none.
+    *runs_harness* is asked about each candidate's tty and keeps only the panes
+    where it says the agent is running. Two such panes are ambiguous even in one
+    session, since each is a different agent. It is given the tty rather than the
+    pane's `pane_current_command`, which is a process title and names neither
+    agent: Claude sets its title to its version (`2.1.220`), and a Codex started
+    through a shell (`tmux new-window ... codex`) reports the shell.
     """
     try:
-        # List all panes with their cwd, current command, session, and pane ID
         result = subprocess.run(
             [
                 "tmux",
                 "list-panes",
                 "-a",
                 "-F",
-                "#{pane_current_path}|#{pane_current_command}|#{session_name}|#{pane_id}",
+                "#{pane_current_path}|#{pane_tty}|#{session_name}|#{pane_id}",
             ],
             capture_output=True,
             text=True,
@@ -257,8 +259,8 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
         if len(parts) != 4:
             continue
 
-        pane_cwd, pane_cmd, session_name, pane_id = parts
-        if pane_cwd == cwd and (not process_name or process_name in pane_cmd):
+        pane_cwd, pane_tty, session_name, pane_id = parts
+        if pane_cwd == cwd and (runs_harness is None or runs_harness(pane_tty)):
             matches.append((session_name, pane_id))
 
     if not matches:
@@ -271,6 +273,15 @@ def get_pane_for_cwd(cwd: str, process_name: str | None = None) -> tuple[str | N
             cwd,
             len(sessions),
             ", ".join(sorted(sessions)),
+        )
+        return AMBIGUOUS, None
+
+    if runs_harness is not None and len(matches) > 1:
+        _log.warning(
+            "%s has the agent running in %d panes (%s); not guessing which one was meant",
+            cwd,
+            len(matches),
+            ", ".join(pane for _, pane in matches),
         )
         return AMBIGUOUS, None
 

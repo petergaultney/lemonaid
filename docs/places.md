@@ -221,6 +221,9 @@ place whose directory is already gone is skipped rather than treated as a failur
 
 ## Sessions that outlive their tmux session
 
-Selecting a session in the inbox whose pane is gone recreates it in the same directory. Your
-archive already records where work was happening, so a dead session and a live one answer to
-the same key — you don't have to know which you're looking at.
+Selecting a session in the inbox whose pane is gone recreates it in the same directory,
+resuming that session with its backend's `resume_command` in the template's harness window.
+Your archive already records where work was happening, so a dead session and a live one answer
+to the same key — you don't have to know which you're looking at. A session with no way to
+resume it is not recreated: the template alone would start a different agent. Nor is one whose
+name a tmux session already holds, since that session may run a different agent.

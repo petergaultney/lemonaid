@@ -5,6 +5,7 @@ Provides shared watcher loop logic that can be used by multiple backends
 """
 
 import json
+import os
 import subprocess
 import threading
 import time
@@ -100,20 +101,11 @@ def parse_timestamp(ts_str: str) -> float | None:
         return None
 
 
-def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
-    """Check if a process is running on the given TTY.
-
-    Args:
-        tty: TTY path like "/dev/ttys002" or "ttys002"
-        process_name: Process name to search for (default: "claude")
-
-    Returns:
-        True if the process is running on that TTY
-    """
-    # Normalize TTY name (remove /dev/ prefix if present)
+def process_on_tty(tty: str, process_name: str) -> bool | None:
+    """Whether a process named *process_name* runs on *tty*, or None if `ps` could not say."""
     tty_name = tty.replace("/dev/", "")
     if not tty_name:
-        return True  # Can't check, assume alive
+        return None
 
     try:
         result = subprocess.run(
@@ -122,9 +114,25 @@ def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
             text=True,
             timeout=2,
         )
-        return process_name in result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        return True  # On error, assume alive to avoid false archiving
+    except (subprocess.TimeoutExpired, OSError) as e:
+        _log.warning("could not list the processes on %s: %s", tty_name, e)
+        return None
+
+    # 1 with nothing on stderr is ps finding no process there.
+    if result.returncode != 0 and result.stderr.strip():
+        _log.warning("ps failed on %s: %s", tty_name, result.stderr.strip())
+        return None
+
+    # comm is the executable's path; a directory named after a harness is not one.
+    return any(process_name in os.path.basename(comm) for comm in result.stdout.splitlines())
+
+
+def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
+    """Whether *process_name* runs on *tty*, assuming it does when that can't be checked.
+
+    The assumption suits archiving, where a wrong "gone" loses a live row.
+    """
+    return process_on_tty(tty, process_name) is not False
 
 
 def harness_process(channel: str) -> str:
