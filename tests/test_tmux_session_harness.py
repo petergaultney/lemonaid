@@ -40,7 +40,7 @@ def test_spawn_session_selects_a_named_harness_template(monkeypatch, tmp_path):
 def test_spawn_session_shell_quotes_prompt_on_the_harness_command(monkeypatch, tmp_path):
     created = _created_sessions(monkeypatch)
     config = TmuxSessionConfig(
-        templates={"codex": ["editor", "codex", ""]},
+        templates={"default": ["editor", "claude", ""]},
         resume_window=1,
     )
 
@@ -49,7 +49,7 @@ def test_spawn_session_shell_quotes_prompt_on_the_harness_command(monkeypatch, t
             str(tmp_path),
             config,
             session_name="work",
-            template_name="codex",
+            template_name="default",
             initial_prompt="read Peter's brief; then go",
             attach=False,
         )
@@ -58,9 +58,25 @@ def test_spawn_session_shell_quotes_prompt_on_the_harness_command(monkeypatch, t
 
     assert created[0]["windows"] == [
         "editor",
-        "codex 'read Peter'\"'\"'s brief; then go'",
+        "claude 'read Peter'\"'\"'s brief; then go'",
         "",
     ]
+
+
+def test_a_codex_harness_starts_past_its_trust_and_update_prompts(monkeypatch, tmp_path):
+    created = _created_sessions(monkeypatch)
+    config = TmuxSessionConfig(
+        templates={"codex": ["editor", "codex --no-daemon"]}, resume_window=1
+    )
+
+    session.spawn_session(
+        str(tmp_path), config, session_name="work", template_name="codex", attach=False
+    )
+
+    harness = created[0]["windows"][1]
+    assert harness.startswith("codex -c ")
+    assert f'{{"{tmp_path}"={{trust_level="trusted"}}}}' in harness
+    assert harness.endswith("check_for_update_on_startup=false --no-daemon")
 
 
 def test_prompt_can_target_a_window_other_than_resume(monkeypatch, tmp_path):

@@ -9,6 +9,7 @@ lemonaid lemon parent <lemon> --set <other>         # or name another parent
 lemonaid lemon parent <lemon> --clear
 lemonaid lemon children --self                      # Lemon-ID, Status:, channel, brief path
 lemonaid place open feat/x --brief <file> --parent self
+lemonaid lemon start work:4 --brief <file> --parent self
 lemonaid tell --parent "PR is up"
 lemonaid tell --child <lemon> "Rebase on main"
 ```
@@ -16,7 +17,7 @@ lemonaid tell --child <lemon> "Rebase on main"
 A `<lemon>` is a Lemon-ID, an attached lemon's channel, or a brief's name or path. The brief need not be attached yet, so a parent can name a child whose lemon hasn't started. Every command takes `--json`.
 
 - **One parent per lemon.** `--set` replaces the parent. A lemon can't be its own parent, and a link that would make it its own ancestor is refused.
-- **`--parent` on `place open` requires `--brief`.** The link is between two Lemon-IDs, and the child's comes from its brief. Without `--brief`, `place open` records nothing about lemons.
+- **`--parent` on `place open` and `lemon start` requires `--brief`.** The link is between two Lemon-IDs, and the child's comes from its brief. Without `--brief`, `place open` records nothing about lemons.
 - **Checked before anything opens.** `place open` resolves the parent and checks the link first, and records it only once the place is open.
 - **No parent means the default owner.** A lemon with no parent belongs to whoever you treat as the default, for many a control center; lemonaid doesn't record who that is.
 - **In the brief view.** The sidebar, popup and `brief show` put `Parent:` under a brief's card, and list its `Children:` one per line, each child's `Status:` then its session's name, just before `Done`.

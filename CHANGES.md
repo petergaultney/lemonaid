@@ -1,7 +1,13 @@
 # 0.43.0 (2026-09-30)
 
+#### Added
+
+- **`lemonaid lemon start SESSION:WINDOW` starts a lemon in another window of a session from config.** It runs a `[tmux-session.templates]` harness line, as `place open` does for its harness window, and takes `--prompt`, `--brief`, `--parent` and `--name`. It makes the window or respawns a dead one, and refuses a window with anything running in it. With `--brief`, a Codex template line needs `--no-daemon`, as it does for `place open --brief`, since a Codex on the shared app-server can't be matched to its window.
+- **`place open --name` names the brief's lemon's session once it starts.**
+
 #### Fixed
 
+- **Codex started from a template no longer stops at its folder-trust or update prompt.** lemonaid passes `-c` overrides for both, so a prompt given at launch reaches it.
 - **`brief attach --session S:W` fails, rather than waiting forever, when a lemon already runs in that window with no inbox row placing it there.** A Codex on the shared app-server records no tmux location, so the brief used to wait for a new lemon that never came. The error lists that directory's unplaced Codex sessions as candidates for `--channel`.
 
 # 0.42.1 (2026-09-30)

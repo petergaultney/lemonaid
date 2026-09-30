@@ -6,7 +6,7 @@ import json
 import sqlite3
 import sys
 
-from .. import brief
+from .. import brief, launch
 from ..inbox import db
 from . import links
 
@@ -119,7 +119,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         description="A lemon's parent is the lemon that started it. Links are "
         "stored by Lemon-ID, so they survive resumes, renamed briefs, and tmux. "
         "A lemon with no parent belongs to whoever you treat as the default "
-        "(for many, a control center).",
+        "(for many, a control center). `start` launches one from config.",
     )
     lemon_subparsers = parser.add_subparsers(dest="lemon_command", required=True)
 
@@ -139,3 +139,5 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_target(children)
     children.set_defaults(func=_cmd_children)
+
+    launch.cli.add_parser(lemon_subparsers)

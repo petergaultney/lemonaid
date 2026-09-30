@@ -165,6 +165,16 @@ def test_a_brief_waiting_from_before_the_upgrade_keeps_waiting(tmp_path):
         assert attached.by_channel(conn, ["claude:running", "claude:gone"]) == {}
 
 
+def test_a_waiting_name_is_given_to_the_lemon_that_claims_the_brief():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "4", _brief("task"), [], name="REVIEW #9")
+    _lemon("codex:reviewer", "fresh", "4")
+
+    assert _attached_to("codex:reviewer") == _brief("task")
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, "codex:reviewer", unread_only=False).name == "REVIEW #9"
+
+
 def test_a_running_codex_the_inbox_cannot_place_is_refused_with_candidates(
     capsys, tmux, monkeypatch
 ):

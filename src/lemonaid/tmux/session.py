@@ -5,6 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from .. import launch
 from ..claude.projects import find_session_project
 from ..config import TmuxSessionConfig
 from ..log import get_logger
@@ -188,18 +189,6 @@ def spawn_session(
     # different prompt or no prompt at all.
     windows = list(windows)
 
-    if initial_prompt:
-        configured_idx = (
-            config.resume_window if config.harness_window is None else config.harness_window
-        )
-        idx = max(0, min(configured_idx, len(windows) - 1))
-        if not windows[idx].strip():
-            return (
-                f"Tmux-session template {template_name!r} has no harness command "
-                f"in window {idx}"
-            )
-        windows[idx] = f"{windows[idx]} {shlex.quote(initial_prompt)}"
-
     # For Claude sessions, prefer the history-derived project dir
     if channel.startswith("claude:") and session_metadata:
         session_id = session_metadata.get("session_id", "")
@@ -207,6 +196,13 @@ def spawn_session(
             project_dir = find_session_project(session_id)
             if project_dir:
                 cwd = project_dir
+
+    idx = launch.command.template_window(config, windows)
+    if initial_prompt and not windows[idx].strip():
+        return f"Tmux-session template {template_name!r} has no harness command in window {idx}"
+
+    if windows[idx].strip():
+        windows[idx] = launch.command.harness_line(windows[idx], Path(cwd), initial_prompt)
 
     if resume_argv:
         idx = min(config.resume_window, len(windows) - 1)

@@ -220,12 +220,34 @@ back to `resume_window` when that setting is absent. Both options matter only
 when `open` creates the session. If a session already exists, `open` switches to
 it without starting another harness or sending the prompt.
 
+A template line whose program is `codex` also gets `-c` overrides that trust the
+directory and skip the update check, so Codex reads its prompt instead of stopping
+at a dialog. Nothing is written to `~/.codex/config.toml`.
+
 The tmux session is named after the key (with `.` and `:` replaced, since tmux forbids them),
 so `tmux send-keys -t <key>` and similar work afterward. `place list --json` reports the
 actual name.
 
 Acquiring a directory can take minutes — it may install dependencies. Don't set a short
 timeout and don't retry on a timeout; a second call would just wait on the same work.
+
+### A lemon in another window: `lemon start`
+
+To start a lemon in a window of a session that already exists (a reviewer in window 4, or a
+lemon whose window died), use `lemon start` rather than typing a launch line into a pane:
+
+```bash
+lemonaid lemon start <session>:4 --harness codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
+    --brief <file> --parent self --name 'REVIEW #12 thing' --json
+```
+
+It runs the same template line `place open` runs in its harness window, in the session's
+directory. The window is made if it doesn't exist and respawned if its panes are dead; a window
+with anything running in it is refused. `--brief`, `--parent` and `--name` work as on
+`place open`: the brief and the name go to the first new lemon in that window. Afterwards it
+checks the pane once and fails if the lemon is stuck at a startup dialog; `--no-check` skips
+that. `--json` returns `{"session", "window", "window_id", "dir", "harness", "brief",
+"lemon_id", "parent", "name", "error"}`.
 
 ### A session where there is no place
 

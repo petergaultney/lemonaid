@@ -51,9 +51,12 @@ See [wezterm.md](wezterm.md).
 
 See [tmux.md](tmux.md).
 
-Template names also act as harness names for `place open`. For example,
+Template names also act as harness names for `place open` and `lemon start`. For example,
 `place open feat/thing --harness codex` selects the `codex` list below, while
-an open without `--harness` continues to select `default`:
+an open without `--harness` continues to select `default`. `lemon start SESSION:WINDOW
+--harness codex` runs that list's `harness_window` command in another window of an existing
+session. A Codex line needs `--no-daemon` for `--brief` to work with either command: a Codex
+on the shared app-server can't be matched to its window.
 
 ```toml
 [tmux-session]

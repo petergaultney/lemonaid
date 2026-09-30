@@ -29,6 +29,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "prompt": "",
             "brief": "",
             "parent": "",
+            "name": "",
             **kwargs,
         }
     )

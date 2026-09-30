@@ -72,17 +72,19 @@ def attach_pending(
     path: Path,
     live_before: abc.Iterable[str],
     tmux_window_id: str = "",
+    name: str = "",
 ) -> None:
     """Attach *path* to the first lemon in this window on a channel not in *live_before*.
 
     *tmux_window_id* follows the window if tmux renumbers it; without one, the
-    window is the index *tmux_window*.
+    window is the index *tmux_window*. A *name* is given to the lemon's session
+    when it claims the brief.
     """
     conn.execute(
         """
         INSERT OR REPLACE INTO pending_briefs
-            (tmux_session, tmux_window, path, tmux_window_id, live_before, requested_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (tmux_session, tmux_window, path, tmux_window_id, live_before, requested_at, name)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             tmux_session,
@@ -91,6 +93,7 @@ def attach_pending(
             tmux_window_id,
             json.dumps(sorted(set(live_before))),
             time.time(),
+            name,
         ),
     )
     conn.commit()
@@ -136,6 +139,8 @@ def claim_pending(conn: sqlite3.Connection) -> None:
             continue
 
         attach(conn, channel, Path(row["path"]))
+        if row["name"] and (newest := db.get_by_channel(conn, channel, unread_only=False)):
+            db.update_name(conn, newest.id, row["name"])
         conn.execute(
             "DELETE FROM pending_briefs WHERE tmux_session = ? AND tmux_window = ?",
             (row["tmux_session"], row["tmux_window"]),
