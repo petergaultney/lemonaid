@@ -19,6 +19,7 @@ from . import (
     openclaw,
     opencode,
     places,
+    skills,
     tmux,
     watch,
     wezterm,
@@ -138,6 +139,7 @@ def main() -> None:
     opencode.cli.setup_parser(subparsers)
     places.cli.setup_parser(subparsers)
     brief.cli.setup_parser(subparsers)
+    skills.cli.setup_parser(subparsers)
     tmux.cli.setup_parser(subparsers)
     watch.cli.setup_parser(subparsers)
     wezterm.cli.setup_parser(subparsers)

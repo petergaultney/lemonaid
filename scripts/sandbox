@@ -43,6 +43,8 @@ SOCKET = SANDBOX / "tmux.sock"
 BIN = SANDBOX / "bin"
 WATCH_TMP = SANDBOX / "tmp"
 WATCH_LISTS = SANDBOX / "watch-lists"
+CLAUDE_SKILLS = SANDBOX / "claude-skills"
+CODEX_SKILLS = SANDBOX / "codex-skills"
 
 LIVE_DB = Path(os.environ.get("LEMONAID_DB") or "~/.local/share/lemonaid/lemonaid.db").expanduser()
 LIVE_CONFIG = Path(
@@ -101,6 +103,9 @@ def _environment() -> dict[str, str]:
         # shared with every live waiter on the machine.
         "TMPDIR": str(WATCH_TMP),
         "LEMONAID_WATCH_LISTS_DIR": str(WATCH_LISTS),
+        # `skills install` links into these instead of ~/.claude/skills and ~/.codex/skills.
+        "LEMONAID_CLAUDE_SKILLS_DIR": str(CLAUDE_SKILLS),
+        "LEMONAID_CODEX_SKILLS_DIR": str(CODEX_SKILLS),
         # A tmux client with no -S/-L talks to the server $TMUX names, so every
         # tmux call lemonaid makes lands on the sandbox server.
         "TMUX": f"{SOCKET},0,0",

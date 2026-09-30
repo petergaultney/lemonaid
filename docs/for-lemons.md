@@ -459,3 +459,11 @@ human comment, conflict with the base, or failed CI (the last three only with `-
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.
+
+## Installing the watch skills
+
+`lemonaid skills install` installs the `watch-doc` and `watch-pr` skills for Claude Code
+and Codex, which describe these waiters step by step. It never replaces a skill entry it
+didn't create; `--print <name>` gives the text instead. Details, including the
+`~/.lemons/skills/<name>/overlay.md` a user adds their conventions in:
+[skills.md](skills.md).

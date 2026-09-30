@@ -19,6 +19,8 @@ for _name, _path in (
     ("LEMONAID_BRIEFS_DIR", "briefs"),
     ("LEMONAID_LEMONS_DIR", "lemons"),
     ("LEMONAID_LEGACY_BRIEFS_DIR", "brief-lemons"),
+    ("LEMONAID_CLAUDE_SKILLS_DIR", "claude/skills"),
+    ("LEMONAID_CODEX_SKILLS_DIR", "codex/skills"),
 ):
     os.environ[_name] = str(_LAST_RESORT / _path)
 os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
@@ -55,6 +57,13 @@ def _own_state_and_config(monkeypatch, tmp_path):
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(tmp_path / "briefs"))
     monkeypatch.delenv("LEMONAID_MESSAGES_DIR", raising=False)
     monkeypatch.setenv("LEMONAID_CONFIG", str(tmp_path / "config.toml"))
+
+
+@pytest.fixture(autouse=True)
+def _own_skill_dirs(monkeypatch, tmp_path):
+    """`skills install` links into each harness's skills directory, never the real ones."""
+    monkeypatch.setenv("LEMONAID_CLAUDE_SKILLS_DIR", str(tmp_path / "claude" / "skills"))
+    monkeypatch.setenv("LEMONAID_CODEX_SKILLS_DIR", str(tmp_path / "codex" / "skills"))
 
 
 @pytest.fixture(autouse=True)
