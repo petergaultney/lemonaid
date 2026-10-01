@@ -94,9 +94,12 @@ def test_a_waiter_that_starts_within_the_grace_period_counts():
 def test_a_second_waiter_for_the_same_lemon_is_refused():
     inbox = _briefed()
 
-    with waiter.armed(inbox), pytest.raises(waiter.AlreadyArmed, match=inbox.name):
-        with waiter.armed(inbox):
-            pass
+    with (
+        waiter.armed(inbox),
+        pytest.raises(waiter.AlreadyArmed, match=inbox.name),
+        waiter.armed(inbox),
+    ):
+        pass
 
 
 def test_inbox_watch_holds_the_lock_until_it_returns(capsys):
@@ -137,3 +140,17 @@ def test_the_stop_hook_installs_beside_existing_ones(tmp_path):
 
     install_hooks.uninstall("Stop", install_hooks.WAITER_CHECK_COMMAND, settings)
     assert "waiter-check" not in settings.read_text()
+
+
+def test_a_brief_check_finds_broken_blocks_the_stop_even_with_a_waiter(capsys):
+    inbox = _briefed()
+    path = brief_store.briefs_dir() / "lemon.md"
+    path.write_text(path.read_text() + "\n## Now\n\n### Done\n\n### Next\n\n- x\n")
+
+    with waiter.armed(inbox):
+        blocked = _stop(capsys)
+
+    assert blocked is not None
+    assert "brief check" in blocked["reason"]
+    assert "`### Done` in ## Now is empty" in blocked["reason"]
+    assert "inbox watch" not in blocked["reason"]

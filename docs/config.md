@@ -189,6 +189,7 @@ See [keybindings.md](keybindings.md).
 | Key | Default | Description |
 |-----|---------|-------------|
 | `pr_state` | `""` | Shell command that prints a PR's state for `{ref}`; unset shows PR numbers without a state. |
+| `pr_url` | `""` | Shell command that prints a PR's URL for `{ref}`, so `brief pr add` takes a number; unset, it needs the URL. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 
 The brief popup and sidebar run `pr_state` for each `PR #N` or pull-request URL
@@ -205,6 +206,15 @@ pr_state = "gh pr view {ref} --json state,isDraft --jq 'if .isDraft then \"draft
 
 The popup runs it once per open. The sidebar re-renders on a timer, so it caches
 each answer for two minutes and fetches in the background.
+
+`pr_url` turns the number given to `lemonaid brief pr add` into the URL its row
+links to. It runs in the caller's directory, with `{ref}` the shell-quoted
+number, and the first word printed must be a pull-request URL. With `gh`:
+
+```toml
+[brief]
+pr_url = "gh pr view {ref} --json url --jq .url"
+```
 
 `vaults` lists Obsidian vault directories. A bare path to a `.md` file under one,
 written from `~` or in full, becomes an `obsidian://open` link to that note, using

@@ -385,8 +385,14 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
-lemonaid brief now --self "- Done: x"  # replace ## Now (- reads it from stdin)
 lemonaid brief status --self waiting            # Status: waiting  (working | running | waiting | blocked | merge | review | alert | done)
+lemonaid brief bullet add --self "Next" "open the PR"       # under ### Next; Done adds at the top
+lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
+lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
+lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
+lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
+lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
+lemonaid brief now --self "### Next ..."       # replace all of ## Now (- reads it from stdin)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
@@ -439,7 +445,7 @@ app-server is never placed, so for one of those the command fails and asks for `
 takes `--json`.
 
 `brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
-with `brief now`. Readers still recognize older `Status: done - PR #12` lines as `done`.
+with `brief bullet`. Readers still recognize older `Status: done - PR #12` lines as `done`.
 Use `review` when the next move is a teammate's approving review rather than your user's; say whose
 under `Needs`, which its card shows as it does for `blocked`.
 Use `running` when nothing waits on your user but you are minding a pipeline run or another long
@@ -462,12 +468,41 @@ An ID's shape is not validated; only folder safety is checked. It must be
 non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control
 character, or leading dot.
 
-A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with `brief now` and
-`brief status`; any other lemon may do the same or edit the file directly.
+Make routine changes to `## Now` with `brief bullet` and `brief pr` rather than by editing the
+file. They keep its `###` sub-headings in the order the rules give (Needs, Running, Waiting on,
+Next, PRs, Done), with a blank line around each, and remove a heading or PR table left empty.
+`## Questions` and every other section stay as written. `bullet add` takes the heading
+(`Needs <who>` keeps who it names); `set` and `rm` name a bullet by the start of its text, case
+ignored, and fail unless exactly one bullet in `## Now` matches. Bare URLs and vault paths in a
+bullet become short links, as in the brief view. `pr add` takes the PR's URL, or its number when
+`[brief] pr_url` is set (`docs/config.md`); adding a PR again updates its row, keeping its review
+link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
+`[brief] vaults` root, which becomes an `obsidian://` link.
 
-A brief's real path must be inside the active brief folder: `attach`, `place open --brief`, `now`, and
-`status` refuse anything else, including a symlink that points out of it, since they write for lemons
-whose sandbox would otherwise stop them. `now` and `status` change one section and replace the file
+`brief check` (`--self`, another target, or a file) reports what is wrong with a brief:
+- more or fewer than one `# ` title, or a `## ` section that appears twice;
+- a missing, repeated, or unknown `Status:` word;
+- a malformed `Lemon-ID` line, or one that differs from the ID the database records for the file;
+- `## Now` sub-headings out of order, repeated, empty, or without a blank line above and below;
+- a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
+  or that has no rows;
+- a `## Waiters` section that is not last.
+
+It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
+`status`, `bullet`, `pr`) runs it on the result and refuses the edit if it finds anything, listing
+what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
+`Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Waiters` or a
+wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
+way the other verbs do. A Claude lemon's Stop hook
+runs it too, and blocks the turn's end until the brief passes. **After editing a brief by hand,
+run `lemonaid brief check --self`**: nothing else checks a Codex lemon's hand edits.
+
+A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with these
+verbs; any other lemon may do the same or edit the file directly.
+
+A brief's real path must be inside the active brief folder: `attach`, `place open --brief`, and the
+edit verbs refuse anything else, including a symlink that points out of it, since they write for lemons
+whose sandbox would otherwise stop them. The edit verbs change one section and replace the file
 whole; if it is saved in between (in an editor, say), they re-apply the change to the newer text.
 
 `brief list --json` is how a tool maps a brief file back to its session: one entry per brief, with

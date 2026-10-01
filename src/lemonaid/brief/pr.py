@@ -29,6 +29,12 @@ _CACHE_SECONDS = 120
 Lookup = abc.Callable[[str, Path | None], str]
 
 
+def repo_and_number(url: str) -> tuple[str, str] | None:
+    """(`owner/repo`, number) of a pull-request URL, or None for anything else."""
+    match = _URL.fullmatch(url)
+    return (match["repo"], match["number"]) if match else None
+
+
 def _number(ref: str) -> str:
     match = _URL.fullmatch(ref)
     return match["number"] if match else ref
@@ -99,6 +105,33 @@ def lookup(command: str, ref: str, cwd: Path | None) -> str:
 
     word = next(iter(result.stdout.split()), "").lower()
     return word if word in _STATES else ""
+
+
+def url_for(ref: str, command: str) -> tuple[str, str]:
+    """(URL, error) for a PR named by URL, or by number through `[brief] pr_url`."""
+    if repo_and_number(ref):
+        return ref, ""
+
+    number = ref.strip().lstrip("#")
+    if not number.isdigit():
+        return "", f"{ref!r} is neither a pull-request URL nor a number"
+
+    if not command.strip():
+        return "", f"Pass the PR's URL, or set `[brief] pr_url` to look up #{number}"
+
+    filled = command.replace("{ref}", shlex.quote(number))
+    try:
+        result = subprocess.run(
+            filled, shell=True, capture_output=True, text=True, timeout=_TIMEOUT_SECONDS
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return "", f"pr_url {filled!r} failed to run: {e}"
+
+    url = next(iter(result.stdout.split()), "")
+    if result.returncode != 0 or not repo_and_number(url):
+        return "", f"pr_url {filled!r} printed no pull-request URL: {result.stderr.strip()}"
+
+    return url, ""
 
 
 def configured(command: str) -> Lookup:

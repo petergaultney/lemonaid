@@ -1,3 +1,11 @@
+# 0.50.0 (2026-10-01)
+
+#### Added
+
+- **`lemonaid brief bullet add|set|rm` and `brief pr add|rm` edit one line of `## Now`.** They keep the sub-headings in the rules' order, with a blank line around each, and drop a heading or PR table left empty. `set` and `rm` name a bullet by the start of its text and fail unless exactly one matches.
+- **`lemonaid brief check` reports what is wrong with a brief, and exits 1 if anything is.** It looks at the title, `Status:`, `Lemon-ID` (against the database), the order and contents of `## Now`'s sub-headings, the PR table, and whether `## Waiters` is last. Every edit verb, `brief now` and `brief status` included, refuses an edit whose result fails it, and `brief now` lays out its section the same way, and the Claude Stop hook blocks a turn's end while the brief fails it.
+- **`[brief] pr_url` lets `brief pr add` take a PR number instead of its URL.**
+
 # 0.49.0 (2026-10-01)
 
 #### Added

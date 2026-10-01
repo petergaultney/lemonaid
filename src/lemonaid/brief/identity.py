@@ -33,6 +33,9 @@ def read(text: str) -> str:
         raise ValueError("Brief has an invalid or duplicate Lemon-ID line")
 
     lemon_id = match.group(1).rstrip()
+    if "Lemon-ID:" in lemon_id:
+        raise ValueError("Brief's Lemon-ID line holds a second Lemon-ID")
+
     if not valid(lemon_id):
         raise ValueError("Brief has an invalid or path-unsafe Lemon-ID")
 

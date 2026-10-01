@@ -90,6 +90,17 @@ def _link(label: str, url: str) -> str:
     return f"[{escaped}](<{url}>)"
 
 
+def vault_link(path: Path, vaults: abc.Collection[Path]) -> str | None:
+    """The `obsidian://` URL of a `.md` file under one of the expanded vault roots, or None."""
+    resolved = path.expanduser().resolve()
+    roots = [root.expanduser().resolve() for root in vaults]
+    root = next((root for root in roots if resolved.is_relative_to(root)), None)
+    if root is None or resolved.suffix != ".md":
+        return None
+
+    return _obsidian(root.name, resolved.relative_to(root).as_posix())[0]
+
+
 def _replace(match: re.Match[str], vaults: abc.Mapping[str, str]) -> str:
     if match.groupdict().get("vault"):
         url, label = _obsidian(vaults[match["root"].lower()], match["rest"])

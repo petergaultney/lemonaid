@@ -1,32 +1,15 @@
-"""`brief attach`, `new`, `now`, `status`, `detach`, `list`: briefs attached to lemon sessions.
+"""`brief attach`, `new`, `detach`, `list`: briefs attached to lemon sessions.
 
-The edits go through lemonaid rather than the file so a sandboxed lemon (Codex
-writes only inside its workspace) can keep its own brief current.
-"""
+The edits to a brief's contents are in `verbs_cli`."""
 
 import argparse
 import datetime
-import json
 import sqlite3
-import sys
-from collections import abc
 from pathlib import Path
 
 from .. import home
 from ..inbox import db
-from . import attached, child_cli, identity, query_cli, selector, store
-
-
-def _finish(args: argparse.Namespace, result: dict, error: str, message: str = "") -> None:
-    if args.json:
-        print(json.dumps({**result, "error": error or None}, ensure_ascii=False))
-    elif error:
-        print(error, file=sys.stderr)
-    elif message:
-        print(message)
-
-    if error:
-        sys.exit(1)
+from . import attached, child_cli, command, identity, query_cli, selector, store, verbs_cli
 
 
 def _attach(
@@ -74,38 +57,44 @@ def _attach(
 def _cmd_attach(args: argparse.Namespace) -> None:
     path = store.resolve(args.file)
     if error := store.outside_error(path):
-        _finish(args, {}, error)
+        command.finish(args, {}, error)
 
     if not path.is_file():
-        _finish(args, {}, f"No brief at {path}")
+        command.finish(args, {}, f"No brief at {path}")
 
     with db.connect() as conn:
         result, error, message = _attach(conn, args, path)
-    _finish(args, result, error, message)
+    command.finish(args, result, error, message)
 
 
 def _cmd_new(args: argparse.Namespace) -> None:
     targets = args.use_self or args.session or args.channel or args.id is not None
     if args.child and targets:
-        _finish(args, {}, "--child attaches the brief to no one; name its parent with --parent")
+        command.finish(
+            args, {}, "--child attaches the brief to no one; name its parent with --parent"
+        )
 
     if args.child:
         child_cli.cmd(args)
         return
 
     if stray := child_cli.given(args):
-        _finish(args, {}, f"{', '.join(stray)} {'needs' if len(stray) == 1 else 'need'} --child")
+        command.finish(
+            args, {}, f"{', '.join(stray)} {'needs' if len(stray) == 1 else 'need'} --child"
+        )
 
     if not targets:
-        _finish(args, {}, "Name the lemon to attach it to (--self, --session, --channel, --id)")
+        command.finish(
+            args, {}, "Name the lemon to attach it to (--self, --session, --channel, --id)"
+        )
 
     if paused := home.layout.paused():
-        _finish(args, {}, paused)
+        command.finish(args, {}, paused)
 
     try:
         path = store.create(args.title, datetime.date.today())
     except FileExistsError as e:
-        _finish(args, {}, f"{e.filename} already exists; attach it instead")
+        command.finish(args, {}, f"{e.filename} already exists; attach it instead")
         return
 
     try:
@@ -117,59 +106,14 @@ def _cmd_new(args: argparse.Namespace) -> None:
 
     with db.connect() as conn:
         result, error, message = _attach(conn, args, path)
-    _finish(args, {"path": str(path), **result}, error, message or str(path))
-
-
-def _own_brief(args: argparse.Namespace) -> tuple[Path | None, str]:
-    with db.connect() as conn:
-        chosen, error = selector.select(conn, args)
-        if chosen is None:
-            return None, error
-
-        attached.claim_pending(conn)
-        path = attached.by_channel(conn, [chosen.channel]).get(chosen.channel)
-
-    if path is None:
-        return None, "No brief attached; `lemonaid brief attach --self <file>` or `brief new`"
-
-    if error := store.outside_error(path):
-        return None, error
-
-    if not path.is_file():
-        return None, f"The attached brief {path} does not exist"
-
-    return path, ""
-
-
-def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
-    try:
-        store.edit(path.resolve(), change)
-    except store.ChangedUnderneath as e:
-        return str(e)
-
-    return ""
-
-
-def _cmd_now(args: argparse.Namespace) -> None:
-    path, error = _own_brief(args)
-    if path:
-        text = sys.stdin.read() if args.markdown == "-" else args.markdown
-        error = _edit(path, lambda brief: store.with_now(brief, text))
-    _finish(args, {"path": str(path) if path else None}, error, str(path))
-
-
-def _cmd_status(args: argparse.Namespace) -> None:
-    path, error = _own_brief(args)
-    if path:
-        error = _edit(path, lambda brief: store.with_status(brief, args.state))
-    _finish(args, {"path": str(path) if path else None}, error, str(path))
+    command.finish(args, {"path": str(path), **result}, error, message or str(path))
 
 
 def _cmd_detach(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         chosen, error = selector.select(conn, args)
         path = attached.detach(conn, chosen.channel) if chosen and chosen.channel else None
-    _finish(
+    command.finish(
         args,
         {"path": str(path) if path else None, "detached": path is not None},
         error,
@@ -177,22 +121,10 @@ def _cmd_detach(args: argparse.Namespace) -> None:
     )
 
 
-def _parser(
-    subparsers: argparse._SubParsersAction,
-    name: str,
-    summary: str,
-    with_target: bool = True,
-    target_required: bool = True,
-) -> argparse.ArgumentParser:
-    parser = subparsers.add_parser(name, help=summary, description=summary)
-    if with_target:
-        selector.add_arguments(parser, required=target_required)
-    parser.add_argument("--json", action="store_true", help="Print the result as JSON")
-    return parser
-
-
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
-    own_id = _parser(brief_subparsers, "id", "Print the stable ID stored with a lemon's brief")
+    own_id = command.parser(
+        brief_subparsers, "id", "Print the stable ID stored with a lemon's brief"
+    )
     own_id.add_argument(
         "--reroll",
         action="store_true",
@@ -206,11 +138,11 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     )
     own_id.set_defaults(func=query_cli.cmd_id)
 
-    attach = _parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")
+    attach = command.parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")
     attach.add_argument("file", help="A path, or a name inside ~/.lemons/brief/ (.md optional)")
     attach.set_defaults(func=_cmd_attach)
 
-    new = _parser(
+    new = command.parser(
         brief_subparsers,
         "new",
         "Create a dated brief in ~/.lemons/brief/ and attach it, or with --child leave it unattached",
@@ -220,18 +152,12 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     child_cli.add_arguments(new)
     new.set_defaults(func=_cmd_new)
 
-    now = _parser(brief_subparsers, "now", "Replace the `## Now` section of a lemon's brief")
-    now.add_argument("markdown", help="The new section body; - reads it from stdin")
-    now.set_defaults(func=_cmd_now)
+    verbs_cli.add_parsers(brief_subparsers)
 
-    status = _parser(brief_subparsers, "status", "Set the Status line of a lemon's brief")
-    status.add_argument("state", choices=store.STATES)
-    status.set_defaults(func=_cmd_status)
-
-    detach = _parser(brief_subparsers, "detach", "Detach a lemon's brief; the file stays")
+    detach = command.parser(brief_subparsers, "detach", "Detach a lemon's brief; the file stays")
     detach.set_defaults(func=_cmd_detach)
 
-    listing = _parser(
+    listing = command.parser(
         brief_subparsers,
         "list",
         "Every attached brief and its session, and briefs waiting for a lemon to start",

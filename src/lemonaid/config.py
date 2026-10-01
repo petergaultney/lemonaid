@@ -163,6 +163,9 @@ class BriefConfig:
     # Shell command printing a PR's state (open, draft, merged, closed) for
     # `{ref}`, a PR number or URL, run in the lemon's place. Unset shows no state.
     pr_state: str = ""
+    # Shell command printing a PR's URL for `{ref}`, a PR number, run in the
+    # caller's directory. Lets `brief pr add` take a number instead of a URL.
+    pr_url: str = ""
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
     # `obsidian://` link.
     vaults: tuple[Path, ...] = ()
@@ -407,6 +410,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     brief_data = data.get("brief", {})
     brief = BriefConfig(
         pr_state=brief_data.get("pr_state", ""),
+        pr_url=brief_data.get("pr_url", ""),
         vaults=_vaults(brief_data.get("vaults")),
     )
 

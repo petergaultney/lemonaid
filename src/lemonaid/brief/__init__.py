@@ -1,5 +1,6 @@
 from . import (
     attached,
+    check,
     cli,
     family,
     identity,
@@ -16,6 +17,7 @@ from . import (
 
 __all__ = [
     "attached",
+    "check",
     "cli",
     "family",
     "identity",

@@ -217,7 +217,7 @@ def test_now_and_status_edit_the_attached_brief(capsys):
 
     text = _brief("task").read_text()
     assert "Status: done\n" in text
-    assert "## Now\n- Done: the parser.\n" in text
+    assert "## Now\n\n- Done: the parser.\n" in text
 
 
 def test_status_rejects_a_note_argument():
@@ -237,7 +237,7 @@ def test_status_then_now_sets_state_and_notes(capsys):
 
     text = _brief("task").read_text()
     assert "Status: waiting\n" in text
-    assert "## Now\n- Waiting on: review\n- Note: PR #9\n" in text
+    assert "## Now\n\n- Waiting on: review\n- Note: PR #9\n" in text
 
 
 def test_now_without_an_attached_brief_says_how_to_get_one(capsys):
