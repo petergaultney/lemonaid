@@ -1,3 +1,9 @@
+# 0.55.0 (2026-10-01)
+
+#### Added
+
+- **`Ctrl`+`a` moves to the top of the inbox list and `Ctrl`+`e` to the bottom, in the wide table and the sidebar.** `Home` and `End` do the same. The bottom is the last row shown, so a folded group stays folded and the lower table of other terminals' sessions is skipped. Rebind them with `[tui.keybindings] first` and `last`.
+
 # 0.54.1 (2026-10-01)
 
 #### Fixed

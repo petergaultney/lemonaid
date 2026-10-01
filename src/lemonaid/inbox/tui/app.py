@@ -856,6 +856,15 @@ class LemonaidApp(App):
         if kb.move_pin_down:
             self.bind(kb.move_pin_down, "move_pin_down", description="Move Down", show=False)
 
+        # Priority, so that a table's own Home/End, a sideways scroll, loses to these.
+        # check_action hands them back to an Input, a dialog and the brief view.
+        for key in dict.fromkeys((kb.first, "home")):
+            if key:
+                self._bindings.bind(key, "cursor_first", "Top", show=False, priority=True)
+        for key in dict.fromkeys((kb.last, "end")):
+            if key:
+                self._bindings.bind(key, "cursor_last", "Bottom", show=False, priority=True)
+
         for b in _build_bindings(kb.tmux_resume, "tmux_resume", "Tmux"):
             self.bind(b.key, b.action, description=b.description, show=False)
 
@@ -889,7 +898,7 @@ class LemonaidApp(App):
             self.bind(down, "cursor_down", description="Down", show=False)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "brief" and (
+        if action in ("brief", "cursor_first", "cursor_last") and (
             isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
         ):
             return False
@@ -2177,6 +2186,28 @@ class LemonaidApp(App):
                 return
 
         table.action_cursor_down()
+
+    def action_cursor_first(self) -> None:
+        """Move to the top row: the main table's first, pins included."""
+        table = self._focused_table()
+        if table.id == "other_sources_table":
+            table = self.query_one("#main_table", DataTable)
+            table.focus()
+        if table.row_count > 0:
+            table.move_cursor(row=0)
+
+    def action_cursor_last(self) -> None:
+        """Move to the bottom row of the focused table.
+
+        In the inbox that is the main table's last row: a folded group stays
+        folded, and the lower table, which nothing can be switched to, is skipped.
+        """
+        table = self._focused_table()
+        if table.id == "other_sources_table":
+            table = self.query_one("#main_table", DataTable)
+            table.focus()
+        if table.row_count > 0:
+            table.move_cursor(row=table.row_count - 1)
 
     def _navigate_brief(self, direction: int) -> None:
         """Show the adjacent row's brief now, and move the main pane to its lemon after."""

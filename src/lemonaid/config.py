@@ -123,6 +123,8 @@ class KeybindingsConfig:
     brief_key: str = "tab"  # A second key for brief
     move_pin_up: str = "shift+up"
     move_pin_down: str = "shift+down"
+    first: str = "ctrl+a"  # The top row of the list; Home always works too
+    last: str = "ctrl+e"  # The bottom row of the list; End always works too
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
     flip_position: str = "f"  # Move the scratch pane between top and left
     fold: str = "w"  # Show or hide the sessions folded at the bottom of the list

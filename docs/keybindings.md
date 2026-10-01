@@ -9,6 +9,8 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `Enter` | Open notification (switches to that session). A click does the same, except a click on the already-selected row while the scratch pane has focus, which keeps focus in the inbox |
 | `1`-`9`, `0` | Switch to that row of the list, counting from the top |
 | `u` | Jump directly to earliest unread session |
+| `Ctrl`+`a` / `Home` | Move to the top row of the list, pins included |
+| `Ctrl`+`e` / `End` | Move to the bottom row of the list (see below) |
 | `m` | Mark as read |
 | `M` | Mark as unread again |
 | `a` | Archive (remove from list) |
@@ -31,6 +33,12 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 The key hints occupy the bottom row for the first 10 seconds, then hand it back to
 the unread/read counts. `?` brings them up again and cancels that timeout, so they
 stay until you press `?` a second time. `?` is not configurable.
+
+`Ctrl`+`e` stops at the last row you can see. A folded group stays folded, and the
+lower table of sessions from other terminals is skipped, since none of them can be
+switched to. In history and the snoozed list the two keys move within that list. In a
+search box or a dialog, `Ctrl`+`a`/`Ctrl`+`e` and `Home`/`End` move the text cursor as
+usual, and a brief view leaves them to its own scrolling.
 
 ### History mode
 
@@ -185,6 +193,8 @@ snoozed_list = "S"
 pin = "p"
 move_pin_up = "shift+up"
 move_pin_down = "shift+down"
+first = "ctrl+a"  # the top row; Home always works too
+last = "ctrl+e"  # the bottom row; End always works too
 undo = "z"
 rename = "r"
 brief = "b"  # show the session's brief
@@ -212,7 +222,7 @@ select = "o"
 
 ### Keys given by name
 
-`brief_key`, `move_pin_up`, `move_pin_down`, `question_previous`, `question_next`, `answer`
+`brief_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`
 and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
@@ -255,4 +265,5 @@ Leave empty (the default) to use only arrow keys.
 
 - `Enter` - built into the DataTable widget
 - `Escape` - always bound to quit (in addition to configured quit key)
+- `Home` / `End` - the top and bottom of the list, alongside `first` and `last`
 - `P` - patch Claude binary (only shown when Claude is unpatched)

@@ -24,8 +24,8 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("select", "Switch to the selected session"),
             ("jump_unread", "Jump to the earliest unread session"),
-            ("history", "Toggle session history"),
-            ("snoozed_list", "Show snoozed sessions"),
+            ("first", "Move to the top of the list"),
+            ("last", "Move to the bottom of the list"),
         ],
     ),
     (
@@ -50,8 +50,10 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "The pane",
+        "Views and the pane",
         [
+            ("history", "Toggle session history"),
+            ("snoozed_list", "Show snoozed sessions"),
             ("flip_position", "Move the scratch pane between top and left"),
             ("save_size", "Save the scratch pane size (follow mode)"),
             ("refresh", "Refresh now"),
@@ -67,7 +69,7 @@ def _key_display(value: str, field: str) -> str:
     Most fields hold a set of single-character alternatives; the pin-move fields
     hold one key name, which may carry a modifier.
     """
-    if field in ("move_pin_up", "move_pin_down"):
+    if field in ("move_pin_up", "move_pin_down", "first", "last"):
         return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+")
 
     return " / ".join(value)
@@ -78,6 +80,8 @@ def _keys(kb: KeybindingsConfig, field: str) -> str:
     keys = [_key_display(getattr(kb, field), field)] if getattr(kb, field, "") else []
     if field == "brief" and kb.brief_key:
         keys.append(kb.brief_key.capitalize())
+    if field in ("first", "last"):
+        keys.append({"first": "Home", "last": "End"}[field])
     return " / ".join(keys)
 
 

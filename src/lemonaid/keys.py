@@ -55,6 +55,8 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "pin": kb.pin,
         "move_pin_up": [kb.move_pin_up],
         "move_pin_down": [kb.move_pin_down],
+        "first": [kb.first, "home"],
+        "last": [kb.last, "end"],
         "save_size": kb.save_size,
         "fold": kb.fold,
         "filter_history": ["/"],
