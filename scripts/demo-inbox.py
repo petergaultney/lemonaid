@@ -52,8 +52,12 @@ os.environ.pop("TMUX", None)
 os.environ.pop("TMUX_PANE", None)
 
 # Brief-status cards are opt-in; the demo shows them, since they are what a
-# session with a brief looks like.
+# session with a brief looks like. The root makes `kitchen` a project with
+# worktrees under it, so a brief card leads with it; `pantry` is under no root.
 _CONFIG = """\
+[[places.roots]]
+path = "~/src/kitchen"
+
 [tui]
 brief_status = true
 """
@@ -96,7 +100,7 @@ SESSIONS = [
         "unread",
         22 * _MINUTE,
         "claude",
-        "src/breadbox",
+        "src/kitchen/baker-percentage",
         "fix/baker-percentage",
         "Found the bug: `hydration()` divides by total dough weight rather "
         "than flour weight, so every loaf above 70% came out as 41%.",
@@ -155,6 +159,9 @@ _MODELS = {
     "leftovers-what-can-i-make": ("anthropic", "claude-sonnet-5-5"),
 }
 
+# The part of its project each session's brief names, which follows the project on its card.
+_AREAS = {"sourdough-hydration-calc": "apps/breadbox"}
+
 # `## Now` for each brief status a session above carries.
 _NOW = {
     "blocked": (
@@ -207,6 +214,25 @@ _CLAUDE = """\033[38;5;210m ▛▀▖▗▀▖\033[0m  \033[1mClaude Code\033[0m
 
   \033[2mOpus 5.5 · feat/expiry-alerts · 34% context\033[0m"""  # noqa: RUF001
 
+# Beside the sourdough brief, whose project is the `kitchen` root.
+_CLAUDE_BREADBOX = """\033[38;5;210m ▛▀▖▗▀▖\033[0m  \033[1mClaude Code\033[0m \033[2mv2.1.241\033[0m
+\033[38;5;210m ▙▄▘▝▄▘\033[0m  \033[2mOpus 5.5 · ~/src/kitchen/baker-percentage\033[0m
+
+\033[38;5;114m⏺\033[0m \033[1mRead\033[0m(apps/breadbox/hydration.py)
+  \033[2m⎿  Read 52 lines\033[0m
+
+\033[38;5;114m⏺\033[0m Found the bug: `hydration()` divides by total dough weight rather
+  than flour weight, so every loaf above 70% came out as 41%.
+
+\033[38;5;114m⏺\033[0m Two questions before I fix it, in the brief: how to round above
+  100%, and whether the starter log moves to grams.
+
+\033[2m─────────────────────────────────────────────────────────────────\033[0m
+
+\033[38;5;110m›\033[0m
+
+  \033[2mOpus 5.5 · fix/baker-percentage · 21% context\033[0m"""  # noqa: RUF001
+
 _PYTEST = """\033[2m$\033[0m uv run pytest -q
 ........................................................ [ 71%]
 does.......                                              [100%]
@@ -230,7 +256,8 @@ def _show(text: str, title: str) -> list[str]:
 
 def _brief(name: str, status: str, modified: float) -> Path:
     path = BRIEFS / f"{name}.md"
-    path.write_text(f"# {name}\n\nStatus: {status}\n\n## Now\n\n{_NOW[status]}")
+    area = f"Area: {_AREAS[name]}\n\n" if name in _AREAS else ""
+    path.write_text(f"# {name}\n\nStatus: {status}\n\n{area}## Now\n\n{_NOW[status]}")
     os.utime(path, (modified, modified))  # cards show the brief's age
     return path
 
@@ -359,6 +386,17 @@ def _stage(position: str, attach: bool = True) -> None:
         "new-window", "-t", "demo", "-n", "tests", "-c", str(Path.home()), *_show(_PYTEST, "tests")
     )
     _tmux("set-window-option", "-t", "demo:tests", "automatic-rename", "off")
+    _tmux(
+        "new-window",
+        "-t",
+        "demo",
+        "-n",
+        "breadbox",
+        "-c",
+        str(Path.home()),
+        *_show(_CLAUDE_BREADBOX, "breadbox"),
+    )
+    _tmux("set-window-option", "-t", "demo:breadbox", "automatic-rename", "off")
     _tmux("select-window", "-t", "demo:pantry")
 
     # Created through the CLI so the demo exercises the real path - position,

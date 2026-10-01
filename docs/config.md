@@ -276,6 +276,20 @@ time; anything else is reported and 06:00 is used.
 day_starts = "07:30"
 ```
 
+## `[[places.roots]]`
+
+Each root declares the shell commands that acquire and release directories under one path; [places.md](places.md) describes them all.
+
+```toml
+[[places.roots]]
+path = "~/play/lemonaid-wt"
+name = "lemonaid"
+```
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `name` | the root's directory name | The project's name on the first line of a brief card, for every session under this root. |
+
 ## Environment variables
 
 | Variable | Effect |

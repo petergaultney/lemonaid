@@ -48,7 +48,8 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
     title = args.title.strip()
     name = store.slug(args.slug or title)
     planned = store.new_lemon_id(store.briefs_dir() / f"{today.isoformat()}-{name}.md")
-    text = child.render(body, title, planned, parent, today, values)  # fails before any file exists
+    area = args.area.strip()
+    text = child.render(body, title, planned, parent, today, values, area)  # fails before any file
     try:
         path = store.create_named(name, today, lambda _: text)
     except FileExistsError as e:
@@ -58,7 +59,9 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         with db.connect() as conn:
             lemon_id = identity.ensure(conn, path, regenerate_on_collision=True)
         if lemon_id != planned:
-            store.edit(path, lambda _: child.render(body, title, lemon_id, parent, today, values))
+            store.edit(
+                path, lambda _: child.render(body, title, lemon_id, parent, today, values, area)
+            )
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -71,7 +74,7 @@ def given(args: argparse.Namespace) -> list[str]:
     defaults = {"template": "child", "parent": "self"}
     return [
         f"--{name.replace('_', '-')}"
-        for name in ("template", "slug", "parent", "pr", "repo", "review_doc", "author")
+        for name in ("template", "slug", "parent", "area", "pr", "repo", "review_doc", "author")
         if getattr(args, name) != defaults.get(name, "")
     ]
 
@@ -114,6 +117,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         default="self",
         metavar="LEMON",
         help="Its parent: self (the default), a Lemon-ID, channel, or brief",
+    )
+    group.add_argument(
+        "--area",
+        default="",
+        help="The part of the project the work is in (apps/unified-asset), shown after the project",
     )
     group.add_argument("--pr", default="", help="A PR URL, or a number with --repo ($pr_*)")
     group.add_argument("--repo", default="", help="owner/name, for a --pr number")

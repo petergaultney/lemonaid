@@ -418,6 +418,9 @@ lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12
 The file has the title, its own `Lemon-ID:`, `Status: working`, and `Parent: <your Lemon-ID>
 (<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief).
+`--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is
+in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A worker
+without one can add the line itself, anywhere above its brief's first `##` heading.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 
 A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a

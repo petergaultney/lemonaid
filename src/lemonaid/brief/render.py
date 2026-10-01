@@ -13,7 +13,8 @@ import textwrap
 from collections import abc
 from pathlib import Path
 
-from . import display, now, pr, questions, status, target
+from ..config import PlaceRoot
+from . import display, now, pr, project, questions, status, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -80,6 +81,7 @@ class Section:
     needs_label: str = "Needs"
     needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
     questions: tuple[questions.Item, ...] = ()  # Needs as items, when an entry explains one
+    project: str = ""  # `ds-monorepo: apps/unified-asset`, or "" without a lemon or Area line
     # The rest are filled in by `family.added`.
     parent: str = ""  # its parent's Lemon-ID
     children: tuple[tuple[str, str], ...] = ()  # (brief status, name)
@@ -103,6 +105,7 @@ def _section(
     lemon: target.Identity | None,
     detail: str,  # "full" (the task below a rule), "now", or "compact"
     pr_state: pr.Lookup,
+    roots: abc.Sequence[PlaceRoot],
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
@@ -138,6 +141,7 @@ def _section(
         parsed.needs_label,
         parsed.needs,
         questions.items(parsed.needs, questions.entries(parts.questions)),
+        project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
     )
 
 
@@ -206,7 +210,12 @@ def _member_brief(
     )
 
 
-def _session_view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+def _session_view(
+    found: target.Target,
+    now_seconds: float,
+    pr_state: pr.Lookup,
+    roots: abc.Sequence[PlaceRoot],
+) -> View:
     members = sorted(found.members, key=lambda m: _window_order(m.lemon))
     sections: list[Section] = []
     taken: set[Path] = set()
@@ -218,14 +227,20 @@ def _session_view(found: target.Target, now_seconds: float, pr_state: pr.Lookup)
 
         taken.add(brief.path)
         detail = "now" if not sections else "compact"
-        sections.append(_section(brief, member.lemon, detail, pr_state))
+        sections.append(_section(brief, member.lemon, detail, pr_state, roots))
 
     return View(found.header, True, tuple(sections), "")
 
 
-def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
+def view(
+    found: target.Target,
+    now_seconds: float,
+    pr_state: pr.Lookup,
+    roots: abc.Sequence[PlaceRoot] = (),
+) -> View:
+    """*roots* are the `[[places.roots]]` that name each section's project."""
     if found.members:
-        return _session_view(found, now_seconds, pr_state)
+        return _session_view(found, now_seconds, pr_state, roots)
 
     located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
     if isinstance(located, str):
@@ -249,6 +264,7 @@ def view(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> View:
                 lemons.get(brief.path),
                 "full" if len(located) == 1 else "now" if i == 0 or not in_session else "compact",
                 pr_state,
+                roots,
             )
             for i, brief in enumerate(ordered)
         ),
@@ -289,7 +305,15 @@ def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str
     return "\n\n".join(
         part
         for part in (
-            f"### {_who(section.lemon, in_session)}" if section.lemon else f"### {section.title}",
+            "### "
+            + " · ".join(
+                part
+                for part in (
+                    section.project,
+                    _who(section.lemon, in_session) if section.lemon else section.title,
+                )
+                if part
+            ),
             "  \n".join(
                 line
                 for line in (
@@ -328,6 +352,10 @@ def to_markdown(shown: View, now_seconds: float, expanded: bool = False) -> str:
 
 
 def markdown(
-    found: target.Target, now_seconds: float, pr_state: pr.Lookup, expanded: bool = False
+    found: target.Target,
+    now_seconds: float,
+    pr_state: pr.Lookup,
+    expanded: bool = False,
+    roots: abc.Sequence[PlaceRoot] = (),
 ) -> str:
-    return to_markdown(view(found, now_seconds, pr_state), now_seconds, expanded)
+    return to_markdown(view(found, now_seconds, pr_state, roots), now_seconds, expanded)

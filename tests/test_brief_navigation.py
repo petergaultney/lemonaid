@@ -249,7 +249,7 @@ def test_r_renames_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
 
     def headlines(app) -> list[str]:
         return [
-            card.render().plain.splitlines()[0] for card in app.query_one(BriefView).query("_Card")
+            card.render().plain.splitlines()[1] for card in app.query_one(BriefView).query("_Card")
         ]
 
     async def check() -> None:

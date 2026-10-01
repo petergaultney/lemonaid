@@ -53,7 +53,9 @@ def test_identity_comes_first_and_where_it_runs_comes_last(tmp_path, monkeypatch
     found = target.for_notification(row, {row.channel: brief}, "🍋")
     rendered = render.markdown(found, 1000, _no_prs)
 
-    assert rendered.startswith("### 🍋 popup header · Claude / Opus 4.1 · work:2")
+    assert rendered.startswith(
+        f"### {tmp_path.name} · 🍋 popup header · Claude / Opus 4.1 · work:2"
+    )
     assert " @ " not in rendered and "PR" not in rendered
     assert rendered.index("popup header") < rendered.index("Status:") < rendered.index("**Task**")
     assert rendered.index("Building.") < rendered.index("feature/header")
@@ -119,9 +121,16 @@ def test_multi_lemon_briefs_each_show_their_owner(tmp_path, monkeypatch):
 
     rendered = render.markdown(found, 1000, _no_prs)
 
-    assert rendered.startswith("# work · 2 lemons\n\n---\n\n### w2 · Author · Codex")
-    assert rendered.index("### w2 · Author") < rendered.index("### w4 · Reviewer · Claude")
-    assert rendered.index("### w4") < rendered.index("*w2 · `") < rendered.index("*w4 · `")
+    project = tmp_path.name
+    assert rendered.startswith(f"# work · 2 lemons\n\n---\n\n### {project} · w2 · Author · Codex")
+    assert rendered.index(f"### {project} · w2 · Author") < rendered.index(
+        f"### {project} · w4 · Reviewer · Claude"
+    )
+    assert (
+        rendered.index(f"### {project} · w4")
+        < rendered.index("*w2 · `")
+        < rendered.index("*w4 · `")
+    )
 
 
 def test_session_without_a_recorded_lemon_says_so(tmp_path, monkeypatch):

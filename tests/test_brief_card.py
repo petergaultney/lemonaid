@@ -1,5 +1,6 @@
 """A brief's identity drawn in the inbox card's colours."""
 
+import dataclasses
 from pathlib import Path
 
 from lemonaid.brief import render, target
@@ -32,12 +33,23 @@ def test_header_has_the_cards_fields_in_the_cards_colours():
 
     assert lines[0].startswith(f"{utils.HERE_BAR} author") and lines[0].endswith("Opus 5.5")
     assert len(lines[0]) == 60
-    assert lines[1] == f"{utils.HERE_BAR} work:2 · ~/work · feat/x"
+    assert lines[1] == f"{utils.HERE_BAR} work:2 · feat/x · ~/work"
     assert lines[2] == f"{utils.HERE_BAR} working · updated just now · #74 merged"
     assert any(utils.FIELD_STYLES["name"] in s for s in _styles(text, "author"))
     assert utils.FIELD_STYLES["cwd"] in _styles(text, "~/work")
     assert utils.FIELD_STYLES["branch"] in _styles(text, "feat/x")
     assert "magenta" in _styles(text, "#74 merged")
+
+
+def test_the_project_leads_the_card_above_the_name():
+    section = dataclasses.replace(_section("blocked"), project="ds-monorepo: apps/web")
+    text = brief_card.header(section, False, 0, 60)
+    lines = text.plain.split("\n")
+
+    assert lines[0] == f"{utils.HERE_BAR} ds-monorepo: apps/web"
+    assert lines[1].startswith(f"{utils.HERE_BAR} author")
+    assert len(lines) == 4
+    assert utils.ATTENTION_COLOR not in " ".join(_styles(text, "ds-monorepo"))
 
 
 def test_blocked_fills_the_headline_like_a_blocked_card():

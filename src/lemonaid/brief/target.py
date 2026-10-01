@@ -27,6 +27,7 @@ class Identity:
     directory: str = ""  # shortened for display
     branch: str = ""
     place: str = ""  # where `[brief] pr_state` runs, so `PR #N` means this repo's
+    cwd: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,6 +103,7 @@ def identity(notification: db.Notification, emoji: str = "", place: Path | None 
         display.home_path(Path(cwd)) if cwd else "",
         str(metadata.get("git_branch") or ""),
         str(place or cwd or ""),
+        str(cwd or ""),
     )
 
 

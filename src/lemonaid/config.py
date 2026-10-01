@@ -219,6 +219,7 @@ class PlaceRoot:
     """
 
     path: Path
+    name: str = ""  # the project's name on brief cards; the root's directory name when unset
     list: str = ""  # candidate directories, one absolute path per line
     path_of: str = ""  # {key} -> the directory for that key
     create: str = ""  # acquire a directory for {key}
@@ -460,6 +461,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         roots=[
             PlaceRoot(
                 path=Path(rd["path"]).expanduser(),
+                name=rd.get("name", ""),
                 list=rd.get("list", ""),
                 path_of=rd.get("path_of", ""),
                 create=rd.get("create", ""),

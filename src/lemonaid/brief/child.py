@@ -2,8 +2,8 @@
 
 A template is the body of a brief, from `## Goal` down, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
-above it: the title, `Lemon-ID:`, `Status: working`, and `Parent:`. The child
-writes `## Now` itself, after `Status:`.
+above it: the title, `Lemon-ID:`, `Status: working`, `Parent:`, and `Area:` when
+`--area` gives one. The child writes `## Now` itself, after `Status:`.
 
 `<lemons dir>/brief-templates/<name>.md` replaces the packaged template of that name.
 """
@@ -92,6 +92,7 @@ def render(
     parent: tuple[str, str],
     today: datetime.date,
     values: abc.Mapping[str, str],
+    area: str = "",
 ) -> str:
     """The whole brief: lemonaid's header, then *body* filled in. *parent* is (Lemon-ID, tmux session)."""
     parent_id, parent_session = parent
@@ -128,6 +129,7 @@ def render(
             "",
             f"Parent: {parent_id}{where}, {today.isoformat()}",
             "",
+            *([f"Area: {area}", ""] if area else []),
             text.strip(),
             "",
         ]

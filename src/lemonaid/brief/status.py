@@ -10,6 +10,7 @@ from . import store
 
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
+_AREA = re.compile(r"Area:\s*(?P<area>.*)")
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)
 _QUESTIONS_HEADING = re.compile(r"##\s+questions\s*", re.IGNORECASE)
 _SECTION_END = re.compile(r"#{1,2}\s")
@@ -31,6 +32,7 @@ class Parts:
     now: str
     rest: str
     questions: str = ""  # the body of `## Questions`, kept out of `rest`
+    area: str = ""  # the `Area:` line: the part of the project the work is in
 
 
 def notes_dir(start: Path, place: Path | None) -> Path | None:
@@ -88,14 +90,17 @@ def pick(briefs: abc.Sequence[Brief], names: abc.Iterable[str]) -> list[Brief]:
 
 
 def split(text: str) -> Parts:
-    title, status = "", ""
+    title, status, area = "", "", ""
     now: list[str] = []
     questions: list[str] = []
     rest: list[str] = []
     within: list[str] | None = None  # `now` or `questions` while inside that section
+    in_header = True  # above the first `##` heading, where lemonaid writes `Area:`
     for line in text.splitlines():
         if within is not None and _SECTION_END.match(line):
             within = None
+        if line.startswith("## "):
+            in_header = False
 
         if not title and line.startswith("# "):
             title = line[2:].strip()
@@ -103,6 +108,8 @@ def split(text: str) -> Parts:
             status = match["status"]
         elif line.startswith("Parent:"):
             rest.append(line)  # template metadata, whether it sits above Now or below
+        elif in_header and not area and (match := _AREA.fullmatch(line.rstrip())):
+            area = match["area"]  # the card shows it, so the body doesn't
         elif _NOW_HEADING.fullmatch(line):
             within = now
         elif _QUESTIONS_HEADING.fullmatch(line):
@@ -122,6 +129,7 @@ def split(text: str) -> Parts:
         "\n".join(now).strip(),
         "\n".join(rest).strip(),
         "\n".join(questions).strip(),
+        area,
     )
 
 

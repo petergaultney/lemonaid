@@ -75,8 +75,8 @@ def _context(section: render.Section, in_session: bool) -> Text:
         Text(value, style=utils.FIELD_STYLES[field])
         for value, field in (
             (location, "backend"),
-            (lemon.directory, "cwd"),
             (lemon.branch, "branch"),
+            (lemon.directory, "cwd"),
         )
         if value
     )
@@ -103,18 +103,23 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
 def header(
     section: render.Section, in_session: bool, now_seconds: float, width: int, unread: bool = False
 ) -> Text:
-    """Three lines: name and model, where it runs, then status, age and PRs.
+    """The project, when known; then name and model, where it runs, and status, age and PRs.
 
     *unread* puts the inbox card's dot before the name.
     """
     body = max(1, width - 2)
-    lines = [_headline(section, body, unread), _context(section, in_session)]
+    project = (
+        [Text(section.project, style=f"bold {utils.FIELD_STYLES['cwd']}")]
+        if section.project
+        else []
+    )
+    lines = [*project, _headline(section, body, unread), _context(section, in_session)]
     if section.state == "waiting":
         for line in lines:
             line.stylize("dim")
 
     lines.append(_state_line(section, now_seconds))
-    for line in lines[1:]:
+    for line in lines:
         line.truncate(body, overflow="ellipsis")
 
     return Text("\n").join(_edge() + line for line in lines)

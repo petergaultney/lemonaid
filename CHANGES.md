@@ -1,3 +1,13 @@
+# 0.56.0 (2026-10-01)
+
+#### Changed
+
+- **A brief card leads with the lemon's project, then its name, then its branch,** so you can tell which repo a brief is about at a glance. The project is the `[[places.roots]]` entry the session sits under, named by its new `name` setting or its directory, and the session's own directory outside every root. The branch now comes before the directory on the card's second line, so a narrow pane cuts the directory first. `brief show` puts the project first in each lemon's heading too.
+
+#### Added
+
+- **A brief's `Area:` line names the part of the project the work is in, and the card shows it after the project:** `ds-monorepo: apps/unified-asset`. `brief new --child --area <path>` writes it. Without one, a lemon working below its session's directory shows that subdirectory instead.
+
 # 0.55.0 (2026-10-01)
 
 #### Added

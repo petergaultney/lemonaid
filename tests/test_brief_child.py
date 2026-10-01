@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, child, identity, links, write_cli
+from lemonaid.brief import attached, child, identity, links, status, write_cli
 from lemonaid.inbox import db
 
 _PARENT = "hq.BlessBar"
@@ -50,6 +50,14 @@ def test_a_child_brief_has_the_header_and_no_now(capsys, parent):
     assert "## Now" not in text
     assert text.rstrip().endswith("## Waiters")
     assert result["parent"] == _PARENT
+
+
+def test_area_goes_in_the_header_where_the_card_reads_it(capsys, parent):
+    result = _run(capsys, "--child", "--parent", _PARENT, "--area", "apps/web", "Fix the widget")
+
+    text = Path(result["path"]).read_text()
+    assert f"{datetime.date.today().isoformat()}\n\nArea: apps/web\n\n## Goal\n" in text
+    assert status.split(text).area == "apps/web"
 
 
 def test_a_child_brief_is_attached_to_no_one(capsys, parent):

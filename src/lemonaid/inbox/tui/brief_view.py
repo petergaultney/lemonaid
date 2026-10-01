@@ -21,7 +21,7 @@ from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock  # no public name
 
 from ...brief import attached, family, links, pr, questions, render, target
-from ...config import KeybindingsConfig
+from ...config import KeybindingsConfig, PlaceRoot
 from ...log import get_logger
 from .. import db, turns
 from . import brief_card, brief_questions, utils
@@ -68,7 +68,7 @@ class _Card(Static):
 
     DEFAULT_CSS = """
     _Card {
-        height: 3;
+        height: auto;
         margin-bottom: 1;
     }
     """
@@ -205,10 +205,12 @@ class BriefView(VerticalScroll):
         vaults: abc.Collection[Path] = (),
         keys: KeybindingsConfig = _DEFAULT_KEYS,
         mid_turn_working: bool = False,
+        roots: abc.Sequence[PlaceRoot] = (),
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
         self._mid_turn_working = mid_turn_working
+        self._roots = roots
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
         self._vaults = vaults
@@ -341,7 +343,7 @@ class BriefView(VerticalScroll):
     def update_brief(self, found: target.Target, unread: bool = False) -> None:
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
-        shown = family.added(render.view(found, now, self._pr_states.get))
+        shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
         shown = _mid_turn(shown, now) if self._mid_turn_working else shown
         rendered = render.to_markdown(shown, now, expanded=True)
         if rendered == self._rendered_markdown:

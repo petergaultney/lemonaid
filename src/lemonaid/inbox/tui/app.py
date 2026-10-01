@@ -951,6 +951,7 @@ class LemonaidApp(App):
                 self.config.brief.vaults,
                 self.config.tui.keybindings,
                 self.config.tui.mid_turn_working,
+                self.config.places.roots,
                 id="brief_view",
             )
         yield Footer()
