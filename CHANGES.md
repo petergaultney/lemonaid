@@ -1,3 +1,9 @@
+# 0.50.1 (2026-10-01)
+
+#### Changed
+
+- **`running` sessions sort just below `blocked` and above `merge`, read or unread.** Before, a read `running` row sat below every unread session, and an unread one mixed in with the other unreads.
+
 # 0.50.0 (2026-10-01)
 
 #### Added

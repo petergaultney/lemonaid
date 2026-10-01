@@ -1,4 +1,4 @@
-"""Below the pins: alert, blocked, merge, review, then done, then other unread, then read running, then everything else read."""
+"""Below the pins: alert, blocked, running, merge, review, then done, then other unread, then everything else read."""
 
 import asyncio
 import itertools
@@ -286,19 +286,23 @@ def test_review_sorts_below_merge_and_above_done():
     ]
 
 
-def test_a_read_running_session_sorts_above_the_other_read_ones():
+def test_running_sorts_below_blocked_and_above_merge_read_or_unread():
     rows = [
         ("c:waiting", "waiting", False),
+        ("c:merge", "merge", True),
         ("c:running", "running", False),
+        ("c:unread-working", "working", True),
         ("c:unread-running", "running", True),
-        ("c:working", "working", False),
+        ("c:blocked", "blocked", False),
         ("c:done", "done", False),
     ]
 
     assert _sorted(rows) == [
-        "c:done",
-        "c:unread-running",
+        "c:blocked",
         "c:running",
+        "c:unread-running",
+        "c:merge",
+        "c:done",
+        "c:unread-working",
         "c:waiting",
-        "c:working",
     ]

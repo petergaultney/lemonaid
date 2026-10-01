@@ -197,11 +197,11 @@ The inbox and the scratch sidebar list sessions in the same order:
 1. Pinned sessions, in the order you put them.
 2. Sessions whose attached brief says `alert`: your move, and harm grows while it waits.
 3. Sessions whose brief says `blocked`: a decision, answer, or review for you.
-4. Sessions whose brief says `merge`: only your merge is left.
-5. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
-6. Sessions whose brief says `done`.
-7. Every other unread session.
-8. Read sessions whose brief says `running`: a lemon minding a pipeline or other long process.
+4. Sessions whose brief says `running`: a lemon minding a pipeline or other long process.
+5. Sessions whose brief says `merge`: only your merge is left.
+6. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
+7. Sessions whose brief says `done`.
+8. Every other unread session.
 9. Every other read session: `working`, `waiting`, or no brief.
 
 With [`[tui] fold_statuses`](docs/config.md#folding-sessions-by-brief-status) set,

@@ -1,8 +1,9 @@
 """The order the inbox lists sessions in, the same in the wide table and the sidebar.
 
-Pins come first. Below them, `alert` sessions, then `blocked`, then `merge`,
-then `review`, then `done` sessions, unread above read, then every other unread session, then
-read `running` sessions, then everything else read: `working`, `waiting`, and no brief. Within each band rows
+Pins come first. Below them, `alert` sessions, then `blocked`, then `running`,
+then `merge`, then `review`, then `done` sessions, unread above read, then every
+other unread session, then everything else read: `working`, `waiting`, and no
+brief. Within each band rows
 keep `db.get_active` order: pins by position, everything else unread first and
 then newest first.
 
@@ -16,14 +17,20 @@ from . import db
 
 _ALERT = 0
 _BLOCKED = 1
-_MERGE = 2
-_REVIEW = 3
-_UNREAD_DONE = 4
-_DONE = 5
-_UNREAD = 6  # working, running, waiting, or no brief
-_RUNNING = 7
-_READ = 8  # working, waiting, or no brief
-_BANDS = {"alert": _ALERT, "blocked": _BLOCKED, "merge": _MERGE, "review": _REVIEW}
+_RUNNING = 2
+_MERGE = 3
+_REVIEW = 4
+_UNREAD_DONE = 5
+_DONE = 6
+_UNREAD = 7  # working, waiting, or no brief
+_READ = 8
+_BANDS = {
+    "alert": _ALERT,
+    "blocked": _BLOCKED,
+    "running": _RUNNING,
+    "merge": _MERGE,
+    "review": _REVIEW,
+}
 
 
 def _band(status: str, is_unread: bool) -> int:
@@ -33,10 +40,7 @@ def _band(status: str, is_unread: bool) -> int:
     if status == "done":
         return _UNREAD_DONE if is_unread else _DONE
 
-    if is_unread:
-        return _UNREAD
-
-    return _RUNNING if status == "running" else _READ
+    return _UNREAD if is_unread else _READ
 
 
 def by_status(
