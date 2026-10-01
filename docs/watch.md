@@ -22,8 +22,46 @@ lemonaid watch openclaw stop <doc>
   when it becomes unanswered, and again when an unanswered thread gains a block.
 - **The body changed**, once the text outside comment threads has been unchanged for
   `--quiet` seconds (20 by default). A human can get the lemon's attention by editing the
-  doc, without writing a comment. Replies inside threads don't count, but the lemon's own
-  edits to the body do; the event gives the line delta. `--no-edits` turns this off.
+  doc, without writing a comment. Replies inside threads don't count, and neither do the
+  watching lemon's own body edits, once recorded (see below); anyone else's do, another
+  lemon's included. The event gives the line delta. `--no-edits` turns this off.
+
+## Ignoring the lemon's own edits
+
+A waiter started from a Claude Code or Codex session (`CLAUDE_CODE_SESSION_ID` or
+`CODEX_THREAD_ID` set) doesn't wake that session for body edits it made itself. It
+adopts a changed body silently only when the session's recorded edits lead to it from the
+body it last reported, so an edit someone else made earlier in the same turn still wakes it,
+with a line delta that includes the lemon's own change.
+
+- **Claude Code** records its edits through PreToolUse and PostToolUse hooks on `Edit`,
+  `Write` and `MultiEdit`. Install them with `lemonaid claude hooks --own-edits`. They
+  start Python only in a session that has run a doc waiter, and only for a `.md` path.
+- **Codex, and a Claude edit made through Bash,** record with
+  `lemonaid watch doc --editing <doc>` just before the edit and `lemonaid watch doc --mine
+  <doc>` right after it. Codex has no hook to do it. `--mine` without a preceding
+  `--editing` records nothing and exits 2, so the edit wakes the waiter as before.
+
+Codex can do all three in one shell call. `apply_patch` works as a shell command inside a
+compound command (checked with codex-cli 0.159.2, in the workspace-write sandbox):
+
+```sh
+lemonaid watch doc --editing <doc> && apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: <doc>
+...
+*** End Patch
+PATCH
+lemonaid watch doc --mine <doc>
+```
+
+The waiter replays the session's unconsumed edits in order from the body it last reported,
+and stays asleep only if they chain without a gap to the body it now reads. A gap means
+someone else changed the doc in between.
+
+Records live in `<state dir>/own/<session>/`; the hook reads the default state dir, so a
+waiter given another `--state-dir` sees only `--editing`/`--mine` records written with the
+same flag.
 
 Reported threads are remembered per document and `--me` name, so a waiter started later
 reports only threads that are new or changed since.

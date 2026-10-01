@@ -184,3 +184,32 @@ def test_no_edits_reports_comments_only(tmp_path, doc):
 
     assert result.returncode != 0  # still waiting when killed
     assert result.stdout == ""
+
+
+def test_editing_then_mine_records_an_edit_for_the_calling_lemon(tmp_path, doc):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")
+    }
+
+    def run(flag: str, **extra: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            _argv(tmp_path, flag, str(doc)),
+            capture_output=True,
+            text=True,
+            env={**env, **extra},
+            check=False,
+        )
+
+    anonymous = run("--editing")
+    unannounced = run("--mine", CODEX_THREAD_ID="t1")
+    run("--editing", CODEX_THREAD_ID="t1")
+    paired = run("--mine", CODEX_THREAD_ID="t1")
+
+    assert anonymous.returncode == 2
+    assert anonymous.stdout.startswith("not recorded:")
+    assert unannounced.returncode == 2
+    assert "--editing" in unannounced.stdout
+    assert paired.returncode == 0
+    assert list((tmp_path / "state" / "own" / "codex-t1").glob("*.edits"))

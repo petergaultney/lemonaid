@@ -17,7 +17,7 @@ import time
 import typing as ty
 from collections import abc
 
-from . import relay_comments
+from . import own_edits, relay_comments
 
 
 def default_state_dir() -> pathlib.Path:
@@ -35,11 +35,15 @@ class Outcome(enum.Enum):
 @dataclasses.dataclass
 class DocWatch:
     doc: pathlib.Path
+    state_dir: pathlib.Path
+    writer: str
     mine: frozenset[str]
     edits: bool
     quiet: float
     reported_path: pathlib.Path
     settled_path: pathlib.Path
+    consumed_path: pathlib.Path
+    consumed: int  # the last of the writer's own_edits transitions the settled body accounts for
     reported: set[str]
     settled_body: str
     pending_body: str
@@ -71,6 +75,22 @@ def _load_settled(path: pathlib.Path, doc: pathlib.Path) -> str:
         return body
 
 
+def _load_consumed(
+    path: pathlib.Path, state_dir: pathlib.Path, writer: str, doc: pathlib.Path
+) -> int:
+    """The consumed seq saved for this writer; a new writer starts after its existing edits."""
+    try:
+        saved_writer, seq = path.read_text().split()
+        if saved_writer == writer:
+            return int(seq)
+
+    except (OSError, ValueError):
+        pass
+    seq = own_edits.last_seq(state_dir, writer, doc)
+    path.write_text(f"{writer} {seq}")
+    return int(seq)
+
+
 def _line_delta(old: str, new: str) -> str:
     added = removed = 0
     for line in difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="", n=0):
@@ -88,23 +108,41 @@ def open_watch(
     legacy: abc.Iterable[str],
     edits: bool,
     quiet: float,
+    writer: str = "",
 ) -> DocWatch:
+    """`writer`, when set, is the watching lemon's own_edits key: body edits it made don't wake it."""
     state_dir.mkdir(parents=True, exist_ok=True)
+    if writer and edits:
+        own_edits.register(state_dir, writer, doc)
     stem = state_stem(state_dir, doc, me)
     settled_path = stem.with_suffix(".settled.md")
     settled_body = _load_settled(settled_path, doc) if edits else ""
+    consumed_path = stem.with_suffix(".consumed")
+    consumed = _load_consumed(consumed_path, state_dir, writer, doc) if writer and edits else 0
     return DocWatch(
         doc=doc,
+        state_dir=state_dir,
+        writer=writer,
         mine=frozenset({me, *legacy}),
         edits=edits,
         quiet=quiet,
         reported_path=stem.with_suffix(".reported.json"),
         settled_path=settled_path,
+        consumed_path=consumed_path,
+        consumed=consumed,
         reported=_load_reported(stem.with_suffix(".reported.json")),
         settled_body=settled_body,
         pending_body=settled_body,
         pending_since=0.0,
     )
+
+
+def _settle(w: DocWatch, body: str, consumed: int) -> None:
+    w.settled_body = w.pending_body = body
+    w.settled_path.write_text(body)
+    if w.writer and consumed != w.consumed:
+        w.consumed = consumed
+        w.consumed_path.write_text(f"{w.writer} {consumed}")
 
 
 def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
@@ -133,11 +171,24 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         return Outcome.NOTHING
 
     body = relay_comments.body_without_threads(text)
+    own = (
+        own_edits.settles(w.state_dir, w.writer, w.doc, w.consumed, w.settled_body, body)
+        if w.writer
+        else None
+    )
+    if own is not None:
+        _settle(w, body, own)
+        return Outcome.NOTHING
+
+    if body == w.settled_body:
+        w.pending_body = body
+        return Outcome.NOTHING
+
     if body != w.pending_body:
         w.pending_body, w.pending_since = body, time.time()
         return Outcome.NOTHING
 
-    if body == w.settled_body or time.time() - w.pending_since < w.quiet:
+    if time.time() - w.pending_since < w.quiet:
         return Outcome.NOTHING
 
     if not deliver(
@@ -145,6 +196,5 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     ):
         return Outcome.FAILED
 
-    w.settled_body = body
-    w.settled_path.write_text(body)
+    _settle(w, body, own_edits.last_seq(w.state_dir, w.writer, w.doc) if w.writer else 0)
     return Outcome.DELIVERED

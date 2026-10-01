@@ -35,6 +35,21 @@ _STATUS_NOTE_SCRIPT = "; ".join(
 # tool_response object carrying its own prompt_id gives two values, matches no
 # seen file, and goes on to Python, which reads the top-level ones.
 STATUS_NOTE_COMMAND = f"sh -c {shlex.quote(_STATUS_NOTE_SCRIPT)}"
+OWN_EDIT_MATCHER = "Edit|Write|MultiEdit"
+_OWN_EDIT_SCRIPT = "; ".join(
+    [
+        "d=$(cat)",
+        'v() { printf "%s" "$d" | tr ",{" "\\n\\n" | '
+        'sed -n "s/^ *\\"$1\\" *: *\\"\\([^\\"]*\\)\\".*/\\1/p" | sort -u; }',
+        "s=$(v session_id)",
+        '[ -n "$s" ] && [ -d "${TMPDIR:-/tmp}/watch-doc/own/claude-$s" ] || exit 0',
+        'case "$(v file_path)" in *.md*) ;; *) exit 0 ;; esac',
+        'printf "%s" "$d" | exec lemonaid claude own-edit',
+    ]
+)
+# Runs before and after every Edit/Write; it starts Python only in a session that has
+# run a doc waiter (own_edits.register made its directory), and only for a .md path.
+OWN_EDIT_COMMAND = f"sh -c {shlex.quote(_OWN_EDIT_SCRIPT)}"
 
 
 def settings_path() -> Path:
@@ -60,7 +75,7 @@ def _has_command(entries: ty.Iterable[dict], command: str) -> bool:
     )
 
 
-def _with_hook(settings: dict, event: str, command: str) -> tuple[dict, bool]:
+def _with_hook(settings: dict, event: str, command: str, matcher: str = "") -> tuple[dict, bool]:
     """`settings` plus a hook for `command`, and whether anything changed."""
     hooks = settings.setdefault("hooks", {})
     entries = hooks.setdefault(event, [])
@@ -68,7 +83,12 @@ def _with_hook(settings: dict, event: str, command: str) -> tuple[dict, bool]:
     if _has_command(entries, command):
         return settings, False
 
-    entries.append({"hooks": [{"type": "command", "command": command}]})
+    entries.append(
+        {
+            **({"matcher": matcher} if matcher else {}),
+            "hooks": [{"type": "command", "command": command}],
+        }
+    )
     return settings, True
 
 
@@ -85,11 +105,13 @@ def _write(path: Path, settings: dict) -> None:
     tmp.replace(target)
 
 
-def install(event: str, command: str, path: Path | None = None, dry_run: bool = False) -> str:
-    """Add a hook running `command` on `event`. Returns the line to print."""
+def install(
+    event: str, command: str, path: Path | None = None, dry_run: bool = False, matcher: str = ""
+) -> str:
+    """Add a hook running `command` on `event` (for tools `matcher` names). Returns the line to print."""
     path = path or settings_path()
     settings = _load(path)
-    settings, changed = _with_hook(settings, event, command)
+    settings, changed = _with_hook(settings, event, command, matcher)
 
     if not changed:
         return f"{event} hook already installed in {path}"

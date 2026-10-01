@@ -1,3 +1,9 @@
+# 0.54.0 (2026-10-01)
+
+#### Added
+
+- **`lemonaid watch doc` no longer wakes a lemon for its own edits to the doc's body.** Claude Code records them with PreToolUse and PostToolUse hooks (`lemonaid claude hooks --own-edits`), and Codex, or an edit made through a shell, with `lemonaid watch doc --editing <doc>` before the edit and `--mine <doc>` after it. An edit by anyone else still wakes it, even one made earlier in the same turn.
+
 # 0.53.0 (2026-10-01)
 
 #### Added

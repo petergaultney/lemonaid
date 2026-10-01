@@ -16,7 +16,12 @@ Events:
   appeared, or an unanswered one gained a block (always on)
 - the document body changed outside comment threads, after `--quiet` seconds of no further
   change (unless `--no-edits`; a human types incrementally, and the session's own edits
-  also trigger this - the event names the line delta so the reader can tell)
+  also trigger this, except those `own_edits` records - see below)
+
+A waiter started inside Claude Code or Codex knows which session it serves. Body edits that
+session made are recorded by Claude Code's edit hooks (`lemonaid claude hooks --own-edits`),
+or by `--editing DOC` before and `--mine DOC` after an edit made any other way, and don't
+wake its own waiter; edits by anyone else still do. Replies inside comment threads never wake their author.
 
 Threads already reported, and with edits on the body as of the last reported edit, are
 remembered per (doc, --me) in `--state-dir`, so a restarted waiter does not re-report a
@@ -29,18 +34,45 @@ the other without losing what has been reported; unlike it, edits are on by defa
     lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"
     lemonaid watch doc --watch-list <list.json> --me Meyer --openclaw-session <key> --idle-expire 604800
     lemonaid watch doc --status <doc> --me Pliny
+    lemonaid watch doc --editing <doc>; <edit it>; lemonaid watch doc --mine <doc>
 """
 
 import argparse
+import os
 import pathlib
 import sys
 
-from . import delivery, doc_events, doc_wait, waiter_lock, watch_list
+from . import delivery, doc_events, doc_wait, own_edits, waiter_lock, watch_list
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
 
 
+def _record_own(a: argparse.Namespace) -> int:
+    writer = own_edits.writer_from_env(os.environ)
+    if not writer:
+        print("not recorded: run this from the Claude Code or Codex session that watches the doc")
+        return 2
+
+    doc = a.editing or a.mine
+    if a.editing:
+        own_edits.before_edit(a.state_dir, writer, own_edits.cli_key(doc), doc)
+        return 0
+
+    if not own_edits.after_edit(a.state_dir, writer, own_edits.cli_key(doc), doc):
+        print(f"not recorded: run --editing {doc} before the edit, then --mine after it")
+        return 2
+
+    return 0
+
+
 def run(a: argparse.Namespace) -> int:
+    if a.editing or a.mine:
+        return _record_own(a)
+
+    if not a.me:
+        print("not started: --me is required")
+        return 2
+
     if a.codex_thread and a.openclaw_session:
         print("not started: --codex-thread and --openclaw-session are exclusive")
         return 2
@@ -111,7 +143,15 @@ def run(a: argparse.Namespace) -> int:
             )
         else:
             doc_wait.wait_doc(
-                doc_events.open_watch(a.state_dir, a.wait, a.me, a.legacy, a.edits, a.quiet),
+                doc_events.open_watch(
+                    a.state_dir,
+                    a.wait,
+                    a.me,
+                    a.legacy,
+                    a.edits,
+                    a.quiet,
+                    own_edits.writer_from_env(os.environ),
+                ),
                 deliver,
                 once,
                 a.interval,
@@ -146,7 +186,19 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     mode.add_argument(
         "--status", type=pathlib.Path, metavar="DOC", help="report whether a waiter is running"
     )
-    ap.add_argument("--me", required=True, help="author name you sign replies with")
+    mode.add_argument(
+        "--editing",
+        type=pathlib.Path,
+        metavar="DOC",
+        help="before editing DOC outside Claude's Edit/Write tools: note its body, for --mine",
+    )
+    mode.add_argument(
+        "--mine",
+        type=pathlib.Path,
+        metavar="DOC",
+        help="after that edit: record it as yours, so your waiter does not wake you for it",
+    )
+    ap.add_argument("--me", default="", help="author name you sign replies with")
     ap.add_argument(
         "--legacy",
         action="append",

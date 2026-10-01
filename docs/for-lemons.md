@@ -611,6 +611,24 @@ a second one for the same doc and name refuses to start (exit 3). OpenClaw sessi
 `lemonaid watch openclaw start <doc> --session-key <key>`. Flags and state match the
 standalone `watch-doc.py`, so the two can run side by side. Details: [watch.md](watch.md).
 
+Your own edits to the doc's body don't wake your own waiter, as long as they're recorded.
+Claude Code records `Edit` and `Write` calls itself when `lemonaid claude hooks --own-edits` is
+installed. For an edit made any other way (Codex, or a Claude edit through Bash), run
+`lemonaid watch doc --editing <doc>` just before it and `lemonaid watch doc --mine <doc>` right
+after. Codex does all three in one shell call:
+
+```sh
+lemonaid watch doc --editing <doc> && apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: <doc>
+...
+*** End Patch
+PATCH
+lemonaid watch doc --mine <doc>
+```
+
+Edits by anyone else, another lemon's included, still wake you. Details: [watch.md](watch.md#ignoring-the-lemons-own-edits).
+
 `lemonaid watch pr --wait <n> --head <sha you handled> --comments --me <name> --once` does
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
 human comment, conflict with the base, or failed CI (the last three only with `--comments`). Rearm with `--head` set to the head you just handled. It replaces

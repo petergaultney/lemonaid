@@ -2,7 +2,7 @@
 
 import argparse
 
-from . import install_hooks, status_note, waiter_check
+from . import install_hooks, own_edit, status_note, waiter_check
 from .bootstrap import run_bootstrap
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
@@ -33,20 +33,29 @@ def cmd_session_start(args: argparse.Namespace) -> None:
 
 
 def cmd_hooks(args: argparse.Namespace) -> None:
-    """Install or remove the optional SessionStart hook, the Stop waiter check, or the status note."""
+    """Install or remove the optional SessionStart hook, the Stop waiter check, the status note, or the own-edit record."""
     chosen = [
-        (event, command)
-        for picked, event, command in (
-            (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND),
-            (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND),
+        (event, command, matcher)
+        for picked, event, command, matcher in (
+            (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND, ""),
+            (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND, ""),
+            *(
+                (
+                    args.own_edits,
+                    event,
+                    install_hooks.OWN_EDIT_COMMAND,
+                    install_hooks.OWN_EDIT_MATCHER,
+                )
+                for event in ("PreToolUse", "PostToolUse")
+            ),
         )
         if picked
     ]
-    for event, command in chosen:
+    for event, command, matcher in chosen:
         if args.uninstall:
             print(install_hooks.uninstall(event, command))
         else:
-            print(install_hooks.install(event, command, dry_run=args.dry_run))
+            print(install_hooks.install(event, command, dry_run=args.dry_run, matcher=matcher))
     if chosen:
         return
 
@@ -60,6 +69,11 @@ def cmd_hooks(args: argparse.Namespace) -> None:
 def cmd_status_note(args: argparse.Namespace) -> None:
     """Handle the PostToolUse hook that reminds a lemon what its brief's Status waits on."""
     status_note.handle()
+
+
+def cmd_own_edit(args: argparse.Namespace) -> None:
+    """Handle the Pre/PostToolUse hook that records a lemon's edits to the docs it watches."""
+    own_edit.handle()
 
 
 def cmd_waiter_check(args: argparse.Namespace) -> None:
@@ -246,7 +260,21 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Act on the PostToolUse hook that, once a turn, reminds a lemon whose brief "
         "is blocked, alert or merge what it waits on",
     )
+    hooks_parser.add_argument(
+        "--own-edits",
+        action="store_true",
+        help="Act on the PreToolUse and PostToolUse hooks that record a lemon's edits to "
+        "the docs it watches, so `lemonaid watch doc` does not wake it for them",
+    )
     hooks_parser.set_defaults(func=cmd_hooks)
+
+    # claude own-edit
+    own_edit_parser = claude_subparsers.add_parser(
+        "own-edit",
+        help="Record an edit to a doc this session watches (PreToolUse and PostToolUse "
+        "hook; reads JSON from stdin)",
+    )
+    own_edit_parser.set_defaults(func=cmd_own_edit)
 
     # claude status-note
     status_note_parser = claude_subparsers.add_parser(

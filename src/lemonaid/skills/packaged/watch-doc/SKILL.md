@@ -59,9 +59,27 @@ Never use a hand-rolled polling loop or scheduled wakeups; they wake the session
 - The `{==...==}` highlight may be absent (a comment anchored to a point).
 - A thread is the highlight plus every `{{...>>...<<}}` block that immediately follows it, with nothing in between. Replies are appended as further blocks. A thread is **unanswered** when its last block's `author` is not your name or a legacy name. Human authors are never matched by name; anyone can comment, and several people can share a thread.
 - A human may also just edit your prose; the waiter reports it as `body of <doc> changed (+N/-M lines)`. Read what changed: it may be a request, a correction, or a note to you in the text itself. Don't revert it. If an edit changes a conclusion you disagree with, add a comment block beside it saying so.
-- Your own edits to the body wake you too, once, after you rearm; replies inside threads don't. If the reported change is yours, rearm without doing anything else.
+- Your own body edits don't wake your waiter when they're recorded; replies inside threads never do. In Claude Code, `Edit` and `Write` calls are recorded by the `lemonaid claude hooks --own-edits` hooks, if installed. In Codex, or when editing through a shell, wrap each edit in `lemonaid watch doc --editing <absolute-doc-path>` before and `lemonaid watch doc --mine <absolute-doc-path>` after, as one shell call (see "Editing in Codex" below). An unrecorded edit of yours wakes you once after you rearm; if the reported change is only yours, rearm without doing anything else.
 
 To find unanswered threads by hand, `rg -o 'author="[^"]*">>' <doc-path>` lists the blocks in order.
+
+## Editing in Codex
+
+Make every edit to a watched doc's body one shell call that records it (a reply alone changes no body, so it needs none):
+
+```sh
+lemonaid watch doc --editing <absolute-doc-path> && apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: <absolute-doc-path>
+@@
+-<old line>
++<new line>
+*** End Patch
+PATCH
+lemonaid watch doc --mine <absolute-doc-path>
+```
+
+A doc outside your workspace needs the same escalated permissions as any other edit there.
 
 ## Replying
 
