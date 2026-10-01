@@ -4,6 +4,7 @@
 
 - **The tmux status-line commands and the Claude statusline start in about a third of the time (50-90 ms, from 140-185 ms).** They no longer import Textual or the inbox TUI, so the status bar fills in sooner after a session switch, and running them every second costs much less CPU.
 - **In follow mode, the sidebar marks the session you switched to straight away.** It used to wait up to about a second and a third for its next check of which pane has focus.
+- **An idle inbox no longer redraws its whole table three times a second.** Each refresh updates only the cells that changed.
 
 # 0.52.0 (2026-10-01)
 

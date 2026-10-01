@@ -110,3 +110,37 @@ def test_empty_target_clears_table():
         return table.row_count
 
     assert _run(body) == 0
+
+
+def _count_updates(table) -> list:
+    updates: list = []
+    real = table.update_cell_at
+    table.update_cell_at = lambda *args, **kwargs: (updates.append(args[0]), real(*args, **kwargs))
+    return updates
+
+
+def test_an_unchanged_tick_updates_no_cell():
+    """Each update repaints its row, so redrawing equal cells re-emits the whole table."""
+
+    async def body(table, pilot):
+        _sync_rows(table, _rows(("1", "a"), ("2", "b")))
+        await pilot.pause()
+        updates = _count_updates(table)
+        _sync_rows(table, _rows(("1", "a"), ("2", "b")))
+        _sync_rows(table, _rows(("1", "a"), ("2", "B")))
+        return updates
+
+    assert _run(body) == [(1, 1)]
+
+
+def test_a_style_only_change_still_updates_the_cell():
+    async def body(table, pilot):
+        _sync_rows(table, [("1", [Text("1"), Text("a")])])
+        await pilot.pause()
+        updates = _count_updates(table)
+        _sync_rows(table, [("1", [Text("1"), Text("a", style="bold")])])
+        return updates, table.get_row("1")[1].style
+
+    updates, style = _run(body)
+    assert updates == [(0, 1)]
+    assert style == "bold"

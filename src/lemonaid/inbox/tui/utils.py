@@ -3,6 +3,27 @@
 import sys
 
 from rich.text import Text
+from textual.widgets import Static
+
+
+def same_cell(old: object, new: object) -> bool:
+    """Whether a table cell would draw the same; Rich's `Text ==` ignores the base style."""
+    if isinstance(old, Text) and isinstance(new, Text):
+        return (
+            old.plain == new.plain
+            and old.style == new.style
+            and old.spans == new.spans
+            and (old.justify, old.overflow, old.no_wrap, old.end)
+            == (new.justify, new.overflow, new.no_wrap, new.end)
+        )
+
+    return old == new
+
+
+def update_static(widget: Static, content: str | Text) -> None:
+    """Update *widget* only if its content changes: an update lays out and repaints the screen."""
+    if not same_cell(widget.content, content):
+        widget.update(content)
 
 
 def set_terminal_title(title: str) -> None:

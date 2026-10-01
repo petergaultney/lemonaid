@@ -73,8 +73,10 @@ from .utils import (
     UNREAD_MARKER_STYLE,
     backend_cell,
     jump_gutter,
+    same_cell,
     set_terminal_title,
     styled_cell,
+    update_static,
 )
 
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
@@ -509,7 +511,8 @@ def _sync_rows(
         for key, cells in shaped:
             row_index = table.get_row_index(key)
             for column, value in enumerate(cells):
-                table.update_cell_at((row_index, column), value, update_width=False)
+                if not same_cell(table.get_cell_at(Coordinate(row_index, column)), value):
+                    table.update_cell_at((row_index, column), value, update_width=False)
             # A row keeps the height it was added with, so a card whose message
             # shortened would otherwise hold its old size and pad with blanks.
             if cards:
@@ -1444,7 +1447,7 @@ class LemonaidApp(App):
         )
 
         fold_label.display = bool(folded)
-        fold_label.update(self._fold_label(len(folded)))
+        update_static(fold_label, self._fold_label(len(folded)))
 
         # Populate non-switchable table (always dim, not interactive).
         # Hide it if the terminal is too short — main table gets priority.
@@ -1465,7 +1468,8 @@ class LemonaidApp(App):
                 self._card_shape(),
             )
         else:
-            other_table.clear()
+            if other_table.row_count:
+                other_table.clear()
             other_label.display = False
             other_table.display = False
             if focused_on_other:
@@ -1602,7 +1606,7 @@ class LemonaidApp(App):
         self.query_one("#status", Static).display = not shown
 
     def _set_status(self, text: str) -> None:
-        self.query_one("#status", Static).update(text)
+        update_static(self.query_one("#status", Static), text)
 
     def _refresh_session_names(self) -> None:
         """Pull newly-available backend titles into the inbox.
