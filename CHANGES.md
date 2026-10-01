@@ -1,3 +1,9 @@
+# 0.48.0 (2026-10-01)
+
+#### Added
+
+- **`lemonaid brief new --child "<title>"` writes a brief for a lemon that hasn't started yet.** It fills `Lemon-ID:`, `Status: working` and `Parent:` from the caller, attaches it to no one, and prints the path for `--brief`. `--template review --pr <url> --review-doc <path>` writes a reviewer's brief with its waiters, and `~/.lemons/brief-templates/<name>.md` replaces or adds a template.
+
 # 0.47.0 (2026-10-01)
 
 #### Added

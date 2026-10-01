@@ -75,17 +75,17 @@ def outside_error(path: Path) -> str:
     return f"{path} is not inside {briefs_dir()}; briefs live there"
 
 
-def _slug(title: str) -> str:
+def slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60].strip("-") or "brief"
 
 
 def lemon_id_slug(path: Path) -> str:
     """The readable part of a Lemon-ID for the brief at *path*, before its WordyBin."""
-    slug = _slug(re.sub(r"^\d{4}-\d{2}-\d{2}-", "", path.stem))
-    if len(slug) <= 40:
-        return slug
+    readable = slug(re.sub(r"^\d{4}-\d{2}-\d{2}-", "", path.stem))
+    if len(readable) <= 40:
+        return readable
 
-    prefix = slug[:40]
+    prefix = readable[:40]
     return (prefix.rsplit("-", 1)[0] if "-" in prefix else prefix).rstrip("-") or "brief"
 
 
@@ -94,16 +94,25 @@ def new_lemon_id(path: Path) -> str:
     return f"{lemon_id_slug(path)}.{wordybin.encode(os.urandom(2))}"
 
 
-def create(title: str, today: datetime.date) -> Path:
-    """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
+def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str]) -> Path:
+    """A new brief `<date>-<name>.md` holding *text* of its path. Never overwrites."""
     with home.guard.operation():
         directory = briefs_dir()
         directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"{today.isoformat()}-{_slug(title)}.md"
+        path = directory / f"{today.isoformat()}-{name}.md"
         with path.open("x") as f:
-            f.write(_TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)))
+            f.write(text(path))
 
     return path.resolve()
+
+
+def create(title: str, today: datetime.date) -> Path:
+    """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
+    return create_named(
+        slug(title),
+        today,
+        lambda path: _TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)),
+    )
 
 
 class ChangedUnderneath(Exception):

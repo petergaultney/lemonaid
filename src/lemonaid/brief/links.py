@@ -109,3 +109,12 @@ def linkify(markdown: str, vaults: abc.Collection[Path]) -> str:
     """
     names = {s.lower(): root.name for root in vaults for s in _spellings(root)}
     return _tokens(vaults).sub(lambda match: _replace(match, names), markdown)
+
+
+def obsidian_url(path: Path, vaults: abc.Iterable[Path]) -> str:
+    """The `obsidian://` URL opening *path*, or "" when it is under none of *vaults*."""
+    for root in vaults:
+        if path.is_relative_to(root):
+            return _obsidian(root.name, path.relative_to(root).as_posix())[0]
+
+    return ""

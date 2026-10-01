@@ -194,8 +194,8 @@ def select(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[Selected
     return _self(conn)
 
 
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    target = parser.add_mutually_exclusive_group(required=True)
+def add_arguments(parser: argparse.ArgumentParser, required: bool = True) -> None:
+    target = parser.add_mutually_exclusive_group(required=required)
     target.add_argument(
         "--self",
         dest="use_self",

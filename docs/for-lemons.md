@@ -380,6 +380,7 @@ A brief is how a parent hands a lemon its task, and how that lemon reports where
 
 ```bash
 lemonaid brief new --self "Fix the thing"      # create ~/.lemons/brief/<today>-fix-the-thing.md, attach it
+lemonaid brief new --child "Fix the thing"     # create it for a lemon not started yet; see Child briefs
 lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.lemons/brief/)
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
@@ -394,6 +395,39 @@ lemonaid lemon children --self --json          # your children, with their brief
 ```
 
 Parent links are between Lemon-IDs; see `docs/lineage.md`.
+
+### Child briefs
+
+A parent writes its child's brief with `brief new --child`, which attaches it to no one and
+prints the path to pass as `--brief`:
+
+```bash
+f=$(lemonaid brief new --child "Fix the thing")   # ~/.lemons/brief/<today>-fix-the-thing.md
+lemonaid place open feat/thing --brief "$f" --parent self --prompt "Fix the thing. Instructions are in $f; follow them."
+lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12 \
+    --review-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
+```
+
+The file has the title, its own `Lemon-ID:`, `Status: working`, and `Parent: <your Lemon-ID>
+(<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
+writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief).
+`--slug` replaces the title's slug in the filename. An existing file is never overwritten.
+
+A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a
+literal `$`). Lemonaid packages two:
+
+- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Output` and `## Waiters`.
+- `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
+  findings only in the `--review-doc` (linked into Obsidian when it is under a `[brief] vaults`
+  root), the rule to stay `waiting` until the PR merges or closes, a `lemonaid tell` to the parent
+  and `--author` when it is someone else, and the `watch pr` and `watch doc` waiters signed with
+  the child's WordyBin. Fill in `## Context` yourself.
+
+A file in `~/.lemons/brief-templates/<name>.md` replaces the packaged template of that name, or
+adds a new one. Placeholders: `$title`, `$date`, `$lemon_id`, `$wordybin` (the child's),
+`$parent_id`, `$tell`; with `--pr`, `$pr_url`, `$pr_number`, `$pr_repo`, `$pr_label` and
+`$pr_link`; with `--review-doc`, `$review_doc` (absolute), `$review_doc_arg` (shell-quoted) and `$review_doc_link`. A template
+that uses a value whose flag is missing is refused before any file is written.
 
 `--self` is the lemon in the calling tmux pane, resolved the same way as `inbox emoji --self`.
 `--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .. import home
 from ..inbox import db
-from . import attached, identity, query_cli, selector, store
+from . import attached, child_cli, identity, query_cli, selector, store
 
 
 def _finish(args: argparse.Namespace, result: dict, error: str, message: str = "") -> None:
@@ -85,6 +85,20 @@ def _cmd_attach(args: argparse.Namespace) -> None:
 
 
 def _cmd_new(args: argparse.Namespace) -> None:
+    targets = args.use_self or args.session or args.channel or args.id is not None
+    if args.child and targets:
+        _finish(args, {}, "--child attaches the brief to no one; name its parent with --parent")
+
+    if args.child:
+        child_cli.cmd(args)
+        return
+
+    if stray := child_cli.given(args):
+        _finish(args, {}, f"{', '.join(stray)} {'needs' if len(stray) == 1 else 'need'} --child")
+
+    if not targets:
+        _finish(args, {}, "Name the lemon to attach it to (--self, --session, --channel, --id)")
+
     if paused := home.layout.paused():
         _finish(args, {}, paused)
 
@@ -164,11 +178,15 @@ def _cmd_detach(args: argparse.Namespace) -> None:
 
 
 def _parser(
-    subparsers: argparse._SubParsersAction, name: str, summary: str, with_target: bool = True
+    subparsers: argparse._SubParsersAction,
+    name: str,
+    summary: str,
+    with_target: bool = True,
+    target_required: bool = True,
 ) -> argparse.ArgumentParser:
     parser = subparsers.add_parser(name, help=summary, description=summary)
     if with_target:
-        selector.add_arguments(parser)
+        selector.add_arguments(parser, required=target_required)
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
     return parser
 
@@ -192,8 +210,14 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     attach.add_argument("file", help="A path, or a name inside ~/.lemons/brief/ (.md optional)")
     attach.set_defaults(func=_cmd_attach)
 
-    new = _parser(brief_subparsers, "new", "Create a dated brief in ~/.lemons/brief/ and attach it")
+    new = _parser(
+        brief_subparsers,
+        "new",
+        "Create a dated brief in ~/.lemons/brief/ and attach it, or with --child leave it unattached",
+        target_required=False,
+    )
     new.add_argument("title", help="The task; the file is named <date>-<slug of title>.md")
+    child_cli.add_arguments(new)
     new.set_defaults(func=_cmd_new)
 
     now = _parser(brief_subparsers, "now", "Replace the `## Now` section of a lemon's brief")
