@@ -7,23 +7,22 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
-from . import (
-    brief,
-    claude,
-    codex,
-    for_lemons,
-    home,
-    inbox,
-    lineage,
-    messages,
-    openclaw,
-    opencode,
-    places,
-    skills,
-    tmux,
-    watch,
-    wezterm,
-)
+import lemonaid.brief.cli
+import lemonaid.claude.cli
+import lemonaid.codex.cli
+import lemonaid.home.cli
+import lemonaid.inbox.cli
+import lemonaid.lineage.cli
+import lemonaid.messages.cli
+import lemonaid.openclaw.cli
+import lemonaid.opencode.cli
+import lemonaid.places.cli
+import lemonaid.skills.cli
+import lemonaid.tmux.cli
+import lemonaid.watch.cli
+import lemonaid.wezterm.cli
+
+from . import claude, for_lemons, inbox
 from .config import ensure_config_exists, get_config_path
 
 
@@ -129,20 +128,20 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    inbox.cli.setup_parser(subparsers)
-    messages.cli.add_tell_parser(subparsers)
-    lineage.cli.setup_parser(subparsers)
-    home.cli.setup_parser(subparsers)
-    claude.cli.setup_parser(subparsers)
-    codex.cli.setup_parser(subparsers)
-    openclaw.cli.setup_parser(subparsers)
-    opencode.cli.setup_parser(subparsers)
-    places.cli.setup_parser(subparsers)
-    brief.cli.setup_parser(subparsers)
-    skills.cli.setup_parser(subparsers)
-    tmux.cli.setup_parser(subparsers)
-    watch.cli.setup_parser(subparsers)
-    wezterm.cli.setup_parser(subparsers)
+    lemonaid.inbox.cli.setup_parser(subparsers)
+    lemonaid.messages.cli.add_tell_parser(subparsers)
+    lemonaid.lineage.cli.setup_parser(subparsers)
+    lemonaid.home.cli.setup_parser(subparsers)
+    lemonaid.claude.cli.setup_parser(subparsers)
+    lemonaid.codex.cli.setup_parser(subparsers)
+    lemonaid.openclaw.cli.setup_parser(subparsers)
+    lemonaid.opencode.cli.setup_parser(subparsers)
+    lemonaid.places.cli.setup_parser(subparsers)
+    lemonaid.brief.cli.setup_parser(subparsers)
+    lemonaid.skills.cli.setup_parser(subparsers)
+    lemonaid.tmux.cli.setup_parser(subparsers)
+    lemonaid.watch.cli.setup_parser(subparsers)
+    lemonaid.wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
     setup_mark_unread_parser(subparsers)

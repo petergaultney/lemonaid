@@ -6,7 +6,9 @@ import json
 import sqlite3
 import sys
 
-from .. import brief, launch
+import lemonaid.launch.cli
+
+from .. import brief
 from ..inbox import db
 from . import links
 
@@ -140,4 +142,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     _add_target(children)
     children.set_defaults(func=_cmd_children)
 
-    launch.cli.add_parser(lemon_subparsers)
+    lemonaid.launch.cli.add_parser(lemon_subparsers)

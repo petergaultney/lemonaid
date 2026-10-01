@@ -29,7 +29,7 @@ from textual.widgets.data_table import RowDoesNotExist, RowKey
 
 from ... import brief, claude, codex, openclaw, opencode
 from ... import resume as resume_mod
-from ...claude import patch_status
+from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
 from ...config import TuiConfig, load_config
 from ...handlers import handle_notification
@@ -1634,7 +1634,7 @@ class LemonaidApp(App):
 
         upgraded = False
         for notification_id, session_id, cwd in candidates:
-            transcript = claude.notify.find_transcript(session_id, cwd)
+            transcript = notify.find_transcript(session_id, cwd)
             if not transcript:
                 continue
 
@@ -1651,7 +1651,7 @@ class LemonaidApp(App):
                 continue
 
             self._name_scan_mtimes[cache_key] = mtime
-            resolved = claude.notify.resolve_session_name(session_id, cwd)
+            resolved = notify.resolve_session_name(session_id, cwd)
             if not resolved:
                 continue
 

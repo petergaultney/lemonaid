@@ -1,3 +1,3 @@
 """WezTerm integration for lemonaid."""
 
-from . import cli, navigation  # noqa: F401
+from . import navigation  # noqa: F401

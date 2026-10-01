@@ -2,7 +2,8 @@ import argparse
 import contextlib
 import json
 
-from lemonaid import lineage, messages
+import lemonaid.lineage.cli
+import lemonaid.messages.cli
 from lemonaid.brief import attached, identity, store
 from lemonaid.inbox import db
 
@@ -22,8 +23,8 @@ def lemon(name: str, channel: str = "", status: str = "working") -> str:
 def run(capsys, *argv: str) -> dict:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
-    lineage.cli.setup_parser(subparsers)
-    messages.cli.add_tell_parser(subparsers)
+    lemonaid.lineage.cli.setup_parser(subparsers)
+    lemonaid.messages.cli.add_tell_parser(subparsers)
     args = parser.parse_args(argv)
     with contextlib.suppress(SystemExit):
         args.func(args)

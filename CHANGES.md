@@ -1,3 +1,9 @@
+# 0.52.1 (2026-10-01)
+
+#### Fixed
+
+- **The tmux status-line commands and the Claude statusline start in about a third of the time (50-90 ms, from 140-185 ms).** They no longer import Textual or the inbox TUI, so the status bar fills in sooner after a session switch, and running them every second costs much less CPU.
+
 # 0.52.0 (2026-10-01)
 
 #### Added

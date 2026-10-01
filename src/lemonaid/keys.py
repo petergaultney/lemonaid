@@ -1,19 +1,26 @@
 """Keys bound to more than one action in the same TUI view."""
 
 import typing as ty
+import unicodedata
 from collections import abc
-
-import textual.keys
 
 if ty.TYPE_CHECKING:
     from .config import KeybindingsConfig
 
 _JUMP_DIGITS = "1234567890"
+# Textual's key names whose Unicode names have a hyphen where the key name has `_`.
+_HYPHENATED = {"hyphen_minus": "-", "less_than_sign": "<", "greater_than_sign": ">"}
 
 
 def _name(key: str) -> str:
     """One spelling per key: `(` and `left_parenthesis` are the same key."""
-    return key if len(key) == 1 else textual.keys.key_to_character(key) or key
+    if len(key) == 1 or "+" in key:
+        return key
+
+    try:
+        return _HYPHENATED.get(key) or unicodedata.lookup(key.replace("_", " ").upper())
+    except KeyError:
+        return key
 
 
 def _shared(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:

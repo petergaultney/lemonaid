@@ -4,4 +4,4 @@ OpenCode stores session state in SQLite at:
 ~/.local/share/opencode/opencode.db
 """
 
-from . import cli, watcher  # noqa: F401
+from . import watcher  # noqa: F401

@@ -1,3 +1,3 @@
-from . import cli, command, handoff, window
+from . import command, handoff, window
 
 __all__ = ["cli", "command", "handoff", "window"]

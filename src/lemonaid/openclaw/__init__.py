@@ -7,4 +7,4 @@ Session index is at:
 ~/.openclaw/agents/<agentId>/sessions/sessions.json
 """
 
-from . import cli, utils, watcher  # noqa: F401
+from . import utils, watcher  # noqa: F401
