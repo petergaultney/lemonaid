@@ -7,6 +7,7 @@
 - **An idle inbox no longer redraws its whole table three times a second.** Each refresh updates only the cells that changed.
 - **A brief waiting for its lemon no longer costs the inbox a `tmux list-windows` on every refresh.** It looks for its window again only when a lemon starts, returns from the archive or records a new window, and every 30 seconds for changes only tmux knows about. A brief that has waited 15 days stops waiting.
 - **The sidebar checks its size against the saved one without asking tmux.** That was another tmux call on every refresh.
+- **The inbox no longer stalls for up to a fifth of a second while its watcher looks for Claude transcripts.** It used to read all of `~/.claude/history.jsonl` once per session it couldn't place, on every retry. It now keeps an index of the file and reads only the lines added since its last look.
 
 # 0.52.0 (2026-10-01)
 

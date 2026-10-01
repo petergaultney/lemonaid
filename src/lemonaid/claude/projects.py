@@ -5,7 +5,9 @@ the path is derived from the working directory at launch time. This module
 handles the encoding, lookup, and history-based resolution.
 """
 
+import dataclasses
 import json
+import threading
 from pathlib import Path
 
 from ..log import get_logger
@@ -74,26 +76,55 @@ def find_session_project(session_id: str) -> str | None:
     return _find_in_projects(session_id)
 
 
+@dataclasses.dataclass
+class _HistoryIndex:
+    """The project of each session in a history.jsonl, as of `offset` bytes into it."""
+
+    projects: dict[str, str] = dataclasses.field(default_factory=dict)
+    offset: int = 0
+    file: tuple[Path, int] | None = None  # path and inode
+
+
+# Claude only appends to history.jsonl, so the index reads each line once. A file
+# that shrank or was replaced is read again from the start.
+_history = _HistoryIndex()
+_history_lock = threading.Lock()
+
+
+def _read_history(index: _HistoryIndex, path: Path) -> None:
+    stat = path.stat()
+    if index.file != (path, stat.st_ino) or stat.st_size < index.offset:
+        index.projects.clear()
+        index.offset, index.file = 0, (path, stat.st_ino)
+    if stat.st_size == index.offset:
+        return
+
+    with open(path, "rb") as f:
+        f.seek(index.offset)
+        data = f.read()
+    complete = data[: data.rfind(b"\n") + 1]  # a line still being written waits for the next read
+    for line in complete.splitlines():
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(entry, dict) and entry.get("sessionId") and entry.get("project"):
+            index.projects[entry["sessionId"]] = entry["project"]
+    index.offset += len(complete)
+
+
 def _find_in_history(session_id: str) -> str | None:
     if not _HISTORY_PATH.exists():
         _log.warning("history.jsonl not found at %s", _HISTORY_PATH)
         return None
 
-    project = None
-    try:
-        with open(_HISTORY_PATH) as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                if entry.get("sessionId") == session_id:
-                    project = entry.get("project")
-    except OSError as e:
-        _log.warning("failed to read history.jsonl: %s", e)
-
-    return project
+    with _history_lock:
+        try:
+            _read_history(_history, _HISTORY_PATH)
+        except OSError as e:
+            _log.warning("failed to read history.jsonl: %s", e)
+        return _history.projects.get(session_id)
 
 
 def _find_in_projects(session_id: str) -> str | None:
