@@ -2096,6 +2096,9 @@ class LemonaidApp(App):
             event.stop()
             if not self._brief_switching:  # a switch in flight wakes it twice on the way
                 self._sync_brief_view()
+            # The follow hook sends it after moving this pane, so the focused pane has changed.
+            self._focused_asked_at = 0.0
+            self._refresh_notifications()
             return
 
         if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
