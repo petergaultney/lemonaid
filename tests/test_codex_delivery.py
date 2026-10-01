@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import stat
 import threading
 import time
@@ -75,7 +76,7 @@ def test_queued_message_moves_to_done(capsys, fake_codex):
     queued = fake_codex.read_text().splitlines()
     assert queued[:4] == ["queue", "--thread", "thread-1", "--message"]
     assert queued[4] == "lemonaid message: From: claude:sender"
-    assert queued[-1] == "Please review."
+    assert queued[-3] == "Please review."  # the date line follows
     assert not list(inbox.glob("*.md"))
     assert len(list((inbox / "done").glob("*.md"))) == 1
     assert capsys.readouterr().out.endswith("Please review.\n")
@@ -202,3 +203,15 @@ def test_plain_receiver_waits_while_codex_queues(capsys, fake_codex, monkeypatch
     assert calls.read_text() == "queued\n"
     assert len(list((inbox / "done").glob("*.md"))) == 1
     assert capsys.readouterr().out.endswith("Please review.\n")
+
+
+def test_a_threads_first_message_of_the_day_ends_with_the_date(capsys, fake_codex):
+    inbox = _inbox_with_message("First.")
+    store.send(inbox, "Second.", "claude:sender")
+
+    _watch("--codex-thread", "thread-1")
+    first = fake_codex.read_text()
+    _watch("--codex-thread", "thread-1")
+
+    assert re.search(r"First\.\n\nIt's \d{1,2}:\d\d[ap]m [A-Z][a-z]+day, \d{4}-\d\d-\d\d\.$", first)
+    assert fake_codex.read_text().rstrip().endswith("Second.")

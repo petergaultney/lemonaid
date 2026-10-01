@@ -231,6 +231,7 @@ vaults = ["~/notes", "~/work/kb"]
 | Key | Default | Description |
 |-----|---------|-------------|
 | `auto_read` | `[]` | Regexes; a finished turn whose final message matches one leaves its session read. |
+| `day_starts` | `"06:00"` | Local time a lemon's day starts; its first turn at or after it is told the date. |
 
 When a lemon's turn completes, lemonaid normally marks its session unread. If the
 final assistant message of that turn matches one of the `auto_read` patterns,
@@ -255,6 +256,17 @@ message comes from the transcript), Codex from `notify`'s
 `last-assistant-message`, OpenCode from `session.idle`, and OpenClaw from the
 transcript watcher. `lemonaid for-lemons` lists the configured patterns, so
 lemons on the machine can learn the convention.
+
+`day_starts` sets when a lemon's day begins. Its first turn at or after that
+local time is told the time, weekday and date in one line, and later turns that
+day are not. A lemon working from 11pm to 2am hears it once that evening, then
+again at its first turn after 06:00. Give an `"HH:MM"` string or a TOML local
+time; anything else is reported and 06:00 is used.
+
+```toml
+[inbox]
+day_starts = "07:30"
+```
 
 ## Environment variables
 

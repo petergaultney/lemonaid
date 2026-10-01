@@ -542,6 +542,9 @@ Codex lemon at the end of each message queued into its thread, and a Claude lemo
 tool call of each turn, when the `status-note` hook is installed. Update Status if the turn
 answers or changes one of them; otherwise ignore it.
 
+On your first turn of each day (from 06:00 local, unless configured) lemonaid adds one line with the time, weekday and date
+("It's 9:14am Thursday, 2026-10-01."). Trust it over the date your session started with.
+
 A session with no attached brief falls back to `.z/`, for sessions started before briefs moved out of
 it. It looks in the working directory of each lemon the inbox has in that session, then the session's
 own directory, and uses the first that has a brief. When that directory has several, the one named

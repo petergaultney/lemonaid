@@ -1,13 +1,15 @@
 """Hand an inbox message to a Codex thread, leaving it pending until Codex accepts it."""
 
 import contextlib
+import datetime as dt
 import os
 import subprocess
 import typing as ty
 from collections import abc
 from pathlib import Path
 
-from .. import brief, home
+from .. import brief, daily_date, home
+from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import full_channel_id
 from . import store
@@ -67,12 +69,19 @@ def deliver_next(
     move delivers it again on the next watch. So does a recipient that stopped
     being current while the queue ran: the move happens inside `while_current`,
     only if it yields True, and otherwise the file stays pending and this returns None.
+    The thread's first message of a day ends with `daily_date`'s line.
     """
     with home.guard.operation(), store.receive_lock(inbox, wait=False) as held:
         found = store.peek_next(inbox) if held else None
         if found is None:
             return None
 
-        _queue(thread, found[0], _with_status_note(inbox, found[1]))
+        now, seen = dt.datetime.now(), daily_date.seen_path(full_channel_id("codex", thread))
+        day_starts = load_config().inbox.day_starts
+        date_line = daily_date.due(seen, now, day_starts)
+        message = _with_status_note(inbox, found[1])
+        _queue(thread, found[0], f"{message.rstrip()}\n\n{date_line}" if date_line else message)
+        if date_line:
+            daily_date.mark(seen, now, day_starts)
         with while_current() as current:
             return (store.mark_done(found[0]), found[1]) if current else None

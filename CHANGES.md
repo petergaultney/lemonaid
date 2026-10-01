@@ -1,3 +1,9 @@
+# 0.52.0 (2026-10-01)
+
+#### Added
+
+- **A lemon is told the local time, weekday and date on its first turn of each day,** as one line: "It's 9:14am Thursday, 2026-10-01." A session that runs for days keeps the date it started with otherwise. A day starts at `[inbox] day_starts`, 06:00 by default, so a lemon working past midnight hears it in the morning. Claude gets it from the `lemonaid claude submit` hook, which also runs when a background task wakes the session, and a Codex thread at the end of its first queued message of the day.
+
 # 0.51.0 (2026-10-01)
 
 #### Added

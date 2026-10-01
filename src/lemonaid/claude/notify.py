@@ -21,13 +21,14 @@ Usage in Claude Code settings.json:
     }
 """
 
+import datetime as dt
 import json
 import os
 import sys
 import typing as ty
 from pathlib import Path
 
-from .. import auto_read
+from .. import auto_read, daily_date
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
@@ -279,6 +280,26 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     return channel_id("claude", session_id), session_id, name, switch_source, metadata
 
 
+def _tell_date(channel: str) -> None:
+    """Add the date line to the turn, when it is this session's first turn of the day.
+
+    UserPromptSubmit also fires when a background task's completion wakes the
+    session, so a lemon that only waits on waiters still hears it.
+    """
+    now, seen = dt.datetime.now(), daily_date.seen_path(channel)
+    day_starts = load_config().inbox.day_starts
+    line = daily_date.due(seen, now, day_starts)
+    if not line:
+        return
+
+    print(
+        json.dumps(
+            {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": line}}
+        )
+    )
+    daily_date.mark(seen, now, day_starts)
+
+
 def handle_submit(stdin_data: str | None = None) -> None:
     """Register a session as working in response to a UserPromptSubmit hook.
 
@@ -314,6 +335,7 @@ def handle_submit(stdin_data: str | None = None) -> None:
         )
 
     _log.info("working: channel=%s", channel)
+    _tell_date(channel)
 
 
 def handle_session_start(stdin_data: str | None = None) -> None:

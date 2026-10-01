@@ -109,6 +109,15 @@ turn, which takes about 20 ms instead of 150. Install it with
 `lemonaid claude hooks --status-note`. A message the delivery service queues
 into a Codex thread ends with the same reminder.
 
+A lemon's first turn of each day starts with one line giving the time,
+weekday and date ("It's 9:14am Thursday, 2026-10-01."), since a long session
+keeps the date it started with. A day starts at `[inbox] day_starts` (06:00 by
+default; see [config](config.md#inbox)). Claude gets it from the UserPromptSubmit
+hook `lemonaid claude submit`, which fires on a background-task wake as well as
+a typed prompt, and a Codex thread at the end of its first queued message of the
+day. The last day told is kept per session in `<state>/date-line/`. The check is
+a config load and a file read, about 0.25 ms, in a hook that already runs.
+
 `inbox watch --self` inside Codex still works: when `CODEX_THREAD_ID` is the
 watched channel's thread (or `--codex-thread <thread>` names one), it queues the
 message the same way instead of printing it. Receivers of one inbox take turns,

@@ -1,5 +1,6 @@
 """Configuration management for lemonaid."""
 
+import datetime as dt
 import os
 import re
 import sys
@@ -178,6 +179,8 @@ class InboxConfig:
     # A completed turn whose final message matches one of these, from its
     # start, leaves its session read instead of unread.
     auto_read: tuple[re.Pattern[str], ...] = ()
+    # A lemon's first turn at or after this local time each day is told the date.
+    day_starts: dt.time = dt.time(6, 0)
 
 
 @dataclass
@@ -348,6 +351,20 @@ def _templates(raw: dict[str, Any]) -> dict[str, list[str]]:
     return {**templates, "default": templates[alias]}
 
 
+def _day_starts(raw: object) -> dt.time:
+    """A TOML local time or an "HH:MM" string; anything else is reported and gives 06:00."""
+    if raw is None:
+        return InboxConfig.day_starts
+    if isinstance(raw, dt.time):
+        return raw
+
+    try:
+        return dt.time.fromisoformat(str(raw))
+    except ValueError:
+        print(f"lemonaid: [inbox] day_starts: ignoring {raw!r}, not HH:MM", file=sys.stderr)
+        return InboxConfig.day_starts
+
+
 def _parse_config(data: dict[str, Any]) -> Config:
     """Parse config dict into Config object."""
     handlers = data.get("handlers", {})
@@ -414,8 +431,10 @@ def _parse_config(data: dict[str, Any]) -> Config:
         vaults=_vaults(brief_data.get("vaults")),
     )
 
+    inbox_data = data.get("inbox", {})
     inbox = InboxConfig(
-        auto_read=auto_read.compile_patterns(data.get("inbox", {}).get("auto_read"))
+        auto_read=auto_read.compile_patterns(inbox_data.get("auto_read")),
+        day_starts=_day_starts(inbox_data.get("day_starts")),
     )
 
     openclaw_data = data.get("openclaw", {})
