@@ -145,18 +145,14 @@ def save_current_size(position: str) -> None:
         follow.resize_placeholders(position, size)
 
 
-def size_has_drifted(position: str) -> bool:
-    """Whether the pane's current size differs from the saved one."""
-    pane_id = _get_pane_id()
-    if not pane_id:
-        return False
-
+def size_has_drifted(position: str, current: int) -> bool:
+    """Whether *current*, the pane's size along the axis *position* splits, differs from the saved one."""
     saved = saved_size(position)
     if not saved:
         return False
 
     try:
-        return int(_current_size(pane_id, position)) != int(saved)
+        return current != int(saved)
     except ValueError:
         return False
 

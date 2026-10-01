@@ -55,35 +55,25 @@ def test_saving_a_left_pane_leaves_the_height_alone(monkeypatch, tmp_path):
 
 def test_drift_compares_against_the_position_in_use(monkeypatch, tmp_path):
     monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
-    monkeypatch.setattr(scratch, "_get_pane_id", lambda: "%1")
     scratch._height_path().write_text("10")
     scratch._width_path().write_text("45")
 
-    # tmux reports 45 for whichever dimension is asked about.
-    _pane_size(monkeypatch, "45")
-
-    assert scratch.size_has_drifted("top")
-    assert not scratch.size_has_drifted("left")
+    assert scratch.size_has_drifted("top", 45)
+    assert not scratch.size_has_drifted("left", 45)
 
 
 def test_no_saved_size_is_not_drift(monkeypatch, tmp_path):
     monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
-    monkeypatch.setattr(scratch, "_get_pane_id", lambda: "%1")
 
-    _pane_size(monkeypatch, "45")
-
-    assert not scratch.size_has_drifted("left")
+    assert not scratch.size_has_drifted("left", 45)
 
 
 def test_a_stale_percentage_is_not_drift(monkeypatch, tmp_path):
     """Left over from when sizes could be percentages; it must not crash."""
     monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
-    monkeypatch.setattr(scratch, "_get_pane_id", lambda: "%1")
     scratch._height_path().write_text("20%")
 
-    _pane_size(monkeypatch, "10")
-
-    assert not scratch.size_has_drifted("top")
+    assert not scratch.size_has_drifted("top", 10)
 
 
 def _window_size(monkeypatch, value: str) -> None:

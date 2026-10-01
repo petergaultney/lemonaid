@@ -20,7 +20,9 @@ from collections import abc
 from pathlib import Path
 
 from ..inbox import db
-from . import session
+from . import pending_gate, session
+
+_PENDING_DAYS = 15
 
 
 @dataclasses.dataclass(frozen=True)
@@ -139,14 +141,21 @@ def claim_pending(conn: sqlite3.Connection) -> None:
 
     Runs before every lookup rather than from the hooks that record sessions, so
     which lemon gets a brief never depends on when someone happened to look.
-    A brief attached by channel since it started waiting stops waiting.
+    A brief attached by channel since it started waiting stops waiting, and so
+    does one that has waited `_PENDING_DAYS`.
     """
     conn.execute(
-        "DELETE FROM pending_briefs WHERE EXISTS (SELECT 1 FROM session_briefs s "
-        "WHERE s.path = pending_briefs.path AND s.attached_at > pending_briefs.requested_at)"
+        "DELETE FROM pending_briefs WHERE requested_at < ? OR EXISTS (SELECT 1 FROM "
+        "session_briefs s WHERE s.path = pending_briefs.path "
+        "AND s.attached_at > pending_briefs.requested_at)",
+        (time.time() - _PENDING_DAYS * 86400,),
     )
     conn.commit()
-    for row in conn.execute("SELECT * FROM pending_briefs").fetchall():
+    pending = conn.execute("SELECT * FROM pending_briefs").fetchall()
+    if not pending or not pending_gate.due(conn, time.time()):
+        return
+
+    for row in pending:
         channel = _first_lemon_after(conn, *_where_now(row), json.loads(row["live_before"]))
         if not channel:
             continue

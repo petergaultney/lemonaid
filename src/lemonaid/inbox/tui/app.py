@@ -1511,8 +1511,12 @@ class LemonaidApp(App):
             status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
 
         position = current_position(self.config.tmux_session.scratch_position)
-        if self._scratch_mode and is_follow_enabled() and size_has_drifted(position):
-            dimension = "width" if position == "left" else "height"
+        dimension = "width" if position == "left" else "height"
+        if (
+            self._scratch_mode
+            and is_follow_enabled()
+            and size_has_drifted(position, getattr(self.size, dimension))
+        ):
             status_text += (
                 f"  |  [bold cyan]{self.config.tui.keybindings.save_size}[/] save pane {dimension}"
             )
