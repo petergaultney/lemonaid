@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read
+from . import auto_read, keys
 
 
 def get_config_path() -> Path:
@@ -125,6 +125,11 @@ class KeybindingsConfig:
     save_size: str = "H"  # Save the scratch pane size (follow mode only)
     flip_position: str = "f"  # Move the scratch pane between top and left
     fold: str = "w"  # Show or hide the sessions folded at the bottom of the list
+    # In a brief view, the questions under what a lemon needs from you.
+    question_previous: str = "["
+    question_next: str = "]"
+    answer: str = "a"  # Type an answer, sent to the lemon with `lemonaid tell`
+    more_detail: str = "d"  # Ask the lemon to rewrite the selected question
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.
     jump_by_number: bool = True
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
@@ -385,6 +390,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
             for field in defaults.__dataclass_fields__
         }
     )
+    for warning in keys.conflicts(keybindings):
+        print(f"Warning: [tui.keybindings] {warning}", file=sys.stderr)
     tui = TuiConfig(
         transparent=tui_data.get("transparent", False),
         refresh_interval=tui_data.get("refresh_interval", 0.33),

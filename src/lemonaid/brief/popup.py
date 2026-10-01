@@ -1,100 +1,17 @@
-"""Showing a brief to a person: in a pager, and in a tmux popup around one."""
+"""Showing a brief to a person in a tmux popup around the brief view."""
 
 import subprocess
 import sys
 from collections import abc
-from pathlib import Path
 
-import rich.console
-import rich.markdown
-import rich.rule
-import rich.text
-import rich.theme
-
-from ..inbox.tui import brief_card, utils
-from . import dismiss, links, render, target
+from . import dismiss, target
 
 _MAX_POPUP_WIDTH = 140
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
-_LESSKEY_CONTENT = r"#command;\e quit"
-# A lemon's Needs block in the colour the inbox uses for what wants you, and
-# links in their own colour.
-_THEME = rich.theme.Theme(
-    {
-        "markdown.block_quote": utils.ATTENTION_COLOR,
-        "markdown.link": f"underline {utils.LINK_COLOR}",
-    }
-)
-
-
-def _less_command(quit_keys: abc.Iterable[str] = ()) -> list[str]:
-    """A pager that closes on q, Escape, and each lesskey sequence in `quit_keys`.
-
-    `--tilde` leaves the lines past the end of a short brief blank.
-    """
-    lesskey = ";".join([_LESSKEY_CONTENT, *(f"{seq} quit" for seq in quit_keys)])
-    return ["less", "-R", "--tilde", f"--lesskey-content={lesskey}"]
-
-
-def _renderables(
-    shown: render.View, now: float, width: int, vaults: abc.Collection[Path]
-) -> list[rich.console.RenderableType]:
-    """The view as the inbox would draw it: a session bar, then a card and its brief per lemon."""
-    if not shown.sections:
-        return [rich.markdown.Markdown(links.linkify(render.to_markdown(shown, now), vaults))]
-
-    gap = rich.text.Text("")
-    rule = rich.rule.Rule(style="bright_black")
-    top = (
-        [brief_card.session_bar(shown.header, width), gap]
-        if shown.header.startswith("# ")
-        else [rich.markdown.Markdown(shown.header), gap]
-        if shown.header
-        else []
-    )
-    sections = [
-        part
-        for i, section in enumerate(shown.sections)
-        for part in (
-            *([gap, rule, gap] if i else []),
-            brief_card.header(section, shown.in_session, now, width),
-            *(
-                [rich.markdown.Markdown(f"**Parent:** `{section.parent}`")]
-                if section.parent
-                else []
-            ),
-            *(
-                [rich.markdown.Markdown(links.linkify(section.body, vaults))]
-                if section.body
-                else []
-            ),
-            *([gap, brief_card.children(section)] if section.children else []),
-            *(
-                [gap, rich.markdown.Markdown(links.linkify(section.tail, vaults))]
-                if section.tail
-                else []
-            ),
-        )
-    ]
-    return [*top, *sections, gap, rule, brief_card.files(shown)]
-
-
-def page(
-    shown: render.View,
-    now: float,
-    vaults: abc.Collection[Path],
-    quit_keys: abc.Iterable[str] = (),
-) -> None:
-    """Show a view rendered by Rich in an ANSI-aware pager."""
-    console = rich.console.Console(force_terminal=True, theme=_THEME)
-    with console.capture() as capture:
-        for renderable in _renderables(shown, now, console.width, vaults):
-            console.print(renderable)
-    subprocess.run(_less_command(quit_keys), input=capture.get(), text=True)
 
 
 def popup_command(found: target.Target, quit_keys: abc.Iterable[str] = ()) -> list[str]:
-    """The command a popup runs: this same lemonaid, paging one directory's brief.
+    """The command a popup runs: this same lemonaid, showing one directory's brief.
 
     Everything it needs is in its arguments, since a popup inherits the tmux
     server's environment rather than the caller's.

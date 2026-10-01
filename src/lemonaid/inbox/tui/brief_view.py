@@ -12,19 +12,22 @@ from pathlib import Path
 
 from markdown_it.token import Token
 from rich.text import Text
+from textual.binding import Binding, BindingsMap
 from textual.containers import VerticalScroll
 from textual.content import Content, Span
 from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock  # no public name
 
-from ...brief import family, links, pr, render, target
+from ...brief import family, links, pr, questions, render, target
+from ...config import KeybindingsConfig
 from ...log import get_logger
-from . import brief_card, utils
+from . import brief_card, brief_questions, utils
 
 _log = get_logger("tui.brief_view")
 _OPENER = ["open"] if sys.platform == "darwin" else ["xdg-open"]
 
+_DEFAULT_KEYS = KeybindingsConfig()
 _CLICK_LINK = re.compile(r"link\((?P<href>'[^']*'|\"[^\"]*\")\)")
 
 
@@ -162,21 +165,49 @@ class BriefView(VerticalScroll):
     BriefView .brief-files {{
         color: $text-muted;
     }}
+    BriefView .brief-question-keys {{
+        dock: bottom;
+        height: 1;
+        color: $text-muted;
+        background: $panel;
+    }}
     """
 
     def __init__(
         self,
         pr_state: pr.Lookup = pr.no_state,
         vaults: abc.Collection[Path] = (),
+        keys: KeybindingsConfig = _DEFAULT_KEYS,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
         self._vaults = vaults
+        self._keys = keys
+        self._sections: tuple[render.Section, ...] = ()
+        self._selected: brief_questions.Choice | None = None
+        self._needs: dict[Path, _Markdown] = {}
+        # Built as a map, not bound one by one, so a character such as `(` becomes its key name.
+        self._bindings = BindingsMap.merge(
+            [
+                self._bindings,
+                BindingsMap(
+                    Binding(key, action, description, show=False)
+                    for key, action, description in (
+                        (keys.question_previous, "question(-1)", "Previous question"),
+                        (keys.question_next, "question(1)", "Next question"),
+                        (keys.answer, "answer", "Answer"),
+                        (keys.more_detail, "more_detail", "More detail"),
+                    )
+                    if key
+                ),
+            ]
+        )
 
     def show(self, found: target.Target, unread: bool = False) -> None:
         self._rendered_markdown = None
+        self._selected = None
         self.update_brief(found, unread)
         self.scroll_home(animate=False)
 
@@ -200,6 +231,7 @@ class BriefView(VerticalScroll):
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
                 *([_Markdown(f"**Parent:** `{section.parent}`")] if section.parent else []),
+                *([self._needs_widget(section)] if section.needs_text else []),
                 *([_Markdown(links.linkify(section.body, self._vaults))] if section.body else []),
                 *(
                     [Static(brief_card.children(section), classes="brief-children")]
@@ -214,13 +246,75 @@ class BriefView(VerticalScroll):
             *sections,
             Rule(),
             Static(brief_card.files(shown), classes="brief-files"),
+            *(
+                [Static(brief_questions.hint(self._keys), classes="brief-question-keys")]
+                if self._selected
+                else []
+            ),
         ]
+
+    def _needs_markdown(self, section: render.Section) -> str:
+        selected = self._selected[1] if self._selected and self._selected[0] == section.path else ""
+        return links.linkify(render.needs(section, True, selected), self._vaults)
+
+    def _needs_widget(self, section: render.Section) -> _Markdown:
+        widget = _Markdown(self._needs_markdown(section))
+        if section.path:
+            self._needs[section.path] = widget
+        return widget
+
+    def _choices(self) -> list[brief_questions.Choice]:
+        return brief_questions.choices(self._sections)
+
+    def _section(self, path: Path) -> render.Section | None:
+        return next((s for s in self._sections if s.path == path), None)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"question", "answer", "more_detail"}:
+            return self._selected is not None
+
+        return True
+
+    def action_question(self, by: int) -> None:
+        before = self._selected
+        self._selected = brief_questions.step(self._choices(), self._selected, by)
+        for path in {choice[0] for choice in (before, self._selected) if choice}:
+            if (widget := self._needs.get(path)) and (section := self._section(path)):
+                widget.update(self._needs_markdown(section))
+
+    def _lemon_name(self, path: Path) -> str:
+        section = self._section(path)
+        return (section.lemon.name if section and section.lemon else "") or path.stem
+
+    def _send(self, choice: brief_questions.Choice, body: str) -> None:
+        if why := brief_questions.send(choice[0], body):
+            self.notify(why, title="Not sent", severity="error")
+            return
+
+        self.notify(f"Sent to {self._lemon_name(choice[0])}: {choice[1]}")
+
+    def action_answer(self) -> None:
+        choice = self._selected
+        if choice is None:
+            return
+
+        def answered(text: str | None) -> None:
+            if text:
+                self._send(choice, questions.answer(choice[1], text))
+
+        self.app.push_screen(
+            brief_questions.AnswerScreen(choice[1], self._lemon_name(choice[0])), answered
+        )
+
+    def action_more_detail(self) -> None:
+        if self._selected:
+            self._send(self._selected, questions.more_detail(self._selected[1]))
 
     def update_brief(self, found: target.Target, unread: bool = False) -> None:
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get))
-        rendered = render.to_markdown(shown, now)
+        rendered = render.to_markdown(shown, now, expanded=True)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):
                 card.now = now
@@ -229,5 +323,11 @@ class BriefView(VerticalScroll):
             return
 
         self._rendered_markdown = rendered
+        self._sections = shown.sections
+        available = self._choices()
+        self._selected = (
+            self._selected if self._selected in available else next(iter(available), None)
+        )
+        self._needs = {}
         self.remove_children()
         self.mount_all(self._widgets(shown, now, unread))

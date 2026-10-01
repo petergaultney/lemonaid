@@ -10,7 +10,8 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db, emoji
-from . import attached, family, popup, pr, render, session, sidebar, target, write_cli
+from ..inbox.tui import brief_popup
+from . import attached, dismiss, family, popup, pr, render, session, sidebar, target, write_cli
 
 
 def _file_target(
@@ -91,13 +92,14 @@ def cmd_show(args: argparse.Namespace) -> None:
             popup.open_popup(found)
         return
 
-    now = time.time()
-    config = load_config().brief
-    shown = family.added(render.view(found, now, pr.configured(config.pr_state)))
+    config = load_config()
     if args.page:
-        popup.page(shown, now, config.vaults, args.dismiss)
-    else:
-        print(render.to_markdown(shown, now))
+        brief_popup.run(found, config, dismiss.pairs(args.dismiss))
+        return
+
+    now = time.time()
+    shown = family.added(render.view(found, now, pr.configured(config.brief.pr_state)))
+    print(render.to_markdown(shown, now, args.questions))
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -159,13 +161,22 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--dismiss",
         action="append",
         default=[],
-        help="With --page, also quit on this lesskey key sequence (repeatable)",
+        help="With --page, also close on this prefix and key, as `ctrl+b b` (repeatable)",
+    )
+    show_parser.add_argument(
+        "--questions",
+        action="store_true",
+        help="Show each question's entry from ## Questions under the Needs bullet it explains",
     )
     mode = show_parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--popup", action="store_true", help="Show it in a tmux popup over your client"
     )
-    mode.add_argument("--page", action="store_true", help="Show it in a pager, rendered by Rich")
+    mode.add_argument(
+        "--page",
+        action="store_true",
+        help="Show it in this terminal as the inbox's brief view, with its question keys",
+    )
     show_parser.set_defaults(func=cmd_show)
 
     write_cli.add_parsers(brief_subparsers)

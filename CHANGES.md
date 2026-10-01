@@ -1,3 +1,15 @@
+# 0.49.0 (2026-10-01)
+
+#### Added
+
+- **Answer a lemon's question from its brief.** A brief view shows each `## Questions` entry under the `Needs` bullet it explains, matched on the bullet's label (its text before a colon, or all of it). `[` and `]` select a question, `a` sends a one-line answer to the lemon's inbox and `d` asks it for more detail, both as `lemonaid tell` would. The four keys are `[tui.keybindings]` entries.
+- **`lemonaid brief show --questions`** prints those entries under their bullets; without it, `## Questions` is left out.
+- **The config warns when one key is bound to two actions** in the inbox list or the brief view, the `up_down` keys included.
+
+#### Changed
+
+- **The `b` popup is the sidebar's brief view, not `less`.** It takes the same keys and still closes on `q`, Escape and the tmux key that opened it.
+
 # 0.48.0 (2026-10-01)
 
 #### Added

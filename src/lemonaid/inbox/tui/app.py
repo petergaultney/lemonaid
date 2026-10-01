@@ -937,6 +937,7 @@ class LemonaidApp(App):
             yield BriefView(
                 brief.pr.configured(self.config.brief.pr_state),
                 self.config.brief.vaults,
+                self.config.tui.keybindings,
                 id="brief_view",
             )
         yield Footer()

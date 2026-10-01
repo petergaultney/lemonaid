@@ -160,8 +160,9 @@ Each lemon starts with its inbox card, opened up, then what it needs from you; t
 comes last. A brief without an attached session says so at the top.
 From a window with no lemon, a session holding several shows its name as a bar across the top,
 then one section per lemon (see [keybindings.md](keybindings.md#brief)).
-The popup takes every key while it's open, so tmux can't see that press itself; the pager inside is
-told which prefix + key sequences run `brief show` and quits on them.
+The popup takes every key while it's open, so tmux can't see that press itself; the brief view
+inside is told which prefix + key sequences run `brief show` and closes on them. It takes the
+same question keys as the sidebar (see [keybindings.md](keybindings.md#questions)).
 
 ## Scratch Pane
 

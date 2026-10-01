@@ -85,6 +85,30 @@ otherwise says it has none. The lowest-numbered window's
 lemon shows its whole `## Now`, the others only their `Needs` and one line each of `Running` and `Waiting on`.
 
 
+### Questions
+
+A brief can explain what its lemon needs from you in a `## Questions` section after
+`## Now`: one `###` entry per `Needs` bullet that asks something, named with that bullet's
+label. A bullet's label is its text up to its first colon, or the whole bullet, ignoring
+bold and case, so `- **retry policy:** which one?` is explained by `### retry policy`.
+Both views show each entry under its bullet, and mark the first question selected with `▶`.
+Bullets with no entry, and briefs with no `## Questions`, show as before.
+
+| Key | Action |
+|-----|--------|
+| `[` | Select the previous question |
+| `]` | Select the next question |
+| `a` | Answer it: type one line, Enter sends it, Escape cancels |
+| `d` | Ask the lemon for more detail |
+
+An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
+`Answer to <label>: <text>`, from your `$USER`. More detail sends
+`More detail needed on <label>: rewrite that entry in ## Questions`. Neither needs tmux,
+and a lemon not running yet gets them when it starts. A line along the bottom of the view
+names the keys whenever the brief has questions. The four are set by `question_previous`,
+`question_next`, `answer` and `more_detail`, each one key (see
+[Keys given by name](#keys-given-by-name)).
+
 Press `q` or `Escape` to close the popup. `lemonaid brief
 show <session> --popup` uses the same sidebar-or-popup behavior from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-view)). The popup has a yellow border and uses 90% of the
 client width up to a 140-column maximum.
@@ -169,6 +193,10 @@ tmux_resume = "T"  # spawn tmux session from history
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
+question_previous = "["  # in a brief view, the previous question
+question_next = "]"  # in a brief view, the next question
+answer = "a"  # in a brief view, answer the selected question
+more_detail = "d"  # in a brief view, ask for more detail on it
 jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
 ```
@@ -182,10 +210,15 @@ select = "o"
 
 ### Keys given by name
 
-`brief_key`, `move_pin_up` and `move_pin_down` name one key each, written the way
-Textual writes it - `"tab"`, `"shift+up"`, `"ctrl+k"`, `"K"`. They are the exception
-to the rule below: their value is a single key name, not a set of one-character
-alternatives. Set any of them to `""` to leave it unbound.
+`brief_key`, `move_pin_up`, `move_pin_down`, `question_previous`, `question_next`, `answer`
+and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
+`"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
+`"left_parenthesis"`). They are the exception to the rule below: their value is a single key
+name, not a set of one-character alternatives. Set any of them to `""` to leave it unbound.
+
+Loading the config warns on stderr when one key is bound to two actions in the inbox list
+or in the brief view, the `up_down` keys and arrows included. The question keys act only in
+a brief view, so `a` answers there and archives in the list.
 
 `brief_key` defaults to `Tab`, so that a tmux binding which opens the scratch pane
 can be followed by Tab to reach the brief. Tab is taken before Textual's own

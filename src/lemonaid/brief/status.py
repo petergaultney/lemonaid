@@ -11,6 +11,7 @@ from . import store
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)
+_QUESTIONS_HEADING = re.compile(r"##\s+questions\s*", re.IGNORECASE)
 _SECTION_END = re.compile(r"#{1,2}\s")
 
 
@@ -29,6 +30,7 @@ class Parts:
     raw_status: str
     now: str
     rest: str
+    questions: str = ""  # the body of `## Questions`, kept out of `rest`
 
 
 def notes_dir(start: Path, place: Path | None) -> Path | None:
@@ -88,11 +90,12 @@ def pick(briefs: abc.Sequence[Brief], names: abc.Iterable[str]) -> list[Brief]:
 def split(text: str) -> Parts:
     title, status = "", ""
     now: list[str] = []
+    questions: list[str] = []
     rest: list[str] = []
-    in_now = False
+    within: list[str] | None = None  # `now` or `questions` while inside that section
     for line in text.splitlines():
-        if in_now and _SECTION_END.match(line):
-            in_now = False
+        if within is not None and _SECTION_END.match(line):
+            within = None
 
         if not title and line.startswith("# "):
             title = line[2:].strip()
@@ -101,16 +104,25 @@ def split(text: str) -> Parts:
         elif line.startswith("Parent:"):
             rest.append(line)  # template metadata, whether it sits above Now or below
         elif _NOW_HEADING.fullmatch(line):
-            in_now = True
-        elif in_now:
-            now.append(line)
+            within = now
+        elif _QUESTIONS_HEADING.fullmatch(line):
+            within = questions
+        elif within is not None:
+            within.append(line)
         else:
             rest.append(line)
 
     state = status.split(maxsplit=1)[0] if status else ""
     state = state.lower() if state.lower() in store.STATES else ""
 
-    return Parts(title, state, status, "\n".join(now).strip(), "\n".join(rest).strip())
+    return Parts(
+        title,
+        state,
+        status,
+        "\n".join(now).strip(),
+        "\n".join(rest).strip(),
+        "\n".join(questions).strip(),
+    )
 
 
 def age(seconds: float) -> str:

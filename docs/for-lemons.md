@@ -481,6 +481,7 @@ lemonaid brief show --file <path>    # a brief file, without asking tmux
 lemonaid brief show --dir <path>     # a directory's .z/, without asking tmux
 lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <dir>
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
+lemonaid brief show --questions      # also each ## Questions entry under the Needs bullet it explains
 ```
 
 Output for a recorded session starts with its identity and the brief's `Status:` line, then its `Needs` part as a
@@ -488,6 +489,13 @@ blockquote, then the rest of `## Now` with `Done` last, then the rest of the bri
 directory, branch, brief path and age come last. `--file` resolves an attached session from the inbox, while `--dir` has no session header. The briefs attached to the session's lemons come first; when the session holds several lemons
 and no window picks one, each attached brief names its lemon above its Status and Now. `b` in the TUI
 opens the same popup for the selected session.
+
+A `## Questions` entry is a `###` heading named with the label of the `Needs` bullet it
+explains: the bullet's text up to its first colon, or the whole bullet, ignoring bold and case.
+`brief show` leaves the section out unless given `--questions`. When the person answers from the
+brief view, or asks for more detail, the lemon gets a message in its inbox:
+`Answer to <label>: <text>`, or `More detail needed on <label>: rewrite that entry in
+## Questions`, from the person's `$USER`.
 
 A session with no attached brief falls back to `.z/`, for sessions started before briefs moved out of
 it. It looks in the working directory of each lemon the inbox has in that session, then the session's

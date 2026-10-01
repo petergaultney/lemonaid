@@ -157,7 +157,19 @@ _MODELS = {
 
 # `## Now` for each brief status a session above carries.
 _NOW = {
-    "blocked": "### Needs you\n\n- Pick a rounding rule for hydration above 100%\n",
+    "blocked": (
+        "### Needs you\n\n- Rounding rule: how to round hydration above 100%?\n"
+        "- Starter units: grams or cups?\n\n"
+        "## Questions\n\n"
+        "### Rounding rule\n\n"
+        "- **Context:** a 1000 g flour, 1050 g water dough shows 105.0%, and the scale only reads whole grams.\n"
+        "- **Options:** round to the nearest 1% (recommended), or keep one decimal.\n"
+        "- **After:** I update `hydration.py` and its tests, then the README table.\n\n"
+        "### Starter units\n\n"
+        "- **Context:** the starter feeding log is in cups, everything else in grams.\n"
+        "- **Options:** convert the log to grams (recommended), or show both.\n"
+        "- **After:** I add a one-time migration of the old entries.\n"
+    ),
     "waiting": "### Waiting on\n\n- Review of the dedupe PR\n",
     "done": "### Done\n\n- Recipe import merged\n",
 }

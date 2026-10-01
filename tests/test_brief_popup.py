@@ -10,17 +10,6 @@ from lemonaid.brief import attached, cli, display, popup, render, target
 from lemonaid.inbox import db
 
 
-def test_the_fallback_pager_quits_on_escape_as_well_as_q():
-    command = popup._less_command()
-
-    assert command[:2] == ["less", "-R"]
-    assert r"\e quit" in command[-1]
-
-
-def test_the_fallback_pager_leaves_the_space_past_the_end_blank():
-    assert "--tilde" in popup._less_command()
-
-
 def test_the_popup_command_carries_everything_it_needs(tmp_path):
     found = target.Target(
         [tmp_path / "brief.md"],
@@ -177,7 +166,3 @@ def test_the_popup_keeps_ninety_percent_on_a_narrower_client():
 
 def test_the_popup_still_has_a_bounded_width_when_tmux_cannot_answer():
     assert popup._popup_width(None) == "140"
-
-
-def test_the_pager_also_quits_on_the_keys_it_is_given():
-    assert popup._less_command(["`b"])[-1].endswith(r";`b quit")

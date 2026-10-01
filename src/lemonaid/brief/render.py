@@ -9,10 +9,11 @@ view as plain Markdown for lemons and scripts.
 
 import dataclasses
 import re
+import textwrap
 from collections import abc
 from pathlib import Path
 
-from . import display, now, pr, status, target
+from . import display, now, pr, questions, status, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -74,8 +75,11 @@ class Section:
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
     path: Path | None  # None for a lemon with no brief
     mtime: float
-    body: str  # Markdown: Needs, the title under a lemon, then Now up to Done
+    body: str  # Markdown: the title under a lemon, then Now up to Done, without Needs
     tail: str = ""  # Markdown after the children: Done, then the task
+    needs_label: str = "Needs"
+    needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
+    questions: tuple[questions.Item, ...] = ()  # Needs as items, when an entry explains one
     # The rest are filled in by `family.added`.
     parent: str = ""  # its parent's Lemon-ID
     children: tuple[tuple[str, str], ...] = ()  # (brief status, name)
@@ -106,7 +110,6 @@ def _section(
     body = "\n\n".join(
         part
         for part in (
-            _needs(parsed.needs_label, parsed.needs) if parsed.needs else "",
             f"**{title}**" if lemon else "",
             *_labelled(parsed, detail == "compact"),
         )
@@ -132,6 +135,33 @@ def _section(
         brief.mtime,
         body,
         tail,
+        parsed.needs_label,
+        parsed.needs,
+        questions.items(parsed.needs, questions.entries(parts.questions)),
+    )
+
+
+def _item(item: questions.Item, selected: bool) -> str:
+    lead = f"- {'▶ ' if selected else ''}{item.text}"
+    return f"{lead}\n\n{textwrap.indent(item.entry, '  ')}\n" if item.entry else lead
+
+
+def needs(section: Section, expanded: bool, selected: str = "") -> str:
+    """Markdown for what a section's lemon needs, expanded with each question's entry.
+
+    *selected* is the label of the question to mark, or "" for none.
+    """
+    if not section.needs_text:
+        return ""
+
+    if not (expanded and section.questions):
+        return _needs(section.needs_label, section.needs_text)
+
+    return _needs(
+        section.needs_label,
+        "\n".join(
+            _item(item, bool(selected) and item.label == selected) for item in section.questions
+        ).strip(),
     )
 
 
@@ -254,7 +284,7 @@ def _children(section: Section) -> str:
     return f"**Children:**\n\n{lines}"
 
 
-def _markdown_section(section: Section, in_session: bool) -> str:
+def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str:
     prs = ", ".join(" ".join(part for part in pair if part) for pair in section.prs)
     return "\n\n".join(
         part
@@ -269,6 +299,7 @@ def _markdown_section(section: Section, in_session: bool) -> str:
                 )
                 if line
             ),
+            needs(section, expanded),
             section.body,
             _children(section),
             section.tail,
@@ -277,7 +308,7 @@ def _markdown_section(section: Section, in_session: bool) -> str:
     )
 
 
-def to_markdown(shown: View, now_seconds: float) -> str:
+def to_markdown(shown: View, now_seconds: float, expanded: bool = False) -> str:
     places = dict.fromkeys(where(s.lemon) for s in shown.sections if s.lemon)
     footer = "  \n".join(
         f"*{line}*"
@@ -287,7 +318,7 @@ def to_markdown(shown: View, now_seconds: float) -> str:
         ]
     )
     body = shown.fallback or "\n\n---\n\n".join(
-        [*(_markdown_section(s, shown.in_session) for s in shown.sections), footer]
+        [*(_markdown_section(s, shown.in_session, expanded) for s in shown.sections), footer]
     )
     return "\n\n".join(
         part
@@ -296,5 +327,7 @@ def to_markdown(shown: View, now_seconds: float) -> str:
     )
 
 
-def markdown(found: target.Target, now_seconds: float, pr_state: pr.Lookup) -> str:
-    return to_markdown(view(found, now_seconds, pr_state), now_seconds)
+def markdown(
+    found: target.Target, now_seconds: float, pr_state: pr.Lookup, expanded: bool = False
+) -> str:
+    return to_markdown(view(found, now_seconds, pr_state), now_seconds, expanded)
