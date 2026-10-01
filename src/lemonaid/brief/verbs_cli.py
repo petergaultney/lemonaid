@@ -1,4 +1,4 @@
-"""`brief now`, `status`, `bullet`, `pr`, `check`: the edits a worker makes to its own brief.
+"""`brief now`, `status`, `bullet`, `pr`: the edits a worker makes to its own brief.
 
 The edits go through lemonaid rather than the file so a sandboxed lemon (Codex
 writes only inside its workspace) can keep its own brief current. Each one is
@@ -7,14 +7,13 @@ the brief failed before it, and the error lists the problems.
 """
 
 import argparse
-import json
 import sys
 from collections import abc
 from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
-from . import check, command, layout, links, now_edit, pr, pr_table, selector, store
+from . import check, command, layout, links, now_edit, pr, pr_table, store
 
 
 def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
@@ -110,24 +109,6 @@ def _cmd_pr(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_check(args: argparse.Namespace) -> None:
-    path, error = (store.resolve(args.file), "") if args.file else command.own_brief(args)
-    if path is None or not path.is_file():
-        command.finish(args, {"path": None, "problems": []}, error or f"No brief at {path}")
-        return
-
-    with db.connect() as conn:
-        problems = check.problems(conn, path, path.read_text())
-    if args.json:
-        print(json.dumps({"path": str(path), "problems": problems, "error": None}))
-    elif problems:
-        print("\n".join(f"{path.name}: {problem}" for problem in problems), file=sys.stderr)
-    else:
-        print(f"{path.name}: ok")
-    if problems:
-        sys.exit(1)
-
-
 def _verbs(
     parent: argparse.ArgumentParser, dest: str
 ) -> abc.Callable[[str, str], argparse.ArgumentParser]:
@@ -173,16 +154,3 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     remove = verb("rm", "Remove the row for a PR")
     remove.add_argument("ref", help="The PR's URL, or its number when only one row has it")
     prs.set_defaults(func=_cmd_pr)
-
-    summary = "Report what is wrong with a brief's layout or Lemon-ID; exit 1 if anything is"
-    parser = brief_subparsers.add_parser(
-        "check",
-        help=summary,
-        description=f"{summary}. Run it after editing a brief by hand.",
-    )
-    selector.add_arguments(parser, required=False)
-    parser.add_argument(
-        "file", nargs="?", default="", help="A brief file instead of a lemon's attached one"
-    )
-    parser.add_argument("--json", action="store_true", help="Print the result as JSON")
-    parser.set_defaults(func=_cmd_check)

@@ -392,6 +392,7 @@ lemonaid brief bullet rm --self "PR #12"                     # remove it; an emp
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
+lemonaid brief check --all                     # every brief of a session that isn't archived
 lemonaid brief now --self "### Next ..."       # replace all of ## Now (- reads it from stdin)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
@@ -479,14 +480,16 @@ bullet become short links, as in the brief view. `pr add` takes the PR's URL, or
 link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
 `[brief] vaults` root, which becomes an `obsidian://` link.
 
-`brief check` (`--self`, another target, or a file) reports what is wrong with a brief:
+`brief check` (`--self`, another target, a file, or `--all` for every brief attached to a session
+that isn't archived or waiting for one) reports what is wrong with a brief:
 - more or fewer than one `# ` title, or a `## ` section that appears twice;
 - a missing, repeated, or unknown `Status:` word;
 - a malformed `Lemon-ID` line, or one that differs from the ID the database records for the file;
 - `## Now` sub-headings out of order, repeated, empty, or without a blank line above and below;
 - a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
   or that has no rows;
-- a `## Waiters` section that is not last.
+- a `## Waiters` section that is not last;
+- with `--all`, an attached brief whose file is gone.
 
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
 `status`, `bullet`, `pr`) runs it on the result and refuses the edit if it finds anything, listing

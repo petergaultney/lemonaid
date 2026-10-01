@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -217,3 +218,29 @@ def test_a_review_doc_in_a_vault_becomes_an_obsidian_link(capsys, monkeypatch, t
 
     assert "[review doc](obsidian://open?vault=trove&file=reviews%2Fr-7)" in path.read_text()
     assert "pr_url" in refused["error"]
+
+
+def test_check_all_lists_every_live_brief_and_fails_if_one_does(capsys):
+    _attached()
+    gone = store.briefs_dir() / "gone.md"
+    gone.write_text(_BRIEF.replace("QuickOdd", "GoneAway"))
+    with db.connect() as conn:
+        db.add(conn, "claude:g", "", metadata={"tmux_session": "g", "tmux_window": "2"})
+        attached.attach(conn, "claude:g", gone)
+    gone.unlink()
+    other = store.briefs_dir() / "other.md"
+    other.write_text("# other\n\nStatus: busy\n")
+    with db.connect() as conn:
+        db.add(conn, "claude:o", "", metadata={"tmux_session": "o", "tmux_window": "2"})
+        attached.attach(conn, "claude:o", other)
+
+    parser = argparse.ArgumentParser()
+    write_cli.add_parsers(parser.add_subparsers())
+    args = parser.parse_args(["check", "--all", "--json"])
+    with pytest.raises(SystemExit):
+        args.func(args)
+
+    results = {Path(r["path"]).name: r["problems"] for r in json.loads(capsys.readouterr().out)}
+    assert results["task.md"] == []
+    assert "Status 'busy'" in results["other.md"][0]
+    assert results["gone.md"] == ["The attached brief does not exist"]

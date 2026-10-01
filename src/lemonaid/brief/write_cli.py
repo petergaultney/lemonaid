@@ -9,7 +9,17 @@ from pathlib import Path
 
 from .. import home
 from ..inbox import db
-from . import attached, child_cli, command, identity, query_cli, selector, store, verbs_cli
+from . import (
+    attached,
+    check_cli,
+    child_cli,
+    command,
+    identity,
+    query_cli,
+    selector,
+    store,
+    verbs_cli,
+)
 
 
 def _attach(
@@ -153,6 +163,7 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     new.set_defaults(func=_cmd_new)
 
     verbs_cli.add_parsers(brief_subparsers)
+    check_cli.add_parsers(brief_subparsers)
 
     detach = command.parser(brief_subparsers, "detach", "Detach a lemon's brief; the file stays")
     detach.set_defaults(func=_cmd_detach)
