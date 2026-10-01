@@ -285,7 +285,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--from",
         dest="template",
         default="default",
-        help="Template name from config (default: 'default')",
+        help="Template name from config, e.g. claude or codex (default: 'default')",
     )
     new_parser.add_argument(
         "--dir",

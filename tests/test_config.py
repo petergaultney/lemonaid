@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from lemonaid.config import KeybindingsConfig, _parse_config
 from lemonaid.inbox.tui.app import _build_bindings
 
@@ -170,3 +172,30 @@ def test_brief_vaults_that_are_not_directories_are_reported_and_skipped(capsys):
 def test_brief_vaults_that_is_not_a_list_is_reported(capsys):
     assert _parse_config({"brief": {"vaults": {"~/a": "a"}}}).brief.vaults == ()
     assert "[brief] vaults must be a list of directories, not dict" in capsys.readouterr().err
+
+
+def test_default_template_can_name_another_template():
+    claude = ["emacsclient -nw .", "claude", ""]
+    config = _parse_config({"tmux-session": {"templates": {"claude": claude, "default": "claude"}}})
+
+    assert config.tmux_session.get_template("default") == claude
+    assert config.tmux_session.get_template("claude") == claude
+
+
+def test_default_template_list_still_works():
+    default = ["emacsclient -nw .", "claude", ""]
+    config = _parse_config({"tmux-session": {"templates": {"default": default}}})
+
+    assert config.tmux_session.get_template("default") == default
+
+
+@pytest.mark.parametrize(
+    ("alias", "reason"), [("codex", "names no template"), ("default", "names itself")]
+)
+def test_default_template_naming_nothing_is_rejected(capsys, alias, reason):
+    config = _parse_config(
+        {"tmux-session": {"templates": {"claude": ["claude"], "default": alias}}}
+    )
+
+    assert config.tmux_session.get_template("default") is None
+    assert reason in capsys.readouterr().err

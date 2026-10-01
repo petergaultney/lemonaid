@@ -69,8 +69,9 @@ it's missing, switches to its session only if there isn't one, and neither case 
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
 
-Choose a configured lemon with `--harness NAME`. The name selects the matching
-entry under `[tmux-session.templates]`; without it, `default` is used. An
+Choose a configured lemon with `--harness NAME`, such as `claude` or `codex`. The
+name selects the matching entry under `[tmux-session.templates]`; without it,
+`default` is used. An
 initial prompt can be passed directly to that template's harness command:
 
 ```bash

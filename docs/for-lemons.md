@@ -238,8 +238,9 @@ way to acquire a directory. Use it when a session is wanted but the terminal sho
 An unattached session nobody asked for is worse than no session: it clutters the session
 list and competes for the directory when something later tries to resolve who works there.
 
-`--harness NAME` selects `[tmux-session.templates].NAME`; omitting it selects
-`default`. Commands are config-owned — Lemonaid does not hardcode how Claude,
+`--harness NAME` selects `[tmux-session.templates].NAME`, named for the harness
+it starts (`--harness claude`, `--harness codex`); omitting it selects the
+template `default` names. Commands are config-owned — Lemonaid does not hardcode how Claude,
 Codex, or another harness starts. `--prompt TEXT` reaches the command in
 `harness_window` (falling back to `resume_window` when that setting is absent) as
 one positional argument, through the window's environment, so any text is safe

@@ -337,7 +337,7 @@ Add templates to `~/.config/lemonaid/config.toml`:
 
 ```toml
 [tmux-session.templates]
-default = [
+claude = [
     "emacsclient -nw .",
     "claude",
     "",
@@ -347,10 +347,12 @@ codex = [
     "codex",
     "",
 ]
+default = "claude"
 ```
 
 Each entry in the list creates a window. Empty string means just a shell.
-Named templates can also be selected as harnesses by `place open --harness`.
+`default`, used when no template is named, can be a list of its own or the name of another
+template. Templates are also selected as harnesses by `place open --harness`.
 
 ### Usage
 

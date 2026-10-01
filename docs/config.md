@@ -51,11 +51,16 @@ See [wezterm.md](wezterm.md).
 
 See [tmux.md](tmux.md).
 
-Template names also act as harness names for `place open` and `lemon start`. For example,
-`place open feat/thing --harness codex` selects the `codex` list below, while
-an open without `--harness` continues to select `default`. `lemon start SESSION:WINDOW
---harness codex` runs that list's `harness_window` command in another window of an existing
-session. A Codex line needs `--no-daemon` for `--brief` to work with either command: a Codex
+Name each template after the harness its `harness_window` starts, such as `claude` and
+`codex`. `place open` and `lemon start` take that name as `--harness`: `place open feat/thing
+--harness codex` selects the `codex` list below, and `lemon start SESSION:WINDOW --harness codex`
+runs that list's `harness_window` command in another window of an existing session.
+
+`default` is the template used when `--harness` is left out. Set it to another template's
+name, as below, or give it a window list of its own. A `default` that names a missing template,
+or itself, is reported when the config loads, and a launch without `--harness` then fails.
+
+A Codex line needs `--no-daemon` for `--brief` to work with either command: a Codex
 on the shared app-server can't be matched to its window.
 
 ```toml
@@ -64,12 +69,13 @@ resume_window = 1
 # harness_window = 1  # implied by resume_window when omitted
 
 [tmux-session.templates]
-default = [
+claude = [
     "emacsclient -nw .",
     "lemonaid claude patch && claude --remote-control --thinking-display summarized",
     "",
 ]
-codex = ["emacsclient -nw .", "codex", ""]
+codex = ["emacsclient -nw .", "codex --no-daemon", ""]
+default = "claude"
 ```
 
 ## `[tmux-window]`

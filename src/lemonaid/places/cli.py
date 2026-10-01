@@ -248,7 +248,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--harness",
         default="default",
         metavar="NAME",
-        help="Use [tmux-session.templates].NAME (default: default)",
+        help="The harness to start, e.g. claude or codex: [tmux-session.templates].NAME"
+        " (without it, the template named default)",
     )
     open_parser.add_argument(
         "--prompt",

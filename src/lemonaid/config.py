@@ -29,6 +29,13 @@ def get_default_config() -> str:
 # Switch-handlers are auto-selected based on the notification's switch-source.
 # No configuration needed for tmux/wezterm - they just work.
 
+# Session templates are named after the harness their lemon window starts.
+# `--harness NAME` picks one; without it, `default` is used.
+# [tmux-session.templates]
+# claude = ["emacsclient -nw .", "claude", ""]
+# codex = ["emacsclient -nw .", "codex --no-daemon", ""]
+# default = "claude"
+
 [tmux-window]
 # Apps hidden behind an interpreter whose names should replace the directory.
 named_processes = []
@@ -310,6 +317,29 @@ def _vaults(raw: object) -> tuple[Path, ...]:
     return tuple(Path(root).expanduser() for root in raw if isinstance(root, str) and root)
 
 
+def _templates(raw: dict[str, Any]) -> dict[str, list[str]]:
+    """`[tmux-session.templates]`, with a string `default` resolved to the template it names.
+
+    A `default` naming a missing template, or itself, is reported and dropped, so
+    that a launch without `--harness` fails rather than starting the wrong lemon.
+    """
+    templates = {name: windows for name, windows in raw.items() if isinstance(windows, list)}
+    alias = raw.get("default")
+    if not isinstance(alias, str):
+        return templates
+
+    if alias == "default" or alias not in templates:
+        reason = "names itself" if alias == "default" else "names no template"
+        print(
+            f"Error: [tmux-session.templates] default = {alias!r} {reason};"
+            f" templates are: {', '.join(templates) or '(none)'}",
+            file=sys.stderr,
+        )
+        return templates
+
+    return {**templates, "default": templates[alias]}
+
+
 def _parse_config(data: dict[str, Any]) -> Config:
     """Parse config dict into Config object."""
     handlers = data.get("handlers", {})
@@ -322,7 +352,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tmux_session_data = data.get("tmux-session", {})
     tmux_session_defaults = TmuxSessionConfig()
     tmux_session = TmuxSessionConfig(
-        templates=tmux_session_data.get("templates", {}),
+        templates=_templates(tmux_session_data.get("templates", {})),
         resume_window=tmux_session_data.get("resume_window", 0),
         harness_window=tmux_session_data.get("harness_window"),
         scratch_position=tmux_session_data.get(

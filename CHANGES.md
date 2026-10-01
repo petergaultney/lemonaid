@@ -1,3 +1,9 @@
+# 0.47.0 (2026-10-01)
+
+#### Added
+
+- **`[tmux-session.templates]` names templates after their harness, and `default` can name one: `default = "claude"`.** `--harness claude` and `--harness codex` then pick a lemon by name, and a list-valued `default` still works. A `default` naming a missing template, or itself, is reported when the config loads.
+
 # 0.46.0 (2026-09-30)
 
 #### Added

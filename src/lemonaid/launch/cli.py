@@ -90,7 +90,8 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         "--harness",
         default="default",
         metavar="NAME",
-        help="Use [tmux-session.templates].NAME (default: default)",
+        help="The harness to start, e.g. claude or codex: [tmux-session.templates].NAME"
+        " (without it, the template named default)",
     )
     start.add_argument("--prompt", default="", help="The lemon's first prompt")
     start.add_argument(
