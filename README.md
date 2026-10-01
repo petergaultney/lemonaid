@@ -204,6 +204,10 @@ The inbox and the scratch sidebar list sessions in the same order:
 8. Every other unread session.
 9. Every other read session: `working`, `waiting`, or no brief.
 
+With [`[tui] mid_turn_working`](docs/config.md#tui) on, a read session that is
+mid-turn sorts as `working` until the turn ends, whatever its brief says, unless
+it says `running`.
+
 With [`[tui] fold_statuses`](docs/config.md#folding-sessions-by-brief-status) set,
 read sessions of those statuses fold into one line at the bottom, which `w` opens.
 

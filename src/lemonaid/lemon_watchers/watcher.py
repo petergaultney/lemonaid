@@ -69,6 +69,8 @@ class WatcherBackend(Protocol):
     # Optional: backends can define read_lines(session_path: Path) -> list[str]
     # to override the default local file reader (e.g., for SSH).
     # Resolved via getattr() in the watch loop, falling back to read_jsonl_tail.
+    # Optional: turn_open(recent: list[dict]) -> bool | None, from entries newest
+    # first, says whether a turn is in progress; a backend without it is never mid-turn.
 
 
 def read_jsonl_tail(path: Path, max_bytes: int = 64 * 1024) -> list[str]:
@@ -221,6 +223,13 @@ def check_needs_attention(
             continue
 
     return None
+
+
+def _newest_timestamp(recent: list[dict]) -> float | None:
+    """The timestamp of the first entry of *recent*, newest first, that has one."""
+    return next(
+        (ts for entry in recent if (ts := parse_timestamp(entry.get("timestamp", "")))), None
+    )
 
 
 def _latest_model(
@@ -456,6 +465,7 @@ def unified_watch_loop(
     sockets: Callable[[], dict[str, str]] | None = None,
     auto_read_patterns: tuple[re.Pattern[str], ...] = (),
     mark_read_after_turn: Callable[[str], int] | None = None,
+    record_turn: Callable[[str, float | None], None] | None = None,
     poll_interval: float = 2.0,
     stop_event: threading.Event | None = None,
 ) -> None:
@@ -475,6 +485,8 @@ def unified_watch_loop(
         auto_read_patterns: A finished turn whose final message matches one of
             these stays read rather than being marked unread
         mark_read_after_turn: Optional callback recording such a turn on a read channel
+        record_turn: Optional callback recording a channel's turn in progress, as the
+            timestamp of its newest entry, or None between turns
         poll_interval: How often to poll (seconds)
     """
     # Build prefix -> backend mapping
@@ -487,6 +499,7 @@ def unified_watch_loop(
     # Track last "needs attention" timestamp per channel to avoid re-marking
     last_attention_ts: dict[str, float] = {}
     last_observed_model: dict[str, ModelInfo] = {}
+    last_recorded_turn: dict[str, float | None] = {}
     initial_model_checked: set[str] = set()
     # Successful transcript lookups are stable. Missing paths are retried: a
     # session hook commonly arrives just before the backend creates its file.
@@ -536,6 +549,7 @@ def unified_watch_loop(
                 for channel in archived_channels:
                     last_observed_ts.pop(channel, None)
                     last_observed_model.pop(channel, None)
+                    last_recorded_turn.pop(channel, None)
                     initial_model_checked.discard(channel)
                     to_remove = [k for k in session_cache if k.startswith(f"{channel}:")]
                     for k in to_remove:
@@ -624,6 +638,14 @@ def unified_watch_loop(
                                 model.model,
                             )
 
+                if record_turn and (turn_open := getattr(backend, "turn_open", None)):
+                    is_open = turn_open(recent)
+                    if is_open is not None:
+                        turn = _newest_timestamp(recent) if is_open else None
+                        if channel not in last_recorded_turn or turn != last_recorded_turn[channel]:
+                            record_turn(channel, turn)
+                            last_recorded_turn[channel] = turn
+
                 # For unread notifications, check if we should mark as read
                 if is_unread:
                     for entry in recent:
@@ -701,6 +723,7 @@ def start_unified_watcher(
     sockets: Callable[[], dict[str, str]] | None = None,
     auto_read_patterns: tuple[re.Pattern[str], ...] = (),
     mark_read_after_turn: Callable[[str], int] | None = None,
+    record_turn: Callable[[str, float | None], None] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -717,6 +740,7 @@ def start_unified_watcher(
         sockets: Optional callback returning channel -> recorded tmux socket
         auto_read_patterns: Final-message patterns that keep a finished turn read
         mark_read_after_turn: Optional callback recording such a turn on a read channel
+        record_turn: Optional callback recording a channel's turn in progress
     """
     global _watcher_stop, _watcher_thread
 
@@ -736,6 +760,7 @@ def start_unified_watcher(
             "sockets": sockets,
             "auto_read_patterns": auto_read_patterns,
             "mark_read_after_turn": mark_read_after_turn,
+            "record_turn": record_turn,
             "stop_event": _watcher_stop,
         },
         daemon=True,

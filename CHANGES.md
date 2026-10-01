@@ -1,3 +1,9 @@
+# 0.53.0 (2026-10-01)
+
+#### Added
+
+- **`[tui] mid_turn_working = true` shows a lemon mid-turn as `working`, whatever its brief's `Status:` says.** It is off by default. Its card, sort position and brief view say `working`, without the `Needs` line or its question, until the turn ends, when the brief's status applies again; `running` is left alone. The watcher reads turn boundaries from each Claude and Codex transcript, and a turn silent for 20 minutes counts as over.
+
 # 0.52.1 (2026-10-01)
 
 #### Fixed

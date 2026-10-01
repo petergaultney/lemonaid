@@ -1,6 +1,7 @@
 """The scratch pane's scrollable brief view, drawn as the lemon's card opened up."""
 
 import ast
+import dataclasses
 import functools
 import re
 import subprocess
@@ -19,9 +20,10 @@ from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import MarkdownBlock  # no public name
 
-from ...brief import family, links, pr, questions, render, target
+from ...brief import attached, family, links, pr, questions, render, target
 from ...config import KeybindingsConfig
 from ...log import get_logger
+from .. import db, turns
 from . import brief_card, brief_questions, utils
 
 _log = get_logger("tui.brief_view")
@@ -35,6 +37,30 @@ def _href(style: Style) -> str:
     """The URL of a Markdown link's `@click` action, or ""."""
     match = _CLICK_LINK.fullmatch(str(style.meta.get("@click", "")))
     return ast.literal_eval(match["href"]) if match else ""
+
+
+def _working(section: render.Section) -> render.Section:
+    """*section* as its lemon shows mid-turn, no longer asking for anything to answer."""
+    state = turns.shown(section.state)
+    return (
+        section
+        if state == section.state
+        else dataclasses.replace(section, state=state, needs_text="", questions=())
+    )
+
+
+def _mid_turn(shown: render.View, now: float) -> render.View:
+    """*shown* with each section whose lemon is mid-turn in the state it shows meanwhile."""
+    with db.connect() as conn:
+        rows = db.get_active(conn)
+        working = turns.briefs(rows, attached.by_channel(conn, (n.channel for n in rows)), now)
+
+    return dataclasses.replace(
+        shown,
+        sections=tuple(
+            _working(section) if section.path in working else section for section in shown.sections
+        ),
+    )
 
 
 class _Card(Static):
@@ -178,9 +204,11 @@ class BriefView(VerticalScroll):
         pr_state: pr.Lookup = pr.no_state,
         vaults: abc.Collection[Path] = (),
         keys: KeybindingsConfig = _DEFAULT_KEYS,
+        mid_turn_working: bool = False,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
+        self._mid_turn_working = mid_turn_working
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
         self._vaults = vaults
@@ -314,6 +342,7 @@ class BriefView(VerticalScroll):
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get))
+        shown = _mid_turn(shown, now) if self._mid_turn_working else shown
         rendered = render.to_markdown(shown, now, expanded=True)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):

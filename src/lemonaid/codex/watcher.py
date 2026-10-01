@@ -16,6 +16,7 @@ a gap in coverage reads as a session that stopped working.
 
 import json
 import re
+from collections import abc
 from pathlib import Path
 
 from ..lemon_watchers.common import ModelInfo
@@ -261,6 +262,32 @@ def should_dismiss(entry: dict) -> bool:
                 return True
 
     return False
+
+
+def turn_open(recent: abc.Iterable[dict]) -> bool | None:
+    """Whether a turn is in progress, from entries newest first; None if they do not say.
+
+    A session between turns ends its rollout with `task_complete` or
+    `turn_aborted`, so activity with no boundary in the tail is a turn long
+    enough to have pushed its `task_started` out of it.
+    """
+    active = False
+    for entry in recent:
+        payload = entry.get("payload")
+        event = (
+            payload.get("type")
+            if entry.get("type") == "event_msg" and isinstance(payload, dict)
+            else None
+        )
+        if event in ("task_complete", "turn_aborted"):
+            return False
+
+        if event == "task_started":
+            return True
+
+        active = active or should_dismiss(entry)
+
+    return True if active else None
 
 
 def needs_attention(entry: dict) -> bool:

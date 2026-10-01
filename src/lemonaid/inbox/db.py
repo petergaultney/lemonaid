@@ -27,6 +27,7 @@ class Notification:
     snooze_until: float | None = None
     snooze_prev_status: str | None = None
     snooze_through_turns: bool = False
+    turn_at: float | None = None  # newest transcript entry of a turn in progress
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Self:
@@ -37,6 +38,7 @@ class Notification:
         snooze_until = None
         snooze_prev_status = None
         snooze_through_turns = False
+        turn_at = None
         with suppress(IndexError, KeyError):
             switch_source = row["switch_source"]
         with suppress(IndexError, KeyError):
@@ -47,6 +49,8 @@ class Notification:
             snooze_prev_status = row["snooze_prev_status"]
         with suppress(IndexError, KeyError):
             snooze_through_turns = bool(row["snooze_through_turns"])
+        with suppress(IndexError, KeyError):
+            turn_at = row["turn_at"]
 
         return cls(
             id=row["id"],
@@ -61,6 +65,7 @@ class Notification:
             snooze_until=snooze_until,
             snooze_prev_status=snooze_prev_status,
             snooze_through_turns=snooze_through_turns,
+            turn_at=turn_at,
         )
 
     @property
@@ -721,6 +726,13 @@ def mark_all_read_for_channel(
             """,
             (now, channel),
         )
+    conn.commit()
+    return cursor.rowcount
+
+
+def record_turn(conn: sqlite3.Connection, channel: str, at: float | None) -> int:
+    """Record that *channel* is mid-turn as of *at*, or between turns when None."""
+    cursor = conn.execute("UPDATE notifications SET turn_at = ? WHERE channel = ?", (at, channel))
     conn.commit()
     return cursor.rowcount
 

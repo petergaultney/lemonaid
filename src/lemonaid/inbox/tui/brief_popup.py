@@ -35,6 +35,7 @@ class BriefPopup(App[None]):
             pr.configured(self._config.brief.pr_state),
             self._config.brief.vaults,
             self._config.tui.keybindings,
+            self._config.tui.mid_turn_working,
         )
 
     def on_mount(self) -> None:

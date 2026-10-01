@@ -7,6 +7,7 @@ from rich.style import Style
 
 from ...brief import now as brief_now
 from ...brief import status as brief_status
+from .. import turns
 from .utils import ATTENTION_COLOR
 
 MERGE_COLOR = "#4fb35a"
@@ -74,6 +75,12 @@ class CardBrief:
             return f"updated {age} (stale)"
 
         return f"updated {age}"
+
+
+def mid_turn(card: CardBrief) -> CardBrief:
+    """*card* as its lemon shows mid-turn, no longer naming what it needs."""
+    status = turns.shown(card.status)
+    return card if status == card.status else dataclasses.replace(card, status=status, needs="")
 
 
 def _parse(text: str, mtime: float) -> CardBrief | None:

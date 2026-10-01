@@ -14,6 +14,9 @@ from ..lemon_watchers.common import ModelInfo, short_filename
 # Channel prefix for Claude notifications
 CHANNEL_PREFIX = "claude:"
 
+# Prompts a slash command or a `!` shell line writes without starting a turn.
+_NOT_A_TURN = ("<command-", "<local-command", "<bash-")
+
 
 def get_model(entry: dict) -> ModelInfo | None:
     if entry.get("type") != "assistant":
@@ -153,6 +156,31 @@ def final_message(recent: abc.Iterable[dict]) -> str:
             return ""
 
     return ""
+
+
+def turn_open(recent: abc.Iterable[dict]) -> bool | None:
+    """Whether a turn is in progress, from entries newest first; None if they do not say.
+
+    Claude ends every turn, an interrupted one included, with a `turn_duration`
+    entry, and a wake from a background task begins one with a user entry.
+    """
+    for entry in recent:
+        entry_type = entry.get("type")
+        if entry_type == "system" and entry.get("subtype") in (
+            "turn_duration",
+            "stop_hook_summary",
+        ):
+            return False
+
+        if entry_type == "assistant":
+            return True
+
+        if entry_type == "user" and not entry.get("isMeta") and not entry.get("isCompactSummary"):
+            content = entry.get("message", {}).get("content")
+            if not (isinstance(content, str) and content.lstrip().startswith(_NOT_A_TURN)):
+                return True
+
+    return None
 
 
 def needs_attention(entry: dict) -> bool:

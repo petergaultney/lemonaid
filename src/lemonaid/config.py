@@ -145,6 +145,8 @@ class TuiConfig:
     card_unread_style: str = "dot"  # "dot" or a full-width "bar"
     brief_status: bool = False
     brief_stale_hours: float = 6.0
+    # Show a mid-turn lemon as working, whatever its brief's Status says.
+    mid_turn_working: bool = False
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
@@ -418,6 +420,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         card_unread_style=tui_data.get("card_unread_style", "dot"),
         brief_status=tui_data.get("brief_status", False),
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
+        mid_turn_working=tui_data.get("mid_turn_working", False),
         fold_statuses=list(tui_data.get("fold_statuses", [])),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         keybindings=keybindings,

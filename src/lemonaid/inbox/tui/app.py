@@ -54,7 +54,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, unarchive, undo
+from .. import db, emoji, order, pins, turns, unarchive, undo
 from . import backend_indicators, brief_cards, brief_rows
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
@@ -941,6 +941,7 @@ class LemonaidApp(App):
                 brief.pr.configured(self.config.brief.pr_state),
                 self.config.brief.vaults,
                 self.config.tui.keybindings,
+                self.config.tui.mid_turn_working,
                 id="brief_view",
             )
         yield Footer()
@@ -992,6 +993,7 @@ class LemonaidApp(App):
             sockets=self._recorded_sockets,
             auto_read_patterns=self.config.inbox.auto_read,
             mark_read_after_turn=self._mark_channel_read_after_turn,
+            record_turn=self._record_channel_turn if self.config.tui.mid_turn_working else None,
         )
         self.call_later(self._check_claude_patch)
         self.call_later(self._stretch_all_tables)
@@ -1338,26 +1340,38 @@ class LemonaidApp(App):
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
 
-    def _brief_statuses(self, briefs: abc.Mapping[str, Path]) -> dict[str, str]:
+    def _brief_cards(
+        self, rows: abc.Iterable[db.Notification], attached: abc.Mapping[str, Path]
+    ) -> dict[str, brief_cards.CardBrief]:
+        """The card of each attached brief by channel, as working while its lemon is mid-turn."""
+        working = (
+            turns.briefs(rows, attached, time.time())
+            if self.config.tui.mid_turn_working
+            else frozenset()
+        )
         return {
-            channel: card.status
-            for channel, path in briefs.items()
+            channel: brief_cards.mid_turn(card) if path in working else card
+            for channel, path in attached.items()
             if (card := self._brief_cache.get(path))
         }
 
     def _ordered_active(
         self, conn: sqlite3.Connection, switch_source: str | None
-    ) -> tuple[list[db.Notification], dict[str, Path]]:
-        """Active sessions in the order they are drawn, and the brief attached to each.
+    ) -> tuple[list[db.Notification], dict[str, brief_cards.CardBrief]]:
+        """Active sessions in the order they are drawn, and the brief card of each.
 
         Both layouts go through here, so the sidebar and the wide inbox list
         sessions in the same order whether or not either shows brief status.
         """
         rows = db.get_active(conn, switch_source=switch_source)
-        attached = brief.attached.for_rows(conn, rows)
+        cards = self._brief_cards(rows, brief.attached.for_rows(conn, rows))
         return (
-            order.by_status(rows, self._brief_statuses(attached), pins.pinned_positions(conn)),
-            attached,
+            order.by_status(
+                rows,
+                {channel: card.status for channel, card in cards.items()},
+                pins.pinned_positions(conn),
+            ),
+            cards,
         )
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
@@ -1393,9 +1407,12 @@ class LemonaidApp(App):
             env_filter = self.current_env if self.current_env != "unknown" else None
             pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
-            active, attached = self._ordered_active(conn, env_filter)
+            active, cards = self._ordered_active(conn, env_filter)
             shown, folded = order.fold(
-                active, self._brief_statuses(attached), pinned, self.config.tui.fold_statuses
+                active,
+                {channel: card.status for channel, card in cards.items()},
+                pinned,
+                self.config.tui.fold_statuses,
             )
             current_notifications = [*shown, *folded] if self._fold_open else shown
             # Lower pane: live sessions from other switchable terminals.
@@ -1414,11 +1431,7 @@ class LemonaidApp(App):
             emojis = emoji.by_channel(conn)
 
         briefs = (
-            {
-                str(n.id): self._brief_cache.get(attached[n.channel])
-                for n in current_notifications
-                if n.channel in attached
-            }
+            {str(n.id): cards[n.channel] for n in current_notifications if n.channel in cards}
             if self.config.tui.brief_status
             else {}
         )
@@ -2842,6 +2855,10 @@ class LemonaidApp(App):
     def _mark_channel_read_after_turn(self, channel: str) -> int:
         with db.connect() as conn:
             return db.mark_read_after_turn(conn, channel)
+
+    def _record_channel_turn(self, channel: str, at: float | None) -> None:
+        with db.connect() as conn:
+            db.record_turn(conn, channel, at)
 
     def _update_channel_message(self, channel: str, message: str) -> int:
         """Update the message for a channel."""
