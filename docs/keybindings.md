@@ -102,7 +102,9 @@ Bullets with no entry, and briefs with no `## Questions`, show as before.
 | `d` | Ask the lemon for more detail |
 
 An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
-`Answer to <label>: <text>`, from your `$USER`. More detail sends
+`Answer to <label>: <text>`, from your `$USER`. When the brief's Status is `blocked`,
+`alert` or `merge`, the answer ends with a line naming what else is under `Needs`, so the
+lemon remembers to update its Status. More detail sends
 `More detail needed on <label>: rewrite that entry in ## Questions`. Neither needs tmux,
 and a lemon not running yet gets them when it starts. A line along the bottom of the view
 names the keys whenever the brief has questions. The four are set by `question_previous`,

@@ -7,7 +7,8 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
-from .. import home
+from .. import brief, home
+from ..inbox import db
 from ..inbox.channel import full_channel_id
 from . import store
 
@@ -16,6 +17,17 @@ def own_thread(channel: str) -> str:
     """This process's Codex thread, when the watched channel is that thread's own."""
     thread = os.environ.get("CODEX_THREAD_ID", "")
     return thread if thread and channel == full_channel_id("codex", thread) else ""
+
+
+def _with_status_note(inbox: Path, message: str) -> str:
+    """*message*, and a reminder when the recipient's brief waits on Peter."""
+    if brief.nudge.carries_note(message):
+        return message
+
+    with db.connect() as conn:
+        path = brief.lemon.brief_of(conn, inbox.name)  # an inbox is named by its Lemon-ID
+    reminder = brief.nudge.note(path.read_text()) if path and path.is_file() else ""
+    return f"{message.rstrip()}\n\n{reminder}" if reminder else message
 
 
 def _queue(thread: str, path: Path, message: str) -> None:
@@ -61,6 +73,6 @@ def deliver_next(
         if found is None:
             return None
 
-        _queue(thread, *found)
+        _queue(thread, found[0], _with_status_note(inbox, found[1]))
         with while_current() as current:
             return (store.mark_done(found[0]), found[1]) if current else None

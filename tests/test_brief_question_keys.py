@@ -93,7 +93,9 @@ def test_the_first_question_starts_selected_and_the_keys_move_and_ask():
 
     assert _messages(inbox) == [
         "More detail needed on rename the flag: rewrite that entry in ## Questions",
-        "Answer to retry policy: exponential, capped at 5",
+        "Answer to retry policy: exponential, capped at 5\n\n"
+        'This answers "retry policy". Your brief says `blocked` on: "rename the flag", '
+        '"an aside". Update Status if that changes.',
     ]
 
 
@@ -211,7 +213,11 @@ def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
 
     asyncio.run(run())
 
-    assert _messages(inbox) == ["Answer to rename the flag: yes"]
+    assert _messages(inbox) == [
+        "Answer to rename the flag: yes\n\n"
+        'This answers "rename the flag". Your brief says `blocked` on: "retry policy", '
+        '"an aside". Update Status if that changes.'
+    ]
 
 
 def test_the_popup_shows_a_pr_state_that_arrives_after_it_opens():

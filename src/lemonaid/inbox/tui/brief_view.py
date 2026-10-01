@@ -300,7 +300,7 @@ class BriefView(VerticalScroll):
 
         def answered(text: str | None) -> None:
             if text:
-                self._send(choice, questions.answer(choice[1], text))
+                self._send(choice, brief_questions.answer(*choice, text))
 
         self.app.push_screen(
             brief_questions.AnswerScreen(choice[1], self._lemon_name(choice[0])), answered

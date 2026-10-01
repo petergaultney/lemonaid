@@ -42,10 +42,12 @@ def fake_codex(tmp_path, monkeypatch) -> Path:
     return args_file
 
 
-def _inbox_with_message(body: str, channel: str = "codex:recipient") -> Path:
+def _inbox_with_message(
+    body: str, channel: str = "codex:recipient", brief: str = "# recipient\n"
+) -> Path:
     path = brief_store.briefs_dir() / "recipient.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("# recipient\n")
+    path.write_text(brief)
     with db.connect() as conn:
         db.add(conn, channel, "", metadata={})
         attached.attach(conn, channel, path)
@@ -77,6 +79,18 @@ def test_queued_message_moves_to_done(capsys, fake_codex):
     assert not list(inbox.glob("*.md"))
     assert len(list((inbox / "done").glob("*.md"))) == 1
     assert capsys.readouterr().out.endswith("Please review.\n")
+
+
+def test_a_message_to_a_blocked_lemon_says_what_its_status_waits_on(capsys, fake_codex):
+    _inbox_with_message(
+        "Go with option 1.",
+        brief="# recipient\n\nStatus: blocked\n\n## Now\n\n### Needs Peter\n\n- **pick one:** a or b\n",
+    )
+
+    _watch("--codex-thread", "thread-1")
+
+    queued = fake_codex.read_text()
+    assert 'Go with option 1.\n\nYour brief\'s Status is `blocked`, on: "pick one".' in queued
 
 
 def test_failed_queue_leaves_message_pending_for_the_next_watch(capsys, fake_codex, monkeypatch):

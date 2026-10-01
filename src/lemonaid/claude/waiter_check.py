@@ -31,7 +31,8 @@ _BROKEN = (
 )
 
 
-def _brief(data: dict) -> Path | None:
+def attached_brief(data: dict) -> Path | None:
+    """The brief attached to the hook's session, if its file exists."""
     try:
         channel = channel_id("claude", data.get("session_id"))
     except UnidentifiedSession:
@@ -69,7 +70,7 @@ def _broken(path: Path, text: str) -> str:
 
 def reason_to_block(data: dict, grace: float) -> str:
     """The reason to block this Stop, or "" to let it through."""
-    path = _brief(data)
+    path = attached_brief(data)
     if path is None:
         return ""
 

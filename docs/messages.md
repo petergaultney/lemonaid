@@ -99,6 +99,16 @@ three seconds for a watch that is still starting, and lets the second
 consecutive stop through, so a lemon that cannot arm one is never stuck.
 Install it with `lemonaid claude hooks --waiter-check` (`--uninstall` removes it).
 
+The optional PostToolUse hook `lemonaid claude status-note` reminds a lemon whose
+brief is `blocked`, `alert` or `merge` what its `Needs` bullets ask, so it updates
+Status once an answer moves the work on. It speaks on the first tool call of a
+turn (a wake from a background task is a turn too) and adds about fifty tokens
+of context; it never blocks or starts a turn. The installed command is a `sh -c`
+one-liner that exits without starting Python on every later tool call of the
+turn, which takes about 20 ms instead of 150. Install it with
+`lemonaid claude hooks --status-note`. A message the delivery service queues
+into a Codex thread ends with the same reminder.
+
 `inbox watch --self` inside Codex still works: when `CODEX_THREAD_ID` is the
 watched channel's thread (or `--codex-thread <thread>` names one), it queues the
 message the same way instead of printing it. Receivers of one inbox take turns,

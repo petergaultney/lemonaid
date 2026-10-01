@@ -8,7 +8,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label
 
-from ...brief import render, store
+from ...brief import nudge, questions, render, store
 from ...config import KeybindingsConfig
 from ...messages import to_brief
 
@@ -47,6 +47,15 @@ def hint(kb: KeybindingsConfig) -> str:
         )
         if part
     )
+
+
+def answer(path: Path, label: str, text: str) -> str:
+    """The answer to *label*, and a reminder of what the brief's Status still waits on."""
+    try:
+        reminder = nudge.after_answer(path.read_text(), label)
+    except OSError:
+        reminder = ""  # send() reports a missing brief
+    return "\n\n".join(part for part in (questions.answer(label, text), reminder) if part)
 
 
 def send(path: Path, body: str) -> str:

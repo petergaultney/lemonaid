@@ -11,11 +11,30 @@ left alone, and hooks lemonaid did not write are never touched.
 """
 
 import json
+import shlex
 import typing as ty
 from pathlib import Path
 
 _SESSION_START_COMMAND = "lemonaid claude session-start"
 WAITER_CHECK_COMMAND = "lemonaid claude waiter-check"
+_STATUS_NOTE_SCRIPT = "; ".join(
+    [
+        "d=$(cat)",
+        'v() { printf "%s" "$d" | tr ",{" "\\n\\n" | '
+        'sed -n "s/^ *\\"$1\\" *: *\\"\\([^\\"]*\\)\\".*/\\1/p" | sort -u; }',
+        "s=$(v session_id)",
+        "p=$(v prompt_id)",
+        'f="${LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}/status-note/$s"',
+        '[ -n "$s" ] && [ -n "$p" ] && [ "$(cat "$f" 2>/dev/null)" = "$p" ] && exit 0',
+        'printf "%s" "$d" | exec lemonaid claude status-note',
+    ]
+)
+# Every tool call runs this, so a call later in a turn than the first exits in the
+# shell, without starting Python. `v` lists each distinct value of a key at any
+# depth (a key inside a string value has escaped quotes and is not matched), so a
+# tool_response object carrying its own prompt_id gives two values, matches no
+# seen file, and goes on to Python, which reads the top-level ones.
+STATUS_NOTE_COMMAND = f"sh -c {shlex.quote(_STATUS_NOTE_SCRIPT)}"
 
 
 def settings_path() -> Path:

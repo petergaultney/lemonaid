@@ -2,8 +2,8 @@
 
 import argparse
 
+from . import install_hooks, status_note, waiter_check
 from .bootstrap import run_bootstrap
-from . import install_hooks, waiter_check
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
     dismiss_session,
@@ -33,14 +33,21 @@ def cmd_session_start(args: argparse.Namespace) -> None:
 
 
 def cmd_hooks(args: argparse.Namespace) -> None:
-    """Install or remove the optional SessionStart hook, or the Stop waiter check."""
-    if args.waiter_check:
-        command = install_hooks.WAITER_CHECK_COMMAND
+    """Install or remove the optional SessionStart hook, the Stop waiter check, or the status note."""
+    chosen = [
+        (event, command)
+        for picked, event, command in (
+            (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND),
+            (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND),
+        )
+        if picked
+    ]
+    for event, command in chosen:
         if args.uninstall:
-            print(install_hooks.uninstall("Stop", command))
-            return
-
-        print(install_hooks.install("Stop", command, dry_run=args.dry_run))
+            print(install_hooks.uninstall(event, command))
+        else:
+            print(install_hooks.install(event, command, dry_run=args.dry_run))
+    if chosen:
         return
 
     if args.uninstall:
@@ -48,6 +55,11 @@ def cmd_hooks(args: argparse.Namespace) -> None:
         return
 
     print(install_session_start(dry_run=args.dry_run))
+
+
+def cmd_status_note(args: argparse.Namespace) -> None:
+    """Handle the PostToolUse hook that reminds a lemon what its brief's Status waits on."""
+    status_note.handle()
 
 
 def cmd_waiter_check(args: argparse.Namespace) -> None:
@@ -228,7 +240,21 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Act on the Stop hook that blocks a briefed lemon from ending a turn "
         "without `lemonaid inbox watch --self` running",
     )
+    hooks_parser.add_argument(
+        "--status-note",
+        action="store_true",
+        help="Act on the PostToolUse hook that, once a turn, reminds a lemon whose brief "
+        "is blocked, alert or merge what it waits on",
+    )
     hooks_parser.set_defaults(func=cmd_hooks)
+
+    # claude status-note
+    status_note_parser = claude_subparsers.add_parser(
+        "status-note",
+        help="Once a turn, remind a lemon whose brief waits on Peter to keep its Status true "
+        "(PostToolUse hook; reads JSON from stdin)",
+    )
+    status_note_parser.set_defaults(func=cmd_status_note)
 
     # claude waiter-check
     waiter_check_parser = claude_subparsers.add_parser(

@@ -1,3 +1,10 @@
+# 0.51.0 (2026-10-01)
+
+#### Added
+
+- **A lemon whose brief is `blocked`, `alert` or `merge` is reminded what it waits on, so it updates Status once an answer moves the work on.** An answer sent from the brief view ends with the `Needs` labels it leaves, and a message queued into a Codex thread ends with all of them.
+- **`lemonaid claude hooks --status-note` installs a PostToolUse hook that gives a Claude lemon the same reminder** on the first tool call of each turn, as added context. It never blocks or starts a turn, and a later tool call in the turn exits in the shell, without starting Python.
+
 # 0.50.1 (2026-10-01)
 
 #### Changed

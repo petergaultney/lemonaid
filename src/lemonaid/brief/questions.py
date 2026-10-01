@@ -14,6 +14,7 @@ from collections import abc
 _HEADING = re.compile(r"###\s+(?P<label>.+?)\s*#*\s*")
 _TOP_LEVEL_BULLET = re.compile(r"[-*+]\s+(?P<text>.*)")
 _MARKERS = re.compile(r"[*_`]")
+_LEAD = re.compile(r"(?P<lead>.*?):(?:\s|$)")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,6 +77,16 @@ def items(needs: str, explained: abc.Mapping[str, str]) -> tuple[Item, ...]:
         for text in _bullets(needs)
     )
     return found if any(item.label for item in found) else ()
+
+
+def labels(needs: str, without: str = "") -> list[str]:
+    """Each Needs bullet's label, leaving out the bullet the label *without* explains."""
+    return [
+        lead["lead"].strip() if (lead := _LEAD.match(first)) else first
+        for bullet in _bullets(needs)
+        if not (without and _explains(without, bullet))
+        for first in [" ".join(_MARKERS.sub("", bullet.splitlines()[0]).split())]
+    ]
 
 
 def answer(label: str, text: str) -> str:

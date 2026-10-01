@@ -533,7 +533,14 @@ explains: the bullet's text up to its first colon, or the whole bullet, ignoring
 `brief show` leaves the section out unless given `--questions`. When the person answers from the
 brief view, or asks for more detail, the lemon gets a message in its inbox:
 `Answer to <label>: <text>`, or `More detail needed on <label>: rewrite that entry in
-## Questions`, from the person's `$USER`.
+## Questions`, from the person's `$USER`. While your Status is `blocked`, `alert` or `merge`,
+an answer ends with a line naming the `Needs` labels it leaves, as a reminder to update
+Status if the answer changes it.
+
+While your Status is one of those three, lemonaid reminds you what it waits on once a turn: a
+Codex lemon at the end of each message queued into its thread, and a Claude lemon on the first
+tool call of each turn, when the `status-note` hook is installed. Update Status if the turn
+answers or changes one of them; otherwise ignore it.
 
 A session with no attached brief falls back to `.z/`, for sessions started before briefs moved out of
 it. It looks in the working directory of each lemon the inbox has in that session, then the session's
