@@ -186,7 +186,8 @@ directory, followed by the `Area:` from its brief if it has one
 (`ds-monorepo: apps/unified-asset`). Outside every root, the project is the
 cwd's directory name. With no root and no branch either, the line shows the
 cwd as before. When the line doesn't fit, the branch is cut first, then the
-area. The project's name is kept whole.
+area, and then the time is dropped, so the project's name stays whole wherever
+it fits on its own.
 
 The column layout's directory column shows the project too, under a
 `Project` header, while `card_fields` includes `project`. History and the

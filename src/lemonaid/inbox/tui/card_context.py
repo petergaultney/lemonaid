@@ -44,8 +44,8 @@ def parts(
 ) -> list[Part]:
     """The parts *fields* name, coloured like the row's cells; empty ones are left out.
 
-    *where* is the row's `project_part`. When it fell back to the cwd, a `cwd`
-    field already in *fields* stands for it, so the cwd is not shown twice.
+    *where* is the row's `project_part`. When it fell back to the cwd, it keeps
+    the project's place, and a `cwd` field in *fields* is left out.
     """
 
     def part(field: str) -> Part | None:
@@ -54,15 +54,16 @@ def parts(
         if field == "branch":
             return Part("branch", styled_cell(branch, is_unread, "branch"))
         if field == "cwd":
-            return Part("cwd", styled_cell(fish_path(cwd), is_unread, "cwd"))
-        if where.field == "cwd" and "cwd" in fields:
-            return None
+            return (
+                None if falls_back else Part("cwd", styled_cell(fish_path(cwd), is_unread, "cwd"))
+            )
 
         return dataclasses.replace(
             where, text=styled_cell(where.text.plain, is_unread, where.field)
         )
 
     fields = tuple(fields)
+    falls_back = where.field == "cwd" and "project" in fields
     return [p for f in fields if (p := part(f)) is not None and p.text.plain]
 
 
@@ -87,6 +88,7 @@ def _cut(part: Part, room: int) -> Part:
 def fitted(line: abc.Sequence[Part], width: int) -> Text:
     """*line* joined into *width* cells, cutting the branch, then the cwd, then the area.
 
+    Then the time goes, whole, so a project name that fits on its own is kept.
     Whatever still doesn't fit is the caller's to truncate.
     """
     line = list(line)
@@ -97,5 +99,8 @@ def fitted(line: abc.Sequence[Part], width: int) -> Text:
                 return _joined(line)
             if part.field == field:
                 line[i] = _cut(part, part.text.cell_len - over)
+
+    if _joined(line).cell_len > width:
+        line = [part for part in line if part.field != "time"]
 
     return _joined(line)

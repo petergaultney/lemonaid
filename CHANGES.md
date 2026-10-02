@@ -1,3 +1,10 @@
+# 0.58.1 (2026-10-02)
+
+#### Fixed
+
+- **A card too narrow for the time and the project drops the time,** rather than cutting the project's name.
+- **A card outside every root, with `project` and `cwd` both in `card_fields`, shows the cwd fallback in the project's place,** not wherever `cwd` comes in the list.
+
 # 0.58.0 (2026-10-01)
 
 #### Changed

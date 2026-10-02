@@ -3,7 +3,7 @@
 from rich.text import Text
 
 from lemonaid.config import PlaceRoot, PlacesConfig, load_config
-from lemonaid.inbox.tui import card_context
+from lemonaid.inbox.tui import app, card_context
 
 _TIME = Text("15:32:47")
 
@@ -75,3 +75,39 @@ def test_unknown_card_fields_are_dropped_with_a_warning(tmp_path, capsys):
 
     assert load_config(config).tui.card_fields == ("project", "branch")
     assert "'where'" in capsys.readouterr().err
+
+
+def test_the_time_goes_before_the_project_name_is_cut(tmp_path):
+    cwd = tmp_path / "ds-monorepo" / "p"
+
+    assert _line(tmp_path, cwd, "b", "apps/unified-asset", width=15) == "ds-monorepo"
+
+
+def test_a_narrow_card_keeps_a_project_name_that_fits_alone(tmp_path):
+    places = PlacesConfig(roots=[PlaceRoot(path=tmp_path / "engineering-backend")])
+    cwd = str(tmp_path / "engineering-backend" / "x")
+    line = card_context.parts(
+        ("time", "project", "branch"),
+        _TIME,
+        card_context.project_part(places, cwd, "x"),
+        "x",
+        cwd,
+        is_unread=False,
+    )
+    cells = [_TIME, Text(""), Text(""), Text("n"), Text("x"), Text(cwd), Text("m")]
+
+    (body,) = app._as_card(cells, 21, context_parts=line)
+
+    assert body.plain.split("\n")[1].strip() == "engineering-backend"
+
+
+def test_the_cwd_fallback_keeps_the_projects_place(tmp_path):
+    line = _line(tmp_path, tmp_path / "notes", "", fields=("project", "time", "cwd"))
+
+    assert line.endswith("/notes · 15:32:47")
+
+
+def test_the_cwd_fallback_keeps_the_projects_place_after_the_cwd(tmp_path):
+    line = _line(tmp_path, tmp_path / "notes", "", fields=("cwd", "time", "project"))
+
+    assert line.startswith("15:32:47 · ") and line.count("notes") == 1
