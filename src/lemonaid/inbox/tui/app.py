@@ -1461,6 +1461,9 @@ class LemonaidApp(App):
         return arranged.shown, arranged.folded, arranged.fold_label
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
+        if not self.is_running:
+            return  # a timer tick during shutdown, while the screen's widgets are being removed
+
         self._update_input_indicator()
         if self._brief_target is not None:
             self._wake_expired_snoozes()

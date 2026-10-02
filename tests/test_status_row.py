@@ -164,12 +164,12 @@ def test_opening_the_reference_cancels_the_startup_timeout():
 
 
 def test_status_text_survives_a_hint_toggle():
+    """No await between setting and reading: the refresh timer rewrites the status."""
+
     async def steps(app, pilot):
         app._set_status("7 unread, 3 read")
         app._show_keys(True)
-        await pilot.pause()
         app._show_keys(False)
-        await pilot.pause()
         return str(app.query_one("#status", Static).render())
 
     assert _run(steps) == "7 unread, 3 read"
