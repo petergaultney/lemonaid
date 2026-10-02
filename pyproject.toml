@@ -2,12 +2,19 @@
 name = "lemonaid-inbox"
 version = "0.62.0"
 description = "Attention inbox for managing notifications from lemons and other background tools"
-readme = "README.md"
+readme = "docs/pypi.md"
 requires-python = ">=3.11"
 dependencies = [
     "textual>=0.89.0",
     "wordybin==0.2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/petergaultney/lemonaid"
+Repository = "https://github.com/petergaultney/lemonaid"
+Documentation = "https://github.com/petergaultney/lemonaid/tree/main/docs"
+Changelog = "https://github.com/petergaultney/lemonaid/blob/main/CHANGES.md"
+Issues = "https://github.com/petergaultney/lemonaid/issues"
 
 [dependency-groups]
 dev = ["pre-commit", "pytest", "ruff"]
