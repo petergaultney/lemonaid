@@ -784,6 +784,7 @@ class LemonaidApp(App):
         self._name_scan_mtimes: dict[str, float] = {}
         self._focused: frozenset[str] = frozenset()
         self._focused_asked_at = 0.0
+        self._restore_checked: frozenset[str] = frozenset()
         self._input_focus_asked_at = 0.0
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
@@ -1488,13 +1489,16 @@ class LemonaidApp(App):
         other_index = other_table.cursor_coordinate.row if other_table.row_count > 0 else 0
         focused_on_other = self.focused is other_table
 
+        focused = self._focused_ttys()
         with db.connect() as conn:
+            if focused != self._restore_checked:
+                self._restore_checked = focused  # asked once per change of focus: it can cost a ps
+                unarchive.restore_focused(conn, focused)
             env_filter = self.current_env if self.current_env != "unknown" else None
             pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
             active = self._ordered_active(conn, env_filter)
             cards = active.cards
-            focused = self._focused_ttys()
             shown, folded = order.fold(
                 active.rows,
                 view.statuses(cards),

@@ -3,6 +3,7 @@
 #### Changed
 
 - **With `fold_statuses`, the lemon in the tmux pane you're looking at stays out of the fold.** Click into a `waiting` lemon's pane and its card shows in the list; it folds back on the next refresh after focus moves on, unless the cursor is on it, in which case it stays until the cursor leaves.
+- **Focusing the pane of a lemon the inbox had archived brings it back, as read,** when its harness is still running there and no newer session holds that tty. Long-lived lemons archived by mistake no longer stay hidden in history.
 
 # 0.58.1 (2026-10-02)
 

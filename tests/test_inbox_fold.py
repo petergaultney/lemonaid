@@ -294,3 +294,27 @@ def test_a_lemon_that_loses_focus_under_the_cursor_stays_until_the_cursor_moves(
 
     assert held == ([waiting, working], waiting)
     assert moved == [working]
+
+
+def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
+    fold_waiting, focus, monkeypatch
+):
+    monkeypatch.setattr(app_mod.unarchive, "running", lambda n: True)
+    with db.connect() as conn:
+        working = _session(conn, "working", age=30)
+        old = _session(conn, "old", age=900_000, tty="/dev/ttys-old")
+        _brief(conn, old, "waiting")
+        conn.execute("UPDATE notifications SET status = 'archived' WHERE channel = ?", (old,))
+        conn.commit()
+
+    async def steps(app, pilot):
+        before = app._row_channels()
+        focus["ttys"] = {"/dev/ttys-old"}
+        app._refresh_notifications()
+        await pilot.pause()
+        return before, app._row_channels()
+
+    before, after = _run(steps)
+
+    assert before == [working]
+    assert after == [old, working]

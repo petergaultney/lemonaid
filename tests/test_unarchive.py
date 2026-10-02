@@ -135,3 +135,31 @@ def test_the_watcher_does_not_archive_it_again(monkeypatch):
     )
 
     assert archived == {"codex:subagent"}
+
+
+def test_a_focused_tty_brings_its_archived_running_session_back_read(monkeypatch):
+    _live(monkeypatch)
+    n = _session("claude:old", archived=True, created_at=100.0)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == ["claude:old"]
+        assert db.get(conn, n.id).status == "read"
+
+
+def test_a_focused_tty_whose_newest_row_is_live_restores_nothing(monkeypatch):
+    _live(monkeypatch)
+    old = _session("claude:old", archived=True, created_at=100.0)
+    _session("claude:new", archived=False, created_at=200.0)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == []
+        assert db.get(conn, old.id).status == "archived"
+
+
+def test_a_focused_tty_whose_harness_exited_restores_nothing(monkeypatch):
+    _live(monkeypatch, process=False)
+    n = _session("claude:gone", archived=True, created_at=100.0)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == []
+        assert db.get(conn, n.id).status == "archived"

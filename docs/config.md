@@ -162,8 +162,9 @@ column layout and the sidebar.
 A folded session comes back into the list while it is unread or while its tmux
 pane is focused, and a pinned session never folds. When focus moves away, the
 session folds again on the next refresh, unless the cursor is on its card: then
-it stays until the cursor leaves. Any status can be listed; the default folds
-nothing.
+it stays until the cursor leaves. Focusing the pane of an archived lemon
+whose harness is still running brings it back from history, read. Any status
+can be listed; the default folds nothing.
 
 ```toml
 [tui]

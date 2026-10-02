@@ -8,6 +8,7 @@ decide whether Enter should switch to a session or resume it.
 
 import sqlite3
 import time
+from collections import abc
 
 from ..handlers import check_pane_exists_by_tty
 from ..lemon_watchers import watcher
@@ -54,3 +55,34 @@ def restore(conn: sqlite3.Connection, channel: str) -> int:
     )
     conn.commit()
     return cursor.rowcount
+
+
+def restore_focused(conn: sqlite3.Connection, ttys: abc.Iterable[str]) -> list[str]:
+    """Bring back, as read, each session on `ttys` that was archived while still running there.
+
+    Only when the newest row recorded on the tty is archived, so a session the
+    inbox already shows there is never displaced. Returns the channels restored.
+    """
+    restored = []
+    for tty in ttys:
+        row = conn.execute(
+            "SELECT * FROM notifications WHERE json_extract(metadata, '$.tty') = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (tty,),
+        ).fetchone()
+        if row is None or row["status"] != "archived":
+            continue
+
+        n = db.Notification.from_row(row)
+        if not running(n):
+            continue
+
+        restore(conn, n.channel)
+        conn.execute(
+            "UPDATE notifications SET status = 'read', read_at = ? "
+            "WHERE channel = ? AND status = 'unread'",
+            (time.time(), n.channel),
+        )
+        conn.commit()
+        restored.append(n.channel)
+    return restored
