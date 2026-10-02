@@ -1,3 +1,9 @@
+# 0.58.3 (2026-10-02)
+
+#### Changed
+
+- **`lemonaid inbox arrange serve` loads its file again whenever it changes,** so an edit to an arranger takes effect at the next snapshot without restarting `lma`. A file that fails to load is answered as an error, which `lma` shows while it keeps its own order.
+
 # 0.58.2 (2026-10-02)
 
 #### Changed

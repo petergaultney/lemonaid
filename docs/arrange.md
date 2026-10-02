@@ -43,9 +43,10 @@ def arrange(snapshot):
     }
 ```
 
-An exception in `arrange` is answered as an error, and its traceback goes to
-stderr, so `lma` shows the error and keeps its own order until the next
-snapshot.
+`serve` loads the file again whenever it changes, so an edit takes effect at
+the next snapshot without restarting `lma`. An exception in `arrange`, or in
+loading the file, is answered as an error, and its traceback goes to stderr, so
+`lma` shows the error and keeps its own order until the next snapshot.
 
 ## Trying one without `lma`
 

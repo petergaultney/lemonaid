@@ -91,7 +91,7 @@ def cmd_check(args: argparse.Namespace) -> None:
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
-    serve.serve(serve.load(args.file))
+    serve.serve(serve.reloading(args.file))
 
 
 def _add_view_args(parser: argparse.ArgumentParser) -> None:
