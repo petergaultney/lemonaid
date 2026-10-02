@@ -125,9 +125,10 @@ client width up to a 140-column maximum.
 
 ## Snooze
 
-`s` holds a session out of the inbox until a time you pick: 15 minutes, 1 hour,
-4 hours, tomorrow morning (9am), or a custom duration (`45m`, `2h`, `3d` — a bare
-number means minutes).
+`s` holds a session out of the inbox until a time you pick. Type a duration
+straight away (`45m`, `2h`, `3d`, or `morning`; a bare number means minutes) and
+press Enter. With the box empty, Enter takes the highlighted preset: 15 minutes,
+1 hour, 4 hours, or tomorrow morning (9am). Up and Down move the highlight.
 
 When the timer expires the session returns with the status it had when you
 snoozed it: one that was demanding attention comes back unread, one that was

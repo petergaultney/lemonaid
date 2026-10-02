@@ -26,7 +26,9 @@ def format_wake_time(until: float, now: float | None = None) -> str:
 class SnoozeScreen(ModalScreen[float | None]):
     """Duration picker for snoozing a session.
 
-    Dismisses with an absolute wake timestamp, or None on cancel.
+    The duration box has focus from the start; with it empty, Enter takes the
+    highlighted preset, which Up and Down move. Dismisses with an absolute wake
+    timestamp, or None on cancel.
     """
 
     CSS = """
@@ -48,18 +50,14 @@ class SnoozeScreen(ModalScreen[float | None]):
         padding-bottom: 1;
     }
 
+    SnoozeScreen Input {
+        width: 100%;
+        margin-bottom: 1;
+    }
+
     SnoozeScreen OptionList {
         height: auto;
         max-height: 10;
-    }
-
-    SnoozeScreen Input {
-        width: 100%;
-        display: none;
-    }
-
-    SnoozeScreen .custom Input {
-        display: block;
     }
 
     SnoozeScreen .hint {
@@ -71,15 +69,16 @@ class SnoozeScreen(ModalScreen[float | None]):
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
+        ("up", "preset(-1)", "Previous preset"),
+        ("down", "preset(1)", "Next preset"),
     ]
 
-    # (id, label, seconds from now) — None seconds means a computed/custom target.
+    # (id, label, seconds from now); None seconds means the next morning.
     _PRESETS: ty.Final = (
         ("15m", "15 minutes", 15 * 60),
         ("1h", "1 hour", 3600),
         ("4h", "4 hours", 4 * 3600),
         ("morning", "Tomorrow morning (9am)", None),
-        ("custom", "Custom...", None),
     )
 
     def __init__(self, session_name: str = "") -> None:
@@ -89,34 +88,43 @@ class SnoozeScreen(ModalScreen[float | None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(f"Snooze {self.session_name}".strip())
-            yield OptionList(
+            yield Input(placeholder="type 45m, 2h, 3d - or pick below", id="snooze-custom")
+            options = OptionList(
                 *[Option(label, id=key) for key, label, _ in self._PRESETS],
                 id="snooze-options",
             )
-            yield Input(placeholder="e.g. 45m, 2h, 3d", id="snooze-custom")
-            yield Label("Enter to pick, Escape to cancel", classes="hint")
+            options.can_focus = False
+            yield options
+            yield Label("Enter to snooze, Up/Down for a preset, Escape to cancel", classes="hint")
 
     def on_mount(self) -> None:
-        self.query_one("#snooze-options", OptionList).focus()
+        self.query_one("#snooze-options", OptionList).highlighted = 0
+        self.query_one("#snooze-custom", Input).focus()
+
+    def _wake_for_preset(self, key: str | None) -> float | None:
+        now = time.time()
+        for preset_key, _, seconds in self._PRESETS:
+            if preset_key == key:
+                return snooze_time.next_morning(now) if seconds is None else now + seconds
+
+        return None
+
+    def action_preset(self, step: int) -> None:
+        options = self.query_one("#snooze-options", OptionList)
+        current = options.highlighted if options.highlighted is not None else 0
+        options.highlighted = (current + step) % options.option_count
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        key = event.option.id
-        if key == "custom":
-            self.query_one(Vertical).add_class("custom")
-            self.query_one("#snooze-custom", Input).focus()
-            return
-
-        if key == "morning":
-            self.dismiss(snooze_time.next_morning(time.time()))
-            return
-
-        for preset_key, _, seconds in self._PRESETS:
-            if preset_key == key and seconds is not None:
-                self.dismiss(time.time() + seconds)
-                return
+        until = self._wake_for_preset(event.option.id)
+        if until is not None:
+            self.dismiss(until)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        until = snooze_time.parse_wake(event.value, time.time())
+        if not event.value.strip():
+            options = self.query_one("#snooze-options", OptionList)
+            until = self._wake_for_preset(options.get_option_at_index(options.highlighted or 0).id)
+        else:
+            until = snooze_time.parse_wake(event.value, time.time())
         if until is None:
             self.notify(f"Enter {snooze_time.SYNTAX}", severity="warning")
             return

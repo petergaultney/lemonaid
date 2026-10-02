@@ -1,9 +1,13 @@
-"""Tests for snooze duration parsing and wake-time formatting."""
+"""Tests for snooze duration parsing, wake-time formatting, and the snooze picker."""
 
+import asyncio
+import time
 from datetime import datetime
 
+from textual.app import App
+
 from lemonaid.inbox.snooze_time import next_morning, parse_duration, parse_wake
-from lemonaid.inbox.tui.screens import format_wake_time
+from lemonaid.inbox.tui.screens import SnoozeScreen, format_wake_time
 
 
 def test_parse_bare_number_is_minutes():
@@ -71,3 +75,43 @@ def test_format_wake_time_other_day_includes_weekday():
     now = datetime(2026, 7, 30, 8, 0).timestamp()
     until = datetime(2026, 7, 31, 9, 0).timestamp()
     assert format_wake_time(until, now) == "Fri 09:00"
+
+
+def _picked(keys: list[str]) -> list[float | None]:
+    picked: list[float | None] = []
+
+    async def run() -> None:
+        app = App()
+        async with app.run_test() as pilot:
+            app.push_screen(SnoozeScreen(), picked.append)
+            await pilot.pause()
+            await pilot.press(*keys)
+            await pilot.pause()
+
+    asyncio.run(run())
+    return picked
+
+
+def test_the_picker_takes_a_typed_duration_without_choosing_custom_first():
+    before = time.time()
+    [until] = _picked(["4", "5", "m", "enter"])
+    assert until is not None
+    assert before + 45 * 60 <= until <= time.time() + 45 * 60
+
+
+def test_enter_on_an_empty_box_takes_the_highlighted_preset():
+    before = time.time()
+    [first] = _picked(["enter"])
+    [third] = _picked(["down", "down", "enter"])
+    assert first is not None and third is not None
+    assert before + 15 * 60 <= first <= time.time() + 15 * 60
+    assert before + 4 * 3600 <= third <= time.time() + 4 * 3600
+
+
+def test_up_from_the_first_preset_wraps_to_tomorrow_morning():
+    [until] = _picked(["up", "enter"])
+    assert until == next_morning(time.time())
+
+
+def test_nonsense_keeps_the_picker_open():
+    assert _picked(["s", "o", "o", "n", "enter"]) == []
