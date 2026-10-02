@@ -126,8 +126,8 @@ With `brief_status = true`, a card whose session has an attached brief with a
 - With `mid_turn_working = true`, while a read session is mid-turn, its card
   is drawn as `working` whatever its brief says, except `running`: no status
   fill and no `Needs` line, with the brief's status in dim text before its age
-  (`blocked · updated 3m`). Its brief view drops the need and its question
-  too. The card keeps the place in the list, and the fold, that its brief's
+  (`blocked · updated 3m`). Its brief view still shows the need and its
+  questions, dimmed, and `a` still answers them. The card keeps the place in the list, and the fold, that its brief's
   status gives it, so a lemon doesn't jump around as its turns start and end.
   The brief's status applies again when the turn ends. A lemon rewrites
   `Status:` late in a turn, so this keeps a lemon already working on your

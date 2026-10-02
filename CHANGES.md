@@ -1,3 +1,9 @@
+# 0.56.2 (2026-10-01)
+
+#### Changed
+
+- **With `mid_turn_working`, a mid-turn lemon's brief view keeps its `Needs` block and questions.** They are dimmed while the turn runs, and `a` still answers them. The inbox card is unchanged: no fill and no `Needs` line until the turn ends.
+
 # 0.56.1 (2026-10-01)
 
 #### Changed

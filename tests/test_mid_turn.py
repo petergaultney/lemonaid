@@ -303,22 +303,15 @@ def _view(path) -> render.View:
     )
 
 
-def test_the_brief_view_of_a_mid_turn_lemon_asks_for_nothing():
+def test_the_brief_view_of_a_mid_turn_lemon_keeps_its_needs_and_questions():
     with db.connect() as conn:
         busy = _session(conn, "busy", "blocked", time.time())
         db.record_turn(conn, busy, time.time())
     path = brief_store.briefs_dir() / "busy.md"
     path.write_text(_ASKING)
-    assert brief_questions.choices(_view(path).sections)
-    assert "Pick a name" in render.to_markdown(_view(path), time.time(), expanded=True)
 
     shown = brief_view._mid_turn(_view(path), time.time())
 
     assert [(s.state, s.held) for s in shown.sections] == [("working", "blocked")]
-    assert "Pick a name" not in render.to_markdown(shown, time.time(), expanded=True)
-    assert not brief_questions.choices(shown.sections)
-
-    with db.connect() as conn:
-        db.record_turn(conn, busy, None)
-
-    assert brief_questions.choices(brief_view._mid_turn(_view(path), time.time()).sections)
+    assert "Pick a name" in render.to_markdown(shown, time.time(), expanded=True)
+    assert brief_questions.choices(shown.sections) == brief_questions.choices(_view(path).sections)

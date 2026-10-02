@@ -40,14 +40,12 @@ def _href(style: Style) -> str:
 
 
 def _working(section: render.Section) -> render.Section:
-    """*section* as its lemon shows mid-turn, no longer asking for anything to answer."""
+    """*section* as its lemon shows mid-turn, its brief's status kept as `held`."""
     state = turns.shown(section.state)
     return (
         section
         if state == section.state
-        else dataclasses.replace(
-            section, state=state, held=section.state, needs_text="", questions=()
-        )
+        else dataclasses.replace(section, state=state, held=section.state)
     )
 
 
@@ -183,6 +181,10 @@ class BriefView(VerticalScroll):
         color: {utils.ATTENTION_COLOR};
         margin: 0 0 1 0;
     }}
+    BriefView .brief-needs-mid-turn MarkdownBlockQuote {{
+        border-left: outer $foreground 30%;
+        color: $text-muted;
+    }}
     BriefView Rule {{
         color: $foreground 30%;
         margin: 0;
@@ -290,7 +292,9 @@ class BriefView(VerticalScroll):
         return links.linkify(render.needs(section, True, selected), self._vaults)
 
     def _needs_widget(self, section: render.Section) -> _Markdown:
-        widget = _Markdown(self._needs_markdown(section))
+        widget = _Markdown(
+            self._needs_markdown(section), classes="brief-needs-mid-turn" if section.held else ""
+        )
         if section.path:
             self._needs[section.path] = widget
         return widget
