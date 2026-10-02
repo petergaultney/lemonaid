@@ -46,6 +46,7 @@ FIELD_STYLES = {
     "name": "cyan",
     "branch": "magenta",
     "cwd": "blue",
+    "project": "blue",  # the cwd's stand-in, so it keeps the cwd's colour
     "message": "default",
     "tty": "bright_black",
 }

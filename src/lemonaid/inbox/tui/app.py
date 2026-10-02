@@ -57,7 +57,7 @@ from ...tmux.scratch import (
 from ...tmux.session import spawn_session
 from .. import db, emoji, order, pins, unarchive, undo, view
 from ..arrange import answer, child
-from . import backend_indicators, brief_cards, brief_rows
+from . import backend_indicators, brief_cards, brief_rows, card_context
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
@@ -65,7 +65,6 @@ from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .utils import (
     ATTENTION_COLOR,
-    FIELD_STYLES,
     GUTTER_WIDTH,
     HERE_BAR,
     HERE_BAR_STYLE,
@@ -244,6 +243,7 @@ def _as_card(
     card_brief: brief_cards.CardBrief | None = None,
     stale_hours: float = 6.0,
     now: float = 0.0,
+    context_parts: abc.Sequence[card_context.Part] | None = None,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -256,7 +256,8 @@ def _as_card(
     the message wraps, because it is the one field that reads as prose.
 
     `gutter_width` is how much of the name cell the column layout's gutter takes,
-    for a card to strip before laying out its own.
+    for a card to strip before laying out its own. `context_parts` is the second
+    line, the time, cwd and branch cells when not given.
     """
     # Cells arrive already coloured by field and dimmed by read state, so a card
     # rearranges them rather than restyling: both layouts then agree on what a
@@ -297,14 +298,10 @@ def _as_card(
             else selector + Text("  ") + name
         )
 
-    context = Text(" · ", style=FIELD_STYLES["backend"]).join(
-        part for part in (cells[_TIME_CELL], cells[_CWD_CELL], cells[_BRANCH_CELL]) if part.plain
-    )
-
     message = cells[_MSG_CELL]
-    if card_brief and card_brief.shown == "waiting" and not marker.plain:
+    dimmed = bool(card_brief and card_brief.shown == "waiting" and not marker.plain)
+    if dimmed:
         headline.stylize("dim")
-        context.stylize("dim")
         message = message.copy()
         message.stylize("dim")
 
@@ -326,6 +323,18 @@ def _as_card(
     if pin.plain:
         markers += Text(" ") if emoji else Text("")
         markers += pin
+    context = card_context.fitted(
+        context_parts
+        if context_parts is not None
+        else [
+            card_context.Part("time", cells[_TIME_CELL], cells[_TIME_CELL].cell_len),
+            card_context.Part("cwd", cells[_CWD_CELL]),
+            card_context.Part("branch", cells[_BRANCH_CELL]),
+        ],
+        body - (markers.cell_len + 1 if markers.plain else 0),
+    )
+    if dimmed:
+        context.stylize("dim")
 
     if bar_unread:
         backend_style = backend.get_style_at_offset(_CONSOLE, 0)
@@ -461,6 +470,7 @@ def _sync_rows(
     briefs_by_row: abc.Mapping[str, brief_cards.CardBrief | None] | None = None,
     stale_hours: float = 6.0,
     now: float = 0.0,
+    contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -487,6 +497,7 @@ def _sync_rows(
                 (briefs_by_row or {}).get(key),
                 stale_hours,
                 now,
+                (contexts_by_row or {}).get(key),
             )
             if cards
             else brief_rows.styled(
@@ -786,6 +797,9 @@ class LemonaidApp(App):
         self._arrange_logged: set[str] = set()
         self._fold_name = ""  # the arranger's name for the folded group
         self._drawn: list[db.Notification] = []  # the main table's rows, top to bottom
+        # Each row's project, by (cwd, branch, area): finding one resolves paths,
+        # which a refresh tick shouldn't repeat for rows that haven't changed.
+        self._projects: dict[tuple[str, str, str], card_context.Part] = {}
         self._brief_target: brief.target.Target | None = None
         self._brief_row_id: int | None = None  # the row whose lemon the main pane is on
         # Browsing briefs redraws at once and switches the main pane behind it;
@@ -1209,12 +1223,17 @@ class LemonaidApp(App):
             # the table can actually paint into.
             _stretch_columns(table, flex, w - _vertical_scrollbar_width(table))
 
+    def _where_label(self, table_id: str) -> str:
+        """History and the snoozed list keep the cwd: they are records, searched by path."""
+        inbox = table_id in {"#main_table", "#other_sources_table"}
+        return "Project" if inbox and "project" in self.config.tui.card_fields else "CWD"
+
     def _column_labels(self, table_id: str) -> dict[int, str]:
         return {
             0: "Time",
             3: "Name",
             _BRANCH_COLUMN: "Branch",
-            5: "CWD",
+            5: self._where_label(table_id),
             6: "Message",
             _TTY_COLUMN: "Wakes" if table_id == "#snoozed_table" else "TTY",
         }
@@ -1252,7 +1271,7 @@ class LemonaidApp(App):
         table.add_column("", width=_BACKEND_WIDTH)  # Model, right-aligned
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
-        table.add_column("CWD", width=16)
+        table.add_column(self._where_label(f"#{table.id}"), width=16)
         table.add_column("Message", width=30)  # Stretched on resize
         # TTY holds "ttysNNN"; the snoozed view's wake label is "Fri 09:00".
         table.add_column("Wakes" if wake_column else "TTY", width=9 if wake_column else 7)
@@ -1314,6 +1333,33 @@ class LemonaidApp(App):
             history=history,
         )
 
+    def _project(self, n: db.Notification, area: str) -> card_context.Part:
+        key = (n.metadata.get("cwd", ""), n.metadata.get("git_branch", ""), area)
+        if key not in self._projects:
+            self._projects[key] = card_context.project_part(self.config.places, *key)
+
+        return self._projects[key]
+
+    def _where_cell(self, n: db.Notification, is_unread: bool, area: str) -> Text:
+        """The directory column: the project, unless `card_fields` asks for the cwd instead."""
+        if "project" not in self.config.tui.card_fields:
+            return styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd")
+
+        where = self._project(n, area)
+        return styled_cell(where.text.plain, is_unread, where.field)
+
+    def _context_parts(
+        self, n: db.Notification, is_unread: bool, area: str
+    ) -> list[card_context.Part]:
+        return card_context.parts(
+            self.config.tui.card_fields,
+            _time_cell(n.created_at, is_unread),
+            self._project(n, area),
+            n.metadata.get("git_branch", ""),
+            n.metadata.get("cwd", ""),
+            is_unread,
+        )
+
     def _active_row(
         self,
         n: db.Notification,
@@ -1321,6 +1367,7 @@ class LemonaidApp(App):
         focused: frozenset[str],
         pinned: frozenset[str],
         emojis: abc.Mapping[str, str],
+        area: str = "",
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
@@ -1343,13 +1390,13 @@ class LemonaidApp(App):
             jump_gutter(row_index, is_here)
             + styled_cell(_decorated_name(n, emojis), is_unread, "name"),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
-            styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd"),
+            self._where_cell(n, is_unread, area),
             styled_cell(n.message, is_unread, "message"),
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), is_unread, "tty"),
         ]
 
     def _other_row(
-        self, n: db.Notification, emojis: abc.Mapping[str, str]
+        self, n: db.Notification, emojis: abc.Mapping[str, str], area: str = ""
     ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
@@ -1358,7 +1405,7 @@ class LemonaidApp(App):
             self._backend_value(n, False),
             styled_cell(_decorated_name(n, emojis), False, "name"),
             styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
-            styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
+            self._where_cell(n, False, area),
             styled_cell(n.message, False, "message"),
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
@@ -1473,13 +1520,14 @@ class LemonaidApp(App):
         )
 
         self._drawn = current_notifications
+        areas = {channel: card.area for channel, card in cards.items() if card.area}
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
         focused = self._focused_ttys()
         rebuilt = _sync_rows(
             main_table,
             [
-                self._active_row(n, i, focused, pinned, emojis)
+                self._active_row(n, i, focused, pinned, emojis, areas.get(n.channel, ""))
                 for i, n in enumerate(current_notifications)
             ],
             self._card_width(),
@@ -1490,6 +1538,10 @@ class LemonaidApp(App):
             briefs,
             self.config.tui.brief_stale_hours,
             time.time(),
+            {
+                str(n.id): self._context_parts(n, n.is_unread, areas.get(n.channel, ""))
+                for n in current_notifications
+            },
         )
 
         fold_label.display = bool(folded)
@@ -1509,9 +1561,13 @@ class LemonaidApp(App):
             other_table.display = True
             _sync_rows(
                 other_table,
-                [self._other_row(n, emojis) for n in other_notifications],
+                [self._other_row(n, emojis, areas.get(n.channel, "")) for n in other_notifications],
                 self._card_width(),
                 self._card_shape(),
+                contexts_by_row={
+                    str(n.id): self._context_parts(n, False, areas.get(n.channel, ""))
+                    for n in other_notifications
+                },
             )
         else:
             if other_table.row_count:

@@ -101,7 +101,7 @@ SESSIONS = [
         22 * _MINUTE,
         "claude",
         "src/kitchen/baker-percentage",
-        "fix/baker-percentage",
+        "fix/baker-percentage-above-one-hundred",
         "Found the bug: `hydration()` divides by total dough weight rather "
         "than flour weight, so every loaf above 70% came out as 41%.",
         "blocked",
@@ -262,7 +262,7 @@ def _brief(name: str, status: str, modified: float) -> Path:
     return path
 
 
-def _seed() -> None:
+def _seed(card_fields: str = "") -> None:
     from lemonaid.brief import attached
     from lemonaid.inbox import db
 
@@ -271,7 +271,10 @@ def _seed() -> None:
     DB.unlink(missing_ok=True)
     shutil.rmtree(BRIEFS, ignore_errors=True)
     BRIEFS.mkdir()
-    Path(ENVIRONMENT["LEMONAID_CONFIG"]).write_text(_config())
+    fields = ", ".join(f'"{f.strip()}"' for f in card_fields.split(",") if f.strip())
+    Path(ENVIRONMENT["LEMONAID_CONFIG"]).write_text(
+        _config() + (f"card_fields = [{fields}]\n" if fields else "")
+    )
     now = time.time()
     with db.connect() as conn:
         for i, (name, status, age, backend, cwd, branch, message, brief) in enumerate(SESSIONS):
@@ -326,13 +329,15 @@ def _socket() -> str:
     return f"{out},0,0"
 
 
-def _position_state(position: str) -> None:
-    """Write the position this server will start with, before anything reads it."""
+def _position_state(position: str, width: int) -> None:
+    """Write the position (and a sidebar's width) this server will start with, before anything reads it."""
     from lemonaid.tmux import scratch
 
     path = scratch.get_state_path() / f"tmux-scratch-{SERVER}-position"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(position)
+    if width:
+        (path.parent / f"tmux-scratch-{SERVER}-width").write_text(str(width))
 
 
 def _kill() -> None:
@@ -341,13 +346,13 @@ def _kill() -> None:
     print(f"killed {SERVER}, removed {ROOT}")
 
 
-def _stage(position: str, attach: bool = True) -> None:
+def _stage(position: str, attach: bool = True, width: int = 0, card_fields: str = "") -> None:
     # A previous run's `lma` would otherwise watch the new rows as they are
     # seeded, and the layout is decided when the pane is built, so a leftover
     # pane would render the previous position. Everything is torn down first.
     _tmux("kill-server")
-    _seed()
-    _position_state(position)
+    _seed(card_fields)
+    _position_state(position, width)
 
     _tmux(
         *_config_args(),
@@ -431,13 +436,19 @@ def main() -> None:
     parser.add_argument("--top", action="store_true", help="top strip instead of left sidebar")
     parser.add_argument("--kill", action="store_true", help="tear down the server and its inbox")
     parser.add_argument("--no-attach", action="store_true", help="stage it but stay in this shell")
+    parser.add_argument("--width", type=int, default=0, help="the left sidebar's columns")
+    parser.add_argument(
+        "--card-fields",
+        default="",
+        help="`[tui] card_fields`, comma-separated, e.g. project,branch",
+    )
     args = parser.parse_args()
 
     if args.kill:
         _kill()
         return
 
-    _stage("top" if args.top else "left", attach=not args.no_attach)
+    _stage("top" if args.top else "left", not args.no_attach, args.width, args.card_fields)
 
 
 if __name__ == "__main__":

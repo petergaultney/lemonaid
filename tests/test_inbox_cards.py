@@ -39,7 +39,7 @@ def test_the_context_line_never_wraps():
     ]
     (body,) = app._as_card(cells, 38, context_lines=3, message_lines=1)
 
-    assert body.plain.split("\n")[1].endswith("…")
+    assert len(body.plain.split("\n")[1]) <= 38
     assert len(body.plain.split("\n")) == 4  # name, context, message, separator
 
 
@@ -459,7 +459,7 @@ def test_building_a_card_does_not_mutate_column_layout_justification():
 
 def test_the_marker_does_not_share_the_name_colour():
     """Sharing it made the dot read as the first glyph of the name."""
-    assert f"bold {app.FIELD_STYLES['name']}" != app.UNREAD_MARKER_STYLE
+    assert f"bold {FIELD_STYLES['name']}" != app.UNREAD_MARKER_STYLE
 
 
 def test_a_long_message_uses_every_line_it_is_given():

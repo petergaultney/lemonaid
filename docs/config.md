@@ -102,6 +102,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
 | `refresh_interval` | `0.33` | Seconds between inbox refreshes. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
+| `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `project`, `branch` and `cwd` (see below). |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
@@ -177,6 +178,30 @@ bar remains green.
 [tui]
 card_unread_style = "bar"
 ```
+
+A card's second line says where a session is working. By default that's the
+time of its last message, its project, and its branch. The project is the
+`[[places.roots]]` entry its cwd sits under, named by the root's `name` or its
+directory, followed by the `Area:` from its brief if it has one
+(`ds-monorepo: apps/unified-asset`). Outside every root, the project is the
+cwd's directory name. With no root and no branch either, the line shows the
+cwd as before. When the line doesn't fit, the branch is cut first, then the
+area. The project's name is kept whole.
+
+The column layout's directory column shows the project too, under a
+`Project` header, while `card_fields` includes `project`. History and the
+snoozed list keep the cwd.
+
+```toml
+[tui]
+card_fields = ["project", "branch"]   # drop the time, which mostly repeats the brief's age
+```
+
+| Default | Without `time` |
+|---|---|
+| ![time, project, branch](images/inbox-card-fields-time.png) | ![project, branch](images/inbox-card-fields-no-time.png) |
+
+An unknown name is skipped with a warning when the config loads.
 
 ### `[tui.backend_labels]`
 

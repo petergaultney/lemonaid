@@ -138,6 +138,10 @@ class KeybindingsConfig:
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
 
 
+# What a card's second line can show, and a column row's directory column.
+CARD_FIELDS = ("time", "project", "branch", "cwd")
+
+
 @dataclass
 class TuiConfig:
     """Configuration for the TUI."""
@@ -145,6 +149,8 @@ class TuiConfig:
     transparent: bool = False  # Use ANSI colors for terminal transparency
     refresh_interval: float = 0.33  # Seconds between TUI refreshes
     card_unread_style: str = "dot"  # "dot" or a full-width "bar"
+    # The second line of a card, in order; any of CARD_FIELDS.
+    card_fields: tuple[str, ...] = ("time", "project", "branch")
     brief_status: bool = False
     brief_stale_hours: float = 6.0
     # Show a mid-turn lemon as working, whatever its brief's Status says.
@@ -321,6 +327,27 @@ def load_config(config_path: Path | None = None) -> Config:
     return _parse_config(data)
 
 
+def _card_fields(raw: object) -> tuple[str, ...]:
+    """`[tui] card_fields`, reporting and skipping any name it doesn't know."""
+    default = TuiConfig.card_fields
+    if raw is None:
+        return default
+    if not isinstance(raw, list):
+        print(
+            f"Warning: [tui] card_fields must be a list of {', '.join(CARD_FIELDS)}",
+            file=sys.stderr,
+        )
+        return default
+
+    for name in raw:
+        if name not in CARD_FIELDS:
+            print(
+                f"Warning: [tui] card_fields: ignoring {name!r}, not one of {', '.join(CARD_FIELDS)}",
+                file=sys.stderr,
+            )
+    return tuple(dict.fromkeys(name for name in raw if name in CARD_FIELDS))
+
+
 def _vaults(raw: object) -> tuple[Path, ...]:
     """`[brief] vaults`, reporting and skipping anything that is not a directory."""
     if not isinstance(raw, list):
@@ -425,6 +452,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         transparent=tui_data.get("transparent", False),
         refresh_interval=tui_data.get("refresh_interval", 0.33),
         card_unread_style=tui_data.get("card_unread_style", "dot"),
+        card_fields=_card_fields(tui_data.get("card_fields")),
         brief_status=tui_data.get("brief_status", False),
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
         mid_turn_working=tui_data.get("mid_turn_working", False),

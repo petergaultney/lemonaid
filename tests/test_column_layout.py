@@ -90,7 +90,7 @@ def test_medium_layout_keeps_message_but_not_tty():
 
 def test_wide_layout_shows_every_column():
     widths = _widths(_WIDE_LAYOUT_COLS)
-    assert {"Time", "Name", "Branch", "CWD", "Message", "TTY"} <= set(widths)
+    assert {"Time", "Name", "Branch", "Project", "Message", "TTY"} <= set(widths)
 
 
 def test_name_grows_with_width_within_a_layout():
@@ -122,7 +122,7 @@ def test_name_beats_original_fixed_width_everywhere():
 def test_name_is_widest_flex_column_when_wide():
     widths = _widths(160)
     assert widths["Name"] > widths["Message"]
-    assert widths["Name"] > widths["CWD"]
+    assert widths["Name"] > widths["Project"]
 
 
 def test_no_horizontal_scrollbar_steals_a_row():

@@ -52,6 +52,7 @@ class CardBrief:
     needs: str = ""
     needs_label: str = "Needs"
     running: str = ""
+    area: str = ""  # the part of its project the brief says it works in
     mid_turn: bool = False
 
     @property
@@ -111,6 +112,7 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
         brief_now.summary(now.needs),
         now.needs_label,
         brief_now.summary(now.running),
+        parts.area,
     )
 
 

@@ -1,3 +1,13 @@
+# 0.58.0 (2026-10-01)
+
+#### Changed
+
+- **An inbox card's second line shows the lemon's project instead of its cwd:** `time · project[: area] · branch`. The project comes from `[[places.roots]]` and the brief's `Area:` line. A session under no root and on no branch still shows its cwd. A narrow card cuts the branch first, then the area. The column layout's `CWD` column becomes `Project`.
+
+#### Added
+
+- **`[tui] card_fields`** picks what that line shows, and in what order, from `time`, `project`, `branch` and `cwd`.
+
 # 0.57.0 (2026-10-01)
 
 #### Added
