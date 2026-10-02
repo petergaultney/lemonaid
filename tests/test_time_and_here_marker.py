@@ -27,7 +27,8 @@ def test_older_than_yesterday_becomes_a_date():
 
 
 def test_a_moment_ago_is_still_today_across_the_hour():
-    assert _format_timestamp(time.time() - 3600).count(":") == 2
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    assert _format_timestamp(max(time.time() - 3600, _at(midnight) + 1)).count(":") == 2
 
 
 def test_a_recent_date_keeps_the_live_colour():
