@@ -7,6 +7,7 @@ sees what the first did. The integration tests below drive a real server
 because that ordering is the whole point and cannot be faked.
 """
 
+import re
 import shutil
 import subprocess
 import uuid
@@ -95,6 +96,10 @@ def tmux(monkeypatch, tmp_path):
     """
     if not shutil.which("tmux"):
         pytest.skip("tmux not installed")
+
+    version = subprocess.run(["tmux", "-V"], capture_output=True, text=True).stdout
+    if (found := re.search(r"(\d+)\.(\d+)", version)) and tuple(map(int, found.groups())) < (3, 6):
+        pytest.skip(f"follow mode needs tmux 3.6, found {version.strip()}")
 
     name = f"lemonaid-test-{uuid.uuid4().hex[:8]}"
 
