@@ -80,7 +80,7 @@ class Section:
     tail: str = ""  # Markdown after the children: Done, then the task
     needs_label: str = "Needs"
     needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
-    questions: tuple[questions.Item, ...] = ()  # Needs as items, when an entry explains one
+    questions: tuple["questions.Item", ...] = ()  # Needs as items, when an entry explains one
     project: str = ""  # `ds-monorepo: apps/unified-asset`, or "" without a lemon or Area line
     held: str = ""  # the brief's own state, while its lemon is mid-turn and shows `state` instead
     # The rest are filled in by `family.added`.

@@ -64,6 +64,18 @@ records (`cwd` per notification).
 uv run pytest
 ```
 
+`requires-python` is `>=3.11`, but development usually runs on 3.14, whose
+deferred annotations hide mistakes that crash older Pythons at import. Before
+opening a PR, also run the oldest supported version:
+
+```bash
+uv run --isolated --python 3.11 --with pytest pytest -q
+```
+
+In a class body, an annotation can't refer to a module with the same name as a
+field (`questions: tuple[questions.Item, ...] = ()`): below 3.14 it sees the
+field's value instead. Quote the annotation or rename the field.
+
 ## Code Style
 
 Handled by pre-commit hooks (ruff). Just commit and it'll auto-format.
