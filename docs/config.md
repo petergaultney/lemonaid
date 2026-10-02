@@ -290,6 +290,8 @@ vaults = ["~/notes", "~/work/kb"]
 |-----|---------|-------------|
 | `auto_read` | `[]` | Regexes; a finished turn whose final message matches one leaves its session read. |
 | `day_starts` | `"06:00"` | Local time a lemon's day starts; its first turn at or after it is told the date. |
+| `snooze_day_starts` | `"09:00"` | Local time a snooze of a day or more ends; not related to `day_starts`. |
+| `snooze_presets` | `["30m", "3h", "1d", "4d"]` | The snooze picker's presets, in the `s` key's syntax. |
 | `arrange` | `""` | A program `lma` keeps running to order its list and choose what folds; see [arrange.md](arrange.md). |
 | `arrange_may_fold_unread` | `false` | Let the arranger fold unread sessions, which otherwise stay in the list. |
 
@@ -326,6 +328,26 @@ time; anything else is reported and 06:00 is used.
 ```toml
 [inbox]
 day_starts = "07:30"
+```
+
+`snooze_day_starts` is when your own day starts, for snoozing. A snooze in days
+or weeks counts mornings at this time: `1d` ends at the next one, so it wakes at
+09:00 today if you snooze at 02:00 and 09:00 tomorrow if you snooze at 23:00.
+`4d` ends at the fourth, `1w` at the seventh, and a fraction of a day rounds up.
+`morning` is the same as `1d`. Minutes, hours, and anything under a day are
+exact. It applies to the TUI picker and to `lemonaid inbox snooze`, and takes
+the same formats as `day_starts`.
+
+`snooze_presets` lists what the picker offers below its duration box, in order.
+Each entry is anything you could type there; the picker labels it from the
+duration (`30 minutes`, `Tomorrow morning, Sat 09:00`, `4 days, Tue 09:00`). An
+entry it can't read is reported and skipped, and a list with none left gives the
+defaults.
+
+```toml
+[inbox]
+snooze_day_starts = "08:30"
+snooze_presets = ["15m", "1h", "1d", "1w"]
 ```
 
 ## `[[places.roots]]`

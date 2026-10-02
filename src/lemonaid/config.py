@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import auto_read, keys
+from .inbox import snooze_time
 
 
 def get_config_path() -> Path:
@@ -191,6 +192,10 @@ class InboxConfig:
     auto_read: tuple[re.Pattern[str], ...] = ()
     # A lemon's first turn at or after this local time each day is told the date.
     day_starts: dt.time = dt.time(6, 0)
+    # A snooze of a day or more, and the 'morning' snooze, ends at this local time.
+    snooze_day_starts: dt.time = snooze_time.DEFAULT_DAY_START
+    # The snooze picker's presets, in `inbox snooze` syntax.
+    snooze_presets: tuple[str, ...] = snooze_time.DEFAULT_PRESETS
     # A program lma keeps running to order and fold its list; see docs/arrange.md.
     arrange: str = ""
     # Let the arranger fold an unread row, which otherwise stays in the list.
@@ -387,18 +392,39 @@ def _templates(raw: dict[str, Any]) -> dict[str, list[str]]:
     return {**templates, "default": templates[alias]}
 
 
-def _day_starts(raw: object) -> dt.time:
-    """A TOML local time or an "HH:MM" string; anything else is reported and gives 06:00."""
+def _local_time(key: str, raw: object, default: dt.time) -> dt.time:
+    """A TOML local time or an "HH:MM" string; anything else, an offset included, is reported and gives *default*."""
     if raw is None:
-        return InboxConfig.day_starts
-    if isinstance(raw, dt.time):
-        return raw
+        return default
 
     try:
-        return dt.time.fromisoformat(str(raw))
+        parsed = raw if isinstance(raw, dt.time) else dt.time.fromisoformat(str(raw))
     except ValueError:
-        print(f"lemonaid: [inbox] day_starts: ignoring {raw!r}, not HH:MM", file=sys.stderr)
-        return InboxConfig.day_starts
+        parsed = None
+    if parsed is None or parsed.tzinfo is not None:
+        print(f"lemonaid: [inbox] {key}: ignoring {raw!r}, not a local HH:MM", file=sys.stderr)
+        return default
+
+    return parsed
+
+
+def _snooze_presets(raw: object) -> tuple[str, ...]:
+    """The presets `snooze_time` can read; others are reported, and none at all gives the defaults."""
+    if raw is None:
+        return InboxConfig.snooze_presets
+
+    entries = raw if isinstance(raw, list) else [raw]
+    presets = tuple(
+        entry.strip()
+        for entry in entries
+        if isinstance(entry, str)
+        and snooze_time.parse_wake(entry, 0.0, snooze_time.DEFAULT_DAY_START) is not None
+    )
+    for entry in entries:
+        if not isinstance(entry, str) or entry.strip() not in presets:
+            print(f"lemonaid: [inbox] snooze_presets: ignoring {entry!r}", file=sys.stderr)
+
+    return presets or InboxConfig.snooze_presets
 
 
 def _parse_config(data: dict[str, Any]) -> Config:
@@ -472,7 +498,13 @@ def _parse_config(data: dict[str, Any]) -> Config:
     inbox_data = data.get("inbox", {})
     inbox = InboxConfig(
         auto_read=auto_read.compile_patterns(inbox_data.get("auto_read")),
-        day_starts=_day_starts(inbox_data.get("day_starts")),
+        day_starts=_local_time("day_starts", inbox_data.get("day_starts"), InboxConfig.day_starts),
+        snooze_day_starts=_local_time(
+            "snooze_day_starts",
+            inbox_data.get("snooze_day_starts"),
+            InboxConfig.snooze_day_starts,
+        ),
+        snooze_presets=_snooze_presets(inbox_data.get("snooze_presets")),
         arrange=inbox_data.get("arrange", ""),
         arrange_may_fold_unread=inbox_data.get("arrange_may_fold_unread", False),
     )

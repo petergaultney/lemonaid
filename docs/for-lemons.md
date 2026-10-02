@@ -90,8 +90,9 @@ lemonaid inbox rename --self --clear         # back to the backend's name
 ### Snoozing yourself
 
 `inbox snooze` holds your row out of the user's active inbox until a time, as the TUI's `s`
-key does. It takes the TUI's syntax: a duration (`45m`, `2h`, `3d`; a bare number is minutes)
-or `morning`, the next 9am. It takes the same targets as `rename` and `emoji`.
+key does. It takes the TUI's syntax: a duration (`45m`, `2h`, `3d`, `1w`; a bare number is
+minutes) or `morning`. Days and weeks count mornings at `[inbox] snooze_day_starts` (09:00
+unless set): `1d` and `morning` end at the next one, `3d` at the third. It takes the same targets as `rename` and `emoji`.
 
 ```bash
 lemonaid inbox snooze --self 2h

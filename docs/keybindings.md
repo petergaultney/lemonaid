@@ -126,9 +126,12 @@ client width up to a 140-column maximum.
 ## Snooze
 
 `s` holds a session out of the inbox until a time you pick. Type a duration
-straight away (`45m`, `2h`, `3d`, or `morning`; a bare number means minutes) and
-press Enter. With the box empty, Enter takes the highlighted preset: 15 minutes,
-1 hour, 4 hours, or tomorrow morning (9am). Up and Down move the highlight.
+straight away (`45m`, `2h`, `3d`, `1w`, or `morning`; a bare number means
+minutes) and press Enter. Days and weeks count mornings: `1d` wakes at the next
+09:00, `3d` at the third. With the box empty, Enter takes the highlighted
+preset: 30 minutes, 3 hours, 1 day, or 4 days. Up and Down move the highlight.
+`[inbox] snooze_presets` and `snooze_day_starts` change the presets and the
+09:00 (see [config.md](config.md#inbox)).
 
 When the timer expires the session returns with the status it had when you
 snoozed it: one that was demanding attention comes back unread, one that was

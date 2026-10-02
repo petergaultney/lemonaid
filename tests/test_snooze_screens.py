@@ -9,6 +9,8 @@ from textual.app import App
 from lemonaid.inbox.snooze_time import next_morning, parse_duration, parse_wake
 from lemonaid.inbox.tui.screens import SnoozeScreen, format_wake_time
 
+NINE = datetime(2026, 1, 1, 9).time()
+
 
 def test_parse_bare_number_is_minutes():
     assert parse_duration("45") == 45 * 60
@@ -18,6 +20,7 @@ def test_parse_units():
     assert parse_duration("30m") == 30 * 60
     assert parse_duration("2h") == 2 * 3600
     assert parse_duration("3d") == 3 * 86400
+    assert parse_duration("1w") == 7 * 86400
 
 
 def test_parse_is_forgiving_about_whitespace_and_case():
@@ -35,34 +38,34 @@ def test_parse_rejects_nonsense():
 
 def test_next_morning_same_day_when_before_nine():
     now = datetime(2026, 7, 30, 6, 30).timestamp()
-    target = datetime.fromtimestamp(next_morning(now))
+    target = datetime.fromtimestamp(next_morning(now, NINE))
     assert (target.month, target.day, target.hour, target.minute) == (7, 30, 9, 0)
 
 
 def test_next_morning_rolls_over_when_after_nine():
     now = datetime(2026, 7, 30, 14, 0).timestamp()
-    target = datetime.fromtimestamp(next_morning(now))
+    target = datetime.fromtimestamp(next_morning(now, NINE))
     assert (target.month, target.day, target.hour) == (7, 31, 9)
 
 
 def test_next_morning_is_strictly_future_at_exactly_nine():
     now = datetime(2026, 7, 30, 9, 0).timestamp()
-    target = datetime.fromtimestamp(next_morning(now))
+    target = datetime.fromtimestamp(next_morning(now, NINE))
     assert target.day == 31
 
 
 def test_parse_wake_morning_is_the_next_nine_am():
     now = datetime(2026, 7, 30, 14, 0).timestamp()
-    assert parse_wake(" Morning ", now) == next_morning(now)
+    assert parse_wake(" Morning ", now, NINE) == next_morning(now, NINE)
 
 
 def test_parse_wake_duration_counts_from_now():
-    assert parse_wake("2h", 1000.0) == 1000.0 + 7200
-    assert parse_wake("soon", 1000.0) is None
+    assert parse_wake("2h", 1000.0, NINE) == 1000.0 + 7200
+    assert parse_wake("soon", 1000.0, NINE) is None
 
 
 def test_parse_wake_refuses_a_time_past_any_date():
-    assert parse_wake("1e300d", 1000.0) is None
+    assert parse_wake("1e300d", 1000.0, NINE) is None
 
 
 def test_format_wake_time_today_is_clock_only():
@@ -104,13 +107,13 @@ def test_enter_on_an_empty_box_takes_the_highlighted_preset():
     [first] = _picked(["enter"])
     [third] = _picked(["down", "down", "enter"])
     assert first is not None and third is not None
-    assert before + 15 * 60 <= first <= time.time() + 15 * 60
-    assert before + 4 * 3600 <= third <= time.time() + 4 * 3600
+    assert before + 30 * 60 <= first <= time.time() + 30 * 60
+    assert third == next_morning(time.time(), NINE)
 
 
-def test_up_from_the_first_preset_wraps_to_tomorrow_morning():
+def test_up_from_the_first_preset_wraps_to_the_last():
     [until] = _picked(["up", "enter"])
-    assert until == next_morning(time.time())
+    assert until == parse_wake("4d", time.time(), NINE)
 
 
 def test_nonsense_keeps_the_picker_open():

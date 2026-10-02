@@ -1,3 +1,14 @@
+# 0.61.0 (2026-10-02)
+
+#### Added
+
+- **Snooze presets are configurable, and durations take `w` for weeks.** `[inbox] snooze_presets` lists what the picker offers, by default 30m, 3h, 1d and 4d, each labelled from its duration (`Tomorrow morning, Sat 09:00`).
+- **`[inbox] snooze_day_starts` (09:00) sets when day snoozes end.** It is separate from `day_starts`.
+
+#### Changed
+
+- **A snooze in days or weeks counts mornings.** `Nd` ends at the Nth `snooze_day_starts` after now, so `1d` at 02:00 wakes at 09:00 that day; a fraction of a day rounds up, and `morning` is `1d`. The TUI and `inbox snooze` share it.
+
 # 0.60.0 (2026-10-02)
 
 #### Added

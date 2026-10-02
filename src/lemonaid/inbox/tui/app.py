@@ -2687,7 +2687,11 @@ class LemonaidApp(App):
             self.notify(f"{entry.description} — press {self._undo_key()} to undo")
 
         self.push_screen(
-            SnoozeScreen(session_name=notification.name or ""),
+            SnoozeScreen(
+                session_name=notification.name or "",
+                presets=self.config.inbox.snooze_presets,
+                day_start=self.config.inbox.snooze_day_starts,
+            ),
             handle_snooze,
         )
 

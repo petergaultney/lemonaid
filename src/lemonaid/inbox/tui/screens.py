@@ -1,8 +1,8 @@
 """Modal screens for the TUI."""
 
+import datetime as dt
 import time
-import typing as ty
-from datetime import datetime
+from collections import abc
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -16,11 +16,11 @@ from .. import snooze_time
 def format_wake_time(until: float, now: float | None = None) -> str:
     """Render a wake time as a short human label (e.g. '14:30', 'Fri 09:00')."""
     now = now if now is not None else time.time()
-    dt = datetime.fromtimestamp(until)
-    if dt.date() == datetime.fromtimestamp(now).date():
-        return dt.strftime("%H:%M")
+    wake = dt.datetime.fromtimestamp(until)
+    if wake.date() == dt.datetime.fromtimestamp(now).date():
+        return wake.strftime("%H:%M")
 
-    return dt.strftime("%a %H:%M")
+    return wake.strftime("%a %H:%M")
 
 
 class SnoozeScreen(ModalScreen[float | None]):
@@ -73,24 +73,27 @@ class SnoozeScreen(ModalScreen[float | None]):
         ("down", "preset(1)", "Next preset"),
     ]
 
-    # (id, label, seconds from now); None seconds means the next morning.
-    _PRESETS: ty.Final = (
-        ("15m", "15 minutes", 15 * 60),
-        ("1h", "1 hour", 3600),
-        ("4h", "4 hours", 4 * 3600),
-        ("morning", "Tomorrow morning (9am)", None),
-    )
-
-    def __init__(self, session_name: str = "") -> None:
+    def __init__(
+        self,
+        session_name: str = "",
+        presets: abc.Sequence[str] = snooze_time.DEFAULT_PRESETS,
+        day_start: dt.time = snooze_time.DEFAULT_DAY_START,
+    ) -> None:
         super().__init__()
         self.session_name = session_name
+        self._presets = tuple(presets)
+        self._day_start = day_start
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(f"Snooze {self.session_name}".strip())
-            yield Input(placeholder="type 45m, 2h, 3d - or pick below", id="snooze-custom")
+            yield Input(placeholder="type 45m, 2h, 3d, 1w - or pick below", id="snooze-custom")
+            now = time.time()
             options = OptionList(
-                *[Option(label, id=key) for key, label, _ in self._PRESETS],
+                *[
+                    Option(snooze_time.describe(preset, now, self._day_start), id=str(index))
+                    for index, preset in enumerate(self._presets)
+                ],
                 id="snooze-options",
             )
             options.can_focus = False
@@ -102,12 +105,10 @@ class SnoozeScreen(ModalScreen[float | None]):
         self.query_one("#snooze-custom", Input).focus()
 
     def _wake_for_preset(self, key: str | None) -> float | None:
-        now = time.time()
-        for preset_key, _, seconds in self._PRESETS:
-            if preset_key == key:
-                return snooze_time.next_morning(now) if seconds is None else now + seconds
+        if key is None or not self._presets:
+            return None
 
-        return None
+        return snooze_time.parse_wake(self._presets[int(key)], time.time(), self._day_start)
 
     def action_preset(self, step: int) -> None:
         options = self.query_one("#snooze-options", OptionList)
@@ -124,7 +125,7 @@ class SnoozeScreen(ModalScreen[float | None]):
             options = self.query_one("#snooze-options", OptionList)
             until = self._wake_for_preset(options.get_option_at_index(options.highlighted or 0).id)
         else:
-            until = snooze_time.parse_wake(event.value, time.time())
+            until = snooze_time.parse_wake(event.value, time.time(), self._day_start)
         if until is None:
             self.notify(f"Enter {snooze_time.SYNTAX}", severity="warning")
             return

@@ -10,6 +10,7 @@ import argparse
 import time
 from datetime import datetime
 
+from ..config import load_config
 from . import db, decorate_cli, snooze_time
 
 
@@ -22,7 +23,11 @@ def _summary(channel: str, wakes: str | None, woke: bool) -> str:
 
 def _cmd_snooze(args: argparse.Namespace) -> None:
     now = time.time()
-    until = None if args.clear else snooze_time.parse_wake(args.when, now)
+    until = (
+        None
+        if args.clear
+        else snooze_time.parse_wake(args.when, now, load_config().inbox.snooze_day_starts)
+    )
     woke = False
     with db.connect() as conn:
         db.wake_expired(conn, now)
@@ -55,9 +60,10 @@ def add_parser(inbox_subparsers: argparse._SubParsersAction) -> None:
         "snooze",
         help="Snooze a session out of the inbox, or wake it with --clear",
         description="Holds a session out of the active inbox until WHEN, like the TUI's "
-        "snooze key, and takes the same syntax: a duration (45m, 2h, 3d; a bare number "
-        "is minutes) or 'morning' (the next 9am). Unlike a TUI snooze it lasts through "
-        "the session's turn ends, and it wakes unread if any of those turns ended unread. "
+        "snooze key, and takes the same syntax: a duration (45m, 2h, 3d, 1w; a bare number "
+        "is minutes) or 'morning' (same as 1d). Days and weeks count mornings: 1d ends at "
+        "the next [inbox] snooze_day_starts (09:00 unless set), 3d at the third. Unlike a "
+        "TUI snooze it lasts through the session's turn ends, and it wakes unread if any of those turns ended unread. "
         "A permission prompt or a question wakes it early. Snoozing a snoozed session "
         "moves its wake time.",
         epilog="Examples:\n"
@@ -67,6 +73,6 @@ def add_parser(inbox_subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     decorate_cli.add_target(parser)
-    parser.add_argument("when", nargs="?", default="", help="45m, 2h, 3d, or morning")
+    parser.add_argument("when", nargs="?", default="", help="45m, 2h, 3d, 1w, or morning")
     parser.add_argument("--clear", action="store_true", help="Wake the session now")
     parser.set_defaults(func=_cmd_snooze)

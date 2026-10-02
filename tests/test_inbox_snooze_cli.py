@@ -76,7 +76,9 @@ def test_morning_matches_the_tui_picker(monkeypatch, capsys):
 
     result = _run(monkeypatch, capsys, use_self=True, when="morning")
 
-    assert result["snooze_until"] == pytest.approx(snooze_time.next_morning(time.time()), abs=5)
+    assert result["snooze_until"] == pytest.approx(
+        snooze_time.next_morning(time.time(), snooze_time.DEFAULT_DAY_START), abs=5
+    )
     assert _row(mine).snooze_until == result["snooze_until"]
 
 
