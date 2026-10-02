@@ -64,7 +64,7 @@ def parse_wake(text: str, now: float, day_start: time) -> float | None:
 
     A day or more, in days or weeks, counts mornings: `Nd` ends at the Nth
     `day_start` strictly after *now*, so '1d' at 02:00 wakes at 09:00 that day.
-    A fraction of a day rounds up, and 'morning' is '1d'. Minutes, hours, and
+    '1.5d' counts two mornings, and 'morning' is '1d'. Minutes, hours, and
     anything under a day are exact.
     """
     split = (1.0, "d") if text.strip().lower() == "morning" else _split(text)

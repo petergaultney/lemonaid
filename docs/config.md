@@ -333,7 +333,7 @@ day_starts = "07:30"
 `snooze_day_starts` is when your own day starts, for snoozing. A snooze in days
 or weeks counts mornings at this time: `1d` ends at the next one, so it wakes at
 09:00 today if you snooze at 02:00 and 09:00 tomorrow if you snooze at 23:00.
-`4d` ends at the fourth, `1w` at the seventh, and a fraction of a day rounds up.
+`4d` ends at the fourth, `1w` at the seventh, and `1.5d` at the second.
 `morning` is the same as `1d`. Minutes, hours, and anything under a day are
 exact. It applies to the TUI picker and to `lemonaid inbox snooze`, and takes
 the same formats as `day_starts`.
