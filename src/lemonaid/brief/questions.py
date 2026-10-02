@@ -4,7 +4,7 @@ Each entry is a `###` heading under `## Questions`, named with the label of the
 `### Needs Peter` bullet it explains. A bullet's label is its text before a
 colon, or the whole bullet, so `- render timeouts owner: who fixes it?` is
 explained by `### render timeouts owner` or by the full text. Bold or italic
-markers and case are ignored.
+markers and case are ignored; code spans are kept as written.
 """
 
 import dataclasses
@@ -13,8 +13,10 @@ from collections import abc
 
 _HEADING = re.compile(r"###\s+(?P<label>.+?)\s*#*\s*")
 _TOP_LEVEL_BULLET = re.compile(r"[-*+]\s+(?P<text>.*)")
-_MARKERS = re.compile(r"[*_`]")
-_LEAD = re.compile(r"(?P<lead>.*?):(?:\s|$)")
+_CODE_SPAN = re.compile(r"(`+)(?P<code>.+?)\1")
+_EMPHASIS = re.compile(r"\*+|(?<!\w)_+|_+(?!\w)")  # intraword underscores are not emphasis
+_SPACES = re.compile(r"\s+")
+_LEAD = re.compile(r":(?:\s|$)")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -39,8 +41,39 @@ def entries(questions: str) -> dict[str, str]:
     return {label: "\n".join(lines).strip() for label, lines in found.items()}
 
 
+def _segments(text: str) -> abc.Iterator[tuple[str, bool]]:
+    """*text* in pieces, each with whether it is a code span (backticks included)."""
+    end = 0
+    for span in _CODE_SPAN.finditer(text):
+        yield text[end : span.start()], False
+        yield span[0], True
+        end = span.end()
+
+    yield text[end:], False
+
+
+def _unmarked(text: str) -> str:
+    """*text* without emphasis markers or repeated spaces, its code spans left as written."""
+    return "".join(
+        piece if code else _SPACES.sub(" ", _EMPHASIS.sub("", piece))
+        for piece, code in _segments(text)
+    ).strip()
+
+
 def _plain(text: str) -> str:
-    return " ".join(_MARKERS.sub("", text).split()).casefold()
+    return " ".join(_CODE_SPAN.sub(r"\g<code>", _unmarked(text)).split()).casefold()
+
+
+def _lead(text: str) -> str:
+    """*text* up to its first colon outside a code span that ends a word, or all of it."""
+    done = 0
+    for piece, code in _segments(text):
+        if not code and (colon := _LEAD.search(piece)):
+            return text[: done + colon.start()].strip()
+
+        done += len(piece)
+
+    return text
 
 
 def _explains(label: str, bullet: str) -> bool:
@@ -82,10 +115,9 @@ def items(needs: str, explained: abc.Mapping[str, str]) -> tuple[Item, ...]:
 def labels(needs: str, without: str = "") -> list[str]:
     """Each Needs bullet's label, leaving out the bullet the label *without* explains."""
     return [
-        lead["lead"].strip() if (lead := _LEAD.match(first)) else first
+        _lead(_unmarked(bullet.splitlines()[0]))
         for bullet in _bullets(needs)
         if not (without and _explains(without, bullet))
-        for first in [" ".join(_MARKERS.sub("", bullet.splitlines()[0]).split())]
     ]
 
 

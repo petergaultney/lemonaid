@@ -66,3 +66,22 @@ def test_the_brief_view_appends_the_reminder_to_its_answer(tmp_path):
     assert body.startswith("Answer to render timeouts owner: Alex does\n\nThis answers ")
     assert nudge.carries_note(body)
     assert brief_questions.answer(tmp_path / "gone.md", "x", "y") == "Answer to x: y"
+
+
+def test_code_spans_in_a_label_stay_as_written():
+    brief = _BLOCKED.replace(
+        "- Mark [#5836]",
+        "- `mid_turn_working`  stays *stale*: why?\n- `a  b`: spaced?\n- `a: b` in __bold__\n- Mark [#5836]",
+    )
+
+    assert nudge.note(brief).startswith(
+        'Your brief\'s Status is `blocked`, on: "render timeouts owner", '
+        '"`mid_turn_working` stays stale", "`a  b`", "`a: b` in bold", '
+    )
+
+
+def test_an_answer_matches_a_label_written_without_backticks():
+    brief = _BLOCKED.replace("- Mark [#5836]", "- `snake_case` name: which?\n- Mark [#5836]")
+
+    assert '"`snake_case` name"' not in nudge.after_answer(brief, "snake_case name")
+    assert '"`snake_case` name"' in nudge.after_answer(brief, "render timeouts owner")
