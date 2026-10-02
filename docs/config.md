@@ -159,8 +159,11 @@ brief_stale_hours = 6
 sessions at the bottom of the list, and closes it again. It works the same in the
 column layout and the sidebar.
 
-A folded session comes back into the list while it is unread, and a pinned session
-never folds. Any status can be listed; the default folds nothing.
+A folded session comes back into the list while it is unread or while its tmux
+pane is focused, and a pinned session never folds. When focus moves away, the
+session folds again on the next refresh, unless the cursor is on its card: then
+it stays until the cursor leaves. Any status can be listed; the default folds
+nothing.
 
 ```toml
 [tui]

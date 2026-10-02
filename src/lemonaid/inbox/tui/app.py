@@ -775,6 +775,9 @@ class LemonaidApp(App):
         self._history_mode = False
         self._snoozed_mode = False
         self._fold_open = False
+        self._unfolded_ids: frozenset[str] = (
+            frozenset()
+        )  # rows the last refresh kept out of the fold
         self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
@@ -1491,9 +1494,19 @@ class LemonaidApp(App):
             # Main table: only sessions switchable from the current environment
             active = self._ordered_active(conn, env_filter)
             cards = active.cards
+            focused = self._focused_ttys()
             shown, folded = order.fold(
-                active.rows, view.statuses(cards), pinned, self.config.tui.fold_statuses
-            )
+                active.rows,
+                view.statuses(cards),
+                pinned,
+                self.config.tui.fold_statuses,
+                {
+                    n.channel
+                    for n in active.rows
+                    if n.metadata.get("tty", "") in focused
+                    or (str(n.id) == current_key and current_key in self._unfolded_ids)
+                },
+            )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
             emojis = emoji.by_channel(conn)
             # Lower pane: live sessions from other switchable terminals.
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
@@ -1508,6 +1521,7 @@ class LemonaidApp(App):
                 other_notifications = []
 
         shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
+        self._unfolded_ids = frozenset(str(n.id) for n in shown)
         current_notifications = [*shown, *folded] if self._fold_open else shown
         briefs = (
             {str(n.id): cards[n.channel] for n in current_notifications if n.channel in cards}
@@ -1523,7 +1537,6 @@ class LemonaidApp(App):
         areas = {channel: card.area for channel, card in cards.items() if card.area}
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
-        focused = self._focused_ttys()
         rebuilt = _sync_rows(
             main_table,
             [

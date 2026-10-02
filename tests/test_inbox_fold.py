@@ -12,20 +12,21 @@ from textual.widgets import DataTable, Static
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, order, pins
+from lemonaid.inbox.tui import app as app_mod
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.help_screen import help_lines
 
 _ids = itertools.count(700)
 
 
-def _session(conn, name: str, *, unread: bool = False, age: float = 0) -> str:
+def _session(conn, name: str, *, unread: bool = False, age: float = 0, tty: str = "") -> str:
     channel = f"claude:{name}"
     n = db.add(
         conn,
         channel,
         "a message",
         name,
-        {"tty": f"/dev/ttys{next(_ids)}", "cwd": "/tmp", "session_id": f"s{next(_ids)}"},
+        {"tty": tty or f"/dev/ttys{next(_ids)}", "cwd": "/tmp", "session_id": f"s{next(_ids)}"},
     )
     conn.execute(
         "UPDATE notifications SET switch_source = 'tmux', status = ?, created_at = ? WHERE id = ?",
@@ -76,13 +77,15 @@ def _drawn_and_label(size=(120, 40)) -> tuple[list[str], str]:
     return _run(steps, size)
 
 
-def _split(rows: list[tuple[str, str, bool]], pinned=frozenset()) -> tuple[list[str], list[str]]:
+def _split(
+    rows: list[tuple[str, str, bool]], pinned=frozenset(), in_view=frozenset()
+) -> tuple[list[str], list[str]]:
     notifications = [
         db.Notification(i, channel, "", status="unread" if unread else "read")
         for i, (channel, _status, unread) in enumerate(rows)
     ]
     statuses = {channel: status for channel, status, _unread in rows}
-    shown, folded = order.fold(notifications, statuses, pinned, {"waiting"})
+    shown, folded = order.fold(notifications, statuses, pinned, {"waiting"}, in_view)
     return [n.channel for n in shown], [n.channel for n in folded]
 
 
@@ -101,6 +104,12 @@ def test_unread_and_pinned_rows_never_fold():
     rows = [("c:unread", "waiting", True), ("c:pinned", "waiting", False)]
 
     assert _split(rows, pinned={"c:pinned"}) == (["c:unread", "c:pinned"], [])
+
+
+def test_a_row_in_view_never_folds():
+    rows = [("c:focused", "waiting", False), ("c:other", "waiting", False)]
+
+    assert _split(rows, in_view={"c:focused"}) == (["c:focused"], ["c:other"])
 
 
 def test_nothing_folds_without_the_setting():
@@ -225,3 +234,63 @@ def test_a_selected_folded_row_that_turns_unread_stays_selected(fold_waiting):
         return _selected(app), _label(app)
 
     assert _run(steps) == (waiting, "")
+
+
+@pytest.fixture
+def focus(monkeypatch) -> dict[str, set[str]]:
+    """The ttys tmux reports as focused, asked afresh on every refresh."""
+    focused: dict[str, set[str]] = {"ttys": set()}
+    monkeypatch.setattr(app_mod.navigation, "focused_ttys", lambda socket=None: focused["ttys"])
+    monkeypatch.setattr(app_mod, "_FOCUS_CACHE_SECONDS", 0.0)
+    return focused
+
+
+def test_a_focused_waiting_lemon_leaves_the_fold_and_returns_when_focus_moves(fold_waiting, focus):
+    with db.connect() as conn:
+        working = _session(conn, "working", age=30)
+        waiting = _session(conn, "waiting", age=5, tty="/dev/ttys-focus")
+        _brief(conn, waiting, "waiting")
+
+    async def steps(app, pilot):
+        app._select_channel(working)
+        focus["ttys"] = {"/dev/ttys-focus"}
+        app._refresh_notifications()
+        await pilot.pause()
+        focused = app._row_channels(), _label(app)
+        focus["ttys"] = set()
+        app._refresh_notifications()
+        await pilot.pause()
+        return focused, (app._row_channels(), _label(app))
+
+    focused, left = _run(steps)
+
+    assert focused == ([waiting, working], "")
+    assert left == ([working], "▸ waiting (1) · w to show")
+
+
+def test_a_lemon_that_loses_focus_under_the_cursor_stays_until_the_cursor_moves(
+    fold_waiting, focus
+):
+    with db.connect() as conn:
+        working = _session(conn, "working", age=30)
+        waiting = _session(conn, "waiting", age=5, tty="/dev/ttys-focus")
+        _brief(conn, waiting, "waiting")
+
+    async def steps(app, pilot):
+        focus["ttys"] = {"/dev/ttys-focus"}
+        app._refresh_notifications()
+        await pilot.pause()
+        app._select_channel(waiting)
+        focus["ttys"] = set()
+        app._refresh_notifications()
+        await pilot.pause()
+        held = app._row_channels(), _selected(app)
+        app._select_channel(working)
+        app._refresh_notifications()
+        await pilot.pause()
+        return held, app._row_channels()
+
+    held, moved = _run(steps)
+
+    assert held == ([waiting, working], waiting)
+    assert moved == [working]

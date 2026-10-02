@@ -26,7 +26,7 @@ def _snapshot(
         pinned = frozenset(pins.pinned_positions(conn))
         emojis = emoji.by_channel(conn)
     shown, folded = order.fold(
-        active.rows, view.statuses(active.cards), pinned, config.tui.fold_statuses
+        active.rows, view.statuses(active.cards), pinned, config.tui.fold_statuses, frozenset()
     )
     return (
         view.snapshot(active, shown, folded, pinned, emojis, layout, width, now),
