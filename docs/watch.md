@@ -101,17 +101,20 @@ is.
 `--interval` (60 seconds by default).
 
 ```bash
-lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "Author (MotorHoe)" --once
+lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "Author (MotorHoe)" --legacy Claude --once
 lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" --codex-thread "$CODEX_THREAD_ID"
 lemonaid watch pr --status 90 --me "Author (MotorHoe)"
 ```
 
 It reports a push (the head differs from `--head`), a merge or close, a move to or from
-draft, a review decision change, and with `--comments` a new human comment, a conflict with
-the base, or failed CI. A comment
-counts as human when it is in an unresolved, non-outdated review thread, a submitted
-review's body, or the PR conversation, is not from a bot, and does not start with 🍋 (lemons
-post with the human's account, so the marker is the only way to tell). Comments already
+draft, a review decision change, and with `--comments` a new comment from someone else, a
+conflict with the base, or failed CI. A comment counts when it is in an unresolved,
+non-outdated review thread, a submitted review's body, or the PR conversation, and is not
+from a bot or a pending review. It is skipped as your own only when it is signed: 🍋, then
+your `--me` signature or a `--legacy` one, then a colon (`🍋 Author (MotorHoe): done`).
+Lemons post with their human's account, so the signature is the only way to tell them apart.
+Other lemons' comments wake you, signed or not, and so does an unsigned 🍋 comment of your
+own from before you signed them. Comments already
 reported, and the last reported draft flag and decision, are kept per PR and `--me` in
 `$TMPDIR/watch-pr/`, so a rearm reports what changed in between and nothing it already
 reported. Pass the head you just handled as `--head` when rearming; without it the first

@@ -1,15 +1,19 @@
 """One GraphQL snapshot of a PR: head, state, draft, review decision, mergeability, checks, and the review comments a lemon should answer.
 
-Lemons post with the human's GitHub account, so authorship can't tell them apart; a body
-starting with the lemon marker is a lemon's, anything else is a human's. Bots, pending
+Lemons post with their human's GitHub account, so authorship can't tell them apart. Each
+lemon signs right after the lemon marker (`🍋 Reviewer (StateJob): ...`), and a comment is
+the watching lemon's own only when it carries one of its signatures. Every other comment,
+including other lemons' and unsigned 🍋 ones, is someone else's. Bots, pending
 (unsubmitted) review comments, and resolved or outdated threads never count.
 """
 
 import json
 import subprocess
 import typing as ty
+from collections import abc
 
-LEMON_MARKER = "\N{LEMON}"
+from . import lemon_signature
+
 _ROLLUP = """
       statusCheckRollup { contexts(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
@@ -71,19 +75,19 @@ class Snapshot(ty.NamedTuple):
     state: str
     draft: bool
     decision: str  # APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, or "" when GitHub gives none
-    comments: list[Comment]  # human comments in the order GitHub returned them
+    comments: list[Comment]  # others' comments in the order GitHub returned them
     base: str
     mergeable: str  # MERGEABLE, CONFLICTING, or UNKNOWN while GitHub computes it
     checks: list[Check]  # on the head commit
 
 
-def _is_human(node: dict) -> bool:
+def _is_others(node: dict, signatures: tuple[str, ...]) -> bool:
     author = node.get("author") or {}
     return (
         author.get("__typename") != "Bot"
         and node.get("state") != "PENDING"
         and bool(node["body"].strip())
-        and not node["body"].lstrip().startswith(LEMON_MARKER)
+        and not lemon_signature.is_signed(node["body"], signatures)
     )
 
 
@@ -93,13 +97,16 @@ def _comment(node: dict, where: str) -> Comment:
     )
 
 
-def _human_comments(pr: dict) -> ty.Iterator[Comment]:
+def _others_comments(pr: dict, signatures: tuple[str, ...]) -> ty.Iterator[Comment]:
+    def others(nodes: list[dict]) -> list[dict]:
+        return [n for n in nodes if _is_others(n, signatures)]
+
     for t in pr["reviewThreads"]["nodes"]:
         if not t["isResolved"] and not t["isOutdated"]:
             where = f"{t['path']}:{t['line']}"
-            yield from (_comment(c, where) for c in t["comments"]["nodes"] if _is_human(c))
-    yield from (_comment(r, "review") for r in pr["reviews"]["nodes"] if _is_human(r))
-    yield from (_comment(c, "conversation") for c in pr["comments"]["nodes"] if _is_human(c))
+            yield from (_comment(c, where) for c in others(t["comments"]["nodes"]))
+    yield from (_comment(r, "review") for r in others(pr["reviews"]["nodes"]))
+    yield from (_comment(c, "conversation") for c in others(pr["comments"]["nodes"]))
 
 
 _FAILED = frozenset(
@@ -158,8 +165,11 @@ def _repository(repo: str, number: int, query: str, after: str, oid: str) -> dic
         return None
 
 
-def fetch(repo: str, number: int) -> Snapshot | None:
-    """None when gh fails - a transient failure must not end the wait."""
+def fetch(repo: str, number: int, signatures: abc.Iterable[str]) -> Snapshot | None:
+    """None when gh fails - a transient failure must not end the wait.
+
+    Comments signed with one of `signatures` are left out as the watching lemon's own.
+    """
     r = _repository(repo, number, _QUERY, "", "")
     if r is None:
         return None
@@ -182,7 +192,7 @@ def fetch(repo: str, number: int) -> Snapshot | None:
         pr["state"],
         pr["isDraft"],
         pr["reviewDecision"] or "",
-        list(_human_comments(pr)),
+        list(_others_comments(pr, tuple(signatures))),
         pr["baseRefName"],
         pr["mergeable"],
         [_check(n) for n in nodes if n],

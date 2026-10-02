@@ -1,3 +1,9 @@
+# 0.61.1 (2026-10-02)
+
+#### Changed
+
+- **`watch pr --comments` skips only comments signed with `--me` or a `--legacy` signature.** A comment is yours when it starts `🍋 <signature>:`, e.g. `🍋 Author (MotorHoe): done`. Other lemons' 🍋 comments, signed or not, now wake the waiter, so its first wake after upgrading reports the PR's unresolved unsigned ones once.
+
 # 0.61.0 (2026-10-02)
 
 #### Added

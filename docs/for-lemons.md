@@ -656,9 +656,11 @@ PATCH
 
 Edits by anyone else, another lemon's included, still wake you. Details: [watch.md](watch.md#ignoring-the-lemons-own-edits).
 
-`lemonaid watch pr --wait <n> --head <sha you handled> --comments --me <name> --once` does
+`lemonaid watch pr --wait <n> --head <sha you handled> --comments --me "<signature>" --once` does
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
-human comment, conflict with the base, or failed CI (the last three only with `--comments`). Rearm with `--head` set to the head you just handled. It replaces
+comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).
+Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, and pass that
+signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. Rearm with `--head` set to the head you just handled. It replaces
 `watch-pr.py`, with the same flags and state.
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file

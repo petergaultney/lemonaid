@@ -2,10 +2,12 @@
 
 Reports when the PR's head commit moves, its state changes (OPEN -> MERGED / CLOSED), it
 is marked ready for review or back to draft, or its review decision changes; and with
-`--comments` also when a human comment appears in an unresolved, non-outdated review
-thread, in a submitted review's body, or in the PR conversation, and when the PR
+`--comments` also when someone else's comment appears in an unresolved, non-outdated
+review thread, in a submitted review's body, or in the PR conversation, and when the PR
 conflicts with its base or its CI fails. `--comments` is the author's mode, so only the
-author is woken to fix those. Makes one GraphQL call per interval through `gh`.
+author is woken to fix those. A comment is your own, and never reported, when it starts
+with 🍋 followed by your `--me` signature or a `--legacy` one and a colon:
+`🍋 Author (MotorHoe): done`. Other lemons' comments, signed or not, are reported. Makes one GraphQL call per interval through `gh`.
 
 By default prints one line per event and never exits on its own. With `--once`, prints
 the first event and exits, so a Claude background Bash task wakes its session once on
@@ -17,9 +19,9 @@ One waiter per (PR, --me) may run; a second exits at once, naming the first. Fla
 state files and locks match the standalone watch-pr.py, so either can replace the other.
 
     lemonaid watch pr --wait <number> [--repo owner/name] [--interval 60]
-    lemonaid watch pr --wait <number> --comments --me Pliny --head <sha> --once
-    lemonaid watch pr --wait <number> --comments --me Pliny --head <sha> --codex-thread "$CODEX_THREAD_ID"
-    lemonaid watch pr --status <number> [--me Pliny]
+    lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
+    lemonaid watch pr --wait <number> --comments --me "Reviewer (SaltyEbb)" --head <sha> --codex-thread "$CODEX_THREAD_ID"
+    lemonaid watch pr --status <number> [--me "Author (MotorHoe)"]
 """
 
 import argparse
@@ -85,7 +87,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
 
     try:
         pr_wait.wait(
-            lambda: pr_activity.fetch(repo, pr),
+            lambda: pr_activity.fetch(repo, pr, (a.me, *a.legacy)),
             pr,
             a.interval,
             a.head,
@@ -116,7 +118,7 @@ def _cmd(a: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
         "pr",
-        help="Wait for pushes, state and review changes, and human comments on a GitHub PR",
+        help="Wait for pushes, state and review changes, and others' comments on a GitHub PR",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -135,7 +137,18 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="also report new human review and conversation comments, a conflict with the base, and failed CI",
     )
-    ap.add_argument("--me", default="", help="your lemon name; required with --comments")
+    ap.add_argument(
+        "--me",
+        default="",
+        help="the signature you put after 🍋 in your comments, e.g. 'Author (MotorHoe)'; required with --comments",
+    )
+    ap.add_argument(
+        "--legacy",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="another signature whose comments count as yours, e.g. an old one (repeatable)",
+    )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
     ap.add_argument(
         "--codex-thread",

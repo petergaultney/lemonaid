@@ -3,13 +3,14 @@
 import hashlib
 import json
 import os
+import pathlib
 import stat
 import subprocess
 import sys
 
 import pytest
 
-from lemonaid.watch import delivery, merge_health, pr_activity, pr_wait
+from lemonaid.watch import delivery, lemon_signature, merge_health, pr_activity, pr_wait
 
 _HEAD = "a" * 40
 
@@ -182,54 +183,53 @@ def test_check_runs_and_status_contexts_are_read():
     ]
 
 
-def test_the_lemon_marker_and_pending_reviews_are_not_human():
-    pr = {
-        "reviewThreads": {
-            "nodes": [
-                {
-                    "isResolved": False,
-                    "isOutdated": False,
-                    "path": "a",
-                    "line": 1,
-                    "comments": {
-                        "nodes": [
-                            {
-                                "id": "1",
-                                "body": "\N{LEMON}: mine",
-                                "state": "SUBMITTED",
-                                "author": {"login": "p", "__typename": "User"},
-                            },
-                            {
-                                "id": "2",
-                                "body": "draft",
-                                "state": "PENDING",
-                                "author": {"login": "p", "__typename": "User"},
-                            },
-                            {
-                                "id": "3",
-                                "body": "real",
-                                "state": "SUBMITTED",
-                                "author": {"login": "p", "__typename": "User"},
-                            },
-                        ]
-                    },
-                }
-            ]
-        },
-        "reviews": {
-            "nodes": [
-                {
-                    "id": "4",
-                    "body": "lgtm",
-                    "state": "APPROVED",
-                    "author": {"login": "ci", "__typename": "Bot"},
-                }
-            ]
-        },
-        "comments": {"nodes": []},
-    }
+_SIGNED_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "watch_pr_signed_comments.json"
 
-    assert [c.id for c in pr_activity._human_comments(pr)] == ["3"]
+
+def _fixture_ids(*signatures):
+    pr = json.loads(_SIGNED_FIXTURE.read_text())["data"]["repository"]["pullRequest"]
+    return [c.id for c in pr_activity._others_comments(pr, signatures)]
+
+
+def test_only_comments_signed_by_me_or_a_legacy_signature_are_mine():
+    assert _fixture_ids("Author (MotorHoe)", "Claude") == [
+        "PRRC_teammate_signed",
+        "PRRC_teammate_unsigned",
+        "PRRC_human",
+        "IC_prefix",
+    ]
+
+
+def test_without_a_legacy_signature_its_comments_are_reported():
+    assert "PRRC_mine_legacy" in _fixture_ids("Author (MotorHoe)")
+
+
+def test_a_bare_name_that_no_comment_is_signed_with_owns_nothing():
+    assert _fixture_ids("support-katamari") == [
+        "PRRC_mine",
+        "PRRC_mine_legacy",
+        "PRRC_teammate_signed",
+        "PRRC_teammate_unsigned",
+        "PRRC_human",
+        "PRR_mine",
+        "IC_prefix",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("body", "signed"),
+    [
+        ("\N{LEMON} Author (X): ok", True),
+        ("  \N{LEMON}Author (X): ok", True),
+        ("\N{LEMON}\N{VARIATION SELECTOR-16} Author (X): ok", True),
+        ("\N{LEMON}: ok", False),
+        ("\N{LEMON} Author (X) ok", False),
+        ("Author (X): ok", False),
+        ("\N{LEMON} Author (Y): ok", False),
+    ],
+)
+def test_a_signature_follows_the_marker_and_ends_with_a_colon(body, signed):
+    assert lemon_signature.is_signed(body, ["Author (X)"]) is signed
 
 
 _FAKE_GH = """#!/bin/sh
@@ -313,3 +313,25 @@ def test_cli_status_and_comments_needs_me(tmp_path, fake_gh):
     refused = _cli(tmp_path, "--wait", "90", "--comments")
     assert refused.returncode == 2
     assert "--comments needs --me" in refused.stderr
+
+
+def test_cli_reports_others_comments_but_not_mine(tmp_path, fake_gh):
+    fake_gh.write_text(_SIGNED_FIXTURE.read_text())
+
+    result = _cli(
+        tmp_path,
+        "--wait",
+        "90",
+        "--head",
+        "b" * 40,
+        "--comments",
+        "--me",
+        "Author (MotorHoe)",
+        "--legacy",
+        "Claude",
+        "--once",
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.startswith("PR #90: 4 new comment(s) - harrison (src/x.py:3): ")
+    assert "Reviewer (StateJob)" in result.stdout

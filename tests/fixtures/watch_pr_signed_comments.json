@@ -1,0 +1,145 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "headRefOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "baseRefName": "main",
+        "state": "OPEN",
+        "isDraft": true,
+        "reviewDecision": null,
+        "mergeable": "MERGEABLE",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "statusCheckRollup": null
+              }
+            }
+          ]
+        },
+        "reviewThreads": {
+          "nodes": [
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/x.py",
+              "line": 3,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_mine",
+                    "body": "🍋 Author (MotorHoe): fixed in the next push",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "peter",
+                      "__typename": "User"
+                    }
+                  },
+                  {
+                    "id": "PRRC_mine_legacy",
+                    "body": "🍋 Claude: done",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "peter",
+                      "__typename": "User"
+                    }
+                  },
+                  {
+                    "id": "PRRC_teammate_signed",
+                    "body": "🍋 Reviewer (StateJob): this leaks the handle",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "harrison",
+                      "__typename": "User"
+                    }
+                  },
+                  {
+                    "id": "PRRC_teammate_unsigned",
+                    "body": "🍋: should this be a set?",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "harrison",
+                      "__typename": "User"
+                    }
+                  },
+                  {
+                    "id": "PRRC_human",
+                    "body": "please rename this",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "peter",
+                      "__typename": "User"
+                    }
+                  },
+                  {
+                    "id": "PRRC_pending",
+                    "body": "half-written",
+                    "state": "PENDING",
+                    "author": {
+                      "login": "peter",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": false,
+              "path": "src/y.py",
+              "line": 9,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_resolved",
+                    "body": "old point",
+                    "state": "SUBMITTED",
+                    "author": {
+                      "login": "peter",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "nodes": [
+            {
+              "id": "PRR_mine",
+              "body": "\n🍋 Author (MotorHoe): replied inline",
+              "state": "COMMENTED",
+              "author": {
+                "login": "peter",
+                "__typename": "User"
+              }
+            },
+            {
+              "id": "PRR_bot",
+              "body": "lgtm",
+              "state": "APPROVED",
+              "author": {
+                "login": "ci",
+                "__typename": "Bot"
+              }
+            }
+          ]
+        },
+        "comments": {
+          "nodes": [
+            {
+              "id": "IC_prefix",
+              "body": "🍋 Author (MotorHoe)-2: a different lemon",
+              "author": {
+                "login": "peter",
+                "__typename": "User"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
