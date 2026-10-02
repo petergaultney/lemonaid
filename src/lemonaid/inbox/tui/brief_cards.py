@@ -40,25 +40,40 @@ DOT_STYLES = {
 
 @dataclasses.dataclass(frozen=True)
 class CardBrief:
+    """A brief as its card needs it.
+
+    `status` is the brief's own, which places the card in the list; `shown` is
+    the one the card is drawn as, which differs while the lemon is mid-turn.
+    """
+
     status: str
     waiting_on: str
     mtime: float
     needs: str = ""
     needs_label: str = "Needs"
     running: str = ""
+    mid_turn: bool = False
+
+    @property
+    def shown(self) -> str:
+        return turns.shown(self.status) if self.mid_turn else self.status
 
     @property
     def needs_line(self) -> str:
-        """What a person has to do, under the label the worker wrote; "" once done."""
-        return f"{self.needs_label}: {self.needs}" if self.needs and self.status != "done" else ""
+        """What a person has to do, under the label the worker wrote; "" once done or mid-turn."""
+        return (
+            f"{self.needs_label}: {self.needs}"
+            if self.needs and self.shown == self.status and self.status != "done"
+            else ""
+        )
 
     @property
     def waiting_line(self) -> str:
-        return self.waiting_on if self.status == "waiting" else ""
+        return self.waiting_on if self.shown == "waiting" else ""
 
     @property
     def running_line(self) -> str:
-        return self.running if self.status == "running" else ""
+        return self.running if self.shown == "running" else ""
 
     @property
     def extra_lines(self) -> int:
@@ -66,21 +81,21 @@ class CardBrief:
         return 1 + bool(self.needs_line) + bool(self.waiting_line) + bool(self.running_line)
 
     def age(self, now: float, stale_hours: float) -> str:
+        """The brief's age, after its own status when the card is drawn as another."""
         elapsed = max(0, now - self.mtime)
         age = brief_status.age(elapsed)
+        held = f"{self.status} · " if self.shown != self.status else ""
         if (
-            self.status in {"working", "running", "waiting"}
+            self.shown in {"working", "running", "waiting"}
             and now - self.mtime >= stale_hours * 3600
         ):
-            return f"updated {age} (stale)"
+            return f"{held}updated {age} (stale)"
 
-        return f"updated {age}"
+        return f"{held}updated {age}"
 
 
 def mid_turn(card: CardBrief) -> CardBrief:
-    """*card* as its lemon shows mid-turn, no longer naming what it needs."""
-    status = turns.shown(card.status)
-    return card if status == card.status else dataclasses.replace(card, status=status, needs="")
+    return dataclasses.replace(card, mid_turn=True)
 
 
 def _parse(text: str, mtime: float) -> CardBrief | None:

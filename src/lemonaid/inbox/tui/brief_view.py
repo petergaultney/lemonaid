@@ -45,7 +45,9 @@ def _working(section: render.Section) -> render.Section:
     return (
         section
         if state == section.state
-        else dataclasses.replace(section, state=state, needs_text="", questions=())
+        else dataclasses.replace(
+            section, state=state, held=section.state, needs_text="", questions=()
+        )
     )
 
 

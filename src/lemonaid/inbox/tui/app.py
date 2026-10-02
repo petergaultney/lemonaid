@@ -300,7 +300,7 @@ def _as_card(
     )
 
     message = cells[_MSG_CELL]
-    if card_brief and card_brief.status == "waiting" and not marker.plain:
+    if card_brief and card_brief.shown == "waiting" and not marker.plain:
         headline.stylize("dim")
         context.stylize("dim")
         message = message.copy()
@@ -318,7 +318,7 @@ def _as_card(
         backend = backend[: -len(PIN_MARK)]
     backend.justify = None
     pin.justify = None
-    if card_brief and card_brief.status == "waiting" and not marker.plain:
+    if card_brief and card_brief.shown == "waiting" and not marker.plain:
         backend.stylize("dim")
     markers = Text(emoji)
     if pin.plain:
@@ -345,8 +345,8 @@ def _as_card(
     else:
         headline = _right_aligned(headline, backend, width)
 
-    if card_brief and card_brief.status in brief_cards.STATUS_STYLES:
-        headline.stylize(brief_cards.STATUS_STYLES[card_brief.status], 1 if is_here else 0)
+    if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
+        headline.stylize(brief_cards.STATUS_STYLES[card_brief.shown], 1 if is_here else 0)
         if backend.plain:
             # The model keeps its provider colour, as a badge, like the column row's.
             provider = backend.get_style_at_offset(_CONSOLE, 0).color
@@ -356,7 +356,7 @@ def _as_card(
             )
         if marker.plain:
             headline.stylize(
-                brief_cards.DOT_STYLES.get(card_brief.status, UNREAD_MARKER_STYLE),
+                brief_cards.DOT_STYLES.get(card_brief.shown, UNREAD_MARKER_STYLE),
                 2,
                 3,
             )
@@ -1353,7 +1353,7 @@ class LemonaidApp(App):
     def _brief_cards(
         self, rows: abc.Iterable[db.Notification], attached: abc.Mapping[str, Path]
     ) -> dict[str, brief_cards.CardBrief]:
-        """The card of each attached brief by channel, as working while its lemon is mid-turn."""
+        """The card of each attached brief by channel, marked while its lemon is mid-turn."""
         working = (
             turns.briefs(rows, attached, time.time())
             if self.config.tui.mid_turn_working

@@ -1,10 +1,10 @@
 """Whether a lemon is mid-turn, and the brief status it shows while it is.
 
 A lemon rewrites its brief's `Status:` late in a turn, so while it works on
-your answer its brief still says `blocked`. Mid-turn, the inbox shows it as
-`working` instead, everywhere it reads a brief status, and the brief's own
-status applies again once the turn ends. `running` stays: it means minding a
-process across turns.
+your answer its brief still says `blocked`. Mid-turn, the inbox draws it as
+`working` instead, and the brief's own status applies again once the turn
+ends. Only the drawing changes: the brief's own status still places it in the
+list. `running` stays: it means minding a process across turns.
 """
 
 from collections import abc

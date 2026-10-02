@@ -21,10 +21,10 @@ def _restyled(cell: Text, style: str | Style, start: int = 0) -> Text:
 
 def background(brief: CardBrief | None) -> Style | None:
     """The row's fill, which the table paints across every cell and its padding."""
-    if brief and brief.status == "blocked":
+    if brief and brief.shown == "blocked":
         return Style(bgcolor=_BLOCKED_ROW)
 
-    style = STATUS_STYLES.get(brief.status) if brief else None
+    style = STATUS_STYLES.get(brief.shown) if brief else None
     return Style(bgcolor=style.bgcolor) if style else None
 
 
@@ -45,18 +45,18 @@ def styled(
     dims, as its card does.
     """
     unread = bool(cells[unread_cell].plain)
-    if brief and brief.status == "waiting" and not unread:
+    if brief and brief.shown == "waiting" and not unread:
         return [
             cell if i == unread_cell else _restyled(cell, "dim") for i, cell in enumerate(cells)
         ]
 
-    style = STATUS_STYLES.get(brief.status) if brief else None
+    style = STATUS_STYLES.get(brief.shown) if brief else None
     if not brief or not style:
         return cells
 
     def recoloured(index: int, cell: Text) -> Text:
         if index == unread_cell:
-            dot = DOT_STYLES.get(brief.status)
+            dot = DOT_STYLES.get(brief.shown)
             return _restyled(cell, dot) if dot else cell
         if index == backend_cell:
             provider = cell.get_style_at_offset(_CONSOLE, 0).color if cell.plain else None

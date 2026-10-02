@@ -104,7 +104,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
-| `mid_turn_working` | `false` | Show a session that is mid-turn as `working`, whatever its brief says (see below). |
+| `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 
@@ -124,12 +124,15 @@ With `brief_status = true`, a card whose session has an attached brief with a
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
   only for cards without a brief.
 - With `mid_turn_working = true`, while a read session is mid-turn, its card
-  shows `working` whatever its brief says, except `running`, and drops the
-  `Needs` line; its brief view drops the need and its question too. The
-  brief's status applies again when the turn ends. A lemon rewrites `Status:`
-  late in a turn, so this keeps a lemon already working on your answer from
-  still reading `blocked`. A turn whose transcript has been silent for 20
-  minutes counts as over. Off, cards and sort order ignore turns entirely.
+  is drawn as `working` whatever its brief says, except `running`: no status
+  fill and no `Needs` line, with the brief's status in dim text before its age
+  (`blocked · updated 3m`). Its brief view drops the need and its question
+  too. The card keeps the place in the list, and the fold, that its brief's
+  status gives it, so a lemon doesn't jump around as its turns start and end.
+  The brief's status applies again when the turn ends. A lemon rewrites
+  `Status:` late in a turn, so this keeps a lemon already working on your
+  answer from still reading `blocked`. A turn whose transcript has been
+  silent for 20 minutes counts as over. Off, cards ignore turns entirely.
 
 In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
 than the header's unread yellow), a `merge` row green, a `review` row brown, a `done` row blue, and a `running` row teal, with

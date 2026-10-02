@@ -1,3 +1,9 @@
+# 0.56.1 (2026-10-01)
+
+#### Changed
+
+- **With `mid_turn_working`, a mid-turn lemon keeps its place in the list.** A `blocked` lemon at work on your answer stays in the `blocked` band instead of dropping to the bottom, and folds by its brief's status. Its card is drawn as `working`, with the brief's status in dim text before its age (`blocked · updated 3m`).
+
 # 0.56.0 (2026-10-01)
 
 #### Changed

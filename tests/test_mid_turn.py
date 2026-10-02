@@ -1,6 +1,10 @@
-"""A lemon mid-turn shows as working, whatever its brief's Status says, until the turn ends."""
+"""A lemon mid-turn shows as working, whatever its brief's Status says, until the turn ends.
+
+It keeps the place in the list its brief's Status gives it.
+"""
 
 import asyncio
+import dataclasses
 import json
 import os
 import time
@@ -12,7 +16,7 @@ from lemonaid import claude, codex
 from lemonaid.brief import attached, render, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, turns
-from lemonaid.inbox.tui import brief_questions, brief_view
+from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.lemon_watchers import watcher
 
@@ -189,7 +193,7 @@ def _session(conn, name: str, status: str, created_at: float) -> str:
 
 
 def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
-    """Each channel's drawn position, and the status and need on its card."""
+    """Each channel's drawn position, and the status and need its card is drawn with."""
     Path(os.environ["LEMONAID_CONFIG"]).write_text(
         f"[tui]\nmid_turn_working = {str(mid_turn_working).lower()}\n"
     )
@@ -201,14 +205,14 @@ def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
             with db.connect() as conn:
                 rows, cards = app._ordered_active(conn, None)
             return {
-                n.channel: (i, cards[n.channel].status, cards[n.channel].needs)
+                n.channel: (i, cards[n.channel].shown, cards[n.channel].needs_line)
                 for i, n in enumerate(rows)
             }
 
     return asyncio.run(run())
 
 
-def test_a_mid_turn_blocked_lemon_sorts_and_shows_as_working():
+def test_a_mid_turn_blocked_lemon_shows_as_working_in_its_blocked_place():
     with db.connect() as conn:
         idle = _session(conn, "idle", "blocked", time.time() - 100)
         busy = _session(conn, "busy", "blocked", time.time() - 50)
@@ -217,9 +221,39 @@ def test_a_mid_turn_blocked_lemon_sorts_and_shows_as_working():
 
     cards = _cards()
 
-    assert cards[idle] == (0, "blocked", "an answer")
-    assert cards[busy][1:] == ("working", "")
-    assert cards[newer][0] < cards[busy][0]  # among the read working rows, newest first
+    assert cards[busy] == (0, "working", "")
+    assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
+    assert cards[newer][0] == 2
+
+
+def test_a_mid_turn_card_names_its_brief_status_beside_its_age():
+    card = brief_cards.CardBrief("blocked", "", time.time() - 60, needs="an answer")
+
+    assert brief_cards.mid_turn(card).age(time.time(), 6).startswith("blocked · updated")
+    assert card.age(time.time(), 6).startswith("updated")
+    assert (
+        brief_cards.mid_turn(dataclasses.replace(card, status="running"))
+        .age(time.time(), 6)
+        .startswith("updated")
+    )
+
+
+def test_a_folded_status_folds_mid_turn_too():
+    with db.connect() as conn:
+        idle = _session(conn, "idle", "working", time.time() - 100)
+        busy = _session(conn, "busy", "merge", time.time())
+        db.record_turn(conn, busy, time.time())
+    Path(os.environ["LEMONAID_CONFIG"]).write_text(
+        '[tui]\nmid_turn_working = true\nfold_statuses = ["merge"]\n'
+    )
+
+    async def run():
+        app = LemonaidApp()
+        async with app.run_test(size=(60, 40)) as pilot:
+            await pilot.pause()
+            return app._row_channels()
+
+    assert asyncio.run(run()) == [idle]
 
 
 def test_by_default_a_mid_turn_lemon_keeps_its_brief_status():
@@ -231,8 +265,8 @@ def test_by_default_a_mid_turn_lemon_keeps_its_brief_status():
 
     cards = _cards(mid_turn_working=False)
 
-    assert cards[busy] == (0, "blocked", "an answer")
-    assert cards[idle] == (1, "blocked", "an answer")
+    assert cards[busy] == (0, "blocked", "Needs Peter: an answer")
+    assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
     assert cards[newer][1] == "working"
 
 
@@ -280,7 +314,7 @@ def test_the_brief_view_of_a_mid_turn_lemon_asks_for_nothing():
 
     shown = brief_view._mid_turn(_view(path), time.time())
 
-    assert [s.state for s in shown.sections] == ["working"]
+    assert [(s.state, s.held) for s in shown.sections] == [("working", "blocked")]
     assert "Pick a name" not in render.to_markdown(shown, time.time(), expanded=True)
     assert not brief_questions.choices(shown.sections)
 
