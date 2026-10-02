@@ -1,3 +1,9 @@
+# 0.60.0 (2026-10-02)
+
+#### Added
+
+- **`lemonaid brief children --self` shows a parent its children and what holds up their cleanup.** Each child shows its Status and how long it has held it, its place and whether the directory still exists, its tmux session and attached clients, its `### PRs`, and its reviewers nested under it. `cleanup` reads `ready`, `held` (with the reasons), `orphan` (not done, session gone) or `cleaned`. Whether the branch is merged is still the parent's to check.
+
 # 0.59.0 (2026-10-02)
 
 #### Added

@@ -399,9 +399,33 @@ lemonaid brief list --json                     # every brief file and the sessio
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
 lemonaid place open feat/thing --brief <file> --parent self  # and record yourself as its parent
 lemonaid lemon children --self --json          # your children, with their brief Status:
+lemonaid brief children --self                 # your children's places, sessions, PRs, and cleanup
 ```
 
 Parent links are between Lemon-IDs; see `docs/lineage.md`.
+
+### Children and their cleanup
+
+`brief children --self` lists each of your children, with its own children (its reviewers)
+nested under it:
+
+- its Lemon-ID, display name, `Status:` and how long it has held it, and when its brief was last
+  edited. The time in a Status counts from when lemonaid first saw it, as on a `waiting` card
+- its place's key and directory, and whether the directory still exists. Under a root with no
+  `list` hook, lemonaid can't enumerate places, so it reports the shallowest directory below the
+  root that the child's session or lemon sits in, marked `unlisted`
+- its tmux session, whether that session is alive, and how many clients are attached
+- the PRs in its `### PRs` table
+- `cleanup`: `ready` when it and every descendant say `done` and no client is attached to any
+  of their sessions. `orphan` when it isn't `done` but its session is gone, which usually means a
+  lemon that stopped without finishing its brief. `cleaned` when it is `done` and neither its
+  session nor its directory is left. Otherwise `held`, with what holds it up.
+
+A child whose brief says `done` is left out once its directory is known to be gone; `--all`
+shows it anyway. One whose place lemonaid couldn't find stays in.
+`--json` gives the same tree, with the reasons in `held_by`.
+`ready` says nothing about the branch. lemonaid knows nothing about git, so before you tear a
+place down, check yourself that its work is on the trunk.
 
 ### Child briefs
 

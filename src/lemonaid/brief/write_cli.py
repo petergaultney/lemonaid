@@ -13,6 +13,7 @@ from . import (
     attached,
     check_cli,
     child_cli,
+    children_cli,
     command,
     identity,
     query_cli,
@@ -175,3 +176,5 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         with_target=False,
     )
     listing.set_defaults(func=query_cli.cmd_list)
+
+    children_cli.add_parser(brief_subparsers)
