@@ -166,6 +166,18 @@ def test_the_verbs_edit_the_attached_brief(capsys):
     assert check.structure(text) == []
 
 
+def test_the_waiter_verbs_edit_the_attached_brief(capsys):
+    path = _attached()
+
+    _run(capsys, "waiter", "add", "--channel", "codex:t1", "lemonaid watch pr --wait 7 --head a1")
+    _run(capsys, "waiter", "set", "--channel", "codex:t1", "--wait 7", "--head", "b2")
+    _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")
+    refused = _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")
+
+    assert path.read_text().endswith("## Waiters\n- `lemonaid watch pr --wait 7 --head b2`\n")
+    assert "No waiter" in refused["error"]
+
+
 def test_an_edit_that_would_break_the_brief_is_refused(capsys):
     path = _attached()
 

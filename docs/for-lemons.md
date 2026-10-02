@@ -392,6 +392,10 @@ lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one b
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
+lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --head a1b2 --once"  # a bullet in ## Waiters
+lemonaid brief waiter set --self "wait 12" --head c3d4  # rearm: the same waiter on a new head
+lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
+lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
 lemonaid brief check --all                     # every brief of a session that isn't archived
 lemonaid brief now --self "### Next ..."       # replace all of ## Now (- reads it from stdin)
@@ -508,6 +512,15 @@ bullet become short links, as in the brief view. `pr add` takes the PR's URL, or
 link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
 `[brief] vaults` root, which becomes an `obsidian://` link.
 
+Keep `## Waiters` current with `brief waiter`: add a waiter's command when you start it, `set`
+it when you rearm it differently, and `rm` it when you stop it. Each waiter is a bullet holding
+its command in backticks. A missing `## Waiters` is added as the last section, and notes in it
+that aren't bullets stay as written. `set` and `rm` name a waiter by any part of its command,
+case ignored, and fail unless exactly one matches, listing the ones that do. `set --head <sha>`
+keeps the command and changes its `--head` (filling a `<head SHA>` placeholder, or adding the
+flag), so rearming `watch pr` on a new push is one short command. Adding a command already
+listed changes nothing.
+
 `brief check` (`--self`, another target, a file, or `--all` for every brief attached to a session
 that isn't archived or waiting for one) reports what is wrong with a brief:
 - more or fewer than one `# ` title, or a `## ` section that appears twice;
@@ -520,8 +533,8 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 - with `--all`, an attached brief whose file is gone.
 
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
-`status`, `bullet`, `pr`) runs it on the result and refuses the edit if it finds anything, listing
-what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
+`status`, `bullet`, `pr`, `waiter`) runs it on the result and refuses the edit if it finds
+anything, listing what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
 `Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Waiters` or a
 wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
 way the other verbs do. A Claude lemon's Stop hook

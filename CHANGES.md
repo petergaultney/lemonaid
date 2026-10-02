@@ -1,3 +1,9 @@
+# 0.62.0 (2026-10-02)
+
+#### Added
+
+- **`lemonaid brief waiter add|set|rm` keeps a brief's `## Waiters` current without a hand edit.** `set` and `rm` name a waiter by part of its command, and `set <match> --head <sha>` rearms a `watch pr` waiter on a new head.
+
 # 0.61.1 (2026-10-02)
 
 #### Changed

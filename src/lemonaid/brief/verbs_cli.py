@@ -1,4 +1,4 @@
-"""`brief now`, `status`, `bullet`, `pr`: the edits a worker makes to its own brief.
+"""`brief now`, `status`, `bullet`, `pr`, `waiter`: the edits a worker makes to its own brief.
 
 The edits go through lemonaid rather than the file so a sandboxed lemon (Codex
 writes only inside its workspace) can keep its own brief current. Each one is
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
-from . import check, command, layout, links, now_edit, pr, pr_table, store
+from . import check, command, layout, links, now_edit, pr, pr_table, store, waiters
 
 
 def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
@@ -109,6 +109,15 @@ def _cmd_pr(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_waiter(args: argparse.Namespace) -> None:
+    if args.verb == "add":
+        _edited(args, lambda brief: waiters.add(brief, args.command))
+    elif args.verb == "set":
+        _edited(args, lambda brief: waiters.replace(brief, args.match, args.command, args.head))
+    else:
+        _edited(args, lambda brief: waiters.remove(brief, args.match))
+
+
 def _verbs(
     parent: argparse.ArgumentParser, dest: str
 ) -> abc.Callable[[str, str], argparse.ArgumentParser]:
@@ -154,3 +163,20 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     remove = verb("rm", "Remove the row for a PR")
     remove.add_argument("ref", help="The PR's URL, or its number when only one row has it")
     prs.set_defaults(func=_cmd_pr)
+
+    waiter = brief_subparsers.add_parser(
+        "waiter",
+        help="Add, replace, or remove one waiter's command in a lemon's `## Waiters`",
+        description="A missing `## Waiters` is added as the last section. SET and RM name a "
+        "waiter by part of its command, case ignored, and refuse unless exactly one matches.",
+    )
+    verb = _verbs(waiter, "verb")
+    add = verb("add", "List a waiter's command; listing it again changes nothing")
+    add.add_argument("command")
+    replace = verb("set", "Replace the one waiter whose command contains MATCH")
+    replace.add_argument("match")
+    replace.add_argument("command", nargs="?", default="", help="The new command")
+    replace.add_argument("--head", default="", help="Keep the command, with this `--head`")
+    remove = verb("rm", "Remove the one waiter whose command contains MATCH")
+    remove.add_argument("match")
+    waiter.set_defaults(func=_cmd_waiter)
