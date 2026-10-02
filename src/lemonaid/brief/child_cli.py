@@ -6,13 +6,12 @@ The parent passes the printed path as `--brief` to `place open` or `lemon start`
 import argparse
 import datetime
 import json
-import os
 import sys
 from pathlib import Path
 
 from .. import home
 from ..config import load_config
-from ..inbox import db, self_session
+from ..inbox import db
 from . import child, identity, lemon, store
 
 
@@ -20,9 +19,10 @@ def _parent(target: str) -> tuple[str, str]:
     """(Lemon-ID, tmux session) of the lemon *target* names, `self` being the caller."""
     with db.connect() as conn:
         if target == "self":
-            pane = os.environ.get("TMUX_PANE", "")
-            where = self_session.pane_location(pane) if pane else None
-            return lemon.own_id(conn), where.session if where else ""
+            channel = lemon.self_channel(conn)
+            found = db.get_by_channel(conn, channel, unread_only=False)
+            tmux_session = found.metadata.get("tmux_session") if found else ""
+            return lemon.own_id(conn, channel), tmux_session or ""
 
         found = lemon.lemon_id(conn, target)
         try:

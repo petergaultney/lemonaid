@@ -1,7 +1,8 @@
 """Which lemon a `brief` command means: `--self`, `--session S[:W]`, `--channel`, or `--id`.
 
-`--self` is resolved by `inbox.self_session`, the same as `inbox emoji --self`:
-the one live channel recorded at the pane's tty, tmux session, and window.
+`--self` is the caller's channel from `lemon.self_channel`, the same as
+`inbox emoji --self` and `tell`: the harness's environment first, so it works
+where tmux can't be asked (the Codex sandbox), then the pane's tmux location.
 `--session` picks the one live lemon in a tmux session, or in one window of it
 when the session holds several; a window with no lemon yet is a pending target,
 for the next lemon to start or be placed there. A Codex on the shared
@@ -16,9 +17,9 @@ import os
 import sqlite3
 import subprocess
 
-from ..inbox import db, self_session
+from ..inbox import db
 from ..lemon_watchers import watcher
-from . import session
+from . import lemon, session
 
 _HARNESSES = ("claude", "codex")
 _PS_TIMEOUT_SECONDS = 2
@@ -50,19 +51,13 @@ def _selected(row: db.Notification) -> Selected:
 
 
 def _self(conn: sqlite3.Connection) -> tuple[Selected | None, str]:
-    pane_id = os.environ.get("TMUX_PANE", "")
-    if not pane_id:
-        return None, "Not inside tmux ($TMUX_PANE unset), so there is no session to call self"
+    try:
+        channel = lemon.self_channel(conn)
+    except LookupError as e:
+        return None, str(e)
 
-    where = self_session.pane_location(pane_id)
-    if where is None:
-        return None, f"Could not ask tmux about pane {pane_id}"
-
-    channel, error = self_session.resolve(conn, where)
-    if not channel:
-        return None, error
-
-    return Selected(channel, where.session, where.window), ""
+    found = db.get_by_channel(conn, channel, unread_only=False)
+    return (_selected(found), "") if found else (None, f"No inbox session on channel {channel!r}")
 
 
 def _running_in(tmux_session: str, index: str) -> list[tuple[str, str, bool]]:
@@ -200,7 +195,7 @@ def add_arguments(parser: argparse.ArgumentParser, required: bool = True) -> Non
         "--self",
         dest="use_self",
         action="store_true",
-        help="The lemon running in this tmux pane (its tty, tmux session, and window)",
+        help="The lemon running this command (from its harness, else its tmux pane)",
     )
     target.add_argument(
         "--session",

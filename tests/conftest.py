@@ -42,6 +42,13 @@ def _no_real_tmux(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_harness_identity(monkeypatch):
+    """`--self` reads these first, and a test run from inside a lemon inherits its own."""
+    for name in ("LEMONAID_CHANNEL", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "TMUX_PANE"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _own_database(monkeypatch, tmp_path):
     """Every test gets an empty inbox of its own.
 

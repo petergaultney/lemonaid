@@ -1,19 +1,19 @@
 """`inbox rename`, `inbox emoji`, `inbox emojis`: decorate a harness session.
 
 Every target resolves to one inbox channel - the backend session, which is the
-actor - before anything changes. `--self` is the convenience form and refuses
-rather than guesses; see `self_session`. The rename is the same user override
+actor - before anything changes. `--self` is the convenience form: the
+harness's environment names the caller, else its tmux pane, which refuses
+rather than guesses (see `self_session`). The rename is the same user override
 the TUI's rename key sets, applied to the channel's newest row.
 """
 
 import argparse
 import json
-import os
 import sqlite3
 import sys
 
 from .. import brief
-from . import db, emoji, self_session
+from . import db, emoji
 
 
 def target_channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, str]:
@@ -32,15 +32,13 @@ def target_channel(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[
         except LookupError as e:
             return "", str(e)
 
-    pane_id = os.environ.get("TMUX_PANE", "")
-    if not pane_id:
-        return "", "Not inside tmux ($TMUX_PANE unset), so there is no session to call self"
+    try:
+        channel = brief.lemon.self_channel(conn)
+    except LookupError as e:
+        return "", str(e)
 
-    where = self_session.pane_location(pane_id)
-    if where is None:
-        return "", f"Could not ask tmux where pane {pane_id} is"
-
-    return self_session.resolve(conn, where)
+    found = db.get_by_channel(conn, channel, unread_only=False)
+    return (channel, "") if found else ("", f"No inbox session {channel!r}")
 
 
 def finish(args: argparse.Namespace, result: dict, error: str) -> None:
@@ -114,8 +112,8 @@ def add_target(parser: argparse.ArgumentParser) -> None:
         "--self",
         dest="use_self",
         action="store_true",
-        help="The live session recorded at this tmux pane's tty, session, and window; "
-        "refuses if there is not exactly one",
+        help="The session running this command, from its harness's environment, else "
+        "the one live session recorded at this tmux pane",
     )
     target.add_argument("--id", type=int, help="The session a notification id belongs to")
     target.add_argument("--channel", help="An inbox channel, e.g. claude:1a2b3c4d")

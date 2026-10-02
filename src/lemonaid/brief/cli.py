@@ -11,7 +11,19 @@ from pathlib import Path
 from ..config import load_config
 from ..inbox import db, emoji
 from ..inbox.tui import brief_popup
-from . import attached, dismiss, family, popup, pr, render, session, sidebar, target, write_cli
+from . import (
+    attached,
+    dismiss,
+    family,
+    lemon,
+    popup,
+    pr,
+    render,
+    session,
+    sidebar,
+    target,
+    write_cli,
+)
 
 
 def _file_target(
@@ -41,6 +53,18 @@ def _file_target(
     )
 
 
+def _own_brief() -> Path | None:
+    """The caller's attached brief, for a lemon that can't ask tmux where it is."""
+    with db.connect() as conn:
+        try:
+            channel = lemon.self_channel(conn)
+        except LookupError:
+            return None
+
+        attached.claim_pending(conn)
+        return attached.by_channel(conn, [channel]).get(channel)
+
+
 def _target(
     session_arg: str,
     file_args: list[str],
@@ -61,7 +85,11 @@ def _target(
             name_args,
         )
 
-    tmux_session, _, window = (session_arg or session.current_session()).partition(":")
+    where = session_arg or session.current_session()
+    if not where and (own := _own_brief()):
+        return _file_target([own], [], None, name_args)
+
+    tmux_session, _, window = where.partition(":")
     if popup and tmux_session and not window:
         window = session.client_window(tmux_session)  # a binding that passes only the session
     if not tmux_session:
@@ -132,7 +160,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         default="",
         metavar="SESSION[:WINDOW]",
-        help="tmux session, and the window of one lemon in it (default: the calling pane's)",
+        help="tmux session, and the window of one lemon in it (default: the caller's)",
     )
     show_parser.add_argument(
         "--file",

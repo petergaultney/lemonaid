@@ -74,8 +74,10 @@ lemonaid inbox rename --self --clear         # back to the backend's name
 
 - Every target resolves to one channel (your backend session id) before anything changes,
   so the emoji and name survive compaction and `--resume`. A fresh lemon starts without one.
-- `--self` looks up the live session recorded at your pane's tty, tmux session, and window.
-  It refuses, rather than guessing, when none or several match - for example before your
+- `--self` takes your session from your harness's environment (`CLAUDE_CODE_SESSION_ID`,
+  `CODEX_THREAD_ID`, or `LEMONAID_CHANNEL`), so it works inside the Codex sandbox, where tmux
+  can't be asked. Without those it looks up the live session recorded at your pane's tty, tmux
+  session, and window, and refuses, rather than guessing, when none or several match - for example before your
   harness has sent lemonaid a notification, or when the recorded location is out of date.
   Then name yourself explicitly with `--channel <channel>` or `--id <n>`, from
   `inbox list --json`, or by `--lemon <Lemon-ID or brief name>` once a brief is attached.
@@ -468,7 +470,7 @@ adds a new one. Placeholders: `$title`, `$date`, `$lemon_id`, `$wordybin` (the c
 `$pr_link`; with `--review-doc`, `$review_doc` (absolute), `$review_doc_arg` (shell-quoted) and `$review_doc_link`. A template
 that uses a value whose flag is missing is refused before any file is written.
 
-`--self` is the lemon in the calling tmux pane, resolved the same way as `inbox emoji --self`.
+`--self` is the calling lemon, resolved the same way as `inbox emoji --self`.
 `--channel <channel>` or `--id <id>` names a session by its inbox channel or row. `--session SESSION:WINDOW` naming a window no lemon has started in yet
 waits for the first lemon live there that wasn't live when the brief was attached, including one
 resumed from the archive; this is also what `place open --brief` does. The window is an index or a
