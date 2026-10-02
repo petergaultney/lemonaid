@@ -91,6 +91,15 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 ## Installation
 
 ```bash
+uv tool install lemonaid-inbox
+```
+
+The package on PyPI is `lemonaid-inbox`, because `lemonaid` there is an
+unrelated project. The commands are still `lemonaid` and `lma`.
+
+To run from a checkout instead:
+
+```bash
 git clone https://github.com/petergaultney/lemonaid.git
 cd lemonaid
 
@@ -101,6 +110,10 @@ uv tool install --editable .
 uv sync
 uv run pre-commit install
 ```
+
+An install made before the rename is a uv tool named
+`lemonaid`, which holds the same commands. Remove it once with
+`uv tool uninstall lemonaid` before either install above.
 
 On macOS, check the [tmux server setup](docs/tmux.md#tmux-server-setup) before
 using follow mode, especially the file-descriptor limit and window options.

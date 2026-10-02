@@ -1,0 +1,111 @@
+name: release
+
+# Runs after the test workflow passes on a push to main. A version with no
+# v<version> tag yet is built, published to PyPI as lemonaid-inbox, and given a
+# GitHub Release whose notes are its CHANGES.md section. Anything else is a no-op.
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Only a push to this repo's main: a fork's PR from a branch named main also
+    # matches `branches` above.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - id: version
+        run: |
+          version=$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # GitHub creates the tag when a Release is published, so a draft left
+          # by a failed run has none, and a rerun finishes it below.
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already released"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.version.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: uv run --no-project scripts/changelog-section.py "$VERSION" > release-notes.md
+      - if: steps.version.outputs.release == 'true'
+        run: uv build
+      - if: steps.version.outputs.release == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release
+          path: |
+            dist/
+            release-notes.md
+
+  pypi:
+    needs: build
+    if: needs.build.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    # Per version, so a run for one version never cancels a queued run for another.
+    concurrency:
+      group: pypi-v${{ needs.build.outputs.version }}
+      cancel-in-progress: false
+    environment:
+      name: pypi
+      url: https://pypi.org/project/lemonaid-inbox/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          # A re-run after a failed GitHub Release step must not fail here.
+          skip-existing: true
+
+  github-release:
+    needs: [build, pypi]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: github-release-v${{ needs.build.outputs.version }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # A draft means an earlier run failed partway: finish it instead.
+          draft=$(gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$draft" = "true" ]; then
+            gh release upload "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "v$VERSION" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md --draft=false
+          elif [ "$draft" = "false" ]; then
+            echo "v$VERSION was published by another run"
+          else
+            gh release create "v$VERSION" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SHA" \
+              --title "v$VERSION" \
+              --notes-file release-notes.md
+          fi

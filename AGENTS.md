@@ -7,7 +7,7 @@ writes their real inbox. A lemon working on lemonaid must not change either.
 
 - **Work in a separate worktree or clone.** Never edit, switch branches in, or run
   `uv sync` in the checkout the tool is installed from (`uv tool list
-  --show-paths` / the `.pth` under `~/.local/share/uv/tools/lemonaid` says which).
+  --show-paths` / the `.pth` under `~/.local/share/uv/tools/lemonaid-inbox` says which).
   For example, `git worktree add ../lemonaid-<branch> -b <branch> main`.
 - **Run anything outside pytest through `scripts/sandbox`**: `scripts/sandbox
   lemonaid ...`, `scripts/sandbox lma`. It points the database, config, state

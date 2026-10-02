@@ -1,5 +1,5 @@
 [project]
-name = "lemonaid"
+name = "lemonaid-inbox"
 version = "0.59.0"
 description = "Attention inbox for managing notifications from lemons and other background tools"
 readme = "README.md"
