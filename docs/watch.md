@@ -9,7 +9,7 @@ every 15 seconds.
 lemonaid watch doc --wait <doc> --me "Author (MotorHoe)" --legacy Claude --once
 lemonaid watch doc --wait <doc> --me "Reviewer (SaltyEbb)" --legacy Codex --codex-thread "$CODEX_THREAD_ID"
 lemonaid watch doc --status <doc> --me "Author (MotorHoe)"
-lemonaid watch openclaw start <doc> --session-key <openclaw session key>
+lemonaid watch openclaw start <doc> --session-key <openclaw session key> --me <name>
 lemonaid watch openclaw list
 lemonaid watch openclaw stop <doc>
 ```
@@ -74,9 +74,9 @@ reports only threads that are new or changed since.
 - **Codex:** `--codex-thread <id>` queues the first event into that thread with `codex queue`
   and exits. The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
   it refuses to start if it cannot.
-- **OpenClaw:** `lemonaid watch openclaw start <doc> --session-key <key>` adds the doc to that
-  session's watch list and starts one `systemd-run --user` unit per session if none is
-  running. The unit runs `lemonaid watch doc --watch-list`, which runs one agent turn in the
+- **OpenClaw:** `lemonaid watch openclaw start <doc> --session-key <key> --me <name>` adds
+  the doc to that session's watch list and starts one `systemd-run --user` unit per session
+  if none is running. `--me` is the author name the session signs its replies with. The unit runs `lemonaid watch doc --watch-list`, which runs one agent turn in the
   session for each event (`openclaw gateway call agent`) and keeps watching. Starting a doc
   for one session removes it from every other session's list. A doc leaves the list after 7
   days with no event (`--idle-days`), and the unit exits when its list is empty.

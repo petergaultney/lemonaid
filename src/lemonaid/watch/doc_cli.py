@@ -32,7 +32,7 @@ the other without losing what has been reported; unlike it, edits are on by defa
 
     lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--no-edits] [--once]
     lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"
-    lemonaid watch doc --watch-list <list.json> --me Meyer --openclaw-session <key> --idle-expire 604800
+    lemonaid watch doc --watch-list <list.json> --me Pliny --openclaw-session <key> --idle-expire 604800
     lemonaid watch doc --status <doc> --me Pliny
     lemonaid watch doc --editing <doc>; <edit it>; lemonaid watch doc --mine <doc>
 """

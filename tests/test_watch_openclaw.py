@@ -1,5 +1,6 @@
 """`lemonaid watch openclaw` and the OpenClaw delivery adapter."""
 
+import argparse
 import hashlib
 import json
 import stat
@@ -142,3 +143,19 @@ def test_openclaw_setup_needs_the_cli(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
 
     assert delivery.openclaw_setup_problem("openclaw") == "`openclaw` is not on PATH"
+
+
+def _start_args(*argv: str):
+    ap = argparse.ArgumentParser()
+    openclaw_cli.add_parser(ap.add_subparsers())
+    return ap.parse_args(["openclaw", "start", "doc.md", "--session-key", "agent:main:x", *argv])
+
+
+@pytest.mark.parametrize("me", [(), ("--me", ""), ("--me", "  ")])
+def test_start_requires_a_nonblank_me(me):
+    with pytest.raises(SystemExit):
+        _start_args(*me)
+
+
+def test_start_passes_me_through():
+    assert _start_args("--me", "Sam").me == "Sam"

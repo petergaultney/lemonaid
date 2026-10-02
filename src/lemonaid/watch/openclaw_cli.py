@@ -6,7 +6,7 @@ Python as this command. Starting a watch removes the doc from every other sessio
 list, so a comment wakes the session that wrote the doc most recently. Lists are shared
 with the standalone openclaw_watch.py, so a waiter started by either serves both.
 
-    lemonaid watch openclaw start <doc> --session-key agent:main:doc-filing-worker-v2:<run_id>
+    lemonaid watch openclaw start <doc> --session-key agent:main:doc-filing-worker-v2:<run_id> --me <name>
     lemonaid watch openclaw stop <doc>
     lemonaid watch openclaw list
 """
@@ -112,6 +112,13 @@ def show(lists_dir: pathlib.Path) -> None:
             print(f"{_session_key(path)}\t{(now - last) / _DAY:.1f}d idle\t{doc}")
 
 
+def _author_name(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+
+    return value
+
+
 def _cmd(a: argparse.Namespace) -> None:
     lists_dir = watch_list.default_lists_dir()
     if a.openclaw_command == "start":
@@ -137,7 +144,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     start_p.add_argument(
         "--session-key", required=True, help="the OpenClaw session a comment wakes"
     )
-    start_p.add_argument("--me", default="Meyer", help="author name the session signs replies with")
+    start_p.add_argument(
+        "--me",
+        required=True,
+        type=_author_name,
+        help="author name the session signs replies with",
+    )
     start_p.add_argument(
         "--hq-session",
         default="agent:main:main",
