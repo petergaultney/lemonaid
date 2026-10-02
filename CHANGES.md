@@ -1,3 +1,9 @@
+# 0.62.1 (2026-10-02)
+
+#### Fixed
+
+- **`--self` works inside the Codex sandbox, where tmux can't be asked.** `brief` verbs, `inbox rename` and `inbox emoji` take the caller from `LEMONAID_CHANNEL`, `CLAUDE_CODE_SESSION_ID` or `CODEX_THREAD_ID` before its tmux pane, as `tell` does. A bare `brief show` outside tmux shows the caller's own brief.
+
 # 0.62.0 (2026-10-02)
 
 #### Added
