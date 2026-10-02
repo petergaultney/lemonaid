@@ -139,7 +139,7 @@ class KeybindingsConfig:
 
 
 # What a card's second line can show, and a column row's directory column.
-CARD_FIELDS = ("time", "project", "branch", "cwd")
+CARD_FIELDS = ("time", "age", "project", "branch", "cwd")
 
 
 @dataclass

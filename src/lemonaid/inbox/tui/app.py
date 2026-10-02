@@ -244,6 +244,7 @@ def _as_card(
     stale_hours: float = 6.0,
     now: float = 0.0,
     context_parts: abc.Sequence[card_context.Part] | None = None,
+    age_inline: bool = False,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -381,7 +382,7 @@ def _as_card(
                 if card_brief.needs_line
                 else []
             ),
-            Text(card_brief.age(now, stale_hours), style="dim"),
+            *([] if age_inline else [Text(card_brief.age(now, stale_hours), style="dim")]),
             *(
                 [Text(card_brief.running_line, style=brief_cards.RUNNING_TEXT_COLOR)]
                 if card_brief.running_line
@@ -471,6 +472,7 @@ def _sync_rows(
     stale_hours: float = 6.0,
     now: float = 0.0,
     contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
+    age_inline: bool = False,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -498,6 +500,7 @@ def _sync_rows(
                 stale_hours,
                 now,
                 (contexts_by_row or {}).get(key),
+                age_inline,
             )
             if cards
             else brief_rows.styled(
@@ -1353,7 +1356,12 @@ class LemonaidApp(App):
         return styled_cell(where.text.plain, is_unread, where.field)
 
     def _context_parts(
-        self, n: db.Notification, is_unread: bool, area: str
+        self,
+        n: db.Notification,
+        is_unread: bool,
+        area: str,
+        card_brief: brief_cards.CardBrief | None = None,
+        now: float = 0.0,
     ) -> list[card_context.Part]:
         return card_context.parts(
             self.config.tui.card_fields,
@@ -1362,6 +1370,7 @@ class LemonaidApp(App):
             n.metadata.get("git_branch", ""),
             n.metadata.get("cwd", ""),
             is_unread,
+            card_brief.age(now, self.config.tui.brief_stale_hours) if card_brief else "",
         )
 
     def _active_row(
@@ -1535,10 +1544,16 @@ class LemonaidApp(App):
             if self.config.tui.brief_status
             else {}
         )
+        age_inline = "age" in self.config.tui.card_fields
         extra_lines = max(
-            (card.extra_lines for card in briefs.values() if card and self._card_width()),
+            (
+                card.extra_lines(age_inline)
+                for card in briefs.values()
+                if card and self._card_width()
+            ),
             default=0,
         )
+        now = time.time()
 
         self._drawn = current_notifications
         areas = {channel: card.area for channel, card in cards.items() if card.area}
@@ -1557,11 +1572,14 @@ class LemonaidApp(App):
             {str(n.id): emojis.get(n.channel, "") for n in current_notifications},
             briefs,
             self.config.tui.brief_stale_hours,
-            time.time(),
+            now,
             {
-                str(n.id): self._context_parts(n, n.is_unread, areas.get(n.channel, ""))
+                str(n.id): self._context_parts(
+                    n, n.is_unread, areas.get(n.channel, ""), briefs.get(str(n.id)), now
+                )
                 for n in current_notifications
             },
+            age_inline,
         )
 
         fold_label.display = bool(folded)

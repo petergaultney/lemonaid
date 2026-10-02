@@ -607,3 +607,17 @@ def test_an_unread_card_bolds_the_dot_but_not_the_message():
 
     assert "bold" in styles["a-name"], "an unread name is bold"
     assert "bold" not in styles["a message"], "the message reads as prose, never bold"
+
+
+def test_an_inline_age_leaves_the_card_without_an_age_line():
+    (body,) = app._as_card(
+        _brief_cells(),
+        40,
+        gutter_width=2,
+        card_brief=CardBrief("waiting", "review", 3600),
+        now=7200,
+        age_inline=True,
+    )
+
+    assert "updated" not in body.plain
+    assert body.plain.splitlines()[2].strip() == "review"

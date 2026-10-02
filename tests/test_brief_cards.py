@@ -63,11 +63,12 @@ def test_needs_keeps_its_label_in_either_form(tmp_path: Path) -> None:
     card = BriefCache().get(path)
 
     assert card is not None
-    assert (card.needs_line, card.waiting_line, card.extra_lines) == (
+    assert (card.needs_line, card.waiting_line, card.extra_lines(False)) == (
         "Needs Peter: a (+1 more)",
         "CI",
         3,
     )
+    assert card.extra_lines(True) == 2
 
 
 def test_waiting_on_shows_only_while_waiting_and_needs_not_once_done() -> None:
@@ -91,6 +92,16 @@ def test_running_shows_its_first_line_only_while_running(tmp_path: Path) -> None
 
     assert card is not None
     assert card.running_line == "UA run in work:3 (+1 more)"
-    assert card.extra_lines == 2
+    assert card.extra_lines(False) == 2
     assert CardBrief("working", "", 0, running="UA run").running_line == ""
     assert CardBrief("running", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
+
+
+def test_a_waiting_card_shows_how_long_it_has_waited_instead_of_its_age() -> None:
+    day = 86400
+    assert CardBrief("waiting", "", 9 * day, since=day).age(10 * day, 999) == "waiting 9 days"
+    assert CardBrief("waiting", "", day, since=day).age(2 * day + 60, 999) == "waiting 1 day"
+    assert CardBrief("waiting", "", 0, since=1).age(3 * 3600, 6) == "waiting 2h"
+    assert CardBrief("waiting", "", 0, since=1).age(8 * 3600, 6) == "waiting 7h (stale)"
+    assert CardBrief("waiting", "", 0).age(3600, 6) == "updated 1h ago"
+    assert CardBrief("working", "", 0, since=1).age(3600, 6) == "updated 1h ago"

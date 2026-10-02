@@ -1,4 +1,4 @@
-"""The line under a card's name: when, which project, which branch."""
+"""The line under a card's name: when, or how long, then which project and branch."""
 
 import dataclasses
 from collections import abc
@@ -40,16 +40,26 @@ def project_part(places: PlacesConfig, cwd: str, branch: str, area: str = "") ->
 
 
 def parts(
-    fields: abc.Iterable[str], time: Text, where: Part, branch: str, cwd: str, is_unread: bool
+    fields: abc.Iterable[str],
+    time: Text,
+    where: Part,
+    branch: str,
+    cwd: str,
+    is_unread: bool,
+    age: str = "",
 ) -> list[Part]:
     """The parts *fields* name, coloured like the row's cells; empty ones are left out.
 
     *where* is the row's `project_part`. When it fell back to the cwd, it keeps
-    the project's place, and a `cwd` field in *fields* is left out.
+    the project's place, and a `cwd` field in *fields* is left out. The `age`
+    field is the brief's *age*, or the time on a card without a brief.
     """
 
     def part(field: str) -> Part | None:
-        if field == "time":
+        if field == "age" and age:
+            text = styled_cell(age, is_unread, "time")
+            return Part("age", text, text.cell_len)
+        if field in {"time", "age"}:
             return Part("time", time, time.cell_len)
         if field == "branch":
             return Part("branch", styled_cell(branch, is_unread, "branch"))
@@ -88,8 +98,10 @@ def _cut(part: Part, room: int) -> Part:
 def fitted(line: abc.Sequence[Part], width: int) -> Text:
     """*line* joined into *width* cells, cutting the branch, then the cwd, then the area.
 
-    Then the time goes, whole, so a project name that fits on its own is kept.
-    Whatever still doesn't fit is the caller's to truncate.
+    Then the time goes, whole, so a project name that fits on its own is kept. A
+    brief's age stays, since the card has no other line showing it: when the line
+    still doesn't fit, it moves to the front, so the caller's truncation cuts the
+    project rather than the age.
     """
     line = list(line)
     for field in _CUT_ORDER:
@@ -102,5 +114,7 @@ def fitted(line: abc.Sequence[Part], width: int) -> Text:
 
     if _joined(line).cell_len > width:
         line = [part for part in line if part.field != "time"]
+    if _joined(line).cell_len > width:
+        line = sorted(line, key=lambda part: part.field != "age")
 
     return _joined(line)

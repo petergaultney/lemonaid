@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import brief
-from . import db, order, pins, turns
+from . import db, order, pins, status_since, turns
 from .tui import brief_cards
 
 SNAPSHOT_VERSION = 1
@@ -25,6 +25,7 @@ class Active:
 
 
 def _cards(
+    conn: sqlite3.Connection,
     rows: abc.Iterable[db.Notification],
     attached: abc.Mapping[str, Path],
     cache: brief_cards.BriefCache,
@@ -33,10 +34,17 @@ def _cards(
 ) -> dict[str, brief_cards.CardBrief]:
     """The card of each attached brief by channel, marked while its lemon is mid-turn."""
     working = turns.briefs(rows, attached, now) if mid_turn_working else frozenset()
+    found = {
+        channel: (path, card) for channel, path in attached.items() if (card := cache.get(path))
+    }
+    since = status_since.observe(
+        conn, {path: (card.status, card.mtime) for path, card in found.values()}
+    )
     return {
-        channel: brief_cards.mid_turn(card) if path in working else card
-        for channel, path in attached.items()
-        if (card := cache.get(path))
+        channel: dataclasses.replace(
+            brief_cards.mid_turn(card) if path in working else card, since=since[path]
+        )
+        for channel, (path, card) in found.items()
     }
 
 
@@ -58,7 +66,7 @@ def ordered_active(
     """
     rows = db.get_active(conn, switch_source=switch_source)
     attached = brief.attached.for_rows(conn, rows)
-    cards = _cards(rows, attached, cache, mid_turn_working, now)
+    cards = _cards(conn, rows, attached, cache, mid_turn_working, now)
     return Active(
         order.by_status(rows, statuses(cards), pins.pinned_positions(conn)), cards, attached
     )
@@ -77,6 +85,7 @@ def _brief(card: brief_cards.CardBrief | None, path: Path | None) -> dict[str, A
         "waiting_on": card.waiting_on,
         "running": card.running,
         "mtime": card.mtime,
+        "since": card.since,
     }
 
 

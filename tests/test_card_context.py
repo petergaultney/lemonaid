@@ -111,3 +111,28 @@ def test_the_cwd_fallback_keeps_the_projects_place_after_the_cwd(tmp_path):
     line = _line(tmp_path, tmp_path / "notes", "", fields=("cwd", "time", "project"))
 
     assert line.startswith("15:32:47 · ") and line.count("notes") == 1
+
+
+def test_the_age_field_shows_the_brief_age_in_place_of_the_time(tmp_path):
+    cwd = tmp_path / "pantry"
+    where = card_context.project_part(_places(tmp_path), str(cwd), "main")
+    fields = ("age", "project", "branch")
+
+    def line(age: str) -> str:
+        parts = card_context.parts(fields, _TIME, where, "main", str(cwd), False, age)
+        return card_context.fitted(parts, 200).plain
+
+    assert line("waiting 3 days") == "waiting 3 days · pantry · main"
+    assert line("") == "15:32:47 · pantry · main"
+
+
+def test_a_narrow_card_keeps_the_age_and_cuts_the_project_instead(tmp_path):
+    cwd = tmp_path / "engineering-backend"
+    where = card_context.project_part(_places(tmp_path), str(cwd), "main")
+    age = "waiting 4 days (stale)"
+    for fields in (("age", "project", "branch"), ("project", "age", "branch")):
+        parts = card_context.parts(fields, _TIME, where, "main", str(cwd), False, age)
+        line = card_context.fitted(parts, 31)
+        line.truncate(31, overflow="ellipsis")
+
+        assert line.plain.startswith(age), fields

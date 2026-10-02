@@ -102,7 +102,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
 | `refresh_interval` | `0.33` | Seconds between inbox refreshes. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
-| `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `project`, `branch` and `cwd` (see below). |
+| `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `age`, `project`, `branch` and `cwd` (see below). |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
@@ -116,6 +116,9 @@ With `brief_status = true`, a card whose session has an attached brief with a
   brown, `done` blue, and `running` teal. On each, the model label becomes a badge in its
   provider colour.
 - A read `waiting` card is dimmed. An unread one is not.
+- A `waiting` card's age is how long it has waited (`waiting 3 days`), in
+  place of the time since its last edit. lemonaid records when it first sees a
+  brief's `Status:` change, so later edits to `## Now` don't reset the count.
 - `working` keeps the ordinary read style.
 - Under the name and location come the first line of `Needs` from `## Now`,
   with its label (`Needs you: ...`) in the attention colour, then the brief's
@@ -192,6 +195,20 @@ cwd's directory name. With no root and no branch either, the line shows the
 cwd as before. When the line doesn't fit, the branch is cut first, then the
 area, and then the time is dropped, so the project's name stays whole wherever
 it fits on its own.
+
+The `age` field puts the brief's age on this line instead of a line of its own:
+`waiting 2 days` or `updated 40m ago`, with `(stale)` when it applies. A card
+without a brief shows the time there. Unlike the time, the age is never dropped
+to make room: on a card too narrow for both, the project is cut instead.
+
+```toml
+[tui]
+card_fields = ["age", "project", "branch"]
+```
+
+| Default | With `age` |
+|---|---|
+| ![age on its own line](images/inbox-card-age-line.png) | ![age on the second line](images/inbox-card-age-field.png) |
 
 The column layout's directory column shows the project too, under a
 `Project` header, while `card_fields` includes `project`. History and the

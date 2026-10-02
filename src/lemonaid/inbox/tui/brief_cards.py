@@ -38,6 +38,14 @@ DOT_STYLES = {
 }
 
 
+def _waited(seconds: float) -> str:
+    days = int(max(0, seconds) // 86400)
+    if days:
+        return f"{days} day" if days == 1 else f"{days} days"
+
+    return brief_status.age(seconds).removesuffix(" ago").replace("just now", "<1m")
+
+
 @dataclasses.dataclass(frozen=True)
 class CardBrief:
     """A brief as its card needs it.
@@ -54,6 +62,7 @@ class CardBrief:
     running: str = ""
     area: str = ""  # the part of its project the brief says it works in
     mid_turn: bool = False
+    since: float = 0.0  # when the brief entered its status; 0 when unrecorded
 
     @property
     def shown(self) -> str:
@@ -76,23 +85,33 @@ class CardBrief:
     def running_line(self) -> str:
         return self.running if self.shown == "running" else ""
 
-    @property
-    def extra_lines(self) -> int:
-        """Lines the brief adds to its card: the age, and each of the three above it has."""
-        return 1 + bool(self.needs_line) + bool(self.waiting_line) + bool(self.running_line)
+    def extra_lines(self, age_inline: bool) -> int:
+        """Lines the brief adds to its card: the age, unless it is *age_inline* on the
+        context line, and each of the three above it has.
+        """
+        return (
+            (not age_inline)
+            + bool(self.needs_line)
+            + bool(self.waiting_line)
+            + bool(self.running_line)
+        )
 
     def age(self, now: float, stale_hours: float) -> str:
-        """The brief's age, after its own status when the card is drawn as another."""
-        elapsed = max(0, now - self.mtime)
-        age = brief_status.age(elapsed)
-        held = f"{self.status} · " if self.shown != self.status else ""
-        if (
-            self.shown in {"working", "running", "waiting"}
-            and now - self.mtime >= stale_hours * 3600
-        ):
-            return f"{held}updated {age} (stale)"
+        """How long a waiting brief has waited, else the brief's age.
 
-        return f"{held}updated {age}"
+        The age follows the brief's own status when the card is drawn as another.
+        """
+        stale = (
+            " (stale)"
+            if self.shown in {"working", "running", "waiting"}
+            and now - self.mtime >= stale_hours * 3600
+            else ""
+        )
+        if self.shown == "waiting" and self.since:
+            return f"waiting {_waited(now - self.since)}{stale}"
+
+        held = f"{self.status} · " if self.shown != self.status else ""
+        return f"{held}updated {brief_status.age(max(0, now - self.mtime))}{stale}"
 
 
 def mid_turn(card: CardBrief) -> CardBrief:

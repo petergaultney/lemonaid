@@ -1,3 +1,14 @@
+# 0.59.0 (2026-10-02)
+
+#### Added
+
+- **A `waiting` card shows how long it has been waiting** (`waiting 3 days`) in place of its brief's age. lemonaid records when it first sees a brief's `Status:` change, so edits to `## Now` don't reset the count. Arrangers get it as the brief's `since`.
+- **`card_fields` takes `age`,** which puts the brief's age on a card's second line instead of a line of its own.
+
+#### Changed
+
+- **The snooze picker takes a typed duration as soon as it opens** (`45m`, `2h`, `3d`, `morning`), with no trip through Custom. With the box empty, Enter takes the highlighted preset, and Up and Down move the highlight.
+
 # 0.58.3 (2026-10-02)
 
 #### Changed

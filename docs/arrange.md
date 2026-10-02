@@ -115,7 +115,8 @@ closes. Flush after each answer.
         "needs": "Approve slice 1",
         "waiting_on": "",
         "running": "",
-        "mtime": 1790891000.0
+        "mtime": 1790891000.0,
+        "since": 1790804600.0
       },
       "default": {"position": 0, "band": "blocked", "folded": false}
     }
@@ -127,6 +128,8 @@ closes. Flush after each answer.
 - `brief` is `null` for a session with no attached brief. Its `status` is the
   brief's own, which places the row, and `shown` is what the card is drawn as:
   `working` for a mid-turn lemon when `[tui] mid_turn_working` is on.
+  `mtime` is the brief's last edit, and `since` when lemonaid first saw its
+  current `status`.
 - `default` is lemonaid's own answer: the row's position, its band (`pinned`,
   `alert`, `blocked`, `running`, `merge`, `review`, `unread done`, `done`,
   `unread`, `read`), and whether `fold_statuses` folds it.
