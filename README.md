@@ -74,6 +74,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[Brief status cards](docs/config.md#tui)**: Opt in with `[tui] brief_status = true` to color cards by attached brief status, show what a lemon needs from you or is waiting on, and flag stale briefs
 - **[Brief edit verbs](docs/for-lemons.md#briefs)**: `brief bullet` and `brief pr` change one line of a brief's `## Now` and keep its layout; `brief check` finds what a hand edit broke, and the Claude Stop hook runs it
 - **[Auto-read](docs/config.md#inbox)**: Regexes in `[inbox] auto_read` leave a session read when its turn ends with a matching final message, so routine turns don't ask for attention
+- **[Arrangers](docs/arrange.md)**: `[inbox] arrange` names a program, in any language, that reorders `lma`'s list and chooses what folds. `lma` keeps it running and falls back to its own order when it fails, and `lemonaid inbox arrange check` tries one against your inbox
 - **Pins**: Hold a session at the top of the list, in an order you choose
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing. A lemon can snooze itself with `lemonaid inbox snooze --self`
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed

@@ -243,6 +243,8 @@ vaults = ["~/notes", "~/work/kb"]
 |-----|---------|-------------|
 | `auto_read` | `[]` | Regexes; a finished turn whose final message matches one leaves its session read. |
 | `day_starts` | `"06:00"` | Local time a lemon's day starts; its first turn at or after it is told the date. |
+| `arrange` | `""` | A program `lma` keeps running to order its list and choose what folds; see [arrange.md](arrange.md). |
+| `arrange_may_fold_unread` | `false` | Let the arranger fold unread sessions, which otherwise stay in the list. |
 
 When a lemon's turn completes, lemonaid normally marks its session unread. If the
 final assistant message of that turn matches one of the `auto_read` patterns,

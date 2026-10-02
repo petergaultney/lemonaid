@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import cast
 
 from rich.console import Console
+from rich.markup import escape
 from rich.style import Style
 from rich.text import Text
 from textual import events
@@ -54,7 +55,8 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, turns, unarchive, undo
+from .. import db, emoji, order, pins, unarchive, undo, view
+from ..arrange import answer, child
 from . import backend_indicators, brief_cards, brief_rows
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
@@ -775,6 +777,15 @@ class LemonaidApp(App):
         self._card_layout = False
         self._models_by_channel: dict[str, ModelInfo] = {}
         self._brief_cache = brief_cards.BriefCache()
+        self._arranger = (
+            child.Arranger(child.parse_command(self.config.inbox.arrange))
+            if self.config.inbox.arrange
+            else None
+        )
+        self._arrange_error = ""
+        self._arrange_logged: set[str] = set()
+        self._fold_name = ""  # the arranger's name for the folded group
+        self._drawn: list[db.Notification] = []  # the main table's rows, top to bottom
         self._brief_target: brief.target.Target | None = None
         self._brief_row_id: int | None = None  # the row whose lemon the main pane is on
         # Browsing briefs redraws at once and switches the main pane behind it;
@@ -846,7 +857,7 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
-        if self.config.tui.fold_statuses:
+        if self.config.tui.fold_statuses or self.config.inbox.arrange:
             for b in _build_bindings(kb.fold, "toggle_fold", "Folded"):
                 self.bind(b.key, b.action, description=b.description, show=b.show)
 
@@ -1015,6 +1026,8 @@ class LemonaidApp(App):
     def on_unmount(self) -> None:
         """Stop the DB-mutating watcher before this app's resources disappear."""
         stop_unified_watcher()
+        if self._arranger is not None:
+            self._arranger.close()
 
     def _check_claude_patch(self) -> None:
         if not self._claude_binary:
@@ -1350,39 +1363,51 @@ class LemonaidApp(App):
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
 
-    def _brief_cards(
-        self, rows: abc.Iterable[db.Notification], attached: abc.Mapping[str, Path]
-    ) -> dict[str, brief_cards.CardBrief]:
-        """The card of each attached brief by channel, marked while its lemon is mid-turn."""
-        working = (
-            turns.briefs(rows, attached, time.time())
-            if self.config.tui.mid_turn_working
-            else frozenset()
+    def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> view.Active:
+        return view.ordered_active(
+            conn, switch_source, self._brief_cache, self.config.tui.mid_turn_working, time.time()
         )
-        return {
-            channel: brief_cards.mid_turn(card) if path in working else card
-            for channel, path in attached.items()
-            if (card := self._brief_cache.get(path))
-        }
 
-    def _ordered_active(
-        self, conn: sqlite3.Connection, switch_source: str | None
-    ) -> tuple[list[db.Notification], dict[str, brief_cards.CardBrief]]:
-        """Active sessions in the order they are drawn, and the brief card of each.
+    def _arranged(
+        self,
+        active: view.Active,
+        shown: list[db.Notification],
+        folded: list[db.Notification],
+        pinned: frozenset[str],
+        emojis: abc.Mapping[str, str],
+    ) -> tuple[list[db.Notification], list[db.Notification], str]:
+        """*shown* and *folded* as the arranger has them, and its fold label.
 
-        Both layouts go through here, so the sidebar and the wide inbox list
-        sessions in the same order whether or not either shows brief status.
+        While it has no usable answer they come back as they are, and
+        `_arrange_error` says why for the status line.
         """
-        rows = db.get_active(conn, switch_source=switch_source)
-        cards = self._brief_cards(rows, brief.attached.for_rows(conn, rows))
-        return (
-            order.by_status(
-                rows,
-                {channel: card.status for channel, card in cards.items()},
-                pins.pinned_positions(conn),
-            ),
-            cards,
+        if self._arranger is None:
+            return shown, folded, ""
+
+        now = time.time()
+        layout = "sidebar" if self._card_layout else "table"
+        reply = self._arranger.answer(
+            view.snapshot(active, shown, folded, pinned, emojis, layout, self.size.width, now), now
         )
+        self._arrange_error = self._arranger.error
+        if reply is None:
+            return shown, folded, ""
+
+        try:
+            arranged = answer.apply(reply, shown, folded, self.config.inbox.arrange_may_fold_unread)
+        except answer.AnswerError as e:
+            if str(e) not in self._arrange_logged:
+                _log.warning("arrange: %s", e)
+                self._arrange_logged.add(str(e))
+            self._arrange_error = str(e)
+            return shown, folded, ""
+
+        if len(self._arrange_logged) > 1000:
+            self._arrange_logged.clear()  # problems name row ids, which keep changing
+        for problem in set(arranged.problems) - self._arrange_logged:
+            _log.info("arrange: %s", problem)
+        self._arrange_logged.update(arranged.problems)
+        return arranged.shown, arranged.folded, arranged.fold_label
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
         self._update_input_indicator()
@@ -1417,29 +1442,26 @@ class LemonaidApp(App):
             env_filter = self.current_env if self.current_env != "unknown" else None
             pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
-            active, cards = self._ordered_active(conn, env_filter)
+            active = self._ordered_active(conn, env_filter)
+            cards = active.cards
             shown, folded = order.fold(
-                active,
-                {channel: card.status for channel, card in cards.items()},
-                pinned,
-                self.config.tui.fold_statuses,
+                active.rows, view.statuses(cards), pinned, self.config.tui.fold_statuses
             )
-            current_notifications = [*shown, *folded] if self._fold_open else shown
+            emojis = emoji.by_channel(conn)
             # Lower pane: live sessions from other switchable terminals.
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
             # switched to from anywhere, so they belong in history instead.
             if env_filter:
-                all_notifications, _ = self._ordered_active(conn, None)
                 other_notifications = [
                     n
-                    for n in all_notifications
+                    for n in self._ordered_active(conn, None).rows
                     if n.switch_source is not None and n.switch_source != env_filter
                 ]
             else:
                 other_notifications = []
 
-            emojis = emoji.by_channel(conn)
-
+        shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
+        current_notifications = [*shown, *folded] if self._fold_open else shown
         briefs = (
             {str(n.id): cards[n.channel] for n in current_notifications if n.channel in cards}
             if self.config.tui.brief_status
@@ -1450,6 +1472,7 @@ class LemonaidApp(App):
             default=0,
         )
 
+        self._drawn = current_notifications
         unread_count = sum(1 for n in current_notifications if n.is_unread)
         self.set_class(bool(unread_count), "-unread")
         focused = self._focused_ttys()
@@ -1525,7 +1548,7 @@ class LemonaidApp(App):
                     target_index = min(current_index, main_table.row_count - 1)
             main_table.move_cursor(row=target_index)
 
-        read_count = len(active) - unread_count
+        read_count = len(active.rows) - unread_count
         env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
 
@@ -1544,12 +1567,17 @@ class LemonaidApp(App):
                 f"  |  [bold cyan]{self.config.tui.keybindings.save_size}[/] save pane {dimension}"
             )
 
+        if self._arrange_error:
+            status_text += f"  |  [bold red]arrange:[/] {escape(self._arrange_error)}"
+
         self._set_status(status_text)
 
     def _fold_label(self, count: int) -> str:
         """The folded group's one line: which statuses, how many, and the key that opens it."""
         key = self.config.tui.keybindings.fold[:1]
-        group = f"{', '.join(self.config.tui.fold_statuses)} ({count})"
+        group = (
+            f"{self._fold_name or ', '.join(self.config.tui.fold_statuses) or 'folded'} ({count})"
+        )
         if self._fold_open:
             return f"▴ {group} above" + (f" · {key} to fold" if key else "")
 
@@ -1610,7 +1638,9 @@ class LemonaidApp(App):
         kb = self.config.tui.keybindings
         self.push_screen(
             HelpScreen(
-                kb if self.config.tui.fold_statuses else dataclasses.replace(kb, fold=""),
+                kb
+                if self.config.tui.fold_statuses or self.config.inbox.arrange
+                else dataclasses.replace(kb, fold=""),
                 wide=not self._card_layout,
             )
         )  # the fold key is bound only when something folds, so only then is it listed
@@ -2753,11 +2783,7 @@ class LemonaidApp(App):
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
-        with db.connect() as conn:
-            env_filter = self.current_env if self.current_env != "unknown" else None
-            notifications, _ = self._ordered_active(conn, env_filter)
-
-        unread = [(n.created_at, row) for row, n in enumerate(notifications) if n.is_unread]
+        unread = [(n.created_at, row) for row, n in enumerate(self._drawn) if n.is_unread]
         if not unread:
             self.notify("No unread notifications", severity="information")
             return

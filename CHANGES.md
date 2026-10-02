@@ -1,3 +1,14 @@
+# 0.57.0 (2026-10-01)
+
+#### Added
+
+- **`[inbox] arrange` names a program that decides the order of `lma`'s list and what folds at its bottom.** `lma` keeps it running and sends it a JSON line of the inbox's rows whenever they change. While it fails, `lma` draws its own order and says why in the status line. See [docs/arrange.md](docs/arrange.md).
+- **`lemonaid inbox arrange check` tries an arranger against the live inbox** and reports what it got wrong. `arrange snapshot` prints what an arranger is sent, and `arrange serve FILE` runs a Python file's `arrange(snapshot)` as one.
+
+#### Fixed
+
+- **`u` (jump to unread) lands on the unread session when a folded group sits above it in lemonaid's order,** as `done` sessions do with `fold_statuses = ["done"]`.
+
 # 0.56.2 (2026-10-01)
 
 #### Changed

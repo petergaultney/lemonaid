@@ -203,10 +203,10 @@ def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
         async with app.run_test(size=(60, 40)) as pilot:
             await pilot.pause()
             with db.connect() as conn:
-                rows, cards = app._ordered_active(conn, None)
+                active = app._ordered_active(conn, None)
             return {
-                n.channel: (i, cards[n.channel].shown, cards[n.channel].needs_line)
-                for i, n in enumerate(rows)
+                n.channel: (i, active.cards[n.channel].shown, active.cards[n.channel].needs_line)
+                for i, n in enumerate(active.rows)
             }
 
     return asyncio.run(run())

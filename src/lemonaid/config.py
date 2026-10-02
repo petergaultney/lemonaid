@@ -185,6 +185,10 @@ class InboxConfig:
     auto_read: tuple[re.Pattern[str], ...] = ()
     # A lemon's first turn at or after this local time each day is told the date.
     day_starts: dt.time = dt.time(6, 0)
+    # A program lma keeps running to order and fold its list; see docs/arrange.md.
+    arrange: str = ""
+    # Let the arranger fold an unread row, which otherwise stays in the list.
+    arrange_may_fold_unread: bool = False
 
 
 @dataclass
@@ -441,6 +445,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
     inbox = InboxConfig(
         auto_read=auto_read.compile_patterns(inbox_data.get("auto_read")),
         day_starts=_day_starts(inbox_data.get("day_starts")),
+        arrange=inbox_data.get("arrange", ""),
+        arrange_may_fold_unread=inbox_data.get("arrange_may_fold_unread", False),
     )
 
     openclaw_data = data.get("openclaw", {})

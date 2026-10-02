@@ -2,7 +2,9 @@
 
 import asyncio
 import itertools
+import os
 import time
+from pathlib import Path
 
 import pytest
 from textual.widgets import DataTable
@@ -208,6 +210,26 @@ def test_jumping_to_unread_finds_the_oldest_in_any_band(monkeypatch):
 
     assert drawn[-1] == oldest
     assert selected == [len(drawn) - 1]
+
+
+def test_jumping_to_unread_skips_a_folded_group_above_it(monkeypatch):
+    with db.connect() as conn:
+        _session(conn, "done-read", age=5)
+        unread = _session(conn, "unread", unread=True, age=60)
+        read = _session(conn, "read", age=1)
+        _brief(conn, "claude:done-read", "done")
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nfold_statuses = ["done"]\n')
+    selected = []
+    monkeypatch.setattr(
+        DataTable, "action_select_cursor", lambda table: selected.append(table.cursor_row)
+    )
+
+    async def steps(app, pilot):
+        app.action_jump_unread()
+        return app._row_channels()
+
+    assert _run(steps, (120, 40)) == [unread, read]
+    assert selected == [0]
 
 
 def test_marking_a_blocked_row_read_moves_to_the_unread_below_it():

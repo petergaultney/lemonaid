@@ -6,6 +6,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime
 
+import lemonaid.inbox.arrange.cli
 import lemonaid.messages.cli
 
 from . import db, decorate_cli, snooze_cli
@@ -167,6 +168,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     decorate_cli.add_parsers(inbox_subparsers)
     snooze_cli.add_parser(inbox_subparsers)
+    lemonaid.inbox.arrange.cli.add_parser(inbox_subparsers)
     lemonaid.messages.cli.add_inbox_parsers(inbox_subparsers)
     lemonaid.messages.service_cli.add_parser(inbox_subparsers)
 
