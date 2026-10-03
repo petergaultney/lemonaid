@@ -164,16 +164,24 @@ def with_status(text: str, state: str) -> str:
 
 
 def with_now(text: str, now: str) -> str:
-    """*text* with its `## Now` section's body replaced, added after `Status:` if missing."""
+    """*text* with its `## Now` section's body replaced.
+
+    A missing one goes after the header lines below `Status:` (`Parent:`, `Area:`),
+    so they stay outside it.
+    """
     lines = text.splitlines()
     body = [*now.strip().splitlines(), ""]
     start = next((i for i, line in enumerate(lines) if _NOW_HEADING.fullmatch(line)), None)
     if start is None:
-        at = next(
+        status = next(
             (i + 1 for i, line in enumerate(lines) if _STATUS_LINE.fullmatch(line.strip())),
             len(lines),
         )
-        return "\n".join([*lines[:at], "", "## Now", *body, *lines[at:]]).rstrip("\n") + "\n"
+        at = next((i for i in range(status, len(lines)) if _SECTION.match(lines[i])), len(lines))
+        head = lines[:at]
+        while head and not head[-1].strip():
+            head.pop()
+        return "\n".join([*head, "", "## Now", *body, *lines[at:]]).rstrip("\n") + "\n"
 
     end = next(
         (i for i in range(start + 1, len(lines)) if _SECTION.match(lines[i])),

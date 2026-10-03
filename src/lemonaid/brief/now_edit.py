@@ -5,10 +5,12 @@ rest of the brief as written.
 """
 
 import dataclasses
+import re
 from collections import abc
 
 from . import layout, store
 
+_FENCE = re.compile(r"(```|~~~)")
 _NAMES = ("Needs", "Running", "Waiting on", "Next", "PRs", "Done")
 
 
@@ -25,15 +27,42 @@ def heading_name(heading: str) -> str:
     return heading.strip()[:1].upper() + heading.strip()[1:] if found == 0 else _NAMES[found]
 
 
+def _field(line: str) -> str:
+    return line.split(":", 1)[0]
+
+
+def _with_fields(lines: abc.Sequence[str], given: dict[str, str]) -> list[str]:
+    """*lines* with each field line outside a code fence replaced by, and taken from, *given*."""
+    out = []
+    in_fence = False
+    for line in lines:
+        if _FENCE.match(line):
+            in_fence = not in_fence
+        out.append(
+            given.pop(_field(line), line) if layout.is_field(line) and not in_fence else line
+        )
+    return out
+
+
 def with_now(text: str, now: layout.Now) -> str:
-    """*text* with `## Now` rewritten from *now*, added after `Status:` if missing."""
+    """*text* with `## Now` rewritten from *now*, added after `Status:` if missing.
+
+    `Parent:` and `Area:` are fields, one line each: a line *now* gives replaces
+    the brief's line for that field, above Now or at its end, and a field *now*
+    leaves out stays as it was.
+    """
     lines = text.splitlines()
     if layout.bounds(lines) is None:
         lines = store.with_now(text, "").splitlines()
     start, end = layout.bounds(lines) or (len(lines), len(lines))
-    rendered = layout.render(layout.ordered(now)).splitlines()
+    given = {_field(line): line for line in now.tail}
+    above = _with_fields(lines[:start], given)
+    below = _with_fields(lines[end:], given)
+    kept = layout.parse("\n".join(lines[start:end])).tail
+    tail = (*(given.pop(_field(line), line) for line in kept), *given.values())
+    rendered = layout.render(layout.ordered(dataclasses.replace(now, tail=tail))).splitlines()
     body = ["", *rendered, ""] if rendered else [""]
-    return "\n".join([*lines[:start], *body, *lines[end:]]).rstrip("\n") + "\n"
+    return "\n".join([*above, *body, *below]).rstrip("\n") + "\n"
 
 
 def now_of(text: str) -> layout.Now:

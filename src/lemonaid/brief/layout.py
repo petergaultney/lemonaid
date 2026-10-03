@@ -3,8 +3,9 @@
 Each `### <heading>` comes in the order of `ORDER`, with a blank line around it,
 and none is empty. Headings outside that list are allowed and keep their place
 after the known heading they follow. Lines above the first sub-heading (an older
-brief's `- Label:` bullets) and the template's `Parent:` line, which can sit at
-the end of the section, are kept as written.
+brief's `- Label:` bullets) are kept as written. The header's `Parent:` and
+`Area:` lines, which a `## Now` written under `Status:` takes in, are kept at
+the end of the section.
 """
 
 import dataclasses
@@ -19,6 +20,7 @@ _SUB_HEADING = re.compile(r"###\s+(?P<heading>.+?)\s*#*\s*")
 _NEEDS = re.compile(r"needs(?:\s+\S+)?", re.IGNORECASE)
 _BULLET = re.compile(r"[-*+]\s+")
 _FENCE = re.compile(r"(```|~~~)")
+_HEADER_LINE = re.compile(r"(Parent|Area):")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -31,7 +33,7 @@ class Section:
 class Now:
     lead: tuple[str, ...]
     sections: tuple[Section, ...]
-    tail: tuple[str, ...]  # `Parent:` lines
+    tail: tuple[str, ...]  # `Parent:` and `Area:` lines
 
 
 def rank(heading: str) -> int | None:
@@ -65,6 +67,11 @@ def bounds(lines: abc.Sequence[str]) -> tuple[int, int] | None:
     return start + 1, len(lines)
 
 
+def is_field(line: str) -> bool:
+    """Whether *line* is a `Parent:` or `Area:` line."""
+    return bool(_HEADER_LINE.match(line))
+
+
 def parse(body: str) -> Now:
     lead: list[str] = []
     tail: list[str] = []
@@ -76,7 +83,7 @@ def parse(body: str) -> Now:
         heading = None if in_fence else _SUB_HEADING.fullmatch(line)
         if heading:
             sections.append((heading["heading"], []))
-        elif line.startswith("Parent:") and not in_fence:
+        elif is_field(line) and not in_fence:
             tail.append(line)
         else:
             (sections[-1][1] if sections else lead).append(line)
@@ -122,7 +129,7 @@ def render(now: Now) -> str:
     blocks = [
         *(["\n".join(now.lead)] if now.lead else []),
         *(f"### {s.heading}\n\n" + "\n".join(s.body) for s in now.sections),
-        *(["\n".join(now.tail)] if now.tail else []),
+        *now.tail,
     ]
     return "\n\n".join(blocks)
 

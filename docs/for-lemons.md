@@ -534,6 +534,7 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 - a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
   or that has no rows;
 - a `## Waiters` section that is not last;
+- no `Parent:` line, when the database records a parent for the brief;
 - with `--all`, an attached brief whose file is gone.
 
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
@@ -541,7 +542,9 @@ It exits 1 when it finds anything, and `--json` lists the problems. Every edit v
 anything, listing what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
 `Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Waiters` or a
 wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
-way the other verbs do. A Claude lemon's Stop hook
+way the other verbs do. The verbs never drop a `Parent:` line, and refuse an edit that
+would, but they still edit a brief that has already lost one. A `Parent:` or `Area:` line given to
+`brief now` replaces the brief's line for that field, and a field it leaves out stays as it was. A Claude lemon's Stop hook
 runs it too, and blocks the turn's end until the brief passes. **After editing a brief by hand,
 run `lemonaid brief check --self`**: nothing else checks a Codex lemon's hand edits.
 

@@ -5,6 +5,7 @@ import sqlite3
 from collections import abc
 from pathlib import Path
 
+from ..lineage import links
 from . import identity, layout, now_edit, pr_table, store
 
 _HEADING = re.compile(r"(?P<level>#{1,2})\s+(?P<text>.*?)\s*#*\s*")
@@ -138,5 +139,30 @@ def recorded(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
     return [f"Lemon-ID {in_file} belongs to {holder['path']}"] if holder else []
 
 
+def has_parent_line(text: str) -> bool:
+    in_fence = False
+    for line in text.splitlines():
+        if _FENCE.match(line):
+            in_fence = not in_fence
+        elif not in_fence and line.startswith("Parent:"):
+            return True
+
+    return False
+
+
+def parent_line(conn: sqlite3.Connection, text: str) -> list[str]:
+    """A missing `Parent:` line, when the database records a parent for the brief."""
+    try:
+        lemon_id = identity.read(text)
+    except ValueError:
+        return []  # structure() reports it
+
+    parent = links.parent_of(conn, lemon_id) if lemon_id else ""
+    if not parent or has_parent_line(text):
+        return []
+
+    return [f"No `Parent:` line, but {parent} is this brief's parent; add `Parent: {parent}`"]
+
+
 def problems(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
-    return [*structure(text), *recorded(conn, path, text)]
+    return [*structure(text), *recorded(conn, path, text), *parent_line(conn, text)]
