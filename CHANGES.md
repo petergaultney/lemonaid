@@ -1,3 +1,9 @@
+# 0.64.2 (2026-10-03)
+
+#### Fixed
+
+- **`lemonaid watch pr --head` accepts an abbreviated SHA** instead of reporting the head moved at once. It refuses anything but 7 to 40 hex digits, since a shorter prefix could also match a later push.
+
 # 0.64.1 (2026-10-03)
 
 #### Fixed
