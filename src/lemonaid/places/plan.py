@@ -30,6 +30,10 @@ class Plan(ty.NamedTuple):
     place: ownership.Place
     sessions: list[SessionPlan]  # every session with a pane in the place, by name
     refusals: list[str]  # why nothing should happen, one per mixed window
+    panes: list[ownership.Pane]  # the snapshot this was planned from
+
+    def panes_of(self, window: str) -> list[ownership.Pane]:
+        return [p for p in self.panes if p.window == window]
 
 
 _Located = dict[str, ownership.Place | None]  # pane ID -> the place it sits in
@@ -140,4 +144,4 @@ def plan_toss(
         for window in session.mixed
     ]
 
-    return Plan(place, sessions, refusals)
+    return Plan(place, sessions, refusals, all_panes)

@@ -29,16 +29,25 @@ def _place(tmp_path, key: str, root: PlaceRoot | None = None) -> ownership.Place
     )
 
 
-def _target(session: str, places: list[ownership.Place]) -> target.TossTarget:
+def _target(
+    session: str, places: list[ownership.Place], partial: dict | None = None
+) -> target.TossTarget:
     place = places[0] if places else None
-    windows = ["@1", "@2"] if session else []
+    windows = {"@1": [_pane(session, "@1", "%1")], "@2": [_pane(session, "@2", "%2")]}
 
-    return target.TossTarget(session, places, place, windows, [])
+    return target.TossTarget(session, places, place, windows if session else {}, partial or {}, [])
+
+
+def _pane(session: str, window: str, pane: str) -> ownership.Pane:
+    return ownership.Pane(session, window, pane, None)
 
 
 def _resolves_to(monkeypatch, doomed: target.TossTarget | None, why_not: str = "") -> list:
     monkeypatch.setattr(toss_cli, "load_config", lambda: Config(places=PlacesConfig()))
-    monkeypatch.setattr(target, "resolve_toss_target", lambda config, key: (doomed, why_not))
+    monkeypatch.setattr(
+        target, "resolve_toss_target", lambda config, key, unattended=False: (doomed, why_not)
+    )
+    monkeypatch.setattr(target, "changed_since", lambda config, key, planned, unattended=False: "")
     tossed: list = []
     monkeypatch.setattr(toss_cli.teardown, "toss", lambda *a, **kw: tossed.append((a, kw)) or None)
 
@@ -77,8 +86,8 @@ def test_the_set_is_shown_before_the_prompt(monkeypatch, tmp_path, capsys):
         toss_cli.cmd_toss(_args())
 
     err = capsys.readouterr().err
-    assert "session 'stacked'" in err
-    assert "base" in err and "on-top" in err
+    assert "place 'base'" in err
+    assert "session 'stacked' closes (2 windows)" in err
 
 
 def test_yes_skips_the_prompt(monkeypatch, tmp_path):
@@ -127,6 +136,36 @@ def test_json_reports_what_closed(monkeypatch, tmp_path, capsys):
     }
 
 
+def test_json_lists_windows_closed_on_their_own(monkeypatch, tmp_path, capsys):
+    partial = {"@4": [_pane("katamari", "@4", "%4")], "@7": [_pane("katamari", "@7", "%7")]}
+    tossed = _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))
+
+    toss_cli.cmd_toss(_args(json=True))
+
+    reported = json.loads(capsys.readouterr().out)
+    assert reported["session"] == ""
+    assert reported["session_closed"] is False
+    assert reported["closed_windows"] == ["@4", "@7"]
+    assert tossed[0][0][2] == partial  # teardown gets the planned panes to check against
+
+
+def test_windows_closing_in_a_surviving_session_are_shown_with_their_session(
+    monkeypatch, tmp_path, capsys
+):
+    partial = {"@4": [_pane("katamari", "@4", "%4")], "@7": [_pane("katamari", "@7", "%7")]}
+    _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))
+    prompts = []
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "n")
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args())
+
+    err = capsys.readouterr().err
+    assert "place 'feat'" in err
+    assert "2 windows in 'katamari' close (@4, @7); the session stays" in err
+    assert prompts == ["close 2 windows and release the place? [y/N] "]
+
+
 def test_json_for_a_place_with_no_session_closes_nothing(monkeypatch, tmp_path, capsys):
     _resolves_to(monkeypatch, _target("", [_place(tmp_path, "idle")]))
 
@@ -141,14 +180,14 @@ def test_json_for_a_place_with_no_session_closes_nothing(monkeypatch, tmp_path, 
 def test_windows_left_open_elsewhere_are_shown(monkeypatch, tmp_path, capsys):
     """They end up in a released directory, which the person confirming should know."""
     place = _place(tmp_path, "feat")
-    doomed = target.TossTarget("feat", [place], place, ["@1"], ["onlooker:@7"])
+    doomed = target.TossTarget("feat", [place], place, {"@1": []}, {}, ["hq:@7"])
     _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr("builtins.input", lambda prompt: "n")
 
     with pytest.raises(SystemExit):
         toss_cli.cmd_toss(_args())
 
-    assert "window onlooker:@7 stays open" in capsys.readouterr().err
+    assert "window hq:@7 stays open" in capsys.readouterr().err
 
 
 def test_unfinished_work_blocks_even_with_yes(monkeypatch, tmp_path, capsys):
@@ -173,18 +212,6 @@ def test_force_overrides_unfinished_work(monkeypatch, tmp_path):
     toss_cli.cmd_toss(_args(force=True))
 
     assert len(tossed) == 1
-
-
-def test_a_session_with_no_places_asks_only_about_the_session(monkeypatch, capsys):
-    doomed = _target("notes", [])
-    _resolves_to(monkeypatch, doomed)
-    prompts = []
-    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "y")
-
-    toss_cli.cmd_toss(_args())
-
-    assert prompts == ["kill it? [y/N] "]
-    assert "no managed places" in capsys.readouterr().err
 
 
 def test_an_unresolvable_target_exits_with_the_reason(monkeypatch, capsys):
@@ -220,3 +247,39 @@ def test_declining_at_the_prompt_by_eof_tears_nothing_down(monkeypatch, tmp_path
         toss_cli.cmd_toss(_args())
 
     assert not tossed
+
+
+def test_a_plan_that_changed_during_the_prompt_tears_nothing_down(monkeypatch, tmp_path, capsys):
+    """The person confirmed what they saw; if tmux no longer matches it, stop."""
+    doomed = _target("work", [_place(tmp_path, "feat")])
+    tossed = _resolves_to(monkeypatch, doomed)
+    monkeypatch.setattr(
+        target,
+        "changed_since",
+        lambda config, key, planned, unattended=False: "The layout changed; nothing was closed.",
+    )
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args())
+
+    assert not tossed
+    assert "The layout changed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("flags", [{"json": True}, {"yes": True}, {}])
+def test_skipping_the_prompt_resolves_unattended(monkeypatch, tmp_path, flags):
+    """Either flag means no one is at a prompt, which tightens a bare toss of your own session."""
+    seen = {}
+
+    def _resolve(config, key, unattended=False):
+        seen["unattended"] = unattended
+        return None, "refused"
+
+    monkeypatch.setattr(toss_cli, "load_config", lambda: Config(places=PlacesConfig()))
+    monkeypatch.setattr(target, "resolve_toss_target", _resolve)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(**flags))
+
+    assert seen["unattended"] is bool(flags)

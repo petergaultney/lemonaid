@@ -214,8 +214,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         description="A place is a directory you work in. lemonaid knows about "
         "directories and terminals - what acquires and releases a directory is a "
         "shell command declared per repo root, so run `place hooks --json` rather "
-        "than assuming a tool. `toss` releases a place and closes the tmux session "
-        "dedicated to it. Full guide for automated callers: `lemonaid for-lemons`.",
+        "than assuming a tool. `toss` releases a place and closes the tmux windows "
+        "sitting in it, and the session too when it is dedicated to the place. Full "
+        "guide for automated callers: `lemonaid for-lemons`.",
     )
     place_subparsers = place_parser.add_subparsers(dest="place_command")
 

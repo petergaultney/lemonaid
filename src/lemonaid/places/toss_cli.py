@@ -21,16 +21,35 @@ def _fate(place: ownership.Place, reasons: list[str]) -> str:
     return f"  {place.key}" + (f" - {'; '.join(reasons)}" if reasons else "")
 
 
+def _plural(n: int, noun: str) -> str:
+    return f"{n} {noun}{'s' if n != 1 else ''}"
+
+
 def _headline(doomed: target.TossTarget) -> str:
-    """The thing being torn down, named as whatever it actually is."""
-    if not doomed.session:
-        return f"place {doomed.places[0].key!r} (no session)"
+    if not doomed.session and not doomed.partial:
+        return f"place {doomed.place.key!r} (no session)"
 
-    if not doomed.places:
-        return f"session {doomed.session!r} - no managed places to release"
+    return f"place {doomed.place.key!r}"
 
-    n = len(doomed.windows)
-    return f"session {doomed.session!r}, {n} window{'s' if n != 1 else ''}"
+
+def _closures(doomed: target.TossTarget) -> list[str]:
+    """One line per session that loses something, windows by their tmux IDs."""
+    by_session: dict[str, list[str]] = {}
+    for window, panes in doomed.partial.items():
+        by_session.setdefault(panes[0].session, []).append(window)
+
+    return [
+        *(
+            [f"  session {doomed.session!r} closes ({_plural(len(doomed.windows), 'window')})"]
+            if doomed.session
+            else []
+        ),
+        *(
+            f"  {_plural(len(ws), 'window')} in {session!r} "
+            f"{'close' if len(ws) != 1 else 'closes'} ({', '.join(ws)}); the session stays"
+            for session, ws in by_session.items()
+        ),
+    ]
 
 
 def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list[str]:
@@ -38,19 +57,19 @@ def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list
     return [
         _headline(doomed),
         *(_fate(place, concerns.get(place.key, [])) for place in doomed.places),
+        *_closures(doomed),
         *(f"  window {window} stays open, in a released directory" for window in doomed.left_open),
     ]
 
 
 def _prompt(doomed: target.TossTarget) -> str:
-    releasing = len(doomed.places)
-    if not doomed.session:
-        return "release it? [y/N] "
+    if doomed.session:
+        return "kill it and release the place? [y/N] "
 
-    if not releasing:
-        return "kill it? [y/N] "
+    if doomed.partial:
+        return f"close {_plural(len(doomed.partial), 'window')} and release the place? [y/N] "
 
-    return f"kill it and release {releasing} place{'s' if releasing != 1 else ''}? [y/N] "
+    return "release it? [y/N] "
 
 
 def _confirmed(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> bool:
@@ -67,7 +86,9 @@ def _confirmed(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> boo
 
 def cmd_toss(args: argparse.Namespace) -> None:
     """Tear down a tmux session and the places it occupies."""
-    doomed, why_not = target.resolve_toss_target(load_config(), args.key)
+    config = load_config()
+    unattended = args.yes or args.json
+    doomed, why_not = target.resolve_toss_target(config, args.key, unattended=unattended)
     if doomed is None:
         print(why_not, file=sys.stderr)
         sys.exit(1)
@@ -87,7 +108,12 @@ def cmd_toss(args: argparse.Namespace) -> None:
         print("Nothing was torn down.", file=sys.stderr)
         sys.exit(1)
 
-    error = teardown.toss(doomed.session, doomed.places)
+    # The prompt may have sat for a while; what was confirmed has to still be true.
+    if changed := target.changed_since(config, args.key, doomed, unattended=unattended):
+        print(changed, file=sys.stderr)
+        sys.exit(1)
+
+    error = teardown.toss(doomed.session, doomed.places, doomed.partial)
 
     if args.json:
         print(
@@ -96,8 +122,8 @@ def cmd_toss(args: argparse.Namespace) -> None:
                     "session": doomed.session,
                     "released": [p.key for p in doomed.places],
                     "error": error,
-                    "place": doomed.place.key if doomed.place else None,
-                    "closed_windows": doomed.windows if not error else [],
+                    "place": doomed.place.key,
+                    "closed_windows": doomed.closing if not error else [],
                     "session_closed": bool(doomed.session) and not error,
                 }
             )
@@ -116,11 +142,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         description="The unit is a managed place: a directory, plus the tmux session "
         "sitting in it when that session is dedicated to it (named for it, or entirely "
         "inside it, and holding no other managed place). With no key the place is the "
-        "one the current directory is in; with a key it is that place, from anywhere.\n\n"
-        "A session that also holds other places is shared, and this release refuses "
-        "to touch it: the message names the windows in the place, and closing them "
-        "yourself lets the directory be released. A window with a pane in the place "
-        "and a pane elsewhere refuses as well.\n\n"
+        "one the current directory is in, and a directory that is not in a place is "
+        "refused rather than falling back to your session; with a key it is that place, "
+        "from anywhere. Under --yes or --json, closing the session you are running in "
+        "needs the key.\n\n"
+        "In a session that also holds other places, only the windows sitting in this "
+        "one close, and the session stays. A window with a pane in the place and a "
+        "pane elsewhere refuses, naming both.\n\n"
         "Protected places (main, master by default) are never released and never "
         "count as held. Protected sessions are refused outright. Teardown switches "
         "every client attached to the session elsewhere first (or refuses if one has "

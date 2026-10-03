@@ -5,7 +5,12 @@ place; a session that holds other places is shared, and this release refuses it
 rather than closing part of it.
 """
 
+import shutil
+import subprocess
+import uuid
 from pathlib import Path
+
+import pytest
 
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.places import ownership, target
@@ -59,6 +64,7 @@ def test_unnamed_toss_is_the_place_you_are_standing_in(monkeypatch, tmp_path):
     assert [p.key for p in doomed.places] == ["feat"]
     assert doomed.place is not None and doomed.place.key == "feat"
     assert doomed.windows == ["@1", "@2"]
+    assert [p.pane for p in doomed.session_windows["@2"]] == ["%2"]
 
 
 def test_unnamed_toss_from_deep_inside_the_place(monkeypatch, tmp_path):
@@ -75,15 +81,113 @@ def test_unnamed_toss_from_deep_inside_the_place(monkeypatch, tmp_path):
     assert doomed.session == "feat"
 
 
-def test_unnamed_toss_outside_tmux_needs_a_place(monkeypatch, tmp_path):
-    _attached_to(monkeypatch, None)
-    _panes(monkeypatch)
-    monkeypatch.chdir(tmp_path)
+def test_unnamed_toss_outside_every_place_is_refused(monkeypatch, tmp_path):
+    """Never the caller's session: the one time that fallback ran, it killed the caller."""
+    _managed(tmp_path, "feat")
+    (tmp_path / ".." / "elsewhere").mkdir(exist_ok=True)
+    _panes(monkeypatch, ("notes", "@1", tmp_path.parent / "elsewhere"))
+    _attached_to(monkeypatch, "notes")
+    monkeypatch.chdir(tmp_path.parent / "elsewhere")
 
     doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
 
     assert doomed is None
-    assert "Name a place" in why_not
+    assert "not inside any managed place" in why_not
+    assert "place toss <key>" in why_not
+
+
+def test_unnamed_toss_under_a_root_but_not_in_a_listed_place_is_refused(monkeypatch, tmp_path):
+    """The trial incident: a root with no `list` hook, a cwd under it, a session killed."""
+    (tmp_path / "brief" / "approve-status").mkdir(parents=True)
+    _panes(monkeypatch, ("play-lemonaid", "@13", tmp_path / "brief" / "approve-status"))
+    _attached_to(monkeypatch, "play-lemonaid")
+    monkeypatch.chdir(tmp_path / "brief" / "approve-status")
+
+    doomed, why_not = target.resolve_toss_target(_config(PlaceRoot(path=tmp_path)), None)
+
+    assert doomed is None
+    assert f"under the root {tmp_path}" in why_not
+    assert "not a place that root lists" in why_not
+    assert "place toss <key>" in why_not
+
+
+def test_unnamed_toss_outside_a_place_never_offers_the_session_that_holds_places(
+    monkeypatch, tmp_path
+):
+    _managed(tmp_path, "a", "b")
+    (tmp_path / "elsewhere").mkdir()
+    _panes(monkeypatch, ("work", "@1", tmp_path / "a"), ("work", "@2", tmp_path / "elsewhere"))
+    _attached_to(monkeypatch, "work")
+    monkeypatch.chdir(tmp_path / "elsewhere")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
+
+    assert doomed is None
+    assert "place toss <key>" in why_not
+
+
+def test_an_unattended_bare_toss_of_your_own_session_needs_the_key(monkeypatch, tmp_path):
+    """A lemon tearing down the session it runs in should have to say so."""
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, "feat")
+    monkeypatch.chdir(tmp_path / "feat")
+    config = _config(_root(tmp_path))
+
+    doomed, why_not = target.resolve_toss_target(config, None, unattended=True)
+    assert doomed is None
+    assert "session you are running in ('feat')" in why_not
+    assert "place toss feat" in why_not
+
+    doomed, why_not = target.resolve_toss_target(config, None, unattended=False)
+    assert why_not == ""
+    assert doomed is not None and doomed.session == "feat"
+
+
+def test_an_unattended_bare_toss_with_an_unknown_caller_refuses_to_close_a_session(
+    monkeypatch, tmp_path
+):
+    """No TMUX_PANE: the closing session may well be the caller's, so it is treated as such."""
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, None)
+    monkeypatch.chdir(tmp_path / "feat")
+    config = _config(_root(tmp_path))
+
+    doomed, why_not = target.resolve_toss_target(config, None, unattended=True)
+    assert doomed is None
+    assert "can't be told (no TMUX_PANE)" in why_not
+    assert "place toss feat" in why_not
+
+    doomed, why_not = target.resolve_toss_target(config, None, unattended=False)
+    assert why_not == "" and doomed is not None
+
+
+def test_an_unattended_bare_toss_in_a_shared_session_closes_only_windows(monkeypatch, tmp_path):
+    """The caller's session survives, so there is nothing to make it name."""
+    _managed(tmp_path, "feat", "other")
+    _panes(monkeypatch, ("work", "@1", tmp_path / "feat"), ("work", "@2", tmp_path / "other"))
+    _attached_to(monkeypatch, "work")
+    monkeypatch.chdir(tmp_path / "feat")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None, unattended=True)
+
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == ""
+    assert list(doomed.partial) == ["@1"]
+
+
+def test_an_unattended_bare_toss_of_another_sessions_place_is_allowed(monkeypatch, tmp_path):
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"), ("lemon", "@2", Path.home()))
+    _attached_to(monkeypatch, "lemon")
+    monkeypatch.chdir(tmp_path / "feat")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None, unattended=True)
+
+    assert why_not == ""
+    assert doomed is not None and doomed.session == "feat"
 
 
 def test_unnamed_toss_outside_tmux_in_a_place_releases_it(monkeypatch, tmp_path):
@@ -101,43 +205,6 @@ def test_unnamed_toss_outside_tmux_in_a_place_releases_it(monkeypatch, tmp_path)
     assert [p.key for p in doomed.places] == ["idle"]
 
 
-def test_a_session_with_no_places_still_resolves(monkeypatch, tmp_path):
-    """Sometimes there is no worktree at all, and killing the session is the ask."""
-    (tmp_path / "elsewhere").mkdir()
-    _panes(monkeypatch, ("notes", "@1", tmp_path / "elsewhere"), ("notes", "@2", Path.home()))
-    _attached_to(monkeypatch, "notes")
-    monkeypatch.chdir(tmp_path / "elsewhere")
-
-    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
-
-    assert why_not == ""
-    assert doomed is not None
-    assert doomed.session == "notes"
-    assert doomed.places == []
-    assert doomed.place is None
-    assert doomed.windows == ["@1", "@2"]
-
-
-def test_unnamed_toss_outside_a_place_in_a_session_holding_places_is_refused(monkeypatch, tmp_path):
-    """The directory did not say which place; the session holds two. Don't guess."""
-    _managed(tmp_path, "a", "b")
-    (tmp_path / "elsewhere").mkdir()
-    _panes(
-        monkeypatch,
-        ("work", "@1", tmp_path / "a"),
-        ("work", "@2", tmp_path / "b"),
-        ("work", "@3", tmp_path / "elsewhere"),
-    )
-    _attached_to(monkeypatch, "work")
-    monkeypatch.chdir(tmp_path / "elsewhere")
-
-    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
-
-    assert doomed is None
-    assert "'a', 'b'" in why_not
-    assert "place toss <key>" in why_not
-
-
 def test_a_named_key_resolves_the_session_dedicated_to_it(monkeypatch, tmp_path):
     _managed(tmp_path, "wanted")
     _panes(monkeypatch, ("its_session", "@5", tmp_path / "wanted"))
@@ -151,7 +218,7 @@ def test_a_named_key_resolves_the_session_dedicated_to_it(monkeypatch, tmp_path)
     assert doomed.windows == ["@5"]
 
 
-def test_a_shared_session_is_refused_naming_the_windows(monkeypatch, tmp_path):
+def test_a_shared_session_loses_only_its_windows_in_the_place(monkeypatch, tmp_path):
     """The case this exists for: tossing one merged worktree must not take the others."""
     _managed(tmp_path, "feat/merged", "feat/live")
     _panes(
@@ -164,13 +231,17 @@ def test_a_shared_session_is_refused_naming_the_windows(monkeypatch, tmp_path):
 
     doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "feat/merged")
 
-    assert doomed is None
-    assert "'katamari' also holds 'feat/live'" in why_not
-    assert "@4, @7" in why_not
-    assert "place toss feat/merged" in why_not
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == ""
+    assert doomed.windows == []
+    assert sorted(doomed.partial) == ["@4", "@7"]
+    assert [p.pane for p in doomed.partial["@7"]] == ["%3"]
+    assert doomed.closing == ["@4", "@7"]
+    assert [p.key for p in doomed.places] == ["feat/merged"]
 
 
-def test_a_named_session_that_grew_another_place_is_refused(monkeypatch, tmp_path):
+def test_a_named_session_that_grew_another_place_keeps_the_other(monkeypatch, tmp_path):
     _managed(tmp_path, "base", "on-top")
     _panes(monkeypatch, ("base", "@1", tmp_path / "base"), ("base", "@2", tmp_path / "on-top"))
     _attached_to(monkeypatch, "base")
@@ -178,20 +249,23 @@ def test_a_named_session_that_grew_another_place_is_refused(monkeypatch, tmp_pat
 
     doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), None)
 
-    assert doomed is None
-    assert "'on-top'" in why_not
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == ""
+    assert list(doomed.partial) == ["@1"]
 
 
-def test_an_unnamed_session_with_a_window_elsewhere_is_refused(monkeypatch, tmp_path):
+def test_an_unnamed_session_with_a_window_elsewhere_keeps_it(monkeypatch, tmp_path):
     _managed(tmp_path, "feat")
     _panes(monkeypatch, ("work", "@1", tmp_path / "feat"), ("work", "@2", Path.home()))
     _attached_to(monkeypatch, "work")
 
     doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "feat")
 
-    assert doomed is None
-    assert "windows outside 'feat'" in why_not
-    assert "@1" in why_not
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == ""
+    assert list(doomed.partial) == ["@1"]
 
 
 def test_a_mixed_window_is_refused(monkeypatch, tmp_path):
@@ -205,8 +279,29 @@ def test_a_mixed_window_is_refused(monkeypatch, tmp_path):
     assert "Window @1" in why_not
 
 
-def test_an_onlooker_window_elsewhere_is_left_open_and_reported(monkeypatch, tmp_path):
-    """A shell in another session that cd-ed in is not a reason to stop; it is told about."""
+def test_an_onlooker_window_in_another_session_closes_too(monkeypatch, tmp_path):
+    """A shell elsewhere that cd-ed in would otherwise sit in a deleted directory."""
+    _managed(tmp_path, "feat")
+    _panes(
+        monkeypatch,
+        ("feat", "@1", tmp_path / "feat"),
+        ("other", "@8", tmp_path / "feat" / "docs"),
+        ("other", "@9", Path.home()),
+    )
+    _attached_to(monkeypatch, "other")
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "feat")
+
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == "feat"
+    assert doomed.windows == ["@1"]
+    assert list(doomed.partial) == ["@8"]
+    assert doomed.left_open == []
+
+
+def test_a_window_in_a_protected_session_is_left_open_and_reported(monkeypatch, tmp_path):
+    """Hands off a protected session, even one window at a time."""
     _managed(tmp_path, "feat")
     _panes(
         monkeypatch,
@@ -215,12 +310,15 @@ def test_an_onlooker_window_elsewhere_is_left_open_and_reported(monkeypatch, tmp
         ("hq", "@9", Path.home()),
     )
     _attached_to(monkeypatch, "hq")
+    config = _config(_root(tmp_path))
+    config.places.protected_sessions = ("hq",)
 
-    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "feat")
+    doomed, why_not = target.resolve_toss_target(config, "feat")
 
     assert why_not == ""
     assert doomed is not None
     assert doomed.session == "feat"
+    assert doomed.partial == {}
     assert doomed.left_open == ["hq:@8"]
 
 
@@ -385,19 +483,6 @@ def test_a_protected_session_is_refused_when_named_too(monkeypatch, tmp_path):
     assert "protected" in why_not
 
 
-def test_a_protected_session_holding_nothing_is_refused_from_inside(monkeypatch, tmp_path):
-    _panes(monkeypatch, ("main", "@1", Path.home()))
-    _attached_to(monkeypatch, "main")
-    monkeypatch.chdir(tmp_path)
-    config = _config(_root(tmp_path))
-    config.places.protected_sessions = ("main",)
-
-    doomed, why_not = target.resolve_toss_target(config, None)
-
-    assert doomed is None
-    assert "protected" in why_not
-
-
 def test_sessions_are_unprotected_by_default(monkeypatch, tmp_path):
     _managed(tmp_path, "scratch")
     _panes(monkeypatch, ("main", "@1", tmp_path / "scratch"))
@@ -432,3 +517,207 @@ def test_place_exists_reflects_the_directory(tmp_path):
     assert place.exists is False
     (tmp_path / "gone").mkdir()
     assert place.exists is True
+
+
+def test_an_unchanged_plan_passes_the_recheck(monkeypatch, tmp_path):
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, "feat")
+    config = _config(_root(tmp_path))
+    planned, _ = target.resolve_toss_target(config, "feat")
+
+    assert planned is not None
+    assert target.changed_since(config, "feat", planned) == ""
+
+
+def test_a_window_opened_in_the_place_since_fails_the_recheck(monkeypatch, tmp_path):
+    """New work in the place that the confirmation never showed."""
+    _managed(tmp_path, "feat", "other")
+    _panes(monkeypatch, ("work", "@1", tmp_path / "feat"), ("work", "@2", tmp_path / "other"))
+    _attached_to(monkeypatch, "work")
+    config = _config(_root(tmp_path))
+    planned, _ = target.resolve_toss_target(config, "feat")
+    assert planned is not None
+
+    _panes(
+        monkeypatch,
+        ("work", "@1", tmp_path / "feat"),
+        ("work", "@2", tmp_path / "other"),
+        ("work", "@3", tmp_path / "feat" / "src"),
+    )
+
+    why = target.changed_since(config, "feat", planned)
+
+    assert "windows @3 appeared" in why
+    assert "nothing was closed" in why
+
+
+def test_a_dedicated_session_that_gained_a_window_fails_the_recheck(monkeypatch, tmp_path):
+    """The whole session is about to die; a window it grew meanwhile was never confirmed."""
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, "feat")
+    config = _config(_root(tmp_path))
+    planned, _ = target.resolve_toss_target(config, "feat")
+    assert planned is not None
+
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"), ("feat", "@5", Path.home()))
+
+    assert "windows @5 appeared" in target.changed_since(config, "feat", planned)
+
+
+def test_a_pane_split_in_a_closing_window_fails_the_recheck(monkeypatch, tmp_path):
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, "feat")
+    config = _config(_root(tmp_path))
+    planned, _ = target.resolve_toss_target(config, "feat")
+    assert planned is not None
+
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"), ("feat", "@1", tmp_path / "feat"))
+
+    assert "a pane moved or was added" in target.changed_since(config, "feat", planned)
+
+
+def test_a_plan_that_now_refuses_fails_the_recheck_with_the_reason(monkeypatch, tmp_path):
+    _managed(tmp_path, "feat", "other")
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"))
+    _attached_to(monkeypatch, "feat")
+    config = _config(_root(tmp_path))
+    planned, _ = target.resolve_toss_target(config, "feat")
+    assert planned is not None
+
+    _panes(monkeypatch, ("feat", "@1", tmp_path / "feat"), ("feat", "@1", tmp_path / "other"))
+
+    why = target.changed_since(config, "feat", planned)
+
+    assert "Window @1" in why
+    assert "nothing was closed" in why
+
+
+def test_the_recheck_sees_a_split_on_a_real_tmux_server(monkeypatch, tmp_path):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    name = f"lemonaid-recheck-test-{uuid.uuid4().hex[:8]}"
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    _managed(tmp_path, "merged", "live")
+    started = tmux(
+        "-f", "/dev/null", "new-session", "-d", "-s", "katamari", "-c", str(tmp_path / "live")
+    )
+    if started.returncode != 0:
+        pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
+
+    tmux("new-window", "-d", "-t", "katamari", "-c", str(tmp_path / "merged"))
+    socket = tmux("display-message", "-p", "-t", "katamari", "#{socket_path}").stdout.strip()
+    monkeypatch.setenv("TMUX", f"{socket},0,0")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    config = _config(_root(tmp_path))
+    try:
+        planned, why_not = target.resolve_toss_target(config, "merged")
+        assert why_not == ""
+        assert planned is not None
+        (window,) = planned.partial
+        assert target.changed_since(config, "merged", planned) == ""
+
+        tmux("split-window", "-d", "-t", window, "-c", str(tmp_path / "live"))
+
+        why = target.changed_since(config, "merged", planned)
+
+        assert f"Window {window}" in why  # the split pane made it a mixed window
+        assert "nothing was closed" in why
+    finally:
+        tmux("kill-server")
+
+
+def _server(monkeypatch, name: str, windows: list[tuple[str, Path]]):
+    """A private tmux server with the given (session, cwd) windows; returns a runner."""
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    first_session, first_cwd = windows[0]
+    started = tmux(
+        "-f", "/dev/null", "new-session", "-d", "-s", first_session, "-c", str(first_cwd)
+    )
+    if started.returncode != 0:
+        pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
+
+    for session, cwd in windows[1:]:
+        if tmux("has-session", "-t", f"={session}").returncode == 0:
+            tmux("new-window", "-d", "-t", f"={session}", "-c", str(cwd))
+        else:
+            tmux("new-session", "-d", "-s", session, "-c", str(cwd))
+    socket = tmux("display-message", "-p", "-t", first_session, "#{socket_path}").stdout.strip()
+    pane = tmux("display-message", "-p", "-t", first_session, "#{pane_id}").stdout.strip()
+    monkeypatch.setenv("TMUX", f"{socket},0,0")
+    monkeypatch.setenv("TMUX_PANE", pane)  # the caller sits in the first session, for real
+    return tmux
+
+
+def test_bare_toss_under_an_unlisted_root_refuses_on_a_real_server(monkeypatch, tmp_path):
+    """The trial incident, replayed: the caller's session must still be there afterward."""
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    cwd = tmp_path / "brief" / "approve-status"
+    cwd.mkdir(parents=True)
+    tmux = _server(monkeypatch, f"lemonaid-bare-{uuid.uuid4().hex[:8]}", [("play-lemonaid", cwd)])
+    monkeypatch.chdir(cwd)
+    try:
+        doomed, why_not = target.resolve_toss_target(
+            _config(PlaceRoot(path=tmp_path)), None, unattended=True
+        )
+
+        assert doomed is None
+        assert "not a place that root lists" in why_not
+        assert tmux("has-session", "-t", "=play-lemonaid").returncode == 0
+    finally:
+        tmux("kill-server")
+
+
+def test_bare_toss_outside_every_root_refuses_on_a_real_server(monkeypatch, tmp_path):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    _managed(tmp_path / "root", "feat")
+    cwd = tmp_path / "elsewhere"
+    cwd.mkdir()
+    tmux = _server(monkeypatch, f"lemonaid-bare-{uuid.uuid4().hex[:8]}", [("notes", cwd)])
+    monkeypatch.chdir(cwd)
+    try:
+        doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path / "root")), None)
+
+        assert doomed is None
+        assert "not inside any managed place" in why_not
+        assert tmux("has-session", "-t", "=notes").returncode == 0
+    finally:
+        tmux("kill-server")
+
+
+def test_unattended_bare_toss_of_own_dedicated_session_refuses_on_a_real_server(
+    monkeypatch, tmp_path
+):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    _managed(tmp_path, "feat")
+    tmux = _server(
+        monkeypatch, f"lemonaid-bare-{uuid.uuid4().hex[:8]}", [("feat", tmp_path / "feat")]
+    )
+    monkeypatch.chdir(tmp_path / "feat")
+    config = _config(_root(tmp_path))
+    try:
+        doomed, why_not = target.resolve_toss_target(config, None, unattended=True)
+        assert doomed is None
+        assert "session you are running in" in why_not
+
+        doomed, why_not = target.resolve_toss_target(config, "feat", unattended=True)
+        assert why_not == ""
+        assert doomed is not None and doomed.session == "feat"
+        assert tmux("has-session", "-t", "=feat").returncode == 0
+    finally:
+        tmux("kill-server")

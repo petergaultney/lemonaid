@@ -154,30 +154,28 @@ lemonaid place toss <key>    # that place, from anywhere
 
 The place is the unit. Its session closes with it when the session is *dedicated* to it:
 named for it (which is what `place open` does), or entirely inside it, and in either case
-holding no other managed place. A session that holds other places is shared, and `toss`
-refuses to touch it, naming the windows that sit in the place:
+holding no other managed place. A session that holds other places is shared, and only its
+windows that sit in the place close; the session and its other windows stay:
 
 ```
 $ lp toss feat/merged
-'katamari' also holds 'feat/live', so it is not closed with 'feat/merged'. Its windows in 'feat/merged': @4, @7
-Closing just those windows is not implemented yet. Close them yourself and run `place toss feat/merged` again to release the directory.
+place 'feat/merged'
+  feat/merged
+  2 windows in 'katamari' close (@4, @7); the session stays
+close 2 windows and release the place? [y/N]
 ```
-
-Closing only those windows is the next step; until then, close them by hand and the place
-is released as one with no session.
 
 The set is shown before anything happens:
 
 ```
 $ lp toss
-session 'feat/base', 3 windows
+place 'feat/base'
   feat/base - 2 unpushed
-kill it and release 1 place? [y/N]
+  session 'feat/base' closes (3 windows)
+kill it and release the place? [y/N]
 ```
 
-That prompt is where your in-the-moment context gets used. Either half may be absent, and
-neither is a special case. A session with nothing managed under it just asks `kill it?`,
-when you run `toss` from a directory no root manages. A place with no session — an
+That prompt is where your in-the-moment context gets used. A place with no session — an
 `acquire`d directory nobody opened — asks `release it?`:
 
 ```
@@ -186,6 +184,12 @@ place 'feat/agent-made' (no session)
   feat/agent-made - 2 unpushed
 release it? [y/N]
 ```
+
+Bare `toss` never falls back to the session you are in. A directory that resolves to no
+place — outside every root, or under a root that doesn't list it — is refused with a
+request for a key, not a session to kill. And under `--yes` or `--json`, closing the session
+the command runs in needs the key as well (as does not being able to tell which session that
+is); the bare form is for a person at a prompt.
 
 ### Ownership is derived, not recorded
 
@@ -209,9 +213,10 @@ matters because the agent-created ones are exactly the ones you'd otherwise neve
 tmux keeps reporting a pane's original path after the directory is deleted, so a session that
 outlived its worktree still resolves and can still be closed.
 
-A window in another session that sits in the place (a shell in your catchall that cd-ed in)
-does not stop the toss. It is listed in the confirmation as staying open, since it ends up in
-a released directory.
+A window in another session that sits in the place (a shell elsewhere that cd-ed in) closes
+too, since it would otherwise end up in a released directory. The one exception is a window
+in a protected session, which is never touched: it is listed in the confirmation as staying
+open.
 
 ### Protection and flags
 
@@ -222,7 +227,8 @@ held. Everyone passes through the trunk worktree, so a window there doesn't make
 shared, and running `toss` from inside the trunk refuses rather than naming it. Set
 `protected = [...]` on a root to change it.
 
-**Protected sessions** are refused outright:
+**Protected sessions** are refused outright, and their windows are never closed one at a
+time either:
 
 ```toml
 [places]
@@ -247,23 +253,31 @@ commits you haven't pushed.
 
 ### Order of operations
 
-1. Work out the place, and whether its session is dedicated to it; refuse a shared session
-   or a mixed window.
+1. Work out the place, which windows sit in it, and whether its session is dedicated to it;
+   refuse a mixed window or a protected place or session.
 2. Ask `inspect` about the place; refuse if it reports anything (`--force` overrides).
 3. Show the set and confirm (`--yes` skips).
-4. Switch every client attached to the session to another one — that client's last session,
-   else wherever you came from, else one that wants attention in the inbox, else the most
-   recently active.
-5. Kill the session and run `destroy` for the place, in a detached process.
+4. Switch every client attached to a closing session to another one — that client's last
+   session, else wherever you came from, else one that wants attention in the inbox, else the
+   most recently active. A client looking at a window that closes on its own is moved to
+   another window of the same session.
+5. Make the plan again from a fresh look at tmux and compare. The confirmation prompt can sit
+   for as long as you take, and any difference - a pane that moved, a window split or opened
+   in the place, a session that gained a window - stops the whole toss: nothing closes and
+   nothing is released.
+6. Close the windows that close on their own, except the one this command runs in.
+7. Kill the session, close that last window, and run `destroy` for the place, in a detached
+   process.
 
 Step 4 covers every client, not just the caller's: an agent tossing a place by key usually
 runs in some other session while you watch the one going away. If any client has nowhere to
 switch to, or tmux can't list the session's clients, `toss` refuses rather than risk
-detaching one. Step 5 is detached because
-releasing a large directory takes a while. Output goes to `~/.local/state/lemonaid/reap.log`.
+detaching one. Step 7 is detached because releasing a large directory takes a while, and
+because closing the caller's own window would end the command before it could release
+anything. Output goes to `~/.local/state/lemonaid/reap.log`.
 
-The session is killed *before* the directory is released: your shell's working directory is
-inside it, and a process still holding a file there can make the removal fail. A
+The session and windows are closed *before* the directory is released: your shell's working
+directory is inside it, and a process still holding a file there can make the removal fail. A
 place whose directory is already gone is skipped rather than treated as a failure.
 
 ## Sessions that outlive their tmux session

@@ -16,7 +16,7 @@ from pathlib import Path
 from .. import tmux
 from ..inbox import db
 from ..log import get_logger
-from . import escape, hooks, ownership
+from . import escape, hooks, ownership, windows
 
 _log = get_logger("places.teardown")
 
@@ -51,14 +51,21 @@ def _release_commands(places: abc.Sequence[ownership.Place], log: str) -> list[s
     ]
 
 
-def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path) -> str | None:
+def _spawn_reaper(
+    session: str,
+    places: abc.Sequence[ownership.Place],
+    cwd: Path,
+    window: str = "",
+) -> str | None:
     """Kill *session* if there is one and release *places*, outliving this process.
 
     A throwaway tmux session hosts the work: it survives the caller's shell
     exiting, and tmux is already a dependency. The session is killed before any
     directory is released because the caller's shell has its working directory
     inside one of them, and a process still holding a file there can make the
-    removal fail.
+    removal fail. *window* is the caller's own window when that closes on its
+    own rather than with a session: killing it ends the caller, so it too is
+    left to the reaper.
 
     The reaper has no terminal anyone will look at, so it appends to a log.
     """
@@ -73,6 +80,7 @@ def _spawn_reaper(session: str, places: abc.Sequence[ownership.Place], cwd: Path
                 if session
                 else []
             ),
+            *([f"tmux kill-window -t {shlex.quote(window)} >> {log} 2>&1"] if window else []),
             *_release_commands(places, log),
             f"echo {shlex.quote(f'--- done {what} ---')} >> {log}",
             f"tmux kill-session -t {shlex.quote('=' + reaper)}",
@@ -124,16 +132,19 @@ def _reaper_cwd(places: abc.Sequence[ownership.Place]) -> Path:
     return next((place.root.path for place in places), Path.home())
 
 
-def _doomed_rows(session: str, places: abc.Sequence[ownership.Place]) -> list[int]:
-    """Inbox rows on *session*'s panes, or whose cwd is inside a place about to be destroyed.
+def _doomed_rows(
+    session: str, places: abc.Sequence[ownership.Place], closing: abc.Iterable[str] = ()
+) -> list[int]:
+    """Inbox rows on a closing pane, or whose cwd is inside a place about to be destroyed.
 
-    Chosen before the reaper starts, which may kill the panes and remove the
-    directories before this could look at them. A Codex row's tty is not
-    trusted: under the shared app-server, older rows recorded the pane of the
-    TUI that started it, which may be in this session while they run elsewhere.
-    The watcher judges those, and Codex rows in a directory that survives.
+    Closing panes are *session*'s and those of the *closing* windows. Chosen
+    before anything is killed, which would remove the panes and directories
+    before this could look at them. A Codex row's tty is not trusted: under the
+    shared app-server, older rows recorded the pane of the TUI that started it,
+    which may be in this session while they run elsewhere. The watcher judges
+    those, and Codex rows in a directory that survives.
     """
-    ttys = tmux.navigation.session_ttys(session) if session else set()
+    ttys = (tmux.navigation.session_ttys(session) if session else set()) | windows.ttys(closing)
     doomed = [place.directory.resolve() for place in places if place.root.destroy and place.exists]
     try:
         with db.connect() as conn:
@@ -163,11 +174,19 @@ def _archive(row_ids: abc.Iterable[int]) -> None:
         _log.warning("could not archive torn-down lemons: %s", e)
 
 
-def toss(session: str, places: abc.Sequence[ownership.Place]) -> str | None:
-    """Kill *session* and release *places*, moving its clients out first.
+def toss(
+    session: str,
+    places: abc.Sequence[ownership.Place],
+    partial: windows.Planned = {},  # noqa: B006 - read only
+) -> str | None:
+    """Kill *session*, close the *partial* windows, and release *places*.
 
-    An empty *session* releases the places without killing anything - a directory
-    that never had a session is still worth releasing.
+    Clients are moved out of harm's way first: out of *session*, and off each
+    closing window onto another in its own session. The caller has checked the
+    plan against tmux just before this (`target.changed_since`); nothing here
+    looks again. An empty *session* with no windows releases the places without
+    killing anything - a directory that never had a session is still worth
+    releasing.
 
     Returns an error message on failure, or None once teardown is under way.
     Teardown itself finishes after this returns; see `reap_log_path`.
@@ -175,8 +194,18 @@ def toss(session: str, places: abc.Sequence[ownership.Place]) -> str | None:
     if session and (error := escape.evacuate(session)):
         return error
 
-    doomed = _doomed_rows(session, places)
-    error = _spawn_reaper(session, places, _reaper_cwd(places))
+    if partial and (error := windows.move_clients_off(partial)):
+        return error
+
+    doomed = _doomed_rows(session, places, partial)
+
+    # The caller's own window is left to the reaper: closing it here would end
+    # this process before the directory is released.
+    own = windows.own_window() if partial else ""
+    if partial and (failed := windows.close(w for w in partial if w != own)):
+        return f"Could not close {', '.join(failed)}; the directory was not released."
+
+    error = _spawn_reaper(session, places, _reaper_cwd(places), own if own in partial else "")
     if error:
         return error
 

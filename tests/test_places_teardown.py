@@ -383,3 +383,166 @@ def test_a_failed_toss_archives_nothing(monkeypatch, tmp_path):
 
     assert teardown.toss("review", [place])
     assert _active_channels() == {"codex:reviewer"}
+
+
+def _pane(session: str, window: str, pane: str, path) -> ownership.Pane:
+    return ownership.Pane(session, window, pane, path)
+
+
+def _partial_stubs(monkeypatch, *, moved: str = "", own: str = "") -> dict:
+    """Stub every tmux-facing step of a partial toss, recording what was asked."""
+    asked: dict = {"closed": [], "reaper": None}
+    monkeypatch.setattr(teardown.windows, "move_clients_off", lambda doomed: moved)
+    monkeypatch.setattr(teardown.windows, "own_window", lambda: own)
+    monkeypatch.setattr(teardown.windows, "ttys", lambda ws: set())
+    monkeypatch.setattr(teardown.windows, "close", lambda ws: asked["closed"].extend(ws) or [])
+    monkeypatch.setattr(
+        teardown,
+        "_spawn_reaper",
+        lambda *args: asked.__setitem__("reaper", args) or None,
+    )
+    return asked
+
+
+def test_a_client_that_cannot_be_moved_stops_a_partial_toss(monkeypatch, tmp_path):
+    asked = _partial_stubs(monkeypatch, moved="Nowhere to move it")
+    partial = {"@4": [_pane("k", "@4", "%4", tmp_path)]}
+
+    assert teardown.toss("", [_place(tmp_path)], partial) == "Nowhere to move it"
+    assert asked["closed"] == []
+    assert asked["reaper"] is None
+
+
+def test_partial_windows_close_before_the_reaper_releases(monkeypatch, tmp_path):
+    asked = _partial_stubs(monkeypatch)
+    partial = {"@4": [_pane("k", "@4", "%4", tmp_path)], "@7": [_pane("k", "@7", "%7", tmp_path)]}
+
+    assert teardown.toss("", [_place(tmp_path)], partial) is None
+
+    assert asked["closed"] == ["@4", "@7"]
+    session, places, _cwd, window = asked["reaper"]
+    assert session == ""
+    assert [p.key for p in places] == ["k"]
+    assert window == ""
+
+
+def test_the_callers_own_window_is_left_to_the_reaper(monkeypatch, tmp_path):
+    """Closing it here would end this process before the directory is released."""
+    asked = _partial_stubs(monkeypatch, own="@7")
+    partial = {"@4": [_pane("k", "@4", "%4", tmp_path)], "@7": [_pane("k", "@7", "%7", tmp_path)]}
+
+    assert teardown.toss("", [_place(tmp_path)], partial) is None
+
+    assert asked["closed"] == ["@4"]
+    assert asked["reaper"][3] == "@7"
+
+
+def test_an_own_window_outside_the_plan_is_not_touched(monkeypatch, tmp_path):
+    asked = _partial_stubs(monkeypatch, own="@1")
+    partial = {"@4": [_pane("k", "@4", "%4", tmp_path)]}
+
+    assert teardown.toss("", [_place(tmp_path)], partial) is None
+
+    assert asked["closed"] == ["@4"]
+    assert asked["reaper"][3] == ""
+
+
+def test_a_window_that_will_not_close_keeps_the_directory(monkeypatch, tmp_path):
+    asked = _partial_stubs(monkeypatch)
+    monkeypatch.setattr(teardown.windows, "close", lambda ws: ["@4"])
+    partial = {"@4": [_pane("k", "@4", "%4", tmp_path)]}
+
+    error = teardown.toss("", [_place(tmp_path)], partial)
+
+    assert error is not None and "@4" in error and "not released" in error
+    assert asked["reaper"] is None
+
+
+def test_a_toss_with_no_partial_windows_asks_tmux_nothing_about_them(monkeypatch, tmp_path):
+    """The whole-session path is untouched by the window machinery."""
+    monkeypatch.setattr(teardown.escape, "evacuate", lambda session: "")
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    def _never(*args):  # pragma: no cover - reached only on a regression
+        raise AssertionError("partial-window step ran for a whole-session toss")
+
+    monkeypatch.setattr(teardown.windows, "move_clients_off", _never)
+    monkeypatch.setattr(teardown.windows, "close", _never)
+
+    assert teardown.toss("doomed", [_place(tmp_path)]) is None
+
+
+def test_the_reaper_kills_the_callers_window_before_releasing(monkeypatch, tmp_path):
+    captured = {}
+
+    def _run(argv, **kwargs):
+        captured["script"] = argv[-1]
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(teardown.subprocess, "run", _run)
+
+    teardown._spawn_reaper("", [_place(tmp_path)], tmp_path, "@7")
+
+    script = captured["script"]
+    assert script.count("kill-session") == 1  # only the reaper killing itself at the end
+    assert script.index("kill-window -t @7") < script.index("release k")
+
+
+def test_doomed_rows_include_lemons_on_closing_windows(monkeypatch, tmp_path):
+    monkeypatch.setattr(teardown.windows, "ttys", lambda ws: {"/dev/ttys004"} if ws else set())
+    _lemon("claude:on-window", "/x", tty="/dev/ttys004")
+    _lemon("claude:elsewhere", "/x", tty="/dev/ttys009")
+
+    doomed = teardown._doomed_rows("", [], ["@4"])
+
+    with db.connect() as conn:
+        by_id = {n.id: n.channel for n in db.get_active(conn)}
+    assert [by_id[i] for i in doomed] == ["claude:on-window"]
+
+
+def test_a_partial_toss_closes_only_the_planned_windows(monkeypatch, tmp_path):
+    """On a real tmux server: the shared session keeps its other windows and its client."""
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+
+    name = f"lemonaid-partial-test-{uuid.uuid4().hex[:8]}"
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    merged, live = tmp_path / "feat" / "merged", tmp_path / "feat" / "live"
+    merged.mkdir(parents=True)
+    live.mkdir(parents=True)
+    started = tmux("-f", "/dev/null", "new-session", "-d", "-s", "katamari", "-c", str(live))
+    if started.returncode != 0:
+        pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
+
+    tmux("new-window", "-d", "-t", "katamari", "-c", str(merged))
+    tmux("new-window", "-d", "-t", "katamari", "-c", str(merged))
+    tmux("new-session", "-d", "-s", "other", "-c", str(merged))
+    socket = tmux("display-message", "-p", "-t", "katamari", "#{socket_path}").stdout.strip()
+    monkeypatch.setenv("TMUX", f"{socket},0,0")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.setattr(teardown, "reap_log_path", lambda: tmp_path / "reap.log")
+    try:
+        panes = [p for p in ownership.panes() if p.path and p.path.resolve() == merged.resolve()]
+        doomed = {w: [p for p in panes if p.window == w] for w in {p.window for p in panes}}
+        assert len(doomed) == 3
+        kept = [p.window for p in ownership.panes() if p.window not in doomed]
+        assert len(kept) == 1
+        root = PlaceRoot(path=tmp_path, destroy="echo released {key}")
+        place = ownership.Place("feat/merged", root, merged)
+
+        assert teardown.toss("", [place], doomed) is None
+
+        deadline = time.monotonic() + 3
+        while tmux("has-session", "-t", "=_lma_reap_feat-merged").returncode == 0:
+            assert time.monotonic() < deadline, "reaper session did not remove itself"
+            time.sleep(0.05)
+
+        remaining = [p.window for p in ownership.panes()]
+        assert remaining == kept
+        assert tmux("has-session", "-t", "=katamari").returncode == 0
+        assert "released feat/merged" in (tmp_path / "reap.log").read_text()
+    finally:
+        tmux("kill-server")

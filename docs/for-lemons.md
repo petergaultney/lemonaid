@@ -353,16 +353,20 @@ happened:
  "place": "feat/base", "closed_windows": ["@1", "@2", "@4"], "session_closed": true}
 ```
 
-A session that also holds other places is shared, and this release refuses it (exit 1), naming
-the windows that sit in the place. Closing just those windows is the next step; until then,
-close them yourself (`tmux kill-window -t @4`) and run the toss again, and the place is
-released as one with no session. A window with a pane in the place and a pane elsewhere
-refuses as well, naming both panes.
+A session that also holds other places is shared: only its windows that sit in the place
+close, and the session stays (`"session": ""`, `"closed_windows": ["@4", "@7"]`). A window in
+any other unprotected session that sits in the place closes too. A window with a pane in the
+place and a pane elsewhere refuses, naming both panes. The plan is made again from a
+fresh look at tmux right before anything closes, and any difference (a pane that moved, a
+window split or opened in the place, a session that gained a window) stops the whole toss
+(exit 1, nothing closed, nothing released); run it again.
 
 **Always pass the key.** Named, it works from anywhere. The unnamed form acts on the place
-the current directory is in, which for a lemon is usually right but is not something you
-should rely on. Run from a directory no root manages, it acts on the tmux session you are
-attached to, and only when that session holds no managed place.
+the current directory is in, and refuses when that directory is not a listed place (outside
+every root, or under a root with no `list` hook). It never falls back to the tmux session
+you are in. Under `--yes` or `--json` it also refuses to close the session the command runs
+in, or one it cannot tell apart from it (no `TMUX_PANE`): a lemon tearing down its own
+session names it, `place toss <key> --json`.
 
 **`--json` implies `--yes`**, so it does not prompt. It still refuses when the root's
 `inspect` command reports uncommitted or unpushed work; `--force` overrides that. **Do not
@@ -377,8 +381,9 @@ Two kinds of protection, and `--force` overrides neither:
   place it occupies is not a way around it.
 
 A place with no session — an `acquire`d directory nobody opened — is just released
-(`"session": ""`, `"session_closed": false`). A window in some other session that sits in
-the place does not stop the toss; it is left open, in a released directory.
+(`"session": ""`, `"session_closed": false`, `"closed_windows": []`). A window in a
+protected session that sits in the place is never closed; the confirmation lists it as
+staying open, in a released directory.
 
 Teardown finishes after the command returns — releasing a large directory is slow, so it
 runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.
