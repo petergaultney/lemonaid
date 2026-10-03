@@ -1,3 +1,9 @@
+# 0.66.0 (2026-10-03)
+
+#### Added
+
+- **An `approve` brief status**, for a reviewer lemon that recommends approving a teammate's PR when only your Approve on GitHub is left. It sorts directly below `merge`, fills purple, and gets the same Status reminders as `blocked`, `alert` and `merge`.
+
 # 0.65.1 (2026-10-03)
 
 #### Fixed
