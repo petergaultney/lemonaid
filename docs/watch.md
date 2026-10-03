@@ -120,9 +120,9 @@ Other lemons' comments wake you, signed or not, and so does an unsigned 🍋 com
 own from before you signed them. Comments already
 reported, and the last reported draft flag and decision, are kept per PR and `--me` in
 `$TMPDIR/watch-pr/`, so a rearm reports what changed in between and nothing it already
-reported. Pass the head you just handled as `--head` when rearming; without it the first
-fetch is the baseline. `--repo owner/name` defaults to the current directory's repo. It
-wakes Claude and Codex the same way `watch doc` does.
+reported. Pass the head you just handled as `--head` when rearming, in full or abbreviated to
+at least 7 digits; without it the first fetch is the baseline. `--repo owner/name` defaults
+to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
 
 `--comments` is the author's mode, so only the author is woken for merge blockers:
 

@@ -56,7 +56,7 @@ def _events(
         *([f"PR #{pr} is now {snap.state}"] if state and snap.state != state else []),
         *(
             [f"PR #{pr} head moved {sha[:10]} -> {snap.head[:10]}"]
-            if sha and snap.head != sha
+            if sha and not snap.head.startswith(sha)
             else []
         ),
         *(

@@ -64,6 +64,12 @@ def test_a_push_is_reported_against_the_head_already_handled(stem):
     assert sent == [f"PR #90 head moved {'a' * 10} -> {'b' * 10}"]
 
 
+def test_an_abbreviated_head_matches_the_full_one(stem):
+    sent = _run_once(stem, [_snap(), _snap(head="b" * 40)], head="a" * 10)
+
+    assert sent == [f"PR #90 head moved {'a' * 10} -> {'b' * 10}"]
+
+
 def test_a_merge_and_a_decision_are_reported(stem):
     sent = _run_once(stem, [_snap(), _snap(state="MERGED", decision="APPROVED")])
 
@@ -306,6 +312,23 @@ def test_cli_once_reports_a_push_and_exits(tmp_path, fake_gh):
 
     assert result.returncode == 0
     assert result.stdout == f"PR #90 head moved {'a' * 10} -> {'b' * 10}\n"
+
+
+def test_cli_accepts_an_abbreviated_head_in_either_case(tmp_path, fake_gh):
+    _write_snapshot(fake_gh, "b" * 40)
+
+    result = _cli(tmp_path, "--wait", "90", "--head", "ABABABA", "--once")
+
+    assert result.returncode == 0
+    assert result.stdout == f"PR #90 head moved abababa -> {'b' * 10}\n"
+
+
+@pytest.mark.parametrize("head", ["abcdef", "<head SHA>", "a" * 41])
+def test_cli_refuses_a_head_that_is_not_a_sha_of_7_or_more_digits(tmp_path, fake_gh, head):
+    refused = _cli(tmp_path, "--wait", "90", "--head", head, "--once")
+
+    assert refused.returncode == 2
+    assert "not a commit SHA" in refused.stderr
 
 
 def test_cli_status_and_comments_needs_me(tmp_path, fake_gh):

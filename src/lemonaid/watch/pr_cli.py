@@ -26,6 +26,7 @@ state files and locks match the standalone watch-pr.py, so either can replace th
 
 import argparse
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -49,6 +50,16 @@ def _repo_name(repo: str) -> str:
         text=True,
     )
     return r.stdout.strip() or repo
+
+
+def _sha(value: str) -> str:
+    """A full or abbreviated commit SHA, lowercased; shorter than 7 could match a later push.
+
+    "" (no --head) passes, since argparse runs the default through this too.
+    """
+    if value and not re.fullmatch(r"[0-9a-fA-F]{7,40}", value):
+        raise argparse.ArgumentTypeError(f"not a commit SHA of 7 to 40 hex digits: {value!r}")
+    return value.lower()
 
 
 def run(a: argparse.Namespace, repo: str) -> int:
@@ -130,7 +141,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     ap.add_argument("--interval", type=float, default=60.0, help="seconds between gh calls")
     ap.add_argument(
-        "--head", default="", metavar="SHA", help="head already handled; report any other head"
+        "--head",
+        type=_sha,
+        default="",
+        metavar="SHA",
+        help="head already handled, full or abbreviated (7+ digits); report any other head",
     )
     ap.add_argument(
         "--comments",

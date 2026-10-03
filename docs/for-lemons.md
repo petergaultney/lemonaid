@@ -401,8 +401,8 @@ lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one b
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
-lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --head a1b2 --once"  # a bullet in ## Waiters
-lemonaid brief waiter set --self "wait 12" --head c3d4  # rearm: the same waiter on a new head
+lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --head a1b2c3d --once"  # a bullet in ## Waiters
+lemonaid brief waiter set --self "wait 12" --head e4f5a6b  # rearm: the same waiter on a new head
 lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
