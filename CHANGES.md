@@ -1,3 +1,9 @@
+# 0.65.0 (2026-10-03)
+
+#### Changed
+
+- **`lemonaid place toss` works on one place, not the caller's whole session.** The session closes with it only when dedicated to that place; a shared session is refused, naming the windows in the place.
+
 # 0.64.2 (2026-10-03)
 
 #### Fixed
