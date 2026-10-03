@@ -1,3 +1,10 @@
+# 0.64.0 (2026-10-03)
+
+#### Added
+
+- **`lemonaid restore tmux` brings lemons back working, not just their windows.** A resumed Claude or Codex lemon whose brief lists waiters starts on a prompt to rearm them. Restore then waits and reports which lemons are working and which are stuck, exited, or need rearming by hand, with each pane's last lines. `lemonaid tmux restore` is the same command.
+- **`lemonaid claude resume <id>` takes an optional first prompt** for the resumed session.
+
 # 0.63.2 (2026-10-02)
 
 #### Fixed
