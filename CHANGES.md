@@ -1,3 +1,9 @@
+# 0.63.2 (2026-10-02)
+
+#### Fixed
+
+- **Brief verbs no longer drop a child brief's `Parent:` and `Area:` lines.** A verb that created `## Now` put it above those lines and then overwrote them. `brief check` now reports a missing `Parent:` line when lemonaid records a parent for the brief.
+
 # 0.63.1 (2026-10-02)
 
 #### Fixed
