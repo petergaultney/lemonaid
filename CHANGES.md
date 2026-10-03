@@ -1,3 +1,9 @@
+# 0.65.1 (2026-10-03)
+
+#### Fixed
+
+- **`lma` refreshes installed skills after an upgrade.** At startup it re-renders the skills `lemonaid skills install` put in place when the packaged text has changed, and says so in one line; the install docs now say to run `skills install` after installing or upgrading.
+
 # 0.65.0 (2026-10-03)
 
 #### Changed
