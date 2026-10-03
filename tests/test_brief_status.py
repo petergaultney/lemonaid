@@ -178,5 +178,9 @@ def test_review_is_a_state():
     assert status.split("# x\n\nStatus: Review\n").status == "review"
 
 
+def test_approve_is_a_state():
+    assert status.split("# x\n\nStatus: approve\n").status == "approve"
+
+
 def test_running_is_a_state():
     assert status.split("# x\n\nStatus: running\n").status == "running"

@@ -79,6 +79,7 @@ def test_waiting_on_shows_only_while_waiting_and_needs_not_once_done() -> None:
     assert CardBrief("blocked", "", 0, "answer").needs_line == "Needs: answer"
     assert CardBrief("merge", "", 0, "PR #9").needs_line == "Needs: PR #9"
     assert CardBrief("review", "", 0, "Sam on PR #9").needs_line == "Needs: Sam on PR #9"
+    assert CardBrief("approve", "", 0, "Sam's PR #9").needs_line == "Needs: Sam's PR #9"
     assert CardBrief("alert", "", 0, "disk full").needs_line == "Needs: disk full"
 
 

@@ -261,7 +261,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--status-note",
         action="store_true",
         help="Act on the PostToolUse hook that, once a turn, reminds a lemon whose brief "
-        "is blocked, alert or merge what it waits on",
+        "is blocked, alert, merge or approve what it waits on",
     )
     hooks_parser.add_argument(
         "--own-edits",

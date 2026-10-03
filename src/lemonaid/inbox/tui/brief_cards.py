@@ -13,17 +13,20 @@ from .utils import ATTENTION_COLOR
 MERGE_COLOR = "#4fb35a"
 ALERT_COLOR = "#c62828"
 REVIEW_COLOR = "#8a5a2b"
+APPROVE_COLOR = "#7e57c2"
 RUNNING_COLOR = "#00838f"
 # The running process named on a card, lighter than the headline fill so it reads on the plain background.
 RUNNING_TEXT_COLOR = "#4fc3cc"
 # Headline colours for the statuses that want a look: an alert lemon needs you
-# urgently, a blocked one waits on you, a merge one waits only on your merge, a
-# review one waits on a teammate's approving review, a running one is minding a
-# long process, and a done one is ready to clean up.
+# urgently, a blocked one waits on you, a merge one waits only on your merge, an
+# approve one waits only on your approval of a teammate's PR, a review one waits
+# on a teammate's approving review, a running one is minding a long process, and
+# a done one is ready to clean up.
 STATUS_STYLES = {
     "alert": Style(color="#ffffff", bgcolor=ALERT_COLOR),
     "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
     "merge": Style(color="#000000", bgcolor=MERGE_COLOR),
+    "approve": Style(color="#ffffff", bgcolor=APPROVE_COLOR),
     "review": Style(color="#ffffff", bgcolor=REVIEW_COLOR),
     "running": Style(color="#ffffff", bgcolor=RUNNING_COLOR),
     "done": Style(color="#ffffff", bgcolor="#285995"),
@@ -33,6 +36,7 @@ DOT_STYLES = {
     "alert": "bold #ffffff",
     "blocked": "bold #000000",
     "merge": "bold #000000",
+    "approve": "bold #ffffff",
     "review": "bold #ffffff",
     "running": "bold #ffffff",
 }

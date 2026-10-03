@@ -20,7 +20,7 @@ import wordybin
 
 from .. import home
 
-STATES = ("working", "running", "waiting", "done", "blocked", "merge", "alert", "review")
+STATES = ("working", "running", "waiting", "done", "blocked", "merge", "approve", "alert", "review")
 
 _EDIT_ATTEMPTS = 5
 

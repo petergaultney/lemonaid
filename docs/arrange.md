@@ -131,7 +131,7 @@ closes. Flush after each answer.
   `mtime` is the brief's last edit, and `since` when lemonaid first saw its
   current `status`.
 - `default` is lemonaid's own answer: the row's position, its band (`pinned`,
-  `alert`, `blocked`, `running`, `merge`, `review`, `unread done`, `done`,
+  `alert`, `blocked`, `running`, `merge`, `approve`, `review`, `unread done`, `done`,
   `unread`, `read`), and whether `fold_statuses` folds it.
 
 ### The answer

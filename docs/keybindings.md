@@ -73,7 +73,7 @@ Otherwise, `b` opens a tmux popup over your client. Both views start each lemon 
 card, opened up: name and model, then tmux location, directory and branch, then status, brief age,
 and each `PR #N` or pull-request URL in the brief, with its live state (`open`, `draft`, `merged`,
 `closed`) when [`[brief] pr_state`](config.md#brief) is set. The card uses the inbox's colours, including the filled headline for `alert`, `blocked`,
-`merge`, `review`, `done` and `running`. Below it come the brief's `Needs` part in the attention colour, then the rest of
+`merge`, `approve`, `review`, `done` and `running`. Below it come the brief's `Needs` part in the attention colour, then the rest of
 `## Now` with `Done` last (or an older session's `.z/brief.md`), the rest of the brief below a
 rule, and the brief's path at the bottom.
 
@@ -111,7 +111,7 @@ Bullets with no entry, and briefs with no `## Questions`, show as before.
 
 An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
 `Answer to <label>: <text>`, from your `$USER`. When the brief's Status is `blocked`,
-`alert` or `merge`, the answer ends with a line naming what else is under `Needs`, so the
+`alert`, `merge` or `approve`, the answer ends with a line naming what else is under `Needs`, so the
 lemon remembers to update its Status. More detail sends
 `More detail needed on <label>: rewrite that entry in ## Questions`. Neither needs tmux,
 and a lemon not running yet gets them when it starts. A line along the bottom of the view

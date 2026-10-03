@@ -35,9 +35,10 @@ def test_the_reminder_names_each_needs_label():
     )
 
 
-def test_merge_and_alert_wait_on_peter_too():
+def test_merge_alert_and_approve_wait_on_peter_too():
     assert "`merge`" in nudge.note(_BLOCKED.replace("blocked", "merge"))
     assert "`alert`" in nudge.note(_BLOCKED.replace("blocked", "alert"))
+    assert "`approve`" in nudge.note(_BLOCKED.replace("blocked", "approve"))
 
 
 def test_an_answer_lists_what_is_still_asked():

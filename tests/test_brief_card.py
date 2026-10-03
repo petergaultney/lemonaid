@@ -81,6 +81,13 @@ def test_review_fills_the_headline_brown():
     )
 
 
+def test_approve_fills_the_headline_purple():
+    assert any(
+        brief_cards.APPROVE_COLOR in s
+        for s in _styles(brief_card.header(_section("approve"), True, 0, 40), "author")
+    )
+
+
 def test_running_fills_the_headline_teal():
     assert any(
         brief_cards.RUNNING_COLOR in s

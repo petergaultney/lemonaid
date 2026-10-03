@@ -115,9 +115,9 @@ The name may come from the interpreter's command line or the pane title. Add
 With `brief_status = true`, a card whose session has an attached brief with a
 `Status:` line is drawn from that brief:
 
-- `alert` fills the headline red, `blocked` yellow, `merge` green, `review`
-  brown, `done` blue, and `running` teal. On each, the model label becomes a badge in its
-  provider colour.
+- `alert` fills the headline red, `blocked` yellow, `merge` green, `approve`
+  purple, `review` brown, `done` blue, and `running` teal. On each, the model
+  label becomes a badge in its provider colour.
 - A read `waiting` card is dimmed. An unread one is not.
 - A `waiting` card's age is how long it has waited (`waiting 3 days`), in
   place of the time since its last edit. lemonaid records when it first sees a
@@ -142,7 +142,7 @@ With `brief_status = true`, a card whose session has an attached brief with a
   silent for 20 minutes counts as over. Off, cards ignore turns entirely.
 
 In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
-than the header's unread yellow), a `merge` row green, a `review` row brown, a `done` row blue, and a `running` row teal, with
+than the header's unread yellow), a `merge` row green, an `approve` row purple, a `review` row brown, a `done` row blue, and a `running` row teal, with
 the model as the same badge, and a read `waiting` row dims. The green bar that
 marks the current session stays green. Rows carry no age, `Needs`, `Running` or
 `Waiting on` lines; there is no room for them.

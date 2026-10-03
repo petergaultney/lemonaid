@@ -400,7 +400,7 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
-lemonaid brief status --self waiting            # Status: waiting  (working | running | waiting | blocked | merge | review | alert | done)
+lemonaid brief status --self waiting            # Status: waiting  (working | running | waiting | blocked | merge | approve | review | alert | done)
 lemonaid brief bullet add --self "Next" "open the PR"       # under ### Next; Done adds at the top
 lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
@@ -495,6 +495,8 @@ takes `--json`.
 with `brief bullet`. Readers still recognize older `Status: done - PR #12` lines as `done`.
 Use `review` when the next move is a teammate's approving review rather than your user's; say whose
 under `Needs`, which its card shows as it does for `blocked`.
+Use `approve` when you reviewed a teammate's PR, recommend approving it, and the only move left is
+your user's Approve on GitHub; name the PR under `Needs`. It sorts and reminds like `merge`.
 Use `running` when nothing waits on your user but you are minding a pipeline run or another long
 process; name it and its tmux `session:window` under `Running`, whose first line its card shows.
 
@@ -592,11 +594,11 @@ explains: the bullet's text up to its first colon, or the whole bullet, ignoring
 `brief show` leaves the section out unless given `--questions`. When the person answers from the
 brief view, or asks for more detail, the lemon gets a message in its inbox:
 `Answer to <label>: <text>`, or `More detail needed on <label>: rewrite that entry in
-## Questions`, from the person's `$USER`. While your Status is `blocked`, `alert` or `merge`,
-an answer ends with a line naming the `Needs` labels it leaves, as a reminder to update
+## Questions`, from the person's `$USER`. While your Status is `blocked`, `alert`, `merge` or
+`approve`, an answer ends with a line naming the `Needs` labels it leaves, as a reminder to update
 Status if the answer changes it.
 
-While your Status is one of those three, lemonaid reminds you what it waits on once a turn: a
+While your Status is one of those four, lemonaid reminds you what it waits on once a turn: a
 Codex lemon at the end of each message queued into its thread, and a Claude lemon on the first
 tool call of each turn, when the `status-note` hook is installed. Update Status if the turn
 answers or changes one of them; otherwise ignore it.

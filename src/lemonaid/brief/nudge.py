@@ -8,7 +8,7 @@ queued into a Codex thread, or the first tool call of a Claude turn.
 
 from . import now, questions, status
 
-WAITING_ON_PETER = frozenset({"blocked", "alert", "merge"})
+WAITING_ON_PETER = frozenset({"blocked", "alert", "merge", "approve"})
 _ANSWERS = "This answers"
 
 

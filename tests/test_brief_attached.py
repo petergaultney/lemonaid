@@ -326,7 +326,7 @@ def test_self_refuses_to_guess_between_two_lemons_at_one_pane(capsys, monkeypatc
     assert "--channel" in refused["error"]
 
 
-@pytest.mark.parametrize("state", ["merge", "alert", "review", "running"])
+@pytest.mark.parametrize("state", ["merge", "alert", "review", "running", "approve"])
 def test_status_accepts_merge_alert_review_and_running(capsys, state):
     _lemon("codex:t1", "work", "4", 1)
     _run(capsys, "attach", "--channel", "codex:t1", str(_brief("task")))

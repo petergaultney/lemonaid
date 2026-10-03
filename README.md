@@ -19,12 +19,12 @@ On the left, above, each session is a card: name, then time, cwd and branch,
 then the message wrapped over as many lines as the pane can spare. With
 [`brief_status`](docs/config.md#tui) on, a card also shows its lemon's brief:
 a red headline and what it needs from you when `alert`, yellow when `blocked`,
-green when `merge`, brown when `review`, blue when `done`, teal while `running`,
-dimmed while `waiting`.
+green when `merge`, purple when `approve`, brown when `review`, blue when `done`,
+teal while `running`, dimmed while `waiting`.
 
 Across the top, it has room for columns instead, one row per session, with
-`alert` rows red, `blocked` rows amber, `merge` rows green, `review` rows brown,
-`done` rows blue, and `running` rows teal:
+`alert` rows red, `blocked` rows amber, `merge` rows green, `approve` rows purple,
+`review` rows brown, `done` rows blue, and `running` rows teal:
 
 <img width="900" alt="The inbox as a top strip, one row per session, above a Claude Code session" src="docs/images/inbox-top.png" />
 
@@ -225,10 +225,11 @@ The inbox and the scratch sidebar list sessions in the same order:
 3. Sessions whose brief says `blocked`: a decision, answer, or review for you.
 4. Sessions whose brief says `running`: a lemon minding a pipeline or other long process.
 5. Sessions whose brief says `merge`: only your merge is left.
-6. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
-7. Sessions whose brief says `done`.
-8. Every other unread session.
-9. Every other read session: `working`, `waiting`, or no brief.
+6. Sessions whose brief says `approve`: a reviewer recommends approving a teammate's PR, and only your approval is left.
+7. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
+8. Sessions whose brief says `done`.
+9. Every other unread session.
+10. Every other read session: `working`, `waiting`, or no brief.
 
 With [`[tui] mid_turn_working`](docs/config.md#tui) on, a read session that is
 mid-turn sorts as `working` until the turn ends, whatever its brief says, unless

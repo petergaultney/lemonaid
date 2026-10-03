@@ -100,7 +100,7 @@ consecutive stop through, so a lemon that cannot arm one is never stuck.
 Install it with `lemonaid claude hooks --waiter-check` (`--uninstall` removes it).
 
 The optional PostToolUse hook `lemonaid claude status-note` reminds a lemon whose
-brief is `blocked`, `alert` or `merge` what its `Needs` bullets ask, so it updates
+brief is `blocked`, `alert`, `merge` or `approve` what its `Needs` bullets ask, so it updates
 Status once an answer moves the work on. It speaks on the first tool call of a
 turn (a wake from a background task is a turn too) and adds about fifty tokens
 of context; it never blocks or starts a turn. The installed command is a `sh -c`

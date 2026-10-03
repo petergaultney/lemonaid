@@ -1,11 +1,10 @@
 """The order the inbox lists sessions in, the same in the wide table and the sidebar.
 
 Pins come first. Below them, `alert` sessions, then `blocked`, then `running`,
-then `merge`, then `review`, then `done` sessions, unread above read, then every
-other unread session, then everything else read: `working`, `waiting`, and no
-brief. Within each band rows
-keep `db.get_active` order: pins by position, everything else unread first and
-then newest first.
+then `merge`, then `approve`, then `review`, then `done` sessions, unread above
+read, then every other unread session, then everything else read: `working`,
+`waiting`, and no brief. Within each band rows keep `db.get_active` order: pins
+by position, everything else unread first and then newest first.
 
 `fold` takes the rows of configured statuses out of that list, for the inbox
 to show as one group at its bottom.
@@ -19,16 +18,18 @@ _ALERT = 0
 _BLOCKED = 1
 _RUNNING = 2
 _MERGE = 3
-_REVIEW = 4
-_UNREAD_DONE = 5
-_DONE = 6
-_UNREAD = 7  # working, waiting, or no brief
-_READ = 8
+_APPROVE = 4
+_REVIEW = 5
+_UNREAD_DONE = 6
+_DONE = 7
+_UNREAD = 8  # working, waiting, or no brief
+_READ = 9
 _BANDS = {
     "alert": _ALERT,
     "blocked": _BLOCKED,
     "running": _RUNNING,
     "merge": _MERGE,
+    "approve": _APPROVE,
     "review": _REVIEW,
 }
 
@@ -48,6 +49,7 @@ _BAND_NAMES = (
     "blocked",
     "running",
     "merge",
+    "approve",
     "review",
     "unread done",
     "done",
