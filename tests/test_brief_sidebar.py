@@ -133,6 +133,7 @@ def test_popup_command_prefers_the_sidebar_when_available(monkeypatch, tmp_path)
         popup=True,
         page=False,
         dismiss=[],
+        use_self=False,
     )
 
     cli.cmd_show(args)

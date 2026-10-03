@@ -558,7 +558,8 @@ whole; if it is saved in between (in an editor, say), they re-apply the change t
 `pending` (true while it waits for a lemon to start; `channel` is then null).
 
 ```bash
-lemonaid brief show                  # the calling pane's lemon's brief, as markdown
+lemonaid brief show                  # the briefs of every lemon in the calling window, as markdown
+lemonaid brief show --self           # only your own attached brief, not the other lemons' in your window
 lemonaid brief show <session>[:<window>]  # another session's; the window picks one lemon in it
 lemonaid brief show --file <path>    # a brief file, without asking tmux
 lemonaid brief show --dir <path>     # a directory's .z/, without asking tmux

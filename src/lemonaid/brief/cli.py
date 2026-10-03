@@ -73,9 +73,17 @@ def _target(
     name_args: list[str],
     target_arg: str,
     popup: bool = False,
+    use_self: bool = False,
 ) -> target.Target:
     if target_arg:
         return target.from_json(json.loads(target_arg))
+
+    if use_self:
+        if own := _own_brief():
+            return _file_target([own], [], None, name_args)
+
+        print("No brief is attached to this lemon.", file=sys.stderr)
+        sys.exit(1)
 
     if file_args or dir_args:
         return _file_target(
@@ -111,7 +119,14 @@ def _target(
 
 def cmd_show(args: argparse.Namespace) -> None:
     found = _target(
-        args.session, args.file, args.dir, args.place, args.name, args.target, args.popup
+        args.session,
+        args.file,
+        args.dir,
+        args.place,
+        args.name,
+        args.target,
+        args.popup,
+        args.use_self,
     )
     if args.popup:
         if not sidebar.toggle(
@@ -155,12 +170,19 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "there is no brief.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    show_parser.add_argument(
+    which = show_parser.add_mutually_exclusive_group()
+    which.add_argument(
         "session",
         nargs="?",
         default="",
         metavar="SESSION[:WINDOW]",
         help="tmux session, and the window of one lemon in it (default: the caller's)",
+    )
+    which.add_argument(
+        "--self",
+        dest="use_self",
+        action="store_true",
+        help="Only the brief attached to the lemon running this command, not its session's",
     )
     show_parser.add_argument(
         "--file",

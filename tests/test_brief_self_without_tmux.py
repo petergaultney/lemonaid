@@ -109,3 +109,42 @@ def test_show_with_no_session_shows_only_the_callers_brief(capsys, monkeypatch):
 
     shown = capsys.readouterr().out
     assert "Start task." in shown and "Start other." not in shown
+
+
+def _show(capsys, *argv: str) -> tuple[str, str]:
+    parser = argparse.ArgumentParser()
+    cli.setup_parser(parser.add_subparsers())
+    args = parser.parse_args(["brief", "show", *argv])
+    with contextlib.suppress(SystemExit):
+        args.func(args)
+
+    captured = capsys.readouterr()
+    return captured.out, captured.err
+
+
+def test_show_self_shows_the_callers_brief_even_when_a_session_is_known(capsys, monkeypatch):
+    _codex_row()
+    _run(capsys, write_cli.add_parsers, "attach", "--self", str(_brief()))
+    with db.connect() as conn:
+        db.add(conn, "claude:neighbor", "", metadata={"tmux_session": "work", "tmux_window": "2"})
+    _run(
+        capsys,
+        write_cli.add_parsers,
+        "attach",
+        "--channel",
+        "claude:neighbor",
+        str(_brief("other")),
+    )
+    monkeypatch.setattr(cli.session, "current_session", lambda: "work")
+
+    shown, _ = _show(capsys, "--self")
+
+    assert "Start task." in shown and "Start other." not in shown
+
+
+def test_show_self_with_no_attached_brief_says_so(capsys):
+    _codex_row()
+
+    shown, error = _show(capsys, "--self")
+
+    assert shown == "" and "No brief is attached" in error
