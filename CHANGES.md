@@ -1,3 +1,9 @@
+# 0.63.1 (2026-10-02)
+
+#### Fixed
+
+- **`lemonaid tmux restore` brings sessions back in the order tmux made them, not by name.** Sessions recorded before this release come back after the others, by name.
+
 # 0.63.0 (2026-10-02)
 
 #### Added
