@@ -25,6 +25,9 @@ lemonaid watch openclaw stop <doc>
   doc, without writing a comment. Replies inside threads don't count, and neither do the
   watching lemon's own body edits, once recorded (see below); anyone else's do, another
   lemon's included. The event gives the line delta. `--no-edits` turns this off.
+- **The doc was created.** A waiter can start before its doc exists. It waits, and reports
+  the doc as created once its body has been quiet for `--quiet` seconds, or, with
+  `--no-edits`, reports only the threads in it.
 
 ## Ignoring the lemon's own edits
 

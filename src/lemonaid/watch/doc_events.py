@@ -66,13 +66,21 @@ def _load_reported(path: pathlib.Path) -> set[str]:
 
 
 def _load_settled(path: pathlib.Path, doc: pathlib.Path) -> str:
-    """The body as of the last reported edit; the first waiter for a doc takes its current body."""
+    """The body as of the last reported edit; the first waiter for a doc takes its current body.
+
+    A doc that doesn't exist yet has an empty body, so writing it is reported as its creation.
+    """
     try:
         return path.read_text()
     except OSError:
-        body = relay_comments.body_without_threads(doc.read_text())
-        path.write_text(body)
-        return body
+        pass
+    try:
+        text = doc.read_text()
+    except FileNotFoundError:
+        text = ""
+    body = relay_comments.body_without_threads(text)
+    path.write_text(body)
+    return body
 
 
 def _load_consumed(
@@ -149,6 +157,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     """Read the doc once and deliver at most one event; state advances only when `deliver` returns True."""
     try:
         text = w.doc.read_text()
+    except FileNotFoundError:
+        return Outcome.NOTHING
+
     except OSError as e:
         print(f"cannot read {w.doc}: {e}", flush=True)
         return Outcome.NOTHING
@@ -192,7 +203,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         return Outcome.NOTHING
 
     if not deliver(
-        f"body of {w.doc} changed ({_line_delta(w.settled_body, body)}), quiet for {int(w.quiet)}s"
+        f"{w.doc} was created ({_line_delta(w.settled_body, body)}), quiet for {int(w.quiet)}s"
+        if not w.settled_body
+        else f"body of {w.doc} changed ({_line_delta(w.settled_body, body)}), quiet for {int(w.quiet)}s"
     ):
         return Outcome.FAILED
 

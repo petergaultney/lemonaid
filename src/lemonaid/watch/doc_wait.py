@@ -62,7 +62,6 @@ def wait_list(
             d: watches.get(d)
             or doc_events.open_watch(state_dir, pathlib.Path(d), me, legacy, edits, quiet)
             for d in docs
-            if pathlib.Path(d).exists()
         }
         for d, w in watches.items():
             if doc_events.poll(w, attempt) is doc_events.Outcome.DELIVERED:

@@ -110,3 +110,29 @@ def test_adding_a_comment_is_not_a_body_edit(doc, state_dir):
     doc_events.poll(w, _collect(sent))
 
     assert sent == []
+
+
+def test_a_doc_that_does_not_exist_yet_is_reported_when_it_is_created(tmp_path, state_dir):
+    doc = tmp_path / "later.md"
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    sent: list[str] = []
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
+    doc.write_text("# Review\n\nA claim.\n")
+    doc_events.poll(w, _collect(sent))  # just changed
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert sent == [f"{doc} was created (+3/-0 lines), quiet for 0s"]
+
+
+def test_a_doc_created_while_no_waiter_ran_is_reported(tmp_path, state_dir):
+    doc = tmp_path / "later.md"
+    doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc.write_text("# Review\n")
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
+    assert "was created" in sent[0]

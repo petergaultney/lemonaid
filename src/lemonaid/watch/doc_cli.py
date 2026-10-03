@@ -16,7 +16,8 @@ Events:
   appeared, or an unanswered one gained a block (always on)
 - the document body changed outside comment threads, after `--quiet` seconds of no further
   change (unless `--no-edits`; a human types incrementally, and the session's own edits
-  also trigger this, except those `own_edits` records - see below)
+  also trigger this, except those `own_edits` records - see below). A doc that doesn't
+  exist yet has an empty body, so its creation is reported this way.
 
 A waiter started inside Claude Code or Codex knows which session it serves. Body edits that
 session made are recorded by Claude Code's edit hooks (`lemonaid claude hooks --own-edits`),

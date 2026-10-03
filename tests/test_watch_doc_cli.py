@@ -213,3 +213,17 @@ def test_editing_then_mine_records_an_edit_for_the_calling_lemon(tmp_path, doc):
     assert "--editing" in unannounced.stdout
     assert paired.returncode == 0
     assert list((tmp_path / "state" / "own" / "codex-t1").glob("*.edits"))
+
+
+def test_a_waiter_on_a_missing_doc_waits_for_it(tmp_path):
+    doc = tmp_path / "later.md"
+    proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once")
+    doc.write_text("# Review\n\nPlease look.\n")
+    try:
+        out, _ = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, _ = proc.communicate()
+
+    assert proc.returncode == 0
+    assert out.startswith(f"{doc} was created (+3/-0 lines), quiet for 0s")
