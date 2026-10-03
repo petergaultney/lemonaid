@@ -1,3 +1,9 @@
+# 0.64.1 (2026-10-03)
+
+#### Fixed
+
+- **`lemonaid watch doc` waits for a doc that doesn't exist yet** instead of failing at startup, and reports `<doc> was created` once the doc is written. A watch list does the same for its entries.
+
 # 0.64.0 (2026-10-03)
 
 #### Added
