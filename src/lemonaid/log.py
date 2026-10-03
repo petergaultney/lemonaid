@@ -9,9 +9,9 @@ import logging
 import os
 from pathlib import Path
 
-_LOG_PATH = Path(os.environ.get("LEMONAID_LOG") or "/tmp/lemonaid.log")
+LOG_PATH = Path(os.environ.get("LEMONAID_LOG") or "/tmp/lemonaid.log")
 
-_handler = logging.FileHandler(_LOG_PATH)
+_handler = logging.FileHandler(LOG_PATH)
 _handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s", datefmt="%H:%M:%S"))
 
 _root = logging.getLogger("lemonaid")

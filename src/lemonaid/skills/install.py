@@ -54,6 +54,10 @@ class Unmanaged(Exception):
 _MARKER = ".lemonaid-skill"  # in each rendered directory, so a rerun knows it may rewrite it
 
 
+def is_rendered(rendered_dir: pathlib.Path, name: str) -> bool:
+    return (rendered_dir / name / _MARKER).is_file()
+
+
 def write_rendered(rendered_dir: pathlib.Path, name: str, text: str) -> pathlib.Path:
     """The skill's rendered directory, holding `text` as its SKILL.md.
 
@@ -65,7 +69,7 @@ def write_rendered(rendered_dir: pathlib.Path, name: str, text: str) -> pathlib.
 
     skill_dir.mkdir(parents=True, exist_ok=True)
     (skill_dir / _MARKER).touch()
-    tmp = skill_dir / ".SKILL.md.tmp"
+    tmp = skill_dir / f".SKILL.md.{os.getpid()}"  # two lma instances may refresh at once
     tmp.write_text(text)
     tmp.replace(skill_dir / "SKILL.md")
     return skill_dir

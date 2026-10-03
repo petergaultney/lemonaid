@@ -701,6 +701,8 @@ to change, or for a file directly in a directory to be added, removed, or rewrit
 
 `lemonaid skills install` installs the `watch-doc` and `watch-pr` skills for Claude Code
 and Codex, which describe these waiters step by step. It never replaces a skill entry it
-didn't create; `--print <name>` gives the text instead. Details, including the
-`~/.lemons/skills/<name>/overlay.md` a user adds their conventions in:
+didn't create; `--print <name>` gives the text instead. Run it after installing or
+upgrading lemonaid; `lma` also re-renders installed skills from the new packaged text when
+it starts after an upgrade. Details, including the `~/.lemons/skills/<name>/overlay.md` a
+user adds their conventions in:
 [skills.md](skills.md).

@@ -23,8 +23,21 @@ per skill in `~/.lemons/skills/<name>/`:
 - `SKILL.md` replaces the packaged text entirely, frontmatter included. Use it only to
   change a packaged paragraph; it stops following packaged updates.
 
-Having both is an error. Rerun `lemonaid skills install` after editing either, or after
-upgrading lemonaid; install reports which source each skill came from.
+Having both is an error. Rerun `lemonaid skills install` after editing either; install
+reports which source each skill came from.
+
+## After an upgrade
+
+Run `lemonaid skills install` after installing or upgrading lemonaid. If you forget, `lma`
+does the part it can when it starts: it checks whether the packaged skills changed since
+it last looked, by comparing each packaged SKILL.md's mtime and size against a stamp in the
+rendered directory. If they did, it re-renders the skills you installed, overlay included,
+and shows one line saying which. If a refresh fails, the line says so and points at
+`lemonaid skills install`. No other command or hook checks.
+
+That refresh only rewrites skills already installed, and never creates or changes a
+harness entry, so a skill newly packaged by an upgrade needs `lemonaid skills install`. So
+does an overlay edit, which the stamp doesn't cover.
 
 ## Where it writes
 

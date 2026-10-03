@@ -43,6 +43,7 @@ from ...lemon_watchers import (
     stop_unified_watcher,
 )
 from ...log import get_logger
+from ...skills import refresh
 from ...tmux import navigation
 from ...tmux.scratch import (
     _clear_state,
@@ -1039,6 +1040,7 @@ class LemonaidApp(App):
             record_turn=self._record_channel_turn if self.config.tui.mid_turn_working else None,
         )
         self.call_later(self._check_claude_patch)
+        self.call_later(self._refresh_skills)
         self.call_later(self._stretch_all_tables)
         # Kick Footer to pick up dynamically-bound keys
         self.refresh_bindings()
@@ -1050,6 +1052,13 @@ class LemonaidApp(App):
         stop_unified_watcher()
         if self._arranger is not None:
             self._arranger.close()
+
+    def _refresh_skills(self) -> None:
+        """Bring installed skills up to date after an upgrade, saying so only when it did something."""
+        result = refresh.refresh_installed()
+        message = refresh.notice(result)
+        if message:
+            self.notify(message, severity="warning" if result.failed else "information", timeout=15)
 
     def _check_claude_patch(self) -> None:
         if not self._claude_binary:

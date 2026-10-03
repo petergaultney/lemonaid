@@ -98,14 +98,24 @@ uv tool install lemonaid-inbox
 The package on PyPI is `lemonaid-inbox`, because `lemonaid` there is an
 unrelated project. The commands are still `lemonaid` and `lma`.
 
+After installing or upgrading, install lemonaid's skills for Claude Code and Codex:
+
+```bash
+lemonaid skills install
+```
+
+`lma` also refreshes skills you've installed when it starts after an upgrade, but a fresh
+install needs the command once. See [Skills](docs/skills.md).
+
 To run from a checkout instead:
 
 ```bash
 git clone https://github.com/petergaultney/lemonaid.git
 cd lemonaid
 
-# Install globally with uv
+# Install globally with uv, then install the skills
 uv tool install --editable .
+lemonaid skills install
 
 # For development
 uv sync
