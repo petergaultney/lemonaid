@@ -3061,7 +3061,12 @@ class LemonaidApp(App):
             }
 
     def _record_channel_location(
-        self, channel: str, session: str, window: str, socket: str | None = None
+        self,
+        channel: str,
+        session: str,
+        window: str,
+        socket: str | None = None,
+        session_order: navigation.SessionOrder | None = None,
     ) -> None:
         """Note where a session is sitting, so `tmux restore` can rebuild it.
 
@@ -3070,7 +3075,7 @@ class LemonaidApp(App):
         ones whose position is hardest to remember after a crash.
         """
         with db.connect() as conn:
-            db.record_location(conn, channel, session, window, socket)
+            db.record_location(conn, channel, session, window, socket, session_order)
 
     def _record_channel_model(self, channel: str, provider: str, model: str) -> None:
         with db.connect() as conn:

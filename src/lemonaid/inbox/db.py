@@ -393,6 +393,7 @@ _STICKY_METADATA = (
     "tmux_session",
     "tmux_window",
     "tmux_socket",
+    "tmux_session_order",
     "cmux_surface",
     "transcript_path",
     "model_provider",
@@ -413,6 +414,7 @@ def record_location(
     session: str,
     window: str,
     socket: str | None = None,
+    session_order: tuple[int, ...] | None = None,
 ) -> bool:
     """Note where *channel* is sitting in tmux. True if anything changed.
 
@@ -421,15 +423,19 @@ def record_location(
     anything else would make an idle session look like it had just spoken.
 
     *socket* is optional so a caller that saw the pane but not which server it
-    was on cannot blank a socket already recorded by the hook.
+    was on cannot blank a socket already recorded by the hook. *session_order*
+    is when tmux made the session (see `PaneLocation`), which is how `tmux
+    restore` puts sessions back in the order they were in.
     """
     existing = get_by_channel(conn, channel, unread_only=False)
     if existing is None:
         return False
 
-    location = {"tmux_session": session, "tmux_window": window}
+    location: dict[str, Any] = {"tmux_session": session, "tmux_window": window}
     if socket:
         location["tmux_socket"] = socket
+    if session_order:
+        location["tmux_session_order"] = list(session_order)  # as JSON gives it back
 
     if all(existing.metadata.get(k) == v for k, v in location.items()):
         return False

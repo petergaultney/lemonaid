@@ -6,6 +6,9 @@ hardest to reconstruct after a crash.
 """
 
 from lemonaid.lemon_watchers import watcher
+from lemonaid.tmux import navigation
+
+_at = navigation.PaneLocation
 
 
 def _active(channel: str, tty: str | None, switch_source: str | None = "tmux") -> tuple:
@@ -38,32 +41,48 @@ def _record(active, by_tty, monkeypatch, sockets=None) -> list[tuple]:
 def test_records_where_each_session_is(monkeypatch):
     recorded = _record(
         [_active("claude:a", "/dev/ttys001"), _active("claude:b", "/dev/ttys002")],
-        {"/dev/ttys001": ("relay", "2"), "/dev/ttys002": ("relay", "3")},
+        {"/dev/ttys001": _at("relay", "2"), "/dev/ttys002": _at("relay", "3")},
         monkeypatch,
     )
 
-    assert recorded == [("claude:a", "relay", "2", None), ("claude:b", "relay", "3", None)]
+    assert recorded == [
+        ("claude:a", "relay", "2", None, None),
+        ("claude:b", "relay", "3", None, None),
+    ]
 
 
 def test_records_an_idle_session_that_never_notified(monkeypatch):
     """The whole point: this session is saying nothing, and would be lost."""
     recorded = _record(
         [_active("claude:quiet", "/dev/ttys009")],
-        {"/dev/ttys009": ("protostellar/old-work", "2")},
+        {"/dev/ttys009": _at("protostellar/old-work", "2")},
         monkeypatch,
     )
 
-    assert recorded == [("claude:quiet", "protostellar/old-work", "2", None)]
+    assert recorded == [("claude:quiet", "protostellar/old-work", "2", None, None)]
+
+
+def test_records_when_tmux_made_the_session(monkeypatch):
+    """What `tmux restore` orders sessions by."""
+    recorded = _record(
+        [_active("claude:a", "/dev/ttys001")],
+        {"/dev/ttys001": _at("relay", "2", (1700000000, 1690000000, 7))},
+        monkeypatch,
+    )
+
+    assert recorded == [("claude:a", "relay", "2", None, (1700000000, 1690000000, 7))]
 
 
 def test_skips_a_session_with_no_tty(monkeypatch):
-    assert _record([_active("claude:a", None)], {"/dev/ttys001": ("relay", "2")}, monkeypatch) == []
+    assert (
+        _record([_active("claude:a", None)], {"/dev/ttys001": _at("relay", "2")}, monkeypatch) == []
+    )
 
 
 def test_skips_a_session_that_is_not_in_tmux(monkeypatch):
     active = [_active("claude:a", "/dev/ttys001", switch_source="wezterm")]
 
-    assert _record(active, {"/dev/ttys001": ("relay", "2")}, monkeypatch) == []
+    assert _record(active, {"/dev/ttys001": _at("relay", "2")}, monkeypatch) == []
 
 
 def test_skips_a_tty_tmux_does_not_know(monkeypatch):
@@ -94,16 +113,16 @@ def test_each_session_is_looked_up_on_its_own_server(monkeypatch):
     recorded = _record(
         [_active("claude:a", "/dev/ttys001"), _active("claude:b", "/dev/ttys002")],
         {
-            "/tmp/tmux-1/default": {"/dev/ttys001": ("relay", "2")},
-            "/tmp/tmux-1/other": {"/dev/ttys002": ("side", "1")},
+            "/tmp/tmux-1/default": {"/dev/ttys001": _at("relay", "2")},
+            "/tmp/tmux-1/other": {"/dev/ttys002": _at("side", "1")},
         },
         monkeypatch,
         sockets={"claude:a": "/tmp/tmux-1/default", "claude:b": "/tmp/tmux-1/other"},
     )
 
     assert recorded == [
-        ("claude:a", "relay", "2", "/tmp/tmux-1/default"),
-        ("claude:b", "side", "1", "/tmp/tmux-1/other"),
+        ("claude:a", "relay", "2", "/tmp/tmux-1/default", None),
+        ("claude:b", "side", "1", "/tmp/tmux-1/other", None),
     ]
 
 
@@ -113,7 +132,7 @@ def test_one_listing_per_server_not_per_session(monkeypatch):
 
     def _listing(socket=None):
         asked.append(socket)
-        return {f"/dev/ttys00{i}": ("relay", str(i)) for i in range(1, 5)}
+        return {f"/dev/ttys00{i}": _at("relay", str(i)) for i in range(1, 5)}
 
     monkeypatch.setattr(watcher.tmux.navigation, "locations_by_tty", _listing)
     active = [_active(f"claude:{i}", f"/dev/ttys00{i}") for i in range(1, 5)]

@@ -20,8 +20,11 @@ def _notification(
     session: str | None = "work",
     window: str | None = "2",
     cwd: str = "/tmp/somewhere",
+    order: list[int] | None = None,
 ) -> Notification:
-    metadata = {"cwd": cwd, "session_id": channel.split(":")[-1]}
+    metadata: dict = {"cwd": cwd, "session_id": channel.split(":")[-1]}
+    if order is not None:
+        metadata["tmux_session_order"] = order
     if session is not None:
         metadata["tmux_session"] = session
     if window is not None:
@@ -92,6 +95,76 @@ def test_separate_sessions_stay_separate():
 
     assert [p.name for p in plans] == ["main", "relay"]
     assert all(len(p.windows) == 1 for p in plans)
+
+
+def test_sessions_come_back_in_the_order_tmux_made_them():
+    """Not by name: a listing by index or creation should look as it did."""
+    plans = restore.plan_restore(
+        [
+            _notification(channel="claude:a", session="alpha", order=[1700000300, 1700000000, 9]),
+            _notification(channel="claude:b", session="zulu", order=[1700000100, 1700000000, 2]),
+            _notification(channel="claude:c", session="mike", order=[1700000200, 1700000000, 5]),
+        ],
+        _CONFIG,
+    )
+
+    assert [p.name for p in plans] == ["zulu", "mike", "alpha"]
+
+
+def test_sessions_made_in_the_same_second_are_ordered_by_id():
+    """A restore makes many sessions at once, so the next restore sees ties."""
+    plans = restore.plan_restore(
+        [
+            _notification(channel="claude:a", session="alpha", order=[1700000000, 1690000000, 4]),
+            _notification(channel="claude:b", session="zulu", order=[1700000000, 1690000000, 3]),
+        ],
+        _CONFIG,
+    )
+
+    assert [p.name for p in plans] == ["zulu", "alpha"]
+
+
+def test_a_same_second_tie_across_servers_goes_to_the_older_server():
+    """Ids start again at $0 in each server, so a later server's id can be lower."""
+    plans = restore.plan_restore(
+        [
+            _notification(channel="claude:a", session="later", order=[1700000000, 1700000000, 0]),
+            _notification(channel="claude:b", session="earlier", order=[1700000000, 1690000000, 4]),
+        ],
+        _CONFIG,
+    )
+
+    assert [p.name for p in plans] == ["earlier", "later"]
+
+
+def test_a_session_s_earliest_recorded_order_wins():
+    """A lemon whose order was recorded before a later restore still dates the session."""
+    plans = restore.plan_restore(
+        [
+            _notification(channel="claude:a", session="alpha", window="2", order=[300, 50, 9]),
+            _notification(channel="claude:b", session="zulu", order=[200, 50, 2]),
+            _notification(channel="claude:c", session="alpha", window="3", order=[100, 50, 1]),
+        ],
+        _CONFIG,
+    )
+
+    assert [p.name for p in plans] == ["alpha", "zulu"]
+    assert [w.index for w in plans[0].windows] == [2, 3]
+
+
+def test_sessions_with_no_recorded_order_go_last_by_name():
+    """Rows from before the order was recorded must still all come back."""
+    plans = restore.plan_restore(
+        [
+            _notification(channel="claude:a", session="old-b"),
+            _notification(channel="claude:b", session="new", order=[100, 50, 1]),
+            _notification(channel="claude:c", session="old-a"),
+            _notification(channel="claude:d", session="garbled", order=[100, 1]),
+        ],
+        _CONFIG,
+    )
+
+    assert [p.name for p in plans] == ["new", "garbled", "old-a", "old-b"]
 
 
 def test_each_window_keeps_its_own_cwd():

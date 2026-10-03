@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import typing as ty
 from collections import abc
 from pathlib import Path
 
@@ -141,8 +142,30 @@ def get_pane_for_tty(
     return None, None
 
 
-def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]] | None:
-    """Where every pane is sitting, as tty -> (session_name, window_index).
+# (session creation time, server start time, session id number): the order tmux
+# made a session in. The time is in whole seconds and a restore makes many
+# sessions in one, so the id breaks ties - but ids start again at $0 in each
+# server, so the server's start time comes first. Two servers that both start
+# within one second can still tie; the earlier one then lived under a second,
+# and no layout worth restoring comes from a server like that.
+SessionOrder = tuple[int, int, int]
+
+
+class PaneLocation(ty.NamedTuple):
+    session: str
+    window: str
+    session_order: SessionOrder | None = None
+
+
+def _session_order(created: str, server_started: str, session_id: str) -> SessionOrder | None:
+    try:
+        return int(created), int(server_started), int(session_id.lstrip("$"))
+    except ValueError:
+        return None
+
+
+def locations_by_tty(socket: str | None = None) -> dict[str, PaneLocation] | None:
+    """Where every pane is sitting, by tty.
 
     Distinct from `get_pane_for_tty`, which answers "is it still there" and is
     used for auto-archiving. This answers "where is it", which is what lets a
@@ -159,7 +182,8 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]] | 
                 "list-panes",
                 "-a",
                 "-F",
-                "#{pane_tty}|#{session_name}|#{window_index}",
+                "#{pane_tty}|#{session_name}|#{window_index}"
+                "|#{session_created}|#{start_time}|#{session_id}",
             ],
             capture_output=True,
             text=True,
@@ -171,9 +195,9 @@ def locations_by_tty(socket: str | None = None) -> dict[str, tuple[str, str]] | 
         return None
 
     return {
-        parts[0]: (parts[1], parts[2])
+        parts[0]: PaneLocation(parts[1], parts[2], _session_order(*parts[3:]))
         for line in result.stdout.strip().split("\n")
-        if len(parts := line.split("|")) == 3
+        if len(parts := line.split("|")) == 6
     }
 
 

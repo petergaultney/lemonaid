@@ -271,16 +271,18 @@ def _tmux_servers_needed(
 
 def _fetch_pane_locations(
     servers: set[str | None],
-) -> dict[str | None, dict[str, tuple[str, str]] | None]:
-    """One `tmux list-panes -a` per server, returning tty -> (session, window)."""
+) -> dict[str | None, dict[str, tmux.navigation.PaneLocation] | None]:
+    """One `tmux list-panes -a` per server, returning where each tty is."""
     return {socket: tmux.navigation.locations_by_tty(socket) for socket in servers}
 
 
 def _record_locations(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
-    record_location: Callable[[str, str, str, str | None], None],
+    record_location: Callable[
+        [str, str, str, str | None, tmux.navigation.SessionOrder | None], None
+    ],
     sockets: dict[str, str],
-    pane_locations: dict[str | None, dict[str, tuple[str, str]] | None],
+    pane_locations: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None],
 ) -> None:
     """Note where each tmux-hosted session is sitting, so it can be rebuilt later."""
     for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active:
@@ -293,14 +295,16 @@ def _record_locations(
             continue
         location = server_panes.get(tty)
         if location is not None:
-            record_location(channel, *location, socket)
+            record_location(
+                channel, location.session, location.window, socket, location.session_order
+            )
 
 
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
     sockets: dict[str, str],
-    pane_locations: dict[str | None, dict[str, tuple[str, str]] | None],
+    pane_locations: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None],
     codex_directories: set[str] | None = None,
     located: dict[str, str | Literal[False] | None] | None = None,
 ) -> set[str]:
@@ -472,7 +476,10 @@ def unified_watch_loop(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
-    record_location: Callable[[str, str, str, str | None], None] | None = None,
+    record_location: Callable[
+        [str, str, str, str | None, tmux.navigation.SessionOrder | None], None
+    ]
+    | None = None,
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
@@ -496,7 +503,8 @@ def unified_watch_loop(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
-        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
+            tmux_session_order)
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
@@ -738,7 +746,10 @@ def start_unified_watcher(
     update_message: Callable[[str, str], int],
     archive_channel: Callable[[str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
-    record_location: Callable[[str, str, str, str | None], None] | None = None,
+    record_location: Callable[
+        [str, str, str, str | None, tmux.navigation.SessionOrder | None], None
+    ]
+    | None = None,
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
@@ -760,7 +771,8 @@ def start_unified_watcher(
         update_message: Callback to update message for a channel
         archive_channel: Optional callback to archive a channel when session exits
         mark_unread: Optional callback to mark a channel as needing attention
-        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket)
+        record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
+            tmux_session_order)
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket

@@ -18,6 +18,7 @@ from ..config import Config
 from ..inbox.db import Notification
 from ..log import get_logger
 from ..resume import build_resume_command
+from . import navigation
 from . import session as tmux_session
 
 _log = get_logger("tmux.restore")
@@ -60,6 +61,15 @@ def _window(notification: Notification, config: Config) -> Window | None:
         return None
 
 
+def _session_order(notification: Notification) -> navigation.SessionOrder | None:
+    """When tmux made this notification's session, if the watcher recorded it."""
+    match notification.metadata.get("tmux_session_order"):
+        case [int(created), int(server_started), int(session_id)]:
+            return created, server_started, session_id
+        case _:
+            return None
+
+
 def plan_restore(notifications: abc.Iterable[Notification], config: Config) -> list[SessionPlan]:
     """What it would take to rebuild the tmux layout these notifications describe.
 
@@ -70,19 +80,29 @@ def plan_restore(notifications: abc.Iterable[Notification], config: Config) -> l
     to put it, and guessing a session for it would invent a layout rather than
     restore one. Sessions observed before lemonaid began recording the location
     are all of this kind.
+
+    Sessions come back in the order tmux made them, so a listing by creation
+    or index looks as it did. A session with no recorded order goes after the
+    rest, by name.
     """
     grouped: dict[str, list[Window]] = {}
+    orders: dict[str, navigation.SessionOrder] = {}
     for notification in notifications:
         name = notification.metadata.get("tmux_session")
         if not name:
             continue
 
         window = _window(notification, config)
-        if window is not None:
-            grouped.setdefault(name, []).append(window)
+        if window is None:
+            continue
+
+        grouped.setdefault(name, []).append(window)
+        if order := _session_order(notification):
+            orders[name] = min(order, orders.get(name, order))
 
     return [
-        SessionPlan(name, sorted(windows)) for name, windows in sorted(grouped.items()) if windows
+        SessionPlan(name, sorted(grouped[name]))
+        for name in sorted(grouped, key=lambda n: (n not in orders, orders.get(n, (0, 0, 0)), n))
     ]
 
 

@@ -320,6 +320,20 @@ def test_record_location_follows_a_moved_window():
         assert db.get_by_channel(conn, "claude:abc").metadata["tmux_window"] == "7"
 
 
+def test_record_location_keeps_the_session_order_through_a_hook_update():
+    """A hook doesn't see the order, and must not erase what restore sorts by."""
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        db.add(conn, channel="claude:abc", message="hello", metadata={"cwd": "/tmp"})
+        db.record_location(
+            conn, "claude:abc", "relay", "4", session_order=(1700000000, 1690000000, 7)
+        )
+        db.add(conn, channel="claude:abc", message="again", metadata={"cwd": "/tmp"})
+
+        after = db.get_by_channel(conn, "claude:abc", unread_only=False)
+
+    assert after.metadata["tmux_session_order"] == [1700000000, 1690000000, 7]
+
+
 def test_record_location_ignores_an_unknown_channel():
     with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
         assert db.record_location(conn, "claude:nope", "relay", "1") is False
