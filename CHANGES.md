@@ -1,3 +1,9 @@
+# 0.67.0 (2026-10-03)
+
+#### Changed
+
+- **`lemonaid place toss` closes only the windows in a shared session.** The session and its other windows stay; a dedicated session still closes whole. The plan is made again after the confirmation prompt, and any change in tmux since stops the toss.
+
 # 0.66.0 (2026-10-03)
 
 #### Added
