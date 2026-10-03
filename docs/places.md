@@ -74,7 +74,7 @@ the thing went.
 lemonaid place open <key>      # get a session for this, whatever it takes
 lemonaid place acquire <key>   # just the directory, no session
 lemonaid place list            # every directory each root reports
-lemonaid place toss [<key>]    # kill a session and release the places it occupies
+lemonaid place toss [<key>]    # release a place and close the session dedicated to it
 lemonaid place hooks           # show what's configured
 ```
 
@@ -141,34 +141,44 @@ places continue to list normally.
 ## Teardown
 
 You can already delete a worktree and you can already kill a tmux session. What you can't do
-is remember which worktrees a session started, or which session is hosting a worktree — and
+is remember which windows were opened for a worktree, or which session is hosting it — and
 that bookkeeping is the whole reason cleanup gets deferred until you've lost the context to do
 it well.
 
-So `toss` works on a session and everything it occupies:
+So `toss` works on a place and what tmux has sitting in it:
 
 ```bash
-lemonaid place toss          # the session you're attached to
-lemonaid place toss <key>    # the session sitting in that place
+lemonaid place toss          # the place the current directory is in
+lemonaid place toss <key>    # that place, from anywhere
 ```
 
-Both forms resolve to the same thing. A key is a way of *naming* a session, not a second mode
-— which is what stops `toss base` from killing a session and stranding the other place it
-owned.
+The place is the unit. Its session closes with it when the session is *dedicated* to it:
+named for it (which is what `place open` does), or entirely inside it, and in either case
+holding no other managed place. A session that holds other places is shared, and `toss`
+refuses to touch it, naming the windows that sit in the place:
+
+```
+$ lp toss feat/merged
+'katamari' also holds 'feat/live', so it is not closed with 'feat/merged'. Its windows in 'feat/merged': @4, @7
+Closing just those windows is not implemented yet. Close them yourself and run `place toss feat/merged` again to release the directory.
+```
+
+Closing only those windows is the next step; until then, close them by hand and the place
+is released as one with no session.
 
 The set is shown before anything happens:
 
 ```
 $ lp toss
-session 'stacked'
-  feat/base
-  feat/on-top - 2 unpushed
-kill it and release 2 places? [y/N]
+session 'feat/base', 3 windows
+  feat/base - 2 unpushed
+kill it and release 1 place? [y/N]
 ```
 
 That prompt is where your in-the-moment context gets used. Either half may be absent, and
-neither is a special case. A session with nothing managed under it just asks `kill it?`. A
-place with no session — an `acquire`d directory nobody opened — asks `release it?`:
+neither is a special case. A session with nothing managed under it just asks `kill it?`,
+when you run `toss` from a directory no root manages. A place with no session — an
+`acquire`d directory nobody opened — asks `release it?`:
 
 ```
 $ lp toss feat/agent-made
@@ -177,16 +187,20 @@ place 'feat/agent-made' (no session)
 release it? [y/N]
 ```
 
-That's the one form of toss that acts on exactly what you named, since there's no session
-whose other places could come along.
-
 ### Ownership is derived, not recorded
 
-A session owns the managed places its panes sit in, worked out from tmux when you ask:
+Which windows and sessions sit in a place is worked out from tmux when you ask:
 
 ```bash
-tmux list-panes -a -F '#{session_name}|#{pane_current_path}'
+tmux list-panes -a -F '#{session_name} #{window_id} #{pane_current_path}'
 ```
+
+A pane is in a place when its working directory is at or below the place's directory,
+assigned to the most specific place if places nest. A pane's directory is what the pane is
+for right now: an editor or a lemon keeps the directory it started in, and a shell that
+wandered into a worktree is in that worktree until it leaves. A window is in the place when
+every pane in it is; a window with one pane in the place and one elsewhere refuses, naming
+both panes, since closing it would take the other pane and leaving it would strand this one.
 
 Nothing is written down when a place is opened, so nothing can drift. A worktree you made by
 hand, one `place open` made, and one an agent made all resolve identically afterward — which
@@ -195,14 +209,18 @@ matters because the agent-created ones are exactly the ones you'd otherwise neve
 tmux keeps reporting a pane's original path after the directory is deleted, so a session that
 outlived its worktree still resolves and can still be closed.
 
+A window in another session that sits in the place (a shell in your catchall that cd-ed in)
+does not stop the toss. It is listed in the confirmation as staying open, since it ends up in
+a released directory.
+
 ### Protection and flags
 
 Two kinds, guarding different things.
 
 **Protected places** — `main` and `master` by default — are never released, and never count as
-owned. Everyone passes through the trunk worktree, and a line in every confirmation that can
-never be acted on is one you learn to skip past, which is how a real entry gets missed. So a
-session parked in `main` simply owns nothing. Set `protected = [...]` on a root to change it.
+held. Everyone passes through the trunk worktree, so a window there doesn't make a session
+shared, and running `toss` from inside the trunk refuses rather than naming it. Set
+`protected = [...]` on a root to change it.
 
 **Protected sessions** are refused outright:
 
@@ -215,7 +233,11 @@ A long-lived catchall session isn't tied to one piece of work, so tossing it los
 rather than finishing something. Configured globally rather than per root, since a session's
 name isn't repo-scoped and the one you want to guard may not sit in a managed directory at all.
 
-`--force` overrides neither.
+A place that contains other managed places is refused as well, whatever state they are in:
+the `destroy` hook is opaque, so releasing the outer directory may take the inner ones with
+it. Toss those first.
+
+`--force` overrides none of these.
 
 - `--yes` skips the confirmation. `--json` implies it.
 - `--force` proceeds despite `inspect` reporting work.
@@ -225,22 +247,23 @@ commits you haven't pushed.
 
 ### Order of operations
 
-1. Ask `inspect` about each place being released; refuse if it reports anything (`--force`
-   overrides).
-2. Show the set and confirm (`--yes` skips).
-3. Switch every client attached to the session to another one — that client's last session,
+1. Work out the place, and whether its session is dedicated to it; refuse a shared session
+   or a mixed window.
+2. Ask `inspect` about the place; refuse if it reports anything (`--force` overrides).
+3. Show the set and confirm (`--yes` skips).
+4. Switch every client attached to the session to another one — that client's last session,
    else wherever you came from, else one that wants attention in the inbox, else the most
    recently active.
-4. Kill the session and run `destroy` for each place, in a detached process.
+5. Kill the session and run `destroy` for the place, in a detached process.
 
-Step 3 covers every client, not just the caller's: an agent tossing a place by key usually
+Step 4 covers every client, not just the caller's: an agent tossing a place by key usually
 runs in some other session while you watch the one going away. If any client has nowhere to
 switch to, or tmux can't list the session's clients, `toss` refuses rather than risk
-detaching one. Step 4 is detached because
+detaching one. Step 5 is detached because
 releasing a large directory takes a while. Output goes to `~/.local/state/lemonaid/reap.log`.
 
-The session is killed *before* any directory is released: your shell's working directory is
-inside one of them, and a process still holding a file there can make the removal fail. A
+The session is killed *before* the directory is released: your shell's working directory is
+inside it, and a process still holding a file there can make the removal fail. A
 place whose directory is already gone is skipped rather than treated as a failure.
 
 ## Sessions that outlive their tmux session

@@ -1,7 +1,7 @@
 """Which places a tmux session occupies.
 
 Derived from tmux at the moment it's asked, never recorded. A session owns the
-managed directories its panes sit at. Nothing has to be written down when a place
+managed directories its panes sit in. Nothing has to be written down when a place
 is opened, which means nothing can drift - a directory acquired by hand, by
 `place open`, or by an agent all look the same afterward.
 
@@ -34,8 +34,20 @@ class Place(ty.NamedTuple):
         return self.directory.is_dir()
 
 
-def pane_paths() -> dict[str, list[Path]]:
-    """Every live session's pane working directories, by session name."""
+class Pane(ty.NamedTuple):
+    session: str
+    window: str  # tmux's window ID, like '@12'; stable for the window's life
+    pane: str  # tmux's pane ID, like '%7'
+    path: Path | None  # None when tmux could not say where the pane is
+
+
+def panes() -> list[Pane]:
+    """Every live pane that is somebody's work.
+
+    lemonaid's own scratch panes and follow-mode placeholders are left out: they
+    sit beside a lemon rather than being work of their own, so nothing should be
+    decided from where they are.
+    """
     try:
         result = subprocess.run(
             [
@@ -43,8 +55,8 @@ def pane_paths() -> dict[str, list[Path]]:
                 "list-panes",
                 "-a",
                 "-F",
-                "#{session_name}\t#{pane_current_path}\t#{@lemonaid_scratch}"
-                "\t#{pane_start_command}",
+                "#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_current_path}"
+                "\t#{@lemonaid_scratch}\t#{pane_start_command}",
             ],
             capture_output=True,
             text=True,
@@ -53,15 +65,25 @@ def pane_paths() -> dict[str, list[Path]]:
         )
     except (OSError, subprocess.SubprocessError) as e:
         _log.warning("could not list panes: %s", e)
-        return {}
+        return []
 
-    by_session: dict[str, list[Path]] = {}
+    found = []
     for line in result.stdout.splitlines():
-        session, path, scratch, start_command = line.split("\t", 3)
+        session, window, pane, path, scratch, start_command = line.split("\t", 5)
         if scratch == "1" or "LEMONAID_PLACEHOLDER" in start_command:
             continue
-        if session and path:
-            by_session.setdefault(session, []).append(Path(path))
+        if session:
+            found.append(Pane(session, window, pane, Path(path) if path else None))
+
+    return found
+
+
+def pane_paths() -> dict[str, list[Path]]:
+    """Every live session's pane working directories, by session name."""
+    by_session: dict[str, list[Path]] = {}
+    for pane in panes():
+        if pane.path is not None:
+            by_session.setdefault(pane.session, []).append(pane.path)
 
     return by_session
 
@@ -90,17 +112,33 @@ def managed_places(config: Config) -> list[Place]:
     return places
 
 
+def place_at(path: Path, places: abc.Iterable[Place]) -> Place | None:
+    """The place *path* is in: the most specific one whose directory contains it.
+
+    A pane's working directory says what the pane is for right now. Processes
+    with a purpose of their own (an editor, a lemon) keep the directory they were
+    started in, and a shell that wandered into a place is in that place for as
+    long as it stays - so at or below the directory is the test, not exactly at
+    it. Protected places count here; callers that must not act on one exclude it.
+    """
+    resolved = path.resolve()
+
+    return max(
+        (
+            place
+            for place in places
+            if resolved == place.directory.resolve()
+            or place.directory.resolve() in resolved.parents
+        ),
+        key=lambda place: len(place.directory.parts),
+        default=None,
+    )
+
+
 def places_of(
     session: str, config: Config, places: abc.Sequence[Place] | None = None
 ) -> list[Place]:
-    """The places *session* occupies: panes sitting at a place's own directory.
-
-    A pane must be *at* the directory, not below it. Working in a place and
-    having wandered into one are indistinguishable by path, and only one of them
-    should put a worktree on a teardown list - so a pane deep inside a tree
-    doesn't claim it. Sessions keep a pane at the root in practice, which is why
-    this loses nothing: a session working in a place has such a pane, while one
-    that merely visited another's worktree does not.
+    """The places *session* occupies: those its panes sit at or below.
 
     Protected places are excluded. They can never be released, so counting one
     as owned would list it in every teardown confirmation - and a line you learn
@@ -110,33 +148,14 @@ def places_of(
     Pass *places* to avoid re-listing when resolving several sessions.
     """
     known = managed_places(config) if places is None else places
-    at_directory = {place.directory: place for place in known}
 
     found = {
         place.directory: place
-        for place in (at_directory.get(path) for path in pane_paths().get(session, []))
+        for place in (place_at(path, known) for path in pane_paths().get(session, []))
         if place is not None and not place.root.is_protected(place.key)
     }
 
     return sorted(found.values(), key=lambda place: place.key)
-
-
-def sessions_holding(directory: Path) -> list[str]:
-    """Every session with a pane at *directory*.
-
-    The reverse of `places_of`, and exact for the same reason: a session that
-    wandered into this directory is not the one to tear down when it is named.
-
-    More than one is normal - a second session can have a window open at a place
-    another one is working in - so this reports all of them rather than picking.
-    Choosing arbitrarily would mean a named key sometimes tears down a session
-    that has nothing to do with it.
-    """
-    resolved = directory.resolve()
-
-    return sorted(
-        {session for session, paths in pane_paths().items() for path in paths if path == resolved}
-    )
 
 
 def find_place(config: Config, key: str) -> Place | None:

@@ -343,20 +343,26 @@ namespace.
 lemonaid place toss <key> --json
 ```
 
-**When there is a session, the unit is that session, not the directory.** A key names the
-session sitting in that place, and teardown covers *everything that session occupies* — which
-may be more than the one place you named. The response tells you what actually happened:
+**The unit is the place.** Its directory is released, and the tmux session sitting in it
+closes too when that session is *dedicated* to the place: named for it (what `place open`
+makes), or entirely inside it, and holding no other managed place. The response says what
+happened:
 
 ```json
-{"session": "stacked", "released": ["feat/base", "feat/on-top"], "error": null}
+{"session": "feat/base", "released": ["feat/base"], "error": null,
+ "place": "feat/base", "closed_windows": ["@1", "@2", "@4"], "session_closed": true}
 ```
 
-If it matters which places a session owns, check `place list --json` first and look at the
-`session` field.
+A session that also holds other places is shared, and this release refuses it (exit 1), naming
+the windows that sit in the place. Closing just those windows is the next step; until then,
+close them yourself (`tmux kill-window -t @4`) and run the toss again, and the place is
+released as one with no session. A window with a pane in the place and a pane elsewhere
+refuses as well, naming both panes.
 
-**Always pass the key.** Named, it works from anywhere, which is what you want — you have no
-reliable idea which tmux session your shell is attached to. The unnamed form acts on the
-session you happen to be attached to.
+**Always pass the key.** Named, it works from anywhere. The unnamed form acts on the place
+the current directory is in, which for a lemon is usually right but is not something you
+should rely on. Run from a directory no root manages, it acts on the tmux session you are
+attached to, and only when that session holds no managed place.
 
 **`--json` implies `--yes`**, so it does not prompt. It still refuses when the root's
 `inspect` command reports uncommitted or unpushed work; `--force` overrides that. **Do not
@@ -366,14 +372,13 @@ tearing down unattended and discarding work.
 Two kinds of protection, and `--force` overrides neither:
 
 - A root's `protected` keys (`main` and `master` by default) are never released and never
-  count as owned, so a session sitting in one simply reports no places.
+  count as held, so a window in the trunk worktree does not make a session shared.
 - `protected_sessions` under `[places]` refuses teardown of that session entirely. Naming a
   place it occupies is not a way around it.
 
-Either half may be absent, and neither is an error. A session with no managed places just
-gets killed. A place with no session — an `acquire`d directory nobody opened — is just
-released, and since there is no session to drag other places along, that is the one form of
-toss that acts on exactly what you named (`"session": ""` in the response).
+A place with no session — an `acquire`d directory nobody opened — is just released
+(`"session": ""`, `"session_closed": false`). A window in some other session that sits in
+the place does not stop the toss; it is left open, in a released directory.
 
 Teardown finishes after the command returns — releasing a large directory is slow, so it
 runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.

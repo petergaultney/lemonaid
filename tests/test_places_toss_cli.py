@@ -29,6 +29,13 @@ def _place(tmp_path, key: str, root: PlaceRoot | None = None) -> ownership.Place
     )
 
 
+def _target(session: str, places: list[ownership.Place]) -> target.TossTarget:
+    place = places[0] if places else None
+    windows = ["@1", "@2"] if session else []
+
+    return target.TossTarget(session, places, place, windows, [])
+
+
 def _resolves_to(monkeypatch, doomed: target.TossTarget | None, why_not: str = "") -> list:
     monkeypatch.setattr(toss_cli, "load_config", lambda: Config(places=PlacesConfig()))
     monkeypatch.setattr(target, "resolve_toss_target", lambda config, key: (doomed, why_not))
@@ -39,7 +46,7 @@ def _resolves_to(monkeypatch, doomed: target.TossTarget | None, why_not: str = "
 
 
 def test_confirmation_is_required_by_default(monkeypatch, tmp_path, capsys):
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat")])
+    doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr("builtins.input", lambda prompt: "n")
 
@@ -51,7 +58,7 @@ def test_confirmation_is_required_by_default(monkeypatch, tmp_path, capsys):
 
 
 def test_confirming_tears_down(monkeypatch, tmp_path):
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat")])
+    doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr("builtins.input", lambda prompt: "y")
 
@@ -62,7 +69,7 @@ def test_confirming_tears_down(monkeypatch, tmp_path):
 
 def test_the_set_is_shown_before_the_prompt(monkeypatch, tmp_path, capsys):
     """The list is the decision - you look at it and know whether it's right."""
-    doomed = target.TossTarget("stacked", [_place(tmp_path, "base"), _place(tmp_path, "on-top")])
+    doomed = _target("stacked", [_place(tmp_path, "base"), _place(tmp_path, "on-top")])
     _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr("builtins.input", lambda prompt: "n")
 
@@ -75,7 +82,7 @@ def test_the_set_is_shown_before_the_prompt(monkeypatch, tmp_path, capsys):
 
 
 def test_yes_skips_the_prompt(monkeypatch, tmp_path):
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat")])
+    doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
 
     def _no_input(prompt):  # pragma: no cover - reached only on a regression
@@ -90,7 +97,7 @@ def test_yes_skips_the_prompt(monkeypatch, tmp_path):
 
 def test_json_implies_yes(monkeypatch, tmp_path):
     """There is no terminal to prompt on."""
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat")])
+    doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
 
     def _no_input(prompt):  # pragma: no cover - reached only on a regression
@@ -103,25 +110,51 @@ def test_json_implies_yes(monkeypatch, tmp_path):
     assert len(tossed) == 1
 
 
-def test_json_reports_the_whole_set(monkeypatch, tmp_path, capsys):
-    """A named toss acts on everything its session owns, which may surprise a caller."""
-    doomed = target.TossTarget(
-        "stacked",
-        [_place(tmp_path, "base"), _place(tmp_path, "on-top")],
-    )
+def test_json_reports_what_closed(monkeypatch, tmp_path, capsys):
+    doomed = _target("work", [_place(tmp_path, "feat")])
     _resolves_to(monkeypatch, doomed)
 
     toss_cli.cmd_toss(_args(json=True))
 
     reported = json.loads(capsys.readouterr().out)
-    assert reported["session"] == "stacked"
-    assert reported["released"] == ["base", "on-top"]
+    assert reported == {
+        "session": "work",
+        "released": ["feat"],
+        "error": None,
+        "place": "feat",
+        "closed_windows": ["@1", "@2"],
+        "session_closed": True,
+    }
+
+
+def test_json_for_a_place_with_no_session_closes_nothing(monkeypatch, tmp_path, capsys):
+    _resolves_to(monkeypatch, _target("", [_place(tmp_path, "idle")]))
+
+    toss_cli.cmd_toss(_args(json=True))
+
+    reported = json.loads(capsys.readouterr().out)
+    assert reported["session_closed"] is False
+    assert reported["closed_windows"] == []
+    assert reported["place"] == "idle"
+
+
+def test_windows_left_open_elsewhere_are_shown(monkeypatch, tmp_path, capsys):
+    """They end up in a released directory, which the person confirming should know."""
+    place = _place(tmp_path, "feat")
+    doomed = target.TossTarget("feat", [place], place, ["@1"], ["onlooker:@7"])
+    _resolves_to(monkeypatch, doomed)
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args())
+
+    assert "window onlooker:@7 stays open" in capsys.readouterr().err
 
 
 def test_unfinished_work_blocks_even_with_yes(monkeypatch, tmp_path, capsys):
     """--yes means don't ask, not throw away work I haven't pushed."""
     dirty = PlaceRoot(path=tmp_path, destroy="release {key}", inspect="echo 2 unpushed")
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat", dirty)])
+    doomed = _target("work", [_place(tmp_path, "feat", dirty)])
     tossed = _resolves_to(monkeypatch, doomed)
 
     with pytest.raises(SystemExit):
@@ -133,7 +166,7 @@ def test_unfinished_work_blocks_even_with_yes(monkeypatch, tmp_path, capsys):
 
 def test_force_overrides_unfinished_work(monkeypatch, tmp_path):
     dirty = PlaceRoot(path=tmp_path, destroy="release {key}", inspect="echo 2 unpushed")
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat", dirty)])
+    doomed = _target("work", [_place(tmp_path, "feat", dirty)])
     tossed = _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr("builtins.input", lambda prompt: "y")
 
@@ -143,7 +176,7 @@ def test_force_overrides_unfinished_work(monkeypatch, tmp_path):
 
 
 def test_a_session_with_no_places_asks_only_about_the_session(monkeypatch, capsys):
-    doomed = target.TossTarget("notes", [])
+    doomed = _target("notes", [])
     _resolves_to(monkeypatch, doomed)
     prompts = []
     monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "y")
@@ -165,7 +198,7 @@ def test_an_unresolvable_target_exits_with_the_reason(monkeypatch, capsys):
 
 def test_a_gone_place_is_labeled_rather_than_hidden(monkeypatch, tmp_path, capsys):
     gone = ownership.Place("vanished", PlaceRoot(path=tmp_path, destroy="r {key}"), tmp_path / "x")
-    _resolves_to(monkeypatch, target.TossTarget("ghost", [gone]))
+    _resolves_to(monkeypatch, _target("ghost", [gone]))
     monkeypatch.setattr("builtins.input", lambda prompt: "y")
 
     toss_cli.cmd_toss(_args())
@@ -175,7 +208,7 @@ def test_a_gone_place_is_labeled_rather_than_hidden(monkeypatch, tmp_path, capsy
 
 def test_declining_at_the_prompt_by_eof_tears_nothing_down(monkeypatch, tmp_path):
     """Ctrl-D at the prompt is a no, not a yes."""
-    doomed = target.TossTarget("work", [_place(tmp_path, "feat")])
+    doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
 
     def _eof(prompt):

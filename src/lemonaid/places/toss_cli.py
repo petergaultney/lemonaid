@@ -29,7 +29,8 @@ def _headline(doomed: target.TossTarget) -> str:
     if not doomed.places:
         return f"session {doomed.session!r} - no managed places to release"
 
-    return f"session {doomed.session!r}"
+    n = len(doomed.windows)
+    return f"session {doomed.session!r}, {n} window{'s' if n != 1 else ''}"
 
 
 def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list[str]:
@@ -37,6 +38,7 @@ def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list
     return [
         _headline(doomed),
         *(_fate(place, concerns.get(place.key, [])) for place in doomed.places),
+        *(f"  window {window} stays open, in a released directory" for window in doomed.left_open),
     ]
 
 
@@ -88,14 +90,15 @@ def cmd_toss(args: argparse.Namespace) -> None:
     error = teardown.toss(doomed.session, doomed.places)
 
     if args.json:
-        # The whole set is reported: a named toss acts on everything its session
-        # owns, which may be more than the caller named.
         print(
             json.dumps(
                 {
                     "session": doomed.session,
                     "released": [p.key for p in doomed.places],
                     "error": error,
+                    "place": doomed.place.key if doomed.place else None,
+                    "closed_windows": doomed.windows if not error else [],
+                    "session_closed": bool(doomed.session) and not error,
                 }
             )
         )
@@ -109,30 +112,30 @@ def cmd_toss(args: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "toss",
-        help="Kill a tmux session and release the places it occupies",
-        description="The unit is a tmux session and every managed place its panes "
-        "sit in. With no key that is the session you are attached to; with a key it "
-        "is the session sitting in that place.\n\n"
-        "A KEY NAMES A SESSION, NOT JUST A DIRECTORY: tossing one key releases "
-        "everything that session occupies, which may be more than you named. The set "
-        "is listed and confirmed first, and reported back under 'released'. Run "
-        "`place list --json` and look at the `session` field if you need to know "
-        "which places go together before acting.\n\n"
+        help="Release a place and close the tmux session dedicated to it",
+        description="The unit is a managed place: a directory, plus the tmux session "
+        "sitting in it when that session is dedicated to it (named for it, or entirely "
+        "inside it, and holding no other managed place). With no key the place is the "
+        "one the current directory is in; with a key it is that place, from anywhere.\n\n"
+        "A session that also holds other places is shared, and this release refuses "
+        "to touch it: the message names the windows in the place, and closing them "
+        "yourself lets the directory be released. A window with a pane in the place "
+        "and a pane elsewhere refuses as well.\n\n"
         "Protected places (main, master by default) are never released and never "
-        "count as owned. Protected sessions are refused outright. Teardown switches "
+        "count as held. Protected sessions are refused outright. Teardown switches "
         "every client attached to the session elsewhere first (or refuses if one has "
         "nowhere to go), then runs detached, logging to "
         "~/.local/state/lemonaid/reap.log.",
         epilog="Examples:\n"
-        "  place toss feat/thing --json   # what an agent should use: names the target\n"
-        "  place toss                     # the session you're attached to\n"
-        "  place list --json              # which session occupies which place",
+        "  place toss feat/thing --json   # what an agent should use: names the place\n"
+        "  place toss                     # the place the current directory is in\n"
+        "  place list --json              # which session sits in which place",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "key",
         nargs="?",
-        help="A place whose session to tear down (default: the session you're attached to)",
+        help="The place to release (default: the one the current directory is in)",
     )
     parser.add_argument(
         "-y",
