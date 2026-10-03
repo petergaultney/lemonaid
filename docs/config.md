@@ -21,6 +21,9 @@ Built-in defaults (used when no `resume_command` is configured):
 | `openclaw` | `openclaw --session {session_key}` |
 | `opencode` | `opencode --session {session_id}` |
 
+`lemonaid restore` starts a Claude or Codex lemon on a prompt by adding it as the last argument, so a
+custom `resume_command` for either must take a prompt there, as `claude --resume` and `codex resume` do.
+
 To add flags to Claude resumes:
 
 ```toml

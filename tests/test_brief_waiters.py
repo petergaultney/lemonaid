@@ -151,3 +151,14 @@ def test_a_waiter_added_after_a_closing_fence_is_outside_it():
 
     assert out.endswith("# rearm after a push\n```\n\n- `x --once`\n")
     assert waiters.remove(out, "x --once") == fenced_last
+
+
+def test_commands_lists_each_waiter_in_order():
+    assert waiters.commands(_BRIEF) == [
+        "lemonaid inbox watch --self",
+        "lemonaid watch pr --wait 5716 --repo o/r --head abc123 --once",
+    ]
+
+
+def test_a_brief_with_no_waiters_section_lists_no_commands():
+    assert waiters.commands("# the task\n\nStatus: working\n") == []

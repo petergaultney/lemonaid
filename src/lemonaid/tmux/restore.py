@@ -9,15 +9,15 @@ before anything spawns: restoring a day's work means starting many processes at
 once, and `--dry-run` is what makes that inspectable first.
 """
 
-import shlex
 import subprocess
 import typing as ty
 from collections import abc
 
 from ..config import Config
 from ..inbox.db import Notification
+from ..launch import window as launch_window
 from ..log import get_logger
-from ..resume import build_resume_command
+from ..restore import launch, report
 from . import navigation
 from . import session as tmux_session
 
@@ -29,12 +29,11 @@ _SPAWN_TIMEOUT_SECONDS = 10
 class Window(ty.NamedTuple):
     index: int
     cwd: str
-    argv: list[str]
+    line: str
+    environment: dict[str, str]
     name: str  # the inbox's name for the lemon, for display only
-
-    @property
-    def command(self) -> str:
-        return " ".join(shlex.quote(a) for a in self.argv)
+    channel: str
+    rearm: str  # report.PROMPTED, NO_BRIEF, NOTHING_TO_REARM or BY_HAND
 
 
 class SessionPlan(ty.NamedTuple):
@@ -42,20 +41,38 @@ class SessionPlan(ty.NamedTuple):
     windows: list[Window]  # ascending by index, never empty
 
 
-def _window(notification: Notification, config: Config) -> Window | None:
+def _window(
+    notification: Notification, config: Config, prompts: abc.Mapping[str, str]
+) -> Window | None:
     """What to put back for one notification, or None if it can't be restored."""
     index = notification.metadata.get("tmux_window")
     if index is None:
         return None
 
-    resumable = build_resume_command(config, notification.channel, notification.metadata)
-    if resumable is None:
+    prompt = prompts.get(notification.channel, "")
+    resumed = launch.launch(notification, config, prompt)
+    if resumed is None:
         return None
 
-    cwd, argv = resumable
+    if resumed.prompted:
+        rearm = report.PROMPTED
+    elif prompt:
+        rearm = report.BY_HAND
+    elif notification.channel in prompts:
+        rearm = report.NOTHING_TO_REARM
+    else:
+        rearm = report.NO_BRIEF
 
     try:
-        return Window(int(index), cwd, argv, notification.name or notification.channel)
+        return Window(
+            int(index),
+            resumed.cwd,
+            resumed.line,
+            resumed.environment,
+            notification.name or notification.channel,
+            notification.channel,
+            rearm,
+        )
     except ValueError:
         _log.warning("ignoring unparseable window index %r for %s", index, notification.channel)
         return None
@@ -70,8 +87,15 @@ def _session_order(notification: Notification) -> navigation.SessionOrder | None
             return None
 
 
-def plan_restore(notifications: abc.Iterable[Notification], config: Config) -> list[SessionPlan]:
+def plan_restore(
+    notifications: abc.Iterable[Notification],
+    config: Config,
+    prompts: abc.Mapping[str, str],
+) -> list[SessionPlan]:
     """What it would take to rebuild the tmux layout these notifications describe.
+
+    *prompts* holds the rearm prompt of each channel with a brief, "" for one
+    whose brief lists nothing to rearm; a channel missing from it has no brief.
 
     Pure: it starts nothing and inspects no live tmux, so the result can be shown
     before anything happens.
@@ -92,7 +116,7 @@ def plan_restore(notifications: abc.Iterable[Notification], config: Config) -> l
         if not name:
             continue
 
-        window = _window(notification, config)
+        window = _window(notification, config, prompts)
         if window is None:
             continue
 
@@ -101,7 +125,7 @@ def plan_restore(notifications: abc.Iterable[Notification], config: Config) -> l
             orders[name] = min(order, orders.get(name, order))
 
     return [
-        SessionPlan(name, sorted(grouped[name]))
+        SessionPlan(name, sorted(grouped[name], key=lambda w: w.index))
         for name in sorted(grouped, key=lambda n: (n not in orders, orders.get(n, (0, 0, 0)), n))
     ]
 
@@ -116,7 +140,7 @@ def describe(plans: abc.Sequence[SessionPlan]) -> list[str]:
         for plan in plans
         for line in [
             f"{plan.name}",
-            *(f"  {w.index}: {w.name} ({w.cwd})" for w in plan.windows),
+            *(f"  {w.index}: {w.name} ({w.cwd}) [{w.rearm}]" for w in plan.windows),
         ]
     ]
 
@@ -127,7 +151,14 @@ def as_json(plans: abc.Sequence[SessionPlan]) -> list[dict]:
         {
             "session": plan.name,
             "windows": [
-                {"index": w.index, "cwd": w.cwd, "name": w.name, "argv": w.argv}
+                {
+                    "index": w.index,
+                    "cwd": w.cwd,
+                    "name": w.name,
+                    "channel": w.channel,
+                    "line": w.line,
+                    "rearm": w.rearm,
+                }
                 for w in plan.windows
             ],
         }
@@ -182,8 +213,33 @@ def _client_size() -> tuple[str, str]:
     return (parts[0], parts[1]) if len(parts) == 2 and parts[0].isdigit() else ("200", "50")
 
 
-def _restore_session(plan: SessionPlan) -> str | None:
-    """Create *plan*'s session and its windows. Returns an error message or None.
+def _placed(session: str, window: Window) -> report.Placed:
+    return report.Placed(window.channel, window.name, f"{session}:{window.index}", window.rearm)
+
+
+def _failed(session: str, window: Window, why: str) -> report.Result:
+    return report.Result(
+        window.channel, window.name, f"{session}:{window.index}", report.NOT_RESTORED, why
+    )
+
+
+class Restored(ty.NamedTuple):
+    restored: list[str]  # session names
+    skipped: list[str]  # session names already running
+    placed: list[report.Placed]  # the lemons started, in the restored sessions
+    failed: list[report.Result]  # the lemons that should have been, and why not
+
+
+def _start(session: str, window: Window) -> report.Placed | report.Result:
+    """Type *window*'s line into its pane, which must already exist."""
+    if not _run("tmux", "send-keys", "-t", f"{session}:{window.index}", window.line, "Enter"):
+        return _failed(session, window, "could not type its line into the window")
+
+    return _placed(session, window)
+
+
+def _restore_session(plan: SessionPlan) -> list[report.Placed | report.Result]:
+    """Create *plan*'s session and its windows: each lemon started, or why it wasn't.
 
     Windows are placed at their recorded indices, so a window the inbox knows
     nothing about - an editor, a shell - leaves a gap that comes back empty
@@ -205,46 +261,56 @@ def _restore_session(plan: SessionPlan) -> str | None:
         width,
         "-y",
         height,
+        *launch_window.environment_args(first.environment),
     ):
-        return f"Could not create session {plan.name!r}"
+        return [_failed(plan.name, w, "could not create its session") for w in plan.windows]
 
     # tmux numbers the first window itself, so move it to the recorded index
     # before anything else is added and the number is taken.
-    _run("tmux", "move-window", "-s", f"{plan.name}:^", "-t", f"{plan.name}:{first.index}")
-    _run("tmux", "send-keys", "-t", f"{plan.name}:{first.index}", first.command, "Enter")
+    moved = _run("tmux", "move-window", "-s", f"{plan.name}:^", "-t", f"{plan.name}:{first.index}")
+    started = [
+        _start(plan.name, first)
+        if moved
+        else _failed(plan.name, first, f"could not move its window to {first.index}")
+    ]
 
     for window in plan.windows[1:]:
-        if not _run(
-            "tmux", "new-window", "-d", "-t", f"{plan.name}:{window.index}", "-c", window.cwd
+        if _run(
+            "tmux",
+            "new-window",
+            "-d",
+            "-t",
+            f"{plan.name}:{window.index}",
+            "-c",
+            window.cwd,
+            *launch_window.environment_args(window.environment),
         ):
-            _log.warning("skipping window %d of %s", window.index, plan.name)
-            continue
+            started.append(_start(plan.name, window))
+        else:
+            started.append(_failed(plan.name, window, "could not create its window"))
 
-        _run("tmux", "send-keys", "-t", f"{plan.name}:{window.index}", window.command, "Enter")
-
-    return None
+    return started
 
 
-def restore(plans: abc.Sequence[SessionPlan]) -> tuple[list[str], list[str]]:
+def restore(plans: abc.Sequence[SessionPlan]) -> Restored:
     """Create every session in *plans* that isn't already running.
 
-    Returns (restored, skipped) session names. An existing session is left
-    untouched rather than added to: after a crash you have usually rebuilt some
-    of them by hand already, and those are the ones worth not disturbing.
+    An existing session is left untouched rather than added to: after a crash
+    you have usually rebuilt some of them by hand already, and those are the
+    ones worth not disturbing.
     """
     live = _existing_sessions()
-    restored: list[str] = []
-    skipped: list[str] = []
+    done = Restored([], [], [], [])
 
     for plan in plans:
         if tmux_session.sanitize_name(plan.name) in live or plan.name in live:
-            skipped.append(plan.name)
+            done.skipped.append(plan.name)
             continue
 
-        if error := _restore_session(plan):
-            _log.warning("%s", error)
-            continue
+        started = _restore_session(plan)
+        done.placed.extend(s for s in started if isinstance(s, report.Placed))
+        done.failed.extend(s for s in started if isinstance(s, report.Result))
+        if any(isinstance(s, report.Placed) for s in started):
+            done.restored.append(plan.name)
 
-        restored.append(plan.name)
-
-    return restored, skipped
+    return done

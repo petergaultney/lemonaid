@@ -1,14 +1,13 @@
 """CLI commands for tmux integration."""
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from ..config import load_config
-from ..inbox import db, doctor
+from ..inbox import doctor
+from ..restore import cli as restore_cli
 from . import restart as tmux_restart
-from . import restore as tmux_restore
 from . import scratch
 from .navigation import go_back, swap_back_location
 from .scratch import ensure_scratch, set_follow, toggle_scratch
@@ -104,43 +103,6 @@ def cmd_new(args: argparse.Namespace) -> None:
     )
     if not success:
         sys.exit(1)
-
-
-def cmd_restore(args: argparse.Namespace) -> None:
-    """Rebuild the tmux layout the inbox describes."""
-    config = load_config()
-    with db.connect() as conn:
-        plans = tmux_restore.plan_restore(db.get_active(conn, switch_source="tmux"), config)
-
-    if args.dry_run:
-        if args.json:
-            print(json.dumps(tmux_restore.as_json(plans)))
-            return
-
-        for line in tmux_restore.describe(plans):
-            print(line)
-        return
-
-    restored, skipped = tmux_restore.restore(plans)
-
-    if args.json:
-        print(json.dumps({"restored": restored, "skipped": skipped}))
-        return
-
-    for name in restored:
-        print(f"restored {name}")
-
-    # Not stderr: an already-running session is the expected outcome of running
-    # this when nothing is wrong, not a problem with the run.
-    for name in skipped:
-        print(f"skipped {name} (already running)")
-
-    if not plans:
-        print(tmux_restore.describe(plans)[0])
-    elif not restored:
-        print(f"\nnothing to restore: all {len(skipped)} sessions are already running")
-    else:
-        print(f"\nrestored {len(restored)}, skipped {len(skipped)} already running")
 
 
 def cmd_doctor(args: argparse.Namespace) -> None:
@@ -339,28 +301,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     doctor_parser.set_defaults(func=cmd_doctor)
 
-    restore_parser = tmux_subparsers.add_parser(
-        "restore",
-        help="Rebuild tmux sessions for the active inbox after a crash",
-        description="Recreates the tmux sessions the inbox says its active lemons "
-        "were running in, resuming each one in the window it occupied.\n\n"
-        "Windows keep their recorded index, so a window lemonaid knows nothing "
-        "about - an editor, a shell - comes back as an empty gap rather than "
-        "shifting the others down. Restored sessions are detached: putting a "
-        "day's work back means starting many processes at once, and fighting over "
-        "the client while that happens helps nobody.\n\n"
-        "A session that is already running is left alone, so this is safe to run "
-        "after rebuilding some of them by hand. Sessions recorded before lemonaid "
-        "began storing their location cannot be placed and are skipped; "
-        "--dry-run shows exactly what would happen.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+    restore_cli.add_tmux_arguments(
+        tmux_subparsers.add_parser(
+            "restore",
+            help="Same as `lemonaid restore tmux`",
+            description=restore_cli.TMUX_DESCRIPTION,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
     )
-    restore_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the layout that would be rebuilt, and start nothing",
-    )
-    restore_parser.add_argument("--json", action="store_true", help="Print the result as JSON")
-    restore_parser.set_defaults(func=cmd_restore)
 
     tmux_parser.set_defaults(func=lambda a: tmux_parser.print_help())

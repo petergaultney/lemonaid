@@ -113,15 +113,19 @@ def run(pane: Pane, line: str) -> str:
     return "" if result.returncode == 0 else f"Could not start the lemon: {result.stderr.strip()}"
 
 
+def dialog_in(screen: str) -> str:
+    """The startup dialog *screen* shows, described, or ""."""
+    return next((what for text, what in _STARTUP_DIALOGS.items() if text in screen), "")
+
+
 def startup_dialog(target: str, wait: float = _DIALOG_WAIT_SECONDS) -> str:
     """The startup dialog pane or window *target* shows after *wait* seconds, described, or "".
 
     Only reported: answering one means typing into a lemon, which lemonaid doesn't do.
     """
     time.sleep(wait)
-    screen = _tmux("capture-pane", "-p", "-t", target).stdout
-    found = [what for text, what in _STARTUP_DIALOGS.items() if text in screen]
+    found = dialog_in(_tmux("capture-pane", "-p", "-t", target).stdout)
     if found:
-        _log.warning("%s stopped at %s", target, found[0])
+        _log.warning("%s stopped at %s", target, found)
 
-    return found[0] if found else ""
+    return found

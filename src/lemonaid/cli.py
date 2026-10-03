@@ -17,6 +17,7 @@ import lemonaid.messages.cli
 import lemonaid.openclaw.cli
 import lemonaid.opencode.cli
 import lemonaid.places.cli
+import lemonaid.restore.cli
 import lemonaid.skills.cli
 import lemonaid.tmux.cli
 import lemonaid.watch.cli
@@ -137,6 +138,7 @@ def main() -> None:
     lemonaid.openclaw.cli.setup_parser(subparsers)
     lemonaid.opencode.cli.setup_parser(subparsers)
     lemonaid.places.cli.setup_parser(subparsers)
+    lemonaid.restore.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
     lemonaid.tmux.cli.setup_parser(subparsers)

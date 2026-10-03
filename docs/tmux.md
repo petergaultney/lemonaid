@@ -501,10 +501,47 @@ active lemon, its working directory, and (once recorded) which tmux session and
 window it was running in.
 
 ```bash
-lemonaid tmux doctor              # what could be restored, and what could not
-lemonaid tmux restore --dry-run   # the layout that would be rebuilt
-lemonaid tmux restore             # rebuild it
+lemonaid tmux doctor                 # what could be restored, and what could not
+lemonaid restore tmux --dry-run      # the layout that would be rebuilt
+lemonaid restore tmux                # rebuild it, and wait for the lemons to start working
 ```
+
+`lemonaid tmux restore` is the same command.
+
+### Bringing lemons back to work
+
+A resumed lemon comes back with none of its background tasks, so restore
+starts each one whose brief lists waiters with a prompt to rearm them: every
+command under `## Waiters`, less the inbox waiter for Codex, whose messages are
+queued into its thread. A lemon with no brief is resumed with no prompt, and so
+is an OpenClaw or opencode lemon, which restore reports as `rearm by hand` when
+its brief lists waiters. Codex
+is started with the same overrides `lemon start` uses, so its trust and update
+dialogs don't stop it before it reads the prompt.
+
+Restore then waits (`--wait`, 180 seconds by default) for each prompted lemon
+to be heard from in the inbox, printing progress as it goes, and reports every
+lemon:
+
+```
+no brief         beta:2                   notes
+stuck            beta:3                   tenant views  (Codex's folder-trust prompt)
+working          alpha:2                  checkpoint growth
+exited           alpha:3                  REVIEW #158  (Updated Codex. Please restart Codex.)
+```
+
+`stuck` means the harness is still running but silent, and `exited` that its
+pane is back at a shell; either way the pane's last lines say why. It exits 1
+if any lemon is stuck, exited, has to be rearmed by hand, or couldn't be
+restored.
+
+The prompts, the waiting and the report don't depend on the terminal. A
+backend provides the rest: which sessions are already running, placing each
+lemon's window, and showing what a lemon's pane looks like. Another backend can
+reuse everything else. That could be a
+different terminal, or a mode that leaves the layout to a tool like
+tmux-resurrect and only resumes the lemons and gets them working. Neither
+exists yet.
 
 ### Check before you need it
 

@@ -25,11 +25,11 @@ def _resolve_project_dir(session_id: str) -> str:
     return project
 
 
-def resume_session(session_id: str) -> None:
-    """cd to the correct project directory and exec claude --resume."""
+def resume_session(session_id: str, prompt: str = "") -> None:
+    """cd to the correct project directory and exec claude --resume, starting on *prompt* if given."""
     project = _resolve_project_dir(session_id)
     os.chdir(project)
-    os.execvp("claude", ["claude", "--resume", session_id])
+    os.execvp("claude", ["claude", "--resume", session_id, *([prompt] if prompt else [])])
 
 
 def forward_to_claude(claude_args: list[str]) -> None:

@@ -139,12 +139,17 @@ Inside cmux, `metadata` carries `cmux_surface`, the surface the session ran in, 
 ## Restoring a lost tmux layout
 
 ```bash
-lemonaid tmux restore --dry-run --json   # what would be rebuilt
-lemonaid tmux restore --json             # {"restored": [...], "skipped": [...]}
+lemonaid restore tmux --dry-run --json   # what would be rebuilt, and which lemons get a prompt
+lemonaid restore tmux --json             # {"restored": [...], "skipped": [...], "lemons": [...]}
 ```
 
-Recreates the tmux sessions the active inbox says its lemons were running in, resuming each in the
-window it occupied. Windows keep their recorded index, so one lemonaid knows nothing about comes back as
+`lemonaid tmux restore` is the same command. It recreates the tmux sessions the active inbox says its
+lemons were running in, resuming each in the window it occupied, and starts each lemon whose brief lists
+waiters with a prompt to rearm them. It then waits up to `--wait` seconds and reports each lemon's
+`outcome`: `working`, `stuck`, `exited`, `no brief`, `nothing to rearm`, `rearm by hand` (an OpenClaw or
+opencode lemon whose brief lists waiters: only Claude and Codex take a prompt on resume), or `not
+restored`, with a `detail` from its pane for the ones that need a hand. It exits 1 for any outcome but
+`working`, `no brief`, and `nothing to rearm`. Windows keep their recorded index, so one lemonaid knows nothing about comes back as
 an empty gap rather than shifting the others down.
 
 Sessions already running are left alone, so this is safe to re-run. A session with no recorded location

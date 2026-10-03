@@ -187,7 +187,7 @@ def cmd_patch_restore(args: argparse.Namespace) -> None:
 
 def cmd_resume(args: argparse.Namespace) -> None:
     """Resume a Claude Code session, auto-discovering the correct project directory."""
-    resume_session(args.session_id)
+    resume_session(args.session_id, args.prompt)
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -204,6 +204,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Resume a session, auto-discovering the correct project directory",
     )
     resume_parser.add_argument("session_id", help="Claude session ID (UUID)")
+    resume_parser.add_argument(
+        "prompt", nargs="?", default="", help="A first prompt for the resumed session"
+    )
     resume_parser.set_defaults(func=cmd_resume)
 
     # claude notify

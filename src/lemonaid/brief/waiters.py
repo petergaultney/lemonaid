@@ -100,6 +100,18 @@ def _the_one(body: abc.Sequence[str], match: str) -> int:
     raise EditError(f"{len(found)} waiters contain {match!r}; use more of one: {shown}")
 
 
+def commands(text: str) -> list[str]:
+    """The command of each waiter listed under `## Waiters` in *text*, in order."""
+    found: list[str] = []
+
+    def collect(body: list[str]) -> list[str]:
+        found.extend(_commands(body).values())
+        return body
+
+    _with_body(text, collect)
+    return found
+
+
 def add(text: str, command: str) -> str:
     """*text* with *command* listed under `## Waiters`; listing it again changes nothing."""
     line = _bullet(command)
