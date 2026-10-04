@@ -34,8 +34,7 @@ def held(lock_path: pathlib.Path) -> bool:
 def acquire(lock_path: pathlib.Path, grace: float = 1.0) -> ty.IO[str] | None:
     """The open lock file (held until this process exits), or None if another waiter holds it.
 
-    Retries for `grace` seconds, which outlasts a `held` probe or a standalone waiter's
-    `--status`, both of which lock the file for a moment.
+    Retries for `grace` seconds, longer than a `held` probe holds its brief shared lock.
     """
     f = lock_path.open("a+")
     deadline = time.monotonic() + grace

@@ -31,7 +31,8 @@ def started(monkeypatch):
     return calls
 
 
-def test_list_names_match_the_standalone_launcher(lists_dir):
+def test_list_names_keep_their_format(lists_dir):
+    """A waiter started after a rename would not find the lists already there."""
     key = "agent:main:doc-filing-worker-v2:abc"
 
     assert openclaw_cli.list_path(lists_dir, key) == (

@@ -1,4 +1,4 @@
-"""Event detection for one doc, and the state it shares with the standalone watch-doc.py."""
+"""Event detection for one doc, and the state it keeps between waiters."""
 
 import hashlib
 
@@ -30,8 +30,8 @@ def _collect(sent: list[str], ok: bool = True):
     return deliver
 
 
-def test_state_files_are_named_like_the_standalone_waiters(doc, state_dir):
-    """A lemonaid waiter and a watch-doc.py waiter for one (doc, me) share a lock and state."""
+def test_state_files_keep_their_names(doc, state_dir):
+    """Renaming them would make the next waiter for the same doc re-report what earlier ones did."""
     expected = hashlib.sha1(f"{doc.resolve()}\0{_ME}".encode()).hexdigest()[:16]
 
     assert doc_events.state_stem(state_dir, doc, _ME) == state_dir / expected

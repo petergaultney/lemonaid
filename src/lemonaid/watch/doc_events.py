@@ -2,8 +2,7 @@
 
 A `DocWatch` holds what has already been reported for (doc, signer). Its state lives in
 a state directory, by default $TMPDIR/watch-doc, so a restarted waiter, or a different
-waiter under the same signer, does not re-report a thread nobody has touched since. The
-file names match the standalone watch-doc.py, so the two share state and locks.
+waiter under the same signer, does not re-report a thread nobody has touched since.
 """
 
 import dataclasses

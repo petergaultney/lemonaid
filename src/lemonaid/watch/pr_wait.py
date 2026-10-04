@@ -2,8 +2,7 @@
 
 Comments already reported, the last reported draft flag and review decision, and the heads
 whose conflict or CI failure was reported, are remembered per (PR, --me) in a state
-directory, by default $TMPDIR/watch-pr. The file names match the standalone watch-pr.py,
-so the two share state and locks.
+directory, by default $TMPDIR/watch-pr.
 """
 
 import hashlib

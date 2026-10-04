@@ -3,8 +3,7 @@
 Each OpenClaw session is one actor with one watch list and at most one waiter, a
 transient systemd user unit running `lemonaid watch doc --watch-list` from the same
 Python as this command. Starting a watch removes the doc from every other session's
-list, so a comment wakes the session that wrote the doc most recently. Lists are shared
-with the standalone openclaw_watch.py, so a waiter started by either serves both.
+list, so a comment wakes the session that wrote the doc most recently.
 
     lemonaid watch openclaw start <doc> --session-key agent:main:doc-filing-worker-v2:<run_id> --me <name>
     lemonaid watch openclaw stop <doc>

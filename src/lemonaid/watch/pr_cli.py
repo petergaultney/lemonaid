@@ -15,8 +15,7 @@ completion. With `--codex-thread`, queues the first event into that Codex thread
 exits. In both one-shot modes the woken turn handles the event and starts a fresh waiter
 with `--head <new sha>`, so a push between the event and the rearm is still reported.
 
-One waiter per (PR, --me) may run; a second exits at once, naming the first. Flags,
-state files and locks match the standalone watch-pr.py, so either can replace the other.
+One waiter per (PR, --me) may run; a second exits at once, naming the first.
 
     lemonaid watch pr --wait <number> [--repo owner/name] [--interval 60]
     lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once

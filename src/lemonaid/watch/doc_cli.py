@@ -28,8 +28,7 @@ Threads already reported, and with edits on the body as of the last reported edi
 remembered per (doc, --me) in `--state-dir`, so a restarted waiter does not re-report a
 thread nobody has touched since, and does report body edits made while no waiter ran. One
 waiter per (doc, --me), and one per watch list, may run; a second exits at once, naming
-the first. State files and locks match the standalone watch-doc.py, so either can replace
-the other without losing what has been reported; unlike it, edits are on by default.
+the first.
 
     lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--no-edits] [--once]
     lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"

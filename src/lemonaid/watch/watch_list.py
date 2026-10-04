@@ -22,7 +22,7 @@ from collections import abc
 
 
 def default_lists_dir() -> pathlib.Path:
-    """Shared with the standalone watch-doc; `LEMONAID_WATCH_LISTS_DIR` moves it for tests and the sandbox."""
+    """`LEMONAID_WATCH_LISTS_DIR` moves it for tests and the sandbox."""
     return pathlib.Path(
         os.environ.get("LEMONAID_WATCH_LISTS_DIR")
         or pathlib.Path.home() / ".local/state/watch-doc/lists"

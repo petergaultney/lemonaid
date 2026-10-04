@@ -49,7 +49,8 @@ def _run_once(stem, snaps, head=_HEAD, comments=True):
     return sent
 
 
-def test_state_files_are_named_like_the_standalone_waiters(tmp_path):
+def test_state_files_keep_their_names(tmp_path):
+    """Renaming them would make the next waiter for the same PR re-report what earlier ones did."""
     expected = hashlib.sha1(b"o/r#90\0Author (X)").hexdigest()[:16]
 
     assert pr_wait.state_stem(tmp_path, "o/r", 90, "Author (X)") == tmp_path / expected

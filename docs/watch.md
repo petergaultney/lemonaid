@@ -89,7 +89,8 @@ the event again; a list waiter retries on its next read.
 
 Only one waiter may run per document and `--me` name, and one per watch list. A second exits
 with status 3, naming the first. `--status` exits 0 when a waiter is running and 1 when none
-is.
+is. It takes only a brief shared lock, and a waiter starting at the same moment retries rather
+than refusing to start.
 
 ## State
 
@@ -154,24 +155,3 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 - What was last reported is kept per set of paths and `--me` in
   `$TMPDIR/lemonaid-watch-file/`, so a rearmed waiter reports anything that changed in
   between. The first waiter for a set of paths takes their current state as its baseline.
-
-## Compatibility with the standalone `watch-doc.py`
-
-`lemonaid watch doc` replaces the `watch-doc` skill's `watch-doc.py` and
-`openclaw_watch.py`, and `lemonaid watch pr` replaces the `watch-pr` skill's `watch-pr.py`.
-The flags are the same (`python3 watch-doc.py <args>` becomes `lemonaid watch doc <args>`,
-and `python3 watch-pr.py <args>` becomes `lemonaid watch pr <args>`), and so are the state
-files, lock files, watch-list files, event text and wake messages. One default differs:
-`lemonaid watch doc` reports body edits unless given `--no-edits`, after 20 seconds of quiet
-rather than 45. Old and new can therefore run side by side during migration:
-
-- A waiter started by either blocks a second one from the other for the same document or
-  PR and name, and `--status` from either reports it.
-- A thread or comment reported by one is not reported again by the other.
-- An OpenClaw watch list is served by whichever waiter holds it; `start` from either
-  launcher reuses a running waiter.
-
-There are two differences. `--status` checks the lock without taking it, so it never makes a waiter that is starting at the same moment refuse to start, and a starting waiter retries for a second if something else is holding the lock for a moment. And `lemonaid watch openclaw start` has no `--watch-doc` flag. The unit it starts runs the same lemonaid as the launcher (`python -m lemonaid watch doc`), so there is no separate script path to choose.
-
-Moving a caller over means changing the command it runs at its next rearm; no state needs to
-be migrated. Waiters already running under the old script keep working until they exit.

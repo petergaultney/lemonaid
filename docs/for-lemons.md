@@ -674,8 +674,7 @@ thread in `<doc>` is waiting on you, prints one line, and exits. Run it as a bac
 (Claude), or pass `--codex-thread "$CODEX_THREAD_ID"` to have the event queued into your
 Codex thread instead. `--status <doc> --me <name>` says whether a waiter is already running;
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
-`lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Flags and state match the
-standalone `watch-doc.py`, so the two can run side by side. Details: [watch.md](watch.md).
+`lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).
 
 Your own edits to the doc's body don't wake your own waiter, as long as they're recorded.
 Claude Code records `Edit` and `Write` calls itself when `lemonaid claude hooks --own-edits` is
@@ -698,8 +697,7 @@ Edits by anyone else, another lemon's included, still wake you. Details: [watch.
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
 comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).
 Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, and pass that
-signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. Rearm with `--head` set to the head you just handled. It replaces
-`watch-pr.py`, with the same flags and state.
+signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. Rearm with `--head` set to the head you just handled.
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.
