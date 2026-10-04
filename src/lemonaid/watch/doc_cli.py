@@ -31,7 +31,7 @@ waiter per (doc, --me), and one per watch list, may run; a second exits at once,
 the first.
 
     lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--no-edits] [--once]
-    lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread "$CODEX_THREAD_ID"
+    lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread
     lemonaid watch doc --watch-list <list.json> --me Pliny --openclaw-session <key> --idle-expire 604800
     lemonaid watch doc --status <doc> --me Pliny
     lemonaid watch doc --editing <doc>; <edit it>; lemonaid watch doc --mine <doc>
@@ -71,6 +71,11 @@ def run(a: argparse.Namespace) -> int:
 
     if not a.me:
         print("not started: --me is required")
+        return 2
+
+    a.codex_thread, problem = delivery.codex_thread(a.codex_thread)
+    if problem:
+        print(f"not started: {problem}")
         return 2
 
     if a.codex_thread and a.openclaw_session:
@@ -220,12 +225,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="seconds of no further change before a body edit is reported",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
-    ap.add_argument(
-        "--codex-thread",
-        default="",
-        metavar="THREAD_ID",
-        help="queue one event into this Codex thread and exit instead of printing events forever",
-    )
+    delivery.add_codex_thread_argument(ap)
     ap.add_argument(
         "--openclaw-session",
         default="",

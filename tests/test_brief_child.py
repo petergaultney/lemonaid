@@ -99,7 +99,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     assert f"`lemonaid tell {_PARENT}` and `lemonaid tell widget.QuickOdd`" in text
     assert f"--wait 12 --repo acme/widgets --head <head SHA> --me 'Reviewer ({wordybin})'" in text
     assert f"--wait {doc} --me 'Reviewer ({wordybin})'" in text
-    assert '"$CODEX_THREAD_ID"' in text
+    assert "a bare `--codex-thread` for Codex (no `$CODEX_THREAD_ID`" in text
 
 
 def test_a_template_value_without_its_flag_is_refused_before_writing(capsys, parent):

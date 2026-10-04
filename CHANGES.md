@@ -1,3 +1,9 @@
+# 0.68.0 (2026-10-03)
+
+#### Added
+
+- **A bare `--codex-thread` on `lemonaid watch doc|pr|file` queues into the lemon's own thread** (`$CODEX_THREAD_ID`). With the variable written into the command, Codex's `lemonaid watch` allow rule doesn't match and the automatic approval reviewer can refuse the waiter; the bare form matches. The watch skills and the review brief template now use it.
+
 # 0.67.0 (2026-10-03)
 
 #### Changed

@@ -19,7 +19,7 @@ One waiter per (PR, --me) may run; a second exits at once, naming the first.
 
     lemonaid watch pr --wait <number> [--repo owner/name] [--interval 60]
     lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
-    lemonaid watch pr --wait <number> --comments --me "Reviewer (SaltyEbb)" --head <sha> --codex-thread "$CODEX_THREAD_ID"
+    lemonaid watch pr --wait <number> --comments --me "Reviewer (SaltyEbb)" --head <sha> --codex-thread
     lemonaid watch pr --status <number> [--me "Author (MotorHoe)"]
 """
 
@@ -62,6 +62,11 @@ def _sha(value: str) -> str:
 
 
 def run(a: argparse.Namespace, repo: str) -> int:
+    a.codex_thread, problem = delivery.codex_thread(a.codex_thread)
+    if problem:
+        print(f"not started: {problem}")
+        return 2
+
     a.state_dir.mkdir(parents=True, exist_ok=True)
     pr = a.wait or a.status
     stem = pr_wait.state_stem(a.state_dir, repo, pr, a.me)
@@ -164,12 +169,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="another signature whose comments count as yours, e.g. an old one (repeatable)",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
-    ap.add_argument(
-        "--codex-thread",
-        default="",
-        metavar="THREAD_ID",
-        help="queue one event into this Codex thread and exit instead of printing events forever",
-    )
+    delivery.add_codex_thread_argument(ap)
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,

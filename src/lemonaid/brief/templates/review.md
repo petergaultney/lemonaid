@@ -16,7 +16,7 @@ Stay `waiting` for as long as the PR is open, whatever your verdict: on the auth
 
 ## Waiters
 
-Arm both once your review is written. Make each one-shot for your harness: add `--once` for Claude, or `--codex-thread "$$CODEX_THREAD_ID"` for Codex. Pass the PR head you reviewed as `--head`, and on every rearm the head you just handled, so a push or merge in between is still reported.
+Arm both once your review is written. Make each one-shot for your harness: add `--once` for Claude, or a bare `--codex-thread` for Codex (no `$$CODEX_THREAD_ID`: a shell variable keeps the command from matching Codex's allow rule). Pass the PR head you reviewed as `--head`, and on every rearm the head you just handled, so a push or merge in between is still reported.
 
 - `lemonaid watch pr --wait $pr_number --repo $pr_repo --head <head SHA> --me 'Reviewer ($wordybin)'`
 - `lemonaid watch doc --wait $review_doc_arg --me 'Reviewer ($wordybin)'`

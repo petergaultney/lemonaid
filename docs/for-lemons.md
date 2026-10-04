@@ -671,7 +671,7 @@ described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the
 
 `lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a Relay Comment
 thread in `<doc>` is waiting on you, prints one line, and exits. Run it as a background task
-(Claude), or pass `--codex-thread "$CODEX_THREAD_ID"` to have the event queued into your
+(Claude), or pass a bare `--codex-thread` to have the event queued into your
 Codex thread instead. `--status <doc> --me <name>` says whether a waiter is already running;
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
 `lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).

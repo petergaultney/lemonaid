@@ -120,6 +120,27 @@ def test_codex_thread_queues_the_event_and_exits(tmp_path, doc, fake_codex):
     )
 
 
+def test_bare_codex_thread_queues_into_codex_thread_id(tmp_path, doc, fake_codex, monkeypatch):
+    monkeypatch.setenv("CODEX_THREAD_ID", "t-own")
+
+    result = _run(tmp_path, "--wait", str(doc), "--me", "Codex", "--codex-thread")
+
+    assert result.returncode == 0
+    assert fake_codex.read_text().splitlines()[:3] == ["queue", "--thread", "t-own"]
+
+
+def test_bare_codex_thread_refuses_without_codex_thread_id(tmp_path, doc, fake_codex, monkeypatch):
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+
+    result = _run(tmp_path, "--wait", str(doc), "--me", "Codex", "--codex-thread")
+
+    assert result.returncode == 2
+    assert (
+        result.stdout
+        == "not started: --codex-thread without a THREAD_ID needs CODEX_THREAD_ID set\n"
+    )
+
+
 def test_a_failed_codex_queue_leaves_the_event_for_the_next_waiter(
     tmp_path, doc, fake_codex, monkeypatch
 ):

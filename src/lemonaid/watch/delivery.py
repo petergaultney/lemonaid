@@ -5,6 +5,7 @@ the event message and either delivers it or raises `Failed`; a waiter records an
 reported only after its delivery succeeds.
 """
 
+import argparse
 import hashlib
 import json
 import os
@@ -39,6 +40,30 @@ def codex_setup_problem() -> str:
     except OSError as e:
         return f"cannot write {probe.parent} ({e}), so `codex queue` would fail; run the waiter outside the sandbox"
     return ""
+
+
+def add_codex_thread_argument(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument(
+        "--codex-thread",
+        nargs="?",
+        const=None,
+        default="",
+        metavar="THREAD_ID",
+        help="queue one event into this Codex thread (bare: $CODEX_THREAD_ID) and exit instead of printing events forever",
+    )
+
+
+def codex_thread(arg: str | None) -> tuple[str, str]:
+    """(thread, problem) for `--codex-thread`: its value, or this process's own thread when given bare.
+
+    The bare form keeps `$CODEX_THREAD_ID` out of the command line: Codex matches its
+    allow rules only against commands without shell expansions.
+    """
+    if arg is not None:
+        return arg, ""
+
+    thread = os.environ.get("CODEX_THREAD_ID", "")
+    return thread, "" if thread else "--codex-thread without a THREAD_ID needs CODEX_THREAD_ID set"
 
 
 def to_codex(thread: str, kind: str, instruction: str) -> Deliver:

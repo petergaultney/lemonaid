@@ -7,7 +7,7 @@ every 15 seconds.
 
 ```bash
 lemonaid watch doc --wait <doc> --me "Author (MotorHoe)" --legacy Claude --once
-lemonaid watch doc --wait <doc> --me "Reviewer (SaltyEbb)" --legacy Codex --codex-thread "$CODEX_THREAD_ID"
+lemonaid watch doc --wait <doc> --me "Reviewer (SaltyEbb)" --legacy Codex --codex-thread
 lemonaid watch doc --status <doc> --me "Author (MotorHoe)"
 lemonaid watch openclaw start <doc> --session-key <openclaw session key> --me <name>
 lemonaid watch openclaw list
@@ -75,7 +75,10 @@ reports only threads that are new or changed since.
   harness stops it at its background time limit
   ([Claude setup](claude.md#2-keep-background-waiters-running)).
 - **Codex:** `--codex-thread <id>` queues the first event into that thread with `codex queue`
-  and exits. The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
+  and exits. A bare `--codex-thread` means the lemon's own thread (`$CODEX_THREAD_ID`).
+  Write it bare rather than `--codex-thread "$CODEX_THREAD_ID"`: Codex matches its allow
+  rules only against commands with no shell expansions in them, so the `$` form goes to the
+  approval reviewer instead ([Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer)). The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
   it refuses to start if it cannot.
 - **OpenClaw:** `lemonaid watch openclaw start <doc> --session-key <key> --me <name>` adds
   the doc to that session's watch list and starts one `systemd-run --user` unit per session
@@ -106,7 +109,7 @@ than refusing to start.
 
 ```bash
 lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "Author (MotorHoe)" --legacy Claude --once
-lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" --codex-thread "$CODEX_THREAD_ID"
+lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" --codex-thread
 lemonaid watch pr --status 90 --me "Author (MotorHoe)"
 ```
 
@@ -142,7 +145,7 @@ the same way the other watchers do.
 
 ```bash
 lemonaid watch file --wait notes.md --me "Author (MotorHoe)" --once
-lemonaid watch file --wait ~/some/inbox --wait other.md --me "Author (MotorHoe)" --codex-thread "$CODEX_THREAD_ID"
+lemonaid watch file --wait ~/some/inbox --wait other.md --me "Author (MotorHoe)" --codex-thread
 lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 ```
 

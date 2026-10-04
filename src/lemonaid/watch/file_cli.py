@@ -13,7 +13,7 @@ that changed in between.
 One waiter per (paths, --me) may run; a second exits at once, naming the first.
 
     lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once
-    lemonaid watch file --wait <dir> --me <name> --codex-thread "$CODEX_THREAD_ID"
+    lemonaid watch file --wait <dir> --me <name> --codex-thread
     lemonaid watch file --status <path> --me <name>
 """
 
@@ -34,6 +34,11 @@ def _wait(w: file_events.FileWatch, deliver: delivery.Deliver, once: bool, inter
 
 
 def run(a: argparse.Namespace) -> int:
+    a.codex_thread, problem = delivery.codex_thread(a.codex_thread)
+    if problem:
+        print(f"not started: {problem}")
+        return 2
+
     paths = a.wait or a.status
     a.state_dir.mkdir(parents=True, exist_ok=True)
     lock_path = file_events.state_stem(a.state_dir, paths, a.me).with_suffix(".lock")
@@ -114,12 +119,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="seconds of no further change before a change is reported",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
-    ap.add_argument(
-        "--codex-thread",
-        default="",
-        metavar="THREAD_ID",
-        help="queue one event into this Codex thread and exit instead of printing events forever",
-    )
+    delivery.add_codex_thread_argument(ap)
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,

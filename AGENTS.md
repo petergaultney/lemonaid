@@ -19,6 +19,10 @@ writes their real inbox. A lemon working on lemonaid must not change either.
   happened and what you'd do.
 - To show the maintainer a change working, give them `scripts/sandbox attach` or
   `scripts/sandbox lma` from the worktree. Making a branch live is their step.
+- **Your own coordination commands are not development use.** A lemon working on or
+  reviewing lemonaid still runs its own `lemonaid brief`, `tell`, `inbox` and `watch`
+  commands with the installed `lemonaid`, as its brief asks. They write the live state
+  on purpose, and `scripts/sandbox` would hide them from the other lemons.
 
 ## Before Committing
 
