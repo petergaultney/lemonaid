@@ -130,10 +130,14 @@ def test_a_stalled_reader_never_blocks_the_tick(arrangers):
     assert a.error == "no answer in 0.2s"
 
 
-def test_a_slow_reader_is_sent_the_newest_snapshot(arrangers):
-    a = arrangers(_python("import time\ntime.sleep(0.3)\n" + _COUNTER), budget=0.0, timeout=5.0)
+def test_a_slow_reader_is_sent_the_newest_snapshot(arrangers, tmp_path):
+    """While the writer is stuck on a full pipe, each newer snapshot replaces the waiting one."""
+    go = tmp_path / "go"
+    wait_for_go = f"import os, time\nwhile not os.path.exists({str(go)!r}): time.sleep(0.01)\n"
+    a = arrangers(_python(wait_for_go + _COUNTER), budget=0.0, timeout=5.0)
+    pad = "x" * 200_000  # more than the pipe holds, so the first write blocks until go
     for n in range(1, 6):
-        a.answer({"n": n}, 0.0)
+        a.answer({"n": n, "pad": pad}, 0.0)
+    go.touch()
 
-    assert _until(a, {"n": 5}, bool)["n"] in (1, 5)
-    assert _until(a, {"n": 5}, lambda r: r["n"] == 5)["seen"] <= 2
+    assert _until(a, {"n": 5, "pad": pad}, lambda r: bool(r) and r["n"] == 5)["seen"] <= 2
