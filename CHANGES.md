@@ -1,3 +1,9 @@
+# 0.71.2 (2026-10-05)
+
+#### Fixed
+
+- **Tmux handoff waits for the outgoing harness to exit normally.** The recorded pane is retained before the exit request, and the replacement starts in it only after the harness returns to its shell or the pane becomes dead. A timeout leaves a running harness alone; if it already exited, lemonaid resumes its original session.
+
 # 0.71.0 (2026-10-05)
 
 #### Added

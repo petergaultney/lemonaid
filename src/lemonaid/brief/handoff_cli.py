@@ -14,7 +14,15 @@ from ..inbox import db
 from ..inbox.channel import channel_id, full_channel_id
 from ..messages import to_brief
 from ..resume import build_resume_command
-from . import attached, handoff_coordinator, handoff_state, handoff_tmux, lemon, store
+from . import (
+    attached,
+    handoff_coordinator,
+    handoff_launch,
+    handoff_state,
+    handoff_tmux,
+    lemon,
+    store,
+)
 
 _DEADLINE_SECONDS = 600
 
@@ -95,6 +103,8 @@ def _cmd(args: argparse.Namespace) -> None:
                 )
                 conn.commit()
                 row = handoff_state.get(conn, row["token"])
+                handoff_launch.reserve_source(conn, row)
+                row = handoff_state.get(conn, row["token"])
                 if existing is None or existing["error"] or time.time() > existing["deadline"]:
                     to_brief.send(
                         path,
@@ -102,7 +112,8 @@ def _cmd(args: argparse.Namespace) -> None:
                         "when the brief is already current. Stop your waiters. Put "
                         f"Handoff-Ready: {row['token']} on its own final line in the brief. "
                         "You may instead print that exact line in your final reply after editing "
-                        "## Handoff. The old session stays active until cutover.",
+                        "## Handoff. Once ready, exit your harness normally so its shell returns; "
+                        "lemonaid will start the replacement in this pane. Do not stop the pane or shell.",
                     )
                 token = row["token"]
             else:

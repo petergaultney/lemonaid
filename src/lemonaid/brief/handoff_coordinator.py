@@ -70,7 +70,16 @@ def recover_source(conn, row, reason: str) -> str:
         if resumed and row["remain_on_exit"]:
             handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"])
     elif (
-        row["phase"] == "prepared"
+        row["phase"] in ("requested", "prepared")
+        and row["source_pid"]
+        and handoff_tmux.resume_exited_source(conn, row)
+    ):
+        error = f"handoff {reason}; outgoing session resumed in its original pane"
+        if row["remain_on_exit"]:
+            handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"])
+    elif (
+        row["phase"] in ("requested", "prepared")
+        and row["source_pid"]
         and (state := handoff_tmux.pane_process(row["source_pane_id"], row["source_window_id"]))
         and state[0] != row["source_pid"]
     ):
@@ -86,7 +95,11 @@ def recover_source(conn, row, reason: str) -> str:
         )
     else:
         error = f"handoff {reason}; outgoing session remains active"
-    if row["phase"] == "prepared" and row["remain_on_exit"] and not row["target_pid"]:
+    if (
+        row["phase"] in ("requested", "prepared")
+        and row["remain_on_exit"]
+        and not row["target_pid"]
+    ):
         state = handoff_tmux.pane_process(row["source_pane_id"], row["source_window_id"])
         if state and state[0] == row["source_pid"]:
             handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"])
@@ -138,6 +151,10 @@ def _advance(conn, token: str) -> dict:
         row["source_pane_id"]
         and row["phase"] == "requested"
         and not handoff_tmux.has_pane(row["source_pane_id"], row["source_window_id"])
+        and not (
+            (state := handoff_tmux.pane_process(row["source_pane_id"], row["source_window_id"]))
+            and state[1]
+        )
     ):
         return {**handoff_report.build(row), "missing": ["outgoing pane changed; cutover stopped"]}
 
@@ -155,12 +172,22 @@ def _advance(conn, token: str) -> dict:
                 **handoff_report.build(handoff_state.get(conn, token)),
                 "missing": ["start the target command, then accept from that harness"],
             }
-        handoff_launch.run(conn, row)
+        launched = handoff_launch.run(conn, row)
         row = handoff_state.get(conn, token)
+        if not launched:
+            return {
+                **handoff_report.build(row),
+                "missing": ["waiting for the outgoing harness to exit to its shell"],
+            }
 
     if row["phase"] == "prepared":
-        handoff_launch.run(conn, row)
+        launched = handoff_launch.run(conn, row)
         row = handoff_state.get(conn, token)
+        if not launched:
+            return {
+                **handoff_report.build(row),
+                "missing": ["waiting for the outgoing harness to exit to its shell"],
+            }
 
     if row["phase"] == "launched":
         if row["source_pane_id"]:

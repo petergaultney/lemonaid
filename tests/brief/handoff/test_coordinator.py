@@ -21,7 +21,7 @@ from lemonaid.inbox import db
 from .shared import requested
 
 
-def test_launch_replaces_source_process_in_same_pane(setup, monkeypatch):
+def test_launch_waits_for_source_to_return_to_shell(setup, monkeypatch):
     conn, path = setup
     row = requested(conn, path)
     config = Config(
@@ -34,15 +34,105 @@ def test_launch_replaces_source_process_in_same_pane(setup, monkeypatch):
     monkeypatch.setattr(handoff_tmux, "current_command", lambda _pane: "claude")
     monkeypatch.setattr(handoff_tmux, "remain_on_exit", lambda _pane: "off")
     monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", lambda *_: True)
-    state = Mock(side_effect=[("300", False), ("300", False), ("400", False), ("400", False)])
-    monkeypatch.setattr(handoff_tmux, "pane_process", state)
+    state = ["running"]
+    monkeypatch.setattr(
+        handoff_tmux,
+        "pane_process",
+        lambda *_: ("400", False) if state[0] == "launched" else ("300", False),
+    )
+    monkeypatch.setattr(handoff_tmux, "returned_to_shell", lambda *_: state[0] == "shell")
     respawn = Mock(return_value="")
     monkeypatch.setattr(handoff_tmux, "respawn", respawn)
+    report = handoff_coordinator.advance(conn, row["token"])
+    assert report["phase"] == "prepared"
+    assert "waiting for the outgoing" in report["missing"][0]
+    respawn.assert_not_called()
+    state[0] = "shell"
+    respawn.side_effect = lambda *_args, **_kwargs: state.__setitem__(0, "launched") or ""
     report = handoff_coordinator.advance(conn, row["token"])
     assert report["phase"] == "launched"
     assert report["old_pane"] == report["new_pane"] == "%2"
     assert respawn.call_args.args[0] == "%2"
+    assert respawn.call_args.kwargs["kill"]
     assert handoff_state.get(conn, row["token"])["target_pid"] == "400"
+
+
+def test_dead_source_pane_launches_without_kill(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    config = Config(
+        tmux_session=TmuxSessionConfig(
+            templates={"codex": ["", "codex --no-daemon"]}, resume_window=1
+        )
+    )
+    monkeypatch.setattr(handoff_launch, "load_config", lambda: config)
+    monkeypatch.setattr(handoff_tmux, "has_pane", lambda *_: False)
+    monkeypatch.setattr(handoff_tmux, "remain_on_exit", lambda _pane: "on")
+    monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", lambda *_: True)
+    state = ["dead"]
+    monkeypatch.setattr(
+        handoff_tmux,
+        "pane_process",
+        lambda *_: ("300", True) if state[0] == "dead" else ("400", False),
+    )
+    respawn = Mock(side_effect=lambda *_args, **_kwargs: state.__setitem__(0, "new") or "")
+    monkeypatch.setattr(handoff_tmux, "respawn", respawn)
+    report = handoff_coordinator.advance(conn, row["token"])
+    assert report["phase"] == "launched"
+    assert respawn.call_args.kwargs["kill"] is False
+
+
+def test_reservation_precedes_exit_request_and_keeps_original_setting(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    monkeypatch.setattr(handoff_tmux, "pane_process", lambda *_: ("300", False))
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: "claude")
+    monkeypatch.setattr(handoff_tmux, "remain_on_exit", lambda *_: "off")
+    set_option = Mock(return_value=True)
+    monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", set_option)
+    handoff_launch.reserve_source(conn, row)
+    reserved = handoff_state.get(conn, row["token"])
+    assert reserved["source_pid"] == "300"
+    assert reserved["remain_on_exit"] == "off"
+    set_option.assert_called_once_with("%2", "on")
+
+
+def test_waiting_exit_timeout_never_respawns_live_harness(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    conn.execute(
+        "UPDATE brief_handoffs SET phase = 'prepared', source_pid = '300', "
+        "remain_on_exit = 'off', deadline = ? WHERE token = ?",
+        (time.time() - 1, row["token"]),
+    )
+    conn.commit()
+    monkeypatch.setattr(handoff_tmux, "pane_process", lambda *_: ("300", False))
+    monkeypatch.setattr(handoff_tmux, "returned_to_shell", lambda *_: False)
+    monkeypatch.setattr(handoff_tmux, "prompt_source_to_rearm", lambda *_: True)
+    monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", lambda *_: True)
+    respawn = Mock(side_effect=AssertionError("would kill live harness"))
+    monkeypatch.setattr(handoff_tmux, "respawn", respawn)
+    report = handoff_coordinator.advance(conn, row["token"])
+    assert report["phase"] == "failed"
+    respawn.assert_not_called()
+
+
+def test_prepared_timeout_resumes_only_exited_source(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    conn.execute(
+        "UPDATE brief_handoffs SET phase = 'prepared', source_pid = '300', "
+        "remain_on_exit = 'off', deadline = ? WHERE token = ?",
+        (time.time() - 1, row["token"]),
+    )
+    conn.commit()
+    monkeypatch.setattr(handoff_tmux, "pane_process", lambda *_: ("300", True))
+    resumed = Mock(return_value=True)
+    monkeypatch.setattr(handoff_tmux, "resume_source", resumed)
+    monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", lambda *_: True)
+    report = handoff_coordinator.advance(conn, row["token"])
+    assert "resumed" in report["missing"][0]
+    resumed.assert_called_once()
 
 
 def test_target_exit_resumes_source_in_same_pane(setup, monkeypatch):

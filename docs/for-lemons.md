@@ -440,16 +440,18 @@ inbox row. It sends the outgoing lemon a request with a random token.
 The outgoing lemon writes a fresh `## Handoff` section with at most five bullets,
 using its current brief without rereading files when that brief is already current.
 It stops its waiters and ends that section with `Handoff-Ready: TOKEN` on its
-own line. If the outgoing
+own line, then exits the harness normally so its shell returns. If the outgoing
 harness is Claude, the same standalone line in its completed final reply also
 counts. Lemonaid checks the file is stable and passes `brief check` in either
 case. With a live tmux pane, it first checks that the outgoing session has a
-usable resume command. It then replaces the outgoing process in that exact
-pane with the configured target harness. The pane and window IDs do not change.
+usable resume command. It waits for the outgoing harness to exit and the
+recorded pane to return to its shell (or become dead), then starts the configured
+target harness in that pane. The pane and window IDs do not change.
 The new lemon reads the brief, rearms the waiters, and runs
-`brief handoff accept TOKEN`. This tmux replacement ends the old process
-immediately after the handoff passes readiness; its session can be resumed by
-the original session ID if needed.
+`brief handoff accept TOKEN`. If the outgoing harness does not exit before the
+ten-minute deadline, the handoff fails without stopping it. Lemonaid does not
+send a harness-specific quit command; the outgoing lemon must exit after readiness.
+Its session can be resumed by the original session ID if needed.
 
 If the outgoing session has no live tmux pane, status instead prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start

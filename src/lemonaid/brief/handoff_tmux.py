@@ -66,6 +66,31 @@ def pane_process(pane_id: str, window_id: str) -> tuple[str, bool] | None:
     return fields[2], fields[3] == "1"
 
 
+def returned_to_shell(pane_id: str, pid: str, source_command: str) -> bool:
+    """Whether tmux reports the pane's starting shell as its current command."""
+    current = current_command(pane_id)
+    if not current or current == source_command:
+        return False
+    start = _tmux("display-message", "-p", "-t", pane_id, "#{pane_start_command}")
+    try:
+        words = shlex.split(start)
+    except ValueError:
+        return False
+    if words:
+        shell = Path(words[0]).name.lstrip("-")
+        if shell == current or (shell == "sh" and current in ("bash", "dash", "ash")):
+            return True
+    # An interactive xonsh pane has no start command and runs inside Python.
+    result = subprocess.run(["ps", "-p", pid, "-o", "command="], capture_output=True, text=True)
+    if result.returncode != 0:
+        return False
+    try:
+        process = shlex.split(result.stdout)[0]
+    except (ValueError, IndexError):
+        return False
+    return Path(process).resolve().name == current
+
+
 def remain_on_exit(pane_id: str) -> str:
     return _tmux("show-options", "-p", "-v", "-A", "-t", pane_id, "remain-on-exit")
 
@@ -80,10 +105,12 @@ def set_remain_on_exit(pane_id: str, value: str) -> bool:
     )
 
 
-def respawn(pane_id: str, directory: Path, line: str, environment: dict[str, str]) -> str:
+def respawn(
+    pane_id: str, directory: Path, line: str, environment: dict[str, str], *, kill: bool = True
+) -> str:
     """Replace the process in a pane with a command run by tmux's default shell."""
     shell = _tmux("show-options", "-gv", "default-shell") or "/bin/sh"
-    args = ["tmux", "respawn-pane", "-k", "-t", pane_id, "-c", str(directory)]
+    args = ["tmux", "respawn-pane", *(["-k"] if kill else []), "-t", pane_id, "-c", str(directory)]
     for name, value in environment.items():
         args.extend(("-e", f"{name}={value}"))
     result = subprocess.run([*args, shell, "-c", line], capture_output=True, text=True)
@@ -112,6 +139,18 @@ def resume_source(conn, row) -> bool:
     )
     line, environment = command.harness_line(line, Path(cwd), prompt)
     return not respawn(row["source_pane_id"], Path(cwd), line, environment)
+
+
+def resume_exited_source(conn, row) -> bool:
+    """Restore an outgoing harness that exited before the target was launched."""
+    state = pane_process(row["source_pane_id"], row["source_window_id"])
+    if state is None or state[0] != row["source_pid"]:
+        return False
+    if not state[1] and not returned_to_shell(
+        row["source_pane_id"], state[0], row["source_command"]
+    ):
+        return False
+    return resume_source(conn, {**dict(row), "target_pid": row["source_pid"]})
 
 
 def _prompt_source_to_rearm(row, reason: str, submit_key: str) -> bool:

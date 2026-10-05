@@ -1,7 +1,12 @@
 """Pane identity and rollback checks for sequential tmux handoff."""
 
+import shutil
 import subprocess
+import time
+import uuid
 from unittest.mock import Mock
+
+import pytest
 
 from lemonaid.brief import handoff_tmux
 
@@ -20,6 +25,58 @@ def test_pane_for_tty_ignores_sidebar_in_same_window(monkeypatch):
 def test_pane_process_rejects_different_window(monkeypatch):
     monkeypatch.setattr(handoff_tmux, "_tmux", lambda *_: "%2\t@other\t400\t0")
     assert handoff_tmux.pane_process("%2", "@2") is None
+
+
+def test_returned_to_shell_checks_pane_start_command(monkeypatch):
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: "zsh")
+    monkeypatch.setattr(handoff_tmux, "_tmux", lambda *_: "/bin/zsh")
+    assert handoff_tmux.returned_to_shell("%2", "300", "claude")
+    assert not handoff_tmux.returned_to_shell("%2", "300", "zsh")
+
+
+def test_returned_to_shell_recognizes_xonsh_python_wrapper(monkeypatch):
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: "python3.14")
+    monkeypatch.setattr(handoff_tmux, "_tmux", lambda *_: "")
+    monkeypatch.setattr(
+        handoff_tmux.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 0, "/bin/python3.14 -m xonsh\n", ""
+        ),
+    )
+    assert handoff_tmux.returned_to_shell("%2", "300", "codex")
+
+
+def test_dummy_harness_exits_to_original_shell_on_isolated_tmux(monkeypatch):
+    if not shutil.which("tmux"):
+        pytest.skip("tmux not installed")
+    name = f"lemonaid-handoff-{uuid.uuid4().hex[:8]}"
+
+    def tmux(*args):
+        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+
+    tmux("-f", "/dev/null", "new-session", "-d", "-s", "work", "/bin/sh").check_returncode()
+    try:
+        socket = tmux("display-message", "-p", "-t", "work", "#{socket_path}").stdout.strip()
+        monkeypatch.setenv("TMUX", f"{socket},0,0")
+        pane_id = tmux("display-message", "-p", "-t", "work", "#{pane_id}").stdout.strip()
+        window_id = tmux("display-message", "-p", "-t", "work", "#{window_id}").stdout.strip()
+        pid, dead = handoff_tmux.pane_process(pane_id, window_id)
+        assert not dead
+        tmux("send-keys", "-t", pane_id, "sleep 2", "Enter").check_returncode()
+        for _ in range(30):
+            if handoff_tmux.current_command(pane_id) == "sleep":
+                break
+            time.sleep(0.05)
+        assert handoff_tmux.current_command(pane_id) == "sleep"
+        assert not handoff_tmux.returned_to_shell(pane_id, pid, "sleep")
+        for _ in range(60):
+            if handoff_tmux.returned_to_shell(pane_id, pid, "sleep"):
+                break
+            time.sleep(0.05)
+        assert handoff_tmux.returned_to_shell(pane_id, pid, "sleep")
+    finally:
+        tmux("kill-server")
 
 
 def test_respawn_targets_exact_pane_with_environment(tmp_path, monkeypatch):
