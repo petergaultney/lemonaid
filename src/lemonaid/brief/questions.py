@@ -77,7 +77,7 @@ def _lead(text: str) -> str:
 
 
 def _explains(label: str, bullet: str) -> bool:
-    plain_label, plain_bullet = _plain(label), _plain(bullet)
+    plain_label, plain_bullet = _plain(label), _plain(bullet.splitlines()[0])
     return bool(plain_label) and (
         plain_bullet == plain_label or plain_bullet.startswith(f"{plain_label}:")
     )
@@ -110,6 +110,14 @@ def items(needs: str, explained: abc.Mapping[str, str]) -> tuple[Item, ...]:
         for text in _bullets(needs)
     )
     return found if any(item.label for item in found) else ()
+
+
+def unmatched(needs: str, explained: abc.Mapping[str, str]) -> tuple[str, ...]:
+    """Question headings with no corresponding Needs bullet, in document order."""
+    bullets = tuple(_bullets(needs))
+    return tuple(
+        label for label in explained if not any(_explains(label, bullet) for bullet in bullets)
+    )
 
 
 def labels(needs: str, without: str = "") -> list[str]:

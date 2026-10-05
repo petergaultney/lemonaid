@@ -101,6 +101,8 @@ label. A bullet's label is its text up to its first colon, or the whole bullet, 
 bold and case, so `- **retry policy:** which one?` is explained by `### retry policy`.
 Both views show each entry under its bullet, and mark the first question selected with `▶`.
 Bullets with no entry, and briefs with no `## Questions`, show as before.
+An entry whose heading matches no Needs bullet appears as a warning in the brief view;
+`brief check` reports the same mismatch.
 
 | Key | Action |
 |-----|--------|

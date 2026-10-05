@@ -1,3 +1,9 @@
+# 0.70.1 (2026-10-05)
+
+#### Fixed
+
+- **`brief show` displays matched Questions entries by default and flags unmatched headings.** Use `--no-questions` for compact text output; `brief check` also reports headings with no matching Needs bullet. Existing mismatches do not block unrelated brief edits.
+
 # 0.70.0 (2026-10-05)
 
 #### Added

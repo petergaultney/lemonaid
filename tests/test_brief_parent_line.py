@@ -39,7 +39,7 @@ def _child_brief() -> str:
     )
 
 
-_NOW = "## Now\n\n### Next\n\n- write the docs\n\n"
+_NOW = "## Now\n\n### Needs Peter\n\n- merge #12\n\n### Next\n\n- write the docs\n\n"
 _QUESTIONS = "## Questions\n\n### merge #12\n\n- **Context:** x\n\n"
 
 _BRIEFS = {
@@ -80,7 +80,11 @@ def test_every_verb_keeps_the_parent_line(brief, verb):
 
     assert out.count(_PARENT) == 1
     assert ("Area: lemonaid" in out) == ("Area: lemonaid" in _BRIEFS[brief])
-    assert check.structure(out) == []
+    assert check.structure(out) == (
+        ["`### merge #12` in ## Questions has no matching bullet under ### Needs Peter"]
+        if brief == "rules template" and verb == "now"
+        else []
+    )
 
 
 def test_a_new_now_goes_below_the_header_lines():

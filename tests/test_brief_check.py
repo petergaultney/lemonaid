@@ -147,6 +147,31 @@ def test_check_reports_by_lemon_and_by_file(capsys):
     assert "Status 'busy'" in by_lemon["problems"][0]
 
 
+def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
+    text = _BRIEF.replace("## Goal", "## Questions\n\n### old decision\n\n- Context\n\n## Goal")
+    path = _attached(text)
+
+    assert _run(capsys, "status", "--channel", "codex:t1", "waiting")["error"] is None
+    assert _run(capsys, "bullet", "add", "--channel", "codex:t1", "Next", "review")["error"] is None
+    assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")["error"] is None
+    assert "Status: waiting" in path.read_text()
+    assert check.structure(path.read_text()) == [
+        "`### old decision` in ## Questions has no matching bullet under ### Needs Peter"
+    ]
+
+
+def test_edit_refuses_a_new_unmatched_question(capsys):
+    text = _BRIEF.replace("### Next", "### Needs Peter\n\n- merge #12\n\n### Next", 1).replace(
+        "## Goal", "## Questions\n\n### merge #12\n\n- Context\n\n## Goal"
+    )
+    path = _attached(text)
+
+    refused = _run(capsys, "bullet", "rm", "--channel", "codex:t1", "merge #12")
+
+    assert "`### merge #12` in ## Questions has no matching bullet" in refused["error"]
+    assert path.read_text() == text
+
+
 def test_the_verbs_edit_the_attached_brief(capsys):
     path = _attached()
 

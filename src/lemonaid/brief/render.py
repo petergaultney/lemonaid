@@ -81,6 +81,7 @@ class Section:
     needs_label: str = "Needs"
     needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
     questions: tuple["questions.Item", ...] = ()  # Needs as items, when an entry explains one
+    unmatched_questions: tuple[str, ...] = ()
     project: str = ""  # `ds-monorepo: apps/unified-asset`, or "" without a lemon or Area line
     held: str = ""  # the brief's own state, while its lemon is mid-turn and shows `state` instead
     # The rest are filled in by `family.added`.
@@ -110,6 +111,7 @@ def _section(
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
+    explained = questions.entries(parts.questions)
     title = _display_title(parts.title) or brief.name or "Work status"
     body = "\n\n".join(
         part
@@ -141,7 +143,8 @@ def _section(
         tail,
         parsed.needs_label,
         parsed.needs,
-        questions.items(parsed.needs, questions.entries(parts.questions)),
+        questions.items(parsed.needs, explained),
+        questions.unmatched(parsed.needs, explained),
         project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
     )
 
@@ -156,18 +159,25 @@ def needs(section: Section, expanded: bool, selected: str = "") -> str:
 
     *selected* is the label of the question to mark, or "" for none.
     """
+    warning = "\n".join(
+        f"**Unmatched Questions:** `### {label}` has no matching Needs bullet."
+        for label in section.unmatched_questions
+    )
     if not section.needs_text:
-        return ""
+        return warning
 
     if not (expanded and section.questions):
-        return _needs(section.needs_label, section.needs_text)
+        return "\n\n".join(
+            part for part in (_needs(section.needs_label, section.needs_text), warning) if part
+        )
 
-    return _needs(
+    matched = _needs(
         section.needs_label,
         "\n".join(
             _item(item, bool(selected) and item.label == selected) for item in section.questions
         ).strip(),
     )
+    return "\n\n".join(part for part in (matched, warning) if part)
 
 
 def _window_order(lemon: target.Identity | None) -> tuple[int, str]:

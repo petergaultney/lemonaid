@@ -2,9 +2,10 @@
 
 The edits go through lemonaid rather than the file so a sandboxed lemon (Codex
 writes only inside its workspace) can keep its own brief current. Each one is
-checked: an edit whose result `brief check` fails is refused, whether or not
-the brief failed before it, and the error lists the problems. A brief that has
-already lost its `Parent:` line can still be edited, but no edit may drop one.
+checked: an edit whose result `brief check` fails is refused, except for
+Questions headings already unmatched before the edit. The error lists the
+problems. A brief that has already lost its `Parent:` line can still be edited,
+but no edit may drop one.
 """
 
 import argparse
@@ -18,12 +19,16 @@ from . import check, command, layout, links, now_edit, pr, pr_table, store, wait
 
 
 def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
-    """An error, or "" once *change* is written; a result `brief check` fails is not."""
+    """An error, or "" once *change* is written."""
 
     def checked(before: str) -> str:
         after = change(before)
+        existing_questions = set(check.question_problems(before))
         with db.connect() as conn:
-            problems = [*check.structure(after), *check.recorded(conn, path, after)]
+            problems = [
+                *(p for p in check.structure(after) if p not in existing_questions),
+                *check.recorded(conn, path, after),
+            ]
         if check.has_parent_line(before) and not check.has_parent_line(after):
             problems.append("the edit drops the `Parent:` line")
         if problems:

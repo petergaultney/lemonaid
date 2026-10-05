@@ -218,8 +218,16 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.add_argument(
         "--questions",
+        dest="questions",
         action="store_true",
-        help="Show each question's entry from ## Questions under the Needs bullet it explains",
+        default=True,
+        help="Show Questions entries under their Needs bullets (the default)",
+    )
+    show_parser.add_argument(
+        "--no-questions",
+        dest="questions",
+        action="store_false",
+        help="Hide matched Questions entries for a compact text view",
     )
     mode = show_parser.add_mutually_exclusive_group()
     mode.add_argument(

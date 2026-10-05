@@ -13,6 +13,10 @@ Lemon-ID: task.QuickOdd
 
 ## Now
 
+### Needs Peter
+
+- merge #12
+
 ### Waiting on
 
 - #12 review: reviewer reading it
@@ -47,7 +51,9 @@ def _now(text: str) -> str:
 
 
 def test_a_new_heading_goes_in_its_place_with_blank_lines_around_it():
-    out = now_edit.add(_BRIEF, "Needs Peter", "merge #12")
+    out = now_edit.add(
+        _BRIEF.replace("### Needs Peter\n\n- merge #12\n\n", ""), "Needs Peter", "merge #12"
+    )
 
     assert _now(out).startswith("\n### Needs Peter\n\n- merge #12\n\n### Waiting on\n")
     assert check.structure(out) == []

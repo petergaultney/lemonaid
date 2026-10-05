@@ -265,7 +265,11 @@ class BriefView(VerticalScroll):
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
                 *([_Markdown(f"**Parent:** `{section.parent}`")] if section.parent else []),
-                *([self._needs_widget(section)] if section.needs_text else []),
+                *(
+                    [self._needs_widget(section)]
+                    if section.needs_text or section.unmatched_questions
+                    else []
+                ),
                 *([_Markdown(links.linkify(section.body, self._vaults))] if section.body else []),
                 *(
                     [Static(brief_card.children(section), classes="brief-children")]

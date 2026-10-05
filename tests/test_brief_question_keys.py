@@ -99,6 +99,21 @@ def test_the_first_question_starts_selected_and_the_keys_move_and_ask():
     ]
 
 
+def test_popup_flags_an_unmatched_question_without_needs():
+    path, _ = _attached_brief(
+        "# Ship it\n\nStatus: working\n\n## Questions\n\n### Lost decision\n\n- Context\n"
+    )
+
+    async def run() -> None:
+        app = _popup(path)
+        async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.pause()
+            assert "**Unmatched Questions:** `### Lost decision`" in _needs(app)
+            assert app.query_one(BriefView)._needs
+
+    asyncio.run(run())
+
+
 def test_escape_in_the_answer_box_sends_nothing_and_keeps_the_popup():
     path, inbox = _attached_brief()
 

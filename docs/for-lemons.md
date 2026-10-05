@@ -634,7 +634,7 @@ lemonaid brief show --file <path>    # a brief file, without asking tmux
 lemonaid brief show --dir <path>     # a directory's .z/, without asking tmux
 lemonaid brief show --dir <path> --place <dir>  # also .z/ above <path>, up to <dir>
 lemonaid brief show <session> --popup  # in a tmux popup over your own client
-lemonaid brief show --questions      # also each ## Questions entry under the Needs bullet it explains
+lemonaid brief show --no-questions   # hide matched Questions entries for a compact text view
 ```
 
 Output for a recorded session starts with its identity and the brief's `Status:` line, then its `Needs` part as a
@@ -645,7 +645,12 @@ opens the same popup for the selected session.
 
 A `## Questions` entry is a `###` heading named with the label of the `Needs` bullet it
 explains: the bullet's text up to its first colon, or the whole bullet, ignoring bold and case.
-`brief show` leaves the section out unless given `--questions`. When the person answers from the
+`brief show` displays matched entries under their Needs bullets by default; `--questions` remains
+accepted, and `--no-questions` hides matched entries in text output. A Questions heading with no
+matching Needs bullet is flagged in both text and popup views, and `brief check` reports it.
+An existing mismatch does not prevent an unrelated `brief status`, `bullet`, `pr`, or `waiter`
+edit; an edit that creates a new mismatch is refused.
+When the person answers from the
 brief view, or asks for more detail, the lemon gets a message in its inbox:
 `Answer to <label>: <text>`, or `More detail needed on <label>: rewrite that entry in
 ## Questions`, from the person's `$USER`. While your Status is `blocked`, `alert`, `merge` or

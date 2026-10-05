@@ -6,7 +6,7 @@ from collections import abc
 from pathlib import Path
 
 from ..lineage import links
-from . import identity, layout, now_edit, pr_table, store
+from . import identity, layout, now, now_edit, pr_table, questions, status, store
 
 _HEADING = re.compile(r"(?P<level>#{1,2})\s+(?P<text>.*?)\s*#*\s*")
 _FENCE = re.compile(r"(```|~~~)")
@@ -83,6 +83,16 @@ def _now(now: layout.Now) -> list[str]:
     return problems
 
 
+def question_problems(text: str) -> list[str]:
+    parts = status.split(text)
+    return [
+        f"`### {label}` in ## Questions has no matching bullet under ### Needs Peter"
+        for label in questions.unmatched(
+            now.parse(parts.now).needs, questions.entries(parts.questions)
+        )
+    ]
+
+
 def structure(text: str) -> list[str]:
     """Everything wrong with *text* as a brief that the text alone can show."""
     lines = text.splitlines()
@@ -104,6 +114,9 @@ def structure(text: str) -> list[str]:
 
     if "now" in lowered:
         problems.extend([*_now(now_edit.now_of(text)), *_spacing(lines)])
+
+    if "questions" in lowered:
+        problems.extend(question_problems(text))
 
     if "waiters" in lowered and lowered[-1] != "waiters":
         problems.append("`## Waiters` is not the last section")

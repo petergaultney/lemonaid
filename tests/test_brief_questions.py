@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from lemonaid.brief import cli, now, questions, status
+from lemonaid.brief import check, cli, now, questions, status
 
 _BRIEF = """\
 # Ship it
@@ -73,6 +73,16 @@ def test_needs_written_as_a_paragraph_is_one_item():
     )
 
 
+def test_a_heading_matches_the_first_line_of_a_multiline_needs_bullet():
+    needs = "- merge #12\n  - CI is green"
+    explained = {"merge #12": "- **Context:** merge is ready."}
+
+    assert questions.items(needs, explained) == (
+        questions.Item("merge #12\n  - CI is green", "merge #12", explained["merge #12"]),
+    )
+    assert questions.unmatched(needs, explained) == ()
+
+
 def test_questions_stay_out_of_the_rest_of_the_brief():
     parts = status.split(_BRIEF)
 
@@ -90,16 +100,53 @@ def _show(path: Path, capsys, *flags: str) -> str:
     return capsys.readouterr().out
 
 
-def test_show_prints_entries_only_when_asked(tmp_path, capsys):
+def test_show_prints_questions_by_default_and_warns_about_unmatched_entries(tmp_path, capsys):
     brief = tmp_path / "ship.md"
     brief.write_text(_BRIEF)
 
     plain = _show(brief, capsys)
-    expanded = _show(brief, capsys, "--questions")
+    explicit = _show(brief, capsys, "--questions")
+    compact = _show(brief, capsys, "--no-questions")
 
-    assert "Context" not in plain and "Mark #5836 ready" in plain
-    assert "> - Mark #5836 ready\n>\n>   - **Context:** CI is green." in expanded
-    assert "▶" not in expanded and "a question no bullet asks" not in expanded
+    assert plain == explicit
+    assert "> - Mark #5836 ready\n>\n>   - **Context:** CI is green." in plain
+    assert "▶" not in plain
+    assert "**Unmatched Questions:** `### a question no bullet asks`" in plain
+    assert "Context" not in compact and "Mark #5836 ready" in compact
+    assert "**Unmatched Questions:** `### a question no bullet asks`" in compact
+
+
+def test_unmatched_questions_show_even_without_needs(tmp_path, capsys):
+    brief = tmp_path / "orphan.md"
+    brief.write_text(
+        "# Orphan\n\nStatus: working\n\n## Questions\n\n### Who owns it\n\n- Context\n"
+    )
+
+    assert "**Unmatched Questions:** `### Who owns it`" in _show(brief, capsys)
+
+
+def test_check_names_unmatched_questions_but_accepts_matched_ones():
+    matched = _BRIEF.replace("### a question no bullet asks\n\n- **Context:** stale.\n\n", "")
+
+    assert check.structure(matched) == []
+    assert check.structure(_BRIEF) == [
+        "`### a question no bullet asks` in ## Questions has no matching bullet "
+        "under ### Needs Peter"
+    ]
+
+
+def test_multiline_needs_bullet_expands_without_a_warning(tmp_path, capsys):
+    brief = tmp_path / "multiline.md"
+    brief.write_text(
+        "# Merge\n\nStatus: blocked\n\n## Now\n\n### Needs Peter\n\n"
+        "- merge #12\n  - CI is green\n\n## Questions\n\n"
+        "### merge #12\n\n- **Context:** merge is ready.\n"
+    )
+
+    shown = _show(brief, capsys)
+    assert "> - merge #12\n>   - CI is green\n>\n>   - **Context:** merge is ready." in shown
+    assert "Unmatched Questions" not in shown
+    assert check.structure(brief.read_text()) == []
 
 
 def test_a_brief_without_questions_shows_as_it_did(tmp_path, capsys):
@@ -109,4 +156,5 @@ def test_a_brief_without_questions_shows_as_it_did(tmp_path, capsys):
     )
 
     assert _show(brief, capsys, "--questions") == _show(brief, capsys)
+    assert _show(brief, capsys, "--no-questions") == _show(brief, capsys)
     assert "> **Needs Peter:** pick one" in _show(brief, capsys)
