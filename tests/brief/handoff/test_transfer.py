@@ -2,6 +2,8 @@
 
 import time
 
+import pytest
+
 from lemonaid.brief import attached, handoff_state, handoff_transfer
 from lemonaid.inbox import db, pins
 
@@ -137,13 +139,22 @@ def test_removed_and_expired_snoozes_are_not_transferred(setup):
     assert db.get_by_channel(conn, "codex:new", unread_only=False).status != "snoozed"
 
 
-def test_transfer_carries_backend_title_until_target_has_one(setup):
+@pytest.mark.parametrize(
+    ("source_title", "target_placeholder"),
+    [
+        ("Protostellar sandboxing architecture", "sandboxing"),
+        ("ML cloud cost trends", "similarity-2026-10-05"),
+    ],
+)
+def test_transfer_carries_backend_title_until_target_has_one(
+    setup, source_title, target_placeholder
+):
     conn, path = setup
     old = db.get_by_channel(conn, "claude:old", unread_only=False)
     db.update_name(conn, old.id, None)
-    db.refresh_auto_name(conn, old.id, "Protostellar sandboxing architecture", "claude_index")
+    db.refresh_auto_name(conn, old.id, source_title, "claude_index")
     new = db.get_by_channel(conn, "codex:new", unread_only=False)
-    db.refresh_auto_name(conn, new.id, "sandboxing", "environment")
+    db.refresh_auto_name(conn, new.id, target_placeholder, "environment")
     row = requested(conn, path)
     handoff_state.acknowledge(conn, row["token"], "claude:old", "ready")
     conn.execute(
@@ -155,8 +166,14 @@ def test_transfer_carries_backend_title_until_target_has_one(setup):
     handoff_transfer.transfer(conn, row["token"])
 
     inherited = db.get_by_channel(conn, "codex:new", unread_only=False)
-    assert inherited.name == "Protostellar sandboxing architecture"
-    db.add(conn, "codex:new", "Later", name="sandboxing", metadata={"name_source": "environment"})
+    assert inherited.name == source_title
+    db.add(
+        conn,
+        "codex:new",
+        "Later",
+        name=target_placeholder,
+        metadata={"name_source": "environment"},
+    )
     assert db.get_by_channel(conn, "codex:new", unread_only=False).name == inherited.name
     db.add(
         conn,
