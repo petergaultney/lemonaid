@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .. import auto_read, messages
+from ..brief import handoff_state, handoff_transfer
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, full_channel_id
@@ -233,6 +234,9 @@ def handle_notification(
             status=_status_after(notification_type, channel, data),
             ends_turn=notification_type in _TURN_ENDED,
         )
+        if token := os.environ.get("LEMONAID_HANDOFF_TOKEN"):
+            handoff_state.bind_target(conn, token, channel)
+        handoff_transfer.reclaim(conn, channel)
         pending = messages.service.has_pending(conn, channel)
 
     _log.info("added: channel=%s, type=%s", channel, notification_type)

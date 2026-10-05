@@ -3,7 +3,14 @@
 from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from lemonaid.claude import notify
+
+
+@pytest.fixture(autouse=True)
+def _no_handoff_reclaim(monkeypatch):
+    monkeypatch.setattr(notify.handoff_transfer, "reclaim", lambda _conn, _channel: False)
 
 
 @contextmanager

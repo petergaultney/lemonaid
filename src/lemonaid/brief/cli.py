@@ -15,6 +15,7 @@ from . import (
     attached,
     dismiss,
     family,
+    handoff_cli,
     lemon,
     popup,
     pr,
@@ -232,5 +233,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     show_parser.set_defaults(func=cmd_show)
 
     write_cli.add_parsers(brief_subparsers)
+    handoff_cli.add_parser(brief_subparsers)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())

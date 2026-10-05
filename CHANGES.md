@@ -1,3 +1,10 @@
+# 0.69.0 (2026-10-05)
+
+#### Added
+
+- **`lemonaid brief handoff --to claude|codex` moves a brief between tmux harness sessions.** The outgoing lemon writes a tokened `## Handoff`; the new lemon acknowledges it before the brief, manual name, emoji, pin and active snooze move. Each backend keeps its own session ID and transcript, and resuming the old session reclaims the brief.
+- **Tokened user messages can finish either acknowledgement.** `brief handoff status <token>` reports the phase and exact phrases; `ready` and `accept` CLI verbs provide a fallback.
+
 # 0.68.1 (2026-10-05)
 
 #### Fixed

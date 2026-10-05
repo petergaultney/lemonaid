@@ -29,6 +29,7 @@ import typing as ty
 from pathlib import Path
 
 from .. import auto_read, daily_date
+from ..brief import handoff_state, handoff_transfer
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
@@ -341,6 +342,11 @@ def handle_submit(stdin_data: str | None = None) -> None:
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
         )
+        if token := os.environ.get("LEMONAID_HANDOFF_TOKEN"):
+            handoff_state.bind_target(conn, token, channel)
+        handoff_transfer.reclaim(conn, channel)
+        if isinstance(data.get("prompt"), str):
+            handoff_state.typed_message(conn, channel, data["prompt"])
 
     _log.info("working: channel=%s", channel)
     _tell_date(channel)
@@ -383,6 +389,9 @@ def handle_session_start(stdin_data: str | None = None) -> None:
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
         )
+        if token := os.environ.get("LEMONAID_HANDOFF_TOKEN"):
+            handoff_state.bind_target(conn, token, channel)
+        handoff_transfer.reclaim(conn, channel)
 
     _log.info(
         "session start (%s): channel=%s tmux=%s:%s",

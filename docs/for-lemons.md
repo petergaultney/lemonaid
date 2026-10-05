@@ -424,9 +424,41 @@ lemonaid place open feat/thing --brief <file>  # attach to the first lemon that 
 lemonaid place open feat/thing --brief <file> --parent self  # and record yourself as its parent
 lemonaid lemon children --self --json          # your children, with their brief Status:
 lemonaid brief children --self                 # your children's places, sessions, PRs, and cleanup
+lemonaid brief handoff --to codex               # hand this attached brief to a new Codex window
+lemonaid brief handoff --to claude --brief FILE # request a handoff for another lemon's brief
+lemonaid brief handoff status TOKEN             # phase, channels, missing check, exact user phrases
+lemonaid brief handoff ready TOKEN              # outgoing lemon's explicit acknowledgement
+lemonaid brief handoff accept TOKEN             # incoming lemon's explicit acknowledgement
 ```
 
 Parent links are between Lemon-IDs; see `docs/lineage.md`.
+
+### Harness handoff
+
+`brief handoff --to claude|codex` needs an attached brief and one live tmux pane in
+the outgoing window. It sends the outgoing lemon a request with a random token.
+The outgoing lemon writes a fresh `## Handoff` section, stops its waiters, and
+ends that section with `Handoff-Ready: TOKEN`. Lemonaid checks the file is stable
+and passes `brief check`, then starts the configured harness in a dedicated new
+window in the same tmux session and working directory. The new lemon reads the
+brief, rearms the waiters, and runs `brief handoff accept TOKEN`.
+
+The command prints JSON with a durable token and phase. `brief handoff status TOKEN`
+reports what is still missing and can resume coordination after an interruption.
+The outgoing or incoming user can instead type the whole message
+`lemonaid handoff ready TOKEN` or `lemonaid handoff accept TOKEN` in the respective
+harness. Claude's submit hook and the Codex transcript detect these messages.
+The CLI `ready` and `accept` verbs use the same checks if prompt detection is
+unavailable. A ten-minute deadline stops automatic coordination; retrying
+`--to` for the same brief and harness extends it without making a second request.
+
+After both acknowledgements, one transaction moves the brief and manual inbox
+state. The new channel retains its own notification and session metadata. The old
+channel is archived, and its old window is closed only if its pane and window IDs
+still match. A changed pane is reported as a partial handoff for manual cleanup.
+Both backend transcripts and session IDs stay intact; resuming the old backend
+session by its original ID reclaims the brief and manual state without stopping
+the replacement session.
 
 ### Children and their cleanup
 
