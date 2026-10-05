@@ -243,6 +243,7 @@ class BriefView(VerticalScroll):
                         (keys.question_previous, "question(-1)", "Previous question"),
                         (keys.question_next, "question(1)", "Next question"),
                         (keys.answer, "answer", "Answer"),
+                        (keys.answer_yes, "answer_yes", "Yes, approved"),
                         (keys.more_detail, "more_detail", "More detail"),
                     )
                     if key
@@ -321,7 +322,7 @@ class BriefView(VerticalScroll):
         return next((s for s in self._sections if s.path == path), None)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in {"question", "answer", "more_detail"}:
+        if action in {"question", "answer", "answer_yes", "more_detail"}:
             return self._selected is not None
 
         return True
@@ -356,6 +357,10 @@ class BriefView(VerticalScroll):
         self.app.push_screen(
             brief_questions.AnswerScreen(choice[1], self._lemon_name(choice[0])), answered
         )
+
+    def action_answer_yes(self) -> None:
+        if self._selected:
+            self._send(self._selected, brief_questions.answer(*self._selected, "Yes, approved"))
 
     def action_more_detail(self) -> None:
         if self._selected:

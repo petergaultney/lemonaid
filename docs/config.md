@@ -260,7 +260,8 @@ When the session transcript names a recognized model family, its friendly name a
 
 ### `[tui.keybindings]`
 
-See [keybindings.md](keybindings.md).
+`answer_yes = "Y"` immediately sends `Yes, approved` for the selected brief question.
+See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 
 ## `[brief]`
 

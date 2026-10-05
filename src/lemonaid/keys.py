@@ -71,6 +71,7 @@ def _brief(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "question_previous": [kb.question_previous],
         "question_next": [kb.question_next],
         "answer": [kb.answer],
+        "answer_yes": [kb.answer_yes],
         "more_detail": [kb.more_detail],
     }
 

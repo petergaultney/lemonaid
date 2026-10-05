@@ -133,6 +133,7 @@ class KeybindingsConfig:
     question_previous: str = "["
     question_next: str = "]"
     answer: str = "a"  # Type an answer, sent to the lemon with `lemonaid tell`
+    answer_yes: str = "Y"  # Immediately answer the selected question "Yes, approved"
     more_detail: str = "d"  # Ask the lemon to rewrite the selected question
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.
     jump_by_number: bool = True

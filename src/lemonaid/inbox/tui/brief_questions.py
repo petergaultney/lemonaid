@@ -43,6 +43,7 @@ def hint(kb: KeybindingsConfig) -> str:
         for part in (
             moves and f"{moves} question",
             kb.answer and f"{kb.answer} answer",
+            kb.answer_yes and f"{kb.answer_yes} yes",
             kb.more_detail and f"{kb.more_detail} more detail",
         )
         if part

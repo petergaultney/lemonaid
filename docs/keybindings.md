@@ -109,6 +109,7 @@ An entry whose heading matches no Needs bullet appears as a warning in the brief
 | `[` | Select the previous question |
 | `]` | Select the next question |
 | `a` | Answer it: type one line, Enter sends it, Escape cancels |
+| `Y` | Send `Yes, approved` for the selected question immediately |
 | `d` | Ask the lemon for more detail |
 
 An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
@@ -117,8 +118,8 @@ An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
 lemon remembers to update its Status. More detail sends
 `More detail needed on <label>: rewrite that entry in ## Questions`. Neither needs tmux,
 and a lemon not running yet gets them when it starts. A line along the bottom of the view
-names the keys whenever the brief has questions. The four are set by `question_previous`,
-`question_next`, `answer` and `more_detail`, each one key (see
+names the keys whenever the brief has questions. The five are set by `question_previous`,
+`question_next`, `answer`, `answer_yes` and `more_detail`, each one key (see
 [Keys given by name](#keys-given-by-name)).
 
 Press `q` or `Escape` to close the popup. `lemonaid brief
@@ -214,6 +215,7 @@ fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 question_previous = "["  # in a brief view, the previous question
 question_next = "]"  # in a brief view, the next question
 answer = "a"  # in a brief view, answer the selected question
+answer_yes = "Y"  # in a brief view, send "Yes, approved" immediately
 more_detail = "d"  # in a brief view, ask for more detail on it
 jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
@@ -228,8 +230,8 @@ select = "o"
 
 ### Keys given by name
 
-`brief_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`
-and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
+`brief_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
+`answer_yes` and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
 name, not a set of one-character alternatives. Set any of them to `""` to leave it unbound.

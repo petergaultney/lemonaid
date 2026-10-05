@@ -131,6 +131,27 @@ def test_escape_in_the_answer_box_sends_nothing_and_keeps_the_popup():
     assert _messages(inbox) == []
 
 
+def test_yes_answers_the_selected_popup_question_without_an_answer_box():
+    path, inbox = _attached_brief()
+
+    async def run() -> None:
+        app = _popup(path)
+        async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press("]", "Y")
+            await pilot.pause()
+            assert not isinstance(app.screen, AnswerScreen)
+            assert app.is_running
+
+    asyncio.run(run())
+
+    assert _messages(inbox) == [
+        "Answer to rename the flag: Yes, approved\n\n"
+        'This answers "rename the flag". Your brief says `blocked` on: "retry policy", '
+        '"an aside". Update Status if that changes.'
+    ]
+
+
 def test_without_questions_the_keys_do_nothing_and_no_hint_shows():
     path, inbox = _attached_brief("# Old\n\nStatus: blocked\n\n## Now\n\n- Needs Peter: pick one\n")
 
@@ -138,7 +159,7 @@ def test_without_questions_the_keys_do_nothing_and_no_hint_shows():
         app = _popup(path)
         async with app.run_test(size=(100, 40)) as pilot:
             await pilot.pause()
-            await pilot.press("]", "d", "a")
+            await pilot.press("]", "d", "a", "Y")
             await pilot.pause()
             assert not isinstance(app.screen, AnswerScreen)
             assert not app.query(".brief-question-keys")
@@ -153,6 +174,7 @@ def test_the_keys_come_from_config_and_the_hint_names_them():
     cfg = config_mod.Config()
     cfg.tui.keybindings.question_previous = "("
     cfg.tui.keybindings.question_next = ")"
+    cfg.tui.keybindings.answer_yes = "ctrl+y"
 
     async def run() -> None:
         app = _popup(path, cfg)
@@ -161,9 +183,26 @@ def test_the_keys_come_from_config_and_the_hint_names_them():
             await pilot.press(")")
             assert "- ▶ rename the flag" in _needs(app)
             hint = app.query_one(".brief-question-keys")
-            assert "( ) question · a answer · d more detail" in str(hint.render())
+            assert "( ) question · a answer · ctrl+y yes · d more detail" in str(hint.render())
 
     asyncio.run(run())
+
+
+def test_configured_yes_key_sends_an_answer():
+    path, inbox = _attached_brief()
+    cfg = config_mod.Config()
+    cfg.tui.keybindings.answer_yes = "ctrl+y"
+
+    async def run() -> None:
+        app = _popup(path, cfg)
+        async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+y")
+            await pilot.pause()
+
+    asyncio.run(run())
+
+    assert _messages(inbox)[0].startswith("Answer to retry policy: Yes, approved\n\n")
 
 
 def test_the_key_that_opened_the_popup_closes_it():
@@ -206,6 +245,12 @@ def test_a_named_key_and_its_character_are_one_key():
     ]
 
 
+def test_yes_key_conflicts_with_another_brief_action():
+    kb = config_mod.KeybindingsConfig(answer_yes="a")
+
+    assert keys.conflicts(kb) == ["in the brief view, 'a' is bound to answer and answer_yes"]
+
+
 def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
     _lemons(monkeypatch, tmp_path, 1)
     path, inbox = _attached_brief()
@@ -225,13 +270,19 @@ def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
             await pilot.press("enter")
             await pilot.pause()
             assert app._brief_target is not None  # `a` answered rather than archiving
+            await pilot.press("Y")
+            await pilot.pause()
+            assert app._brief_target is not None
 
     asyncio.run(run())
 
     assert _messages(inbox) == [
         "Answer to rename the flag: yes\n\n"
         'This answers "rename the flag". Your brief says `blocked` on: "retry policy", '
-        '"an aside". Update Status if that changes.'
+        '"an aside". Update Status if that changes.',
+        "Answer to rename the flag: Yes, approved\n\n"
+        'This answers "rename the flag". Your brief says `blocked` on: "retry policy", '
+        '"an aside". Update Status if that changes.',
     ]
 
 
