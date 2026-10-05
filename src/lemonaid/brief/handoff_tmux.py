@@ -3,6 +3,9 @@
 import subprocess
 import time
 
+from ..config import BackendConfig, load_config
+from ..tmux import submit
+
 
 def _tmux(*args: str) -> str:
     result = subprocess.run(["tmux", *args], capture_output=True, text=True)
@@ -26,7 +29,7 @@ def current_command(pane_id: str) -> str:
     return _tmux("display-message", "-p", "-t", pane_id, "#{pane_current_command}")
 
 
-def _prompt_source_to_rearm(row, reason: str) -> bool:
+def _prompt_source_to_rearm(row, reason: str, submit_key: str) -> bool:
     if (
         pane(row["session"], row["source_window"])
         != (
@@ -51,17 +54,14 @@ def _prompt_source_to_rearm(row, reason: str) -> bool:
         return False
 
     time.sleep(1)
-    return (
-        subprocess.run(
-            ["tmux", "send-keys", "-t", row["source_pane_id"], "Enter"], capture_output=True
-        ).returncode
-        == 0
-    )
+    return submit.send(row["source_pane_id"], submit_key).returncode == 0
 
 
 def prompt_source_to_rearm(row, reason: str) -> bool:
     try:
-        return _prompt_source_to_rearm(row, reason)
+        backend = row["source"].partition(":")[0]
+        submit_key = load_config().backends.get(backend, BackendConfig()).submit_key
+        return _prompt_source_to_rearm(row, reason, submit_key)
     except OSError:
         return False
 

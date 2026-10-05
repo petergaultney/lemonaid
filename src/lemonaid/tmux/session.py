@@ -10,6 +10,7 @@ from .. import launch
 from ..claude.projects import find_session_project
 from ..config import TmuxSessionConfig
 from ..log import get_logger
+from . import submit
 from .navigation import is_inside_tmux
 
 _log = get_logger("tmux.session")
@@ -36,6 +37,7 @@ def create_session(
     claude_rename: bool = False,
     attach: bool = True,
     environments: abc.Sequence[abc.Mapping[str, str]] = (),
+    claude_submit_key: str = "Enter",
 ) -> bool:
     """Create a new tmux session with the specified windows.
 
@@ -46,6 +48,7 @@ def create_session(
         claude_rename: If True, send /rename to any window running 'claude'
         attach: If True, attach to the session after creation
         environments: Variables each window's shell starts with, by position
+        claude_submit_key: Key for the optional interactive Claude rename
 
     Returns True on success.
     """
@@ -132,10 +135,11 @@ def create_session(
                 time.sleep(1.5)  # wait for claude to start
                 for win_idx in claude_win_indices:
                     subprocess.run(
-                        ["tmux", "send-keys", "-t", f"{name}:{win_idx}", f"/rename {name}", "C-m"],
+                        ["tmux", "send-keys", "-t", f"{name}:{win_idx}", f"/rename {name}"],
                         check=True,
                         capture_output=True,
                     )
+                    submit.send(f"{name}:{win_idx}", claude_submit_key).check_returncode()
 
         # Attach if requested
         if attach:

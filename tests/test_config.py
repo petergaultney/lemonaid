@@ -108,6 +108,21 @@ def test_harness_window_can_be_configured_separately():
     assert config.tmux_session.harness_window == 2
 
 
+def test_backend_submit_key_defaults_and_override(capsys):
+    config = _parse_config({"backends": {"claude": {}, "codex": {"submit_key": "C-Enter"}}})
+
+    assert config.backends["claude"].submit_key == "Enter"
+    assert config.backends["codex"].submit_key == "C-Enter"
+    assert not capsys.readouterr().err
+
+
+def test_invalid_backend_submit_key_keeps_enter(capsys):
+    config = _parse_config({"backends": {"claude": {"submit_key": "C-m"}}})
+
+    assert config.backends["claude"].submit_key == "Enter"
+    assert "submit_key must be Enter or C-Enter" in capsys.readouterr().err
+
+
 def test_build_bindings_single_key():
     """Single key creates one visible binding."""
     bindings = _build_bindings("q", "quit", "Quit")

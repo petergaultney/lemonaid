@@ -1,5 +1,7 @@
 """Choosing a configured harness when a tmux session is created."""
 
+import subprocess
+
 from lemonaid.config import TmuxSessionConfig
 from lemonaid.tmux import session
 
@@ -134,3 +136,41 @@ def test_prompt_requires_a_command_in_the_harness_window(monkeypatch, tmp_path):
 
     assert error == "Tmux-session template 'empty' has no harness command in window 1"
     assert not created
+
+
+def test_rename_submits_with_configured_composer_key(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(session, "get_base_index", lambda: 0)
+    monkeypatch.setattr(session.time, "sleep", lambda _: None)
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(session.subprocess, "run", run)
+
+    assert session.create_session(
+        "test",
+        ["claude"],
+        directory=tmp_path,
+        claude_rename=True,
+        claude_submit_key="C-Enter",
+        attach=False,
+    )
+
+    assert ["tmux", "send-keys", "-t", "test:0", "claude", "Enter"] in calls
+    assert ["tmux", "send-keys", "-t", "test:0", "/rename test"] in calls
+    assert [
+        "tmux",
+        "send-keys",
+        "-t",
+        "test:0",
+        "-H",
+        "1b",
+        "5b",
+        "31",
+        "33",
+        "3b",
+        "35",
+        "75",
+    ] in calls

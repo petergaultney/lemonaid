@@ -385,7 +385,7 @@ If you want to also set Claude's internal session name (via `/rename`), you can 
 lemonaid tmux new --rename
 ```
 
-Note: Due to tmux timing issues, the Enter key may not be submitted automatically - you may need to press Enter yourself to confirm the rename.
+Note: Due to tmux timing issues, the submit key may not be delivered automatically - you may need to submit the rename yourself. If Enter inserts a newline in Claude, set `backends.claude.submit_key` as described in [the config reference](config.md#backendsname).
 
 ## Window Colors
 

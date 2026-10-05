@@ -2,7 +2,10 @@
 
 import subprocess
 
+import pytest
+
 from lemonaid.brief import handoff_coordinator, handoff_state, handoff_tmux
+from lemonaid.config import BackendConfig, Config
 
 from .shared import requested
 
@@ -67,3 +70,48 @@ def test_rearm_prompt_is_sent_to_the_checked_source_pane(setup, monkeypatch):
     assert "Rearm `lemonaid inbox watch --self`" in calls[0][5]
     assert calls[1] == ["pause", 1]
     assert calls[2] == ["tmux", "send-keys", "-t", "%2", "Enter"]
+
+
+@pytest.mark.parametrize("source", ["claude", "codex"])
+def test_rearm_prompt_uses_source_backend_submit_key(setup, monkeypatch, source):
+    conn, path = setup
+    row = dict(requested(conn, path))
+    row["source"] = f"{source}:old"
+    row["source_command"] = source
+    other = "codex" if source == "claude" else "claude"
+    monkeypatch.setattr(
+        handoff_tmux,
+        "load_config",
+        lambda: Config(
+            backends={
+                source: BackendConfig(submit_key="C-Enter"),
+                other: BackendConfig(submit_key="Enter"),
+            }
+        ),
+    )
+    monkeypatch.setattr(handoff_tmux, "pane", lambda *_: ("%2", "@2"))
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: row["source_command"])
+    monkeypatch.setattr(handoff_tmux.time, "sleep", lambda _: None)
+    calls = []
+
+    def run(args, **_kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(handoff_tmux.subprocess, "run", run)
+
+    assert handoff_tmux.prompt_source_to_rearm(row, "timed out")
+    assert calls[-1] == [
+        "tmux",
+        "send-keys",
+        "-t",
+        "%2",
+        "-H",
+        "1b",
+        "5b",
+        "31",
+        "33",
+        "3b",
+        "35",
+        "75",
+    ]

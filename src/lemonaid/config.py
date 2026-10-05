@@ -214,6 +214,7 @@ class BackendConfig:
     """Configuration for a lemon backend (claude, codex, etc)."""
 
     resume_command: str = ""
+    submit_key: str = "Enter"
 
 
 @dataclass(frozen=True)
@@ -515,11 +516,21 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
 
     backends_data = data.get("backends", {})
-    backends = {
-        name: BackendConfig(resume_command=bd.get("resume_command", ""))
-        for name, bd in backends_data.items()
-        if isinstance(bd, dict)
-    }
+    backends = {}
+    for name, bd in backends_data.items():
+        if not isinstance(bd, dict):
+            continue
+
+        submit_key = bd.get("submit_key", "Enter")
+        if submit_key not in ("Enter", "C-Enter"):
+            print(
+                f"Warning: [backends.{name}] submit_key must be Enter or C-Enter",
+                file=sys.stderr,
+            )
+            submit_key = "Enter"
+        backends[name] = BackendConfig(
+            resume_command=bd.get("resume_command", ""), submit_key=submit_key
+        )
 
     places_data = data.get("places", {})
     places = PlacesConfig(

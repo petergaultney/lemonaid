@@ -1,3 +1,9 @@
+# 0.70.0 (2026-10-05)
+
+#### Added
+
+- **Running Claude and Codex composers can use Ctrl+Enter for lemonaid submissions.** Set `submit_key = "C-Enter"` under each harness's `[backends.<name>]` after configuring its own submit binding. Shell command entry still uses Enter.
+
 # 0.69.1 (2026-10-05)
 
 #### Fixed

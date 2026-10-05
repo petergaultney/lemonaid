@@ -11,6 +11,7 @@ Per-backend configuration. `<name>` is the backend prefix (`claude`, `codex`, `o
 | Key | Default | Description |
 |-----|---------|-------------|
 | `resume_command` | *(built-in per backend)* | Shell command template for resuming a session. Placeholders like `{session_id}` are filled from notification metadata, then the result is `shlex.split` into argv. |
+| `submit_key` | `"Enter"` | Key lemonaid sends when submitting text to a running Claude or Codex composer. `"C-Enter"` sends literal CSI-u Ctrl+Enter bytes through tmux; use it when Enter inserts a newline in the harness. |
 
 Built-in defaults (used when no `resume_command` is configured):
 
@@ -34,6 +35,22 @@ resume_command = "lemonaid claude --allow-dangerously-skip-permissions --resume 
 `lemonaid claude` followed by a flag runs `claude` with the same arguments,
 after changing to the project directory recorded for the `--resume` session.
 `claude --resume` alone finds only sessions from the current directory.
+
+When both harnesses use Ctrl+Enter to submit, configure both backends:
+
+```toml
+[backends.claude]
+submit_key = "C-Enter"
+
+[backends.codex]
+submit_key = "C-Enter"
+```
+
+This setting applies to lemonaid's interactive submissions, including Claude's optional
+`tmux new --rename` and handoff recovery prompts. It does not change the Enter used to
+start shell commands. Configure each harness's own keybindings to submit with Ctrl+Enter
+before enabling it here; see [Claude's keybindings](https://code.claude.com/docs/en/keybindings)
+and [Codex's TUI keymap](https://learn.chatgpt.com/docs/config-file/config-basic#tui-keymap).
 
 ## `[wezterm]`
 

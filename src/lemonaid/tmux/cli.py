@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ..config import load_config
+from ..config import BackendConfig, load_config
 from ..inbox import doctor
 from ..restore import cli as restore_cli
 from . import restart as tmux_restart
@@ -99,6 +99,7 @@ def cmd_new(args: argparse.Namespace) -> None:
         windows=windows,
         directory=directory,
         claude_rename=args.rename,
+        claude_submit_key=config.backends.get("claude", BackendConfig()).submit_key,
         attach=not args.detach,
     )
     if not success:
