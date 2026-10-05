@@ -34,3 +34,36 @@ def test_replaced_command_in_same_pane_is_not_closed(setup, monkeypatch):
 
     monkeypatch.setattr(handoff_tmux.subprocess, "run", run)
     assert not handoff_tmux.close_old(row)
+
+
+def test_rearm_prompt_requires_the_original_pane_and_command(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    monkeypatch.setattr(handoff_tmux, "pane", lambda *_: ("%different", "@2"))
+    assert not handoff_tmux.prompt_source_to_rearm(row, "timed out")
+
+    monkeypatch.setattr(handoff_tmux, "pane", lambda *_: ("%2", "@2"))
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: "zsh")
+    assert not handoff_tmux.prompt_source_to_rearm(row, "timed out")
+
+
+def test_rearm_prompt_is_sent_to_the_checked_source_pane(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    monkeypatch.setattr(handoff_tmux, "pane", lambda *_: ("%2", "@2"))
+    monkeypatch.setattr(handoff_tmux, "current_command", lambda *_: "claude")
+    calls = []
+    monkeypatch.setattr(
+        handoff_tmux.time, "sleep", lambda seconds: calls.append(["pause", seconds])
+    )
+
+    def run(args, **_kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(handoff_tmux.subprocess, "run", run)
+    assert handoff_tmux.prompt_source_to_rearm(row, "timed out")
+    assert calls[0][:5] == ["tmux", "send-keys", "-t", "%2", "-l"]
+    assert "Rearm `lemonaid inbox watch --self`" in calls[0][5]
+    assert calls[1] == ["pause", 1]
+    assert calls[2] == ["tmux", "send-keys", "-t", "%2", "Enter"]

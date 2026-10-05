@@ -1,5 +1,7 @@
 """Advance a tokened handoff while keeping tmux layout checks at the edge."""
 
+import fcntl
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -50,7 +52,24 @@ def _target_channel(conn, row) -> str:
     return found[0] if len(set(found)) == 1 else ""
 
 
-def advance(conn, token: str) -> dict:
+def recover_source(conn, row, reason: str) -> str:
+    if row["error"]:
+        return row["error"]
+
+    if row["source"].startswith("claude:"):
+        error = (
+            f"handoff {reason}; outgoing Claude was prompted to rearm its waiter"
+            if handoff_tmux.prompt_source_to_rearm(row, reason)
+            else f"handoff {reason}; rearm the outgoing Claude waiter before retrying"
+        )
+    else:
+        error = f"handoff {reason}; outgoing session remains active"
+    conn.execute("UPDATE brief_handoffs SET error = ? WHERE token = ?", (error, row["token"]))
+    conn.commit()
+    return error
+
+
+def _advance(conn, token: str) -> dict:
     row = handoff_state.get(conn, token)
     if row["phase"] in ("complete", "failed"):
         return _report(row)
@@ -64,7 +83,11 @@ def advance(conn, token: str) -> dict:
         return _report(handoff_state.get(conn, token))
 
     if time.time() > row["deadline"]:
-        return {**_report(row), "missing": ["deadline passed; retry with --to to extend it"]}
+        error = recover_source(conn, row, "timed out")
+        return {**_report(row), "missing": [error + "; retry with --to to extend it"]}
+
+    if row["error"]:
+        return {**_report(row), "missing": [row["error"] + "; retry with --to to resume it"]}
 
     if (
         handoff_tmux.pane(row["session"], row["source_window"])
@@ -115,9 +138,17 @@ def advance(conn, token: str) -> dict:
 
         handoff_transfer.transfer(conn, token)
         row = handoff_state.get(conn, token)
-        return advance(conn, token)
+        return _advance(conn, token)
 
     return _report(row)
+
+
+def advance(conn, token: str) -> dict:
+    key = hashlib.sha256(token.encode()).hexdigest()
+    lock = db.get_db_path().parent / f"handoff-advance-{key}.lock"
+    with lock.open("w") as file:
+        fcntl.flock(file, fcntl.LOCK_EX)
+        return _advance(conn, token)
 
 
 def _report(row) -> dict:

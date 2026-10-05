@@ -78,3 +78,110 @@ def test_codex_to_claude_transfer(setup):
     assert attached.by_channel(conn, ["claude:old"])["claude:old"] == path
     assert db.get_by_channel(conn, "claude:old", unread_only=False).metadata["session_id"] == "old"
     assert db.get_by_channel(conn, "codex:new", unread_only=False).status == "archived"
+
+
+def test_handoff_keeps_snooze_set_before_outgoing_turn(setup):
+    conn, path = setup
+    old = db.get_by_channel(conn, "claude:old", unread_only=False)
+    until = time.time() + 300
+    db.snooze(conn, old.id, until)
+    row = requested(conn, path)
+    db.add(
+        conn,
+        "claude:old",
+        "Turn complete",
+        metadata={"session_id": "old"},
+        ends_turn=True,
+    )
+    still_old = db.get_by_channel(conn, "claude:old", unread_only=False)
+    assert still_old.status == "snoozed"
+    assert still_old.snooze_until == until
+    assert still_old.snooze_prev_status == "unread"
+    assert not still_old.snooze_through_turns
+
+    handoff_state.acknowledge(conn, row["token"], "claude:old", "ready")
+    conn.execute(
+        "UPDATE brief_handoffs SET target = ?, phase = 'launched' WHERE token = ?",
+        ("codex:new", row["token"]),
+    )
+    conn.commit()
+    handoff_state.acknowledge(conn, row["token"], "codex:new", "accept")
+    handoff_transfer.transfer(conn, row["token"])
+    new = db.get_by_channel(conn, "codex:new", unread_only=False)
+    assert (new.status, new.snooze_until, new.snooze_prev_status, new.snooze_through_turns) == (
+        "snoozed",
+        until,
+        "unread",
+        False,
+    )
+
+
+def test_removed_and_expired_snoozes_are_not_transferred(setup):
+    conn, path = setup
+    old = db.get_by_channel(conn, "claude:old", unread_only=False)
+    db.snooze(conn, old.id, time.time() + 300)
+    row = requested(conn, path)
+    db.unsnooze(conn, "claude:old")
+    db.add(conn, "claude:old", "Turn complete", ends_turn=True)
+    assert db.get_by_channel(conn, "claude:old", unread_only=False).status != "snoozed"
+
+    db.snooze(conn, old.id, time.time() - 1)
+    handoff_state.acknowledge(conn, row["token"], "claude:old", "ready")
+    conn.execute(
+        "UPDATE brief_handoffs SET target = ?, phase = 'launched' WHERE token = ?",
+        ("codex:new", row["token"]),
+    )
+    conn.commit()
+    handoff_state.acknowledge(conn, row["token"], "codex:new", "accept")
+    handoff_transfer.transfer(conn, row["token"])
+    assert db.get_by_channel(conn, "codex:new", unread_only=False).status != "snoozed"
+
+
+def test_transfer_carries_backend_title_until_target_has_one(setup):
+    conn, path = setup
+    old = db.get_by_channel(conn, "claude:old", unread_only=False)
+    db.update_name(conn, old.id, None)
+    db.refresh_auto_name(conn, old.id, "Protostellar sandboxing architecture", "claude_index")
+    new = db.get_by_channel(conn, "codex:new", unread_only=False)
+    db.refresh_auto_name(conn, new.id, "sandboxing", "environment")
+    row = requested(conn, path)
+    handoff_state.acknowledge(conn, row["token"], "claude:old", "ready")
+    conn.execute(
+        "UPDATE brief_handoffs SET target = ?, phase = 'launched' WHERE token = ?",
+        ("codex:new", row["token"]),
+    )
+    conn.commit()
+    handoff_state.acknowledge(conn, row["token"], "codex:new", "accept")
+    handoff_transfer.transfer(conn, row["token"])
+
+    inherited = db.get_by_channel(conn, "codex:new", unread_only=False)
+    assert inherited.name == "Protostellar sandboxing architecture"
+    db.add(conn, "codex:new", "Later", name="sandboxing", metadata={"name_source": "environment"})
+    assert db.get_by_channel(conn, "codex:new", unread_only=False).name == inherited.name
+    db.add(
+        conn,
+        "codex:new",
+        "Later",
+        name="New backend title",
+        metadata={"name_source": "codex_title"},
+    )
+    assert db.get_by_channel(conn, "codex:new", unread_only=False).name == "New backend title"
+
+
+def test_transfer_keeps_meaningful_target_title(setup):
+    conn, path = setup
+    old = db.get_by_channel(conn, "claude:old", unread_only=False)
+    db.update_name(conn, old.id, None)
+    db.refresh_auto_name(conn, old.id, "Old backend title", "claude_index")
+    new = db.get_by_channel(conn, "codex:new", unread_only=False)
+    db.refresh_auto_name(conn, new.id, "New backend title", "codex_title")
+    row = requested(conn, path)
+    handoff_state.acknowledge(conn, row["token"], "claude:old", "ready")
+    conn.execute(
+        "UPDATE brief_handoffs SET target = ?, phase = 'launched' WHERE token = ?",
+        ("codex:new", row["token"]),
+    )
+    conn.commit()
+    handoff_state.acknowledge(conn, row["token"], "codex:new", "accept")
+    handoff_transfer.transfer(conn, row["token"])
+    assert db.get_by_channel(conn, "codex:new", unread_only=False).name == "New backend title"

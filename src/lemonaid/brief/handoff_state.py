@@ -7,7 +7,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from . import check
+from . import check, handoff_claude
 
 _PHRASE = re.compile(r"^lemonaid handoff (ready|accept) ([0-9a-f]{24})$")
 
@@ -48,7 +48,7 @@ def request(
 
         if deadline > existing["deadline"]:
             conn.execute(
-                "UPDATE brief_handoffs SET deadline = ? WHERE token = ?",
+                "UPDATE brief_handoffs SET deadline = ?, error = '' WHERE token = ?",
                 (deadline, existing["token"]),
             )
             conn.commit()
@@ -107,10 +107,24 @@ def ready(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[bool, str]:
     if problems := [*check.structure(first), *check.recorded(conn, path, first)]:
         return False, "brief check failed: " + "; ".join(problems)
 
-    if not handoff.splitlines() or handoff.splitlines()[-1] != f"Handoff-Ready: {row['token']}":
+    if (
+        not handoff.splitlines() or handoff.splitlines()[-1] != f"Handoff-Ready: {row['token']}"
+    ) and not handoff_claude.has_ready_marker(conn, row):
         return False, "## Handoff is written but has no matching end marker"
 
     return True, ""
+
+
+def pending_source(conn: sqlite3.Connection, path: Path, channel: str, now: float) -> bool:
+    return (
+        conn.execute(
+            """SELECT 1 FROM brief_handoffs
+               WHERE path = ? AND source = ? AND phase IN ('requested', 'prepared', 'launched')
+                 AND error = '' AND deadline > ?""",
+            (str(path), channel, now),
+        ).fetchone()
+        is not None
+    )
 
 
 def bind_target(conn: sqlite3.Connection, token: str, channel: str) -> bool:

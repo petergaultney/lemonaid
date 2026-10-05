@@ -8,9 +8,11 @@ brief broken by a hand edit is caught in the turn that broke it.
 
 import json
 import sys
+import time
 from pathlib import Path
 
 from .. import brief
+from ..brief import handoff_state
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..log import get_logger
@@ -75,8 +77,20 @@ def reason_to_block(data: dict, grace: float) -> str:
         return ""
 
     text = path.read_text()
+    try:
+        channel = channel_id("claude", data.get("session_id"))
+    except UnidentifiedSession:
+        channel = ""
+    with db.connect() as conn:
+        handing_off = handoff_state.pending_source(conn, path, channel, time.time())
+
     return "\n\n".join(
-        reason for reason in (_missing_waiter(path, text, grace), _broken(path, text)) if reason
+        reason
+        for reason in (
+            ("" if handing_off else _missing_waiter(path, text, grace)),
+            _broken(path, text),
+        )
+        if reason
     )
 
 

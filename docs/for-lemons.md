@@ -437,14 +437,28 @@ Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
 `brief handoff --to claude|codex` needs an attached brief and one live tmux pane in
 the outgoing window. It sends the outgoing lemon a request with a random token.
-The outgoing lemon writes a fresh `## Handoff` section, stops its waiters, and
-ends that section with `Handoff-Ready: TOKEN`. Lemonaid checks the file is stable
-and passes `brief check`, then starts the configured harness in a dedicated new
+The outgoing lemon writes a fresh `## Handoff` section with at most five bullets,
+using its current brief without rereading files when that brief is already current.
+It stops its waiters and ends that section with `Handoff-Ready: TOKEN` on its
+own line. If the outgoing
+harness is Claude, the same standalone line in its completed final reply also
+counts. Lemonaid checks the file is stable and passes `brief check` in either
+case, then starts the configured harness in a dedicated new
 window in the same tmux session and working directory. The new lemon reads the
 brief, rearms the waiters, and runs `brief handoff accept TOKEN`.
 
+While a handoff is pending and unexpired, Claude's Stop hook allows the outgoing
+session to stop its inbox waiter. Brief validation still runs. If the handoff
+fails or times out, the usual waiter requirement returns and lemonaid prompts
+the outgoing Claude in its original pane to rearm. If that pane has changed,
+`brief handoff status TOKEN` reports that manual rearming is needed.
+
 The command prints JSON with a durable token and phase. `brief handoff status TOKEN`
 reports what is still missing and can resume coordination after an interruption.
+Concurrent status calls and the background coordinator serialize work for that token,
+so they reserve one new window.
+Handoffs into Codex also work when the outgoing working directory has Unicode
+characters in its name.
 The outgoing or incoming user can instead type the whole message
 `lemonaid handoff ready TOKEN` or `lemonaid handoff accept TOKEN` in the respective
 harness. Claude's submit hook and the Codex transcript detect these messages.
@@ -456,6 +470,9 @@ After both acknowledgements, one transaction moves the brief and manual inbox
 state. The new channel retains its own notification and session metadata. The old
 channel is archived, and its old window is closed only if its pane and window IDs
 still match. A changed pane is reported as a partial handoff for manual cleanup.
+An active snooze on the old channel carries over, including its wake time and
+through-turns setting. A real outgoing session title carries over if the new
+channel still has a placeholder title; a title supplied by the new harness wins.
 Both backend transcripts and session IDs stay intact; resuming the old backend
 session by its original ID reclaims the brief and manual state without stopping
 the replacement session.

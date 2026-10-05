@@ -24,7 +24,7 @@ def template_window(config: TmuxSessionConfig, windows: list[str]) -> int:
 def _codex_flags(directory: Path) -> list[str]:
     return [
         "-c",
-        f'projects={{{json.dumps(str(directory))}={{trust_level="trusted"}}}}',
+        f'projects={{{json.dumps(str(directory), ensure_ascii=False)}={{trust_level="trusted"}}}}',
         "-c",
         "check_for_update_on_startup=false",
     ]

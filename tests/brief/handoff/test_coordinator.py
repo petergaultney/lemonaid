@@ -1,11 +1,14 @@
 """The cutover waits for the reserved window and its real channel."""
 
+import argparse
+import time
 from unittest.mock import Mock
 
 import pytest
 
 from lemonaid.brief import (
     attached,
+    handoff_cli,
     handoff_coordinator,
     handoff_launch,
     handoff_state,
@@ -111,3 +114,42 @@ def test_failed_send_retries_in_the_same_reserved_window(setup, monkeypatch):
     assert handoff_coordinator.advance(conn, row["token"])["phase"] == "launched"
     assert opened.call_count == 1
     assert sent.call_count == 2
+
+
+def test_timeout_prompts_source_once_and_restores_waiter_enforcement(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    conn.execute(
+        "UPDATE brief_handoffs SET deadline = ? WHERE token = ?", (time.time() - 1, row["token"])
+    )
+    conn.commit()
+    prompt = Mock(return_value=True)
+    monkeypatch.setattr(handoff_tmux, "prompt_source_to_rearm", prompt)
+
+    first = handoff_coordinator.advance(conn, row["token"])
+    second = handoff_coordinator.advance(conn, row["token"])
+    assert "prompted to rearm" in first["missing"][0]
+    assert second["missing"] == first["missing"]
+    prompt.assert_called_once()
+    assert attached.by_channel(conn, ["claude:old"])["claude:old"] == path
+    assert not handoff_state.pending_source(conn, path, "claude:old", time.time())
+
+    handoff_state.request(
+        conn, path, "claude:old", "codex", "work", "2", "@2", "%2", "claude", time.time() + 600
+    )
+    assert handoff_state.pending_source(conn, path, "claude:old", time.time())
+
+
+def test_watcher_failure_prompts_source_to_rearm(setup, monkeypatch):
+    conn, path = setup
+    row = requested(conn, path)
+    monkeypatch.setattr(db, "get_db_path", lambda: path.parent / "inbox.db")
+    prompt = Mock(return_value=True)
+    monkeypatch.setattr(handoff_tmux, "prompt_source_to_rearm", prompt)
+    monkeypatch.setattr(handoff_coordinator, "advance", Mock(side_effect=ValueError("failed")))
+
+    handoff_cli._cmd(argparse.Namespace(watch=True, token=row["token"]))
+
+    prompt.assert_called_once()
+    assert "prompted to rearm" in handoff_state.get(conn, row["token"])["error"]
+    assert not handoff_state.pending_source(conn, path, "claude:old", time.time())

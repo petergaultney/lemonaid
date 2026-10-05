@@ -178,14 +178,10 @@ def handle_notification(
         else:
             message = f"{notification_type} in {short_path}"
 
+    name = name or data.get("name") or data.get("customTitle") or data.get("title")
+    name_source = "codex_title" if name else "environment"
     if not name:
-        name = (
-            data.get("name")
-            or data.get("customTitle")
-            or data.get("title")
-            or _parse_input_messages(data)
-            or get_name_from_cwd(cwd or "")
-        )
+        name = _parse_input_messages(data) or get_name_from_cwd(cwd or "")
 
     # Detect switch-source (which terminal environment this notification came from)
     switch_source = detect_terminal_switch_source()
@@ -198,6 +194,7 @@ def handle_notification(
         metadata["session_id"] = session_id
     if notification_type:
         metadata["notification_type"] = notification_type
+    metadata["name_source"] = name_source
     if session_path_obj:
         metadata["session_path"] = str(session_path_obj)
     thread_id = data.get("thread_id") or data.get("thread-id") or data.get("threadId")

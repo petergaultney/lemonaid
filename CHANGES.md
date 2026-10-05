@@ -1,3 +1,12 @@
+# 0.69.1 (2026-10-05)
+
+#### Fixed
+
+- **Claude can finish a harness handoff with the token marker in its final reply.** A changed, stable, valid `## Handoff` still has to be present. The request asks for at most five bullets and no file reread when the brief is current. The outgoing Claude's Stop hook also permits its waiter to remain stopped during a pending handoff while continuing to check the brief. On timeout or coordination failure, the checked source pane is prompted to rearm its waiter.
+- **Handoffs preserve an active snooze and a meaningful session title.** The outgoing turn no longer clears its pending snooze, and a real outgoing title carries across until the new harness has its own title. An expired or removed snooze stays cleared.
+- **Concurrent handoff checks launch only one replacement window.** Foreground status calls and the background coordinator serialize each token's advance before opening its target pane.
+- **Codex launches work from directories with Unicode names.** The trust-path argument keeps the directory's real characters instead of shell-invalid surrogate escapes.
+
 # 0.69.0 (2026-10-05)
 
 #### Added

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, identity
+from lemonaid.brief import attached, handoff_state, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.claude import install_hooks, waiter_check
 from lemonaid.inbox import db
@@ -154,3 +154,54 @@ def test_a_brief_check_finds_broken_blocks_the_stop_even_with_a_waiter(capsys):
     assert "brief check" in blocked["reason"]
     assert "`### Done` in ## Now is empty" in blocked["reason"]
     assert "inbox watch" not in blocked["reason"]
+
+
+def test_pending_handoff_suppresses_only_source_waiter_check(capsys):
+    _briefed()
+    path = brief_store.briefs_dir() / "lemon.md"
+    with db.connect() as conn:
+        row = handoff_state.request(
+            conn,
+            path,
+            "claude:abcd1234",
+            "codex",
+            "work",
+            "2",
+            "@2",
+            "%2",
+            "claude",
+            time.time() + 600,
+        )
+        assert not handoff_state.pending_source(conn, path, "claude:another", time.time())
+
+    assert _stop(capsys) is None
+    path.write_text(path.read_text() + "\n## Now\n\n### Done\n\n### Next\n\n- x\n")
+    blocked = _stop(capsys)
+    assert "brief check" in blocked["reason"]
+    assert "inbox watch" not in blocked["reason"]
+
+    path.write_text(path.read_text().split("\n## Now")[0] + "\n")
+    with db.connect() as conn:
+        conn.execute("UPDATE brief_handoffs SET phase = 'failed' WHERE token = ?", (row["token"],))
+        conn.commit()
+    assert "inbox watch" in _stop(capsys)["reason"]
+
+
+def test_expired_handoff_restores_waiter_check(capsys):
+    _briefed()
+    path = brief_store.briefs_dir() / "lemon.md"
+    with db.connect() as conn:
+        handoff_state.request(
+            conn,
+            path,
+            "claude:abcd1234",
+            "codex",
+            "work",
+            "2",
+            "@2",
+            "%2",
+            "claude",
+            time.time() - 1,
+        )
+
+    assert "inbox watch" in _stop(capsys)["reason"]

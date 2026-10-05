@@ -1,5 +1,6 @@
 """The harness line: Codex gets past its startup prompts, and the prompt is one word."""
 
+import shlex
 from pathlib import Path
 
 from lemonaid.launch import command
@@ -11,6 +12,17 @@ def test_codex_trusts_its_directory_and_skips_the_update_check():
     assert line.startswith("env -u LEMONAID_PROMPT /opt/bin/codex -c ")
     assert """'projects={"/work/it'"'"'s here"={trust_level="trusted"}}'""" in line
     assert line.endswith('-c check_for_update_on_startup=false --no-daemon "$LEMONAID_PROMPT"')
+
+
+def test_codex_trust_path_keeps_unicode_without_surrogates():
+    directory = Path("/work/openclaw-\U0001f99e")
+
+    line, _ = command.harness_line("codex --no-daemon", directory, "go")
+
+    words = shlex.split(line)
+    assert words[words.index("-c") + 1] == (f'projects={{"{directory}"={{trust_level="trusted"}}}}')
+    assert "\\ud" not in line
+    line.encode("utf-8")
 
 
 def test_other_harnesses_are_left_alone():

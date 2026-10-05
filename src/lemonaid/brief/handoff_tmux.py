@@ -1,6 +1,7 @@
 """Check and close only the exact tmux panes reserved for a handoff."""
 
 import subprocess
+import time
 
 
 def _tmux(*args: str) -> str:
@@ -23,6 +24,46 @@ def target_index(session: str) -> str:
 
 def current_command(pane_id: str) -> str:
     return _tmux("display-message", "-p", "-t", pane_id, "#{pane_current_command}")
+
+
+def _prompt_source_to_rearm(row, reason: str) -> bool:
+    if (
+        pane(row["session"], row["source_window"])
+        != (
+            row["source_pane_id"],
+            row["source_window_id"],
+        )
+        or current_command(row["source_pane_id"]) != row["source_command"]
+    ):
+        return False
+
+    prompt = (
+        f"The harness handoff {reason} before cutover. Your brief is still attached here. "
+        "Rearm `lemonaid inbox watch --self` as a background task, then check "
+        "`lemonaid brief handoff status " + row["token"] + "` before retrying."
+    )
+    if (
+        subprocess.run(
+            ["tmux", "send-keys", "-t", row["source_pane_id"], "-l", prompt], capture_output=True
+        ).returncode
+        != 0
+    ):
+        return False
+
+    time.sleep(1)
+    return (
+        subprocess.run(
+            ["tmux", "send-keys", "-t", row["source_pane_id"], "Enter"], capture_output=True
+        ).returncode
+        == 0
+    )
+
+
+def prompt_source_to_rearm(row, reason: str) -> bool:
+    try:
+        return _prompt_source_to_rearm(row, reason)
+    except OSError:
+        return False
 
 
 def close_old(row) -> bool:

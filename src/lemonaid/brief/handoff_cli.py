@@ -29,9 +29,20 @@ def _cmd(args: argparse.Namespace) -> None:
                     with db.connect() as conn:
                         row = handoff_state.get(conn, args.token)
                         report = handoff_coordinator.advance(conn, args.token)
-                    if report["phase"] in ("complete", "failed") or time.time() > row["deadline"]:
+                    if (
+                        report["phase"] in ("complete", "failed")
+                        or time.time() > row["deadline"]
+                        or row["error"]
+                    ):
                         return
                 except (ValueError, OSError):
+                    with db.connect() as conn:
+                        try:
+                            row = handoff_state.get(conn, args.token)
+                        except ValueError:
+                            return
+
+                        handoff_coordinator.recover_source(conn, row, "failed")
                     return
 
                 time.sleep(1)
@@ -54,13 +65,10 @@ def _cmd(args: argparse.Namespace) -> None:
                 path, session, index, window_id, pane_id, source_command = (
                     handoff_coordinator.source(conn, channel, args.to)
                 )
-                fresh = (
-                    conn.execute(
-                        "SELECT 1 FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
-                        (str(path),),
-                    ).fetchone()
-                    is None
-                )
+                existing = conn.execute(
+                    "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
+                    (str(path),),
+                ).fetchone()
                 row = handoff_state.request(
                     conn,
                     path,
@@ -73,11 +81,14 @@ def _cmd(args: argparse.Namespace) -> None:
                     source_command,
                     time.time() + _DEADLINE_SECONDS,
                 )
-                if fresh:
+                if existing is None or existing["error"] or time.time() > existing["deadline"]:
                     to_brief.send(
                         path,
-                        f"Write ## Handoff, stop your waiters, then end it with "
-                        f"Handoff-Ready: {row['token']}. The old session stays active until cutover.",
+                        "Write a fresh ## Handoff with at most five bullets. Do not reread files "
+                        "when the brief is already current. Stop your waiters. Put "
+                        f"Handoff-Ready: {row['token']} on its own final line in the brief. "
+                        "You may instead print that exact line in your final reply after editing "
+                        "## Handoff. The old session stays active until cutover.",
                     )
                 token = row["token"]
             else:

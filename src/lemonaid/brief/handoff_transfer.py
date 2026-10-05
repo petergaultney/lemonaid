@@ -21,11 +21,20 @@ def _move_manual_state(conn: sqlite3.Connection, source: str, target: str) -> No
             "UPDATE notifications SET name = ?, metadata = ? WHERE channel = ?",
             (old.name, json.dumps(metadata), target),
         )
+    elif db.is_backend_name(old.metadata.get("name_source")) and not db.is_backend_name(
+        new.metadata.get("name_source")
+    ):
+        metadata = dict(new.metadata)
+        metadata["name_source"] = old.metadata["name_source"]
+        conn.execute(
+            "UPDATE notifications SET name = ?, metadata = ? WHERE channel = ?",
+            (old.name, json.dumps(metadata), target),
+        )
     conn.execute("DELETE FROM pins WHERE channel = ?", (target,))
     conn.execute("UPDATE pins SET channel = ? WHERE channel = ?", (target, source))
     conn.execute("DELETE FROM session_emoji WHERE channel = ?", (target,))
     conn.execute("UPDATE session_emoji SET channel = ? WHERE channel = ?", (target, source))
-    if old.status == "snoozed":
+    if old.status == "snoozed" and old.snooze_until and old.snooze_until > time.time():
         conn.execute(
             """UPDATE notifications SET status = 'snoozed', snooze_until = ?,
                snooze_prev_status = ?, snooze_through_turns = ? WHERE channel = ?""",

@@ -341,7 +341,7 @@ def get_by_channel(
 # --- Mutations ---
 
 
-def _is_backend_name(name_source: Any) -> bool:
+def is_backend_name(name_source: Any) -> bool:
     """Whether a name_source denotes a real backend title rather than a placeholder.
 
     Placeholders come from the environment (tmux session, cwd). Backend titles
@@ -366,7 +366,7 @@ def _reconcile_name(
         # The user renamed this session; keep their name. The stored auto-name is
         # only upgraded by a real backend title, so clearing the override later
         # restores a good name rather than whatever tmux happened to be called.
-        if name and _is_backend_name(metadata.get("name_source")):
+        if name and is_backend_name(metadata.get("name_source")):
             metadata["auto_name"] = name
         else:
             metadata["auto_name"] = existing.metadata["auto_name"]
@@ -375,7 +375,7 @@ def _reconcile_name(
     if not name:
         return existing.name
 
-    if not _is_backend_name(metadata.get("name_source")) and _is_backend_name(
+    if not is_backend_name(metadata.get("name_source")) and is_backend_name(
         existing.metadata.get("name_source")
     ):
         # Don't regress a real backend title back to a tmux/cwd placeholder.
@@ -509,9 +509,34 @@ def add(
             if keep_existing_message and existing.message:
                 message = existing.message
 
-            held = ends_turn and existing.is_snoozed and existing.snooze_through_turns
+            handoff_now = time.time()
+            handing_off = (
+                conn.execute(
+                    """SELECT 1 FROM brief_handoffs h
+                       JOIN session_briefs b ON b.path = h.path
+                       WHERE b.channel = ? AND h.source = ?
+                         AND h.phase IN ('requested', 'prepared', 'launched') AND h.deadline > ?""",
+                    (channel, channel, handoff_now),
+                ).fetchone()
+                if existing.is_snoozed
+                and existing.snooze_until
+                and existing.snooze_until > handoff_now
+                else None
+            )
+            held = (
+                existing.is_snoozed
+                and existing.snooze_until is not None
+                and (
+                    (ends_turn and existing.snooze_through_turns)
+                    or (handing_off is not None and existing.snooze_until > handoff_now)
+                )
+            )
             woken_as = "unread" if "unread" in (status, existing.snooze_prev_status) else status
-            snooze = (existing.snooze_until, woken_as, True) if held else (None, None, False)
+            snooze = (
+                (existing.snooze_until, woken_as, existing.snooze_through_turns)
+                if held
+                else (None, None, False)
+            )
             conn.execute(
                 """
                 UPDATE notifications

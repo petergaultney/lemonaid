@@ -56,6 +56,19 @@ def test_threads_sharing_a_prefix_keep_separate_rows_and_attachments():
         assert _channels(conn, "session_emoji") == {f"codex:{_THREAD_A}"}
 
 
+def test_codex_notification_distinguishes_title_from_cwd_placeholder():
+    _notify(_THREAD_A, "/work/sandboxing")
+    notify.handle_notification(
+        json.dumps({"thread-id": _THREAD_B, "cwd": "/work/sandboxing", "title": "New title"})
+    )
+
+    with db.connect() as conn:
+        placeholder = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
+        titled = db.get_by_channel(conn, f"codex:{_THREAD_B}", unread_only=False)
+        assert placeholder.metadata["name_source"] == "environment"
+        assert titled.metadata["name_source"] == "codex_title"
+
+
 def _database_before_full_channels(path: Path) -> None:
     """Rows as the release before full Codex channels wrote them."""
     with db.connect(path):
