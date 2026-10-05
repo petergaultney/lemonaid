@@ -426,6 +426,7 @@ lemonaid lemon children --self --json          # your children, with their brief
 lemonaid brief children --self                 # your children's places, sessions, PRs, and cleanup
 lemonaid brief handoff --to codex               # replace this harness in its tmux pane
 lemonaid brief handoff --to claude --brief FILE # request a handoff for another lemon's brief
+lemonaid brief handoff --to codex --brief FILE  # explicitly select a source for staged handoff
 lemonaid brief handoff status TOKEN             # phase, channels, missing check, exact user phrases
 lemonaid brief handoff ready TOKEN              # outgoing lemon's explicit acknowledgement
 lemonaid brief handoff accept TOKEN             # incoming lemon's explicit acknowledgement
@@ -487,10 +488,18 @@ For a manually staged handoff without a live tmux pane, status prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start
 the destination harness in the outgoing working directory. It uses the configured
 harness template's command when present, or `claude`/`codex` if no template is
-configured. To keep the same plain terminal window, exit the outgoing harness
-after readiness, then run `start_command` in the shell that returns in that
-window. It passes the token
-to the new harness and prompts it to read the brief, rearm waiters, and accept.
+configured. To select an attached source explicitly and use this staged flow,
+pass `--brief FILE`; the file must have exactly one attached outgoing channel.
+This opts out of the controlling-TTY supervisor described above. From the shell
+with the source suspended:
+
+1. Run `lemonaid brief handoff --to codex --brief FILE` (or `--to claude`) and
+   save the token it prints.
+2. Run `fg` to let the source write its handoff and reach readiness, then exit.
+3. In the returned shell, run `lemonaid brief handoff status TOKEN`, then run
+   the reported `start_command`. It passes the token and prompts the target to
+   read the brief, rearm waiters, and accept.
+
 In a desktop or remote-control app, open the destination session using its UI
 and give it `start_prompt`; same-window placement depends on that app. Manual
 `accept TOKEN` must run inside that harness with its own session ID; the token
