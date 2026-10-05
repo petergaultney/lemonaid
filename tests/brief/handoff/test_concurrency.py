@@ -1,4 +1,4 @@
-"""Concurrent coordinators must reserve only one target window per token."""
+"""Concurrent coordinators must reserve only one target pane per token."""
 
 import threading
 import time
@@ -9,14 +9,12 @@ from lemonaid.inbox import db
 from .shared import requested
 
 
-def test_concurrent_advance_opens_only_one_window(setup, monkeypatch):
+def test_concurrent_advance_opens_only_one_pane(setup, monkeypatch):
     conn, path = setup
     row = requested(conn, path)
     monkeypatch.setattr(db, "get_db_path", lambda: path.parent / "inbox.db")
     monkeypatch.setattr(handoff_state, "ready", lambda *_: (True, ""))
-    monkeypatch.setattr(
-        handoff_tmux, "pane", lambda _session, index: ("%2", "@2") if index == "2" else ("%3", "@3")
-    )
+    monkeypatch.setattr(handoff_tmux, "has_pane", lambda *_: True)
 
     opened = []
     opening = threading.Event()
@@ -32,8 +30,8 @@ def test_concurrent_advance_opens_only_one_window(setup, monkeypatch):
                 raise TimeoutError("first launch was not released")
 
         other_conn.execute(
-            """UPDATE brief_handoffs SET phase = 'launched', target_window = '3',
-               target_window_id = '@3', target_pane_id = '%3' WHERE token = ?""",
+            """UPDATE brief_handoffs SET phase = 'launched', target_window = '2',
+               target_window_id = '@2', target_pane_id = '%3' WHERE token = ?""",
             (handoff["token"],),
         )
         other_conn.commit()

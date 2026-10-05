@@ -2,12 +2,19 @@
 
 import fcntl
 import hashlib
-import json
 import time
 from pathlib import Path
 
 from ..inbox import db
-from . import attached, handoff_codex, handoff_launch, handoff_state, handoff_tmux, handoff_transfer
+from . import (
+    attached,
+    handoff_codex,
+    handoff_launch,
+    handoff_report,
+    handoff_state,
+    handoff_tmux,
+    handoff_transfer,
+)
 
 
 def source(conn, channel: str, harness: str) -> tuple[Path, str, str, str, str, str]:
@@ -21,13 +28,21 @@ def source(conn, channel: str, harness: str) -> tuple[Path, str, str, str, str, 
 
     session = str(row.metadata.get("tmux_session") or "")
     index = str(row.metadata.get("tmux_window") or "")
-    pane, window_id = handoff_tmux.pane(session, index) if session and index else ("", "")
-    if not pane:
-        raise ValueError("The outgoing lemon needs one live pane in a tmux window")
-
-    current_command = handoff_tmux.current_command(pane)
-    if not current_command:
+    tty = str(row.metadata.get("tty") or "")
+    pane, window_id = (
+        handoff_tmux.pane_for_tty(session, index, tty)
+        if session and index and tty
+        else handoff_tmux.pane(session, index)
+        if session and index
+        else ("", "")
+    )
+    current_command = (
+        handoff_tmux.current_command(pane) if pane else str(row.metadata.get("cwd") or "")
+    )
+    if pane and not current_command:
         raise ValueError("Could not inspect the outgoing pane's command")
+    if not pane and (not current_command or not Path(current_command).is_dir()):
+        raise ValueError("The outgoing lemon's working directory is unavailable")
 
     if channel.startswith(harness + ":"):
         raise ValueError("The destination harness is already running this brief")
@@ -35,28 +50,35 @@ def source(conn, channel: str, harness: str) -> tuple[Path, str, str, str, str, 
     return path, session, index, window_id, pane, current_command
 
 
-def _target_channel(conn, row) -> str:
-    found = []
-    for item in conn.execute(
-        "SELECT channel, metadata FROM notifications WHERE status != 'archived'"
-    ):
-        metadata = json.loads(item["metadata"] or "{}")
-        if (
-            metadata.get("tmux_session") == row["session"]
-            and str(metadata.get("tmux_window")) == row["target_window"]
-            and item["channel"] != row["source"]
-            and item["channel"].startswith(row["harness"] + ":")
-        ):
-            found.append(item["channel"])
-
-    return found[0] if len(set(found)) == 1 else ""
-
-
 def recover_source(conn, row, reason: str) -> str:
     if row["error"]:
         return row["error"]
 
-    if row["source"].startswith("claude:"):
+    if not row["source_pane_id"]:
+        error = (
+            f"handoff {reason}; outgoing channel retains its brief; "
+            "resume the original session if it exited, then rearm its waiters before retrying"
+        )
+    elif row["target_pid"]:
+        resumed = handoff_tmux.resume_source(conn, row)
+        error = (
+            f"handoff {reason}; outgoing session resumed in its original pane"
+            if resumed
+            else f"handoff {reason}; could not safely resume the outgoing session; "
+            "check the pane and resume its original session manually"
+        )
+        if resumed and row["remain_on_exit"]:
+            handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"])
+    elif (
+        row["phase"] == "prepared"
+        and (state := handoff_tmux.pane_process(row["source_pane_id"], row["source_window_id"]))
+        and state[0] != row["source_pid"]
+    ):
+        error = (
+            f"handoff {reason}; pane process changed before its identity was saved; "
+            "inspect the pane and resume the original session manually"
+        )
+    elif row["source"].startswith("claude:"):
         error = (
             f"handoff {reason}; outgoing Claude was prompted to rearm its waiter"
             if handoff_tmux.prompt_source_to_rearm(row, reason)
@@ -64,7 +86,14 @@ def recover_source(conn, row, reason: str) -> str:
         )
     else:
         error = f"handoff {reason}; outgoing session remains active"
-    conn.execute("UPDATE brief_handoffs SET error = ? WHERE token = ?", (error, row["token"]))
+    if row["phase"] == "prepared" and row["remain_on_exit"] and not row["target_pid"]:
+        state = handoff_tmux.pane_process(row["source_pane_id"], row["source_window_id"])
+        if state and state[0] == row["source_pid"]:
+            handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"])
+    conn.execute(
+        "UPDATE brief_handoffs SET phase = 'failed', error = ? WHERE token = ?",
+        (error, row["token"]),
+    )
     conn.commit()
     return error
 
@@ -72,37 +101,60 @@ def recover_source(conn, row, reason: str) -> str:
 def _advance(conn, token: str) -> dict:
     row = handoff_state.get(conn, token)
     if row["phase"] in ("complete", "failed"):
-        return _report(row)
+        return handoff_report.build(row)
 
     if row["phase"] == "transferred":
-        if not handoff_tmux.close_old(row):
-            return {**_report(row), "missing": ["old pane changed; close its window by hand"]}
+        if row["source_pane_id"] and row["remain_on_exit"]:
+            state = handoff_tmux.pane_process(row["target_pane_id"], row["target_window_id"])
+            if state is None or state != (row["target_pid"], False):
+                return {
+                    **handoff_report.build(row),
+                    "missing": ["replacement pane changed; inspect its exit setting"],
+                }
+            if not handoff_tmux.set_remain_on_exit(row["source_pane_id"], row["remain_on_exit"]):
+                return {
+                    **handoff_report.build(row),
+                    "missing": ["could not restore the pane exit setting"],
+                }
 
         conn.execute("UPDATE brief_handoffs SET phase = 'complete' WHERE token = ?", (token,))
         conn.commit()
-        return _report(handoff_state.get(conn, token))
+        return handoff_report.build(handoff_state.get(conn, token))
 
     if time.time() > row["deadline"]:
         error = recover_source(conn, row, "timed out")
-        return {**_report(row), "missing": [error + "; retry with --to to extend it"]}
+        return {
+            **handoff_report.build(handoff_state.get(conn, token)),
+            "missing": [error + "; start a new handoff with --to after recovery"],
+        }
 
     if row["error"]:
-        return {**_report(row), "missing": [row["error"] + "; retry with --to to resume it"]}
+        return {
+            **handoff_report.build(row),
+            "missing": [row["error"] + "; start a new handoff with --to after recovery"],
+        }
 
     if (
-        handoff_tmux.pane(row["session"], row["source_window"])
-        != (row["source_pane_id"], row["source_window_id"])
-        and row["phase"] != "transferred"
+        row["source_pane_id"]
+        and row["phase"] == "requested"
+        and not handoff_tmux.has_pane(row["source_pane_id"], row["source_window_id"])
     ):
-        return {**_report(row), "missing": ["outgoing pane changed; cutover stopped"]}
+        return {**handoff_report.build(row), "missing": ["outgoing pane changed; cutover stopped"]}
 
     if row["phase"] == "requested":
         handoff_codex.phrases(conn, row)
         good, reason = handoff_state.ready(conn, row)
         if not good:
-            return {**_report(row), "missing": [reason]}
+            return {**handoff_report.build(row), "missing": [reason]}
 
         handoff_state.acknowledge(conn, token, row["source"], "ready")
+        if not row["source_pane_id"]:
+            conn.execute("UPDATE brief_handoffs SET phase = 'launched' WHERE token = ?", (token,))
+            conn.commit()
+            return {
+                **handoff_report.build(handoff_state.get(conn, token)),
+                "missing": ["start the target command, then accept from that harness"],
+            }
         handoff_launch.run(conn, row)
         row = handoff_state.get(conn, token)
 
@@ -111,36 +163,49 @@ def _advance(conn, token: str) -> dict:
         row = handoff_state.get(conn, token)
 
     if row["phase"] == "launched":
-        if handoff_tmux.pane(row["session"], row["target_window"]) != (
-            row["target_pane_id"],
-            row["target_window_id"],
-        ):
-            return {**_report(row), "missing": ["new pane changed; cutover stopped"]}
+        if row["source_pane_id"]:
+            state = handoff_tmux.pane_process(row["target_pane_id"], row["target_window_id"])
+            if state is None or state[0] != row["target_pid"]:
+                return {
+                    **handoff_report.build(row),
+                    "missing": ["replacement pane changed; cutover stopped"],
+                }
+            if state[1]:
+                error = recover_source(conn, row, "target exited")
+                return {**handoff_report.build(handoff_state.get(conn, token)), "missing": [error]}
 
-        target = row["target"] or _target_channel(conn, row)
-        if target and not row["target"]:
-            conn.execute("UPDATE brief_handoffs SET target = ? WHERE token = ?", (target, token))
-            conn.commit()
-            row = handoff_state.get(conn, token)
+        # Native harness notifications bind the token to their real session ID.
+        # A pane's TTY can be reused by an older live row, so it is not identity.
+        target = row["target"]
 
-        handoff_codex.phrases(conn, row)
+        if row["source_pane_id"]:
+            handoff_codex.phrases(conn, row)
         row = handoff_state.get(conn, token)
 
         if not target or not row["accepted"]:
-            return {**_report(row), "missing": ["new channel or accept acknowledgement"]}
+            return {
+                **handoff_report.build(row),
+                "missing": ["new channel or accept acknowledgement"],
+            }
 
         notification = db.get_by_channel(conn, target, unread_only=False)
         if notification is None or notification.status == "archived":
-            return {**_report(row), "missing": ["new channel has not registered an inbox row"]}
+            return {
+                **handoff_report.build(row),
+                "missing": ["new channel has not registered an inbox row"],
+            }
 
         if attached.by_channel(conn, [target]):
-            return {**_report(row), "missing": ["new channel already has another brief"]}
+            return {
+                **handoff_report.build(row),
+                "missing": ["new channel already has another brief"],
+            }
 
         handoff_transfer.transfer(conn, token)
         row = handoff_state.get(conn, token)
         return _advance(conn, token)
 
-    return _report(row)
+    return handoff_report.build(row)
 
 
 def advance(conn, token: str) -> dict:
@@ -149,17 +214,3 @@ def advance(conn, token: str) -> dict:
     with lock.open("w") as file:
         fcntl.flock(file, fcntl.LOCK_EX)
         return _advance(conn, token)
-
-
-def _report(row) -> dict:
-    return {
-        "token": row["token"],
-        "phase": row["phase"],
-        "source": row["source"],
-        "target": row["target"] or None,
-        "old_window": f"{row['session']}:{row['source_window']}",
-        "new_window": f"{row['session']}:{row['target_window']}" if row["target_window"] else None,
-        "ready_phrase": f"lemonaid handoff ready {row['token']}",
-        "accept_phrase": f"lemonaid handoff accept {row['token']}",
-        "missing": [],
-    }

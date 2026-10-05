@@ -34,7 +34,11 @@ def _move_manual_state(conn: sqlite3.Connection, source: str, target: str) -> No
     conn.execute("UPDATE pins SET channel = ? WHERE channel = ?", (target, source))
     conn.execute("DELETE FROM session_emoji WHERE channel = ?", (target,))
     conn.execute("UPDATE session_emoji SET channel = ? WHERE channel = ?", (target, source))
-    if old.status == "snoozed" and old.snooze_until and old.snooze_until > time.time():
+    if (
+        old.status in ("snoozed", "archived")
+        and old.snooze_until
+        and old.snooze_until > time.time()
+    ):
         conn.execute(
             """UPDATE notifications SET status = 'snoozed', snooze_until = ?,
                snooze_prev_status = ?, snooze_through_turns = ? WHERE channel = ?""",

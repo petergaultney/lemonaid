@@ -424,7 +424,7 @@ lemonaid place open feat/thing --brief <file>  # attach to the first lemon that 
 lemonaid place open feat/thing --brief <file> --parent self  # and record yourself as its parent
 lemonaid lemon children --self --json          # your children, with their brief Status:
 lemonaid brief children --self                 # your children's places, sessions, PRs, and cleanup
-lemonaid brief handoff --to codex               # hand this attached brief to a new Codex window
+lemonaid brief handoff --to codex               # replace this harness in its tmux pane
 lemonaid brief handoff --to claude --brief FILE # request a handoff for another lemon's brief
 lemonaid brief handoff status TOKEN             # phase, channels, missing check, exact user phrases
 lemonaid brief handoff ready TOKEN              # outgoing lemon's explicit acknowledgement
@@ -435,41 +435,69 @@ Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
 ### Harness handoff
 
-`brief handoff --to claude|codex` needs an attached brief and one live tmux pane in
-the outgoing window. It sends the outgoing lemon a request with a random token.
+`brief handoff --to claude|codex` needs an attached brief and a live outgoing
+inbox row. It sends the outgoing lemon a request with a random token.
 The outgoing lemon writes a fresh `## Handoff` section with at most five bullets,
 using its current brief without rereading files when that brief is already current.
 It stops its waiters and ends that section with `Handoff-Ready: TOKEN` on its
 own line. If the outgoing
 harness is Claude, the same standalone line in its completed final reply also
 counts. Lemonaid checks the file is stable and passes `brief check` in either
-case, then starts the configured harness in a dedicated new
-window in the same tmux session and working directory. The new lemon reads the
-brief, rearms the waiters, and runs `brief handoff accept TOKEN`.
+case. With a live tmux pane, it first checks that the outgoing session has a
+usable resume command. It then replaces the outgoing process in that exact
+pane with the configured target harness. The pane and window IDs do not change.
+The new lemon reads the brief, rearms the waiters, and runs
+`brief handoff accept TOKEN`. This tmux replacement ends the old process
+immediately after the handoff passes readiness; its session can be resumed by
+the original session ID if needed.
+
+If the outgoing session has no live tmux pane, status instead prints a
+`start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start
+the destination harness in the outgoing working directory. It uses the configured
+harness template's command when present, or `claude`/`codex` if no template is
+configured. To keep the same plain terminal window, exit the outgoing harness
+after readiness, then run `start_command` in the shell that returns in that
+window. It passes the token
+to the new harness and prompts it to read the brief, rearm waiters, and accept.
+In a desktop or remote-control app, open the destination session using its UI
+and give it `start_prompt`; same-window placement depends on that app. Manual
+`accept TOKEN` must run inside that harness with its own session ID; the token
+is required, and an inherited token must match if present. The handoff waits
+for the target inbox row before transferring state.
+If a manual launch fails or the handoff times out, the source keeps the brief.
+Status includes `resume_command` built from the outgoing session's configured
+resume command. Run it in the same terminal, then rearm the old waiters before
+making a new `--to` request.
+Lemonaid cannot replace a desktop app's process or force a remote-control app
+to reuse a particular window. Its manual mode provides the prompt and command
+for the app or terminal to run sequentially.
 
 While a handoff is pending and unexpired, Claude's Stop hook allows the outgoing
 session to stop its inbox waiter. Brief validation still runs. If the handoff
-fails or times out, the usual waiter requirement returns and lemonaid prompts
-the outgoing Claude in its original pane to rearm. If that pane has changed,
-`brief handoff status TOKEN` reports that manual rearming is needed.
+fails before replacement, the usual waiter requirement returns and lemonaid
+prompts the outgoing Claude in its original pane to rearm. After replacement,
+tmux retains the pane if the target exits. A target exit or acceptance timeout
+resumes the original harness in that pane using its configured resume command.
+If another process has taken the pane, status reports that manual recovery is
+needed rather than replacing that process.
 
 The command prints JSON with a durable token and phase. `brief handoff status TOKEN`
 reports what is still missing and can resume coordination after an interruption.
 Concurrent status calls and the background coordinator serialize work for that token,
-so they reserve one new window.
+so they replace the outgoing process only once.
 Handoffs into Codex also work when the outgoing working directory has Unicode
 characters in its name.
 The outgoing or incoming user can instead type the whole message
 `lemonaid handoff ready TOKEN` or `lemonaid handoff accept TOKEN` in the respective
 harness. Claude's submit hook and the Codex transcript detect these messages.
 The CLI `ready` and `accept` verbs use the same checks if prompt detection is
-unavailable. A ten-minute deadline stops automatic coordination; retrying
-`--to` for the same brief and harness extends it without making a second request.
+unavailable. A ten-minute deadline stops automatic coordination. A failed
+handoff releases the brief for a new request after the source is resumed.
 
 After both acknowledgements, one transaction moves the brief and manual inbox
 state. The new channel retains its own notification and session metadata. The old
-channel is archived, and its old window is closed only if its pane and window IDs
-still match. A changed pane is reported as a partial handoff for manual cleanup.
+channel is archived. The replacement remains in the original pane and window.
+The pane's previous exit setting is restored after a successful transfer.
 An active snooze on the old channel carries over, including its wake time and
 through-turns setting. A real outgoing session title carries over if the new
 channel still has a placeholder title; a title supplied by the new harness wins.

@@ -1,3 +1,9 @@
+# 0.71.0 (2026-10-05)
+
+#### Added
+
+- **Harness handoff replaces the outgoing harness in its tmux pane.** After readiness, tmux starts the target in the same pane and keeps that pane available for rollback. If the target exits or acceptance times out, lemonaid resumes the old session there. Without tmux, readiness prints a command to run in the same terminal after the old harness exits. The new harness accepts with its own session ID and token; brief ownership and manual inbox state transfer after its notification appears.
+
 # 0.70.2 (2026-10-05)
 
 #### Fixed

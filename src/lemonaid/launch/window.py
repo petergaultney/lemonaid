@@ -107,6 +107,29 @@ def open_window(
     return Pane(pane, window), ""
 
 
+def split_pane(
+    source: Pane, directory: Path, environment: abc.Mapping[str, str]
+) -> tuple[Pane | None, str]:
+    """Start a shell beside *source* without changing the active pane."""
+    result = _tmux(
+        "split-window",
+        "-d",
+        "-t",
+        source.pane_id,
+        "-c",
+        str(directory),
+        *environment_args(environment),
+        "-P",
+        "-F",
+        "#{pane_id}\t#{window_id}",
+    )
+    pane, _, window = result.stdout.strip().partition("\t")
+    if result.returncode != 0 or not pane or window != source.window_id:
+        return None, f"Could not split source window: {result.stderr.strip()}"
+
+    return Pane(pane, window), ""
+
+
 def run(pane: Pane, line: str) -> str:
     """Type *line* into *pane*'s shell. Returns an error, or ""."""
     result = _tmux("send-keys", "-t", pane.pane_id, line, "Enter")
