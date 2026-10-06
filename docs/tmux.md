@@ -474,7 +474,21 @@ set -g status-left '#[bg=#5865F2,fg=#FFFFFF,bold] #{session_name} #[default]'
 
 ### Shell integration
 
-For `#{pane_current_path}` to work, your shell must report the current directory to tmux via OSC 7 escape sequences. Add the appropriate snippet for your shell:
+tmux keeps two directories for each pane:
+
+- `#{pane_current_path}` is the working directory of the foreground program in the pane. tmux gets it from the operating system. It needs no shell setup.
+- `#{pane_path}` is the directory from the last OSC 7 escape sequence that the pane printed. It is empty until a program in the pane prints OSC 7.
+
+The tab label uses `#{pane_path}` when it has a value. Otherwise it uses `#{pane_current_path}`. So window colors work without shell setup. tmux tells the label client about changes once a second, so a `cd` shows in the label within about a second, with or without OSC 7. An older `#()` config shows a `cd` at the next status redraw instead. Without OSC 7, that redraw can come up to `status-interval` (15 seconds by default) later. tmux redraws the status line when it reads an OSC 7.
+
+The two directories can be different. For example, over `ssh`, `#{pane_current_path}` is the local directory of the `ssh` process. `#{pane_path}` is the remote directory if the remote shell prints OSC 7.
+
+To set `#{pane_path}`, make your shell print a plain OSC 7 before each prompt:
+
+- **Use a plain sequence.** Do not wrap OSC 7 in `\ePtmux;...\e\\`. tmux sends a wrapped sequence to the outer terminal, or discards it when `allow-passthrough` is off. tmux does not read it.
+- **Print it before each prompt, not only after `cd`.** A program in the pane, such as `ssh`, can print its own OSC 7. `#{pane_path}` keeps that value until your shell prints OSC 7 again. If your shell never prints OSC 7, the label keeps that program's directory after the program exits, even after a `cd`.
+
+Some shells and frameworks already print OSC 7. oh-my-zsh prints it before each prompt, but not over SSH or when `INSIDE_EMACS` is set (see its `lib/termsupport.zsh`). Since 0.23, xonsh prints it at startup and after each directory change, but not before each prompt. You can add a snippet below with them. A second OSC 7 does no harm.
 
 #### Bash
 
@@ -482,7 +496,7 @@ For `#{pane_current_path}` to work, your shell must report the current directory
 # Add to ~/.bashrc
 if [ -n "$TMUX" ]; then
     __tmux_osc7() {
-        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' "$HOSTNAME" "$PWD"
+        printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"
     }
     PROMPT_COMMAND="__tmux_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi
@@ -493,11 +507,11 @@ fi
 ```zsh
 # Add to ~/.zshrc
 if [[ -n "$TMUX" ]]; then
+    autoload -Uz add-zsh-hook
     __tmux_osc7() {
-        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' "$HOST" "$PWD"
+        printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD"
     }
-    add-zsh-hook chpwd __tmux_osc7
-    __tmux_osc7  # run on startup
+    add-zsh-hook precmd __tmux_osc7
 fi
 ```
 
@@ -506,23 +520,24 @@ fi
 ```fish
 # Add to ~/.config/fish/config.fish
 if set -q TMUX
-    function __tmux_osc7 --on-variable PWD
-        printf '\ePtmux;\e\e]7;file://%s%s\e\e\\\e\\' (hostname) "$PWD"
+    function __tmux_osc7 --on-event fish_prompt
+        printf '\e]7;file://%s%s\e\\\\' (hostname) "$PWD"
     end
-    __tmux_osc7  # run on startup
 end
 ```
+
+In fish, `\\` in single quotes is one backslash. So `\e\\\\` gives printf `\e\\`, and printf prints ESC and `\`.
 
 #### Xonsh
 
 ```python
 # Add to ~/.xonshrc
+import os
 import platform
 if "TMUX" in ${...}:
-    @events.on_chdir
-    def _report_cwd_to_tmux(olddir, newdir, **kw):
-        print(f"\x1bPtmux;\x1b\x1b]7;file://{platform.node()}{newdir}\x1b\x1b\\\x1b\\", end="", flush=True)
-    _report_cwd_to_tmux(None, os.getcwd())  # run on startup
+    @events.on_pre_prompt
+    def _report_cwd_to_tmux(**kw):
+        print(f"\x1b]7;file://{platform.node()}{os.getcwd()}\x1b\\", end="", flush=True)
 ```
 
 ### App title integration
