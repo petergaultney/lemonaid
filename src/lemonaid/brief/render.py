@@ -10,11 +10,12 @@ view as plain Markdown for lemons and scripts.
 import dataclasses
 import re
 import textwrap
+import typing as ty
 from collections import abc
 from pathlib import Path
 
 from ..config import PlaceRoot
-from . import display, now, pr, project, questions, status, target
+from . import display, identity, now, pr, project, questions, status, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -67,6 +68,12 @@ def _labelled(parsed: now.Now, compact: bool) -> list[str]:
     ]
 
 
+class Child(ty.NamedTuple):
+    state: str  # its brief's status
+    name: str  # its session's name, or else its Lemon-ID's slug
+    lemon_id: str
+
+
 @dataclasses.dataclass(frozen=True)
 class Section:
     lemon: target.Identity | None
@@ -76,7 +83,7 @@ class Section:
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
     path: Path | None  # None for a lemon with no brief
     mtime: float
-    body: str  # Markdown: the title under a lemon, then Now up to Done, without Needs
+    body: str  # Markdown: Now up to Done, without Needs
     tail: str = ""  # Markdown after the children: Done, then the task
     needs_label: str = "Needs"
     needs_text: str = ""  # Markdown: what Now says the lemon needs, as written
@@ -84,9 +91,12 @@ class Section:
     unmatched_questions: tuple[str, ...] = ()
     project: str = ""  # `ds-monorepo: apps/unified-asset`, or "" without a lemon or Area line
     held: str = ""  # the brief's own state, while its lemon is mid-turn and shows `state` instead
+    lemon_id: str = ""
+    compact: bool = False  # one of a session's later lemons, drawn in fewer lines
     # The rest are filled in by `family.added`.
     parent: str = ""  # its parent's Lemon-ID
-    children: tuple[tuple[str, str], ...] = ()  # (brief status, name)
+    parent_name: str = ""  # its parent's session name, when lemonaid knows it
+    children: tuple[Child, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,6 +112,13 @@ def _prs(text: str, cwd: Path | None, pr_state: pr.Lookup) -> tuple[tuple[str, s
     return tuple((pr.label(ref, refs), pr_state(ref, cwd)) for ref in refs)
 
 
+def _lemon_id(text: str) -> str:
+    try:
+        return identity.read(text)
+    except ValueError:
+        return ""  # `lemonaid brief check` reports a broken Lemon-ID line
+
+
 def _section(
     brief: status.Brief,
     lemon: target.Identity | None,
@@ -113,14 +130,7 @@ def _section(
     parsed = now.parse(parts.now)
     explained = questions.entries(parts.questions)
     title = _display_title(parts.title) or brief.name or "Work status"
-    body = "\n\n".join(
-        part
-        for part in (
-            f"**{title}**" if lemon else "",
-            *_labelled(parsed, detail == "compact"),
-        )
-        if part
-    )
+    body = "\n\n".join(_labelled(parsed, detail == "compact"))
     tail = "\n\n".join(
         part
         for part in (
@@ -146,6 +156,8 @@ def _section(
         questions.items(parsed.needs, explained),
         questions.unmatched(parsed.needs, explained),
         project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
+        lemon_id=_lemon_id(brief.text),
+        compact=detail == "compact",
     )
 
 
@@ -303,12 +315,51 @@ def file_line(section: Section, in_session: bool, now_seconds: float) -> str:
     )
 
 
+def _child_line(child: Child) -> str:
+    name = (
+        [child.name]
+        if child.name and child.name != identity.brief_description(child.lemon_id)
+        else []
+    )
+    return " · ".join([f"- {child.state or '-'}", *name, identity.markdown_id(child.lemon_id)])
+
+
 def _children(section: Section) -> str:
     if not section.children:
         return ""
 
-    lines = "\n".join(f"- {state or '-'} · {name}" for state, name in section.children)
+    lines = "\n".join(_child_line(child) for child in section.children)
     return f"**Children:**\n\n{lines}"
+
+
+def _parent(section: Section) -> str:
+    return (
+        f"{section.parent_name} ({identity.markdown_id(section.parent)})"
+        if section.parent_name
+        else identity.markdown_id(section.parent)
+    )
+
+
+def identity_lines(section: Section) -> list[str]:
+    """Markdown lines for which lemon this is: its task, Lemon-ID and parent.
+
+    A compact section puts the Lemon-ID and parent on one line. A section
+    without a lemon names its task in its heading instead.
+    """
+    lemon_id = f"Brief-ID: {identity.markdown_id(section.lemon_id)}" if section.lemon_id else ""
+    parent = f"Parent: {_parent(section)}" if section.parent else ""
+    return [
+        line
+        for line in (
+            f"**{section.title}**" if section.lemon else "",
+            *(
+                [" · ".join(part for part in (lemon_id, parent) if part)]
+                if section.compact
+                else [lemon_id, parent]
+            ),
+        )
+        if line
+    ]
 
 
 def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str:
@@ -326,13 +377,17 @@ def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str
                 if part
             ),
             "  \n".join(
-                line
-                for line in (
-                    f"**Status:** {status_text(section)}",
-                    f"**PR:** {prs}" if prs else "",
-                    f"**Parent:** `{section.parent}`" if section.parent else "",
-                )
-                if line
+                [
+                    *identity_lines(section),
+                    " · ".join(
+                        part
+                        for part in (
+                            f"**Status:** {status_text(section)}",
+                            prs and f"**PR:** {prs}",
+                        )
+                        if part
+                    ),
+                ]
             ),
             needs(section, expanded),
             section.body,

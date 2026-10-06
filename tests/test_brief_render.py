@@ -1,5 +1,6 @@
 """What a brief shows first: who, its status, and what it needs from Peter."""
 
+import dataclasses
 from pathlib import Path
 
 from lemonaid.brief import render, target
@@ -29,9 +30,11 @@ def test_needs_peter_comes_right_after_identity_and_status_whatever_the_order(tm
 
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
 
-    assert out.startswith("### author · Claude / Opus · work:2\n\n**Status:** blocked\n\n")
+    assert out.startswith(
+        "### author · Claude / Opus · work:2\n\n**Task**  \n**Status:** blocked\n\n"
+    )
     assert "> **Needs Peter:** say yes" in out
-    assert out.index("Needs Peter") < out.index("**Task**") < out.index("**Next:**")
+    assert out.index("**Task**") < out.index("Needs Peter") < out.index("**Next:**")
     assert out.index("**Next:** more") < out.index("**Done:** a lot")
     assert "Waiting on" not in out
 
@@ -59,7 +62,7 @@ def test_pr_state_follows_the_status(tmp_path):
 
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, pr_state)
 
-    assert "**Status:** waiting  \n**PR:** #74 merged" in out
+    assert "**Status:** waiting · **PR:** #74 merged" in out
     assert asked == [("74", tmp_path)]
 
 
@@ -90,6 +93,43 @@ def test_a_session_shows_window_two_in_full_and_the_rest_compact(tmp_path):
     assert "pass one" not in out and "pass two" not in out
     assert "**Next:** tests" in out
     assert out.count("~/work · feat/x") == 1
+
+
+def test_a_lemon_id_and_parent_follow_the_title_on_one_line_in_a_compact_section(tmp_path):
+    author = _brief(
+        tmp_path, "a", "# Build (v2)\n\nLemon-ID: build.QuickOdd\n\nStatus: working\n\n## Now\n"
+    )
+    reviewer = _brief(
+        tmp_path, "r", "# Review\n\nLemon-ID: review.SaltyEbb\n\nStatus: waiting\n\n## Now\n"
+    )
+    found = target.Target(
+        [reviewer, author],
+        [],
+        None,
+        [],
+        "work",
+        "# work · 2 lemons",
+        identities={author: _AUTHOR, reviewer: _REVIEWER},
+    )
+    shown = render.view(found, 0, _no_prs)
+    shown = dataclasses.replace(
+        shown,
+        sections=tuple(
+            dataclasses.replace(s, parent="hq.BlessBar", parent_name="lemonaid HQ")
+            for s in shown.sections
+        ),
+    )
+
+    out = render.to_markdown(shown, 0)
+
+    assert (
+        "### w2 · author · Claude / Opus\n\n**Build (v2)**  \nBrief-ID: `build`.**QuickOdd**  \n"
+        "Parent: lemonaid HQ (`hq`.**BlessBar**)  \n**Status:** working"
+    ) in out
+    assert (
+        "**Review**  \nBrief-ID: `review`.**SaltyEbb** · Parent: lemonaid HQ (`hq`.**BlessBar**)  \n"
+        "**Status:** waiting"
+    ) in out
 
 
 def test_every_lemon_in_a_session_gets_a_section_with_its_own_brief_or_none(tmp_path):

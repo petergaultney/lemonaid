@@ -1,3 +1,10 @@
+# 0.72.0 (2026-10-06)
+
+#### Added
+
+- **The brief view identifies the brief and its lemons.** Under the session line come the brief's title, its `Brief-ID:`, and `Parent:` with the parent's session name when lemonaid knows it. The name after the dot is bold; the description is dimmed. Children and `brief show` use the same emphasis. Recent update times use the inbox's green; times over a day old use its gray.
+- **`[tui] brief_names_in_inbox = true` shows each attached brief's name after its session name,** in both the column layout and the sidebar. Off by default.
+
 # 0.71.2 (2026-10-05)
 
 #### Added

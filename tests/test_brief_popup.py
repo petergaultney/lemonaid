@@ -57,7 +57,7 @@ def test_identity_comes_first_and_where_it_runs_comes_last(tmp_path, monkeypatch
         f"### {tmp_path.name} · 🍋 popup header · Claude / Opus 4.1 · work:2"
     )
     assert " @ " not in rendered and "PR" not in rendered
-    assert rendered.index("popup header") < rendered.index("Status:") < rendered.index("**Task**")
+    assert rendered.index("popup header") < rendered.index("**Task**") < rendered.index("Status:")
     assert rendered.index("Building.") < rendered.index("feature/header")
     assert rendered.index("feature/header") < rendered.index("task.md")
 

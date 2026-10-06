@@ -40,4 +40,7 @@ def label(roots: abc.Iterable[PlaceRoot], place: str, cwd: str, area: str = "") 
     root = _root(roots, directory)
     name = (root.name or root.path.name) if root else directory.name
     part = area or (_below(Path(cwd), Path(place)) if cwd and place else "")
-    return f"{name}: {part}" if part else name
+    if not part or part == name:
+        return f"Project: {name}" if part else name
+
+    return f"{name}: {part}"

@@ -206,6 +206,19 @@ def _decorated_name(n: db.Notification, emojis: abc.Mapping[str, str]) -> str:
     return f"{decoration} {n.name or ''}".rstrip() if decoration else n.name or ""
 
 
+def _name_cell(
+    n: db.Notification, emojis: abc.Mapping[str, str], wordybin: str, is_unread: bool
+) -> Text:
+    """The decorated name, then the WordyBin, when shown, in the backend's grey."""
+    name = styled_cell(_decorated_name(n, emojis), is_unread, "name")
+    if not wordybin:
+        return name
+
+    suffix = styled_cell(f" · {wordybin}", False, "backend")
+    suffix.stylize(Style(meta={"lemonaid_wordybin": True}))
+    return name + suffix
+
+
 def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
     """Build Binding objects for all keys mapped to an action.
 
@@ -354,6 +367,14 @@ def _as_card(
             1 if is_here else 0,
             len(headline) - len(badge),
         )
+        name_offset = len(selector) + 2
+        for span in name.spans:
+            if isinstance(span.style, Style) and span.style.meta.get("lemonaid_wordybin"):
+                headline.stylize(
+                    Style(color="bright_black", bgcolor=ATTENTION_COLOR),
+                    name_offset + span.start,
+                    name_offset + span.end,
+                )
     else:
         headline = _right_aligned(headline, backend, width)
 
@@ -1395,6 +1416,7 @@ class LemonaidApp(App):
         pinned: frozenset[str],
         emojis: abc.Mapping[str, str],
         area: str = "",
+        wordybin: str = "",
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
@@ -1414,8 +1436,7 @@ class LemonaidApp(App):
                 self._backend_value(n, is_unread),
                 n.channel in pinned,
             ),
-            jump_gutter(row_index, is_here)
-            + styled_cell(_decorated_name(n, emojis), is_unread, "name"),
+            jump_gutter(row_index, is_here) + _name_cell(n, emojis, wordybin, is_unread),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             self._where_cell(n, is_unread, area),
             styled_cell(n.message, is_unread, "message"),
@@ -1423,14 +1444,14 @@ class LemonaidApp(App):
         ]
 
     def _other_row(
-        self, n: db.Notification, emojis: abc.Mapping[str, str], area: str = ""
+        self, n: db.Notification, emojis: abc.Mapping[str, str], area: str = "", wordybin: str = ""
     ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
             _time_cell(n.created_at, False),
             Text("○", style="dim") if n.is_unread else Text(""),
             self._backend_value(n, False),
-            styled_cell(_decorated_name(n, emojis), False, "name"),
+            _name_cell(n, emojis, wordybin, False),
             styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
             self._where_cell(n, False, area),
             styled_cell(n.message, False, "message"),
@@ -1538,6 +1559,14 @@ class LemonaidApp(App):
                 },
             )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
             emojis = emoji.by_channel(conn)
+            wordybins = (
+                {
+                    c: brief.identity.brief_name(i)
+                    for c, i in brief.identity.by_channel(conn).items()
+                }
+                if self.config.tui.brief_names_in_inbox
+                else {}
+            )
             # Lower pane: live sessions from other switchable terminals.
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
             # switched to from anywhere, so they belong in history instead.
@@ -1576,7 +1605,15 @@ class LemonaidApp(App):
         rebuilt = _sync_rows(
             main_table,
             [
-                self._active_row(n, i, focused, pinned, emojis, areas.get(n.channel, ""))
+                self._active_row(
+                    n,
+                    i,
+                    focused,
+                    pinned,
+                    emojis,
+                    areas.get(n.channel, ""),
+                    wordybins.get(n.channel, ""),
+                )
                 for i, n in enumerate(current_notifications)
             ],
             self._card_width(),
@@ -1613,7 +1650,12 @@ class LemonaidApp(App):
             other_table.display = True
             _sync_rows(
                 other_table,
-                [self._other_row(n, emojis, areas.get(n.channel, "")) for n in other_notifications],
+                [
+                    self._other_row(
+                        n, emojis, areas.get(n.channel, ""), wordybins.get(n.channel, "")
+                    )
+                    for n in other_notifications
+                ],
                 self._card_width(),
                 self._card_shape(),
                 contexts_by_row={

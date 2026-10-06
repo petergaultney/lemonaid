@@ -6,51 +6,46 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lineage import links
-from . import identity, render, status
+from . import lemon, render, status
 
 
-def _child(conn: sqlite3.Connection, lemon_id: str) -> tuple[str, str]:
-    """The child's brief status, and its session's name or else its Lemon-ID's slug."""
-    row = conn.execute(
-        "SELECT path FROM lemon_identities WHERE lemon_id = ?", (lemon_id,)
-    ).fetchone()
-    path = Path(row["path"]) if row else None
-    state = status.split(path.read_text()).status if path and path.is_file() else ""
+def _session_name(conn: sqlite3.Connection, path: Path | None) -> str:
+    """The name of the session *path* is attached to, or "" when it has none."""
     attached = (
         conn.execute("SELECT channel FROM session_briefs WHERE path = ?", (str(path),)).fetchone()
         if path
         else None
     )
     newest = db.get_by_channel(conn, attached["channel"], unread_only=False) if attached else None
-    return state, (newest.name if newest and newest.name else lemon_id.split(".", 1)[0])
+    return newest.name if newest and newest.name else ""
 
 
-def of(conn: sqlite3.Connection, brief: Path) -> tuple[str, tuple[tuple[str, str], ...]]:
-    """*brief*'s parent's Lemon-ID and its children, or nothing when it has no Lemon-ID."""
-    try:
-        lemon_id = identity.read(brief.read_text())
-    except (OSError, ValueError):
-        return "", ()
-
-    if not lemon_id:
-        return "", ()
-
-    return links.parent_of(conn, lemon_id), tuple(
-        _child(conn, child) for child in links.children_of(conn, lemon_id)
+def _child(conn: sqlite3.Connection, lemon_id: str) -> render.Child:
+    current = lemon.current(conn, lemon_id)
+    path = lemon.brief_of(conn, current)
+    return render.Child(
+        status.split(path.read_text()).status if path and path.is_file() else "",
+        _session_name(conn, path) or current.split(".", 1)[0],
+        current,
     )
 
 
 def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Section:
-    if not section.path:
+    if not section.lemon_id:
         return section
 
-    parent, children = of(conn, section.path)
-    return dataclasses.replace(section, parent=parent, children=children)
+    parent = links.parent_of(conn, section.lemon_id)
+    return dataclasses.replace(
+        section,
+        parent=parent,
+        parent_name=_session_name(conn, lemon.brief_of(conn, parent)) if parent else "",
+        children=tuple(_child(conn, child) for child in links.children_of(conn, section.lemon_id)),
+    )
 
 
 def added(shown: render.View) -> render.View:
     """*shown* with each section's parent and children filled in from the database."""
-    if not any(section.path for section in shown.sections):
+    if not any(section.lemon_id for section in shown.sections):
         return shown
 
     with db.connect() as conn:

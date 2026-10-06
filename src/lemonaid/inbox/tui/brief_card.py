@@ -5,10 +5,11 @@ a brief in the sidebar or popup reads as the card opened up. What the worker
 wrote stays Markdown, below.
 """
 
+from rich.style import Style
 from rich.text import Text
 
-from ...brief import display, render, status
-from . import backend_indicators, brief_cards, utils
+from ...brief import display, identity, render, status
+from . import backend_indicators, brief_cards, brief_identity, utils
 
 _SEPARATOR = Text(" · ", style=utils.FIELD_STYLES["backend"])
 _HEADLINE_FILLS = {
@@ -72,10 +73,17 @@ def _headline(section: render.Section, width: int, unread: bool) -> Text:
     left = (Text("● ", style=utils.unread_marker_style()) if unread else Text("")) + Text(
         name, style=f"bold {utils.FIELD_STYLES['name']}"
     )
+    brief_name = identity.brief_name(section.lemon_id)
+    suffix_start = len(left)
+    if brief_name:
+        left.append(" · ", style=utils.FIELD_STYLES["backend"])
+        left.append(brief_name, style=utils.FIELD_STYLES["backend"])
     left.truncate(max(1, width - model.cell_len - 1), overflow="ellipsis")
     line = left + Text(" " * max(1, width - left.cell_len - model.cell_len)) + model
     if fill := _HEADLINE_FILLS.get(section.state):
         line.stylize(fill)
+        if brief_name and len(left) > suffix_start:
+            line.stylize(Style(color="bright_black"), suffix_start, len(left))
 
     return line
 
@@ -106,6 +114,7 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
         Text(" ".join(part for part in (label, state) if part), style=_PR_STYLES.get(state, ""))
         for label, state in section.prs
     ]
+    age_field = "time" if now_seconds - section.mtime < 24 * 60 * 60 else "time_old"
     return _SEPARATOR.join(
         [
             (
@@ -114,7 +123,12 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
                 else Text(render.status_text(section), style=_state_style(section.state, "dim"))
             ),
             *(
-                [Text(f"updated {status.age(now_seconds - section.mtime)}", style="dim")]
+                [
+                    Text(
+                        f"updated {status.age(now_seconds - section.mtime)}",
+                        style=utils.FIELD_STYLES[age_field],
+                    )
+                ]
                 if section.path
                 else []
             ),
@@ -126,7 +140,8 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
 def header(
     section: render.Section, in_session: bool, now_seconds: float, width: int, unread: bool = False
 ) -> Text:
-    """The project, when known; then name and model, where it runs, and status, age and PRs.
+    """The project, when known; then name and model, where it runs, which lemon it is
+    (`brief_identity`), and status, age and PRs.
 
     *unread* puts the inbox card's dot before the name.
     """
@@ -136,11 +151,12 @@ def header(
         if section.project
         else []
     )
-    lines = [*project, _headline(section, body, unread), _context(section, in_session)]
-    if section.state == "waiting":
-        for line in lines:
-            line.stylize("dim")
-
+    lines = [
+        *project,
+        _headline(section, body, unread),
+        _context(section, in_session),
+        *brief_identity.lines(section, body),
+    ]
     lines.append(_state_line(section, now_seconds))
     for line in lines:
         line.truncate(body, overflow="ellipsis")
@@ -149,19 +165,24 @@ def header(
 
 
 def children(section: render.Section) -> Text:
-    """A brief's children, one per line: its status coloured as on its card, then its name."""
-    width = max(len(state or "-") for state, _ in section.children)
+    """A brief's children: their status, session name, and brief name."""
+    width = max(len(child.state or "-") for child in section.children)
     return Text("\n").join(
         [
             Text("Children:", style="bold"),
             *(
                 Text.assemble(
                     "  ",
-                    (state or "-", _state_style(state, "dim")),
-                    " " * (width - len(state or "-") + 2),
-                    name,
+                    (child.state or "-", _state_style(child.state, "dim")),
+                    " " * (width - len(child.state or "-") + 2),
+                    *(
+                        [child.name, "  "]
+                        if child.name != identity.brief_description(child.lemon_id)
+                        else []
+                    ),
+                    *([brief_identity.id_text(child.lemon_id)] if child.lemon_id else []),
                 )
-                for state, name in section.children
+                for child in section.children
             ),
         ]
     )

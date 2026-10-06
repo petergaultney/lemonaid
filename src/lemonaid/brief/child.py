@@ -2,7 +2,7 @@
 
 A template is the body of a brief, from `## Goal` down, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
-above it: the title, `Lemon-ID:`, `Status: working`, `Parent:`, and `Area:` when
+above it: the title, `Brief-ID:`, `Status: working`, `Parent:`, and `Area:` when
 `--area` gives one. The child writes `## Now` itself, after `Status:`.
 
 `<lemons dir>/brief-templates/<name>.md` replaces the packaged template of that name.
@@ -123,7 +123,7 @@ def render(
         [
             f"# {title}",
             "",
-            f"Lemon-ID: {lemon_id}",
+            f"Brief-ID: {lemon_id}",
             "",
             "Status: working",
             "",

@@ -34,7 +34,8 @@ def test_header_has_the_cards_fields_in_the_cards_colours():
     assert lines[0].startswith(f"{utils.HERE_BAR} author") and lines[0].endswith("Opus 5.5")
     assert len(lines[0]) == 60
     assert lines[1] == f"{utils.HERE_BAR} work:2 · feat/x · ~/work"
-    assert lines[2] == f"{utils.HERE_BAR} working · updated just now · #74 merged"
+    assert lines[2:5] == [f"{utils.HERE_BAR} ", f"{utils.HERE_BAR} Task", f"{utils.HERE_BAR} "]
+    assert lines[5] == f"{utils.HERE_BAR} working · updated just now · #74 merged"
     assert any(utils.FIELD_STYLES["name"] in s for s in _styles(text, "author"))
     assert utils.FIELD_STYLES["cwd"] in _styles(text, "~/work")
     assert utils.FIELD_STYLES["branch"] in _styles(text, "feat/x")
@@ -48,8 +49,43 @@ def test_the_project_leads_the_card_above_the_name():
 
     assert lines[0] == f"{utils.HERE_BAR} ds-monorepo: apps/web"
     assert lines[1].startswith(f"{utils.HERE_BAR} author")
-    assert len(lines) == 4
+    assert len(lines) == 7
     assert utils.ATTENTION_COLOR not in " ".join(_styles(text, "ds-monorepo"))
+
+
+def test_the_task_lemon_id_and_parent_come_before_the_status():
+    section = dataclasses.replace(
+        _section("blocked"),
+        title="Manage the plan (briefs, messaging)",
+        lemon_id="plan-manager.BlessBar",
+        parent="control-center.LemonAce",
+        parent_name="Real HQ",
+    )
+    lines = brief_card.header(section, False, 0, 60).plain.split("\n")
+
+    assert lines[2:] == [
+        f"{utils.HERE_BAR} ",
+        f"{utils.HERE_BAR} Manage the plan (briefs, messaging)",
+        f"{utils.HERE_BAR} Brief-ID: plan-manager.BlessBar",
+        f"{utils.HERE_BAR} Parent: Real HQ (control-center.LemonAce)",
+        f"{utils.HERE_BAR} ",
+        f"{utils.HERE_BAR} blocked · updated just now",
+    ]
+
+
+def test_a_compact_card_wraps_its_lemon_id_and_parent_on_one_line_rather_than_cutting_it():
+    section = dataclasses.replace(
+        _section("waiting"),
+        lemon_id="review-lemonaid-184.PauseOld",
+        parent="lemon-ids.EqualRib",
+        compact=True,
+    )
+    lines = brief_card.header(section, True, 0, 40).plain.split("\n")
+
+    assert " ".join(line.removeprefix(f"{utils.HERE_BAR} ").strip() for line in lines[3:-1]) == (
+        "Brief-ID: review-lemonaid-184.PauseOld · Parent: lemon-ids.EqualRib"
+    )
+    assert all(len(line) <= 40 for line in lines)
 
 
 def test_blocked_fills_the_headline_like_a_blocked_card():

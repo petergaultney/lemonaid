@@ -69,15 +69,15 @@ def cmd_id(args: argparse.Namespace) -> None:
         if rerolled:
             result |= {
                 "old_lemon_id": rerolled.old_id,
-                "signing_name": reroll.signing_name(rerolled.new_id),
-                "old_signing_name": reroll.signing_name(rerolled.old_id),
+                "signing_name": identity.wordybin(rerolled.new_id),
+                "old_signing_name": identity.wordybin(rerolled.old_id),
             }
         print(json.dumps({**result, "error": None}))
     elif rerolled:
         print(f"{rerolled.old_id} -> {rerolled.new_id}")
         print(
-            f"Sign as {reroll.signing_name(rerolled.new_id) or '$LEMON_NAME'}, pass "
-            f"--legacy {reroll.signing_name(rerolled.old_id) or '$LEMON_NAME'} to doc waiters, "
+            f"Sign as {identity.wordybin(rerolled.new_id) or '$LEMON_NAME'}, pass "
+            f"--legacy {identity.wordybin(rerolled.old_id) or '$LEMON_NAME'} to doc waiters, "
             "and rearm your inbox waiter."
         )
     else:

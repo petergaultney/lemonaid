@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import store
 
-_LINE = re.compile(r"Lemon-ID: (.+)")
+_LINE = re.compile(r"(?:Brief-ID|Lemon-ID): (.+)")
 
 
 def valid(lemon_id: str) -> bool:
@@ -23,21 +23,57 @@ def valid(lemon_id: str) -> bool:
     return not any(char in "/\\" or unicodedata.category(char).startswith("C") for char in lemon_id)
 
 
+def brief_name(brief_id: str) -> str:
+    """The name half of *brief_id*, or "" for an older brief ID without one."""
+    return brief_id.rsplit(".", 1)[1] if "." in brief_id else ""
+
+
+def brief_description(brief_id: str) -> str:
+    """The description half of *brief_id*, before its name, if present."""
+    return brief_id.rsplit(".", 1)[0] if brief_name(brief_id) else brief_id
+
+
+def wordybin(lemon_id: str) -> str:
+    """Compatibility alias for the name half of a brief ID."""
+    return brief_name(lemon_id)
+
+
+def markdown_id(brief_id: str) -> str:
+    """Markdown for a brief ID, with its name bold and its description dimmed."""
+    name = brief_name(brief_id)
+    if not name:
+        return f"`{brief_id}`"
+
+    escaped_name = re.sub(r"([\\`*_{}\[\]()#+.!|>-])", r"\\\1", name)
+    return f"`{brief_description(brief_id)}`.**{escaped_name}**"
+
+
+def by_channel(conn: sqlite3.Connection) -> dict[str, str]:
+    """The brief ID of each session's attached brief."""
+    return {
+        row["channel"]: row["lemon_id"]
+        for row in conn.execute(
+            "SELECT b.channel, i.lemon_id FROM session_briefs b"
+            " JOIN lemon_identities i ON i.path = b.path"
+        )
+    }
+
+
 def read(text: str) -> str:
     header = text.split("\n## ", 1)[0]
-    lines = [line for line in header.splitlines() if line.startswith("Lemon-ID:")]
+    lines = [line for line in header.splitlines() if line.startswith(("Brief-ID:", "Lemon-ID:"))]
     if not lines:
         return ""
 
     if len(lines) != 1 or (match := _LINE.fullmatch(lines[0])) is None:
-        raise ValueError("Brief has an invalid or duplicate Lemon-ID line")
+        raise ValueError("Brief has an invalid or duplicate Brief-ID line")
 
     lemon_id = match.group(1).rstrip()
-    if "Lemon-ID:" in lemon_id:
-        raise ValueError("Brief's Lemon-ID line holds a second Lemon-ID")
+    if "Brief-ID:" in lemon_id or "Lemon-ID:" in lemon_id:
+        raise ValueError("Brief-ID line holds a second Brief-ID")
 
     if not valid(lemon_id):
-        raise ValueError("Brief has an invalid or path-unsafe Lemon-ID")
+        raise ValueError("Brief has an invalid or path-unsafe Brief-ID")
 
     return lemon_id
 
@@ -46,13 +82,13 @@ def _with_id(text: str, lemon_id: str) -> str:
     existing = read(text)
     if existing:
         if existing != lemon_id:
-            raise ValueError("Brief's Lemon-ID changed during migration")
+            raise ValueError("Brief-ID changed during migration")
 
         return text
 
     lines = text.splitlines(keepends=True)
     after = 1 if lines and lines[0].startswith("# ") else 0
-    return "".join([*lines[:after], "\nLemon-ID: " + lemon_id + "\n", *lines[after:]])
+    return "".join([*lines[:after], "\nBrief-ID: " + lemon_id + "\n", *lines[after:]])
 
 
 def _path(path: Path) -> Path:
@@ -132,7 +168,7 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
         elif in_file != lemon_id:
             store.edit(
                 path,
-                lambda text: text.replace(f"Lemon-ID: {in_file}\n", f"Lemon-ID: {lemon_id}\n", 1),
+                lambda text: _replace_header_id(text, in_file, lemon_id),
             )
 
         conn.commit()
@@ -140,3 +176,12 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
     except BaseException:
         conn.rollback()
         raise
+
+
+def _replace_header_id(text: str, old_id: str, new_id: str) -> str:
+    header = text.split("\n## ", 1)[0]
+    for label in ("Brief-ID:", "Lemon-ID:"):
+        old_line = f"{label} {old_id}\n"
+        if old_line in header:
+            return text.replace(old_line, f"Brief-ID: {new_id}\n", 1)
+    raise ValueError("Brief-ID line disappeared during migration")

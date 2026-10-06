@@ -157,6 +157,8 @@ class TuiConfig:
     brief_stale_hours: float = 6.0
     # Show a mid-turn lemon as working, whatever its brief's Status says.
     mid_turn_working: bool = False
+    # Show each attached brief's short name after its session name.
+    brief_names_in_inbox: bool = False
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
@@ -484,6 +486,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         brief_status=tui_data.get("brief_status", False),
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
         mid_turn_working=tui_data.get("mid_turn_working", False),
+        brief_names_in_inbox=tui_data.get("brief_names_in_inbox", False),
         fold_statuses=list(tui_data.get("fold_statuses", [])),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         keybindings=keybindings,

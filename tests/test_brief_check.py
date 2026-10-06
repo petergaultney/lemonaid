@@ -55,7 +55,7 @@ def test_every_line_doubled_is_caught():
 
     problems = check.structure(doubled)
 
-    assert any("Lemon-ID" in p for p in problems)
+    assert any("Brief-ID" in p for p in problems)
     assert any("`## Now` appears 2 times" in p for p in problems)
     assert any("Status" in p for p in problems)
 
@@ -65,7 +65,7 @@ def test_a_second_lemon_id_run_into_the_first_is_caught():
         _BRIEF.replace("Lemon-ID: task.QuickOdd", "Lemon-ID: task.QuickOddLemon-ID: task.QuickOdd")
     )
 
-    assert problems == ["Brief's Lemon-ID line holds a second Lemon-ID"]
+    assert problems == ["Brief-ID line holds a second Brief-ID"]
 
 
 @pytest.mark.parametrize(
@@ -116,7 +116,7 @@ def test_a_lemon_id_the_database_does_not_record_for_the_brief_is_caught():
     with db.connect() as conn:
         problems = check.recorded(conn, path, _BRIEF.replace("QuickOdd", "SlowEven"))
 
-    assert problems == ["Lemon-ID is task.SlowEven, but this brief is task.QuickOdd"]
+    assert problems == ["Brief-ID is task.SlowEven, but this brief is task.QuickOdd"]
 
 
 def _run(capsys, *argv: str) -> dict:

@@ -126,6 +126,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
+| `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 

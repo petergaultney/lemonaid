@@ -69,7 +69,7 @@ class _Card(Static):
     DEFAULT_CSS = """
     _Card {
         height: auto;
-        margin-bottom: 1;
+        margin: 1 0;
     }
     """
 
@@ -276,7 +276,6 @@ class BriefView(VerticalScroll):
             for widget in (
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread),
-                *([_Markdown(f"**Parent:** `{section.parent}`")] if section.parent else []),
                 *(
                     [self._needs_widget(section)]
                     if section.needs_text or section.unmatched_questions

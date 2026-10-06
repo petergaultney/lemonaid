@@ -16,18 +16,13 @@ from .. import home, messages
 from . import identity, store
 
 _ATTEMPTS = 20
-_LINE = re.compile(r"^Lemon-ID: .*$", re.MULTILINE)
+_LINE = re.compile(r"^(?:Brief-ID|Lemon-ID): .*$", re.MULTILINE)
 
 
 @dataclasses.dataclass(frozen=True)
 class Rerolled:
     old_id: str
     new_id: str
-
-
-def signing_name(lemon_id: str) -> str:
-    """The WordyBin half of *lemon_id*, or "" for an older ID without one."""
-    return lemon_id.rsplit(".", 1)[1] if "." in lemon_id else ""
 
 
 def _word(chosen: str) -> str:
@@ -72,7 +67,7 @@ def _with_id(text: str, old_id: str, new_id: str) -> str:
     if identity.read(text) != old_id:
         raise store.ChangedUnderneath("The brief's Lemon-ID changed during the reroll")
 
-    return _LINE.sub(f"Lemon-ID: {new_id}", text, count=1)
+    return _LINE.sub(f"Brief-ID: {new_id}", text, count=1)
 
 
 def _relabel(conn: sqlite3.Connection, path: Path, old_id: str, new_id: str) -> None:

@@ -125,7 +125,7 @@ def structure(text: str) -> list[str]:
 
 
 def recorded(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
-    """Whether the brief's `Lemon-ID` is the one the database records for *path*."""
+    """Whether the brief's ID is the one the database records for *path*."""
     try:
         in_file = identity.read(text)
     except ValueError:
@@ -135,7 +135,7 @@ def recorded(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
         "SELECT lemon_id FROM lemon_identities WHERE path = ?", (str(path.resolve()),)
     ).fetchone()
     if row and row["lemon_id"] != in_file:
-        return [f"Lemon-ID is {in_file or 'missing'}, but this brief is {row['lemon_id']}"]
+        return [f"Brief-ID is {in_file or 'missing'}, but this brief is {row['lemon_id']}"]
 
     if row or not in_file:
         return []
@@ -144,12 +144,12 @@ def recorded(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
         "SELECT lemon_id FROM lemon_aliases WHERE old_id = ?", (in_file,)
     ).fetchone()
     if alias:
-        return [f"Lemon-ID {in_file} is an old ID of {alias['lemon_id']}"]
+        return [f"Brief-ID {in_file} is an old ID of {alias['lemon_id']}"]
 
     holder = conn.execute(
         "SELECT path FROM lemon_identities WHERE lemon_id = ?", (in_file,)
     ).fetchone()
-    return [f"Lemon-ID {in_file} belongs to {holder['path']}"] if holder else []
+    return [f"Brief-ID {in_file} belongs to {holder['path']}"] if holder else []
 
 
 def has_parent_line(text: str) -> bool:

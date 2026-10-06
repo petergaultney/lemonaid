@@ -23,6 +23,7 @@ def _legacy(name: str):
 def test_new_brief_stores_a_slugged_id():
     path = store.create("A lemon", datetime.date(2026, 9, 25))
 
+    assert "Brief-ID: " in path.read_text()
     lemon_id = identity.from_path(path)
     assert identity.valid(lemon_id)
     slug, word = lemon_id.split(".", 1)
@@ -88,6 +89,7 @@ def test_path_safe_ids_are_opaque_strings():
 
 def test_brief_id_header_drops_trailing_whitespace():
     assert identity.read("# Lemon\n\nLemon-ID: hand-made.id 123  \n") == "hand-made.id 123"
+    assert identity.read("# Lemon\n\nBrief-ID: hand-made.id 123  \n") == "hand-made.id 123"
 
 
 def test_legacy_brief_is_backfilled_once_without_losing_its_text():
@@ -101,7 +103,7 @@ def test_legacy_brief_is_backfilled_once_without_losing_its_text():
 
     assert first == second == row["lemon_id"]
     assert row["path"] == str(path.resolve())
-    assert path.read_text().replace(f"\nLemon-ID: {first}\n", "") == before
+    assert path.read_text().replace(f"\nBrief-ID: {first}\n", "") == before
 
 
 def test_concurrent_backfill_assigns_one_id():

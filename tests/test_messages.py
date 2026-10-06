@@ -205,7 +205,7 @@ def test_direct_id_target_skips_another_invalid_brief(capsys, monkeypatch):
     inbox = _inbox("recipient")
     _inbox("invalid")
     bad = brief_store.briefs_dir() / "invalid.md"
-    bad.write_text(bad.read_text().replace("Lemon-ID: ", "Lemon-ID: ."))
+    bad.write_text(bad.read_text().replace("Brief-ID: ", "Brief-ID: ."))
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
     warnings = []
     monkeypatch.setattr(lemon._log, "warning", lambda *args: warnings.append(args))
