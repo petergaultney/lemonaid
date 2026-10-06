@@ -463,18 +463,30 @@ for that harness on the controlling TTY. It refuses to guess if either is
 ambiguous. The command does not depend on shell functions, job-table commands,
 or startup files. Its isolated PTY test runs the command from `sh`, Bash, and
 fish, including with a simulated `TMUX_PANE` environment. Those tests verify
-process ordering, foreground ownership, and rollback; they do not verify
-terminal modes or Claude/Codex suspend-resume behavior.
+process ordering, foreground ownership, terminal-mode restoration, and
+rollback. A signal-aware mock TUI confirms Bash `fg` restores the saved mode
+before the app re-enters cbreak mode. An isolated xonsh 0.22.8 test on macOS
+showed `fg` resuming the mock Python app while leaving its native child stopped;
+the direct CLI process-group resume woke both in accepted and rollback flows.
+These tests do not verify Claude/Codex's own suspend-resume behavior.
 
 **Trial limitation:** do not use the Ctrl-Z path with a live Claude or Codex
 session yet, whether in a standalone terminal or a tmux pane. The CLI resumes a
-stopped process group directly, and the stopped harness may require terminal
-modes saved by the shell or restored by its own TUI handler. Safe mode handling
-and rollback have not been verified. The existing tmux pane replacement path
-for a running harness, without Ctrl-Z, remains separate.
+stopped process group directly. Before transferring foreground ownership, the
+CLI saves the terminal settings it inherited from the shell; after a return or
+rollback, it restores those settings before returning control to the shell.
+Isolated PTY tests cover a signal-aware TUI that restores the shell's mode
+before stopping and re-enters cbreak mode on `SIGCONT`, as well as target exit
+and rollback when the target leaves the terminal raw. They cover process flow
+in `sh`, Bash, fish, and xonsh 0.22.8. They do not verify the real Claude/Codex
+launcher and TUI behavior. Do not use the Ctrl-Z path with a live Claude or
+Codex session yet, either in a standalone terminal or a tmux pane. The existing
+tmux pane replacement path for a running harness, without Ctrl-Z, remains
+separate.
 
-Under xonsh on macOS, never use `fg` during a handoff. It may resume Codex's
-Node launcher while leaving its native process stopped.
+Under xonsh 0.22.8 on macOS, do not use `fg` during a handoff: it resumed the
+mock Python TUI while leaving a native child stopped. Lemonaid's direct
+process-group resume passed that isolated case.
 
 For a manually staged handoff without a live tmux pane, status prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start

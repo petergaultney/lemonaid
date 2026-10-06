@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import sys
+import termios
 import time
 from contextlib import suppress
 
@@ -263,6 +264,7 @@ def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:
         raise ValueError("Same-terminal handoff needs the outgoing terminal")
     fd = sys.stdin.fileno()
     tty = os.ttyname(fd)
+    shell_modes = termios.tcgetattr(fd)
     channel = _check_terminal(token, tty)
     pid, pgid, source_tty, started = source_job
     if source_tty != tty.removeprefix("/dev/"):
@@ -385,5 +387,6 @@ def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:
         try:
             if os.tcgetpgrp(fd) != own_pgid:
                 _foreground(fd, own_pgid)
-        except OSError:
-            pass
+            termios.tcsetattr(fd, termios.TCSADRAIN, shell_modes)
+        except OSError as error:
+            raise ValueError(f"Could not restore terminal modes on {tty}") from error
