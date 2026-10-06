@@ -452,8 +452,7 @@ immediately after the handoff passes readiness; its session can be resumed by
 the original session ID if needed.
 
 After Ctrl-Z returns control from the outgoing harness to an interactive shell,
-run the normal CLI command there. This works in a standalone terminal or a
-shell inside tmux:
+the intended command is:
 
 ```sh
 lemonaid brief handoff --to codex
@@ -461,17 +460,18 @@ lemonaid brief handoff --to codex
 
 Lemonaid requires exactly one attached live lemon and one stopped process group
 for that harness on the controlling TTY. It refuses to guess if either is
-ambiguous. It resumes the stopped group so the outgoing harness can write its
-handoff brief, waits for that process group to exit, then starts the replacement
-in the same terminal. On readiness, if the old process does not exit by itself,
-the watcher sends TERM and then KILL after three seconds, rechecking the process
-identity before each signal. If the replacement exits before accepting the
-brief, Lemonaid resumes the old session in that terminal. The command does not
-depend on shell functions, job-table commands, or startup files. The configured
-target command runs through `/bin/sh`, independent of the interactive shell
-that ran Lemonaid. In tmux, the direct TTY path is selected when one stopped
-attached harness is found; otherwise the existing pane replacement path remains
-in use.
+ambiguous. The command does not depend on shell functions, job-table commands,
+or startup files. Its isolated PTY test runs the command from `sh`, Bash, and
+fish, including with a simulated `TMUX_PANE` environment. Those tests verify
+process ordering, foreground ownership, and rollback; they do not verify
+terminal modes or Claude/Codex suspend-resume behavior.
+
+**Trial limitation:** do not use the Ctrl-Z path with a live Claude or Codex
+session yet, whether in a standalone terminal or a tmux pane. The CLI resumes a
+stopped process group directly, and the stopped harness may require terminal
+modes saved by the shell or restored by its own TUI handler. Safe mode handling
+and rollback have not been verified. The existing tmux pane replacement path
+for a running harness, without Ctrl-Z, remains separate.
 
 For a manually staged handoff without a live tmux pane, status prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start
