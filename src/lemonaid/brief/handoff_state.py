@@ -107,10 +107,19 @@ def ready(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[bool, str]:
     if problems := [*check.structure(first), *check.recorded(conn, path, first)]:
         return False, "brief check failed: " + "; ".join(problems)
 
-    if (
-        not handoff.splitlines() or handoff.splitlines()[-1] != f"Handoff-Ready: {row['token']}"
-    ) and not handoff_claude.has_ready_marker(conn, row):
-        return False, "## Handoff is written but has no matching end marker"
+    if not handoff.splitlines() or handoff.splitlines()[-1] != f"Handoff-Ready: {row['token']}":
+        if row["source"].startswith("claude:"):
+            reply_has_marker = handoff_claude.has_ready_marker(conn, row)
+        elif row["source"].startswith("codex:"):
+            # Imported here to avoid a module cycle: handoff_codex also reads
+            # typed handoff phrases through handoff_state.
+            from . import handoff_codex
+
+            reply_has_marker = handoff_codex.has_ready_marker(conn, row)
+        else:
+            reply_has_marker = False
+        if not reply_has_marker:
+            return False, "## Handoff is written but has no matching end marker"
 
     return True, ""
 

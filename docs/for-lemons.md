@@ -440,11 +440,10 @@ inbox row. It sends the outgoing lemon a request with a random token.
 The outgoing lemon writes a fresh `## Handoff` section with at most five bullets,
 using its current brief without rereading files when that brief is already current.
 It stops its waiters and ends that section with `Handoff-Ready: TOKEN` on its
-own line. If the outgoing
-harness is Claude, the same standalone line in its completed final reply also
-counts. Lemonaid checks the file is stable and passes `brief check` in either
-case. With a live tmux pane, it first checks that the outgoing session has a
-usable resume command. It then replaces the outgoing process in that exact
+own line. A completed final reply from Claude or Codex can use the same
+standalone line instead. Lemonaid checks the file is stable and passes `brief
+check` in either case. With a live tmux pane, it first checks that the outgoing
+session has a usable resume command. It then replaces the outgoing process in that exact
 pane with the configured target harness. The pane and window IDs do not change.
 The new lemon reads the brief, rearms the waiters, and runs
 `brief handoff accept TOKEN`. This tmux replacement ends the old process
