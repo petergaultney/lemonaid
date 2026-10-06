@@ -1,3 +1,9 @@
+# 0.71.2 (2026-10-05)
+
+#### Added
+
+- **Press `Y` in either brief view to answer the selected question with `Yes, approved`.** The answer is sent immediately with the usual reminder to update the brief's Status. Set `answer_yes` under `[tui.keybindings]` to change the key; `a` still opens the free-text answer box.
+
 # 0.71.1 (2026-10-05)
 
 #### Fixed
