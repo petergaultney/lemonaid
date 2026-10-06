@@ -14,7 +14,16 @@ from ..inbox import db
 from ..inbox.channel import channel_id, full_channel_id
 from ..messages import to_brief
 from ..resume import build_resume_command
-from . import attached, handoff_coordinator, handoff_state, handoff_tmux, lemon, store
+from . import (
+    attached,
+    handoff_coordinator,
+    handoff_launch,
+    handoff_shell,
+    handoff_state,
+    handoff_tmux,
+    lemon,
+    store,
+)
 
 _DEADLINE_SECONDS = 600
 
@@ -28,11 +37,30 @@ def _cmd(args: argparse.Namespace) -> None:
             except BlockingIOError:
                 return
 
+            stop_sent_at = 0.0
             while True:
                 try:
                     with db.connect() as conn:
                         row = handoff_state.get(conn, args.token)
                         report = handoff_coordinator.advance(conn, args.token)
+                    if getattr(args, "source_pid", 0) and report["phase"] == "launched":
+                        now = time.time()
+                        if not stop_sent_at:
+                            if handoff_shell.stop_job_if_same(
+                                args.source_pid,
+                                args.source_pgid,
+                                args.source_tty,
+                                args.source_start,
+                            ):
+                                stop_sent_at = now
+                        elif now - stop_sent_at > 3:
+                            handoff_shell.stop_job_if_same(
+                                args.source_pid,
+                                args.source_pgid,
+                                args.source_tty,
+                                args.source_start,
+                                force=True,
+                            )
                     if (
                         report["phase"] in ("complete", "failed")
                         or time.time() > row["deadline"]
@@ -51,10 +79,21 @@ def _cmd(args: argparse.Namespace) -> None:
 
                 time.sleep(1)
 
+    direct_tty = False
     try:
         with db.connect() as conn:
+            source_job = None
             if args.to:
-                if args.brief:
+                on_tty = not getattr(args, "brief", "") and sys.stdin.isatty()
+                stopped = None
+                if on_tty:
+                    tty = os.ttyname(sys.stdin.fileno())
+                    stopped = handoff_shell.stopped_harness_on_tty(
+                        tty, handoff_shell.harnesses_on_tty(conn, tty)
+                    )
+                direct_tty = bool(on_tty and (stopped or not os.environ.get("TMUX_PANE")))
+                same_terminal = direct_tty
+                if getattr(args, "brief", ""):
                     path = store.resolve(args.brief)
                     if store.outside_error(path):
                         raise ValueError(store.outside_error(path))
@@ -64,12 +103,34 @@ def _cmd(args: argparse.Namespace) -> None:
                     if len(holders) != 1 or not holders[0]:
                         raise ValueError("The brief needs one attached outgoing channel")
                     channel = holders[0]
+                elif direct_tty:
+                    tty = os.ttyname(sys.stdin.fileno())
+                    channel = handoff_shell.channel_on_tty(conn, tty)
+                    source_harness = channel.split(":", 1)[0]
+                    if stopped is None:
+                        source_job = handoff_shell.stopped_job_on_tty(tty, source_harness)
+                    elif stopped[0] != source_harness:
+                        raise ValueError(
+                            f"Found stopped {stopped[0]} on {tty}, but attached session "
+                            f"{channel} is {source_harness}; refusing to guess which one to hand off."
+                        )
+                    else:
+                        source_job = stopped[1]
                 else:
                     channel = lemon.self_channel(conn)
                 path, session, index, window_id, pane_id, source_command = (
                     handoff_coordinator.source(conn, channel, args.to)
                 )
                 notification = db.get_by_channel(conn, channel, unread_only=False)
+                if same_terminal:
+                    shlex.split(handoff_launch.configured_line(args.to, args.to))
+                    tty = os.ttyname(sys.stdin.fileno())
+                    if notification.metadata.get("tty") != tty:
+                        raise ValueError("The outgoing harness was recorded on another terminal")
+                    pane_id, window_id = "", ""
+                    source_command = str(notification.metadata.get("cwd") or "")
+                    if not os.path.isdir(source_command):
+                        raise ValueError("The outgoing lemon's working directory is unavailable")
                 resume = build_resume_command(load_config(), channel, notification.metadata)
                 if resume is None or not resume[1]:
                     raise ValueError("The outgoing session has no usable resume command")
@@ -77,6 +138,8 @@ def _cmd(args: argparse.Namespace) -> None:
                     "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
                     (str(path),),
                 ).fetchone()
+                if existing is not None and same_terminal:
+                    raise ValueError("A handoff is already pending for this brief")
                 row = handoff_state.request(
                     conn,
                     path,
@@ -96,13 +159,19 @@ def _cmd(args: argparse.Namespace) -> None:
                 conn.commit()
                 row = handoff_state.get(conn, row["token"])
                 if existing is None or existing["error"] or time.time() > existing["deadline"]:
+                    exit_instruction = (
+                        "After writing the ready marker, exit this harness normally so the "
+                        "same terminal can start the replacement. "
+                        if same_terminal
+                        else ""
+                    )
                     to_brief.send(
                         path,
                         "Write a fresh ## Handoff with at most five bullets. Do not reread files "
                         "when the brief is already current. Stop your waiters. Put "
                         f"Handoff-Ready: {row['token']} on its own final line in the brief. "
                         "You may instead print that exact line in your final reply after editing "
-                        "## Handoff. The old session stays active until cutover.",
+                        f"## Handoff. {exit_instruction}The old session stays active until cutover.",
                     )
                 token = row["token"]
             else:
@@ -159,23 +228,40 @@ def _cmd(args: argparse.Namespace) -> None:
 
             report = handoff_coordinator.advance(conn, token)
             if report["phase"] != "complete":
+                watcher_args = [
+                    sys.executable,
+                    "-m",
+                    "lemonaid",
+                    "brief",
+                    "handoff",
+                    "status",
+                    token,
+                    "--watch",
+                ]
+                if source_job:
+                    watcher_args.extend(
+                        (
+                            "--source-pid",
+                            str(source_job[0]),
+                            "--source-pgid",
+                            str(source_job[1]),
+                            "--source-tty",
+                            source_job[2],
+                            "--source-start",
+                            source_job[3],
+                        )
+                    )
                 subprocess.Popen(
-                    [
-                        sys.executable,
-                        "-m",
-                        "lemonaid",
-                        "brief",
-                        "handoff",
-                        "status",
-                        token,
-                        "--watch",
-                    ],
+                    watcher_args,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                     env=os.environ.copy(),
                 )
+        if direct_tty:
+            handoff_shell.launch_from_tty(token, source_job)
+            return
         print(json.dumps(report))
     except (ValueError, LookupError, OSError) as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
@@ -188,5 +274,9 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("token", nargs="?", default="")
     parser.add_argument("--to", choices=("claude", "codex"))
     parser.add_argument("--brief", default="", help="Outgoing brief, if called by another lemon")
+    parser.add_argument("--source-pid", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--source-pgid", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--source-tty", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--source-start", default="", help=argparse.SUPPRESS)
     parser.add_argument("--watch", action="store_true", help=argparse.SUPPRESS)
     parser.set_defaults(func=_cmd)

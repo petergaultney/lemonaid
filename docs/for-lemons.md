@@ -451,7 +451,29 @@ The new lemon reads the brief, rearms the waiters, and runs
 immediately after the handoff passes readiness; its session can be resumed by
 the original session ID if needed.
 
-If the outgoing session has no live tmux pane, status instead prints a
+After Ctrl-Z returns control from the outgoing harness to an interactive shell,
+run the normal CLI command there. This works in a standalone terminal or a
+shell inside tmux:
+
+```sh
+lemonaid brief handoff --to codex
+```
+
+Lemonaid requires exactly one attached live lemon and one stopped process group
+for that harness on the controlling TTY. It refuses to guess if either is
+ambiguous. It resumes the stopped group so the outgoing harness can write its
+handoff brief, waits for that process group to exit, then starts the replacement
+in the same terminal. On readiness, if the old process does not exit by itself,
+the watcher sends TERM and then KILL after three seconds, rechecking the process
+identity before each signal. If the replacement exits before accepting the
+brief, Lemonaid resumes the old session in that terminal. The command does not
+depend on shell functions, job-table commands, or startup files. The configured
+target command runs through `/bin/sh`, independent of the interactive shell
+that ran Lemonaid. In tmux, the direct TTY path is selected when one stopped
+attached harness is found; otherwise the existing pane replacement path remains
+in use.
+
+For a manually staged handoff without a live tmux pane, status prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start
 the destination harness in the outgoing working directory. It uses the configured
 harness template's command when present, or `claude`/`codex` if no template is

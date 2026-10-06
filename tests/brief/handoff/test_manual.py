@@ -2,6 +2,10 @@
 
 import argparse
 import json
+import os
+import shlex
+import subprocess
+import sys
 import time
 from contextlib import nullcontext
 from unittest.mock import Mock
@@ -113,6 +117,30 @@ def test_manual_command_uses_configured_harness_line(setup, monkeypatch):
     assert "env LEMONAID_HANDOFF_TOKEN=" in command
     assert "/opt/team/codex-wrapper --profile team" in command
     assert "## Handoff" in command
+
+
+def test_manual_command_passes_handoff_prompt_as_argument(setup, monkeypatch):
+    conn, path = setup
+    row = _requested(conn, path)
+    argv_path = path.parent / "target-argv.json"
+    target = path.parent / "dummy-target.py"
+    target.write_text(
+        "import json, sys\n" f"open({str(argv_path)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+    )
+    monkeypatch.setattr(
+        handoff_launch,
+        "configured_line",
+        lambda *_: f"{shlex.quote(sys.executable)} {shlex.quote(str(target))}",
+    )
+    report = handoff_coordinator.advance(conn, row["token"])
+
+    subprocess.run(
+        report["start_command"],
+        shell=True,
+        check=True,
+        env={key: value for key, value in os.environ.items() if key != "LEMONAID_PROMPT"},
+    )
+    assert json.loads(argv_path.read_text()) == [report["start_prompt"]]
 
 
 def test_manual_status_keeps_source_resume_command(setup):
