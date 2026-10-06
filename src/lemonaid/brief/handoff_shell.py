@@ -220,10 +220,10 @@ def _same_job(pid: int, pgid: int, tty: str, started: str) -> bool:
 
 
 def process_group_on_tty(pgid: int, tty: str) -> bool | None:
-    """Whether any process in *pgid* still owns a process entry on *tty*."""
+    """Whether any non-zombie process in *pgid* still owns *tty*."""
     try:
         result = subprocess.run(
-            ["ps", "-t", tty.removeprefix("/dev/"), "-o", "pgid="],
+            ["ps", "-t", tty.removeprefix("/dev/"), "-o", "pgid=", "-o", "stat="],
             capture_output=True,
             text=True,
             check=False,
@@ -232,11 +232,29 @@ def process_group_on_tty(pgid: int, tty: str) -> bool | None:
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode and result.stderr.strip():
+        # macOS ps exits non-zero and prints this when the source has exited
+        # and no processes remain attached to the terminal.
+        if "no processes found" in result.stderr.lower() and not result.stdout.strip():
+            return False
         return None
-    try:
-        return pgid in {int(line) for line in result.stdout.splitlines() if line.strip()}
-    except ValueError:
-        return None
+    found_group = False
+    parsed_rows = 0
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 2:
+            continue
+        try:
+            process_pgid = int(fields[0])
+        except ValueError:
+            continue
+        parsed_rows += 1
+        if process_pgid == pgid:
+            found_group = True
+            if not fields[1].startswith("Z"):
+                return True
+    if found_group or parsed_rows or not result.stdout.strip():
+        return False
+    return None
 
 
 def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:

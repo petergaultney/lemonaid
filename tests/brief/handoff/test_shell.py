@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from lemonaid.brief import handoff_cli, handoff_shell
+from lemonaid.brief import handoff_cli, handoff_shell, handoff_state
 
 
 def test_source_job_signal_requires_same_pid_group_tty_and_start(monkeypatch):
@@ -73,6 +73,70 @@ def test_target_command_uses_system_shell_not_callers_shell(monkeypatch):
 
     assert handoff_shell._run("codex --no-daemon") == 0
     run.assert_called_once_with(["/bin/sh", "-c", "codex --no-daemon"], check=False)
+
+
+def test_expired_same_terminal_request_is_retired_before_retry(setup):
+    conn, path = setup
+    old = handoff_state.request(
+        conn,
+        path,
+        "claude:old",
+        "codex",
+        "",
+        "",
+        "",
+        "",
+        str(path.parent),
+        time.time() - 1,
+    )
+
+    assert handoff_cli._pending_handoff(conn, path, time.time()) is None
+    retired = handoff_state.get(conn, old["token"])
+    assert retired["phase"] == "failed"
+    assert "superseded" in retired["error"]
+
+    retried = handoff_state.request(
+        conn,
+        path,
+        "claude:old",
+        "codex",
+        "",
+        "",
+        "",
+        "",
+        str(path.parent),
+        time.time() + 600,
+    )
+    assert retried["token"] != old["token"]
+
+
+def test_live_same_terminal_request_remains_pending(setup):
+    conn, path = setup
+    row = handoff_state.request(
+        conn,
+        path,
+        "claude:old",
+        "codex",
+        "",
+        "",
+        "",
+        "",
+        str(path.parent),
+        time.time() + 600,
+    )
+    assert handoff_cli._pending_handoff(conn, path, time.time())["token"] == row["token"]
+
+
+def test_codex_handoff_request_mentions_escalated_permissions():
+    message = handoff_cli._request_message("codex:old", "token", True)
+    assert "escalated permissions" in message
+    assert "exit this harness normally" in message
+
+
+def test_claude_handoff_request_omits_codex_permissions():
+    message = handoff_cli._request_message("claude:old", "token", False)
+    assert "escalated permissions" not in message
+    assert "exit this harness normally" not in message
 
 
 def test_watch_ends_stopped_job_only_after_brief_readiness(tmp_path, monkeypatch):

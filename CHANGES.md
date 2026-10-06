@@ -2,7 +2,7 @@
 
 #### Added
 
-- **A stopped harness can hand off in its terminal with one CLI command.** Press Ctrl-Z in Claude or Codex, then run `lemonaid brief handoff --to codex` or `--to claude` in the returned shell. Lemonaid refuses ambiguous TTY matches, resumes the outgoing harness to finish its brief, and starts the replacement in the same terminal. If the replacement exits before accepting, it resumes the old session.
+- **A stopped harness can hand off in its terminal with one CLI command.** Press Ctrl-Z in Claude or Codex, then run `lemonaid brief handoff --to codex` or `--to claude` in the returned shell. Lemonaid refuses ambiguous TTY matches, resumes the outgoing harness to finish its brief, and starts the replacement in the same terminal. If the replacement exits before accepting, it resumes the old session. The direct TTY path is not ready for live Claude/Codex trials until terminal-mode handling is verified.
 
 # 0.73.0 (2026-10-06)
 

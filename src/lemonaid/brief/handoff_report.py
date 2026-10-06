@@ -33,7 +33,7 @@ def build(row) -> dict:
         report["start_prompt"] = prompt
         report["start_command"] = (
             f"cd {shlex.quote(row['source_command'])} && "
-            f"env LEMONAID_HANDOFF_TOKEN={row['token']} "
+            f"export LEMONAID_HANDOFF_TOKEN={shlex.quote(row['token'])} && "
             f"{command.harness_line(handoff_launch.configured_line(row['harness'], row['harness']), Path(row['source_command']))[0]} "
             f"{shlex.quote(prompt)}"
         )

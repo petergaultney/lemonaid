@@ -18,8 +18,8 @@ from lemonaid.brief import handoff_shell
 from lemonaid.inbox import db
 
 
-def _ps(stdout: str, returncode: int = 0):
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
+def _ps(stdout: str, returncode: int = 0, stderr: str = ""):
+    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 def test_stopped_job_on_tty_selects_one_harness_group(monkeypatch):
@@ -79,10 +79,37 @@ def test_process_group_on_tty(monkeypatch):
     monkeypatch.setattr(
         handoff_shell.subprocess,
         "run",
-        lambda *_args, **_kwargs: _ps("11\n12\n"),
+        lambda *_args, **_kwargs: _ps("11 S+\n12 R+\n"),
     )
     assert handoff_shell.process_group_on_tty(12, "/dev/ttys2") is True
     assert handoff_shell.process_group_on_tty(13, "/dev/ttys2") is False
+
+
+def test_process_group_on_tty_treats_empty_macos_ps_result_as_exited(monkeypatch):
+    monkeypatch.setattr(
+        handoff_shell.subprocess,
+        "run",
+        lambda *_args, **_kwargs: _ps("", returncode=1, stderr="ps: no processes found"),
+    )
+    assert handoff_shell.process_group_on_tty(12, "/dev/ttys2") is False
+
+
+def test_process_group_on_tty_ignores_zombies(monkeypatch):
+    monkeypatch.setattr(
+        handoff_shell.subprocess,
+        "run",
+        lambda *_args, **_kwargs: _ps("12 Z+\n"),
+    )
+    assert handoff_shell.process_group_on_tty(12, "/dev/ttys2") is False
+
+
+def test_process_group_on_tty_stays_alive_with_non_zombie_member(monkeypatch):
+    monkeypatch.setattr(
+        handoff_shell.subprocess,
+        "run",
+        lambda *_args, **_kwargs: _ps("12 Z+\n12 S+\n"),
+    )
+    assert handoff_shell.process_group_on_tty(12, "/dev/ttys2") is True
 
 
 @pytest.fixture(params=("sh", "bash", "fish"))

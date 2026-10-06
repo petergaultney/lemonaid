@@ -28,6 +28,48 @@ from . import (
 _DEADLINE_SECONDS = 600
 
 
+def _pending_handoff(conn, path, now: float):
+    """Return a live same-brief handoff, retiring expired or errored attempts."""
+    existing = conn.execute(
+        "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
+        (str(path),),
+    ).fetchone()
+    if existing is None:
+        return None
+    if existing["error"] or existing["deadline"] <= now:
+        error = existing["error"] or "Expired handoff superseded by a new request"
+        conn.execute(
+            "UPDATE brief_handoffs SET phase = 'failed', error = ? WHERE token = ?",
+            (error, existing["token"]),
+        )
+        conn.commit()
+        return None
+    return existing
+
+
+def _request_message(channel: str, token: str, same_terminal: bool) -> str:
+    exit_instruction = (
+        "After writing the ready marker, exit this harness normally so the "
+        "same terminal can start the replacement. "
+        if same_terminal
+        else ""
+    )
+    sandbox_instruction = (
+        "If Codex blocks writing this brief or running `lemonaid brief check`, "
+        "retry those operations with escalated permissions before reporting ready. "
+        if channel.startswith("codex:")
+        else ""
+    )
+    return (
+        "Write a fresh ## Handoff with at most five bullets. Do not reread files "
+        "when the brief is already current. Stop your waiters. "
+        f"Put Handoff-Ready: {token} on its own final line in the brief. "
+        "You may instead print that exact line in your final reply after editing "
+        f"## Handoff. {sandbox_instruction}{exit_instruction}"
+        "The old session stays active until cutover."
+    )
+
+
 def _cmd(args: argparse.Namespace) -> None:
     if args.watch:
         lock = db.get_db_path().parent / f"handoff-{args.token}.lock"
@@ -134,10 +176,14 @@ def _cmd(args: argparse.Namespace) -> None:
                 resume = build_resume_command(load_config(), channel, notification.metadata)
                 if resume is None or not resume[1]:
                     raise ValueError("The outgoing session has no usable resume command")
-                existing = conn.execute(
-                    "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
-                    (str(path),),
-                ).fetchone()
+                if same_terminal:
+                    existing = _pending_handoff(conn, path, time.time())
+                else:
+                    existing = conn.execute(
+                        "SELECT * FROM brief_handoffs "
+                        "WHERE path = ? AND phase NOT IN ('complete', 'failed')",
+                        (str(path),),
+                    ).fetchone()
                 if existing is not None and same_terminal:
                     raise ValueError("A handoff is already pending for this brief")
                 row = handoff_state.request(
@@ -159,20 +205,7 @@ def _cmd(args: argparse.Namespace) -> None:
                 conn.commit()
                 row = handoff_state.get(conn, row["token"])
                 if existing is None or existing["error"] or time.time() > existing["deadline"]:
-                    exit_instruction = (
-                        "After writing the ready marker, exit this harness normally so the "
-                        "same terminal can start the replacement. "
-                        if same_terminal
-                        else ""
-                    )
-                    to_brief.send(
-                        path,
-                        "Write a fresh ## Handoff with at most five bullets. Do not reread files "
-                        "when the brief is already current. Stop your waiters. Put "
-                        f"Handoff-Ready: {row['token']} on its own final line in the brief. "
-                        "You may instead print that exact line in your final reply after editing "
-                        f"## Handoff. {exit_instruction}The old session stays active until cutover.",
-                    )
+                    to_brief.send(path, _request_message(channel, row["token"], same_terminal))
                 token = row["token"]
             else:
                 token = args.token

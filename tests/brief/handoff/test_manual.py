@@ -76,7 +76,7 @@ def test_manual_lifecycle_transfers_state_without_touching_tmux(setup, monkeypat
 
     report = handoff_coordinator.advance(conn, row["token"])
     assert report["phase"] == "launched"
-    assert report["start_command"].startswith(f"cd {path.parent} && env LEMONAID_HANDOFF_TOKEN=")
+    assert report["start_command"].startswith(f"cd {path.parent} && export LEMONAID_HANDOFF_TOKEN=")
     assert "codex" in report["start_command"]
     assert f"accept {row['token']}" in report["start_prompt"]
     assert attached.by_channel(conn, ["claude:old"])["claude:old"] == path
@@ -114,7 +114,7 @@ def test_manual_command_uses_configured_harness_line(setup, monkeypatch):
         ),
     )
     command = handoff_coordinator.advance(conn, row["token"])["start_command"]
-    assert "env LEMONAID_HANDOFF_TOKEN=" in command
+    assert "export LEMONAID_HANDOFF_TOKEN=" in command
     assert "/opt/team/codex-wrapper --profile team" in command
     assert "## Handoff" in command
 
@@ -123,14 +123,27 @@ def test_manual_command_passes_handoff_prompt_as_argument(setup, monkeypatch):
     conn, path = setup
     row = _requested(conn, path)
     argv_path = path.parent / "target-argv.json"
+    first_env_path = path.parent / "first-env.txt"
+    target_env_path = path.parent / "target-env.txt"
+    first = path.parent / "first-command.py"
+    first.write_text(
+        f"import os; open({str(first_env_path)!r}, 'w').write(os.environ['LEMONAID_HANDOFF_TOKEN'])\n"
+    )
     target = path.parent / "dummy-target.py"
     target.write_text(
-        "import json, sys\n" f"open({str(argv_path)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        "import json, os, sys\n"
+        f"open({str(argv_path)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        f"open({str(target_env_path)!r}, 'w').write(os.environ['LEMONAID_HANDOFF_TOKEN'])\n"
     )
     monkeypatch.setattr(
         handoff_launch,
         "configured_line",
-        lambda *_: f"{shlex.quote(sys.executable)} {shlex.quote(str(target))}",
+        lambda *_: " && ".join(
+            (
+                f"{shlex.quote(sys.executable)} {shlex.quote(str(first))}",
+                f"{shlex.quote(sys.executable)} {shlex.quote(str(target))}",
+            )
+        ),
     )
     report = handoff_coordinator.advance(conn, row["token"])
 
@@ -138,9 +151,15 @@ def test_manual_command_passes_handoff_prompt_as_argument(setup, monkeypatch):
         report["start_command"],
         shell=True,
         check=True,
-        env={key: value for key, value in os.environ.items() if key != "LEMONAID_PROMPT"},
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in ("LEMONAID_PROMPT", "LEMONAID_HANDOFF_TOKEN")
+        },
     )
     assert json.loads(argv_path.read_text()) == [report["start_prompt"]]
+    assert first_env_path.read_text() == row["token"]
+    assert target_env_path.read_text() == row["token"]
 
 
 def test_manual_status_keeps_source_resume_command(setup):

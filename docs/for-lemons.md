@@ -473,6 +473,9 @@ modes saved by the shell or restored by its own TUI handler. Safe mode handling
 and rollback have not been verified. The existing tmux pane replacement path
 for a running harness, without Ctrl-Z, remains separate.
 
+Under xonsh on macOS, never use `fg` during a handoff. It may resume Codex's
+Node launcher while leaving its native process stopped.
+
 For a manually staged handoff without a live tmux pane, status prints a
 `start_command` and `start_prompt` once readiness passes. Run the command in a terminal to start
 the destination harness in the outgoing working directory. It uses the configured
