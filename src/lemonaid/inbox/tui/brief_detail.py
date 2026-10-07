@@ -1,4 +1,4 @@
-"""A brief section's identity drawn the way the inbox draws that lemon's card.
+"""Render a brief's detail view in the sidebar and popup.
 
 The same field colours, model colour, and status headline fills, so
 a brief in the sidebar or popup reads as the card opened up. What the worker
@@ -21,32 +21,10 @@ _HEADLINE_FILLS = {
     "running": f"#ffffff on {brief_cards.RUNNING_COLOR}",
     "done": "#ffffff on #285995",
 }
-_STATE_STYLES = {
-    "alert": "bold #ff5c5c",
-    "blocked": f"bold {utils.ATTENTION_COLOR}",
-    "merge": f"bold {brief_cards.MERGE_COLOR}",
-    "approve": "bold #b39ddb",
-    "review": "bold #c08a52",
-    "running": f"bold {brief_cards.RUNNING_TEXT_COLOR}",
-    "done": "bold #6f9fe0",
-    "working": "bold",
-    "waiting": "bright_black",
-}
-# The same status words on a light theme's background, each at 4.5:1 or better.
-_STATE_STYLES_LIGHT = {
-    **_STATE_STYLES,
-    "alert": f"bold {brief_cards.ALERT_COLOR}",
-    "blocked": f"bold {utils.ATTENTION_TEXT_LIGHT}",
-    "merge": "bold #2e7d32",
-    "approve": "bold #5e35b1",
-    "review": f"bold {brief_cards.REVIEW_COLOR}",
-    "running": f"bold {brief_cards.RUNNING_TEXT_COLOR_LIGHT}",
-    "done": "bold #285995",
-}
 
 
 def _state_style(state: str, default: str = "") -> str:
-    return (_STATE_STYLES_LIGHT if utils.light_theme() else _STATE_STYLES).get(state, default)
+    return brief_cards.status_text_style(state, default)
 
 
 _PR_STYLES = {"open": "green", "draft": "bright_black", "merged": "magenta", "closed": "red"}
@@ -109,16 +87,18 @@ def _context(section: render.Section, in_session: bool) -> Text:
     )
 
 
-def _state_line(section: render.Section, now_seconds: float) -> Text:
+def _state_line(section: render.Section, now_seconds: float, neutral_timing: bool = False) -> Text:
     prs = [
         Text(" ".join(part for part in (label, state) if part), style=_PR_STYLES.get(state, ""))
         for label, state in section.prs
     ]
-    age_field = "time" if now_seconds - section.mtime < 24 * 60 * 60 else "time_old"
+    age_field = (
+        "time_old" if neutral_timing or now_seconds - section.mtime >= 24 * 60 * 60 else "time"
+    )
     return _SEPARATOR.join(
         [
             (
-                Text(section.held, style="dim")
+                Text(section.held, style=_state_style(section.held, "dim"))
                 if section.held
                 else Text(render.status_text(section), style=_state_style(section.state, "dim"))
             ),
@@ -138,7 +118,12 @@ def _state_line(section: render.Section, now_seconds: float) -> Text:
 
 
 def header(
-    section: render.Section, in_session: bool, now_seconds: float, width: int, unread: bool = False
+    section: render.Section,
+    in_session: bool,
+    now_seconds: float,
+    width: int,
+    unread: bool = False,
+    neutral_timing: bool = False,
 ) -> Text:
     """The project, when known; then name and model, where it runs, which lemon it is
     (`brief_identity`), and status, age and PRs.
@@ -157,7 +142,7 @@ def header(
         _context(section, in_session),
         *brief_identity.lines(section, body),
     ]
-    lines.append(_state_line(section, now_seconds))
+    lines.append(_state_line(section, now_seconds, neutral_timing))
     for line in lines:
         line.truncate(body, overflow="ellipsis")
 

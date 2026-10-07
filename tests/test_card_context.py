@@ -1,9 +1,12 @@
 """A card's second line: the project in place of a cwd that mostly repeats the branch."""
 
+from rich.console import Console
 from rich.text import Text
 
 from lemonaid.config import PlaceRoot, PlacesConfig, load_config
-from lemonaid.inbox.tui import app, card_context
+from lemonaid.inbox.tui import app, brief_cards, card_context, utils
+from lemonaid.inbox.tui.utils import project_color
+from lemonaid.tmux import window_status
 
 _TIME = Text("15:32:47")
 
@@ -24,6 +27,31 @@ def test_a_place_under_a_root_shows_the_root_and_its_area(tmp_path):
     assert _line(tmp_path, cwd, "ua/fix", "apps/unified-asset") == (
         "15:32:47 · ds-monorepo: apps/unified-asset · ua/fix"
     )
+
+
+def test_project_name_color_is_stable_and_only_styles_the_project_name(tmp_path):
+    cwd = tmp_path / "ds-monorepo" / "p"
+    where = card_context.project_part(_places(tmp_path), str(cwd), "main", "apps/ua")
+
+    def project_part():
+        return card_context.parts(
+            ("project",), _TIME, where, "main", str(cwd), True, project_name_colors=True
+        )[0]
+
+    first = project_part().text
+    second = project_part().text
+
+    assert first.plain == "ds-monorepo: apps/ua"
+    assert first.spans == second.spans
+    assert first.spans[0].style == project_color("ds-monorepo")
+    assert (first.spans[0].start, first.spans[0].end) == (0, len("ds-monorepo"))
+    assert first.style.startswith("bold ")
+
+
+def test_project_colors_match_tmux_window_labels():
+    for name in ("ds-monorepo", "apps", "libs", "mops", "pantry"):
+        assert project_color(name) == window_status.get_color(name)
+    assert len({project_color(f"project-{n}") for n in range(50)}) > 6
 
 
 def test_outside_every_root_a_branch_names_the_directory(tmp_path):
@@ -124,6 +152,34 @@ def test_the_age_field_shows_the_brief_age_in_place_of_the_time(tmp_path):
 
     assert line("waiting 3 days") == "waiting 3 days · pantry · main"
     assert line("") == "15:32:47 · pantry · main"
+
+
+def test_inline_age_keeps_the_held_status_color():
+    where = card_context.Part("project", Text("pantry"))
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True).age_text(60, 6)
+    (part,) = card_context.parts(("age",), _TIME, where, "main", "/pantry", False, age)
+    console = Console(color_system="truecolor")
+    status_style = part.text.get_style_at_offset(console, 0)
+    age_offset = part.text.plain.index("updated")
+    age_style = part.text.get_style_at_offset(console, age_offset)
+
+    assert part.text.plain == "blocked · updated 1m ago"
+    assert status_style.color.name == utils.ATTENTION_COLOR
+    assert age_style.color.name == utils.FIELD_STYLES["time"]
+
+
+def test_inline_age_keeps_held_status_color_with_neutral_timing():
+    where = card_context.Part("project", Text("pantry"))
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True).age_text(60, 6)
+    (part,) = card_context.parts(
+        ("age",), _TIME, where, "main", "/pantry", False, age, neutral_timing=True
+    )
+    console = Console(color_system="truecolor")
+    status_style = part.text.get_style_at_offset(console, 0)
+    age_style = part.text.get_style_at_offset(console, part.text.plain.index("updated"))
+
+    assert status_style.color.name == utils.ATTENTION_COLOR
+    assert age_style.color.name == "bright_black"
 
 
 def test_a_narrow_card_keeps_the_age_and_cuts_the_project_instead(tmp_path):

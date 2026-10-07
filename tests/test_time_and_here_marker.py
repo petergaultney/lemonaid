@@ -3,6 +3,8 @@
 import time
 from datetime import datetime, timedelta
 
+import pytest
+
 from lemonaid.inbox.tui.app import _format_timestamp, _time_cell
 from lemonaid.inbox.tui.utils import HERE_BAR, HERE_BAR_STYLE, HERE_BLOCK, jump_gutter
 
@@ -35,6 +37,11 @@ def test_a_recent_date_keeps_the_live_colour():
     """Yesterday at 23:59 is a date by morning, but has not gone cold."""
     cell = _time_cell(time.time() - 8 * 3600, False)
     assert cell.style == "green"
+
+
+def test_project_colours_make_recent_timing_neutral():
+    cell = _time_cell(time.time() - 8 * 3600, False, neutral_timing=True)
+    assert cell.style == "bright_black"
 
 
 def test_an_old_date_goes_grey():
@@ -86,7 +93,15 @@ def test_the_cursor_does_not_repaint_the_row_it_marks():
     assert ClickToActTable().cursor_foreground_priority == "renderable"
 
 
-def test_the_selected_row_keeps_each_field_its_own_colour():
+@pytest.mark.parametrize(
+    ("theme", "override", "expected"),
+    [
+        ("textual-dark", None, "#17365d"),
+        ("textual-light", None, None),
+        ("textual-light", "#123456", "#123456"),
+    ],
+)
+def test_the_selected_row_keeps_each_field_its_own_colour(monkeypatch, theme, override, expected):
     """The regression this guards is invisible in the cell styles.
 
     The flattening happens when Textual composites the cursor over the row, so
@@ -95,8 +110,17 @@ def test_the_selected_row_keeps_each_field_its_own_colour():
     """
     import asyncio
 
+    from lemonaid.config import _parse_config
     from lemonaid.inbox import db
     from lemonaid.inbox.tui import app as tui
+    from lemonaid.inbox.tui import utils
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(utils, "_light_theme", False)
+    if override:
+        monkeypatch.setattr(
+            tui, "load_config", lambda: _parse_config({"tui": {"active_row_color": override}})
+        )
 
     async def run():
         with db.connect() as conn:
@@ -111,6 +135,7 @@ def test_the_selected_row_keeps_each_field_its_own_colour():
                 )
 
         pane = tui.LemonaidApp()
+        pane.theme = theme
         pane._archive_channel = lambda channel: None
         async with pane.run_test(size=(150, 20)) as pilot:
             await pilot.pause()
@@ -118,19 +143,34 @@ def test_the_selected_row_keeps_each_field_its_own_colour():
             table = pane.query_one("#main_table")
             assert table.row_count == 2
             assert table.cursor_coordinate.row == 0
+            table.focus()
+            await pilot.pause()
 
             # The cursor sits on the first data row, which the header puts two
             # lines down: one for the app's own title bar, one for the column
             # headings.
             strip = pane.screen._compositor.render_strips()[2]
-            return {
-                str(segment.style.color.name)
-                for segment in strip
-                if segment.text.strip() and segment.style and segment.style.color
-            }
+            return (
+                {
+                    str(segment.style.color.name)
+                    for segment in strip
+                    if segment.text.strip() and segment.style and segment.style.color
+                },
+                {
+                    str(segment.style.bgcolor.name)
+                    for segment in strip
+                    if segment.style and segment.style.bgcolor
+                },
+                table.has_class("-custom-active-row"),
+            )
 
-    colours = asyncio.run(run())
+    colours, backgrounds, has_custom = asyncio.run(run())
     assert len(colours) > 1, f"the cursor flattened the selected row to {colours}"
+    assert has_custom is (expected is not None)
+    if expected is not None:
+        assert expected in backgrounds
+    else:
+        assert "#17365d" not in backgrounds
 
 
 def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():

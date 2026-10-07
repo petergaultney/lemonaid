@@ -43,6 +43,61 @@ def test_the_context_line_never_wraps():
     assert len(body.plain.split("\n")) == 4  # name, context, message, separator
 
 
+def test_selected_and_hovered_card_keep_blocked_headline_background(monkeypatch):
+    """Cursor and hover highlights must not cover a status fill in the rendered card."""
+    from textual.app import App, ComposeResult
+
+    from lemonaid.inbox.tui.table import ClickToActTable
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    cells = [
+        Text("09:00"),
+        Text(""),
+        Text("CC"),
+        Text("blocked lemon"),
+        Text(""),
+        Text(""),
+        Text("message"),
+    ]
+    (card,) = app._as_card(cells, 48, card_brief=CardBrief("blocked", "", 0))
+
+    async def render_card(hover_other_row: bool):
+        class CardApp(App):
+            CSS = "#main_table.-custom-active-row > .datatable--cursor { background: #17365d; }"
+
+            def compose(self) -> ComposeResult:
+                yield ClickToActTable(id="main_table", cursor_type="row", show_header=False)
+
+            def on_mount(self) -> None:
+                table = self.query_one(ClickToActTable)
+                table.add_column("Card")
+                if hover_other_row:
+                    table.add_row(Text("other row"), height=4)
+                table.add_row(card, height=4)
+                table.add_class("-custom-active-row")
+                table.focus()
+
+        pane = CardApp()
+        async with pane.run_test(size=(60, 12)) as pilot:
+            await pilot.pause()
+            selected = pane.screen._compositor.render_strips()
+            table = pane.query_one(ClickToActTable)
+            assert await pilot.hover(table, offset=(10, 4 if hover_other_row else 0))
+            await pilot.pause()
+            assert table._show_hover_cursor
+            assert table.hover_row == int(hover_other_row)
+            hovered = pane.screen._compositor.render_strips()
+            return selected, hovered
+
+    for hover_other_row in (False, True):
+        for strips in asyncio.run(render_card(hover_other_row)):
+            headline = next(
+                strip for strip in strips if "blocked lemon" in "".join(s.text for s in strip)
+            )
+            status = next(segment for segment in headline if "blocked lemon" in segment.text)
+            assert status.style.bgcolor.name == ATTENTION_COLOR
+
+
 def test_a_card_stays_within_its_budget():
     cells = [
         Text("15:24:18"),
@@ -291,6 +346,43 @@ def test_waiting_brief_lines_keep_the_current_session_edge_and_age():
     assert lines[2] == f"{HERE_BAR}updated 1h ago"
     assert lines[3] == f"{HERE_BAR}review"
     assert "●" in lines[0]
+
+
+def test_mid_turn_age_line_keeps_the_held_status_color():
+    (body,) = app._as_card(
+        _brief_cells(unread=False),
+        40,
+        gutter_width=2,
+        card_brief=CardBrief("blocked", "", 0, mid_turn=True),
+        now=60,
+    )
+    status_offset = body.plain.index("blocked")
+    age_offset = body.plain.index("updated")
+    console = Console(color_system="truecolor")
+    status_style = body.get_style_at_offset(console, status_offset)
+    age_style = body.get_style_at_offset(console, age_offset)
+
+    assert body.plain.splitlines()[2].strip() == "blocked · updated 1m ago"
+    assert status_style.color.name == ATTENTION_COLOR
+    assert age_style.dim
+
+
+def test_project_colors_make_a_separate_brief_age_line_neutral():
+    (body,) = app._as_card(
+        _brief_cells(),
+        40,
+        gutter_width=2,
+        card_brief=CardBrief("blocked", "", 0, mid_turn=True),
+        now=60,
+        neutral_timing=True,
+    )
+    console = Console(color_system="truecolor")
+    status_style = body.get_style_at_offset(console, body.plain.index("blocked"))
+    age_style = body.get_style_at_offset(console, body.plain.index("updated"))
+
+    assert status_style.color.name == ATTENTION_COLOR
+    assert age_style.color.name == "bright_black"
+    assert not age_style.dim
 
 
 def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour():

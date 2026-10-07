@@ -38,6 +38,7 @@ class BriefPopup(App[None]):
             self._config.tui.keybindings,
             self._config.tui.mid_turn_working,
             self._config.places.roots,
+            self._config.tui.project_name_colors,
         )
 
     def watch_theme(self, theme: str) -> None:

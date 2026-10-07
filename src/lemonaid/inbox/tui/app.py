@@ -189,7 +189,9 @@ def _format_timestamp(ts: float) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
-def _time_cell(ts: float, is_unread: bool, *, history: bool = False) -> Text:
+def _time_cell(
+    ts: float, is_unread: bool, *, history: bool = False, neutral_timing: bool = False
+) -> Text:
     """The time column, greyed once the row is more than a day old.
 
     The text says when; the colour says whether it is still worth reacting to.
@@ -199,7 +201,9 @@ def _time_cell(ts: float, is_unread: bool, *, history: bool = False) -> Text:
     same calendar test the text uses.
     """
     field = "time" if time.time() - ts < _DAY_SECONDS else "time_old"
-    return styled_cell(_format_timestamp(ts), is_unread, field, history=history)
+    return styled_cell(
+        _format_timestamp(ts), is_unread, field, history=history, neutral_timing=neutral_timing
+    )
 
 
 def _decorated_name(n: db.Notification, emojis: abc.Mapping[str, str]) -> str:
@@ -260,6 +264,7 @@ def _as_card(
     now: float = 0.0,
     context_parts: abc.Sequence[card_context.Part] | None = None,
     age_inline: bool = False,
+    neutral_timing: bool = False,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -405,7 +410,15 @@ def _as_card(
                 if card_brief.needs_line
                 else []
             ),
-            *([] if age_inline else [Text(card_brief.age(now, stale_hours), style="dim")]),
+            *(
+                []
+                if age_inline
+                else [
+                    card_brief.age_text(
+                        now, stale_hours, style="bright_black" if neutral_timing else "dim"
+                    )
+                ]
+            ),
             *(
                 [Text(card_brief.running_line, style=brief_cards.running_text())]
                 if card_brief.running_line
@@ -496,6 +509,7 @@ def _sync_rows(
     now: float = 0.0,
     contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
     age_inline: bool = False,
+    neutral_timing: bool = False,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -524,6 +538,7 @@ def _sync_rows(
                 now,
                 (contexts_by_row or {}).get(key),
                 age_inline,
+                neutral_timing,
             )
             if cards
             else brief_rows.styled(
@@ -701,6 +716,10 @@ class LemonaidApp(App):
 
     #main_table {
         height: 1fr;
+    }
+
+    #main_table.-custom-active-row > .datatable--cursor {
+        background: $active-row-color;
     }
 
     /* HeaderIcon is only a second route to the command palette, which already
@@ -994,11 +1013,32 @@ class LemonaidApp(App):
         except ColorParseError:
             _log.warning("tui.focus_color %r is not a colour", self.config.tui.focus_color)
             focus = Color.parse(TuiConfig.focus_color)
+        active_row = "#17365d"
+        if self.config.tui.active_row_color:
+            try:
+                active_row = Color.parse(self.config.tui.active_row_color).hex
+            except ColorParseError:
+                _log.warning(
+                    "tui.active_row_color %r is not a colour", self.config.tui.active_row_color
+                )
         return {
             **super().get_css_variables(),
             "input-focus": focus.hex,
             "input-focus-text": focus.get_contrast_text(1.0).hex,
+            "active-row-color": active_row,
         }
+
+    def _update_active_row_background(self) -> None:
+        configured = self.config.tui.active_row_color
+        use_custom = self.current_theme.dark
+        if configured:
+            try:
+                Color.parse(configured)
+            except ColorParseError:
+                _log.warning("tui.active_row_color %r is not a colour", configured)
+            else:
+                use_custom = True
+        self.query_one("#main_table", ClickToActTable).set_class(use_custom, "-custom-active-row")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1022,6 +1062,7 @@ class LemonaidApp(App):
                 self.config.tui.keybindings,
                 self.config.tui.mid_turn_working,
                 self.config.places.roots,
+                self.config.tui.project_name_colors,
                 id="brief_view",
             )
         yield Footer()
@@ -1029,11 +1070,14 @@ class LemonaidApp(App):
     def watch_theme(self, theme: str) -> None:
         # Text colours follow the theme's background; the next refresh redraws them.
         utils.use_light_theme(not self.current_theme.dark)
+        if self.is_mounted and self._screen_stack:
+            self._update_active_row_background()
 
     def on_mount(self) -> None:
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
         utils.use_light_theme(not self.current_theme.dark)
+        self._update_active_row_background()
         # Apply transparent styles if configured
         if self.config.tui.transparent:
             self.screen.styles.background = "transparent"
@@ -1408,6 +1452,8 @@ class LemonaidApp(App):
             return styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd")
 
         where = self._project(n, area)
+        if self.config.tui.project_name_colors and where.field == "project" and where.project_name:
+            return utils.styled_project_cell(where.text.plain, where.project_name, is_unread)
         return styled_cell(where.text.plain, is_unread, where.field)
 
     def _context_parts(
@@ -1420,12 +1466,14 @@ class LemonaidApp(App):
     ) -> list[card_context.Part]:
         return card_context.parts(
             self.config.tui.card_fields,
-            _time_cell(n.created_at, is_unread),
+            _time_cell(n.created_at, is_unread, neutral_timing=self.config.tui.project_name_colors),
             self._project(n, area),
             n.metadata.get("git_branch", ""),
             n.metadata.get("cwd", ""),
             is_unread,
-            card_brief.age(now, self.config.tui.brief_stale_hours) if card_brief else "",
+            card_brief.age_text(now, self.config.tui.brief_stale_hours) if card_brief else "",
+            self.config.tui.project_name_colors,
+            neutral_timing=self.config.tui.project_name_colors,
         )
 
     def _active_row(
@@ -1450,7 +1498,7 @@ class LemonaidApp(App):
         is_unread = n.is_unread
         is_here = n.metadata.get("tty", "") in focused
         return str(n.id), [
-            _time_cell(n.created_at, is_unread),
+            _time_cell(n.created_at, is_unread, neutral_timing=self.config.tui.project_name_colors),
             Text("●", style=utils.unread_marker_style()) if is_unread else Text(""),
             backend_cell(
                 self._backend_value(n, is_unread),
@@ -1470,7 +1518,7 @@ class LemonaidApp(App):
     ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
-            _time_cell(n.created_at, False),
+            _time_cell(n.created_at, False, neutral_timing=self.config.tui.project_name_colors),
             Text("○", style="dim") if n.is_unread else Text(""),
             self._backend_value(n, False),
             _name_cell(n, emojis, wordybin, False),
@@ -1654,6 +1702,7 @@ class LemonaidApp(App):
                 for n in current_notifications
             },
             age_inline,
+            self.config.tui.project_name_colors,
         )
 
         fold_label.display = bool(folded)
@@ -2077,7 +2126,13 @@ class LemonaidApp(App):
                 )
 
             cells = [
-                styled_cell(created, False, "time", history=True),
+                styled_cell(
+                    created,
+                    False,
+                    "time",
+                    history=True,
+                    neutral_timing=self.config.tui.project_name_colors,
+                ),
                 Text(""),  # archived: never a marker, but cards index by position
                 self._backend_value(n, False, history=True),
                 name_cell,
@@ -2152,7 +2207,12 @@ class LemonaidApp(App):
                 (
                     str(n.id),
                     [
-                        _time_cell(n.created_at, False, history=True),
+                        _time_cell(
+                            n.created_at,
+                            False,
+                            history=True,
+                            neutral_timing=self.config.tui.project_name_colors,
+                        ),
                         Text("○", style="dim") if n.snooze_prev_status == "unread" else Text(""),
                         self._backend_value(n, False),
                         styled_cell(n.name or "", False, "name"),

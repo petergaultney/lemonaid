@@ -16,7 +16,7 @@ from textual.containers import Vertical
 from textual.widgets import Markdown
 
 from lemonaid.config import Config
-from lemonaid.inbox.tui import app, brief_card, brief_cards, brief_popup, utils
+from lemonaid.inbox.tui import app, brief_cards, brief_detail, brief_popup, utils
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.brief_view import BriefView
 from lemonaid.inbox.tui.utils import jump_gutter
@@ -69,7 +69,7 @@ def test_a_light_theme_darkens_text_but_not_fills():
         utils.ATTENTION_TEXT_LIGHT,
         utils.LINK_COLOR_LIGHT,
         brief_cards.RUNNING_TEXT_COLOR_LIGHT,
-        *(style.split()[-1] for style in brief_card._STATE_STYLES_LIGHT.values() if "#" in style),
+        *(style.split()[-1] for style in brief_cards._STATE_STYLES_LIGHT.values() if "#" in style),
     ],
 )
 def test_every_light_text_colour_reads_on_white(colour):
@@ -99,16 +99,27 @@ def test_a_cards_running_line_follows_the_theme():
 
 
 def test_the_status_word_follows_the_theme():
-    assert brief_card._state_style("approve") == "bold #b39ddb"
+    assert brief_detail._state_style("approve") == "bold #b39ddb"
     utils.use_light_theme(True)
-    assert brief_card._state_style("approve") == "bold #5e35b1"
-    assert brief_card._state_style("nonsense", "dim") == "dim"
+    assert brief_detail._state_style("approve") == "bold #5e35b1"
+    assert brief_detail._state_style("nonsense", "dim") == "dim"
+
+
+def test_a_held_status_age_uses_the_theme_appropriate_text_colour():
+    brief = CardBrief("blocked", "", 0, mid_turn=True)
+    dark = brief.age_text(60, 6)
+    utils.use_light_theme(True)
+    light = brief.age_text(60, 6)
+    console = Console(color_system="truecolor")
+
+    assert dark.get_style_at_offset(console, 0).color.name == utils.ATTENTION_COLOR
+    assert light.get_style_at_offset(console, 0).color.name == utils.ATTENTION_TEXT_LIGHT
 
 
 @pytest.mark.parametrize("app_class", [app.LemonaidApp, brief_popup.BriefPopup])
 @pytest.mark.parametrize("dark", [True, False])
 def test_the_apps_set_text_colours_from_their_theme(app_class, dark):
-    fake = SimpleNamespace(current_theme=SimpleNamespace(dark=dark))
+    fake = SimpleNamespace(current_theme=SimpleNamespace(dark=dark), is_mounted=False)
 
     app_class.watch_theme(fake, "any")
 

@@ -5,6 +5,8 @@ import sys
 from rich.text import Text
 from textual.widgets import Static
 
+from ...tmux import window_status
+
 
 def same_cell(old: object, new: object) -> bool:
     """Whether a table cell would draw the same; Rich's `Text ==` ignores the base style."""
@@ -95,7 +97,12 @@ HISTORY_FIELD_STYLES = {**FIELD_STYLES, "time": "yellow", "time_old": "bright_bl
 
 
 def styled_cell(
-    value: str, is_unread: bool, field: str = "message", *, history: bool = False
+    value: str,
+    is_unread: bool,
+    field: str = "message",
+    *,
+    history: bool = False,
+    neutral_timing: bool = False,
 ) -> Text:
     """Colour a cell by which field it is, weighted by whether it wants attention.
 
@@ -108,11 +115,30 @@ def styled_cell(
     than as a value to pick out, and a wrapped bold paragraph is harder to read
     than the plain one beside it - the weight costs more than the emphasis buys.
     """
-    style = (HISTORY_FIELD_STYLES if history else FIELD_STYLES).get(field, "default")
+    styles = HISTORY_FIELD_STYLES if history else FIELD_STYLES
+    style = (
+        "bright_black"
+        if neutral_timing and field in {"time", "time_old"}
+        else styles.get(field, "default")
+    )
     if is_unread and field not in _NEVER_BOLD:
         return Text(value, style=f"bold {style}")
 
     return Text(value, style=style)
+
+
+def project_color(name: str) -> str:
+    """Use the same stable palette and directory overrides as tmux window labels."""
+    return window_status.get_color(name)
+
+
+def styled_project_cell(
+    value: str, project_name: str, is_unread: bool, *, history: bool = False
+) -> Text:
+    """Style a project label while retaining the row's unread emphasis."""
+    text = styled_cell(value, is_unread, "project", history=history)
+    text.stylize(project_color(project_name), 0, len(project_name))
+    return text
 
 
 # Ten rows get a digit; 1-9 then 0, so the key's position on the keyboard runs

@@ -1,3 +1,11 @@
+# 0.75.0 (2026-10-07)
+
+#### Added
+
+- **`[tui] project_name_colors = true` gives project labels stable colors** in both inbox layouts, using the tmux window-label palette and directory overrides. It is off by default.
+- **A mid-turn card keeps its brief status color beside the `working` headline.** A `blocked` status stays yellow while the session works on its answer, whether the age is on its own line or inline in the context row.
+- **Project colors make timing labels neutral.** Independently, the selected row uses a deeper blue on dark themes; set `[tui] active_row_color` to override it at startup. Light-theme selection is unchanged by default.
+
 # 0.74.4 (2026-10-06)
 
 #### Fixed

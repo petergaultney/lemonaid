@@ -4,7 +4,7 @@ import dataclasses
 from pathlib import Path
 
 from lemonaid.brief import render, target
-from lemonaid.inbox.tui import brief_card, brief_cards, utils
+from lemonaid.inbox.tui import brief_cards, brief_detail, utils
 
 _LEMON = target.Identity(
     name="author",
@@ -28,7 +28,7 @@ def _styles(text, fragment: str) -> set[str]:
 
 
 def test_header_has_the_cards_fields_in_the_cards_colours():
-    text = brief_card.header(_section("working", (("#74", "merged"),)), False, 0, 60)
+    text = brief_detail.header(_section("working", (("#74", "merged"),)), False, 0, 60)
     lines = text.plain.split("\n")
 
     assert lines[0].startswith(f"{utils.HERE_BAR} author") and lines[0].endswith("Opus 5.5")
@@ -42,9 +42,16 @@ def test_header_has_the_cards_fields_in_the_cards_colours():
     assert "magenta" in _styles(text, "#74 merged")
 
 
+def test_project_colours_make_brief_age_neutral_but_keep_held_status_color():
+    section = dataclasses.replace(_section("working"), held="blocked")
+    text = brief_detail.header(section, False, 3600, 60, neutral_timing=True)
+    assert utils.ATTENTION_COLOR in " ".join(_styles(text, "blocked"))
+    assert "bright_black" in _styles(text, "updated 1h ago")
+
+
 def test_the_project_leads_the_card_above_the_name():
     section = dataclasses.replace(_section("blocked"), project="ds-monorepo: apps/web")
-    text = brief_card.header(section, False, 0, 60)
+    text = brief_detail.header(section, False, 0, 60)
     lines = text.plain.split("\n")
 
     assert lines[0] == f"{utils.HERE_BAR} ds-monorepo: apps/web"
@@ -61,7 +68,7 @@ def test_the_task_lemon_id_and_parent_come_before_the_status():
         parent="control-center.LemonAce",
         parent_name="Real HQ",
     )
-    lines = brief_card.header(section, False, 0, 60).plain.split("\n")
+    lines = brief_detail.header(section, False, 0, 60).plain.split("\n")
 
     assert lines[2:] == [
         f"{utils.HERE_BAR} ",
@@ -80,7 +87,7 @@ def test_a_compact_card_wraps_its_lemon_id_and_parent_on_one_line_rather_than_cu
         parent="lemon-ids.EqualRib",
         compact=True,
     )
-    lines = brief_card.header(section, True, 0, 40).plain.split("\n")
+    lines = brief_detail.header(section, True, 0, 40).plain.split("\n")
 
     assert " ".join(line.removeprefix(f"{utils.HERE_BAR} ").strip() for line in lines[3:-1]) == (
         "Brief-ID: review-lemonaid-184.PauseOld · Parent: lemon-ids.EqualRib"
@@ -89,43 +96,52 @@ def test_a_compact_card_wraps_its_lemon_id_and_parent_on_one_line_rather_than_cu
 
 
 def test_blocked_fills_the_headline_like_a_blocked_card():
-    text = brief_card.header(_section("blocked"), True, 0, 40)
+    text = brief_detail.header(_section("blocked"), True, 0, 40)
 
     assert any(utils.ATTENTION_COLOR in s for s in _styles(text, "author"))
     assert text.plain.split("\n")[1].startswith(f"{utils.HERE_BAR} w2 · ")
 
 
+def test_midturn_blocked_status_keeps_its_yellow_color_without_a_blocked_headline():
+    section = dataclasses.replace(_section("working"), held="blocked")
+    text = brief_detail.header(section, False, 0, 40)
+
+    assert text.plain.split("\n")[-1].startswith(f"{utils.HERE_BAR} blocked ·")
+    assert any(utils.ATTENTION_COLOR in style for style in _styles(text, "blocked"))
+    assert not any(utils.ATTENTION_COLOR in style for style in _styles(text, "author"))
+
+
 def test_the_session_bar_spans_the_width():
-    assert brief_card.session_bar("# work · 2 lemons", 30).plain == "work · 2 lemons".center(30)
+    assert brief_detail.session_bar("# work · 2 lemons", 30).plain == "work · 2 lemons".center(30)
 
 
 def test_merge_and_alert_fill_the_headline_green_and_red():
     assert any(
         brief_cards.MERGE_COLOR in s
-        for s in _styles(brief_card.header(_section("merge"), True, 0, 40), "author")
+        for s in _styles(brief_detail.header(_section("merge"), True, 0, 40), "author")
     )
     assert any(
         brief_cards.ALERT_COLOR in s
-        for s in _styles(brief_card.header(_section("alert"), True, 0, 40), "author")
+        for s in _styles(brief_detail.header(_section("alert"), True, 0, 40), "author")
     )
 
 
 def test_review_fills_the_headline_brown():
     assert any(
         brief_cards.REVIEW_COLOR in s
-        for s in _styles(brief_card.header(_section("review"), True, 0, 40), "author")
+        for s in _styles(brief_detail.header(_section("review"), True, 0, 40), "author")
     )
 
 
 def test_approve_fills_the_headline_purple():
     assert any(
         brief_cards.APPROVE_COLOR in s
-        for s in _styles(brief_card.header(_section("approve"), True, 0, 40), "author")
+        for s in _styles(brief_detail.header(_section("approve"), True, 0, 40), "author")
     )
 
 
 def test_running_fills_the_headline_teal():
     assert any(
         brief_cards.RUNNING_COLOR in s
-        for s in _styles(brief_card.header(_section("running"), True, 0, 40), "author")
+        for s in _styles(brief_detail.header(_section("running"), True, 0, 40), "author")
     )

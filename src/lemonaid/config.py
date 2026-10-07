@@ -161,6 +161,9 @@ class TuiConfig:
     mid_turn_working: bool = False
     # Show each attached brief's short name after its session name.
     brief_names_in_inbox: bool = False
+    project_name_colors: bool = False
+    # Override the selected inbox row background. Otherwise dark themes use a deeper blue.
+    active_row_color: str | None = None
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
@@ -503,6 +506,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
         brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
         mid_turn_working=tui_data.get("mid_turn_working", False),
         brief_names_in_inbox=tui_data.get("brief_names_in_inbox", False),
+        project_name_colors=tui_data.get("project_name_colors", False),
+        active_row_color=tui_data.get("active_row_color"),
         fold_statuses=list(tui_data.get("fold_statuses", [])),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         notes=_notes(tui_data.get("notes")),

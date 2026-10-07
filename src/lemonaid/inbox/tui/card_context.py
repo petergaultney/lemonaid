@@ -8,7 +8,7 @@ from rich.text import Text
 from ...brief import project
 from ...config import PlacesConfig
 from ...lemon_watchers import fish_path
-from .utils import FIELD_STYLES, styled_cell
+from .utils import FIELD_STYLES, styled_cell, styled_project_cell
 
 _SEPARATOR = " · "
 # What gives way first when the line is too narrow. The project's name never
@@ -22,6 +22,7 @@ class Part:
     field: str
     text: Text
     keep: int = 0  # cells a cut may not go below; 0 lets the part drop out
+    project_name: str = ""
 
 
 def project_part(places: PlacesConfig, cwd: str, branch: str, area: str = "") -> Part:
@@ -36,7 +37,7 @@ def project_part(places: PlacesConfig, cwd: str, branch: str, area: str = "") ->
         return Part("cwd", Text(fish_path(cwd)), 0)
 
     name = project.label(places.roots, "", cwd)
-    return Part("project", Text(f"{name}: {area}" if area else name), len(name))
+    return Part("project", Text(f"{name}: {area}" if area else name), len(name), name)
 
 
 def parts(
@@ -46,7 +47,9 @@ def parts(
     branch: str,
     cwd: str,
     is_unread: bool,
-    age: str = "",
+    age: str | Text = "",
+    project_name_colors: bool = False,
+    neutral_timing: bool = False,
 ) -> list[Part]:
     """The parts *fields* name, coloured like the row's cells; empty ones are left out.
 
@@ -57,7 +60,12 @@ def parts(
 
     def part(field: str) -> Part | None:
         if field == "age" and age:
-            text = styled_cell(age, is_unread, "time")
+            if isinstance(age, Text):
+                text = styled_cell(age.plain, is_unread, "time", neutral_timing=neutral_timing)
+                for span in age.spans:
+                    text.stylize(span.style, span.start, span.end)
+            else:
+                text = styled_cell(age, is_unread, "time", neutral_timing=neutral_timing)
             return Part("age", text, text.cell_len)
         if field in {"time", "age"}:
             return Part("time", time, time.cell_len)
@@ -68,9 +76,11 @@ def parts(
                 None if falls_back else Part("cwd", styled_cell(fish_path(cwd), is_unread, "cwd"))
             )
 
-        return dataclasses.replace(
-            where, text=styled_cell(where.text.plain, is_unread, where.field)
-        )
+        if field == "project" and project_name_colors and where.project_name:
+            text = styled_project_cell(where.text.plain, where.project_name, is_unread)
+        else:
+            text = styled_cell(where.text.plain, is_unread, where.field)
+        return dataclasses.replace(where, text=text)
 
     fields = tuple(fields)
     falls_back = where.field == "cwd" and "project" in fields

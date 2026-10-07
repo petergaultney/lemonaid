@@ -24,7 +24,7 @@ from ...brief import attached, family, links, pr, questions, render, target
 from ...config import KeybindingsConfig, PlaceRoot
 from ...log import get_logger
 from .. import db, turns
-from . import brief_card, brief_questions, utils
+from . import brief_detail, brief_questions, utils
 
 _log = get_logger("tui.brief_view")
 _OPENER = ["open"] if sys.platform == "darwin" else ["xdg-open"]
@@ -73,16 +73,29 @@ class _Card(Static):
     }
     """
 
-    def __init__(self, section: render.Section, in_session: bool, now: float, unread: bool) -> None:
+    def __init__(
+        self,
+        section: render.Section,
+        in_session: bool,
+        now: float,
+        unread: bool,
+        neutral_timing: bool,
+    ) -> None:
         super().__init__()
         self._section = section
         self._in_session = in_session
         self.now = now
         self.unread = unread
+        self.neutral_timing = neutral_timing
 
     def render(self) -> Text:
-        return brief_card.header(
-            self._section, self._in_session, self.now, self.size.width, self.unread
+        return brief_detail.header(
+            self._section,
+            self._in_session,
+            self.now,
+            self.size.width,
+            self.unread,
+            self.neutral_timing,
         )
 
 
@@ -221,10 +234,12 @@ class BriefView(VerticalScroll):
         keys: KeybindingsConfig = _DEFAULT_KEYS,
         mid_turn_working: bool = False,
         roots: abc.Sequence[PlaceRoot] = (),
+        neutral_timing: bool = False,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
         self._mid_turn_working = mid_turn_working
+        self._neutral_timing = neutral_timing
         self._roots = roots
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
@@ -275,7 +290,7 @@ class BriefView(VerticalScroll):
             for i, section in enumerate(shown.sections)
             for widget in (
                 *([Rule()] if i else []),
-                _Card(section, shown.in_session, now, unread),
+                _Card(section, shown.in_session, now, unread, self._neutral_timing),
                 *(
                     [self._needs_widget(section)]
                     if section.needs_text or section.unmatched_questions
@@ -283,7 +298,7 @@ class BriefView(VerticalScroll):
                 ),
                 *([_Markdown(links.linkify(section.body, self._vaults))] if section.body else []),
                 *(
-                    [Static(brief_card.children(section), classes="brief-children")]
+                    [Static(brief_detail.children(section), classes="brief-children")]
                     if section.children
                     else []
                 ),
@@ -294,7 +309,7 @@ class BriefView(VerticalScroll):
             *top,
             *sections,
             Rule(),
-            Static(brief_card.files(shown), classes="brief-files"),
+            Static(brief_detail.files(shown), classes="brief-files"),
             *(
                 [Static(brief_questions.hint(self._keys), classes="brief-question-keys")]
                 if self._selected

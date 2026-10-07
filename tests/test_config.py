@@ -78,6 +78,17 @@ def test_card_unread_style_defaults_to_dot_and_can_be_overridden():
     assert _parse_config({"tui": {"card_unread_style": "bar"}}).tui.card_unread_style == "bar"
 
 
+def test_project_name_colors_default_off_and_can_be_enabled():
+    assert _parse_config({}).tui.project_name_colors is False
+    assert _parse_config({"tui": {"project_name_colors": True}}).tui.project_name_colors is True
+
+
+def test_active_row_color_defaults_and_can_be_overridden():
+    assert _parse_config({}).tui.active_row_color is None
+    config = _parse_config({"tui": {"active_row_color": "#123456"}})
+    assert config.tui.active_row_color == "#123456"
+
+
 def test_brief_cards_are_opt_in():
     assert _parse_config({}).tui.brief_status is False
     config = _parse_config({"tui": {"brief_status": True, "brief_stale_hours": 12}})

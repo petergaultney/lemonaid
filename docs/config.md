@@ -127,6 +127,8 @@ The name may come from the interpreter's command line or the pane title. Add
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
+| `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from a 23-color palette with directory overrides. Timing labels become neutral grey. |
+| `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 | `notes` | *(unset)* | A Markdown file to show under the sessions when they are cards (see below). |
@@ -151,7 +153,7 @@ With `brief_status = true`, a card whose session has an attached brief with a
   only for cards without a brief.
 - With `mid_turn_working = true`, while a read session is mid-turn, its card
   is drawn as `working` whatever its brief says, except `running`: no status
-  fill and no `Needs` line, with the brief's status in dim text before its age
+  fill and no `Needs` line, with the brief's status in its status color before its age
   (`blocked · updated 3m`). Its brief view still shows the need and its
   questions, dimmed, and `a` still answers them. The card keeps the place in the list, and the fold, that its brief's
   status gives it, so a lemon doesn't jump around as its turns start and end.
@@ -218,10 +220,17 @@ cwd as before. When the line doesn't fit, the branch is cut first, then the
 area, and then the time is dropped, so the project's name stays whole wherever
 it fits on its own.
 
+Set `project_name_colors = true` to color each project label with the same
+selection used by tmux window labels: a stable hash into the 23-color palette,
+with the same named directory overrides. The same name keeps the same color
+across runs; this applies to the project label, not the area or cwd fallback.
+
 The `age` field puts the brief's age on this line instead of a line of its own:
 `waiting 2 days` or `updated 40m ago`, with `(stale)` when it applies. A card
 without a brief shows the time there. Unlike the time, the age is never dropped
 to make room: on a card too narrow for both, the project is cut instead.
+When a session is working mid-turn, the brief's held status keeps its status
+color both on its own line and before an inline age.
 
 ```toml
 [tui]
