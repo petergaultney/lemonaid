@@ -467,21 +467,17 @@ rollback. A signal-aware mock TUI confirms Bash `fg` restores the saved mode
 before the app re-enters cbreak mode. An isolated xonsh 0.22.8 test on macOS
 showed `fg` resuming the mock Python app while leaving its native child stopped;
 the direct CLI process-group resume woke both in accepted and rollback flows.
-These tests do not verify Claude/Codex's own suspend-resume behavior.
-
-**Trial limitation:** do not use the Ctrl-Z path with a live Claude or Codex
-session yet, whether in a standalone terminal or a tmux pane. The CLI resumes a
+These tests do not verify Claude/Codex's own suspend-resume behavior. The
+maintainer reported successful live trials in both directions on 2026-10-06.
+The CLI resumes a
 stopped process group directly. Before transferring foreground ownership, the
 CLI saves the terminal settings it inherited from the shell; after a return or
 rollback, it restores those settings before returning control to the shell.
 Isolated PTY tests cover a signal-aware TUI that restores the shell's mode
 before stopping and re-enters cbreak mode on `SIGCONT`, as well as target exit
 and rollback when the target leaves the terminal raw. They cover process flow
-in `sh`, Bash, fish, and xonsh 0.22.8. They do not verify the real Claude/Codex
-launcher and TUI behavior. Do not use the Ctrl-Z path with a live Claude or
-Codex session yet, either in a standalone terminal or a tmux pane. The existing
-tmux pane replacement path for a running harness, without Ctrl-Z, remains
-separate.
+in `sh`, Bash, fish, and xonsh 0.22.8. The existing tmux pane replacement path
+for a running harness, without Ctrl-Z, remains separate.
 
 Under xonsh 0.22.8 on macOS, do not use `fg` during a handoff: it resumed the
 mock Python TUI while leaving a native child stopped. Lemonaid's direct
