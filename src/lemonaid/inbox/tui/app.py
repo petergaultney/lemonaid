@@ -1422,9 +1422,9 @@ class LemonaidApp(App):
 
         return "#main_table"
 
-    def _get_current_row_key(self) -> str | None:
-        """Get the row key (notification ID) at current cursor."""
-        table = self.query_one(self._active_table_id(), DataTable)
+    @staticmethod
+    def _row_key(table: DataTable) -> str | None:
+        """Get the notification ID at a table's cursor."""
         if table.row_count == 0:
             return None
         try:
@@ -1432,6 +1432,10 @@ class LemonaidApp(App):
             return row_key.value if row_key else None
         except Exception:
             return None
+
+    def _get_current_row_key(self) -> str | None:
+        """Get the row key (notification ID) at current cursor."""
+        return self._row_key(self.query_one(self._active_table_id(), DataTable))
 
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
@@ -1560,14 +1564,14 @@ class LemonaidApp(App):
             styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
         ]
 
-    def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> view.Active:
+    def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> "view.Active":
         return view.ordered_active(
             conn, switch_source, self._brief_cache, self.config.tui.mid_turn_working, time.time()
         )
 
     def _arranged(
         self,
-        active: view.Active,
+        active: "view.Active",
         shown: list[db.Notification],
         folded: list[db.Notification],
         pinned: frozenset[str],
@@ -1638,6 +1642,7 @@ class LemonaidApp(App):
         current_index = self._get_current_row_index()
         other_index = other_table.cursor_coordinate.row if other_table.row_count > 0 else 0
         focused_on_other = self.focused is other_table
+        other_key = self._row_key(other_table) if focused_on_other else None
 
         focused = self._focused_ttys()
         with db.connect() as conn:
@@ -1654,8 +1659,13 @@ class LemonaidApp(App):
                 else None
             )
             cards = active.cards
+            in_view = {
+                n.channel
+                for n in active.rows
+                if n.metadata.get("tty", "") in focused or str(n.id) == current_key
+            }
             shown, folded = order.fold(
-                active.rows,
+                view.inbox_rows(active, pinned, in_view),
                 view.statuses(cards),
                 pinned,
                 self.config.tui.fold_statuses,
@@ -1679,9 +1689,15 @@ class LemonaidApp(App):
             # Headless sessions (switch_source IS NULL) are excluded — they can't be
             # switched to from anywhere, so they belong in history instead.
             if env_filter:
+                other_active = self._ordered_active(conn, None)
+                other_in_view = {
+                    n.channel
+                    for n in other_active.rows
+                    if n.metadata.get("tty", "") in focused or str(n.id) in {current_key, other_key}
+                }
                 other_notifications = [
                     n
-                    for n in self._ordered_active(conn, None).rows
+                    for n in view.inbox_rows(other_active, pinned, other_in_view)
                     if n.switch_source is not None and n.switch_source != env_filter
                 ]
             else:
@@ -1786,7 +1802,17 @@ class LemonaidApp(App):
 
         # Restore other table cursor
         if other_table.row_count > 0:
-            other_table.move_cursor(row=min(other_index, other_table.row_count - 1))
+            other_target = None
+            if other_key:
+                with contextlib.suppress(Exception):
+                    other_target = other_table.get_row_index(other_key)
+            other_table.move_cursor(
+                row=(
+                    other_target
+                    if other_target is not None
+                    else min(other_index, other_table.row_count - 1)
+                )
+            )
 
         # Restore cursor position. An in-place update leaves the cursor where it
         # was, so only a rebuild (or an explicit jump) needs to move it — moving

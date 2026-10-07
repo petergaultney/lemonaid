@@ -61,6 +61,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 ## Features
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
+- **Quiet reviewer sessions**: Reviewer lemons stay out of the default inbox until you switch to them, select or pin them, or their brief enters a specially ranked status
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md), [WezTerm](docs/wezterm.md) and [cmux](docs/cmux.md)). If the session has since died, it is resumed in a new pane in the same directory rather than the jump failing
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command
 - **Integrated search**: Press `/` to filter inbox and archive sessions as you type, including attached brief names; inbox rows keep their formatting and fill the list first, with archive matches below a divider when room remains

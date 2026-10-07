@@ -22,6 +22,7 @@ class Active:
     rows: list[db.Notification]  # in the inbox's own order
     cards: dict[str, brief_cards.CardBrief]  # by channel
     briefs: dict[str, Path]  # the attached brief's path, by channel
+    reviewers: frozenset[str]  # channels whose stable brief ID starts with review-
 
 
 def _cards(
@@ -52,6 +53,21 @@ def statuses(cards: abc.Mapping[str, brief_cards.CardBrief]) -> dict[str, str]:
     return {channel: card.status for channel, card in cards.items()}
 
 
+def inbox_rows(
+    active: Active, pinned: abc.Container[str], in_view: abc.Container[str]
+) -> list[db.Notification]:
+    """Omit quiet reviewers unless the user chose them or their brief needs a band."""
+    brief_statuses = statuses(active.cards)
+    return [
+        row
+        for row in active.rows
+        if row.channel not in active.reviewers
+        or row.channel in pinned
+        or row.channel in in_view
+        or order.special_status(brief_statuses.get(row.channel, ""))
+    ]
+
+
 def ordered_active(
     conn: sqlite3.Connection,
     switch_source: str | None,
@@ -67,8 +83,16 @@ def ordered_active(
     rows = db.get_active(conn, switch_source=switch_source)
     attached = brief.attached.for_rows(conn, rows)
     cards = _cards(conn, rows, attached, cache, mid_turn_working, now)
+    reviewers = frozenset(
+        channel
+        for channel, brief_id in brief.identity.by_channel(conn).items()
+        if channel in attached and brief.identity.brief_description(brief_id).startswith("review-")
+    )
     return Active(
-        order.by_status(rows, statuses(cards), pins.pinned_positions(conn)), cards, attached
+        order.by_status(rows, statuses(cards), pins.pinned_positions(conn)),
+        cards,
+        attached,
+        reviewers,
     )
 
 

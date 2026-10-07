@@ -1,3 +1,9 @@
+# 0.77.0 (2026-10-07)
+
+#### Changed
+
+- **Reviewer lemons stay out of the default inbox.** Switching to one, selecting or pinning its row, or giving its brief a specially ranked status brings it into view.
+
 # 0.76.0 (2026-10-07)
 
 #### Added

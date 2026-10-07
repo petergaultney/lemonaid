@@ -116,9 +116,43 @@ def test_focus_listing_queries_clients_instead_of_every_pane(monkeypatch):
 
     def _run(argv, **kwargs):
         calls.append(argv)
-        return subprocess.CompletedProcess(argv, 0, stdout="/dev/ttys001\n", stderr="")
+        return subprocess.CompletedProcess(argv, 0, stdout="/dev/ttys001|@1|\n", stderr="")
 
     monkeypatch.setattr(subprocess, "run", _run)
 
     assert navigation.focused_ttys() == {"/dev/ttys001"}
-    assert calls == [["tmux", "list-clients", "-F", "#{pane_tty}"]]
+    assert calls == [
+        ["tmux", "list-clients", "-F", "#{pane_tty}|#{window_id}|#{@lemonaid_scratch}"]
+    ]
+
+
+def test_focused_scratch_keeps_the_last_lemon_pane_in_view(monkeypatch):
+    calls: list[list[str]] = []
+
+    def _run(argv, **kwargs):
+        calls.append(argv)
+        output = (
+            "/dev/scratch|@1|1\n/dev/other-client|@2|\n"
+            if "list-clients" in argv
+            else ("@1|/dev/scratch|0|1\n" "@1|/dev/reviewer|1|\n" "@2|/dev/unrelated|1|\n")
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    assert navigation.focused_ttys() == {
+        "/dev/scratch",
+        "/dev/reviewer",
+        "/dev/other-client",
+    }
+    assert [argv[1] for argv in calls] == ["list-clients", "list-panes"]
+
+
+def test_focused_scratch_without_a_last_lemon_keeps_only_its_own_tty(monkeypatch):
+    def _run(argv, **kwargs):
+        output = "/dev/scratch|@1|1\n" if "list-clients" in argv else "@1|/dev/scratch|1|1\n"
+        return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    assert navigation.focused_ttys() == {"/dev/scratch"}

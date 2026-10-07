@@ -219,14 +219,19 @@ def session_ttys(session: str) -> set[str]:
 
 
 def focused_ttys(socket: str | None = None) -> set[str]:
-    """The ttys a user is actually looking at, one per attached client."""
+    """The pane each client is viewing, including the pane behind a focused scratch inbox.
+
+    The scratch pane shares a window with the lemon the user was reading. When
+    the user moves into the inbox, tmux selects scratch and marks that lemon as
+    the window's last pane. Keep it in view until the client changes windows.
+    """
     try:
         result = subprocess.run(
             [
                 *server_args(socket),
                 "list-clients",
                 "-F",
-                "#{pane_tty}",
+                "#{pane_tty}|#{window_id}|#{@lemonaid_scratch}",
             ],
             capture_output=True,
             text=True,
@@ -237,7 +242,48 @@ def focused_ttys(socket: str | None = None) -> set[str]:
         _log.warning("could not list panes to find the focused one: %s", e)
         return set()
 
-    return {line for line in result.stdout.strip().split("\n") if line}
+    focused: set[str] = set()
+    scratch_windows: set[str] = set()
+    for line in result.stdout.splitlines():
+        parts = line.split("|", 2)
+        if len(parts) != 3:
+            continue
+        tty, window, scratch = parts
+        if tty:
+            focused.add(tty)
+        if scratch == "1":
+            scratch_windows.add(window)
+
+    if not scratch_windows:
+        return focused
+
+    try:
+        panes = subprocess.run(
+            [
+                *server_args(socket),
+                "list-panes",
+                "-a",
+                "-F",
+                "#{window_id}|#{pane_tty}|#{pane_last}|#{@lemonaid_scratch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_QUERY_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not find the pane behind the scratch inbox: %s", e)
+        return focused
+
+    for line in panes.stdout.splitlines():
+        parts = line.split("|", 3)
+        if len(parts) != 4:
+            continue
+        window, tty, last, scratch = parts
+        if window in scratch_windows and last == "1" and scratch != "1" and tty:
+            focused.add(tty)
+
+    return focused
 
 
 def get_pane_for_cwd(

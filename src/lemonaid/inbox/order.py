@@ -63,6 +63,11 @@ def band(status: str, is_unread: bool, is_pinned: bool) -> str:
     return "pinned" if is_pinned else _BAND_NAMES[_band(status, is_unread)]
 
 
+def special_status(status: str) -> bool:
+    """Whether a brief status has its own inbox band, ahead of ordinary rows."""
+    return status in _BANDS or status == "done"
+
+
 def by_status(
     rows: abc.Iterable[db.Notification],
     statuses: abc.Mapping[str, str],
