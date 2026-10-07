@@ -252,6 +252,7 @@ class PlaceRoot:
     create: str = ""  # acquire a directory for {key}
     destroy: str = ""  # release the directory for {key}
     inspect: str = ""  # one short display line about {dir}
+    project_name: str = ""  # {dir} -> one project label for inbox rows
     # Keys that must never be destroyed, no matter how they are asked for. A
     # worktree repo usually has one directory the others are branched from, and
     # losing it is not the sort of mistake a --force flag should be able to make.
@@ -573,6 +574,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
                 destroy=rd.get("destroy", ""),
                 inspect=rd.get("inspect", ""),
                 open_prs=rd.get("open_prs", ""),
+                project_name=rd.get("project_name", ""),
                 protected=tuple(rd["protected"]) if "protected" in rd else PlaceRoot.protected,
             )
             for rd in places_data.get("roots", [])

@@ -59,7 +59,15 @@ from ...tmux.scratch import (
 from ...tmux.session import spawn_session
 from .. import db, emoji, order, pins, search, unarchive, undo, view
 from ..arrange import answer, child
-from . import backend_indicators, brief_cards, brief_rows, card_context, pr_numbers, utils
+from . import (
+    backend_indicators,
+    brief_cards,
+    brief_rows,
+    card_context,
+    pr_numbers,
+    project_names,
+    utils,
+)
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
@@ -877,6 +885,7 @@ class LemonaidApp(App):
         # Each row's project, by (cwd, branch, area): finding one resolves paths,
         # which a refresh tick shouldn't repeat for rows that haven't changed.
         self._projects: dict[tuple[str, str, str], card_context.Part] = {}
+        self._project_names = project_names.Cache()
         self._brief_target: brief.target.Target | None = None
         self._brief_row_id: int | None = None  # the row whose lemon the main pane is on
         # Browsing briefs redraws at once and switches the main pane behind it;
@@ -1487,10 +1496,25 @@ class LemonaidApp(App):
             history=history,
         )
 
+    def _project_names_changed(self) -> None:
+        self._projects.clear()
+        if self._history_mode:
+            self._refresh_history()
+        else:
+            self._refresh_notifications()
+
     def _project(self, n: db.Notification, area: str) -> card_context.Part:
         key = (n.metadata.get("cwd", ""), n.metadata.get("git_branch", ""), area)
         if key not in self._projects:
-            self._projects[key] = card_context.project_part(self.config.places, *key)
+            if self._project_names.request(
+                key[0], self.config.places.root_for(key[0]) if key[0] else None
+            ):
+                self.run_worker(
+                    self._project_names.drain(self._project_names_changed), group="project-names"
+                )
+            self._projects[key] = card_context.project_part(
+                self.config.places, *key, project_name=self._project_names.names.get(key[0], "")
+            )
 
         return self._projects[key]
 
@@ -2281,11 +2305,12 @@ class LemonaidApp(App):
                 continue
 
             created = _format_timestamp(n.created_at)
-            cwd = fish_path(n.metadata.get("cwd", ""))
             branch = n.metadata.get("git_branch", "")
 
             name_cell = styled_cell(n.name or "", False, "name", history=True)
+            area = ""
             if (path := brief_paths.get(n.channel)) and (card := self._brief_cache.get(path)):
+                area = card.area
                 name_cell.append(
                     f" · {card.status}",
                     style=brief_cards.STATUS_STYLES.get(card.status, "dim"),
@@ -2303,7 +2328,7 @@ class LemonaidApp(App):
                 self._backend_value(n, False, history=True),
                 name_cell,
                 styled_cell(branch, False, "branch", history=True),
-                styled_cell(cwd, False, "cwd", history=True),
+                self._where_cell(n, False, area),
                 styled_cell(n.message, False, "message", history=True),
                 Text(""),  # No TTY for archived
             ]
@@ -2311,7 +2336,13 @@ class LemonaidApp(App):
             shape = self._card_shape()
             # Columns drop the marker; cards have no columns to drop, and index
             # their fields by position.
-            card = _as_card(cells, card_width, *shape) if card_width else _without_marker(cells)
+            card = (
+                _as_card(
+                    cells, card_width, *shape, context_parts=self._context_parts(n, False, area)
+                )
+                if card_width
+                else _without_marker(cells)
+            )
             history_table.add_row(
                 *card, key=str(n.id), height=_row_height(card) if card_width else 1
             )
@@ -2370,6 +2401,12 @@ class LemonaidApp(App):
 
         with db.connect() as conn:
             notifications = db.get_snoozed(conn)
+            brief_paths = brief_attached.by_channel(conn, [n.channel for n in notifications])
+        areas = {
+            channel: card.area
+            for channel, path in brief_paths.items()
+            if (card := self._brief_cache.get(path))
+        }
 
         rebuilt = _sync_rows(
             snoozed_table,
@@ -2387,7 +2424,7 @@ class LemonaidApp(App):
                         self._backend_value(n, False),
                         styled_cell(n.name or "", False, "name"),
                         styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
-                        styled_cell(fish_path(n.metadata.get("cwd", "")), False, "cwd"),
+                        self._where_cell(n, False, areas.get(n.channel, "")),
                         styled_cell(n.message, False, "message"),
                         Text(
                             format_wake_time(n.snooze_until) if n.snooze_until else "",
@@ -2399,6 +2436,10 @@ class LemonaidApp(App):
             ],
             self._card_width(),
             self._card_shape(),
+            contexts_by_row={
+                str(n.id): self._context_parts(n, False, areas.get(n.channel, ""))
+                for n in notifications
+            },
         )
 
         if rebuilt and snoozed_table.row_count > 0:

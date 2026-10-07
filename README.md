@@ -63,6 +63,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
+- **Project names within a root**: An optional [per-root hook](docs/config.md#project-names-within-a-root) maps working directories to project labels in the inbox
 - **Quiet reviewer sessions**: Reviewer lemons stay out of the default inbox until you switch to them, select or pin them, or their brief enters a specially ranked status
 - **Terminal integration**: Hit enter to jump directly to the waiting session's pane (supports [`tmux`](docs/tmux.md), [WezTerm](docs/wezterm.md) and [cmux](docs/cmux.md)). If the session has since died, it is resumed in a new pane in the same directory rather than the jump failing
 - **Session history & resume**: Browse archived sessions across all projects, filter by name/cwd/branch, and resume directly or copy the command

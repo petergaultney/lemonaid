@@ -213,7 +213,8 @@ card_unread_style = "bar"
 A card's second line says where a session is working. By default that's the
 time of its last message, its project, and its branch. The project is the
 `[[places.roots]]` entry its cwd sits under, named by the root's `name` or its
-directory, followed by the `Area:` from its brief if it has one
+directory. A [per-root `project_name` hook](#project-names-within-a-root) can
+replace that label. The `Area:` from its brief follows if it has one
 (`ds-monorepo: apps/unified-asset`). Outside every root, the project is the
 cwd's directory name. With no root and no branch either, the line shows the
 cwd as before. When the line doesn't fit, the branch is cut first, then the
@@ -428,7 +429,62 @@ name = "lemonaid"
 | Key | Default | Effect |
 |-----|---------|--------|
 | `open_prs` | unset | Shell command printing `<branch> <number> [url]` lines for open PRs; an optional HTTP(S) URL makes the number a terminal hyperlink. Inbox lookups run off the UI thread and refresh every three minutes. |
-| `name` | the root's directory name | The project's name on the first line of a brief card, for every session under this root. |
+| `name` | the root's directory name | The default project label for sessions under this root. |
+| `project_name` | unset | Shell command mapping `{dir}` to one project name for inbox rows. |
+
+### Project names within a root
+
+Set `project_name` on a root to name projects inside it. The innermost matching
+root owns the lookup. The command runs in that root's directory; `{dir}` is the
+session's absolute working directory, shell-quoted as one argument. Emit one
+non-empty line containing the project name, without terminal formatting.
+
+```toml
+[[places.roots]]
+path = "~/work/ds-monorepo"
+name = "ds-monorepo"
+project_name = "python3 ~/.local/bin/project-name.py {dir}"
+```
+
+For example, save this as `~/.local/bin/project-name.py` to return the nearest
+ancestor with a `pyproject.toml`, relative to the nearest ancestor containing
+`.git` (a file or directory). It skips that checkout's top-level `pyproject.toml`.
+
+If no project is found below the checkout top, it uses the first directory
+component under the configured root as a project prefix. For a checkout at
+`mops/topic`, it looks for `*/mops/pyproject.toml` inside that checkout and returns
+its project directory, such as `libs/mops`; without a match, it returns `mops`.
+The `main` checkout returns nothing when no project is found. This layout policy
+lives in the user's script; lemonaid runs it as an opaque command.
+
+```python
+import sys
+from pathlib import Path
+
+root = Path.cwd().resolve()
+directory = Path(sys.argv[1]).expanduser().resolve()
+chain = [directory, *directory.parents]
+top = next((p for p in chain if (p / ".git").exists()), None)
+if top is not None:
+    nearest = next((p for p in chain[: chain.index(top)] if (p / "pyproject.toml").is_file()), None)
+    if nearest is not None:
+        print(nearest.relative_to(top))
+    elif root in top.parents and top.relative_to(root).parts[0] != "main":
+        prefix = top.relative_to(root).parts[0]
+        project = next(top.glob(f"*/{prefix}/pyproject.toml"), None)
+        print(project.parent.relative_to(top) if project else prefix)
+```
+
+A result such as `tools/obsidian-relay` replaces `ds-monorepo` in both inbox
+layouts, history, and snoozed rows. A brief's `Area:` still follows after a colon;
+`project_name_colors` uses the hook's name. Brief documents keep their own labels.
+
+Lookups run off the UI thread, one at a time, at most once per cwd per inbox
+process, with a five-second timeout. While pending, or after empty output,
+multiple names, decoding errors, or command failure, the row keeps its root
+label. Failures are logged and cached too. Restart the inbox to repeat lookups;
+there is no on-disk cache. `inbox list` does not render project labels and does
+not call the hook.
 
 ## Environment variables
 

@@ -1,6 +1,6 @@
 [project]
 name = "lemonaid-inbox"
-version = "0.79.1"
+version = "0.80.0"
 description = "Attention inbox for managing notifications from lemons and other background tools"
 readme = "docs/pypi.md"
 requires-python = ">=3.11"

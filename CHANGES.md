@@ -1,3 +1,9 @@
+# 0.80.0 (2026-10-07)
+
+#### Added
+
+- **Per-root `project_name` hooks name projects within a repository in inbox rows.** Each directory is looked up once per inbox process, off the UI thread, with the root label as fallback.
+
 # 0.79.1 (2026-10-07)
 
 #### Fixed

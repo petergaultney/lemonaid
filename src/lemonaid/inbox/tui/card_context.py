@@ -25,7 +25,9 @@ class Part:
     project_name: str = ""
 
 
-def project_part(places: PlacesConfig, cwd: str, branch: str, area: str = "") -> Part:
+def project_part(
+    places: PlacesConfig, cwd: str, branch: str, area: str = "", project_name: str = ""
+) -> Part:
     """The project as an inbox row knows it, from its cwd and its brief's *area*.
 
     Outside every root with no branch either, nothing names a project, so the
@@ -36,7 +38,7 @@ def project_part(places: PlacesConfig, cwd: str, branch: str, area: str = "") ->
     if not branch and places.root_for(cwd) is None:
         return Part("cwd", Text(fish_path(cwd)), 0)
 
-    name = project.label(places.roots, "", cwd)
+    name = project_name or project.label(places.roots, "", cwd)
     return Part("project", Text(f"{name}: {area}" if area else name), len(name), name)
 
 
