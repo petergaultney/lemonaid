@@ -28,11 +28,15 @@ thread. Any test that starts a watcher directly must stop it before returning.
 Every watcher decision to archive a session is logged to `/tmp/lemonaid.log`
 as an `auto-archive` event. The event includes the channel, reason, session ID,
 TTY, terminal source, tmux socket, working directory, creation time, and the
-evidence specific to the decision. For example:
+evidence specific to the decision. Other archive paths log `archive` with the
+channel and reason. Skipped automatic archives log the channel and the live-pane
+or brief-status protection that kept the row visible. For example:
 
 ```bash
-rg 'auto-archive' /tmp/lemonaid.log
+rg 'auto-archive|archive channel=' /tmp/lemonaid.log
 ```
 
-These records distinguish a missing pane, an exited process, and an older
-session displaced by a newer session on the same TTY.
+These records distinguish a missing pane, an exited process, and a row kept
+because its recorded tmux identity is still live or cannot be matched safely.
+The watcher does not archive an older row just because another channel shares
+its TTY.

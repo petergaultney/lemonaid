@@ -1,6 +1,7 @@
 """Cached brief details used by inbox cards."""
 
 import dataclasses
+import threading
 from pathlib import Path
 
 from rich.style import Style
@@ -151,8 +152,13 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
 class BriefCache:
     def __init__(self) -> None:
         self._entries: dict[Path, tuple[int, int, CardBrief | None]] = {}
+        self._lock = threading.RLock()
 
     def get(self, path: Path) -> CardBrief | None:
+        with self._lock:
+            return self._get(path)
+
+    def _get(self, path: Path) -> CardBrief | None:
         try:
             stat = path.stat()
         except OSError:

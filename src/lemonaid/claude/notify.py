@@ -39,6 +39,7 @@ from ..lemon_watchers import (
     get_git_branch,
     get_name_from_cwd,
     get_tmux_session_name,
+    get_tmux_session_order,
     get_tmux_socket,
     get_tmux_window_index,
     get_tty,
@@ -279,6 +280,9 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     # carries a previously recorded location forward rather than dropping it.
     if tmux_session:
         metadata["tmux_session"] = tmux_session
+
+    if session_order := get_tmux_session_order():
+        metadata["tmux_session_order"] = list(session_order)
 
     window = get_tmux_window_index()
     if window:

@@ -186,6 +186,19 @@ def get_tmux_window_index() -> str | None:
     return _pane_format("#{window_index}")
 
 
+def get_tmux_session_order() -> tuple[int, int, int] | None:
+    """Get this pane's tmux session identity, which remains stable if its TTY is reused."""
+    value = _pane_format("#{session_created}|#{start_time}|#{session_id}")
+    if not value:
+        return None
+
+    try:
+        created, server_started, session_id = value.split("|", 2)
+        return int(created), int(server_started), int(session_id.lstrip("$"))
+    except ValueError:
+        return None
+
+
 def get_tmux_socket() -> str | None:
     """The socket of the tmux server this pane belongs to, as a path.
 

@@ -15,6 +15,9 @@ from ..lemon_watchers import (
     get_cmux_surface,
     get_git_branch,
     get_name_from_cwd,
+    get_tmux_session_name,
+    get_tmux_session_order,
+    get_tmux_socket,
     get_tty,
     shorten_path,
 )
@@ -187,7 +190,7 @@ def handle_notification(
     switch_source = detect_terminal_switch_source()
 
     # Build metadata for handler
-    metadata: dict[str, str] = {}
+    metadata: dict[str, str | list[int]] = {}
     if cwd:
         metadata["cwd"] = cwd
     if session_id:
@@ -212,6 +215,17 @@ def handle_notification(
         surface = get_cmux_surface()
         if surface:
             metadata["cmux_surface"] = surface
+
+    # This hook runs in the session's own pane (except app-server hooks, which
+    # have no session TTY). Record the tmux session identity so a later TTY
+    # reuse cannot make another Codex session look like this one.
+    if tty and switch_source == "tmux":
+        if tmux_session := get_tmux_session_name():
+            metadata["tmux_session"] = tmux_session
+        if socket := get_tmux_socket():
+            metadata["tmux_socket"] = socket
+        if session_order := get_tmux_session_order():
+            metadata["tmux_session_order"] = list(session_order)
 
     try:
         channel = full_channel_id("codex", session_id)

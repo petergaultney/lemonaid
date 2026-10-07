@@ -30,6 +30,7 @@ from textual.widgets.data_table import RowDoesNotExist, RowKey
 
 from ... import brief, claude, codex, handlers, openclaw, opencode
 from ... import resume as resume_mod
+from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
 from ...config import KeybindingsConfig, TuiConfig, load_config
@@ -827,6 +828,8 @@ class LemonaidApp(App):
         self._arrange_logged: set[str] = set()
         self._fold_name = ""  # the arranger's name for the folded group
         self._drawn: list[db.Notification] = []  # the main table's rows, top to bottom
+        self._detached_channels: frozenset[str] = frozenset()
+        self._resume_footer_shown = True
         # Each row's project, by (cwd, branch, area): finding one resolves paths,
         # which a refresh tick shouldn't repeat for rows that haven't changed.
         self._projects: dict[tuple[str, str, str], card_context.Part] = {}
@@ -890,6 +893,9 @@ class LemonaidApp(App):
 
         for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
             self.bind(b.key, b.action, description=b.description, show=False)
+
+        for b in _build_bindings(kb.resume_detached, "resume_detached", "Resume"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.brief, "brief", "Brief"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -957,6 +963,9 @@ class LemonaidApp(App):
             self.bind(down, "cursor_down", description="Down", show=False)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "resume_detached":
+            return self._selected_channel() in self._detached_channels
+
         if action in ("brief", "cursor_first", "cursor_last") and (
             isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
         ):
@@ -1067,10 +1076,13 @@ class LemonaidApp(App):
             record_model=self._record_channel_model,
             models=self._recorded_models,
             sockets=self._recorded_sockets,
+            session_orders=self._recorded_tmux_session_orders,
             locate_sessions=self._locate_sessions,
             auto_read_patterns=self.config.inbox.auto_read,
             mark_read_after_turn=self._mark_channel_read_after_turn,
             record_turn=self._record_channel_turn if self.config.tui.mid_turn_working else None,
+            protected_channels=self._protected_brief_channels,
+            detached_channels=self._set_detached_channels,
         )
         self.call_later(self._check_claude_patch)
         self.call_later(self._refresh_skills)
@@ -1444,7 +1456,9 @@ class LemonaidApp(App):
                 self._backend_value(n, is_unread),
                 n.channel in pinned,
             ),
-            jump_gutter(row_index, is_here) + _name_cell(n, emojis, wordybin, is_unread),
+            jump_gutter(row_index, is_here)
+            + _name_cell(n, emojis, wordybin, is_unread)
+            + self._detached_marker(n),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             self._where_cell(n, is_unread, area),
             styled_cell(n.message, is_unread, "message"),
@@ -1707,6 +1721,8 @@ class LemonaidApp(App):
                     target_index = min(current_index, main_table.row_count - 1)
             main_table.move_cursor(row=target_index)
 
+        self._refresh_resume_binding()
+
         read_count = len(active.rows) - unread_count
         env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
@@ -1855,6 +1871,30 @@ class LemonaidApp(App):
     def _set_status(self, text: str) -> None:
         update_static(self.query_one("#status", Static), text)
 
+    def _refresh_resume_binding(self) -> None:
+        resume_footer_shown = self._selected_channel() in self._detached_channels
+        if resume_footer_shown != self._resume_footer_shown:
+            self._resume_footer_shown = resume_footer_shown
+            self._set_binding_footer("resume_detached", show=resume_footer_shown)
+            self.refresh_bindings()
+
+    def _detached_marker(self, notification: db.Notification) -> Text:
+        if notification.channel not in self._detached_channels:
+            return Text()
+
+        marker = Text(" · detached", style="dim")
+        if not self._can_resume_detached(notification):
+            marker.append(" · resume unavailable", style="dim red")
+
+        return marker
+
+    def _can_resume_detached(self, notification: db.Notification) -> bool:
+        return notification.switch_source in {"tmux", "cmux"} and bool(
+            resume_mod.build_resume_command(
+                self.config, notification.channel, notification.metadata
+            )
+        )
+
     def _refresh_session_names(self) -> None:
         """Pull newly-available backend titles into the inbox.
 
@@ -1985,6 +2025,9 @@ class LemonaidApp(App):
             "select",
             label="Resume" if enabled else "Switch",
         )
+        if enabled and self._resume_footer_shown:
+            self._resume_footer_shown = False
+            self._set_binding_footer("resume_detached", show=False)
         self.refresh_bindings()
 
         self.set_class(enabled, "-history")
@@ -2016,6 +2059,7 @@ class LemonaidApp(App):
 
         with db.connect() as conn:
             notifications = db.get_history(conn, search=self._history_filter)
+            brief_paths = brief_attached.by_channel(conn, [n.channel for n in notifications])
 
         for n in notifications:
             if not resume_mod.has_resume_command(self.config, n.channel):
@@ -2025,11 +2069,18 @@ class LemonaidApp(App):
             cwd = fish_path(n.metadata.get("cwd", ""))
             branch = n.metadata.get("git_branch", "")
 
+            name_cell = styled_cell(n.name or "", False, "name", history=True)
+            if (path := brief_paths.get(n.channel)) and (card := self._brief_cache.get(path)):
+                name_cell.append(
+                    f" · {card.status}",
+                    style=brief_cards.STATUS_STYLES.get(card.status, "dim"),
+                )
+
             cells = [
                 styled_cell(created, False, "time", history=True),
                 Text(""),  # archived: never a marker, but cards index by position
                 self._backend_value(n, False, history=True),
-                styled_cell(n.name or "", False, "name", history=True),
+                name_cell,
                 styled_cell(branch, False, "branch", history=True),
                 styled_cell(cwd, False, "cwd", history=True),
                 styled_cell(n.message, False, "message", history=True),
@@ -2067,6 +2118,9 @@ class LemonaidApp(App):
             label="Exit Snoozed" if enabled else "Snoozed",
         )
         self._set_binding_footer("select", label="Wake" if enabled else "Switch")
+        if enabled and self._resume_footer_shown:
+            self._resume_footer_shown = False
+            self._set_binding_footer("resume_detached", show=False)
         self.refresh_bindings()
 
         if enabled:
@@ -2166,6 +2220,29 @@ class LemonaidApp(App):
             self.config,
             switch_source=notification.switch_source,
         ):
+            resume = (
+                resume_mod.build_resume_command(
+                    self.config, notification.channel, notification.metadata
+                )
+                if notification.switch_source == "tmux"
+                else None
+            )
+            if resume and Path(resume[0]).is_dir():
+                cwd, argv = resume
+                command = f"cd {shlex.quote(cwd)} && {shlex.join(argv)}"
+                self.push_screen(
+                    ErrorScreen(
+                        "No safe tmux destination",
+                        "Lemonaid could not identify one existing session safely. "
+                        "Copy this command, then paste it into the session where you want "
+                        "the lemon to run.",
+                        offer="copy the resume command",
+                        details=command,
+                    ),
+                    lambda copy: self._copy_resume_command(command) if copy else None,
+                )
+                return False
+
             title = "Could not switch to that session"
             message = "Its pane is gone and lemonaid could not recreate one for it."
             _log.warning("%s: %s", title, message)
@@ -2190,6 +2267,37 @@ class LemonaidApp(App):
             self._hide_scratch_pane()
 
         return True
+
+    def _copy_resume_command(self, command: str) -> None:
+        try:
+            subprocess.run(["pbcopy"], input=command.encode(), check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.notify(f"Resume: {command}", severity="information")
+        else:
+            self.notify("Copied resume command to clipboard")
+
+    def action_resume_detached(self) -> None:
+        """Resume the selected row only when its pane is known to be gone."""
+        if self._selected_channel() not in self._detached_channels:
+            return
+
+        table = self.query_one("#main_table", DataTable)
+        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+        if row_key is None:
+            return
+
+        with db.connect() as conn:
+            notification = db.get(conn, int(row_key.value))
+
+        if notification is None:
+            self._show_error("That session is gone", "Its row was removed from the inbox.")
+            return
+
+        if not self._can_resume_detached(notification):
+            self.notify("Resume unavailable for this backend or its saved session details")
+            return
+
+        self._switch_to_notification(notification)
 
     def _resume_session(self, *, copy_only: bool = False) -> None:
         """Resume the selected history session."""
@@ -2657,7 +2765,7 @@ class LemonaidApp(App):
                 f'Archived "{n.name or n.channel}"',
                 undo.channel_row_ids(conn, notification_id),
             )
-            db.archive(conn, notification_id)
+            db.archive(conn, notification_id, "user-action")
 
         self._undo_stack.push(entry)
         _log.info("archive: %s", n.channel)
@@ -3136,6 +3244,32 @@ class LemonaidApp(App):
                 if (socket := n.metadata.get("tmux_socket"))
             }
 
+    def _recorded_tmux_session_orders(self) -> dict[str, navigation.SessionOrder]:
+        """Each active channel's tmux identity, if recorded by its own hook."""
+        with db.connect() as conn:
+            orders: dict[str, navigation.SessionOrder] = {}
+            for notification in db.get_active(conn, switch_source="tmux"):
+                value = notification.metadata.get("tmux_session_order")
+                if (
+                    isinstance(value, list)
+                    and len(value) == 3
+                    and all(isinstance(part, int) for part in value)
+                ):
+                    orders[notification.channel] = (value[0], value[1], value[2])
+            return orders
+
+    def _protected_brief_channels(self) -> set[str]:
+        """Channels whose attached brief is waiting for a person to act."""
+        with db.connect() as conn:
+            channels = [n.channel for n in db.get_active(conn, switch_source=None)]
+            paths = brief_attached.by_channel(conn, channels)
+        return {
+            channel
+            for channel, path in paths.items()
+            if (card := self._brief_cache.get(path)) is not None
+            and card.status in {"merge", "approve", "blocked", "alert"}
+        }
+
     def _locate_sessions(self, active: list[tuple]) -> dict[str, str | Literal[False] | None]:
         """Where each active session that can outlive its tty runs now (see handlers)."""
         channels = {row[0] for row in active if row[7] in handlers.PER_SESSION_SOURCES}
@@ -3149,6 +3283,9 @@ class LemonaidApp(App):
                 if n.channel in channels
             ]
         return handlers.where_sessions_are(sessions)
+
+    def _set_detached_channels(self, channels: set[str]) -> None:
+        self._detached_channels = frozenset(channels)
 
     def _recorded_models(self) -> dict[str, ModelInfo]:
         with db.connect() as conn:
@@ -3184,11 +3321,10 @@ class LemonaidApp(App):
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""
         with db.connect() as conn:
-            conn.execute(
-                "UPDATE notifications SET status = 'archived' WHERE channel = ?",
-                (channel,),
-            )
-            conn.commit()
+            db.archive_channel(conn, channel, "watcher-stale-session")
+
+    def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
+        self._refresh_resume_binding()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self._activate_row(event.data_table.id, event.row_key)
@@ -3225,6 +3361,17 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
 
         if notification:
+            if notification.channel in self._detached_channels:
+                if self._can_resume_detached(notification):
+                    self.notify(
+                        "Detached — press R to resume or copy a command; b / Tab opens the brief"
+                    )
+                else:
+                    self.notify(
+                        "Detached session — resume unavailable; press b / Tab to open its brief"
+                    )
+                return
+
             self._switch_to_notification(notification)
 
 

@@ -1,3 +1,27 @@
+# 0.74.4 (2026-10-06)
+
+#### Fixed
+
+- **A live session is no longer archived because another channel appeared on the same TTY.** Hooks record each tmux session identity, and the watcher compares that identity with the pane currently using the TTY. It keeps rows when the identity is missing or ambiguous instead of assuming the newest row replaced the older one.
+
+# 0.74.3 (2026-10-06)
+
+#### Changed
+
+- **Resuming a detached tmux row reuses its recorded session when the identity still matches, or the only session at its recorded directory.** Lemonaid opens a new window there. If it cannot identify one safe destination, it shows a copyable resume command so you can choose the session yourself. Live rows keep their existing activation behavior, and detached rows retain the explicit `R` action.
+
+# 0.74.2 (2026-10-06)
+
+#### Changed
+
+- **Rows kept after their terminal pane closes show a `detached` marker.** Live rows keep their existing activation behavior; Enter on a detached row explains whether `R` can resume it. The marker says when the backend or saved details cannot resume it, and `b` / `Tab` still opens the brief.
+
+# 0.74.1 (2026-10-06)
+
+#### Fixed
+
+- **Codex sessions running under Node are no longer archived as exited. If a terminal pane closes while its attached brief is waiting on a person (`merge`, `approve`, `blocked`, or `alert`), its inbox row stays visible so you can open and answer the brief. Press `R` on a detached row to resume the session in tmux or cmux, using its recorded directory; WezTerm can switch to an existing pane but cannot recreate one.** History shows each archived session's attached brief status, and archive logs record the channel and reason.
+
 ### 0.74.20261006
 
 #### Fixed

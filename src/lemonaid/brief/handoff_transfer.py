@@ -69,9 +69,7 @@ def transfer(conn: sqlite3.Connection, token: str) -> None:
             "UPDATE session_briefs SET channel = ?, attached_at = ? WHERE path = ?",
             (row["target"], time.time(), row["path"]),
         )
-        conn.execute(
-            "UPDATE notifications SET status = 'archived' WHERE channel = ?", (row["source"],)
-        )
+        db.archive_channel(conn, row["source"], "brief-handoff-transfer", commit=False)
         generation = conn.execute(
             "SELECT COALESCE(MAX(generation), 0) FROM brief_handoff_sessions WHERE path = ?",
             (row["path"],),

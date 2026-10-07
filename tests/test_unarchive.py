@@ -108,8 +108,8 @@ def test_the_recorded_server_and_harness_are_the_ones_asked(monkeypatch):
     ]
 
 
-def test_the_watcher_does_not_archive_it_again(monkeypatch):
-    """The session that displaced it on the tty is the one the watcher now retires."""
+def test_the_watcher_keeps_both_rows_when_a_restored_session_shares_the_tty(monkeypatch):
+    """A restored session sharing a live TTY does not prove another row ended."""
     _live(monkeypatch)
     hq = _session("codex:hq", archived=True, created_at=100.0)
     _session("codex:subagent", archived=False, created_at=200.0)
@@ -134,7 +134,7 @@ def test_the_watcher_does_not_archive_it_again(monkeypatch):
         active, lambda channel: None, {}, {None: {TTY: ("work", "2")}}
     )
 
-    assert archived == {"codex:subagent"}
+    assert archived == set()
 
 
 def test_a_focused_tty_brings_its_archived_running_session_back_read(monkeypatch):

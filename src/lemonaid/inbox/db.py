@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self
 
+from ..log import get_logger
+
+_log = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class Notification:
@@ -557,6 +561,8 @@ def add(
                 ),
             )
             conn.commit()
+            if status == "archived" and not existing.is_archived:
+                _log.info("archive channel=%s reason=add-status rows=1", channel)
             return Notification(
                 id=existing.id,
                 channel=channel,
@@ -900,7 +906,7 @@ def mark_unread_by_tty(conn: sqlite3.Connection, tty: str) -> int:
     return cursor.rowcount
 
 
-def archive(conn: sqlite3.Connection, notification_id: int) -> None:
+def archive(conn: sqlite3.Connection, notification_id: int, reason: str = "user-action") -> None:
     """Archive a notification and all other rows sharing its channel.
 
     Archiving drops any pin on the channel. Snoozing deliberately does not:
@@ -911,17 +917,26 @@ def archive(conn: sqlite3.Connection, notification_id: int) -> None:
         "SELECT channel FROM notifications WHERE id = ?", (notification_id,)
     ).fetchone()
     if row:
-        conn.execute(
-            "UPDATE notifications SET status = 'archived' WHERE channel = ?",
-            (row["channel"],),
-        )
+        archive_channel(conn, row["channel"], reason, commit=False)
         conn.execute("DELETE FROM pins WHERE channel = ?", (row["channel"],))
     else:
-        conn.execute(
-            "UPDATE notifications SET status = 'archived' WHERE id = ?",
-            (notification_id,),
-        )
+        _log.info("archive channel=<missing> reason=%s notification_id=%s", reason, notification_id)
     conn.commit()
+
+
+def archive_channel(
+    conn: sqlite3.Connection, channel: str, reason: str, *, commit: bool = True
+) -> int:
+    """Archive every row for *channel*, recording why the channel was archived."""
+    cursor = conn.execute(
+        "UPDATE notifications SET status = 'archived' WHERE channel = ? AND status != 'archived'",
+        (channel,),
+    )
+    if cursor.rowcount:
+        _log.info("archive channel=%s reason=%s rows=%d", channel, reason, cursor.rowcount)
+    if commit:
+        conn.commit()
+    return cursor.rowcount
 
 
 def snooze(

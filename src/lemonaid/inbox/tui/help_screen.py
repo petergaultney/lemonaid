@@ -37,6 +37,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("snooze", "Snooze until a time you pick"),
             ("rename", "Rename (clear it to go back to the auto name)"),
             ("brief", "Show where its work stands, from its brief"),
+            ("resume_detached", "Resume a detached session when available"),
             ("undo", "Undo the last inbox change"),
         ],
     ),

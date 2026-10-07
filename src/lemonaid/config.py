@@ -116,6 +116,7 @@ class KeybindingsConfig:
     undo: str = "z"  # Undo the last inbox state change
     history: str = "h"  # Toggle history view
     copy_resume: str = "c"  # Copy resume command to clipboard
+    resume_detached: str = "R"  # Resume a detached session from the inbox
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     brief: str = "b"  # Show the session's brief in a tmux popup
     pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it

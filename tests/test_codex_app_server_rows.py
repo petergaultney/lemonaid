@@ -80,6 +80,25 @@ def test_a_hosted_notification_records_no_tty(monkeypatch):
     with db.connect() as conn:
         (row,) = db.get_active(conn)
     assert "tty" not in row.metadata
+    assert "tmux_session_order" not in row.metadata
+
+
+def test_a_tmux_codex_hook_records_its_own_session_identity(monkeypatch):
+    monkeypatch.setattr(codex_notify.hosting, "under_app_server", lambda: False)
+    monkeypatch.setattr(codex_notify, "get_tty", lambda: "/dev/ttys012")
+    monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
+    monkeypatch.setattr(codex_notify, "get_tmux_session_name", lambda: "review")
+    monkeypatch.setattr(codex_notify, "get_tmux_socket", lambda: "/tmp/tmux-501/default")
+    monkeypatch.setattr(codex_notify, "get_tmux_session_order", lambda: (100, 50, 2))
+    monkeypatch.setattr(codex_notify, "get_git_branch", lambda cwd: None)
+
+    codex_notify.handle_notification(json.dumps({"thread-id": _THREAD, "cwd": _CWD}))
+
+    with db.connect() as conn:
+        (row,) = db.get_active(conn)
+    assert row.metadata["tmux_session"] == "review"
+    assert row.metadata["tmux_socket"] == "/tmp/tmux-501/default"
+    assert row.metadata["tmux_session_order"] == [100, 50, 2]
 
 
 def _row(channel: str, cwd: str = _CWD, tty: str | None = None) -> untracked.Row:

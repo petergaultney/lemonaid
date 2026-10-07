@@ -5,17 +5,23 @@ idle one can go days without one - and those are the sessions whose position is
 hardest to reconstruct after a crash.
 """
 
-from lemonaid.lemon_watchers import watcher
+from lemonaid.lemon_watchers import common, watcher
 from lemonaid.tmux import navigation
 
 _at = navigation.PaneLocation
+
+
+def test_tmux_session_order_uses_session_creation_and_server_identity(monkeypatch):
+    monkeypatch.setattr(common, "_pane_format", lambda spec: "1700000000|1690000000|$7")
+
+    assert common.get_tmux_session_order() == (1700000000, 1690000000, 7)
 
 
 def _active(channel: str, tty: str | None, switch_source: str | None = "tmux") -> tuple:
     return (channel, "sid", "/tmp", 0.0, False, tty, "message", switch_source)
 
 
-def _record(active, by_tty, monkeypatch, sockets=None) -> list[tuple]:
+def _record(active, by_tty, monkeypatch, sockets=None, session_orders=None) -> list[tuple]:
     """Run one pass, with `by_tty` standing in for the listing of each server.
 
     `by_tty` may be a plain dict (one server, whatever socket is asked for) or a
@@ -33,7 +39,13 @@ def _record(active, by_tty, monkeypatch, sockets=None) -> list[tuple]:
     servers = watcher._tmux_servers_needed(active, sockets)
     pane_locations = watcher._fetch_pane_locations(servers)
     recorded: list[tuple] = []
-    watcher._record_locations(active, lambda *args: recorded.append(args), sockets, pane_locations)
+    watcher._record_locations(
+        active,
+        lambda *args: recorded.append(args),
+        sockets,
+        pane_locations,
+        session_orders,
+    )
 
     return recorded
 
@@ -71,6 +83,31 @@ def test_records_when_tmux_made_the_session(monkeypatch):
     )
 
     assert recorded == [("claude:a", "relay", "2", None, (1700000000, 1690000000, 7))]
+
+
+def test_does_not_replace_a_channel_location_when_only_its_tty_was_reused(monkeypatch):
+    old_order = (100, 10, 1)
+    current_order = (200, 10, 2)
+    recorded = _record(
+        [_active("codex:old", "/dev/ttys001")],
+        {"/dev/ttys001": _at("new-session", "0", current_order)},
+        monkeypatch,
+        session_orders={"codex:old": old_order},
+    )
+
+    assert recorded == []
+
+
+def test_updates_a_channel_location_when_session_identity_matches(monkeypatch):
+    order = (100, 10, 1)
+    recorded = _record(
+        [_active("codex:live", "/dev/ttys001")],
+        {"/dev/ttys001": _at("work", "3", order)},
+        monkeypatch,
+        session_orders={"codex:live": order},
+    )
+
+    assert recorded == [("codex:live", "work", "3", None, order)]
 
 
 def test_skips_a_session_with_no_tty(monkeypatch):

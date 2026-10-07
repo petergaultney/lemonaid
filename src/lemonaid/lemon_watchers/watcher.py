@@ -7,6 +7,7 @@ Provides shared watcher loop logic that can be used by multiple backends
 import json
 import os
 import re
+import shlex
 import subprocess
 import threading
 import time
@@ -112,7 +113,7 @@ def process_on_tty(tty: str, process_name: str) -> bool | None:
 
     try:
         result = subprocess.run(
-            ["ps", "-t", tty_name, "-o", "comm="],
+            ["ps", "-t", tty_name, "-o", "args="],
             capture_output=True,
             text=True,
             timeout=2,
@@ -126,8 +127,25 @@ def process_on_tty(tty: str, process_name: str) -> bool | None:
         _log.warning("ps failed on %s: %s", tty_name, result.stderr.strip())
         return None
 
-    # comm is the executable's path; a directory named after a harness is not one.
-    return any(process_name in os.path.basename(comm) for comm in result.stdout.splitlines())
+    # `comm` can be truncated or name Node instead of Codex; inspect argv instead.
+    for line in result.stdout.splitlines():
+        try:
+            argv = shlex.split(line)
+        except ValueError:
+            argv = line.split()
+        if not argv:
+            continue
+        executable = os.path.basename(argv[0])
+        if executable == process_name:
+            return True
+        if (
+            process_name == "codex"
+            and executable in {"node", "nodejs"}
+            and len(argv) > 1
+            and os.path.basename(argv[1]) == process_name
+        ):
+            return True
+    return False
 
 
 def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
@@ -283,6 +301,7 @@ def _record_locations(
     ],
     sockets: dict[str, str],
     pane_locations: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None],
+    session_orders: dict[str, tmux.navigation.SessionOrder] | None = None,
 ) -> None:
     """Note where each tmux-hosted session is sitting, so it can be rebuilt later."""
     for channel, _sid, _cwd, _created, _unread, tty, _msg, source in active:
@@ -294,7 +313,13 @@ def _record_locations(
         if server_panes is None:
             continue
         location = server_panes.get(tty)
-        if location is not None:
+        if location is None:
+            continue
+        recorded_order = (session_orders or {}).get(channel)
+        identity_matches = session_orders is None or (
+            recorded_order is not None and recorded_order == location.session_order
+        )
+        if identity_matches:
             record_location(
                 channel, location.session, location.window, socket, location.session_order
             )
@@ -307,13 +332,19 @@ def _archive_stale_sessions(
     pane_locations: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None],
     codex_directories: set[str] | None = None,
     located: dict[str, str | Literal[False] | None] | None = None,
+    protected_channels: set[str] | None = None,
+    detached_channels: Callable[[set[str]], None] | None = None,
+    session_orders: dict[str, tmux.navigation.SessionOrder] | None = None,
 ) -> set[str]:
-    """Archive stale sessions based on TTY occupancy and pane existence.
+    """Archive stale sessions using channel identity, pane presence and process evidence.
 
-    For each TTY:
-    - If pane no longer exists: archive immediately (most reliable check)
-    - If process is running: only one session can be active, archive others
-    - If process is not running: archive all sessions on that TTY
+    A process on a reused TTY does not prove that older channels on that TTY
+    exited. For tmux, compare each channel's recorded session identity with the
+    session currently holding the TTY. If identity is missing, keep the row
+    rather than infer replacement from creation order alone.
+
+    `detached_channels`, when supplied, receives the protected channels whose pane
+    is absent on this poll.
 
     `pane_locations` is the pre-fetched result of one `tmux list-panes -a` per
     server, shared with `_record_locations` so tmux is only asked once per tick.
@@ -326,6 +357,10 @@ def _archive_stale_sessions(
     Returns set of archived channel names.
     """
     archived: set[str] = set()
+    detached: set[str] = set()
+    protected_channels = protected_channels or set()
+    session_orders = session_orders or {}
+    current_session_orders: dict[str, tmux.navigation.SessionOrder | None] = {}
 
     def archive(
         item: tuple[str, str, str, float, bool, str | None, str, str | None],
@@ -333,9 +368,19 @@ def _archive_stale_sessions(
         **evidence: object,
     ) -> None:
         channel, session_id, cwd, created_at, _unread, tty, _message, source = item
+        details = " ".join(f"{key}={value!r}" for key, value in evidence.items())
+        if channel in protected_channels:
+            if reason == "pane-gone":
+                detached.add(channel)
+            _log.info(
+                "auto-archive-skip channel=%s reason=%s protection=brief-status%s",
+                channel,
+                reason,
+                f" {details}" if details else "",
+            )
+            return
         archive_channel(channel)
         archived.add(channel)
-        details = " ".join(f"{key}={value!r}" for key, value in evidence.items())
         _log.info(
             "auto-archive channel=%s reason=%s session_id=%s tty=%s source=%s "
             "socket=%s cwd=%r created_at=%.3f%s",
@@ -368,9 +413,24 @@ def _archive_stale_sessions(
             server_panes = pane_locations.get(socket)
             # server_panes is None when the server could not be reached -
             # that is not evidence that the pane is gone.
-            if server_panes is not None and tty not in server_panes:
-                archive(item, "pane-gone", known_panes=sorted(server_panes))
-                continue
+            if server_panes is not None:
+                location = server_panes.get(tty)
+                if location is None:
+                    archive(item, "pane-gone", known_panes=sorted(server_panes))
+                    continue
+
+                recorded_order = session_orders.get(channel)
+                current_order = getattr(location, "session_order", None)
+                current_session_orders[channel] = current_order
+                if recorded_order and current_order and recorded_order != current_order:
+                    archive(
+                        item,
+                        "pane-gone",
+                        recorded_session_order=recorded_order,
+                        current_session=location.session,
+                        current_session_order=current_order,
+                    )
+                    continue
 
         elif (
             tty
@@ -447,21 +507,29 @@ def _archive_stale_sessions(
             if not is_process_running_on_tty(tty, process_name):
                 archive(sessions[0], "process-exited", expected_process=process_name)
         else:
-            # Multiple sessions on same TTY - keep newest, archive rest
-            # Sort by created_at descending (newest first)
-            sessions.sort(key=lambda x: x[3], reverse=True)
-            newest = sessions[0]
-            newest_channel = newest[0]
-
-            # Check if process is running
             process_running = is_process_running_on_tty(tty, process_name)
-
-            for item in sessions[1:]:  # Skip newest
-                archive(item, "newer-session-on-tty", replacement=newest_channel)
-
-            # If process isn't running, also archive the newest
             if not process_running:
-                archive(newest, "process-exited", expected_process=process_name)
+                for item in sessions:
+                    archive(item, "process-exited", expected_process=process_name)
+                continue
+
+            # A live harness may belong to any one of these channels. Rows
+            # whose recorded pane identity mismatched were handled above;
+            # creation order alone is not enough to archive the rest.
+            for item in sessions:
+                channel = item[0]
+                _log.info(
+                    "auto-archive-skip channel=%s reason=shared-live-tty "
+                    "expected_process=%s process_running=True recorded_session_order=%r "
+                    "current_session_order=%r",
+                    channel,
+                    process_name,
+                    session_orders.get(channel),
+                    current_session_orders.get(channel),
+                )
+
+    if detached_channels:
+        detached_channels(detached)
 
     return archived
 
@@ -483,6 +551,7 @@ def unified_watch_loop(
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
+    session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
     locate_sessions: Callable[
         [list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
         dict[str, str | Literal[False] | None],
@@ -493,6 +562,8 @@ def unified_watch_loop(
     record_turn: Callable[[str, float | None], None] | None = None,
     poll_interval: float = 2.0,
     stop_event: threading.Event | None = None,
+    protected_channels: Callable[[], set[str]] | None = None,
+    detached_channels: Callable[[set[str]], None] | None = None,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
 
@@ -508,6 +579,7 @@ def unified_watch_loop(
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
+        session_orders: Optional callback returning each channel's recorded tmux session identity
         locate_sessions: Optional callback saying where each session that can
             outlive its tty runs now (see `_archive_stale_sessions`)
         auto_read_patterns: A finished turn whose final message matches one of
@@ -544,6 +616,7 @@ def unified_watch_loop(
             # query rather than one per row.
             by_channel = sockets() if sockets else {}
             saved_models = models() if models else {}
+            saved_session_orders = session_orders() if session_orders else {}
 
             # One tmux listing per server, shared by both location recording
             # and stale-session archiving. Before this, each pass ran its own
@@ -553,9 +626,16 @@ def unified_watch_loop(
             pane_locations = _fetch_pane_locations(servers)
 
             if record_location:
-                _record_locations(active, record_location, by_channel, pane_locations)
+                _record_locations(
+                    active,
+                    record_location,
+                    by_channel,
+                    pane_locations,
+                    saved_session_orders,
+                )
 
-            # Archive stale sessions: group by TTY and keep only the newest per TTY
+            # Check liveness per channel; a shared TTY is not enough to identify
+            # which Codex session a live process belongs to.
             if archive_channel:
                 codex_directories = None
                 if time.time() - codex_checked_at >= _CODEX_CHECK_SECONDS and any(
@@ -571,6 +651,9 @@ def unified_watch_loop(
                     pane_locations,
                     codex_directories,
                     locate_sessions(active) if locate_sessions else None,
+                    protected_channels() if protected_channels else None,
+                    detached_channels,
+                    saved_session_orders,
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
@@ -753,6 +836,7 @@ def start_unified_watcher(
     record_model: Callable[[str, str, str], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
+    session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
     locate_sessions: Callable[
         [list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
         dict[str, str | Literal[False] | None],
@@ -761,6 +845,8 @@ def start_unified_watcher(
     auto_read_patterns: tuple[re.Pattern[str], ...] = (),
     mark_read_after_turn: Callable[[str], int] | None = None,
     record_turn: Callable[[str, float | None], None] | None = None,
+    protected_channels: Callable[[], set[str]] | None = None,
+    detached_channels: Callable[[set[str]], None] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -776,11 +862,14 @@ def start_unified_watcher(
         record_model: Optional callback to note a channel's (provider, model)
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
+        session_orders: Optional callback returning each channel's recorded tmux session identity
         locate_sessions: Optional callback saying where each session that can
             outlive its tty runs now (see `_archive_stale_sessions`)
         auto_read_patterns: Final-message patterns that keep a finished turn read
         mark_read_after_turn: Optional callback recording such a turn on a read channel
         record_turn: Optional callback recording a channel's turn in progress
+        protected_channels: Optional callback returning channels protected by brief status
+        detached_channels: Optional callback receiving protected channels with no pane
     """
     global _watcher_stop, _watcher_thread
 
@@ -798,10 +887,13 @@ def start_unified_watcher(
             "record_model": record_model,
             "models": models,
             "sockets": sockets,
+            "session_orders": session_orders,
             "locate_sessions": locate_sessions,
             "auto_read_patterns": auto_read_patterns,
             "mark_read_after_turn": mark_read_after_turn,
             "record_turn": record_turn,
+            "protected_channels": protected_channels,
+            "detached_channels": detached_channels,
             "stop_event": _watcher_stop,
         },
         daemon=True,

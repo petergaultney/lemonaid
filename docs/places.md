@@ -283,11 +283,11 @@ The session and windows are closed *before* the directory is released: your shel
 directory is inside it, and a process still holding a file there can make the removal fail. A
 place whose directory is already gone is skipped rather than treated as a failure.
 
-## Sessions that outlive their tmux session
+## Resuming detached tmux rows
 
-Selecting a session in the inbox whose pane is gone recreates it in the same directory,
-resuming that session with its backend's `resume_command` in the template's harness window.
-Your archive already records where work was happening, so a dead session and a live one answer
-to the same key — you don't have to know which you're looking at. A session with no way to
-resume it is not recreated: the template alone would start a different agent. Nor is one whose
-name a tmux session already holds, since that session may run a different agent.
+Live inbox rows keep their normal activation behavior. A detached tmux row can be resumed with
+`R`: lemonaid first checks the recorded tmux session identity, then falls back to the saved
+directory only when it identifies exactly one existing session. It opens a new window in that
+session and runs the backend's `resume_command`. If no unique safe destination is available,
+lemonaid shows a copyable command so you can paste it into the session you choose. It does not
+start another tmux session. A row without a backend resume command is marked `resume unavailable`.

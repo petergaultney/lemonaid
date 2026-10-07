@@ -39,6 +39,11 @@ class ErrorScreen(ModalScreen[bool]):
         padding-bottom: 1;
     }
 
+    ErrorScreen .details {
+        padding-top: 1;
+        color: $text-muted;
+    }
+
     ErrorScreen .hint {
         color: $text-muted;
         text-style: italic;
@@ -46,16 +51,19 @@ class ErrorScreen(ModalScreen[bool]):
     }
     """
 
-    def __init__(self, title: str, message: str, offer: str = "") -> None:
+    def __init__(self, title: str, message: str, offer: str = "", details: str = "") -> None:
         super().__init__()
         self._title = title
         self._message = message
         self._offer = offer
+        self._details = details
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(self._title, classes="title")
             yield Label(self._message)
+            if self._details:
+                yield Label(self._details, classes="details")
             yield Label(
                 f"Press a to {self._offer}, any other key to close"
                 if self._offer

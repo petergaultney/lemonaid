@@ -168,8 +168,7 @@ def _archive(row_ids: abc.Iterable[int]) -> None:
     try:
         with db.connect() as conn:
             for row_id in row_ids:
-                db.archive(conn, row_id)
-                _log.info("archived row %d: its session or directory is being torn down", row_id)
+                db.archive(conn, row_id, "place-teardown")
     except sqlite3.Error as e:
         _log.warning("could not archive torn-down lemons: %s", e)
 

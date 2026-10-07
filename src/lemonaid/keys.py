@@ -51,6 +51,7 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "snoozed_list": kb.snoozed_list,
         "history": kb.history,
         "copy_resume": kb.copy_resume,
+        "resume_detached": kb.resume_detached,
         "tmux_resume": kb.tmux_resume,
         "pin": kb.pin,
         "move_pin_up": [kb.move_pin_up],

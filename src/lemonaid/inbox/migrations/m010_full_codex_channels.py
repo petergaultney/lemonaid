@@ -27,9 +27,11 @@ from collections import abc
 from pathlib import Path
 
 from ...codex import utils
+from ...log import get_logger
 
 VERSION = 10
 DESCRIPTION = "Name Codex channels by the full thread id"
+_log = get_logger(__name__)
 
 _SHORT = len("codex:") + 8
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -108,11 +110,17 @@ def migrate(conn: sqlite3.Connection) -> None:
         moved.add(f"codex:{thread}")
 
     for full in moved:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE notifications SET status = 'archived' WHERE channel = ? AND id != ("
             " SELECT id FROM notifications WHERE channel = ? ORDER BY created_at DESC, id DESC LIMIT 1)",
             (full, full),
         )
+        if cursor.rowcount:
+            _log.info(
+                "archive channel=%s reason=migration-codex-channel-duplicates rows=%d",
+                full,
+                cursor.rowcount,
+            )
 
     for table in _KEYED_BY_CHANNEL:
         for short, full in newest.items():

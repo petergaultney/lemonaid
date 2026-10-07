@@ -1,13 +1,7 @@
-"""Putting a session back when selecting it finds its pane gone.
+"""Resume a detached notification in a uniquely identified tmux session."""
 
-The archive records where work happened, so a missing pane is a place to pick
-work back up rather than a dead end. What goes back is the row's own session,
-resumed with its harness's resume command, in the tmux template's layout. A row
-with no way to resume it is refused: the template's harness window starts one
-particular agent, which for a row from any other harness is a stranger in its
-worktree.
-"""
-
+import os
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -15,62 +9,209 @@ from typing import Any
 from ..config import Config
 from ..log import get_logger
 from ..resume import build_resume_command
-from . import session
+from . import navigation
 
 _log = get_logger("tmux.recreate")
 
 
-def _session_path(name: str) -> str | None:
-    """The directory tmux session *name* was started in, or None if there is no such session."""
+def _current_socket() -> str | None:
+    tmux = os.environ.get("TMUX", "")
+    return tmux.split(",", 1)[0] or None
+
+
+def _stored_order(metadata: dict[str, Any]) -> tuple[int, int, int] | None:
+    value = metadata.get("tmux_session_order")
+    if not isinstance(value, list) or len(value) != 3:
+        return None
+
+    try:
+        created, server_started, session_id = (int(part) for part in value)
+        return created, server_started, session_id
+    except (TypeError, ValueError):
+        return None
+
+
+def _order(created: str, server_started: str, session_id: str) -> tuple[int, int, int] | None:
+    try:
+        return int(created), int(server_started), int(session_id.lstrip("$"))
+    except ValueError:
+        return None
+
+
+def _sessions(socket: str | None) -> dict[str, tuple[tuple[int, int, int] | None, str]] | None:
     try:
         result = subprocess.run(
-            ["tmux", "display-message", "-p", "-t", f"={name}:", "#{session_path}"],
+            [
+                *navigation.server_args(socket),
+                "list-sessions",
+                "-F",
+                "#{session_name}|#{session_created}|#{start_time}|#{session_id}|#{session_path}",
+            ],
             capture_output=True,
             text=True,
             check=True,
+            timeout=2,
         )
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not list tmux sessions for resume: %s", e)
         return None
 
-    return result.stdout.strip() or None
+    sessions = {}
+    for line in result.stdout.splitlines():
+        parts = line.split("|", 4)
+        if len(parts) == 5:
+            sessions[parts[0]] = (_order(parts[1], parts[2], parts[3]), parts[4])
+
+    return sessions
+
+
+def _cwd_sessions(cwd: str, socket: str | None) -> set[str] | None:
+    try:
+        result = subprocess.run(
+            [
+                *navigation.server_args(socket),
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_current_path}|#{session_name}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not find tmux sessions at %s: %s", cwd, e)
+        return None
+
+    return {
+        session
+        for line in result.stdout.splitlines()
+        if len(parts := line.split("|", 1)) == 2 and parts[0] == cwd and (session := parts[1])
+    }
+
+
+def _destination(metadata: dict[str, Any]) -> tuple[str, str | None] | None:
+    current_socket = _current_socket()
+    recorded_socket = metadata.get("tmux_socket")
+    if recorded_socket and recorded_socket != current_socket:
+        _log.info(
+            "not resuming %s: recorded tmux server is not the current server",
+            metadata.get("channel"),
+        )
+        return None
+
+    sessions = _sessions(current_socket)
+    if sessions is None:
+        return None
+
+    recorded = metadata.get("tmux_session")
+    stored_order = _stored_order(metadata)
+    if isinstance(recorded, str) and recorded in sessions and stored_order is not None:
+        current_order = sessions[recorded][0]
+        if current_order == stored_order:
+            return recorded, current_socket
+
+    cwd = metadata.get("cwd")
+    if not isinstance(cwd, str) or not cwd:
+        return None
+
+    candidates = _cwd_sessions(cwd, current_socket)
+    if candidates is None:
+        return None
+
+    candidates.update(name for name, (_order, path) in sessions.items() if path == cwd)
+    if len(candidates) != 1:
+        _log.info(
+            "not resuming %s: cwd %s identifies %d tmux sessions",
+            metadata.get("channel"),
+            cwd,
+            len(candidates),
+        )
+        return None
+
+    return next(iter(candidates)), current_socket
+
+
+def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: list[str]) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                *navigation.server_args(socket),
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                "#{pane_id}|#{window_id}",
+                "-t",
+                f"={destination}",
+                "-c",
+                cwd,
+                shlex.join(argv),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not resume in tmux session %s: %s", destination, e)
+        return False
+
+    identifiers = result.stdout.strip().split("|", 1)
+    pane_id = identifiers[0] if identifiers else ""
+    window_id = identifiers[1] if len(identifiers) == 2 else ""
+    if pane_id and window_id:
+        if os.environ.get("TMUX"):
+            if navigation.switch_to_pane(destination, pane_id):
+                return True
+        else:
+            try:
+                subprocess.run(
+                    [*navigation.server_args(socket), "select-window", "-t", window_id],
+                    capture_output=True,
+                    check=True,
+                    timeout=2,
+                )
+                subprocess.run(
+                    [*navigation.server_args(socket), "attach-session", "-t", f"={destination}"],
+                    check=True,
+                    timeout=5,
+                )
+                return True
+            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                _log.warning("could not attach to tmux session %s: %s", destination, e)
+
+    if pane_id:
+        try:
+            subprocess.run(
+                [*navigation.server_args(socket), "kill-window", "-t", pane_id],
+                capture_output=True,
+                check=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            _log.warning("could not remove failed resume window %s: %s", pane_id, e)
+
+    return False
 
 
 def recreate(metadata: dict[str, Any], config: Config) -> bool:
-    """Resume the notification's session in a new tmux session rooted at its cwd.
-
-    A tmux session already holding the name is refused rather than switched to:
-    it may run another agent entirely, as an earlier recreate that started the
-    wrong harness did.
-    """
+    """Resume in a recorded or uniquely cwd-matched session, never a new session."""
     cwd = metadata.get("cwd")
     if not cwd or not Path(cwd).is_dir():
         return False
 
     channel = metadata.get("channel", "")
     resumable = build_resume_command(config, channel, metadata)
-    if resumable is None:
-        _log.warning("not recreating %s: no way to resume it", channel or "a session")
+    destination = _destination(metadata)
+    if resumable is None or destination is None:
         return False
 
-    name = session.sanitize_name(metadata.get("name", "") or session.auto_session_name(Path(cwd)))
-    existing = _session_path(name)
-    if existing is not None:
-        # No pane in the row's directory runs its harness, or this would not be
-        # called, so whatever holds the name is not this session.
-        _log.warning("not recreating %s: session %r already exists in %s", channel, name, existing)
-        return False
-
+    destination_name, socket = destination
     _, argv = resumable
-    error = session.spawn_session(
-        cwd=cwd,
-        config=config.tmux_session,
-        resume_argv=argv,
-        channel=channel,
-        session_metadata=metadata,
-        session_name=name,
-    )
-    if error:
-        _log.warning("could not recreate a session in %s: %s", cwd, error)
+    if not _resume_in_session(destination_name, socket, cwd, argv):
         return False
 
+    _log.info("resumed %s in tmux session %s", channel, destination_name)
     return True

@@ -244,7 +244,7 @@ def _watcher_row(tty: str) -> tuple:
     return ("claude:a", "s", "/work/feat", 1.0, False, tty, "", "cmux")
 
 
-def test_the_watcher_archives_a_session_that_is_gone():
+def test_the_watcher_archives_a_session_that_is_gone(monkeypatch):
     archived: list[str] = []
     watcher._archive_stale_sessions(
         [_watcher_row("/dev/ttys001")], archived.append, {}, {}, located={"claude:a": False}

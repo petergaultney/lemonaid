@@ -23,6 +23,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
 | `b` / `Tab` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
+| `R` | Resume the selected detached session when available |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
@@ -30,6 +31,15 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `?` | Toggle the key hints (see below) |
 | `q` / `Escape` | Quit |
 | `↑` / `↓` | Navigate list |
+
+Rows retained after their terminal pane closes show a `detached` marker. When the
+saved session details are insufficient to resume one, its marker also says
+`resume unavailable`. Enter and click keep switching live rows; on a detached
+row they explain whether `R` can resume it. For tmux, `R` opens a new window in
+the recorded session when its identity still matches. If that identity is no
+longer available, it uses the session only when the saved directory identifies
+exactly one. Otherwise, a dialog shows the resume command and lets you copy it
+to paste into the session you choose. It never starts another tmux session.
 
 The key hints occupy the bottom row for the first 10 seconds, then hand it back to
 the unread/read counts. `?` brings them up again and cancels that timeout, so they
@@ -42,6 +52,8 @@ search box or a dialog, `Ctrl`+`a`/`Ctrl`+`e` and `Home`/`End` move the text cur
 usual, and a brief view leaves them to its own scrolling.
 
 ### History mode
+
+When a session has an attached brief, its status appears after its name.
 
 | Key | Action |
 |-----|--------|
@@ -210,6 +222,7 @@ brief_key = "tab"  # a second key for brief, as a key name
 history = "h"  # toggle history view
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
+resume_detached = "R"  # resume a detached inbox row
 save_size = "H"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
