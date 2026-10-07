@@ -11,7 +11,7 @@ import json
 import pytest
 
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
-from lemonaid.places import ownership, target, toss_cli
+from lemonaid.places import ownership, self_install, target, toss_cli
 
 
 def _args(**kwargs) -> argparse.Namespace:
@@ -212,6 +212,71 @@ def test_force_overrides_unfinished_work(monkeypatch, tmp_path):
     toss_cli.cmd_toss(_args(force=True))
 
     assert len(tossed) == 1
+
+
+def test_editable_install_refuses_to_release_its_source(monkeypatch, tmp_path, capsys):
+    place = _place(tmp_path, "checkout")
+    doomed = _target("work", [place])
+    tossed = _resolves_to(monkeypatch, doomed)
+    monkeypatch.setattr(self_install, "editable_install_source", lambda: place.directory)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(yes=True))
+
+    assert not tossed
+    assert "installed lemonaid is editable" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("source", ["unrelated", None])
+def test_unrelated_or_non_editable_install_allows_release(monkeypatch, tmp_path, source):
+    place = _place(tmp_path, "checkout")
+    doomed = _target("work", [place])
+    tossed = _resolves_to(monkeypatch, doomed)
+    resolved_source = tmp_path / "other-checkout" if source else None
+    monkeypatch.setattr(self_install, "editable_install_source", lambda: resolved_source)
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+
+    toss_cli.cmd_toss(_args())
+
+    assert len(tossed) == 1
+
+
+@pytest.mark.parametrize("flag", ["force", "json"])
+def test_flags_do_not_bypass_editable_install_refusal(monkeypatch, tmp_path, capsys, flag):
+    place = _place(tmp_path, "checkout")
+    doomed = _target("work", [place])
+    tossed = _resolves_to(monkeypatch, doomed)
+    monkeypatch.setattr(self_install, "editable_install_source", lambda: place.directory)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(**{flag: True}))
+
+    assert not tossed
+    assert "installed lemonaid is editable" in capsys.readouterr().err
+
+
+def test_editable_install_appearing_during_confirmation_is_caught(monkeypatch, tmp_path, capsys):
+    place = _place(tmp_path, "checkout")
+    doomed = _target("work", [place])
+    tossed = _resolves_to(monkeypatch, doomed)
+    source = None
+
+    def _install_source():
+        return source
+
+    def _confirm(prompt):
+        nonlocal source
+        source = place.directory
+        return "y"
+
+    monkeypatch.setattr(self_install, "editable_install_source", _install_source)
+    monkeypatch.setattr("builtins.input", _confirm)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args())
+
+    assert not tossed
+    assert "installed lemonaid is editable" in capsys.readouterr().err
 
 
 def test_an_unresolvable_target_exits_with_the_reason(monkeypatch, capsys):
