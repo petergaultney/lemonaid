@@ -26,24 +26,24 @@ def substitute(template: str, key: str = "", directory: str = "") -> str:
     return template.replace("{key}", shlex.quote(key)).replace("{dir}", shlex.quote(directory))
 
 
-def run_lines(
+def run_lines_checked(
     root: PlaceRoot,
     template: str,
     key: str = "",
     directory: str = "",
     timeout: int = _TIMEOUT_SECONDS,
-) -> list[str]:
+) -> list[str] | None:
     """Run a hook and return its non-empty stdout lines.
 
     Hooks run through a shell, because "emit one path per line" is often most
     naturally a pipeline. They come from the user's own config file, which is the
     same trust level as a shell rc file.
 
-    A hook that fails is a configuration or environment problem rather than
-    something the caller can act on, so it logs and yields nothing.
+    A failed hook returns None so callers that make teardown decisions can
+    distinguish failure from a successful empty result.
     """
     if not template.strip():
-        return []
+        return None
 
     command = substitute(template, key, directory)
 
@@ -58,7 +58,7 @@ def run_lines(
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         _log.warning("hook %r in %s failed to run: %s", command, root.path, e)
-        return []
+        return None
 
     if result.returncode != 0:
         _log.warning(
@@ -68,20 +68,37 @@ def run_lines(
             result.returncode,
             result.stderr.strip(),
         )
-        return []
+        return None
 
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def list_directories(root: PlaceRoot) -> list[Path]:
+def run_lines(
+    root: PlaceRoot,
+    template: str,
+    key: str = "",
+    directory: str = "",
+    timeout: int = _TIMEOUT_SECONDS,
+) -> list[str]:
+    return run_lines_checked(root, template, key, directory, timeout) or []
+
+
+def list_directories_checked(root: PlaceRoot) -> list[Path] | None:
     """Every directory the root's `list` hook reports, as absolute paths.
 
     A hook may emit `path\\tlabel`; only the path is used here. Paths are taken
     relative to the root when not absolute, and non-directories are dropped -
     a stale listing shouldn't produce rows that can't be opened.
     """
+    if not root.list:
+        return []
+
+    lines = run_lines_checked(root, root.list)
+    if lines is None:
+        return None
+
     directories = []
-    for line in run_lines(root, root.list):
+    for line in lines:
         candidate = Path(line.split("\t")[0]).expanduser()
         resolved = candidate if candidate.is_absolute() else root.path / candidate
         if resolved.is_dir():
@@ -90,14 +107,29 @@ def list_directories(root: PlaceRoot) -> list[Path]:
     return directories
 
 
-def directory_for_key(root: PlaceRoot, key: str) -> Path | None:
-    """Where the root's `path_of` hook says *key* lives, if it exists."""
-    for line in run_lines(root, root.path_of, key=key):
+def list_directories(root: PlaceRoot) -> list[Path]:
+    return list_directories_checked(root) or []
+
+
+def directory_for_key_checked(root: PlaceRoot, key: str) -> tuple[Path | None, bool]:
+    if not root.path_of:
+        return None, True
+
+    lines = run_lines_checked(root, root.path_of, key=key)
+    if lines is None:
+        return None, False
+
+    for line in lines:
         candidate = Path(line).expanduser()
         if candidate.is_dir():
-            return candidate.resolve()
+            return candidate.resolve(), True
 
-    return None
+    return None, True
+
+
+def directory_for_key(root: PlaceRoot, key: str) -> Path | None:
+    """Where the root's `path_of` hook says *key* lives, if it exists."""
+    return directory_for_key_checked(root, key)[0]
 
 
 def inspect(root: PlaceRoot, directory: Path) -> str:

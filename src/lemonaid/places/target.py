@@ -7,7 +7,8 @@ with the place only when it is dedicated to that place - named for it, or
 entirely inside it, and holding no other managed place. In a session that holds
 other places as well, only the windows sitting in this one close.
 
-Bare `toss` never falls back to the session the caller is in. A directory that
+Named `toss` can close an exact session when the name has no existing or listed
+place. Bare `toss` never falls back to the session the caller is in. A directory that
 resolves to no place is a refusal, not a session to kill: the one time that
 fallback ran, it closed the session of the lemon that ran it.
 
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from .. import tmux
 from ..config import Config
-from . import ownership, plan
+from . import hooks, ownership, plan, session
 
 
 class TossTarget(ty.NamedTuple):
@@ -32,7 +33,7 @@ class TossTarget(ty.NamedTuple):
     # What is released: the place, unless it is protected (then nothing resolves).
     places: list[ownership.Place]
     # The place the toss was aimed at.
-    place: ownership.Place
+    place: ownership.Place | None
     # Every window of the closing session, with its panes as planned.
     session_windows: dict[str, list[ownership.Pane]]
     # Windows closed on their own, in sessions that survive, with their panes.
@@ -132,6 +133,20 @@ def _for_place(config: Config, place: ownership.Place) -> tuple[TossTarget | Non
     ), ""
 
 
+def _for_session(
+    config: Config, name: str, known: list[ownership.Place]
+) -> tuple[TossTarget | None, str]:
+    """A named tmux session with no managed directory behind it."""
+    if refusal := _session_refusal(config, name):
+        return None, refusal
+
+    windows, why_not = session.inspect(name, known)
+    if windows is None:
+        return None, why_not
+
+    return TossTarget(name, [], None, windows, {}, []), ""
+
+
 def _here(config: Config, unattended: bool) -> tuple[TossTarget | None, str]:
     """Bare `toss`: the place the current directory is in, and nothing else.
 
@@ -194,9 +209,23 @@ def resolve_toss_target(
     if key is None:
         return _here(config, unattended)
 
-    place = ownership.find_place(config, key)
+    known = ownership.managed_places_checked(config)
+    if known is None:
+        return None, "Could not list managed places; nothing was closed"
+
+    place = next((place for place in known if place.key == key), None)
     if place is None:
-        return None, f"No configured root has a directory for {key!r}"
+        for root in config.places.roots:
+            directory, checked = hooks.directory_for_key_checked(root, key)
+            if not checked:
+                return None, f"Could not resolve {key!r} under {root.path}; nothing was closed"
+
+            if directory is not None:
+                place = ownership.Place(key, root, directory)
+                break
+
+    if place is None:
+        return _for_session(config, key, known)
 
     return _for_place(config, place)
 

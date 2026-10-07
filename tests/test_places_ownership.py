@@ -79,7 +79,9 @@ def test_a_root_listing_skips_a_directory_outside_the_root(monkeypatch, tmp_path
     inside.mkdir(parents=True)
     outside.mkdir(parents=True)
     root = PlaceRoot(path=root_dir, list="unused")
-    monkeypatch.setattr(ownership.hooks, "list_directories", lambda _root: [inside, outside])
+    monkeypatch.setattr(
+        ownership.hooks, "list_directories_checked", lambda _root: [inside, outside]
+    )
 
     places = ownership.managed_places(_config(root))
 

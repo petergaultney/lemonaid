@@ -74,7 +74,7 @@ the thing went.
 lemonaid place open <key>      # get a session for this, whatever it takes
 lemonaid place acquire <key>   # just the directory, no session
 lemonaid place list            # every directory each root reports
-lemonaid place toss [<key>]    # release a place and close the session dedicated to it
+lemonaid place toss [<key>]    # release a place, or close a named session with no place
 lemonaid place hooks           # show what's configured
 ```
 
@@ -151,6 +151,15 @@ So `toss` works on a place and what tmux has sitting in it:
 lemonaid place toss          # the place the current directory is in
 lemonaid place toss <key>    # that place, from anywhere
 ```
+
+With a name that has no existing or listed place, `toss` closes the tmux session of
+that exact name. This covers sessions opened outside a managed root, sessions made
+with `tmux new`, and sessions left after their place is released. It releases no
+directory, and the confirmation says that no directory work was inspected. A
+session occupying a listed managed place must be tossed by that place's key.
+When a name identifies both an existing or listed place and a session, the place
+wins. `--yes` and `--json` skip the confirmation as usual; JSON reports
+`"place": null` and `"released": []` for a session-only toss.
 
 The place is the unit. Its session closes with it when the session is *dedicated* to it:
 named for it (which is what `place open` does), or entirely inside it, and in either case

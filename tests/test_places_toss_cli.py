@@ -136,6 +136,30 @@ def test_json_reports_what_closed(monkeypatch, tmp_path, capsys):
     }
 
 
+def test_session_only_confirmation_says_work_was_not_inspected(monkeypatch, capsys):
+    doomed = _target("notes", [])
+    tossed = _resolves_to(monkeypatch, doomed)
+    prompts = []
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "y")
+
+    toss_cli.cmd_toss(_args(key="notes"))
+
+    assert tossed[0][0][1] == []
+    assert "session 'notes' (no place; directory work was not inspected)" in capsys.readouterr().err
+    assert prompts == ["kill this session? [y/N] "]
+
+
+def test_session_only_json_reports_no_released_place(monkeypatch, capsys):
+    _resolves_to(monkeypatch, _target("notes", []))
+
+    toss_cli.cmd_toss(_args(key="notes", json=True))
+
+    reported = json.loads(capsys.readouterr().out)
+    assert reported["place"] is None
+    assert reported["released"] == []
+    assert reported["session_closed"] is True
+
+
 def test_json_lists_windows_closed_on_their_own(monkeypatch, tmp_path, capsys):
     partial = {"@4": [_pane("katamari", "@4", "%4")], "@7": [_pane("katamari", "@7", "%7")]}
     tossed = _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))

@@ -1,8 +1,7 @@
 """`place toss`: the confirmation, and the two flags that skip parts of it.
 
-The set being torn down is shown before anything happens, because that is the
-decision - at teardown time you know whether the second worktree should go too,
-and you will not know it later.
+The set being torn down is shown before anything happens, including whether a
+session has no place and its directory work was not inspected.
 """
 
 import argparse
@@ -26,6 +25,9 @@ def _plural(n: int, noun: str) -> str:
 
 
 def _headline(doomed: target.TossTarget) -> str:
+    if doomed.place is None:
+        return f"session {doomed.session!r} (no place; directory work was not inspected)"
+
     if not doomed.session and not doomed.partial:
         return f"place {doomed.place.key!r} (no session)"
 
@@ -41,7 +43,7 @@ def _closures(doomed: target.TossTarget) -> list[str]:
     return [
         *(
             [f"  session {doomed.session!r} closes ({_plural(len(doomed.windows), 'window')})"]
-            if doomed.session
+            if doomed.session and doomed.place is not None
             else []
         ),
         *(
@@ -63,6 +65,9 @@ def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list
 
 
 def _prompt(doomed: target.TossTarget) -> str:
+    if doomed.place is None:
+        return "kill this session? [y/N] "
+
     if doomed.session:
         return "kill it and release the place? [y/N] "
 
@@ -130,7 +135,7 @@ def cmd_toss(args: argparse.Namespace) -> None:
                     "session": doomed.session,
                     "released": [p.key for p in doomed.places],
                     "error": error,
-                    "place": doomed.place.key,
+                    "place": doomed.place.key if doomed.place else None,
                     "closed_windows": doomed.closing if not error else [],
                     "session_closed": bool(doomed.session) and not error,
                 }
@@ -146,13 +151,16 @@ def cmd_toss(args: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "toss",
-        help="Release a place and close the tmux session dedicated to it",
-        description="The unit is a managed place: a directory, plus the tmux session "
+        help="Release a place or close a named session with no place",
+        description="A named target is a managed place when its directory exists or its root "
+        "lists it; otherwise it can be an exact tmux session name with no managed place "
+        "in its panes. A session-only toss closes the session without inspecting or releasing "
+        "a directory. The unit for a managed place is its directory, plus the tmux session "
         "sitting in it when that session is dedicated to it (named for it, or entirely "
         "inside it, and holding no other managed place). With no key the place is the "
         "one the current directory is in, and a directory that is not in a place is "
-        "refused rather than falling back to your session; with a key it is that place, "
-        "from anywhere. Under --yes or --json, closing the session you are running in "
+        "refused rather than falling back to your session; with a key it is that place or "
+        "session, from anywhere. Under --yes or --json, closing the session you are running in "
         "needs the key.\n\n"
         "In a session that also holds other places, only the windows sitting in this "
         "one close, and the session stays. A window with a pane in the place and a "
@@ -172,7 +180,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "key",
         nargs="?",
-        help="The place to release (default: the one the current directory is in)",
+        help="The place to release or exact session name to close (default: place at cwd)",
     )
     parser.add_argument(
         "-y",

@@ -343,7 +343,7 @@ namespace.
 lemonaid place toss <key> --json
 ```
 
-**The unit is the place.** Its directory is released, and the tmux session sitting in it
+For a managed place, its directory is released, and the tmux session sitting in it
 closes too when that session is *dedicated* to the place: named for it (what `place open`
 makes), or entirely inside it, and holding no other managed place. The response says what
 happened:
@@ -353,6 +353,12 @@ happened:
  "place": "feat/base", "closed_windows": ["@1", "@2", "@4"], "session_closed": true}
 ```
 
+If `<key>` names no existing or listed place but exactly names a tmux session,
+`toss` closes that session only. Its panes must occupy no listed managed place.
+The response has `"place": null` and `"released": []`. No directory work is
+inspected on this path. An existing or listed place wins if its key is also a
+session name.
+
 A session that also holds other places is shared: only its windows that sit in the place
 close, and the session stays (`"session": ""`, `"closed_windows": ["@4", "@7"]`). A window in
 any other unprotected session that sits in the place closes too. A window with a pane in the
@@ -361,7 +367,7 @@ fresh look at tmux right before anything closes, and any difference (a pane that
 window split or opened in the place, a session that gained a window) stops the whole toss
 (exit 1, nothing closed, nothing released); run it again.
 
-**Always pass the key.** Named, it works from anywhere. The unnamed form acts on the place
+**Always pass the place key or session name.** Named, it works from anywhere. The unnamed form acts on the place
 the current directory is in, and refuses when that directory is not a listed place (outside
 every root, or under a root with no `list` hook). It never falls back to the tmux session
 you are in. Under `--yes` or `--json` it also refuses to close the session the command runs

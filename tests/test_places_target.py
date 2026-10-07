@@ -36,6 +36,7 @@ def _panes(monkeypatch, *panes: tuple[str, str, Path | None]) -> None:
         for n, (session, window, path) in enumerate(panes, start=1)
     ]
     monkeypatch.setattr(target.ownership, "panes", lambda: snapshot)
+    monkeypatch.setattr(target.ownership, "pane_snapshot", lambda: snapshot)
 
 
 def _attached_to(monkeypatch, session: str | None) -> None:
@@ -341,6 +342,131 @@ def test_an_unknown_key_is_rejected(monkeypatch, tmp_path):
 
     assert doomed is None
     assert "No configured root has a directory" in why_not
+
+
+def test_named_session_without_a_place_resolves(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", tmp_path), ("notes", "@4", tmp_path))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(_config(), "notes")
+
+    assert why_not == ""
+    assert doomed is not None
+    assert doomed.session == "notes"
+    assert doomed.place is None
+    assert doomed.places == []
+    assert doomed.windows == ["@3", "@4"]
+
+
+def test_a_listed_place_wins_over_same_named_session(monkeypatch, tmp_path):
+    _managed(tmp_path, "notes")
+    _panes(monkeypatch, ("notes", "@3", tmp_path / "notes"))
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "notes")
+
+    assert why_not == ""
+    assert doomed is not None and doomed.place is not None
+    assert doomed.places[0].key == "notes"
+
+
+def test_a_list_only_place_wins_over_same_named_session(monkeypatch, tmp_path):
+    _managed(tmp_path, "notes")
+    _panes(monkeypatch, ("notes", "@3", tmp_path / "notes"))
+    root = PlaceRoot(path=tmp_path, list=f"echo {tmp_path}/notes")
+
+    doomed, why_not = target.resolve_toss_target(_config(root), "notes")
+
+    assert why_not == ""
+    assert doomed is not None and doomed.place is not None
+    assert doomed.places[0].key == "notes"
+
+
+def test_failed_list_hook_refuses_session_only_toss(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", tmp_path))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(
+        _config(PlaceRoot(path=tmp_path, list="false")), "notes"
+    )
+
+    assert doomed is None
+    assert "Could not list managed places" in why_not
+
+
+def test_failed_path_lookup_refuses_session_only_toss(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", tmp_path))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(
+        _config(PlaceRoot(path=tmp_path, path_of="false")), "notes"
+    )
+
+    assert doomed is None
+    assert "Could not resolve 'notes'" in why_not
+
+
+def test_synthesized_missing_place_does_not_shadow_session(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", tmp_path))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "notes")
+
+    assert why_not == ""
+    assert doomed is not None and doomed.place is None
+
+
+def test_session_with_a_managed_place_is_refused(monkeypatch, tmp_path):
+    _managed(tmp_path, "feat")
+    _panes(monkeypatch, ("notes", "@3", tmp_path / "feat"))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(_config(_root(tmp_path)), "notes")
+
+    assert doomed is None
+    assert "managed place(s) 'feat'" in why_not
+
+
+def test_session_only_toss_refuses_a_failed_pane_query(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", tmp_path))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+    monkeypatch.setattr(target.ownership, "pane_snapshot", lambda: None)
+
+    doomed, why_not = target.resolve_toss_target(_config(), "notes")
+
+    assert doomed is None
+    assert "Could not inspect panes" in why_not
+
+
+def test_session_only_toss_refuses_an_unknown_pane_directory(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("notes", "@3", None))
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+
+    doomed, why_not = target.resolve_toss_target(_config(), "notes")
+
+    assert doomed is None
+    assert "unknown directory" in why_not
+
+
+def test_protected_bare_session_is_refused(monkeypatch, tmp_path):
+    _panes(monkeypatch, ("hq", "@3", tmp_path))
+    config = _config()
+    config.places.protected_sessions = ("hq",)
+
+    doomed, why_not = target.resolve_toss_target(config, "hq")
+
+    assert doomed is None
+    assert "protected" in why_not
+
+
+def test_session_only_plan_detects_new_window(monkeypatch, tmp_path):
+    monkeypatch.setattr(target.session, "_exists", lambda name: True)
+    _panes(monkeypatch, ("notes", "@3", tmp_path))
+    config = _config()
+    planned, _ = target.resolve_toss_target(config, "notes")
+    assert planned is not None
+    _panes(monkeypatch, ("notes", "@3", tmp_path), ("notes", "@4", tmp_path))
+
+    assert "windows @4 appeared" in target.changed_since(config, "notes", planned)
 
 
 def test_a_key_with_no_session_releases_just_that_place(monkeypatch, tmp_path):

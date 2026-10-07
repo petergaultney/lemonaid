@@ -41,7 +41,7 @@ class Pane(ty.NamedTuple):
     path: Path | None  # None when tmux could not say where the pane is
 
 
-def panes() -> list[Pane]:
+def pane_snapshot() -> list[Pane] | None:
     """Every live pane that is somebody's work.
 
     lemonaid's own scratch panes and follow-mode placeholders are left out: they
@@ -65,7 +65,7 @@ def panes() -> list[Pane]:
         )
     except (OSError, subprocess.SubprocessError) as e:
         _log.warning("could not list panes: %s", e)
-        return []
+        return None
 
     found = []
     for line in result.stdout.splitlines():
@@ -78,6 +78,10 @@ def panes() -> list[Pane]:
     return found
 
 
+def panes() -> list[Pane]:
+    return pane_snapshot() or []
+
+
 def pane_paths() -> dict[str, list[Path]]:
     """Every live session's pane working directories, by session name."""
     by_session: dict[str, list[Path]] = {}
@@ -88,7 +92,7 @@ def pane_paths() -> dict[str, list[Path]]:
     return by_session
 
 
-def managed_places(config: Config) -> list[Place]:
+def managed_places_checked(config: Config) -> list[Place] | None:
     """Every place every configured root reports.
 
     Listed once per call rather than per directory: the `list` hook is a
@@ -97,7 +101,11 @@ def managed_places(config: Config) -> list[Place]:
     """
     places: list[Place] = []
     for root in config.places.roots:
-        for directory in hooks.list_directories(root):
+        directories = hooks.list_directories_checked(root)
+        if directories is None:
+            return None
+
+        for directory in directories:
             try:
                 key = str(directory.relative_to(root.path))
             except ValueError:
@@ -110,6 +118,10 @@ def managed_places(config: Config) -> list[Place]:
             places.append(Place(key, root, directory))
 
     return places
+
+
+def managed_places(config: Config) -> list[Place]:
+    return managed_places_checked(config) or []
 
 
 def place_at(path: Path, places: abc.Iterable[Place]) -> Place | None:

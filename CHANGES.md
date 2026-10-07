@@ -1,3 +1,9 @@
+# 0.78.0 (2026-10-07)
+
+#### Added
+
+- **`place toss <name>` can close a tmux session without a managed place.** It shows that no directory work was inspected before confirmation, and releases no directory.
+
 # 0.77.0 (2026-10-07)
 
 #### Changed
