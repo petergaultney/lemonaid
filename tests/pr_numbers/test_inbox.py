@@ -21,7 +21,7 @@ def test_hook_number_reaches_both_layouts_without_blocking(monkeypatch, tmp_path
         calls.append(threading.get_ident())
         entered.set()
         assert release.wait(5)
-        return {"topic": "123"}
+        return {"topic": pr_numbers.PR("123", "https://example.com/pr/123")}
 
     monkeypatch.setattr(pr_numbers, "refresh", lookup)
     with db.connect() as conn:
@@ -54,6 +54,13 @@ def test_hook_number_reaches_both_layouts_without_blocking(monkeypatch, tmp_path
             for i in range(2):
                 assert "#123" in " ".join(cell.plain for cell in table.get_row_at(i))
             assert len(calls) == 1
+            links = [
+                segment.style.link
+                for y in range(table.size.height)
+                for segment in table.render_line(y)
+                if segment.style and segment.style.link
+            ]
+            assert "https://example.com/pr/123" in links
 
     try:
         asyncio.run(check())
@@ -71,5 +78,27 @@ def test_number_precedes_long_name_and_keeps_emoji_prefix():
         status="read",
         created_at=0,
     )
-    text = app._name_cell(notification, {"codex:task": "X"}, "Name", False, "123")
+    text = app._name_cell(
+        notification,
+        {"codex:task": "X"},
+        "Name",
+        False,
+        pr_numbers.PR("123", "https://example.com/pr/123"),
+    )
     assert text.plain == "X #123 a long task name · Name"
+
+
+def test_pr_label_emits_a_terminal_hyperlink_without_linking_the_name():
+    from rich.console import Console
+
+    n = db.Notification(1, "codex:task", "", "task", {}, "read", 0)
+    url = "https://example.com/pr/123"
+    text = app._name_cell(n, {}, "", False, pr_numbers.PR("123", url))
+    console = Console(force_terminal=True, color_system="truecolor")
+    with console.capture() as capture:
+        console.print(text)
+    ansi = capture.get()
+    assert url in ansi
+    assert "\x1b]8;" in ansi
+    assert text.get_style_at_offset(console, 0).link == url
+    assert text.get_style_at_offset(console, len("#123 ")).link is None

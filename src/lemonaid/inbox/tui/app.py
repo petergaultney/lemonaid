@@ -217,14 +217,16 @@ def _name_cell(
     emojis: abc.Mapping[str, str],
     wordybin: str,
     is_unread: bool,
-    pr_number: str = "",
+    pr_number: pr_numbers.PR | None = None,
 ) -> Text:
     """The decorated name with its PR number and optional grey brief name."""
     name = styled_cell(_decorated_name(n, emojis), is_unread, "name")
     if pr_number:
         offset = len(emojis[n.channel]) + 1 if emojis.get(n.channel) else 0
-        number = styled_cell(f"#{pr_number} ", is_unread, "name")
+        number = styled_cell(f"#{pr_number.number} ", is_unread, "name")
         number.stylize("bold")
+        if pr_number.url:
+            number.stylize(Style(link=pr_number.url), 0, len(number) - 1)
         name = name[:offset] + number + name[offset:]
     if not wordybin:
         return name
@@ -1531,7 +1533,7 @@ class LemonaidApp(App):
         emojis: abc.Mapping[str, str],
         area: str = "",
         wordybin: str = "",
-        pr_number: str = "",
+        pr_number: pr_numbers.PR | None = None,
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
@@ -1566,7 +1568,7 @@ class LemonaidApp(App):
         emojis: abc.Mapping[str, str],
         area: str = "",
         wordybin: str = "",
-        pr_number: str = "",
+        pr_number: pr_numbers.PR | None = None,
     ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
@@ -1771,7 +1773,7 @@ class LemonaidApp(App):
                     emojis,
                     areas.get(n.channel, ""),
                     wordybins.get(n.channel, ""),
-                    numbers.get(n.channel, ""),
+                    numbers.get(n.channel),
                 )
                 for i, n in enumerate(current_notifications)
             ],
@@ -1816,7 +1818,7 @@ class LemonaidApp(App):
                         emojis,
                         areas.get(n.channel, ""),
                         wordybins.get(n.channel, ""),
-                        numbers.get(n.channel, ""),
+                        numbers.get(n.channel),
                     )
                     for n in other_notifications
                 ],

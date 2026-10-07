@@ -7,7 +7,7 @@ from lemonaid.inbox.tui import pr_numbers
 from .shared import table
 
 
-@pytest.mark.parametrize("branch_number", ["99", ""])
+@pytest.mark.parametrize("branch_number", [pr_numbers.PR("99"), None])
 def test_branch_precedence_and_single_table_fallback(tmp_path, branch_number):
     root = PlaceRoot(tmp_path, open_prs="lookup")
     places = PlacesConfig(roots=[root])
@@ -42,7 +42,7 @@ def test_branch_precedence_and_single_table_fallback(tmp_path, branch_number):
         numbers = pr_numbers.rows(conn, db.get_active(conn), places, cache)
     assert numbers == (
         {
-            f"codex:{name}": "99"
+            f"codex:{name}": pr_numbers.PR("99")
             for name in (
                 "parent",
                 "single",
@@ -55,7 +55,10 @@ def test_branch_precedence_and_single_table_fallback(tmp_path, branch_number):
             )
         }
         if branch_number
-        else {"codex:parent": "12", "codex:single": "12"}
+        else {
+            "codex:parent": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
+            "codex:single": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
+        }
     )
 
 
@@ -63,8 +66,8 @@ def test_nested_root_and_missing_metadata(tmp_path):
     outer = PlaceRoot(tmp_path, open_prs="outer")
     inner = PlaceRoot(tmp_path / "nested", open_prs="inner")
     cache = pr_numbers.Cache()
-    cache.store(outer, {"topic": "1"}, 0)
-    cache.store(inner, {"topic": "2"}, 0)
+    cache.store(outer, {"topic": pr_numbers.PR("1")}, 0)
+    cache.store(inner, {"topic": pr_numbers.PR("2")}, 0)
     with db.connect() as conn:
         for name, meta in (
             ("nested", {"cwd": str(inner.path), "git_branch": "topic"}),
@@ -75,7 +78,7 @@ def test_nested_root_and_missing_metadata(tmp_path):
             db.add(conn, f"codex:{name}", "message", name, meta, status="read")
         assert pr_numbers.rows(
             conn, db.get_active(conn), PlacesConfig(roots=[outer, inner]), cache
-        ) == {"codex:nested": "2"}
+        ) == {"codex:nested": pr_numbers.PR("2")}
 
 
 def test_fallback_updates_when_branch_map_changes(tmp_path):
@@ -95,9 +98,13 @@ def test_fallback_updates_when_branch_map_changes(tmp_path):
         )
         pr_numbers.attached.attach(conn, "codex:task", path)
         notifications = db.get_active(conn)
-        cache.store(root, {"topic": "99"}, 0)
-        assert pr_numbers.rows(conn, notifications, places, cache) == {"codex:task": "99"}
+        cache.store(root, {"topic": pr_numbers.PR("99")}, 0)
+        assert pr_numbers.rows(conn, notifications, places, cache) == {
+            "codex:task": pr_numbers.PR("99")
+        }
         cache.store(root, {}, 180)
-        assert pr_numbers.rows(conn, notifications, places, cache) == {"codex:task": "12"}
+        assert pr_numbers.rows(conn, notifications, places, cache) == {
+            "codex:task": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12")
+        }
         path.write_text(table(12, 13))
         assert pr_numbers.rows(conn, notifications, places, cache) == {}

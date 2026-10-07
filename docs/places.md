@@ -68,13 +68,15 @@ Inbox rows show `#number` before the session name in both layouts. The row's wor
 
 When branch lookup finds no number, an attached brief's `### PRs` table supplies the fallback if it has exactly one valid row. Empty, invalid, or multi-row tables supply no number. Children and their roles do not affect the result.
 
-Set `open_prs` to a shell command that prints one `<branch> <number>` line per open PR:
+Set `open_prs` to a shell command that prints one `<branch> <number> [url]` line per open PR:
 
 ```toml
 [[places.roots]]
 path = "~/play/myrepo"
-open_prs = '''gh pr list --state open --limit 1000 --json headRefName,number --jq '.[] | "\(.headRefName) \(.number)"''''
+open_prs = '''gh pr list --state open --limit 1000 --json headRefName,number,url --jq '.[] | "\(.headRefName) \(.number) \(.url)"''''
 ```
+
+The optional third field is an HTTP(S) PR URL. A number with a URL is a terminal hyperlink: use your terminal’s modifier-click gesture (Ctrl-click or Cmd-click). Brief-table fallbacks retain their link URL. Two-field hooks still show a number without a link; conflicting URLs for the same number leave it unlinked. See [tmux hyperlinks](tmux.md#pr-hyperlinks) for tmux setup.
 
 The command runs in the root directory, off the UI thread, at most once every three minutes per root. Failed commands clear the map, malformed lines are ignored, and a branch with several different PR numbers has no map entry and uses the same brief-table fallback. Reviewers sharing their author's branch show the same number. The hook is optional and can use any forge or tool that emits these lines.
 

@@ -427,7 +427,7 @@ name = "lemonaid"
 
 | Key | Default | Effect |
 |-----|---------|--------|
-| `open_prs` | unset | Shell command printing `<branch> <number>` lines for open PRs. Inbox lookups run off the UI thread and refresh every three minutes. |
+| `open_prs` | unset | Shell command printing `<branch> <number> [url]` lines for open PRs; an optional HTTP(S) URL makes the number a terminal hyperlink. Inbox lookups run off the UI thread and refresh every three minutes. |
 | `name` | the root's directory name | The project's name on the first line of a brief card, for every session under this root. |
 
 ## Environment variables

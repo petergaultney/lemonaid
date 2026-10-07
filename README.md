@@ -60,7 +60,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ## Features
 
-- **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook.
+- **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
 - **Quiet reviewer sessions**: Reviewer lemons stay out of the default inbox until you switch to them, select or pin them, or their brief enters a specially ranked status

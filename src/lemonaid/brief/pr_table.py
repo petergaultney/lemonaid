@@ -33,8 +33,14 @@ def _cells(line: str) -> list[str] | None:
 
 def target(cell: str) -> tuple[str, str] | None:
     """(`owner/repo`, number) of the pull request a PR cell links to."""
+    href = url(cell)
+    return pr.repo_and_number(href) if href else None
+
+
+def url(cell: str) -> str | None:
+    """The link target as written in a PR cell."""
     match = _LINK.search(cell)
-    return pr.repo_and_number(match["url"]) if match else None
+    return match["url"] if match else None
 
 
 def parse(body: abc.Sequence[str]) -> tuple[list[Row], list[str]]:
