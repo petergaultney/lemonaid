@@ -1,3 +1,13 @@
+# 0.81.0 (2026-10-07)
+
+#### Added
+
+- **`lemonaid go <Lemon-ID | channel>` jumps directly to a lemon's tmux pane.** `--link` prints a clickable `lemonaid://go/...` link, with macOS handler setup documented in `docs/go.md`.
+
+#### Fixed
+
+- **After a link jump, clicking the inbox's selected row returns to its lemon.** The green active marker belongs to the latest notification from each focused terminal, so older rows sharing its TTY do not also appear active.
+
 # 0.80.0 (2026-10-07)
 
 #### Added

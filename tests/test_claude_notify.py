@@ -77,7 +77,9 @@ def _submit_with(tmux_session, tmux_window, register):
     )
 
 
-def test_submit_records_where_the_session_is_running():
+def test_submit_records_where_the_session_is_running(monkeypatch):
+    monkeypatch.setenv("TMUX_PANE", "%8")
+    monkeypatch.setattr(notify, "get_tmux_session_order", lambda: (100, 50, 2))
     """Without this the inbox survives a tmux crash but can't rebuild the layout."""
     payload = '{"session_id":"abc123","cwd":"/tmp/project"}'
     register = MagicMock()
@@ -90,6 +92,7 @@ def test_submit_records_where_the_session_is_running():
     metadata = register.call_args.kwargs["metadata"]
     assert metadata["tmux_session"] == "relay"
     assert metadata["tmux_window"] == "4"
+    assert metadata["tmux_pane_identity"] == ["%8", 50]
 
 
 def test_submit_records_no_location_outside_tmux():

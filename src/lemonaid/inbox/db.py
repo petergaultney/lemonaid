@@ -408,6 +408,7 @@ _STICKY_METADATA = (
     "tmux_session",
     "tmux_window",
     "tmux_socket",
+    "tmux_pane_identity",
     "tmux_session_order",
     "cmux_surface",
     "transcript_path",

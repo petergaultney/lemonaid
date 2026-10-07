@@ -6,7 +6,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Open notification (switches to that session). A click does the same, except a click on the already-selected row while the scratch pane has focus, which keeps focus in the inbox |
+| `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox |
 | `1`-`9`, `0` | Switch to that row of the list, counting from the top |
 | `u` | Jump directly to earliest unread session |
 | `Ctrl`+`a` / `Home` | Move to the top row of the list, pins included |

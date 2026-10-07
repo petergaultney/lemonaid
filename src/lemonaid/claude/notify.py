@@ -283,6 +283,8 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
 
     if session_order := get_tmux_session_order():
         metadata["tmux_session_order"] = list(session_order)
+        if pane := os.environ.get("TMUX_PANE"):
+            metadata["tmux_pane_identity"] = [pane, session_order[1]]
 
     window = get_tmux_window_index()
     if window:

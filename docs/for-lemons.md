@@ -843,3 +843,7 @@ upgrading lemonaid; `lma` also re-renders installed skills from the new packaged
 it starts after an upgrade. Details, including the `~/.lemons/skills/<name>/overlay.md` a
 user adds their conventions in:
 [skills.md](skills.md).
+
+## Direct lemon links
+
+Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane. `lemonaid go <target> --link` prints an OSC 8 hyperlink to `lemonaid://go/<target>` without jumping. In Markdown, use `[go to the lemon](lemonaid://go/<Lemon-ID>)`. A registered URL handler is required for clicks; see [Jump to a lemon](go.md) for macOS setup and the client-selection rule. `--client NAME` chooses an exact attached tmux client when several are available.

@@ -60,6 +60,8 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ## Features
 
+- **[Jump from a link](docs/go.md)**: `lemonaid go <Lemon-ID | channel>` switches to a lemon's tmux pane, and `--link` prints a clickable link. macOS URL-handler setup is documented.
+
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it

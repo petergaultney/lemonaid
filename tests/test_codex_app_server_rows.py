@@ -84,6 +84,7 @@ def test_a_hosted_notification_records_no_tty(monkeypatch):
 
 
 def test_a_tmux_codex_hook_records_its_own_session_identity(monkeypatch):
+    monkeypatch.setenv("TMUX_PANE", "%7")
     monkeypatch.setattr(codex_notify.hosting, "under_app_server", lambda: False)
     monkeypatch.setattr(codex_notify, "get_tty", lambda: "/dev/ttys012")
     monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
@@ -99,6 +100,7 @@ def test_a_tmux_codex_hook_records_its_own_session_identity(monkeypatch):
     assert row.metadata["tmux_session"] == "review"
     assert row.metadata["tmux_socket"] == "/tmp/tmux-501/default"
     assert row.metadata["tmux_session_order"] == [100, 50, 2]
+    assert row.metadata["tmux_pane_identity"] == ["%7", 50]
 
 
 def _row(channel: str, cwd: str = _CWD, tty: str | None = None) -> untracked.Row:

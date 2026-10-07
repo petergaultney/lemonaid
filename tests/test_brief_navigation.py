@@ -280,6 +280,9 @@ def test_r_renames_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
 
 def test_clicking_the_selected_row_in_a_focused_scratch_pane_stays_put(monkeypatch, tmp_path):
     rows, _ = _lemons(monkeypatch, tmp_path, 2)
+    monkeypatch.setattr(
+        "lemonaid.inbox.tui.app.focus.behind_scratch", lambda *args: rows[0].metadata["tty"]
+    )
     switched: list[int] = []
     monkeypatch.setattr(
         LemonaidApp,

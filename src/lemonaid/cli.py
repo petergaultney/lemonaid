@@ -23,7 +23,7 @@ import lemonaid.tmux.cli
 import lemonaid.watch.cli
 import lemonaid.wezterm.cli
 
-from . import claude, for_lemons, inbox
+from . import claude, for_lemons, go, inbox
 from .config import ensure_config_exists, get_config_path
 
 
@@ -131,6 +131,7 @@ def main() -> None:
 
     lemonaid.inbox.cli.setup_parser(subparsers)
     lemonaid.messages.cli.add_tell_parser(subparsers)
+    go.setup_parser(subparsers)
     lemonaid.lineage.cli.setup_parser(subparsers)
     lemonaid.home.cli.setup_parser(subparsers)
     lemonaid.claude.cli.setup_parser(subparsers)

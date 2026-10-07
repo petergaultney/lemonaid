@@ -226,6 +226,8 @@ def handle_notification(
             metadata["tmux_socket"] = socket
         if session_order := get_tmux_session_order():
             metadata["tmux_session_order"] = list(session_order)
+            if pane := os.environ.get("TMUX_PANE"):
+                metadata["tmux_pane_identity"] = [pane, session_order[1]]
 
     try:
         channel = full_channel_id("codex", session_id)

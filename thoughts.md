@@ -1,5 +1,22 @@
 # Lemonaid Feature Ideas
 
+## Lemon Links Across Terminals
+
+`lemonaid go` currently supports tmux. Supporting cmux, WezTerm and other
+terminal integrations is a possible future extension. A `lemonaid://go/...`
+link identifies a lemon, so adding a terminal backend would not require users
+to replace their existing links or URL handlers.
+
+The command could choose a navigation adapter using the lemon's recorded
+`switch_source`. Each adapter would validate the destination and select the
+appropriate client, window or surface. Existing tmux behavior, including
+`--client`, would remain supported. Missing or ambiguous destinations should
+continue to fail without starting or resuming a session.
+
+Pluggable navigation adapters could extend this to other terminals. The adapter
+interface and configuration are still to be designed; these extensions are
+ideas for future work, not features available in the current release.
+
 ## Switch-Handler API Redesign
 
 ### The Problem with Current `[handlers]` Config

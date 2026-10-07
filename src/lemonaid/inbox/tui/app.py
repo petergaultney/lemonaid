@@ -64,6 +64,7 @@ from . import (
     brief_cards,
     brief_rows,
     card_context,
+    focus,
     pr_numbers,
     project_names,
     utils,
@@ -1552,7 +1553,7 @@ class LemonaidApp(App):
         self,
         n: db.Notification,
         row_index: int,
-        focused: frozenset[str],
+        focused_channels: frozenset[str],
         pinned: frozenset[str],
         emojis: abc.Mapping[str, str],
         area: str = "",
@@ -1564,12 +1565,12 @@ class LemonaidApp(App):
         `row_index` is the session's position in the list, which is what its jump
         digit names - so a row's number changes when the list reorders.
 
-        `focused` is the set of ttys a user is looking at, and `pinned` the set of
+        `focused_channels` names the lemons a user is looking at, and `pinned` the set of
         pinned channels. Both are passed in rather than looked up here, since
         every row in one refresh shares the answer.
         """
         is_unread = n.is_unread
-        is_here = n.metadata.get("tty", "") in focused
+        is_here = n.channel in focused_channels
         return str(n.id), [
             _time_cell(n.created_at, is_unread, neutral_timing=self.config.tui.project_name_colors),
             Text("●", style=utils.unread_marker_style()) if is_unread else Text(""),
@@ -1706,6 +1707,7 @@ class LemonaidApp(App):
             pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
             active = self._ordered_active(conn, env_filter)
+            focused_channels = focus.channels(active.rows, focused)
             matching_ids = (
                 {result.notification.id for result in search.find(conn, self._history_filter)}
                 if self._search_mode
@@ -1715,7 +1717,7 @@ class LemonaidApp(App):
             in_view = {
                 n.channel
                 for n in active.rows
-                if n.metadata.get("tty", "") in focused or str(n.id) == current_key
+                if n.channel in focused_channels or str(n.id) == current_key
             }
             shown, folded = order.fold(
                 view.inbox_rows(active, pinned, in_view),
@@ -1725,7 +1727,7 @@ class LemonaidApp(App):
                 {
                     n.channel
                     for n in active.rows
-                    if n.metadata.get("tty", "") in focused
+                    if n.channel in focused_channels
                     or (str(n.id) == current_key and current_key in self._unfolded_ids)
                 },
             )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
@@ -1792,7 +1794,7 @@ class LemonaidApp(App):
                 self._active_row(
                     n,
                     i,
-                    focused,
+                    focused_channels,
                     pinned,
                     emojis,
                     areas.get(n.channel, ""),
@@ -3662,10 +3664,14 @@ class LemonaidApp(App):
     def on_click_to_act_table_selected_row_clicked(
         self, event: ClickToActTable.SelectedRowClicked
     ) -> None:
-        # Clicking the row you are already on, in a scratch pane that already has
-        # the keys, is a click to stay here; Enter is the way to that lemon.
+        # Keep a click to stay in scratch only when this row still names the
+        # pane behind it. An external jump can leave the cursor on another lemon.
         if event.data_table.id == "main_table" and self.has_class("-input-active"):
-            return
+            with db.connect() as conn:
+                notification = db.get(conn, int(event.row_key.value))
+            behind = focus.behind_scratch(os.environ.get("TMUX_PANE", ""), get_tmux_socket())
+            if notification and behind and notification.metadata.get("tty") == behind:
+                return
 
         self._activate_row(event.data_table.id, event.row_key)
 
