@@ -660,7 +660,7 @@ rm ~/.local/state/lemonaid/tmux-back.json
 
 ### PR hyperlinks
 
-Inbox PR numbers with a URL support the terminal's modifier-click gesture (for example Ctrl-click or Cmd-click). Textual emits OSC 8 hyperlinks for the number in both inbox layouts. In tmux 3.3 or newer, enable hyperlinks for your outer terminal in your tmux config, using its `TERM` pattern:
+Inbox PR numbers with a URL support the terminal's modifier-click gesture (for example Ctrl-click or Cmd-click). Textual emits OSC 8 hyperlinks for the number in both inbox layouts. In tmux 3.4 or newer, enable hyperlinks for your outer terminal in your tmux config, using its `TERM` pattern:
 
 ```tmux
 set -as terminal-features ',xterm*:hyperlinks'
