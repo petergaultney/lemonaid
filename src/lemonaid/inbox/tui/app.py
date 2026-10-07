@@ -3610,6 +3610,9 @@ class LemonaidApp(App):
             db.archive_channel(conn, channel, "watcher-stale-session")
 
     def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
+        if not self.is_running:
+            return  # queued highlights can arrive after shutdown removes the tables
+
         self._refresh_resume_binding()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:

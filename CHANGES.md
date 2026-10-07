@@ -1,3 +1,9 @@
+# 0.79.1 (2026-10-07)
+
+#### Fixed
+
+- **The inbox no longer crashes on exit when a queued row highlight arrives after its tables have been removed.**
+
 # 0.79.0 (2026-10-07)
 
 #### Added

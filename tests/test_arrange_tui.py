@@ -54,17 +54,22 @@ def _configure(arrange: str) -> None:
     Path(os.environ["LEMONAID_CONFIG"]).write_text(f"[inbox]\narrange = {arrange!r}\n")
 
 
-def _drawn() -> tuple[list[int], str, str]:
+def _drawn(*, fold_name: str = "", error: str = "") -> tuple[list[int], str, str]:
     """The rows lma draws, its fold line, and its status line, once the arranger answers."""
 
     async def run():
         app = LemonaidApp()
         async with app.run_test(size=(120, 40)) as pilot:
-            for _ in range(100):
-                await pilot.pause(0.05)
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                await pilot.pause()
                 status = str(app.query_one("#status", Static).render())
-                if app._fold_name or "arrange:" in status:
+                if (fold_name and app._fold_name == fold_name) or (error and error in status):
                     break
+            else:
+                raise AssertionError(
+                    f"arranger did not reach fold={fold_name!r} or error={error!r}; {status=}"
+                )
             return (
                 [n.id for n in app._drawn],
                 str(app.query_one("#fold_label", Static).render()),
@@ -78,7 +83,7 @@ def test_the_arranger_orders_and_folds_the_list(tmp_path):
     _, b, c = _sessions("a", "b", "c")
     _configure(_serve(tmp_path, _REVERSE))
 
-    drawn, fold_line, _ = _drawn()
+    drawn, fold_line, _ = _drawn(fold_name="quiet")
 
     assert drawn == [b, c]  # the inbox's own order is c, b, a
     assert fold_line.startswith("▸ quiet (1)")
@@ -88,7 +93,7 @@ def test_a_failing_arranger_falls_back_and_says_why(tmp_path):
     a, b, c = _sessions("a", "b", "c")
     _configure(_serve(tmp_path, "def arrange(snapshot):\n    return snapshot['nope']\n"))
 
-    drawn, _, status = _drawn()
+    drawn, _, status = _drawn(error="arranger says: KeyError: 'nope'")
 
     assert drawn == [c, b, a]
     assert "arrange: arranger says: KeyError: 'nope'" in status
