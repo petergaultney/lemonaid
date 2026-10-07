@@ -304,6 +304,7 @@ When the session transcript names a recognized model family, its friendly name a
 ### `[tui.keybindings]`
 
 `answer_yes = "Y"` immediately sends `Yes, approved` for the selected brief question.
+`search = "/"` opens inbox search with archive matches below a divider, and filters history.
 See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 
 ## `[brief]`

@@ -53,6 +53,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Views and the pane",
         [
+            ("search", "Search inbox sessions"),
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),
             ("notes", "Show or hide your notes (tui.notes)"),
@@ -71,7 +72,7 @@ def _key_display(value: str, field: str) -> str:
     Most fields hold a set of single-character alternatives; the pin-move fields
     hold one key name, which may carry a modifier.
     """
-    if field in ("move_pin_up", "move_pin_down", "first", "last"):
+    if field in ("move_pin_up", "move_pin_down", "first", "last", "search"):
         return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+")
 
     return " / ".join(value)

@@ -27,6 +27,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
+| `/` | Search inbox and archived sessions as you type; in history, filter archived sessions |
 | `g` | Refresh |
 | `?` | Toggle the key hints (see below) |
 | `q` / `Escape` | Quit |
@@ -62,6 +63,10 @@ When a session has an attached brief, its status appears after its name.
 | `T` | Spawn a tmux session around the selected session |
 | `/` | Filter by name, cwd, branch |
 | `h` | Exit history |
+
+### Search mode
+
+Press `/` from the inbox to filter session and attached brief names, messages, channels, directories, and branches. Matching inbox rows keep their order and formatting; nonmatches disappear as you type. Inbox matches fill the list first. When space remains, archived matches appear below a divider; the bottom line counts both sections even when the archive is hidden. Enter or Down moves from the search box to the inbox matches, and Down from the last inbox match moves to the archive when shown. Enter switches an inbox session or resumes an archived one. Escape restores the full inbox.
 
 ### Snoozed mode
 
@@ -220,6 +225,7 @@ rename = "r"
 brief = "b"  # show the session's brief
 brief_key = "tab"  # a second key for brief, as a key name
 history = "h"  # toggle history view
+search = "/"  # search inbox and archive sessions; filter in history
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 resume_detached = "R"  # resume a detached inbox row

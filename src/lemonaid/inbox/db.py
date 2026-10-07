@@ -265,6 +265,12 @@ def get_snoozed(conn: sqlite3.Connection) -> list[Notification]:
     return [Notification.from_row(row) for row in rows]
 
 
+def substring_pattern(query: str) -> str:
+    """Escape LIKE operators so a query matches its literal characters."""
+    escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    return f"%{escaped}%"
+
+
 def get_history(
     conn: sqlite3.Connection,
     limit: int = 200,
@@ -285,7 +291,7 @@ def get_history(
         "status != 'snoozed' AND (status IN ('archived', 'read') OR switch_source IS NULL)"
     )
     if search:
-        pattern = f"%{search}%"
+        pattern = substring_pattern(search)
         rows = conn.execute(
             f"""
             SELECT n.* FROM notifications n
@@ -297,16 +303,21 @@ def get_history(
             ) latest ON n.id = latest.max_id
             WHERE {status_cond}
             AND (
-                n.name LIKE ?
-                OR n.message LIKE ?
-                OR n.channel LIKE ?
-                OR json_extract(n.metadata, '$.cwd') LIKE ?
-                OR json_extract(n.metadata, '$.git_branch') LIKE ?
+                n.name LIKE ? ESCAPE '!'
+                OR n.message LIKE ? ESCAPE '!'
+                OR n.channel LIKE ? ESCAPE '!'
+                OR json_extract(n.metadata, '$.cwd') LIKE ? ESCAPE '!'
+                OR json_extract(n.metadata, '$.git_branch') LIKE ? ESCAPE '!'
+                OR EXISTS (
+                    SELECT 1 FROM session_briefs b
+                    JOIN lemon_identities i ON i.path = b.path
+                    WHERE b.channel = n.channel AND i.lemon_id LIKE ? ESCAPE '!'
+                )
             )
             ORDER BY n.created_at DESC
             LIMIT ?
             """,
-            (pattern, pattern, pattern, pattern, pattern, limit),
+            (pattern, pattern, pattern, pattern, pattern, pattern, limit),
         ).fetchall()
     else:
         rows = conn.execute(

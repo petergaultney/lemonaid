@@ -1,3 +1,9 @@
+# 0.76.0 (2026-10-07)
+
+#### Added
+
+- **Search the inbox and archive as you type with `/`.** Inbox matches retain their row formatting and fill the list first; when room remains, archive matches appear below a clear divider. The footer gives separate counts. Results match session and attached brief names, message, channel, directory, and branch.
+
 # 0.75.0 (2026-10-07)
 
 #### Added

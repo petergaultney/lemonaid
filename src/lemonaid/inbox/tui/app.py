@@ -57,7 +57,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, unarchive, undo, view
+from .. import db, emoji, order, pins, search, unarchive, undo, view
 from ..arrange import answer, child
 from . import backend_indicators, brief_cards, brief_rows, card_context, utils
 from .brief_view import BriefView
@@ -803,6 +803,18 @@ class LemonaidApp(App):
         height: 1fr;
     }
 
+    #search_archive_label {
+        height: 1;
+        background: $accent;
+        color: $background;
+        padding: 0 1;
+        text-style: bold;
+    }
+
+    App.-search-archive #main_table {
+        height: auto;
+    }
+
     #snoozed_table {
         height: 1fr;
     }
@@ -818,6 +830,7 @@ class LemonaidApp(App):
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
         self._history_mode = False
+        self._search_mode = False
         self._snoozed_mode = False
         self._fold_open = False
         self._unfolded_ids: frozenset[str] = (
@@ -952,7 +965,13 @@ class LemonaidApp(App):
         for b in _build_bindings(kb.tmux_resume, "tmux_resume", "Tmux"):
             self.bind(b.key, b.action, description=b.description, show=False)
 
-        self.bind("slash", "filter_history", description="Filter", show=False)
+        if kb.search:
+            self.bind(
+                "slash" if kb.search == "/" else kb.search,
+                "filter_history",
+                description="Search",
+                show=False,
+            )
 
         # Patch Claude (always hidden, always 'P')
         self.bind("P", "patch_claude", description="Patch Claude", show=False)
@@ -972,8 +991,8 @@ class LemonaidApp(App):
                 self.bind(digit, f"jump_to_number('{digit}')", description="Jump", show=False)
 
         # Cross-table arrow navigation (always active)
-        self.bind("up", "cursor_up", description="Up", show=False)
-        self.bind("down", "cursor_down", description="Down", show=False)
+        self._bindings.bind("up", "cursor_up", "Up", show=False, priority=True)
+        self._bindings.bind("down", "cursor_down", "Down", show=False, priority=True)
 
         # Additional up/down keys (vim-style, if configured)
         if len(kb.up_down) == 2:
@@ -982,6 +1001,14 @@ class LemonaidApp(App):
             self.bind(down, "cursor_down", description="Down", show=False)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"cursor_up", "cursor_down"} and (
+            isinstance(self.focused, Input) or isinstance(self.screen, ModalScreen)
+        ):
+            return False
+
+        if action in {"copy_resume", "tmux_resume"} and self._search_mode:
+            return self.focused is self.query_one("#history_table", DataTable)
+
         if action == "resume_detached":
             return self._selected_channel() in self._detached_channels
 
@@ -1044,11 +1071,14 @@ class LemonaidApp(App):
         yield Header()
         with ContentSwitcher(initial="inbox_content", id="content_switcher"):
             with Container(id="inbox_content"):
+                yield Input(
+                    placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
+                )
                 yield ClickToActTable(id="main_table")
                 yield Static("", id="fold_label")
                 yield Static("", id="other_sources_label")
                 yield DataTable(id="other_sources_table", show_header=False)
-                yield Input(placeholder="Filter by name, cwd, branch...", id="history_filter")
+                yield Static("", id="search_archive_label")
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
                 yield DataTable(id="history_table")
@@ -1098,12 +1128,14 @@ class LemonaidApp(App):
         # Hide other sources section and the alternate views initially
         self.query_one("#fold_label", Static).display = False
         self.query_one("#other_sources_label", Static).display = False
+        self.query_one("#search_archive_label", Static).display = False
         other_table.display = False
         history_table.display = False
         snoozed_table.display = False
         self.query_one("#history_filter", Input).display = False
 
         self._refresh_notifications()
+        self.query_one("#main_table", DataTable).focus()
         self.set_interval(self.config.tui.refresh_interval, self._refresh_notifications)
         # Start transcript watchers for auto-dismiss, message updates, and exit detection
         start_unified_watcher(
@@ -1616,6 +1648,11 @@ class LemonaidApp(App):
             pinned = frozenset(pins.pinned_positions(conn))
             # Main table: only sessions switchable from the current environment
             active = self._ordered_active(conn, env_filter)
+            matching_ids = (
+                {result.notification.id for result in search.find(conn, self._history_filter)}
+                if self._search_mode
+                else None
+            )
             cards = active.cards
             shown, folded = order.fold(
                 active.rows,
@@ -1652,7 +1689,11 @@ class LemonaidApp(App):
 
         shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
-        current_notifications = [*shown, *folded] if self._fold_open else shown
+        if matching_ids is not None:
+            current_notifications = [n for n in [*shown, *folded] if n.id in matching_ids]
+            other_notifications = [n for n in other_notifications if n.id in matching_ids]
+        else:
+            current_notifications = [*shown, *folded] if self._fold_open else shown
         briefs = (
             {str(n.id): cards[n.channel] for n in current_notifications if n.channel in cards}
             if self.config.tui.brief_status
@@ -1705,7 +1746,7 @@ class LemonaidApp(App):
             self.config.tui.project_name_colors,
         )
 
-        fold_label.display = bool(folded)
+        fold_label.display = bool(folded) and not self._search_mode
         update_static(fold_label, self._fold_label(len(folded)))
 
         # Populate non-switchable table (always dim, not interactive).
@@ -1772,9 +1813,52 @@ class LemonaidApp(App):
 
         self._refresh_resume_binding()
 
+        archive_count = 0
+        archive_label = self.query_one("#search_archive_label", Static)
+        history_table = self.query_one("#history_table", DataTable)
+        if self._search_mode:
+            archive_count = self._refresh_history()
+            update_static(
+                archive_label,
+                f"━ ARCHIVE · {archive_count} MATCH{'ES' if archive_count != 1 else ''} ━",
+            )
+            inbox_height = int(main_table.show_header) + sum(
+                row.height for row in main_table.rows.values()
+            )
+            if show_other:
+                inbox_height += 1 + min(8, sum(row.height for row in other_table.rows.values()))
+            available_height = (
+                self.query_one("#inbox_content", Container).size.height
+                - self.query_one("#history_filter", Input).outer_size.height
+                - self.query_one("#status", Static).outer_size.height
+                - self._notes_height()
+            )
+            show_archive = bool(archive_count) and (not other_notifications or bool(show_other))
+            if show_archive:
+                first_archive_row = next(iter(history_table.rows.values())).height
+                show_archive = (
+                    available_height - inbox_height
+                    >= 1 + int(history_table.show_header) + first_archive_row
+                )
+            self.set_class(show_archive, "-search-archive")
+            history_table.display = show_archive
+            archive_label.display = show_archive
+            if not show_archive and self.focused is history_table:
+                main_table.focus()
+        else:
+            self.set_class(False, "-search-archive")
+            history_table.display = False
+            archive_label.display = False
+
         read_count = len(active.rows) - unread_count
         env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
         status_text = f"{unread_count} unread, {read_count} read{env_label}"
+        if self._search_mode:
+            inbox_count = len(current_notifications) + len(other_notifications)
+            status_text = (
+                f"{inbox_count} inbox match{'es' if inbox_count != 1 else ''} and "
+                f"{archive_count} archive match{'es' if archive_count != 1 else ''}"
+            )
 
         # Add patch warning if Claude is unpatched
         if self._claude_patch_status == "unpatched":
@@ -1830,6 +1914,10 @@ class LemonaidApp(App):
 
         if self._snoozed_mode:
             self._set_snoozed_mode(False)
+            return
+
+        if self._search_mode:
+            self._stop_search()
             return
 
         if self._scratch_mode:
@@ -2041,6 +2129,8 @@ class LemonaidApp(App):
                 found = True
 
     def _set_history_mode(self, enabled: bool) -> None:
+        if enabled and self._search_mode:
+            self._stop_search(refresh=False)
         self._history_mode = enabled
         self._history_filter = ""
 
@@ -2087,6 +2177,7 @@ class LemonaidApp(App):
             self.query_one("#fold_label", Static).display = False
             other_label.display = False
             other_table.display = False
+            self.query_one("#search_archive_label", Static).display = False
             history_table.display = True
             history_filter.display = False
             history_filter.value = ""
@@ -2100,14 +2191,26 @@ class LemonaidApp(App):
             self._refresh_notifications()
             main_table.focus()
 
-    def _refresh_history(self) -> None:
+    def _refresh_history(self) -> int:
         history_table = self.query_one("#history_table", DataTable)
         current_row = history_table.cursor_coordinate.row if history_table.row_count > 0 else 0
 
         history_table.clear()
 
         with db.connect() as conn:
-            notifications = db.get_history(conn, search=self._history_filter)
+            if self._search_mode:
+                source = self.current_env if self.current_env != "unknown" else None
+                results = search.find(
+                    conn,
+                    self._history_filter,
+                    include_history=True,
+                    switch_source=source,
+                )
+                notifications = [
+                    result.notification for result in results if result.source == "archive"
+                ]
+            else:
+                notifications = db.get_history(conn, search=self._history_filter)
             brief_paths = brief_attached.by_channel(conn, [n.channel for n in notifications])
 
         for n in notifications:
@@ -2154,9 +2257,13 @@ class LemonaidApp(App):
             history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
 
         count = history_table.row_count
-        self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
+        if not self._search_mode:
+            self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
+        return count
 
     def _set_snoozed_mode(self, enabled: bool) -> None:
+        if enabled and self._search_mode:
+            self._stop_search(refresh=False)
         self._snoozed_mode = enabled
 
         main_table = self.query_one("#main_table", DataTable)
@@ -2386,7 +2493,10 @@ class LemonaidApp(App):
             with db.connect() as conn:
                 unarchive.restore(conn, notification.channel)
 
-            self._set_history_mode(False)
+            if self._search_mode:
+                self._stop_search()
+            else:
+                self._set_history_mode(False)
             self._refresh_notifications()
             self.notify(
                 f"{notification.name or notification.channel} is running - back in the inbox"
@@ -2440,13 +2550,13 @@ class LemonaidApp(App):
 
     def action_copy_resume(self) -> None:
         """Copy the resume command for the selected history session."""
-        if not self._history_mode:
+        if not (self._history_mode or self._search_mode):
             return
         self._resume_session(copy_only=True)
 
     def action_tmux_resume(self) -> None:
         """Spawn a new tmux session around the selected history entry."""
-        if not self._history_mode:
+        if not (self._history_mode or self._search_mode):
             return
 
         history_table = self.query_one("#history_table", DataTable)
@@ -2501,17 +2611,38 @@ class LemonaidApp(App):
             self._show_error("Could not start a tmux session", error)
 
     def action_filter_history(self) -> None:
-        """Show the filter input in history mode."""
-        if not self._history_mode:
-            return
+        """Search inbox rows, or focus the existing history filter."""
+        if not self._history_mode and not self._search_mode:
+            self._search_mode = True
+            self._history_filter = ""
+            self.sub_title = "search"
+            self.set_class(True, "-search")
+            self._refresh_notifications()
         history_filter = self.query_one("#history_filter", Input)
         history_filter.display = True
         history_filter.focus()
 
+    def _stop_search(self, *, refresh: bool = True) -> None:
+        self._search_mode = False
+        self._history_filter = ""
+        self.sub_title = "attention inbox"
+        self.set_class(False, "-search")
+        history_filter = self.query_one("#history_filter", Input)
+        history_filter.value = ""
+        history_filter.display = False
+        self.query_one("#search_archive_label", Static).display = False
+        self.query_one("#history_table", DataTable).display = False
+        if refresh:
+            self._refresh_notifications()
+            self.query_one("#main_table", DataTable).focus()
+
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "history_filter":
             self._history_filter = event.value
-            self._refresh_history()
+            if self._search_mode:
+                self._refresh_notifications()
+            elif self._history_mode:
+                self._refresh_history()
 
     def on_key(self, event: events.Key) -> None:
         """Handle special keys in the filter input."""
@@ -2528,17 +2659,31 @@ class LemonaidApp(App):
         if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
             return
 
-        # Down/Enter: keep filter active, move focus to table for navigation
+        # Down/Enter: keep filter active, move focus to matching rows.
         if event.key in ("down", "enter"):
             event.prevent_default()
             event.stop()
-            self.query_one("#history_table", DataTable).focus()
+            main = self.query_one("#main_table", DataTable)
+            other = self.query_one("#other_sources_table", DataTable)
+            archive = self.query_one("#history_table", DataTable)
+            if self._search_mode and main.row_count:
+                main.focus()
+            elif self._search_mode and other.display and other.row_count:
+                other.focus()
+            elif self._search_mode and archive.display and archive.row_count:
+                archive.focus()
+            else:
+                (main if self._search_mode else archive).focus()
             return
 
         # Escape: clear filter, hide it, focus table
         if event.key == "escape":
             event.prevent_default()
             event.stop()
+            if self._search_mode:
+                self._stop_search()
+                return
+
             self._history_filter = ""
             history_filter = self.query_one("#history_filter", Input)
             history_filter.value = ""
@@ -2558,7 +2703,14 @@ class LemonaidApp(App):
             self._navigate_brief(-1)
             return
         table = self._focused_table()
-        if table.id == "other_sources_table" and table.cursor_coordinate.row == 0:
+        if table.id == "history_table" and self._search_mode and table.cursor_coordinate.row == 0:
+            other = self.query_one("#other_sources_table", DataTable)
+            main = self.query_one("#main_table", DataTable)
+            previous = other if other.display and other.row_count else main
+            previous.focus()
+            if previous.row_count:
+                previous.move_cursor(row=previous.row_count - 1)
+        elif table.id == "other_sources_table" and table.cursor_coordinate.row == 0:
             main = self.query_one("#main_table", DataTable)
             main.focus()
             if main.row_count > 0:
@@ -2577,6 +2729,17 @@ class LemonaidApp(App):
             if other.display and other.row_count > 0:
                 other.focus()
                 other.move_cursor(row=0)
+                return
+
+        if (
+            self._search_mode
+            and table.id in {"main_table", "other_sources_table"}
+            and table.cursor_coordinate.row >= table.row_count - 1
+        ):
+            archive = self.query_one("#history_table", DataTable)
+            if archive.display and archive.row_count:
+                archive.focus()
+                archive.move_cursor(row=0)
                 return
 
         table.action_cursor_down()
@@ -2729,7 +2892,7 @@ class LemonaidApp(App):
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
         table = self._focused_table()
-        if self._history_mode and table.id == "history_table":
+        if (self._history_mode or self._search_mode) and table.id == "history_table":
             self._resume_session()
         elif self._snoozed_mode and table.id == "snoozed_table":
             self._wake_selected()
