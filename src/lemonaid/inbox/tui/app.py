@@ -33,7 +33,7 @@ from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
-from ...config import KeybindingsConfig, TuiConfig, load_config
+from ...config import KeybindingsConfig, PlaceRoot, TuiConfig, load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
     ModelInfo,
@@ -59,7 +59,7 @@ from ...tmux.scratch import (
 from ...tmux.session import spawn_session
 from .. import db, emoji, order, pins, search, unarchive, undo, view
 from ..arrange import answer, child
-from . import backend_indicators, brief_cards, brief_rows, card_context, utils
+from . import backend_indicators, brief_cards, brief_rows, card_context, pr_numbers, utils
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
@@ -213,10 +213,19 @@ def _decorated_name(n: db.Notification, emojis: abc.Mapping[str, str]) -> str:
 
 
 def _name_cell(
-    n: db.Notification, emojis: abc.Mapping[str, str], wordybin: str, is_unread: bool
+    n: db.Notification,
+    emojis: abc.Mapping[str, str],
+    wordybin: str,
+    is_unread: bool,
+    pr_number: str = "",
 ) -> Text:
-    """The decorated name, then the WordyBin, when shown, in the backend's grey."""
+    """The decorated name with its PR number and optional grey brief name."""
     name = styled_cell(_decorated_name(n, emojis), is_unread, "name")
+    if pr_number:
+        offset = len(emojis[n.channel]) + 1 if emojis.get(n.channel) else 0
+        number = styled_cell(f"#{pr_number} ", is_unread, "name")
+        number.stylize("bold")
+        name = name[:offset] + number + name[offset:]
     if not wordybin:
         return name
 
@@ -851,6 +860,7 @@ class LemonaidApp(App):
         self._notes_open = True  # the notes key's choice; shown only in card layout too
         self._models_by_channel: dict[str, ModelInfo] = {}
         self._brief_cache = brief_cards.BriefCache()
+        self._pr_numbers = pr_numbers.Cache()
         self._arranger = (
             child.Arranger(child.parse_command(self.config.inbox.arrange))
             if self.config.inbox.arrange
@@ -1521,6 +1531,7 @@ class LemonaidApp(App):
         emojis: abc.Mapping[str, str],
         area: str = "",
         wordybin: str = "",
+        pr_number: str = "",
     ) -> tuple[str, list[Text]]:
         """Build the main-table row for a session, keyed by notification id.
 
@@ -1541,7 +1552,7 @@ class LemonaidApp(App):
                 n.channel in pinned,
             ),
             jump_gutter(row_index, is_here)
-            + _name_cell(n, emojis, wordybin, is_unread)
+            + _name_cell(n, emojis, wordybin, is_unread, pr_number)
             + self._detached_marker(n),
             styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
             self._where_cell(n, is_unread, area),
@@ -1550,14 +1561,19 @@ class LemonaidApp(App):
         ]
 
     def _other_row(
-        self, n: db.Notification, emojis: abc.Mapping[str, str], area: str = "", wordybin: str = ""
+        self,
+        n: db.Notification,
+        emojis: abc.Mapping[str, str],
+        area: str = "",
+        wordybin: str = "",
+        pr_number: str = "",
     ) -> tuple[str, list[Text]]:
         """Build the non-switchable-table row for a session. Always dimmed."""
         return str(n.id), [
             _time_cell(n.created_at, False, neutral_timing=self.config.tui.project_name_colors),
             Text("○", style="dim") if n.is_unread else Text(""),
             self._backend_value(n, False),
-            _name_cell(n, emojis, wordybin, False),
+            _name_cell(n, emojis, wordybin, False, pr_number),
             styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
             self._where_cell(n, False, area),
             styled_cell(n.message, False, "message"),
@@ -1610,6 +1626,16 @@ class LemonaidApp(App):
         self._arrange_logged.update(arranged.problems)
         return arranged.shown, arranged.folded, arranged.fold_label
 
+    def _refresh_pr_numbers(self) -> None:
+        for root in self._pr_numbers.due(self.config.places.roots, time.monotonic()):
+
+            def load(root: PlaceRoot = root) -> None:
+                numbers = pr_numbers.refresh(root)
+                self.call_from_thread(self._pr_numbers.store, root, numbers, time.monotonic())
+                self.call_from_thread(self._refresh_notifications)
+
+            self.run_worker(load, thread=True, group="pr-numbers")
+
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
         if not self.is_running:
             return  # a timer tick during shutdown, while the screen's widgets are being removed
@@ -1631,6 +1657,7 @@ class LemonaidApp(App):
 
         self._wake_expired_snoozes()
         self._refresh_session_names()
+        self._refresh_pr_numbers()
 
         main_table = self.query_one("#main_table", DataTable)
         fold_label = self.query_one("#fold_label", Static)
@@ -1702,6 +1729,9 @@ class LemonaidApp(App):
                 ]
             else:
                 other_notifications = []
+            numbers = pr_numbers.rows(
+                conn, [*active.rows, *other_notifications], self.config.places, self._pr_numbers
+            )
 
         shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
@@ -1741,6 +1771,7 @@ class LemonaidApp(App):
                     emojis,
                     areas.get(n.channel, ""),
                     wordybins.get(n.channel, ""),
+                    numbers.get(n.channel, ""),
                 )
                 for i, n in enumerate(current_notifications)
             ],
@@ -1781,7 +1812,11 @@ class LemonaidApp(App):
                 other_table,
                 [
                     self._other_row(
-                        n, emojis, areas.get(n.channel, ""), wordybins.get(n.channel, "")
+                        n,
+                        emojis,
+                        areas.get(n.channel, ""),
+                        wordybins.get(n.channel, ""),
+                        numbers.get(n.channel, ""),
                     )
                     for n in other_notifications
                 ],

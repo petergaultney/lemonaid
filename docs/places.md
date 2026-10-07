@@ -62,6 +62,22 @@ is plain `git` rather than anything worktree-tool-specific.
 `inspect` decides for itself what's worth saying. It should stay quiet when there's nothing
 to report, so that `place list` over a large repo highlights only what needs attention.
 
+### PR numbers in the inbox
+
+Inbox rows show `#number` before the session name in both layouts. The row's working directory selects its innermost configured root, and its `git_branch` is looked up in that root's open-PR map first.
+
+When branch lookup finds no number, an attached brief's `### PRs` table supplies the fallback if it has exactly one valid row. Empty, invalid, or multi-row tables supply no number. Children and their roles do not affect the result.
+
+Set `open_prs` to a shell command that prints one `<branch> <number>` line per open PR:
+
+```toml
+[[places.roots]]
+path = "~/play/myrepo"
+open_prs = '''gh pr list --state open --limit 1000 --json headRefName,number --jq '.[] | "\(.headRefName) \(.number)"''''
+```
+
+The command runs in the root directory, off the UI thread, at most once every three minutes per root. Failed commands clear the map, malformed lines are ignored, and a branch with several different PR numbers has no map entry and uses the same brief-table fallback. Reviewers sharing their author's branch show the same number. The hook is optional and can use any forge or tool that emits these lines.
+
 ### Why `create` and `path_of` are separate
 
 A tool that creates a directory usually reports it by changing *its caller's* working

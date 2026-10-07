@@ -1,3 +1,9 @@
+# 0.79.0 (2026-10-07)
+
+#### Added
+
+- **Inbox rows show a single PR number beside the session name.** An optional per-root `open_prs` hook supplies branch-to-number pairs, with an exactly-one-row brief table as fallback.
+
 # 0.78.0 (2026-10-07)
 
 #### Added

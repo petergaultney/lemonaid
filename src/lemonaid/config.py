@@ -256,6 +256,7 @@ class PlaceRoot:
     # worktree repo usually has one directory the others are branched from, and
     # losing it is not the sort of mistake a --force flag should be able to make.
     protected: tuple[str, ...] = ("main", "master")
+    open_prs: str = ""  # open PRs, one '<branch> <number>' line each
 
     def is_protected(self, key: str) -> bool:
         return key in self.protected
@@ -571,6 +572,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
                 create=rd.get("create", ""),
                 destroy=rd.get("destroy", ""),
                 inspect=rd.get("inspect", ""),
+                open_prs=rd.get("open_prs", ""),
                 protected=tuple(rd["protected"]) if "protected" in rd else PlaceRoot.protected,
             )
             for rd in places_data.get("roots", [])

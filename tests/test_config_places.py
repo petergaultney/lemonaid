@@ -21,6 +21,7 @@ def test_a_root_parses_its_hooks():
                         "create": "wt co {key}",
                         "destroy": "wt rm -f {key}",
                         "inspect": "wt status {dir}",
+                        "open_prs": "my-forge list",
                     }
                 ]
             }
@@ -31,6 +32,7 @@ def test_a_root_parses_its_hooks():
     assert root.path == Path("~/work/somerepo").expanduser()
     assert root.create == "wt co {key}"
     assert root.inspect == "wt status {dir}"
+    assert root.open_prs == "my-forge list"
 
 
 def test_a_root_with_no_hooks_is_a_plain_clone():
