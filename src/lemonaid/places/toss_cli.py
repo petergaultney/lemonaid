@@ -10,7 +10,7 @@ import json
 import sys
 
 from ..config import load_config
-from . import ownership, target, teardown
+from . import ownership, self_install, target, teardown
 
 
 def _fate(place: ownership.Place, reasons: list[str]) -> str:
@@ -93,6 +93,10 @@ def cmd_toss(args: argparse.Namespace) -> None:
         print(why_not, file=sys.stderr)
         sys.exit(1)
 
+    if refusal := self_install.editable_install_refusal(doomed):
+        print(refusal, file=sys.stderr)
+        sys.exit(1)
+
     concerns = {place.key: teardown.concerns(place) for place in doomed.places}
 
     if any(concerns.values()) and not args.force:
@@ -111,6 +115,10 @@ def cmd_toss(args: argparse.Namespace) -> None:
     # The prompt may have sat for a while; what was confirmed has to still be true.
     if changed := target.changed_since(config, args.key, doomed, unattended=unattended):
         print(changed, file=sys.stderr)
+        sys.exit(1)
+
+    if refusal := self_install.editable_install_refusal(doomed):
+        print(refusal, file=sys.stderr)
         sys.exit(1)
 
     error = teardown.toss(doomed.session, doomed.places, doomed.partial)
@@ -150,7 +158,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "one close, and the session stays. A window with a pane in the place and a "
         "pane elsewhere refuses, naming both.\n\n"
         "Protected places (main, master by default) are never released and never "
-        "count as held. Protected sessions are refused outright. Teardown switches "
+        "count as held. Protected sessions are refused outright. A place containing "
+        "the source of an editable lemonaid install is also refused. Teardown switches "
         "every client attached to the session elsewhere first (or refuses if one has "
         "nowhere to go), then runs detached, logging to "
         "~/.local/state/lemonaid/reap.log.",

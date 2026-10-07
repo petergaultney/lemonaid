@@ -1,3 +1,9 @@
+### 0.74.20261006
+
+#### Fixed
+
+- **`place toss` refuses to release a checkout that supplies the active editable lemonaid install.** Reinstall lemonaid non-editably before releasing that place.
+
 # 0.74.0 (2026-10-06)
 
 #### Added

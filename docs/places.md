@@ -165,6 +165,9 @@ place 'feat/merged'
 close 2 windows and release the place? [y/N]
 ```
 
+If the installed `lemonaid` command is editable-installed from a checkout inside the place,
+`toss` refuses to release it. Reinstall lemonaid non-editably before releasing that place.
+
 The set is shown before anything happens:
 
 ```

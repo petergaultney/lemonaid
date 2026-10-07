@@ -373,6 +373,9 @@ session names it, `place toss <key> --json`.
 pass `--force` on a user's behalf without being asked to** — it is the difference between
 tearing down unattended and discarding work.
 
+`--force` does not override the refusal to release a place containing the source checkout
+of the active editable lemonaid install. With `--json`, that refusal is written to stderr.
+
 Two kinds of protection, and `--force` overrides neither:
 
 - A root's `protected` keys (`main` and `master` by default) are never released and never
