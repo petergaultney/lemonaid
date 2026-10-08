@@ -1,3 +1,9 @@
+# 0.83.0 (2026-10-07)
+
+#### Added
+
+- **`lemonaid watch briefs --children --self` wakes a parent when a child's Status or Needs ask changes.** Rearms catch changes between waiters without repeating delivered events; Claude and Codex delivery and a `watch-briefs` skill are included.
+
 # 0.82.0 (2026-10-07)
 
 #### Changed

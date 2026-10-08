@@ -834,9 +834,19 @@ signature as `--me` (`--legacy` for older ones): only comments signed that way a
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.
 
+## Watching children
+
+`lemonaid watch briefs --children --self --once` waits for a direct child's Status or
+Needs ask to change. Use `--codex-thread` for Codex delivery and `--status` to check for a
+running waiter. An explicit parent Lemon-ID, channel, or brief name can replace `--self`.
+The first run takes existing children as its baseline; rearms report changes between
+waiters and newly linked children without duplicates. Other brief edits stay quiet.
+Read the changed briefs, act, then rearm. State is independent per database, parent, and
+optional `--me` name. Details: [watch.md](watch.md#watching-childrens-briefs).
+
 ## Installing the watch skills
 
-`lemonaid skills install` installs the `watch-doc` and `watch-pr` skills for Claude Code
+`lemonaid skills install` installs the `watch-doc`, `watch-pr`, and `watch-briefs` skills for Claude Code
 and Codex, which describe these waiters step by step. It never replaces a skill entry it
 didn't create; `--print <name>` gives the text instead. Run it after installing or
 upgrading lemonaid; `lma` also re-renders installed skills from the new packaged text when

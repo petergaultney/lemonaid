@@ -163,3 +163,39 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 - What was last reported is kept per set of paths and `--me` in
   `$TMPDIR/lemonaid-watch-file/`, so a rearmed waiter reports anything that changed in
   between. The first waiter for a set of paths takes their current state as its baseline.
+
+## Watching children's briefs
+
+`lemonaid watch briefs --children --self` waits for a direct child's `Status:` or Needs
+ask to change. It follows Lemonaid's Lemon-ID parent links, including child briefs not
+attached to a harness yet. Grandchildren belong to their own parent and are not watched.
+
+```bash
+lemonaid watch briefs --children --self --once
+lemonaid watch briefs --children --self --codex-thread
+lemonaid watch briefs --children --self --status
+lemonaid watch briefs --children parent.SomeName --once
+```
+
+The first run takes existing children as its baseline. Later runs report changes since
+that baseline or the last successful delivery, including children linked in the meantime.
+Every Status transition counts, including a return to `working`. Adding, changing, or
+clearing an ask also counts while the status stays the same. The ask is the first
+`### Needs Peter` section (also `Needs` or `Needs you`), or an older `- Needs Peter:`
+bullet and its continuation lines. Whitespace and bullet marks are normalized.
+
+Other edits, including progress under `Next` or `Done`, do not wake the parent. Missing
+or unlinked briefs are ignored; returning with the same Status and ask does not repeat
+an event. A batch gives each changed child's Lemon-ID, Status, current ask, and brief path.
+The parent reads those briefs, acts on them, and rearms the same command.
+
+Reads happen every `--interval` seconds (5 by default), and a batch waits for `--quiet`
+seconds without further Status or ask changes (2 by default). This reports the latest
+observed state, rather than a history of transitions between reads. Without `--once` or
+`--codex-thread`, the command keeps printing batches.
+
+State and locks live in `$TMPDIR/lemonaid-watch-briefs/` (`--state-dir` moves them), keyed
+by inbox database, parent Lemon-ID, and optional `--me` watcher name. Different parents
+and named watchers keep independent state. A second waiter for the same key exits 3;
+`--status` exits 0 when one is running and 1 when none is. Delivery failure leaves changes
+for the next waiter. This state is separate from document, PR, and external brief watches.

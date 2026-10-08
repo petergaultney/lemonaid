@@ -2,7 +2,8 @@
 
 Lemonaid ships skills that teach a lemon to use its commands: `watch-doc` (wait for Relay
 Comments on a document, then reply in the thread) and `watch-pr` (wait for pushes, review
-activity, conflicts and failed CI on a GitHub PR). `lemonaid skills install` puts them
+activity, conflicts and failed CI on a GitHub PR), and `watch-briefs` (wait for direct
+children's Status or Needs asks to change). `lemonaid skills install` puts them
 where Claude Code and Codex look for skills.
 
 ```bash

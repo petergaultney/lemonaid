@@ -41,7 +41,7 @@ def _packaged(name):
 def test_packaged_skills_name_no_user_and_call_only_lemonaid():
     names = compose.packaged_names(compose.PACKAGED_DIR)
 
-    assert names == ["watch-doc", "watch-pr"]
+    assert names == ["watch-briefs", "watch-doc", "watch-pr"]
     for name in names:
         text = _packaged(name)
         assert text.startswith(f"---\nname: {name}\n")
@@ -56,7 +56,7 @@ def test_install_links_every_harness_to_one_rendered_copy(homes):
 
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
-    assert [r["skill"] for r in report] == ["watch-doc", "watch-pr"]
+    assert [r["skill"] for r in report] == ["watch-briefs", "watch-doc", "watch-pr"]
     for r in report:
         assert r["source"] == "packaged"
         assert [h["outcome"] for h in r["harnesses"]] == ["linked", "linked"]
@@ -153,7 +153,7 @@ def test_a_rendered_directory_lemonaid_did_not_create_is_left_alone(homes):
     target.mkdir()
     (homes / "state" / "skills" / "watch-doc").symlink_to(target)
 
-    result = _install()
+    result = _install("watch-doc", "watch-pr")
 
     assert result.returncode == 1
     assert f"watch-pr: refused: {theirs} exists and lemonaid didn't create it" in result.stderr
