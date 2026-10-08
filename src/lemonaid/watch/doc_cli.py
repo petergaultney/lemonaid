@@ -42,7 +42,7 @@ import os
 import pathlib
 import sys
 
-from . import delivery, doc_events, doc_wait, own_edits, waiter_lock, watch_list
+from . import brief_record, delivery, doc_events, doc_wait, own_edits, waiter_lock, watch_list
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
 
@@ -130,6 +130,11 @@ def run(a: argparse.Namespace) -> int:
         problem, deliver, once = "", delivery.to_stdout, a.once
     if problem:
         print(f"not started: {problem}")
+        return 2
+
+    if error := brief_record.record(a, "doc", a.codex_thread):
+        print(f"not started: could not record waiter: {error}")
+        lock.close()
         return 2
 
     try:

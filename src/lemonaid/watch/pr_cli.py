@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 from .. import config
-from . import delivery, pr_activity, pr_wait, waiter_lock
+from . import brief_record, delivery, pr_activity, pr_wait, waiter_lock
 
 
 def _repo_name(repo: str) -> str:
@@ -99,6 +99,11 @@ def run(a: argparse.Namespace, repo: str) -> int:
         problem, deliver = "", delivery.to_stdout
     if problem:
         print(f"not started: {problem}")
+        return 2
+
+    if error := brief_record.record(a, "pr", a.codex_thread, repo=repo):
+        print(f"not started: could not record waiter: {error}")
+        lock.close()
         return 2
 
     try:

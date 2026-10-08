@@ -661,13 +661,17 @@ bullet become short links, as in the brief view. `pr add` takes the PR's URL, or
 link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
 `[brief] vaults` root, which becomes an `obsidian://` link.
 
-Keep `## Waiters` current with `brief waiter`: add a waiter's command when you start it, `set`
-it when you rearm it differently, and `rm` it when you stop it. Each waiter is a bullet holding
+With an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically
+record their commands as invoked under `## Waiters` after startup checks pass, without
+inserting omitted defaults or temporary state paths. Rearms update
+the same entry; it stays across one-shot events. With `--codex-thread`, recording uses the
+recipient thread’s attached brief; otherwise it uses the caller’s brief. Use `brief waiter add` and `set` for custom
+commands, and `rm` when any watch ends permanently. Each waiter is a bullet holding
 its command in backticks. A missing `## Waiters` is added as the last section, and notes in it
 that aren't bullets stay as written. `set` and `rm` name a waiter by any part of its command,
 case ignored, and fail unless exactly one matches, listing the ones that do. `set --head <sha>`
 keeps the command and changes its `--head` (filling a `<head SHA>` placeholder, or adding the
-flag), so rearming `watch pr` on a new push is one short command. Adding a command already
+flag) for custom recorded commands. Adding a command already
 listed changes nothing.
 
 `brief check` (`--self`, another target, a file, or `--all` for every brief attached to a session

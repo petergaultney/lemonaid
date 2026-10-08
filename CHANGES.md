@@ -2,7 +2,8 @@
 
 #### Added
 
-- **A packaged `brief` skill explains brief upkeep, statuses, waiters, child cleanup checks, and reviewer startup.** Install it with `lemonaid skills install`, or preview it with `lemonaid skills install --print brief`. The watch skills now explain how to record and update waiters in a brief.
+- **A packaged `brief` skill explains brief upkeep, statuses, waiters, child cleanup checks, and reviewer startup.** Install it with `lemonaid skills install`, or preview it with `lemonaid skills install --print brief`. The watch skills explain automatic recording and permanent removal.
+- **Doc, PR, file, and child-brief watches record their restartable commands in the attached brief (the explicit Codex recipient’s, or otherwise the caller’s).** Recorded commands keep their supplied arguments without injected defaults or temporary state paths. Rearms update the same entry using its original directory and repository context, preserving it between one-shot events. Custom waiters can still use the manual brief verbs.
 
 # 0.85.1 (2026-10-08)
 

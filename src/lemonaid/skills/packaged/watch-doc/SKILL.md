@@ -19,13 +19,14 @@ Reply blocks look like `{{authorId="<id>" author="<name>">>...<<}}`. Relay shows
 
 If `--me` and the `author` of your reply blocks differ, the waiter sees your own replies as unanswered and wakes you on them.
 
-## Record the waiter in your brief
+## Waiters in your brief
 
-When you have an attached brief, record the exact command you started in its final `## Waiters` section with `lemonaid brief waiter add --self "<command>"`. Include the actual target, identity, and harness flags so it can be restarted. Recording a command does not start a waiter; confirm the waiter is running first, including one you found already active.
+With an attached brief, the watch command automatically records its restartable command under the final `## Waiters` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
 
-On rearm, keep the entry current with `lemonaid brief waiter set --self "<unique command substring>" "<command>"`. Remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch stops for good. Keep it listed across a one-shot exit while you handle the event and rearm.
+Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
 
-In OpenClaw, record the exact `lemonaid watch openclaw start` command for each doc, and remove its entry when you remove the doc from the watch list.
+
+In OpenClaw, record the exact `lemonaid watch openclaw start` command for each doc manually; remove its entry when you remove the doc from the watch list.
 
 ## Waiting
 

@@ -18,12 +18,14 @@ from ..inbox import db
 from . import check, command, layout, links, now_edit, pr, pr_table, store, waiters
 
 
-def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
+def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: bool = False) -> str:
     """An error, or "" once *change* is written."""
 
     def checked(before: str) -> str:
         after = change(before)
-        existing_questions = set(check.question_problems(before))
+        existing_questions = set(
+            check.structure(before) if preserve_existing else check.question_problems(before)
+        )
         with db.connect() as conn:
             problems = [
                 *(p for p in check.structure(after) if p not in existing_questions),
@@ -49,7 +51,7 @@ def _edit(path: Path, change: abc.Callable[[str], str]) -> str:
 def _edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
     path, error = command.own_brief(args)
     if path:
-        error = _edit(path, change)
+        error = edit(path, change)
     command.finish(args, {"path": str(path) if path else None}, error, str(path))
 
 

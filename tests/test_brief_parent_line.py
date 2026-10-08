@@ -176,7 +176,7 @@ def test_a_brief_that_lost_its_parent_line_still_takes_edits(capsys):
 def test_an_edit_that_drops_the_parent_line_is_refused():
     path = _registered(_BRIEFS["rules template, no Questions"])
 
-    error = verbs_cli._edit(path, lambda text: text.replace(f"{_PARENT}\n\n", ""))
+    error = verbs_cli.edit(path, lambda text: text.replace(f"{_PARENT}\n\n", ""))
 
     assert "drops the `Parent:` line" in error
     assert path.read_text() == _BRIEFS["rules template, no Questions"]

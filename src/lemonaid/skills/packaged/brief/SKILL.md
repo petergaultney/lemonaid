@@ -83,7 +83,9 @@ In Codex, use the verbs to update a brief outside your workspace. Whether they r
 
 ## Record and rearm waiters
 
-List the exact restartable command of every waiter you are running, one backticked bullet per waiter under the final `## Waiters`. Update it whenever a waiter starts, changes, or stops for good:
+With an attached brief, `lemonaid watch doc`, `pr`, `file`, and `briefs` automatically record their restartable command under the final `## Waiters` after startup checks pass. Rearming updates the same entry, including a PR’s head and flags. The saved command keeps the supplied arguments, including `--self`; omitted defaults and temporary state paths are not inserted. No separate `brief waiter add` or `set` is needed for these commands. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
+
+Use the manual verbs for custom shell waiters and to remove entries when a watch ends permanently:
 
 ```sh
 lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --repo owner/repo --head abc123 --codex-thread"

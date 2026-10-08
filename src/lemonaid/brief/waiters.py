@@ -161,3 +161,22 @@ def remove(text: str, match: str) -> str:
         return [*body[:at], *body[at + 1 :]]
 
     return _with_body(text, change)
+
+
+def upsert(text: str, command: str, same: abc.Callable[[str], bool]) -> str:
+    """Replace entries for one watch without substring collisions or duplicate rearms."""
+    line = _bullet(command)
+
+    def change(body: list[str]) -> list[str]:
+        matches = [i for i, old in _commands(body).items() if same(old)]
+        if not matches:
+            return body
+        first = matches[0]
+        return [
+            line if i == first else old
+            for i, old in enumerate(body)
+            if i == first or i not in matches
+        ]
+
+    changed = _with_body(text, change)
+    return add(changed, command)

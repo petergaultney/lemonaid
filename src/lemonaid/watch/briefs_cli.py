@@ -13,7 +13,7 @@ import time
 
 from ..brief import lemon, store
 from ..inbox import db
-from . import briefs_events, delivery, waiter_lock
+from . import brief_record, briefs_events, delivery, waiter_lock
 
 
 def _wait(
@@ -70,6 +70,9 @@ def run(a: argparse.Namespace) -> int:
             if thread
             else delivery.to_stdout
         )
+        if error := brief_record.record(a, "briefs", thread):
+            print(f"not started: could not record waiter: {error}")
+            return 2
         _wait(
             briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to),
             deliver,

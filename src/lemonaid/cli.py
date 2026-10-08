@@ -156,6 +156,7 @@ def main() -> None:
     claude.resume.maybe_intercept(sys.argv[1:])
 
     args = parser.parse_args()
+    args.invocation = ["lemonaid", *sys.argv[1:]]
 
     try:
         if args.command is None:

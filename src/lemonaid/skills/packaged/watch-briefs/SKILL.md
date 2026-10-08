@@ -40,7 +40,8 @@ explicit `--to merge --to done`. Use the same options for status checks and rear
 
 When woken, read the named children's briefs and act on their current Status and asks.
 Then rearm the same command. Do not replace this waiter with a polling loop or scheduled
-wakeups. Record its exact command in your brief's `## Waiters`, and keep your status and
+wakeups. The command automatically records itself in an attached brief’s `## Waiters`
+and updates the entry on rearm. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief. Keep your status and
 what you are waiting on current.
 
 State and locks are separate from other watchers, under `$TMPDIR/lemonaid-watch-briefs/`.

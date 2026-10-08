@@ -22,7 +22,7 @@ import pathlib
 import sys
 import time
 
-from . import delivery, file_events, waiter_lock
+from . import brief_record, delivery, file_events, waiter_lock
 
 
 def _wait(w: file_events.FileWatch, deliver: delivery.Deliver, once: bool, interval: float) -> None:
@@ -67,6 +67,11 @@ def run(a: argparse.Namespace) -> int:
         problem, deliver = "", delivery.to_stdout
     if problem:
         print(f"not started: {problem}")
+        return 2
+
+    if error := brief_record.record(a, "file", a.codex_thread):
+        print(f"not started: could not record waiter: {error}")
+        lock.close()
         return 2
 
     try:
