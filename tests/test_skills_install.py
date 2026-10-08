@@ -41,7 +41,7 @@ def _packaged(name):
 def test_packaged_skills_name_no_user_and_call_only_lemonaid():
     names = compose.packaged_names(compose.PACKAGED_DIR)
 
-    assert names == ["watch-briefs", "watch-doc", "watch-pr"]
+    assert names == ["brief", "watch-briefs", "watch-doc", "watch-pr"]
     for name in names:
         text = _packaged(name)
         assert text.startswith(f"---\nname: {name}\n")
@@ -56,7 +56,7 @@ def test_install_links_every_harness_to_one_rendered_copy(homes):
 
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
-    assert [r["skill"] for r in report] == ["watch-briefs", "watch-doc", "watch-pr"]
+    assert [r["skill"] for r in report] == ["brief", "watch-briefs", "watch-doc", "watch-pr"]
     for r in report:
         assert r["source"] == "packaged"
         assert [h["outcome"] for h in r["harnesses"]] == ["linked", "linked"]
@@ -160,4 +160,18 @@ def test_a_rendered_directory_lemonaid_did_not_create_is_left_alone(homes):
     assert "watch-doc: refused:" in result.stderr
     assert (theirs / "SKILL.md").read_text() == "theirs\n"
     assert list(target.iterdir()) == []
+    assert not (homes / "claude" / "skills" / "watch-pr").exists()
+    assert not (homes / "claude" / "skills" / "watch-doc").exists()
+
+
+def test_print_brief_with_overlay_writes_no_installation(homes):
+    overlay = "## Local conventions\n\nNeeds Sam.\n"
+    _user_file(homes, "brief", "overlay.md", overlay)
+
+    result = _install("--print", "brief")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == _packaged("brief").rstrip() + "\n\n" + overlay
+    assert not (homes / "state" / "skills").exists()
     assert not (homes / "claude" / "skills").exists()
+    assert not (homes / "codex" / "skills").exists()

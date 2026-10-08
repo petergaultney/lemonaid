@@ -17,6 +17,14 @@ A comment counts when it is in any review thread, including outdated and resolve
 
 For quieter waits, use `--skip-outdated` and/or `--skip-resolved`, or set `skip_outdated = true` and/or `skip_resolved = true` under `[watch.pr]` in the lemonaid config. Both default to false. `--no-skip-outdated` and `--no-skip-resolved` override configured filters for one wait. These filters apply only to review threads.
 
+## Record the waiter in your brief
+
+When you have an attached brief, record the exact command you started in its final `## Waiters` section with `lemonaid brief waiter add --self "<command>"`. Include the actual target, identity, and harness flags so it can be restarted. Recording a command does not start a waiter; confirm the waiter is running first, including one you found already active.
+
+On rearm, keep the entry current with `lemonaid brief waiter set --self "<unique command substring>" "<command>"`. Remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch stops for good. Keep it listed across a one-shot exit while you handle the event and rearm.
+
+For a new PR head, `lemonaid brief waiter set --self "<unique command substring>" --head <head-sha>` updates the stored head without replacing the whole command.
+
 ## Waiting
 
 Check for an existing waiter first: `lemonaid watch pr --status <number> [--me "<your signature>"]`, with the same `--me` as the waiter. If one is running, don't start another; a second one for the same PR and name refuses to start.

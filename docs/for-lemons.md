@@ -800,6 +800,10 @@ When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
 `lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
 described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
 
+To stop your own waiter, kill its specific PID (`kill <pid>`), or use `TaskStop` for a
+Claude background task. Never use `pkill -f` with a waiter command such as
+`lemonaid inbox watch --self`: the pattern matches other lemons' waiters too.
+
 ## Watching a document for comments
 
 `lemonaid watch doc --wait <doc> --me <your name> --once` blocks until a Relay Comment
@@ -848,10 +852,10 @@ selected status without duplicates. Read the changed briefs, act, then rearm. St
 independent per database, parent, optional `--me` name, and target-status set. Details:
 [watch.md](watch.md#watching-childrens-briefs).
 
-## Installing the watch skills
+## Installing the skills
 
-`lemonaid skills install` installs the `watch-doc`, `watch-pr`, and `watch-briefs` skills for Claude Code
-and Codex, which describe these waiters step by step. It never replaces a skill entry it
+`lemonaid skills install` installs the `brief`, `watch-doc`, `watch-pr`, and `watch-briefs` skills for Claude Code
+and Codex, which describe brief upkeep and these waiters step by step. It never replaces a skill entry it
 didn't create; `--print <name>` gives the text instead. Run it after installing or
 upgrading lemonaid; `lma` also re-renders installed skills from the new packaged text when
 it starts after an upgrade. Details, including the `~/.lemons/skills/<name>/overlay.md` a

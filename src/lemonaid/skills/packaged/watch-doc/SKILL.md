@@ -19,6 +19,14 @@ Reply blocks look like `{{authorId="<id>" author="<name>">>...<<}}`. Relay shows
 
 If `--me` and the `author` of your reply blocks differ, the waiter sees your own replies as unanswered and wakes you on them.
 
+## Record the waiter in your brief
+
+When you have an attached brief, record the exact command you started in its final `## Waiters` section with `lemonaid brief waiter add --self "<command>"`. Include the actual target, identity, and harness flags so it can be restarted. Recording a command does not start a waiter; confirm the waiter is running first, including one you found already active.
+
+On rearm, keep the entry current with `lemonaid brief waiter set --self "<unique command substring>" "<command>"`. Remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch stops for good. Keep it listed across a one-shot exit while you handle the event and rearm.
+
+In OpenClaw, record the exact `lemonaid watch openclaw start` command for each doc, and remove its entry when you remove the doc from the watch list.
+
 ## Waiting
 
 Tell the human the doc is ready, with its absolute path.

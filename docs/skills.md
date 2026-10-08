@@ -1,6 +1,7 @@
 # Skills
 
-Lemonaid ships skills that teach a lemon to use its commands: `watch-doc` (wait for Relay
+Lemonaid ships skills that teach a lemon to use its commands: `brief` (keep an attached
+brief current, choose its status, record waiters, and start a reviewer), `watch-doc` (wait for Relay
 Comments on a document, then reply in the thread) and `watch-pr` (wait for pushes, review
 activity, conflicts and failed CI on a GitHub PR), and `watch-briefs` (wait for direct
 children's Status or Needs asks to change). `lemonaid skills install` puts them
@@ -10,7 +11,7 @@ where Claude Code and Codex look for skills.
 lemonaid skills install                        # every packaged skill, for every harness found
 lemonaid skills install watch-pr --harness codex
 lemonaid skills install --json
-lemonaid skills install --print watch-doc      # the text only, to install it yourself
+lemonaid skills install --print brief          # the text only, to install it yourself
 ```
 
 ## Adding your own conventions

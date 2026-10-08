@@ -1,3 +1,9 @@
+# 0.86.0 (2026-10-07)
+
+#### Added
+
+- **A packaged `brief` skill explains brief upkeep, statuses, waiters, child cleanup checks, and reviewer startup.** Install it with `lemonaid skills install`, or preview it with `lemonaid skills install --print brief`. The watch skills now explain how to record and update waiters in a brief.
+
 # 0.85.1 (2026-10-08)
 
 #### Fixed
