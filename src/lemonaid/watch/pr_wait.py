@@ -1,7 +1,7 @@
 """The waiting loop behind `lemonaid watch pr`, and the state it keeps between waiters.
 
 Comments already reported, the last reported draft flag and review decision, and the heads
-whose conflict or CI failure was reported, are remembered per (PR, --me) in a state
+whose conflict or CI result was reported, are remembered per (PR, --me) in a state
 directory, by default $TMPDIR/watch-pr.
 """
 
@@ -88,8 +88,12 @@ def wait(
     deliver: delivery.Deliver,
     once: bool,
     stem: pathlib.Path,
+    *,
+    ci: bool = False,
 ) -> None:
     """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
+
+    With `ci`, passing CI is also reported.
 
     Raises `delivery.Failed` with the event unrecorded if `deliver` fails.
     """
@@ -115,7 +119,11 @@ def wait(
             sha, state = snap.head, snap.state
         review = review or (snap.draft, snap.decision)
         candidates = {c.id: c for c in snap.comments} if comments else {}
-        blockers, now_seen = merge_health.events(pr, snap, seen) if comments else ([], seen)
+        blockers, now_seen = (
+            merge_health.events(pr, snap, seen, comments=comments, ci=ci)
+            if comments or ci
+            else ([], seen)
+        )
         events = [
             *_events(
                 pr,

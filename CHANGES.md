@@ -1,3 +1,9 @@
+# 0.87.0 (2026-10-08)
+
+#### Added
+
+- **`watch pr --ci` wakes on CI completion, passing or failing.** The packaged `watch-pr` skill explains when to let CI validate a small change and keep the completion watch armed.
+
 # 0.86.1 (2026-10-08)
 
 #### Changed

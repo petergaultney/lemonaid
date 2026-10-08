@@ -5,7 +5,8 @@ CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN 
 still computing) changes nothing. CI is reported once no check on the head is still
 running and a check that counts has failed. Required checks count when there are any;
 otherwise (a PR stacked on another branch, a repo without branch protection) every check
-does. A repo whose one required check gates on all the others gets one event naming
+does. With `--ci`, passing CI is also reported once per head; no checks is not completion.
+A repo whose one required check gates on all the others gets one event naming
 just that check.
 """
 
@@ -18,7 +19,7 @@ from . import pr_activity
 
 class Seen(ty.NamedTuple):
     conflict_head: str  # head last seen CONFLICTING; "" once seen MERGEABLE
-    ci_head: str  # head whose failed CI was last reported
+    ci_head: str  # head whose CI result was last reported
 
 
 def load(path: pathlib.Path) -> Seen:
@@ -41,13 +42,27 @@ def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[str]:
     return [c.name for c in ([c for c in checks if c.required] or checks) if c.outcome == "failed"]
 
 
-def events(pr: int, snap: pr_activity.Snapshot, seen: Seen) -> tuple[list[str], Seen]:
+def events(
+    pr: int,
+    snap: pr_activity.Snapshot,
+    seen: Seen,
+    *,
+    comments: bool = True,
+    ci: bool = False,
+) -> tuple[list[str], Seen]:
     """Events to report for this snapshot, and what has now been seen."""
     if snap.state != "OPEN":
         return [], seen
 
-    conflict = snap.mergeable == "CONFLICTING" and seen.conflict_head != snap.head
+    conflict = comments and snap.mergeable == "CONFLICTING" and seen.conflict_head != snap.head
     failed = _failed(snap.checks) if seen.ci_head != snap.head else []
+    passed = (
+        ci
+        and seen.ci_head != snap.head
+        and bool(snap.checks)
+        and not any(c.outcome == "pending" for c in snap.checks)
+        and not failed
+    )
     return [
         *(
             [
@@ -67,7 +82,10 @@ def events(pr: int, snap: pr_activity.Snapshot, seen: Seen) -> tuple[list[str], 
             if failed
             else []
         ),
+        *([f"PR #{pr} CI passed at {snap.head[:10]}"] if passed else []),
     ], Seen(
-        {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head),
-        snap.head if failed else seen.ci_head,
+        {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head)
+        if comments
+        else seen.conflict_head,
+        snap.head if failed or passed else seen.ci_head,
     )

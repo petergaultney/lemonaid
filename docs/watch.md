@@ -143,6 +143,15 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
 - The heads reported are kept beside the other state, so a rearm on the same head is quiet
   and a new push that still conflicts or fails is reported.
 
+Add `--ci` when you want a completion event whether CI passes or fails. It works
+with or without `--comments`, and with `--once` or `--codex-thread`. Completion waits
+for every check on the current head to finish; required checks determine the result
+when any exist, otherwise every check counts. No checks is not a completion.
+The event names the result and head. Results are remembered once per head and watcher
+identity, including failures already reported by `--comments`, so rearming with
+`--head` does not repeat a handled completion. A new push is reported normally; rearm
+with `--ci` to wait for that head's checks. Remove `--ci` after handling the result.
+
 ## Watching files and directories
 
 `lemonaid watch file` blocks until a file or directory changes. It wakes Claude and Codex

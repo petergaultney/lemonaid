@@ -118,7 +118,7 @@ def test_cli_registers_before_waiting_and_keeps_entry_after_one_shot(
 
     brief.write_text(re.sub(r"Brief-ID: .*", "Brief-ID: watching.QuickOdd", text))
 
-    def done(*unused):
+    def done(*unused, **unused_keywords):
         assert len(waiters.commands(brief.read_text())) == 1
 
     if kind == "doc":
@@ -138,6 +138,24 @@ def test_cli_registers_before_waiting_and_keeps_entry_after_one_shot(
     assert "--once" in command
     if kind == "briefs":
         assert command.startswith("lemonaid watch briefs --children --self")
+
+
+@pytest.mark.parametrize("codex", [False, True])
+def test_pr_ci_startup_and_rearm_record_the_supplied_flags(brief, tmp_path, monkeypatch, codex):
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    mode = ["--codex-thread", "owner"] if codex else ["--once"]
+    for head, ci in [("abcdef0", True), ("1234567", True), ("1234567", False)]:
+        a = args("pr", tmp_path, "--head", head, "--comments", *mode, *(["--ci"] if ci else []))
+
+        def done(*unused, expected_ci=ci, invocation=a.invocation, **options):
+            assert options["ci"] is expected_ci
+            assert waiters.commands(brief.read_text()) == [shlex.join(invocation)]
+
+        monkeypatch.setattr(pr_cli.pr_wait, "wait", done)
+        assert pr_cli.run(a, "o/r") == 0
+        words = shlex.split(waiters.commands(brief.read_text())[0])
+        assert ("--ci" in words) is ci
+        assert words[words.index("--head") + 1] == head
 
 
 def test_refused_delivery_setup_and_duplicate_do_not_change_brief(brief, tmp_path, monkeypatch):

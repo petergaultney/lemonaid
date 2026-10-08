@@ -12,7 +12,8 @@ with 🍋 followed by your `--me` signature or a `--legacy` one and a colon:
 By default prints one line per event and never exits on its own. With `--once`, prints
 the first event and exits, so a Claude background Bash task wakes its session once on
 completion. With `--codex-thread`, queues the first event into that Codex thread and
-exits. In both one-shot modes the woken turn handles the event and starts a fresh waiter
+exits. `--ci` also reports passing CI once every check on the head finishes.
+In both one-shot modes the woken turn handles the event and starts a fresh waiter
 with `--head <new sha>`, so a push between the event and the rearm is still reported.
 
 One waiter per (PR, --me) may run; a second exits at once, naming the first.
@@ -123,6 +124,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
             deliver,
             a.once or bool(a.codex_thread),
             stem,
+            ci=a.ci,
         )
     except KeyboardInterrupt:
         pass
@@ -168,6 +170,9 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "--comments",
         action="store_true",
         help="also report new human review and conversation comments, a conflict with the base, and failed CI",
+    )
+    ap.add_argument(
+        "--ci", action="store_true", help="also report completed CI, passing or failing"
     )
     for kind in ("outdated", "resolved"):
         ap.add_argument(

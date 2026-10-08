@@ -337,6 +337,60 @@ def test_cli_once_reports_a_push_and_exits(tmp_path, fake_gh):
     assert result.stdout == f"PR #90 head moved {'a' * 10} -> {'b' * 10}\n"
 
 
+@pytest.mark.parametrize("comments", [False, True])
+@pytest.mark.parametrize("codex", [False, True])
+@pytest.mark.parametrize("conclusion,expected", [("SUCCESS", "passed"), ("FAILURE", "failed")])
+def test_cli_ci_reports_completion(
+    tmp_path, fake_gh, monkeypatch, comments, codex, conclusion, expected
+):
+    _write_snapshot(fake_gh, _HEAD)
+    data = json.loads(fake_gh.read_text())
+    commit = data["data"]["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+    commit["statusCheckRollup"] = {
+        "contexts": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [
+                {
+                    "__typename": "CheckRun",
+                    "name": "test",
+                    "status": "COMPLETED",
+                    "conclusion": conclusion,
+                    "isRequired": False,
+                }
+            ],
+        }
+    }
+    fake_gh.write_text(json.dumps(data))
+    queued = tmp_path / "queued"
+    if codex:
+        executable = tmp_path / "bin" / "codex"
+        executable.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$FAKE_CODEX_ARGS"\n')
+        executable.chmod(executable.stat().st_mode | stat.S_IEXEC)
+        home = tmp_path / "codex-home"
+        home.mkdir()
+        monkeypatch.setenv("CODEX_HOME", str(home))
+        monkeypatch.setenv("FAKE_CODEX_ARGS", str(queued))
+    result = _cli(
+        tmp_path,
+        "--wait",
+        "90",
+        "--head",
+        _HEAD,
+        "--ci",
+        *(["--codex-thread", "test-thread"] if codex else ["--once"]),
+        *(["--comments", "--me", "Author (X)"] if comments else []),
+    )
+    assert result.returncode == 0
+    if codex:
+        args = queued.read_text().splitlines()
+        assert args[:4] == ["queue", "--thread", "test-thread", "--message"]
+        message = args[4].removeprefix("watch-pr event: ")
+    else:
+        message = result.stdout
+    assert message.startswith(f"PR #90 CI {expected} at {_HEAD[:10]}")
+    assert message.count("CI ") == 1
+
+
 def test_cli_accepts_an_abbreviated_head_in_either_case(tmp_path, fake_gh):
     _write_snapshot(fake_gh, "b" * 40)
 
