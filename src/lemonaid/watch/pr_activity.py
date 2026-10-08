@@ -4,7 +4,8 @@ Lemons post with their human's GitHub account, so authorship can't tell them apa
 lemon signs right after the lemon marker (`🍋 Reviewer (StateJob): ...`), and a comment is
 the watching lemon's own only when it carries one of its signatures. Every other comment,
 including other lemons' and unsigned 🍋 ones, is someone else's. Bots, pending
-(unsubmitted) review comments, and resolved or outdated threads never count.
+(unsubmitted) review comments never count. Resolved and outdated threads count unless
+the watcher explicitly skips them.
 """
 
 import json
@@ -12,7 +13,7 @@ import subprocess
 import typing as ty
 from collections import abc
 
-from . import lemon_signature
+from . import pr_comments
 
 _ROLLUP = """
       statusCheckRollup { contexts(first: 100, after: $after) {
@@ -57,13 +58,6 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
 )
 
 
-class Comment(ty.NamedTuple):
-    id: str
-    where: str  # "path:line", "review", or "conversation"
-    author: str
-    body: str
-
-
 class Check(ty.NamedTuple):
     name: str
     required: bool
@@ -75,38 +69,10 @@ class Snapshot(ty.NamedTuple):
     state: str
     draft: bool
     decision: str  # APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, or "" when GitHub gives none
-    comments: list[Comment]  # others' comments in the order GitHub returned them
+    comments: list[pr_comments.Comment]  # others' comments in the order GitHub returned them
     base: str
     mergeable: str  # MERGEABLE, CONFLICTING, or UNKNOWN while GitHub computes it
     checks: list[Check]  # on the head commit
-
-
-def _is_others(node: dict, signatures: tuple[str, ...]) -> bool:
-    author = node.get("author") or {}
-    return (
-        author.get("__typename") != "Bot"
-        and node.get("state") != "PENDING"
-        and bool(node["body"].strip())
-        and not lemon_signature.is_signed(node["body"], signatures)
-    )
-
-
-def _comment(node: dict, where: str) -> Comment:
-    return Comment(
-        node["id"], where, (node.get("author") or {}).get("login", "ghost"), node["body"]
-    )
-
-
-def _others_comments(pr: dict, signatures: tuple[str, ...]) -> ty.Iterator[Comment]:
-    def others(nodes: list[dict]) -> list[dict]:
-        return [n for n in nodes if _is_others(n, signatures)]
-
-    for t in pr["reviewThreads"]["nodes"]:
-        if not t["isResolved"] and not t["isOutdated"]:
-            where = f"{t['path']}:{t['line']}"
-            yield from (_comment(c, where) for c in others(t["comments"]["nodes"]))
-    yield from (_comment(r, "review") for r in others(pr["reviews"]["nodes"]))
-    yield from (_comment(c, "conversation") for c in others(pr["comments"]["nodes"]))
 
 
 _FAILED = frozenset(
@@ -165,7 +131,14 @@ def _repository(repo: str, number: int, query: str, after: str, oid: str) -> dic
         return None
 
 
-def fetch(repo: str, number: int, signatures: abc.Iterable[str]) -> Snapshot | None:
+def fetch(
+    repo: str,
+    number: int,
+    signatures: abc.Iterable[str],
+    *,
+    skip_outdated: bool = False,
+    skip_resolved: bool = False,
+) -> Snapshot | None:
     """None when gh fails - a transient failure must not end the wait.
 
     Comments signed with one of `signatures` are left out as the watching lemon's own.
@@ -192,12 +165,12 @@ def fetch(repo: str, number: int, signatures: abc.Iterable[str]) -> Snapshot | N
         pr["state"],
         pr["isDraft"],
         pr["reviewDecision"] or "",
-        list(_others_comments(pr, tuple(signatures))),
+        list(
+            pr_comments.others(
+                pr, tuple(signatures), skip_outdated=skip_outdated, skip_resolved=skip_resolved
+            )
+        ),
         pr["baseRefName"],
         pr["mergeable"],
         [_check(n) for n in nodes if n],
     )
-
-
-def gist(c: Comment) -> str:
-    return f"{c.author} ({c.where}): {' '.join(c.body.split())[:100]}"

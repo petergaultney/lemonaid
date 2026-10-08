@@ -1,3 +1,9 @@
+# 0.82.0 (2026-10-07)
+
+#### Changed
+
+- **`watch pr --comments` includes outdated and resolved review threads.** Use `--skip-outdated`, `--skip-resolved`, or their `[watch.pr]` defaults for quieter waits.
+
 # 0.81.0 (2026-10-07)
 
 #### Added

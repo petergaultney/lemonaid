@@ -2,8 +2,8 @@
 
 Reports when the PR's head commit moves, its state changes (OPEN -> MERGED / CLOSED), it
 is marked ready for review or back to draft, or its review decision changes; and with
-`--comments` also when someone else's comment appears in an unresolved, non-outdated
-review thread, in a submitted review's body, or in the PR conversation, and when the PR
+`--comments` also when someone else's comment appears in any review thread (including
+outdated and resolved threads), a submitted review's body, or the PR conversation, and when the PR
 conflicts with its base or its CI fails. `--comments` is the author's mode, so only the
 author is woken to fix those. A comment is your own, and never reported, when it starts
 with 🍋 followed by your `--me` signature or a `--legacy` one and a colon:
@@ -29,6 +29,7 @@ import re
 import subprocess
 import sys
 
+from .. import config
 from . import delivery, pr_activity, pr_wait, waiter_lock
 
 
@@ -101,8 +102,15 @@ def run(a: argparse.Namespace, repo: str) -> int:
         return 2
 
     try:
+        filters = config.load_config().watch.pr
         pr_wait.wait(
-            lambda: pr_activity.fetch(repo, pr, (a.me, *a.legacy)),
+            lambda: pr_activity.fetch(
+                repo,
+                pr,
+                (a.me, *a.legacy),
+                skip_outdated=filters.skip_outdated if a.skip_outdated is None else a.skip_outdated,
+                skip_resolved=filters.skip_resolved if a.skip_resolved is None else a.skip_resolved,
+            ),
             pr,
             a.interval,
             a.head,
@@ -156,6 +164,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="also report new human review and conversation comments, a conflict with the base, and failed CI",
     )
+    for kind in ("outdated", "resolved"):
+        ap.add_argument(
+            f"--skip-{kind}",
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help=f"skip {kind} review threads (default: [watch.pr] skip_{kind}, false if unset)",
+        )
     ap.add_argument(
         "--me",
         default="",

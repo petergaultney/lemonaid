@@ -115,8 +115,8 @@ lemonaid watch pr --status 90 --me "Author (MotorHoe)"
 
 It reports a push (the head differs from `--head`), a merge or close, a move to or from
 draft, a review decision change, and with `--comments` a new comment from someone else, a
-conflict with the base, or failed CI. A comment counts when it is in an unresolved,
-non-outdated review thread, a submitted review's body, or the PR conversation, and is not
+conflict with the base, or failed CI. A comment counts when it is in any
+review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation, and is not
 from a bot or a pending review. It is skipped as your own only when it is signed: 🍋, then
 your `--me` signature or a `--legacy` one, then a colon (`🍋 Author (MotorHoe): done`).
 Lemons post with their human's account, so the signature is the only way to tell them apart.
@@ -127,6 +127,11 @@ reported, and the last reported draft flag and decision, are kept per PR and `--
 reported. Pass the head you just handled as `--head` when rearming, in full or abbreviated to
 at least 7 digits; without it the first fetch is the baseline. `--repo owner/name` defaults
 to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
+
+To skip outdated or resolved review threads, use `--skip-outdated` or `--skip-resolved`.
+Set either default in [`[watch.pr]`](config.md#watchpr). The corresponding
+`--no-skip-outdated` and `--no-skip-resolved` flags override those settings for one wait.
+Submitted review bodies and PR conversation comments are unaffected by these filters.
 
 `--comments` is the author's mode, so only the author is woken for merge blockers:
 

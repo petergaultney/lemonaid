@@ -10,7 +10,14 @@ import sys
 
 import pytest
 
-from lemonaid.watch import delivery, lemon_signature, merge_health, pr_activity, pr_wait
+from lemonaid.watch import (
+    delivery,
+    lemon_signature,
+    merge_health,
+    pr_activity,
+    pr_comments,
+    pr_wait,
+)
 
 _HEAD = "a" * 40
 
@@ -34,7 +41,7 @@ def _check(name="test", required=False, outcome="passed"):
 
 
 def _comment(i: str, body="please fix"):
-    return pr_activity.Comment(i, "src/x.py:3", "peter", body)
+    return pr_comments.Comment(i, "src/x.py:3", "peter", body)
 
 
 @pytest.fixture
@@ -98,6 +105,19 @@ def test_a_draft_change_between_waiters_is_reported(stem):
     assert _run_once(stem, [_snap(draft=False, comments=[_comment("c1")])]) == [
         "PR #90 is now ready for review"
     ]
+
+
+def test_reported_comments_survive_a_wait_that_skips_their_threads(stem):
+    _run_once(stem, [_snap(comments=[_comment("c1")])])
+    _run_once(stem, [_snap(draft=False)])
+
+    assert _run_once(
+        stem,
+        [
+            _snap(draft=False, comments=[_comment("c1")]),
+            _snap(draft=False, head="b" * 40, comments=[_comment("c1")]),
+        ],
+    ) == [f"PR #90 head moved {'a' * 10} -> {'b' * 10}"]
 
 
 def test_a_failed_delivery_records_nothing(stem):
@@ -195,7 +215,7 @@ _SIGNED_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "watch_pr_signed_
 
 def _fixture_ids(*signatures):
     pr = json.loads(_SIGNED_FIXTURE.read_text())["data"]["repository"]["pullRequest"]
-    return [c.id for c in pr_activity._others_comments(pr, signatures)]
+    return [c.id for c in pr_comments.others(pr, signatures)]
 
 
 def test_only_comments_signed_by_me_or_a_legacy_signature_are_mine():
@@ -203,6 +223,7 @@ def test_only_comments_signed_by_me_or_a_legacy_signature_are_mine():
         "PRRC_teammate_signed",
         "PRRC_teammate_unsigned",
         "PRRC_human",
+        "PRRC_resolved",
         "IC_prefix",
     ]
 
@@ -218,6 +239,7 @@ def test_a_bare_name_that_no_comment_is_signed_with_owns_nothing():
         "PRRC_teammate_signed",
         "PRRC_teammate_unsigned",
         "PRRC_human",
+        "PRRC_resolved",
         "PRR_mine",
         "IC_prefix",
     ]
@@ -357,5 +379,106 @@ def test_cli_reports_others_comments_but_not_mine(tmp_path, fake_gh):
     )
 
     assert result.returncode == 0
-    assert result.stdout.startswith("PR #90: 4 new comment(s) - harrison (src/x.py:3): ")
+    assert result.stdout.startswith("PR #90: 5 new comment(s) - harrison (src/x.py:3): ")
     assert "Reviewer (StateJob)" in result.stdout
+
+
+def _thread_snapshot(path, *, outdated=False, resolved=False):
+    data = json.loads(_SIGNED_FIXTURE.read_text())
+    pr = data["data"]["repository"]["pullRequest"]
+    thread = pr["reviewThreads"]["nodes"][0]
+    thread.update(isOutdated=outdated, isResolved=resolved, line=None if outdated else 3)
+    pr["reviewThreads"]["nodes"] = [thread]
+    pr["reviews"]["nodes"] = []
+    pr["comments"]["nodes"] = []
+    path.write_text(json.dumps(data))
+    return data
+
+
+@pytest.mark.parametrize("outdated,resolved", [(True, False), (False, True), (True, True)])
+def test_new_reply_in_outdated_or_resolved_thread_wakes_once(stem, fake_gh, outdated, resolved):
+    data = _thread_snapshot(fake_gh, outdated=outdated, resolved=resolved)
+    before = pr_activity.fetch("o/r", 90, ("Author (MotorHoe)", "Claude"))
+    assert before is not None
+    assert "3 new comment(s)" in _run_once(stem, [before], head="b" * 40)[0]
+
+    thread = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"][0]
+    thread["comments"]["nodes"].append(
+        {
+            "id": "new_reply",
+            "body": "please fix this too",
+            "state": "SUBMITTED",
+            "author": {"login": "peter", "__typename": "User"},
+        }
+    )
+    fake_gh.write_text(json.dumps(data))
+    after = pr_activity.fetch("o/r", 90, ("Author (MotorHoe)", "Claude"))
+    assert after is not None
+
+    sent = _run_once(stem, [before, after], head="b" * 40)
+    assert sent == [
+        f"PR #90: 1 new comment(s) - peter (src/x.py:{None if outdated else 3}): please fix this too"
+    ]
+    assert _run_once(stem, [after, after._replace(head="c" * 40)], head="b" * 40) == [
+        f"PR #90 head moved {'b' * 10} -> {'c' * 10}"
+    ]
+
+
+@pytest.mark.parametrize("outdated", [False, True])
+@pytest.mark.parametrize("resolved", [False, True])
+@pytest.mark.parametrize("skip_outdated", [False, True])
+@pytest.mark.parametrize("skip_resolved", [False, True])
+def test_thread_filters_are_independent(fake_gh, outdated, resolved, skip_outdated, skip_resolved):
+    _thread_snapshot(fake_gh, outdated=outdated, resolved=resolved)
+
+    snap = pr_activity.fetch(
+        "o/r",
+        90,
+        ("Author (MotorHoe)", "Claude"),
+        skip_outdated=skip_outdated,
+        skip_resolved=skip_resolved,
+    )
+
+    assert snap is not None
+    expected = (
+        []
+        if (outdated and skip_outdated) or (resolved and skip_resolved)
+        else ["PRRC_teammate_signed", "PRRC_teammate_unsigned", "PRRC_human"]
+    )
+    assert [c.id for c in snap.comments] == expected
+
+
+@pytest.mark.parametrize("kind", ["outdated", "resolved"])
+@pytest.mark.parametrize(
+    "configured,flag,expected",
+    [
+        (False, (), True),
+        (True, (), False),
+        (False, ("--skip",), False),
+        (True, ("--no-skip",), True),
+    ],
+)
+def test_cli_thread_filter_overrides_config(tmp_path, fake_gh, kind, configured, flag, expected):
+    _thread_snapshot(fake_gh, **{kind: True})
+    pathlib.Path(os.environ["LEMONAID_CONFIG"]).write_text(
+        f"[watch.pr]\nskip_{kind} = {str(configured).lower()}\n"
+    )
+
+    result = _cli(
+        tmp_path,
+        "--wait",
+        "90",
+        "--head",
+        _HEAD,
+        "--comments",
+        "--me",
+        "Author (MotorHoe)",
+        "--legacy",
+        "Claude",
+        "--once",
+        *(f"{f}-{kind}" for f in flag),
+    )
+
+    assert result.returncode == 0
+    assert ("3 new comment(s)" in result.stdout) is expected
+    assert "head moved" in result.stdout

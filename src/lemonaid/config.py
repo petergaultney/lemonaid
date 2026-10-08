@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read, keys
+from . import auto_read, keys, watch_config
 from .inbox import snooze_time
 
 
@@ -318,6 +318,7 @@ class Config:
     openclaw: OpenclawConfig = field(default_factory=OpenclawConfig)
     backends: dict[str, BackendConfig] = field(default_factory=dict)
     places: PlacesConfig = field(default_factory=PlacesConfig)
+    watch: watch_config.WatchConfig = field(default_factory=watch_config.WatchConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -593,6 +594,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         openclaw=openclaw,
         backends=backends,
         places=places,
+        watch=watch_config.parse(data.get("watch", {})),
     )
 
 

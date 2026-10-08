@@ -12,7 +12,7 @@ import tempfile
 import time
 import typing as ty
 
-from . import delivery, merge_health, pr_activity
+from . import delivery, merge_health, pr_activity, pr_comments
 
 
 def default_state_dir() -> pathlib.Path:
@@ -48,7 +48,7 @@ def _events(
     sha: str,
     state: str,
     review: tuple[bool, str],
-    new: list[pr_activity.Comment],
+    new: list[pr_comments.Comment],
 ) -> list[str]:
     draft, decision = review
     return [
@@ -71,7 +71,7 @@ def _events(
         *(
             [
                 f"PR #{pr}: {len(new)} new comment(s) - "
-                + "; ".join(pr_activity.gist(c) for c in new[:3])
+                + "; ".join(pr_comments.gist(c) for c in new[:3])
             ]
             if new
             else []
@@ -132,8 +132,8 @@ def wait(
         if now_seen != seen:
             seen = now_seen
             merge_health.save(merge_path, seen)
-        if set(candidates) != reported:
-            reported = set(candidates)
+        if not set(candidates).issubset(reported):
+            reported.update(candidates)
             reported_path.write_text(json.dumps(sorted(reported)))
         review = snap.draft, snap.decision
         if review != saved_review:

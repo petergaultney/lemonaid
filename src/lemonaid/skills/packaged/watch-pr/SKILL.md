@@ -13,7 +13,9 @@ A PR number or URL. If omitted, infer it from the current branch (`gh pr view --
 - `--legacy <name>`: another signature whose comments count as yours, e.g. one you signed with before (repeatable).
 - Without `--comments`: pushes, merge/close, draft/ready, and review decision only, e.g. when you reviewed someone else's PR. Conflicts and CI are the author's to fix, so a reviewer isn't woken for them.
 
-A comment counts when it is in an unresolved, non-outdated review thread, a submitted review's body, or the PR conversation. Lemons usually post with their human's GitHub account, so sign everything you post right after the marker: `🍋 Author (MotorHoe): ...`. A comment is skipped as yours only when it starts with 🍋, then your `--me` or a `--legacy` signature, then a colon. Every other comment wakes you, including other lemons' 🍋 comments, signed or not. Bots and pending (unsubmitted) review comments never count. Comments already reported to `--me` are remembered, so a rearm doesn't wake you on one you handled but left unresolved.
+A comment counts when it is in any review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation. Lemons usually post with their human's GitHub account, so sign everything you post right after the marker: `🍋 Author (MotorHoe): ...`. A comment is skipped as yours only when it starts with 🍋, then your `--me` or a `--legacy` signature, then a colon. Every other comment wakes you, including other lemons' 🍋 comments, signed or not. Bots and pending (unsubmitted) review comments never count. Comments already reported to `--me` are remembered, so a rearm doesn't wake you on one you handled.
+
+For quieter waits, use `--skip-outdated` and/or `--skip-resolved`, or set `skip_outdated = true` and/or `skip_resolved = true` under `[watch.pr]` in the lemonaid config. Both default to false. `--no-skip-outdated` and `--no-skip-resolved` override configured filters for one wait. These filters apply only to review threads.
 
 ## Waiting
 

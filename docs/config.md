@@ -503,3 +503,22 @@ not call the hook.
 | `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
 
 `scripts/sandbox` sets the first seven, plus a private tmux socket, to run a checkout against a snapshot of your state without touching the real one.
+
+## `[watch.pr]`
+
+`lemonaid watch pr --comments` includes outdated and resolved review threads by default.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `skip_outdated` | `false` | Skip comments in review threads GitHub marked outdated. |
+| `skip_resolved` | `false` | Skip comments in resolved review threads. |
+
+```toml
+[watch.pr]
+skip_outdated = true
+skip_resolved = true
+```
+
+`--skip-outdated` and `--skip-resolved` override the respective config setting to true.
+`--no-skip-outdated` and `--no-skip-resolved` override it to false for one wait.
+These filters do not affect submitted review bodies or PR conversation comments.
