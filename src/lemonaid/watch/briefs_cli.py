@@ -1,7 +1,9 @@
-"""Wait for direct children's Status or Needs asks to change.
+"""Wait for direct children to enter selected brief statuses.
 
 The first run takes existing children as its baseline. Subsequent runs report changes
-made between rearms, including newly linked children. Other brief edits stay quiet.
+made between rearms, including newly linked children. Repeat --to STATUS to select
+which destination statuses wake the parent (default: merge and done). Other status
+changes and Needs-only changes advance the baseline without waking.
 """
 
 import argparse
@@ -38,7 +40,8 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     a.state_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = briefs_events.state_stem(a.state_dir, parent, a.me).with_suffix(".lock")
+    to = frozenset(a.to or ("merge", "done"))
+    lock_path = briefs_events.state_stem(a.state_dir, parent, a.me, to).with_suffix(".lock")
     if a.status:
         running = waiter_lock.held(lock_path)
         print(
@@ -68,7 +71,7 @@ def run(a: argparse.Namespace) -> int:
             else delivery.to_stdout
         )
         _wait(
-            briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet),
+            briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to),
             deliver,
             a.once or bool(thread),
             a.interval,
@@ -89,7 +92,7 @@ def _cmd(a: argparse.Namespace) -> None:
 
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
-        "briefs", help="Wait for children's Status or Needs asks to change", description=__doc__
+        "briefs", help="Wait for children to enter selected brief statuses", description=__doc__
     )
     ap.add_argument(
         "--children",
@@ -102,6 +105,14 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "--self", dest="use_self", action="store_true", help="watch this lemon's children"
     )
     target.add_argument("lemon", nargs="?", help="parent Lemon-ID, channel, or brief name")
+    ap.add_argument(
+        "--to",
+        action="append",
+        choices=store.STATES,
+        default=[],
+        metavar="STATUS",
+        help="wake only on entry into this status (repeatable; default: merge, done)",
+    )
     ap.add_argument("--channel", help="override self detection")
     ap.add_argument("--me", default="", help="watcher name, to keep independent watchers apart")
     ap.add_argument("--status", action="store_true", help="check whether this waiter is running")
@@ -110,7 +121,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "--quiet",
         type=float,
         default=2.0,
-        help="seconds with no further Status or ask changes before delivery",
+        help="seconds with no further selected-state changes before delivery",
     )
     ap.add_argument("--once", action="store_true", help="print the first batch and exit")
     delivery.add_codex_thread_argument(ap)

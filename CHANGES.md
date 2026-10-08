@@ -1,3 +1,13 @@
+# 0.84.0 (2026-10-07)
+
+#### Added
+
+- **`watch briefs --children --to STATUS` selects which destination statuses wake the parent.** Repeat it for multiple statuses; Needs-only changes stay quiet with this filter.
+
+#### Changed
+
+- **Child brief watches default to waking only on entry into `merge` or `done`.** Other Status changes and Needs-only changes advance the saved state without waking.
+
 # 0.83.1 (2026-10-08)
 
 #### Fixed

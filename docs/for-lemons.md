@@ -836,13 +836,16 @@ to change, or for a file directly in a directory to be added, removed, or rewrit
 
 ## Watching children
 
-`lemonaid watch briefs --children --self --once` waits for a direct child's Status or
-Needs ask to change. Use `--codex-thread` for Codex delivery and `--status` to check for a
-running waiter. An explicit parent Lemon-ID, channel, or brief name can replace `--self`.
-The first run takes existing children as its baseline; rearms report changes between
-waiters and newly linked children without duplicates. Other brief edits stay quiet.
-Read the changed briefs, act, then rearm. State is independent per database, parent, and
-optional `--me` name. Details: [watch.md](watch.md#watching-childrens-briefs).
+`lemonaid watch briefs --children --self --once` waits for a direct child to enter
+`merge` or `done`. Repeat `--to STATUS` (for example, `--to blocked --to done`) to select
+other destination statuses. Needs-only changes never wake; ignored changes still
+advance the saved state. Use `--codex-thread` for Codex delivery and `--status` to check
+for a running waiter, with the same `--to` options. An explicit parent Lemon-ID,
+channel, or brief name can replace `--self`. The first run takes existing children as
+its baseline; rearms report changes between waiters and newly linked children in a
+selected status without duplicates. Read the changed briefs, act, then rearm. State is
+independent per database, parent, optional `--me` name, and target-status set. Details:
+[watch.md](watch.md#watching-childrens-briefs).
 
 ## Installing the watch skills
 

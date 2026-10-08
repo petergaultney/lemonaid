@@ -99,8 +99,11 @@ def default_state_dir() -> pathlib.Path:
     return pathlib.Path(tempfile.gettempdir()) / "lemonaid-watch-briefs"
 
 
-def state_stem(state_dir: pathlib.Path, parent: str, me: str) -> pathlib.Path:
+def state_stem(
+    state_dir: pathlib.Path, parent: str, me: str, to: frozenset[str] = frozenset({"merge", "done"})
+) -> pathlib.Path:
     key = f"{db.get_db_path().resolve()}\0{parent}\0{me}"
+    key += "\0to:" + ",".join(sorted(to))
     return state_dir / hashlib.sha256(key.encode()).hexdigest()[:24]
 
 
@@ -129,17 +132,24 @@ class BriefsWatch:
     reported: dict[str, _Mark]
     pending: dict[str, _Mark]
     pending_since: float
+    to: frozenset[str]
 
 
-def open_watch(state_dir: pathlib.Path, parent: str, me: str, quiet: float) -> BriefsWatch:
+def open_watch(
+    state_dir: pathlib.Path,
+    parent: str,
+    me: str,
+    quiet: float,
+    to: frozenset[str] = frozenset({"merge", "done"}),
+) -> BriefsWatch:
     state_dir.mkdir(parents=True, exist_ok=True)
-    path = state_stem(state_dir, parent, me).with_suffix(".reported.json")
+    path = state_stem(state_dir, parent, me, to).with_suffix(".reported.json")
     current = _snapshot(parent)
     reported = _load(path)
     if reported is None:
         reported = current
         _save(path, reported)
-    return BriefsWatch(parent, quiet, path, reported, current, time.monotonic())
+    return BriefsWatch(parent, quiet, path, reported, current, time.monotonic(), to)
 
 
 def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
@@ -158,8 +168,21 @@ def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
 
 def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
     current = _snapshot(w.parent)
-    if current != w.pending:
-        w.pending, w.pending_since = current, time.monotonic()
+    absorbed = {
+        child: mark
+        for child, mark in current.items()
+        if mark != (previous := w.reported.get(child))
+        and (mark.status not in w.to or (previous and mark.status == previous.status))
+    }
+    if absorbed:
+        w.reported = w.reported | absorbed
+        w.pending = w.pending | absorbed
+        _save(w.reported_path, w.reported)
+    if {child: mark.status for child, mark in current.items()} != {
+        child: mark.status for child, mark in w.pending.items()
+    }:
+        w.pending_since = time.monotonic()
+    w.pending = current
     changed = {child: mark for child, mark in current.items() if mark != w.reported.get(child)}
     if not changed or time.monotonic() - w.pending_since < w.quiet:
         return False

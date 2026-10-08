@@ -23,8 +23,8 @@ def link(child, parent):
         links.set_parent(conn, child, parent)
 
 
-def open_watch(family, me="me", quiet=0):
-    return briefs_events.open_watch(family[3], family[0], me, quiet)
+def open_watch(family, me="me", quiet=0, to=frozenset({"merge", "done"})):
+    return briefs_events.open_watch(family[3], family[0], me, quiet, to)
 
 
 def poll(w):
