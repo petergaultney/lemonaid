@@ -339,6 +339,10 @@ namespace.
 
 ### Tearing one down
 
+The JSON `kept` list reports reasons directories were retained or cleanup was
+skipped, including failed discovery or lookup. `--yes` prints these reasons to
+stderr when JSON output is not requested.
+
 ```bash
 lemonaid place toss <key> --json
 ```
@@ -349,7 +353,7 @@ makes), or entirely inside it, and holding no other managed place. The response 
 happened:
 
 ```json
-{"session": "feat/base", "released": ["feat/base"], "error": null,
+{"session": "feat/base", "released": ["feat/base"], "kept": [], "error": null,
  "place": "feat/base", "closed_windows": ["@1", "@2", "@4"], "session_closed": true}
 ```
 

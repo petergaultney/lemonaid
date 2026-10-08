@@ -218,8 +218,10 @@ match the most specific managed place.
 A directory stays when it is protected, used by another workspace, contains
 another managed directory, or has no `destroy` hook. If any pane's directory
 is unknown, directory cleanup is skipped. Failed directory discovery or lookup
-also skips cleanup, with a note in the confirmation, while allowing the named
-workspace to close. No other workspace closes to make a directory releasable.
+also skips cleanup while allowing the named workspace to close. A failed lookup
+in a root with neither a matching listed key nor a pane in the workspace does
+not block cleanup in another root. Reasons appear in the confirmation, in
+unattended text output, and in the JSON `kept` list. No other workspace closes to make a directory releasable.
 
 ```
 $ lp toss job

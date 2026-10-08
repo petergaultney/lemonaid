@@ -129,6 +129,7 @@ def test_json_reports_what_closed(monkeypatch, tmp_path, capsys):
     assert reported == {
         "session": "work",
         "released": ["feat"],
+        "kept": [],
         "error": None,
         "place": "feat",
         "closed_windows": ["@1", "@2"],

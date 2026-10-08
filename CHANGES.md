@@ -1,3 +1,9 @@
+# 0.88.1 (2026-10-08)
+
+#### Fixed
+
+- **`place toss` cleans up its directory when an unrelated root cannot look up its key.** Skipped cleanup reasons appear in JSON and unattended text output.
+
 # 0.88.0 (2026-10-08)
 
 #### Changed

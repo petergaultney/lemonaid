@@ -77,9 +77,19 @@ def _directories(
     for root in config.places.roots:
         directory, checked = hooks.directory_for_key_checked(root, name)
         if not checked:
+            if not any(
+                place.root == root and session.sanitize_name(place.key) == name for place in known
+            ) and not any(
+                pane.session == name
+                and pane.path is not None
+                and pane.path.resolve().is_relative_to(root.path.resolve())
+                for pane in panes
+            ):
+                continue
+
             return (
                 [],
-                ["Directory lookup failed; no directories will be released"],
+                [f"Directory lookup failed under {root.path}; no directories will be released"],
                 hybrid_refusal(name, panes, lemons, known),
             )
 

@@ -144,6 +144,7 @@ def cmd_toss(args: argparse.Namespace) -> None:
                 {
                     "session": doomed.session,
                     "released": [p.key for p in doomed.places],
+                    "kept": list(doomed.kept),
                     "error": error,
                     "place": doomed.place.key if doomed.place else None,
                     "closed_windows": doomed.closing if not error else [],
@@ -153,6 +154,10 @@ def cmd_toss(args: argparse.Namespace) -> None:
         )
     elif error:
         print(error, file=sys.stderr)
+
+    if args.yes and not args.json:
+        for note in doomed.kept:
+            print(note, file=sys.stderr)
 
     if error:
         sys.exit(1)
