@@ -340,7 +340,8 @@ namespace.
 ### Tearing one down
 
 The JSON `kept` list reports reasons directories were retained or cleanup was
-skipped, including failed discovery or lookup. `--yes` prints these reasons to
+skipped, including failed discovery or lookup. Pane paths scope same-named
+cleanup candidates to an identified root; ambiguous matches stay unreleased. `--yes` prints these reasons to
 stderr when JSON output is not requested.
 
 ```bash

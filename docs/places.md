@@ -220,8 +220,11 @@ another managed directory, or has no `destroy` hook. If any pane's directory
 is unknown, directory cleanup is skipped. Failed directory discovery or lookup
 also skips cleanup while allowing the named workspace to close. A failed lookup
 in a root with neither a matching listed key nor a pane in the workspace does
-not block cleanup in another root. Reasons appear in the confirmation, in
-unattended text output, and in the JSON `kept` list. No other workspace closes to make a directory releasable.
+not block cleanup in another root. Pane paths scope same-named cleanup candidates
+to the root they identify. If the panes identify no root and a key matches
+multiple roots, all matching directories stay with an ambiguity reason. Reasons
+appear in the confirmation, in unattended text output, and in the JSON `kept`
+list. No other workspace closes to make a directory releasable.
 
 ```
 $ lp toss job

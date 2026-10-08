@@ -73,8 +73,29 @@ def _directories(
             hybrid_refusal(name, panes, lemons, []),
         )
 
+    pane_paths = [pane.path.resolve() for pane in panes if pane.session == name and pane.path]
+    roots_by_depth = sorted(config.places.roots, key=lambda root: len(root.path.resolve().parts))
+    inferred_roots = [
+        root
+        for path in pane_paths
+        if (
+            root := next(
+                (
+                    candidate
+                    for candidate in reversed(roots_by_depth)
+                    if path.is_relative_to(candidate.path.resolve())
+                ),
+                None,
+            )
+        )
+    ]
+    lookup_roots = inferred_roots or config.places.roots
+
     # A session opened for a directory still belongs to it after its shells cd away.
     for root in config.places.roots:
+        if root not in lookup_roots:
+            continue
+
         directory, checked = hooks.directory_for_key_checked(root, name)
         if not checked:
             if not any(
@@ -107,8 +128,23 @@ def _directories(
         if place is not None
     }
     candidates.update(
-        {place.directory: place for place in known if session.sanitize_name(place.key) == name}
+        {
+            place.directory: place
+            for place in known
+            if place.root in lookup_roots and session.sanitize_name(place.key) == name
+        }
     )
+
+    named_candidates = [
+        place
+        for place in known
+        if place.root in lookup_roots and session.sanitize_name(place.key) == name
+    ]
+    if not inferred_roots and len({place.directory for place in named_candidates}) > 1:
+        keys = ", ".join(
+            str(directory) for directory in sorted({p.directory for p in named_candidates})
+        )
+        return [], [f"Directory key {name!r} is ambiguous across roots ({keys})"], ""
     if not lemons and (
         len(candidates) != 1
         or any(

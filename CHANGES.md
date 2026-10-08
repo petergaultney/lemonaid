@@ -2,7 +2,7 @@
 
 #### Fixed
 
-- **`place toss` cleans up its directory when an unrelated root cannot look up its key.** Skipped cleanup reasons appear in JSON and unattended text output.
+- **`place toss` scopes same-named cleanup to the root identified by pane paths.** Ambiguous matches stay unreleased with a reason in JSON and unattended text; unrelated lookup failures no longer block cleanup.
 
 # 0.88.0 (2026-10-08)
 

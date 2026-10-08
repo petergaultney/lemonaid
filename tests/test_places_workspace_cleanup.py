@@ -11,12 +11,17 @@ from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.places import ownership, target, toss_cli, workspace_purpose
 
 
-def _workspace(monkeypatch, tmp_path, *, owner_lookup="echo {dir}", cd_away=False):
+def _workspace(
+    monkeypatch, tmp_path, *, owner_lookup="echo {dir}", cd_away=False, duplicate_key=False
+):
     owner = tmp_path / "owner"
     other = tmp_path / "other"
     directory = owner / "feat"
     directory.mkdir(parents=True)
     other.mkdir()
+    other_directory = other / "feat"
+    if duplicate_key:
+        other_directory.mkdir()
     root = PlaceRoot(
         path=owner,
         list=f"echo {shlex.quote(str(directory))}",
@@ -25,7 +30,17 @@ def _workspace(monkeypatch, tmp_path, *, owner_lookup="echo {dir}", cd_away=Fals
     )
     cfg = Config(
         places=PlacesConfig(
-            roots=[PlaceRoot(path=other, list="true", path_of="false", destroy="true"), root]
+            roots=[
+                PlaceRoot(
+                    path=other,
+                    list=f"echo {shlex.quote(str(other_directory))}" if duplicate_key else "true",
+                    path_of=f"echo {shlex.quote(str(other_directory))}"
+                    if duplicate_key
+                    else "false",
+                    destroy="true",
+                ),
+                root,
+            ]
         )
     )
     monkeypatch.setattr(target.session, "exists", lambda name: name == "feat")
@@ -123,3 +138,20 @@ def test_two_roots_cleanup_on_a_private_tmux_server(monkeypatch, tmp_path):
         assert [place.directory for place in released] == [directory]
     finally:
         tmux("kill-server")
+
+
+def test_pane_root_limits_same_named_directory_cleanup(monkeypatch, tmp_path):
+    cfg, owner_directory = _workspace(monkeypatch, tmp_path, duplicate_key=True)
+    doomed, why = target.resolve_toss_target(cfg, "feat", unattended=True)
+    assert not why
+    assert [place.directory for place in doomed.places] == [owner_directory]
+
+
+def test_ambiguous_same_named_directories_stay_when_panes_identify_no_root(monkeypatch, tmp_path):
+    cfg, _ = _workspace(monkeypatch, tmp_path, duplicate_key=True, cd_away=True)
+    doomed, why = target.resolve_toss_target(cfg, "feat", unattended=True)
+    assert not why
+    assert doomed.places == []
+    assert "ambiguous across roots" in doomed.kept[0]
+    assert "owner/feat" in doomed.kept[0]
+    assert "other/feat" in doomed.kept[0]
