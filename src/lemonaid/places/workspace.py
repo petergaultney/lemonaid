@@ -89,6 +89,11 @@ def _directories(
             )
         )
     ]
+    for path in pane_paths:
+        place = ownership.place_at(path, known)
+        if place and place.root not in inferred_roots:
+            inferred_roots.append(place.root)
+
     lookup_roots = inferred_roots or config.places.roots
 
     # A session opened for a directory still belongs to it after its shells cd away.

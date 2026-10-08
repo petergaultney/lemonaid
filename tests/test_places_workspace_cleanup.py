@@ -155,3 +155,31 @@ def test_ambiguous_same_named_directories_stay_when_panes_identify_no_root(monke
     assert "ambiguous across roots" in doomed.kept[0]
     assert "owner/feat" in doomed.kept[0]
     assert "other/feat" in doomed.kept[0]
+
+
+def test_nested_pane_root_still_checks_ancestor_place_owner(monkeypatch, tmp_path):
+    outer = tmp_path / "outer"
+    directory = outer / "feat"
+    nested_root = directory / "subproject"
+    nested_root.mkdir(parents=True)
+    outer_root = PlaceRoot(
+        path=outer,
+        list=f"echo {shlex.quote(str(directory))}",
+        path_of="false",
+        destroy="true",
+    )
+    cfg = Config(places=PlacesConfig(roots=[outer_root, PlaceRoot(path=nested_root)]))
+    monkeypatch.setattr(target.session, "exists", lambda name: name == "feat")
+    monkeypatch.setattr(workspace_purpose, "lemon_panes", lambda name: {"%1"})
+    monkeypatch.setattr(
+        ownership,
+        "pane_snapshot",
+        lambda: [ownership.Pane("feat", "@1", "%1", nested_root)],
+    )
+
+    doomed, why = target.resolve_toss_target(cfg, "feat", unattended=True)
+
+    assert not why
+    assert doomed.places == []
+    assert "Directory lookup failed" in doomed.kept[0]
+    assert str(outer) in doomed.kept[0]
