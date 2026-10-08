@@ -43,7 +43,8 @@ def _release_commands(places: abc.Sequence[ownership.Place], log: str) -> list[s
     destroy hook has nothing to run either.
     """
     return [
-        f"{{ {hooks.substitute(place.root.destroy, key=place.key)} ; }} >> {log} 2>&1"
+        f"( cd {shlex.quote(str(place.root.path))} && "
+        f"{{ {hooks.substitute(place.root.destroy, key=place.key)} ; }} ) >> {log} 2>&1"
         for place in places
         if place.root.destroy and place.exists
     ]

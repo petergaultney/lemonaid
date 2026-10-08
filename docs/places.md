@@ -92,7 +92,7 @@ the thing went.
 lemonaid place open <key>      # get a session for this, whatever it takes
 lemonaid place acquire <key>   # just the directory, no session
 lemonaid place list            # every directory each root reports
-lemonaid place toss [<key>]    # release a place, or close a named session with no place
+lemonaid place toss [<key>]    # close a workspace, with optional directory cleanup
 lemonaid place hooks           # show what's configured
 ```
 
@@ -158,128 +158,100 @@ places continue to list normally.
 
 ## Teardown
 
-You can already delete a worktree and you can already kill a tmux session. What you can't do
-is remember which windows were opened for a worktree, or which session is hosting it — and
-that bookkeeping is the whole reason cleanup gets deferred until you've lost the context to do
-it well.
-
-So `toss` works on a place and what tmux has sitting in it:
-
-```bash
-lemonaid place toss          # the place the current directory is in
-lemonaid place toss <key>    # that place, from anywhere
-```
-
-With a name that has no existing or listed place, `toss` closes the tmux session of
-that exact name. This covers sessions opened outside a managed root, sessions made
-with `tmux new`, and sessions left after their place is released. It releases no
-directory, and the confirmation says that no directory work was inspected. A
-session occupying a listed managed place must be tossed by that place's key.
-When a name identifies both an existing or listed place and a session, the place
-wins. `--yes` and `--json` skip the confirmation as usual; JSON reports
-`"place": null` and `"released": []` for a session-only toss.
-
-The place is the unit. Its session closes with it when the session is *dedicated* to it:
-named for it (which is what `place open` does), or entirely inside it, and in either case
-holding no other managed place. A session that holds other places is shared, and only its
-windows that sit in the place close; the session and its other windows stay:
-
-```
-$ lp toss feat/merged
-place 'feat/merged'
-  feat/merged
-  2 windows in 'katamari' close (@4, @7); the session stays
-close 2 windows and release the place? [y/N]
-```
-
-If the installed `lemonaid` command is editable-installed from a checkout inside the place,
-`toss` refuses to release it. Reinstall lemonaid non-editably before releasing that place.
-
-The set is shown before anything happens:
-
-```
-$ lp toss
-place 'feat/base'
-  feat/base - 2 unpushed
-  session 'feat/base' closes (3 windows)
-kill it and release the place? [y/N]
-```
-
-That prompt is where your in-the-moment context gets used. A place with no session — an
-`acquire`d directory nobody opened — asks `release it?`:
-
-```
-$ lp toss feat/agent-made
-place 'feat/agent-made' (no session)
-  feat/agent-made - 2 unpushed
-release it? [y/N]
-```
-
-Bare `toss` never falls back to the session you are in. A directory that resolves to no
-place — outside every root, or under a root that doesn't list it — is refused with a
-request for a key, not a session to kill. And under `--yes` or `--json`, closing the session
-the command runs in needs the key as well (as does not being able to tell which session that
-is); the bare form is for a person at a prompt.
-
-### Ownership is derived, not recorded
-
-Which windows and sessions sit in a place is worked out from tmux when you ask:
+`toss` retires a one-off tmux workspace. It closes the whole selected session,
+then releases associated directories through the roots' `destroy` hooks. Each
+hook runs in its own root, and confirmation labels include that root so identical
+keys remain distinct. Those
+hooks can remove worktrees and their branches; lemonaid itself knows directories
+and terminals. A session without a managed directory is an ordinary target.
 
 ```bash
-tmux list-panes -a -F '#{session_name} #{window_id} #{pane_current_path}'
+lemonaid place toss                 # current tmux workspace, with confirmation
+lemonaid place toss <session>       # exact workspace name, from anywhere
+lemonaid place toss <session> --yes # unattended callers must name it
 ```
 
-A pane is in a place when its working directory is at or below the place's directory,
-assigned to the most specific place if places nest. A pane's directory is what the pane is
-for right now: an editor or a lemon keeps the directory it started in, and a shell that
-wandered into a worktree is in that worktree until it leaves. A window is in the place when
-every pane in it is; a window with one pane in the place and one elsewhere refuses, naming
-both panes, since closing it would take the other pane and leaving it would strand this one.
+A named tmux session wins over a same-named managed directory. Inside tmux,
+interactive bare `toss` selects the current session regardless of the caller's
+working directory. `--yes` and `--json` require an explicit session name.
+The confirmation defaults to no and shows all closing windows, released
+directories, and directories being kept.
 
-Nothing is written down when a place is opened, so nothing can drift. A worktree you made by
-hand, one `place open` made, and one an agent made all resolve identically afterward — which
-matters because the agent-created ones are exactly the ones you'd otherwise never find.
+```
+$ lp toss relay-notifications
+workspace 'relay-notifications'
+  session 'relay-notifications' closes (2 windows)
+close this workspace? [y/N]
+```
 
-tmux keeps reporting a pane's original path after the directory is deleted, so a session that
-outlived its worktree still resolves and can still be closed.
+If no session matches a supplied name, the existing directory-key cleanup is
+available. Outside tmux, bare `toss` uses the managed directory at the current
+working directory. Directory targeting can close windows in shared sessions;
+the confirmation identifies them before anything happens.
 
-A window in another session that sits in the place (a shell elsewhere that cd-ed in) closes
-too, since it would otherwise end up in a released directory. The one exception is a window
-in a protected session, which is never touched: it is listed in the confirmation as staying
-open.
+### Single-purpose and hybrid workspaces
+
+Toss refuses a hybrid workspace: one whose live lemons occupy unrelated places.
+The error says that the workspace is not a managed place, and no terminals or
+directories close. An author and reviewer sharing a place count as one purpose;
+working in different subdirectories of that place does not make it hybrid.
+When discovery cannot establish a shared place, distinct lemon paths refuse
+teardown even if one is beneath the other.
+Scratch inbox panes and follow placeholders do not count. Classification uses
+live harness processes and pane paths, rather than stale inbox rows, and is
+checked again after confirmation. `--force` does not override this refusal.
+
+With one lemon, or several lemons sharing a place, toss closes the workspace
+and performs its optional directory cleanup. With no identifiable lemons, toss
+still closes the workspace, but releases a directory only when all its work
+panes consistently occupy the same managed place. Otherwise the directories stay.
+A failed process inspection refuses teardown rather than treating it as an
+empty workspace.
+
+### Optional directory cleanup
+
+Associated directories come from the session's pane paths and its name, matched
+to directories reported by configured roots. A session named for a directory
+can clean it up even after its shells change directories. Nested directories
+match the most specific managed place.
+
+A directory stays when it is protected, used by another workspace, contains
+another managed directory, or has no `destroy` hook. If any pane's directory
+is unknown, directory cleanup is skipped. Failed directory discovery or lookup
+also skips cleanup, with a note in the confirmation, while allowing the named
+workspace to close. No other workspace closes to make a directory releasable.
+
+```
+$ lp toss job
+workspace 'job'
+  session 'job' closes (3 windows)
+  directory 'feat/work' stays (used by another workspace)
+close this workspace? [y/N]
+```
+
+A successful lookup may report a directory that is already gone. Its workspace
+can still close, and no destroy hook runs for the missing directory.
 
 ### Protection and flags
 
-Two kinds, guarding different things.
-
-**Protected places** — `main` and `master` by default — are never released, and never count as
-held. Everyone passes through the trunk worktree, so a window there doesn't make a session
-shared, and running `toss` from inside the trunk refuses rather than naming it. Set
-`protected = [...]` on a root to change it.
-
-**Protected sessions** are refused outright, and their windows are never closed one at a
-time either:
+Protect long-lived workspaces explicitly by their exact tmux session names:
 
 ```toml
 [places]
-protected_sessions = ["main", "lemonaid"]
+protected_sessions = ["hq", "ds-monorepo/main"]
 ```
 
-A long-lived catchall session isn't tied to one piece of work, so tossing it loses windows
-rather than finishing something. Configured globally rather than per root, since a session's
-name isn't repo-scoped and the one you want to guard may not sit in a managed directory at all.
+Protected sessions are never closed, including through directory-key cleanup.
+The hybrid-workspace guard also applies without config. Explicit protection covers
+long-lived single-purpose sessions, including HQ when it has only one lemon.
+Root-level `protected = [...]` guards directories (`main` and `master` by default),
+so a job visiting a protected directory can close while the directory stays.
 
-A place that contains other managed places is refused as well, whatever state they are in:
-the `destroy` hook is opaque, so releasing the outer directory may take the inner ones with
-it. Toss those first.
-
-`--force` overrides none of these.
-
-- `--yes` skips the confirmation. `--json` implies it.
-- `--force` proceeds despite `inspect` reporting work.
-
-They're separate so an agent can tear down unattended without also being able to discard
-commits you haven't pushed.
+An editable lemonaid install's source directory cannot be released. Unfinished
+work reported by an `inspect` hook still refuses cleanup unless `--force` is
+supplied. `--force` does not override protection or shared-directory retention.
+`--yes` skips confirmation; `--json` implies it. JSON's `session` names the closed
+workspace and `released` lists its optional directory cleanup.
 
 The interactive confirmation names affected lemons whose attached brief says
 `merge`, `approve`, `blocked`, or `alert`, with each name and status in the
@@ -315,7 +287,7 @@ cleanup to the watcher.
 ### Order of operations
 
 1. Work out the place, which windows sit in it, and whether its session is dedicated to it;
-   refuse a mixed window or a protected place or session.
+   select the workspace and optional directory cleanup, refusing protected sessions.
 2. Ask `inspect` about the place; refuse if it reports anything (`--force` overrides).
 3. Show the set and confirm (`--yes` skips).
 4. Switch every client attached to a closing session to another one — that client's last

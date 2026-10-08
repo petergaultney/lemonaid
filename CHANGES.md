@@ -1,3 +1,9 @@
+# 0.88.0 (2026-10-08)
+
+#### Changed
+
+- **`place toss` retires a tmux workspace first, with directory cleanup through configured hooks.** Sessions without managed directories are ordinary targets. Interactive bare toss selects the current session; unattended calls must name it. Hybrid workspaces whose lemons occupy unrelated places are refused. Sessions without identifiable lemons release a directory only when their work panes consistently occupy it. Protected or shared directories stay.
+
 # 0.87.0 (2026-10-08)
 
 #### Added

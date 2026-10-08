@@ -86,7 +86,7 @@ def test_the_set_is_shown_before_the_prompt(monkeypatch, tmp_path, capsys):
         toss_cli.cmd_toss(_args())
 
     err = capsys.readouterr().err
-    assert "place 'base'" in err
+    assert "workspace 'stacked'" in err
     assert "session 'stacked' closes (2 windows)" in err
 
 
@@ -145,8 +145,8 @@ def test_session_only_confirmation_says_work_was_not_inspected(monkeypatch, caps
     toss_cli.cmd_toss(_args(key="notes"))
 
     assert tossed[0][0][1] == []
-    assert "session 'notes' (no place; directory work was not inspected)" in capsys.readouterr().err
-    assert prompts == ["kill this session? [y/N] "]
+    assert "workspace 'notes'" in capsys.readouterr().err
+    assert prompts == ["close this workspace? [y/N] "]
 
 
 def test_session_only_json_reports_no_released_place(monkeypatch, capsys):
@@ -372,3 +372,22 @@ def test_skipping_the_prompt_resolves_unattended(monkeypatch, tmp_path, flags):
         toss_cli.cmd_toss(_args(**flags))
 
     assert seen["unattended"] is bool(flags)
+
+
+def test_duplicate_keys_across_roots_preserve_each_inspect_result(monkeypatch, tmp_path, capsys):
+    first = tmp_path / "a"
+    second = tmp_path / "b"
+    dirty = PlaceRoot(path=first, destroy="release {key}", inspect="echo unpushed")
+    clean = PlaceRoot(path=second, destroy="release {key}", inspect="true")
+    places = [_place(first, "feat", dirty), _place(second, "feat", clean)]
+    doomed = _target("work", places)
+    tossed = _resolves_to(monkeypatch, doomed)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(yes=True))
+
+    assert not tossed
+    assert f"feat ({first}): unpushed" in capsys.readouterr().err
+    lines = toss_cli._describe(doomed, {})
+    assert f"  feat ({first})" in lines
+    assert f"  feat ({second})" in lines

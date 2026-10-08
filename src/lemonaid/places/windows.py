@@ -20,7 +20,7 @@ _TIMEOUT_SECONDS = 5
 Planned = abc.Mapping[str, abc.Sequence[ownership.Pane]]  # window ID -> its panes when planned
 
 
-def _tmux(*args: str) -> list[str] | None:
+def query(*args: str) -> list[str] | None:
     """Non-empty lines from a tmux query, or None when tmux did not answer."""
     try:
         result = subprocess.run(
@@ -38,7 +38,7 @@ def _tmux(*args: str) -> list[str] | None:
 
 
 def _survivor(session: str, doomed: abc.Container[str]) -> str:
-    listed = _tmux("list-windows", "-t", f"={session}", "-F", "#{window_id}") or []
+    listed = query("list-windows", "-t", f"={session}", "-F", "#{window_id}") or []
 
     return next((w for w in listed if w not in doomed), "")
 
@@ -50,7 +50,7 @@ def move_clients_off(doomed: abc.Collection[str]) -> str:
     change: the client stays where it is and sees the doomed window vanish from
     under it. Returns an error message, or "".
     """
-    listed = _tmux("list-clients", "-F", "#{client_name}\t#{client_session}\t#{window_id}")
+    listed = query("list-clients", "-F", "#{client_name}\t#{client_session}\t#{window_id}")
     if listed is None:
         return "Could not tell who is looking at the closing windows; nothing was closed."
 
@@ -84,7 +84,7 @@ def own_window() -> str:
     if not pane:
         return ""
 
-    return next(iter(_tmux("display-message", "-p", "-t", pane, "#{window_id}") or []), "")
+    return next(iter(query("display-message", "-p", "-t", pane, "#{window_id}") or []), "")
 
 
 def ttys(windows: abc.Iterable[str]) -> set[str]:
@@ -92,7 +92,7 @@ def ttys(windows: abc.Iterable[str]) -> set[str]:
     return {
         tty
         for window in windows
-        for tty in _tmux("list-panes", "-t", window, "-F", "#{pane_tty}") or []
+        for tty in query("list-panes", "-t", window, "-F", "#{pane_tty}") or []
     }
 
 

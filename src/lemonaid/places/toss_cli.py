@@ -7,17 +7,22 @@ session has no place and its directory work was not inspected.
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from ..config import load_config
 from . import ownership, self_install, target, teardown, toss_warning
 
 
+def _label(place: ownership.Place) -> str:
+    return f"{place.key} ({place.root.path})"
+
+
 def _fate(place: ownership.Place, reasons: list[str]) -> str:
     """One line saying what happens to *place*, and anything you'd want to know first."""
     if not place.exists:
-        return f"  {place.key} (already gone)"
+        return f"  {_label(place)} (already gone)"
 
-    return f"  {place.key}" + (f" - {'; '.join(reasons)}" if reasons else "")
+    return f"  {_label(place)}" + (f" - {'; '.join(reasons)}" if reasons else "")
 
 
 def _plural(n: int, noun: str) -> str:
@@ -25,8 +30,11 @@ def _plural(n: int, noun: str) -> str:
 
 
 def _headline(doomed: target.TossTarget) -> str:
+    if doomed.session:
+        return f"workspace {doomed.session!r}"
+
     if doomed.place is None:
-        return f"session {doomed.session!r} (no place; directory work was not inspected)"
+        return "no workspace or directory"
 
     if not doomed.session and not doomed.partial:
         return f"place {doomed.place.key!r} (no session)"
@@ -43,7 +51,7 @@ def _closures(doomed: target.TossTarget) -> list[str]:
     return [
         *(
             [f"  session {doomed.session!r} closes ({_plural(len(doomed.windows), 'window')})"]
-            if doomed.session and doomed.place is not None
+            if doomed.session
             else []
         ),
         *(
@@ -54,22 +62,23 @@ def _closures(doomed: target.TossTarget) -> list[str]:
     ]
 
 
-def _describe(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> list[str]:
+def _describe(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> list[str]:
     """What is about to happen, one line per thing it happens to."""
     return [
         _headline(doomed),
-        *(_fate(place, concerns.get(place.key, [])) for place in doomed.places),
+        *(_fate(place, concerns.get(place.directory, [])) for place in doomed.places),
         *_closures(doomed),
         *(f"  window {window} stays open, in a released directory" for window in doomed.left_open),
+        *(f"  {note}" for note in doomed.kept),
     ]
 
 
 def _prompt(doomed: target.TossTarget) -> str:
     if doomed.place is None:
-        return "kill this session? [y/N] "
+        return "close this workspace? [y/N] "
 
     if doomed.session:
-        return "kill it and release the place? [y/N] "
+        return "close it and release the directories? [y/N] "
 
     if doomed.partial:
         return f"close {_plural(len(doomed.partial), 'window')} and release the place? [y/N] "
@@ -77,7 +86,7 @@ def _prompt(doomed: target.TossTarget) -> str:
     return "release it? [y/N] "
 
 
-def _confirmed(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> bool:
+def _confirmed(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> bool:
     for line in _describe(doomed, concerns):
         print(line, file=sys.stderr)
 
@@ -103,13 +112,13 @@ def cmd_toss(args: argparse.Namespace) -> None:
         print(refusal, file=sys.stderr)
         sys.exit(1)
 
-    concerns = {place.key: teardown.concerns(place) for place in doomed.places}
+    concerns = {place.directory: teardown.concerns(place) for place in doomed.places}
 
     if any(concerns.values()) and not args.force:
         print("There is unfinished work here:", file=sys.stderr)
-        for key, reasons in concerns.items():
-            for reason in reasons:
-                print(f"  {key}: {reason}", file=sys.stderr)
+        for place in doomed.places:
+            for reason in concerns[place.directory]:
+                print(f"  {_label(place)}: {reason}", file=sys.stderr)
         print("Pass --force to tear it down anyway.", file=sys.stderr)
         sys.exit(1)
 
@@ -152,25 +161,19 @@ def cmd_toss(args: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "toss",
-        help="Release a place or close a named session with no place",
-        description="A named target is a managed place when its directory exists or its root "
-        "lists it; otherwise it can be an exact tmux session name with no managed place "
-        "in its panes. A session-only toss closes the session without inspecting or releasing "
-        "a directory. The unit for a managed place is its directory, plus the tmux session "
-        "sitting in it when that session is dedicated to it (named for it, or entirely "
-        "inside it, and holding no other managed place). With no key the place is the "
-        "one the current directory is in, and a directory that is not in a place is "
-        "refused rather than falling back to your session; with a key it is that place or "
-        "session, from anywhere. Under --yes or --json, closing the session you are running in "
-        "needs the key.\n\n"
-        "In a session that also holds other places, only the windows sitting in this "
-        "one close, and the session stays. A window with a pane in the place and a "
-        "pane elsewhere refuses, naming both.\n\n"
-        "Protected places (main, master by default) are never released and never "
-        "count as held. Protected sessions are refused outright. A place containing "
-        "the source of an editable lemonaid install is also refused. Teardown switches "
-        "every client attached to the session elsewhere first (or refuses if one has "
-        "nowhere to go), then runs detached, logging to "
+        help="Close a single-purpose workspace with optional directory cleanup",
+        description="Close a one-off tmux workspace and release its associated directories "
+        "through configured destroy hooks. Hybrid workspaces with lemons in unrelated "
+        "places are refused, even with --force. With no identifiable lemons, directory "
+        "cleanup requires consistent pane directories. A named tmux session is selected before a "
+        "same-named directory. With no name, an interactive toss targets the current "
+        "tmux session; --yes and --json require its name. Outside tmux, or when the "
+        "name has no session, directory-only targeting remains available.\n\n"
+        "Protected sessions are refused. Protected directories, directories used by "
+        "surviving workspaces, and directories whose ownership cannot be established "
+        "stay. The confirmation lists them. A failed directory-discovery hook does "
+        "not prevent session closure. Unfinished work still requires --force. "
+        "Teardown switches clients elsewhere first and runs detached, logging to "
         "~/.local/state/lemonaid/reap.log.",
         epilog="Examples:\n"
         "  place toss feat/thing --json   # what an agent should use: names the place\n"
@@ -181,7 +184,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "key",
         nargs="?",
-        help="The place to release or exact session name to close (default: place at cwd)",
+        help="Workspace to close, or directory key (default: current tmux workspace)",
     )
     parser.add_argument(
         "-y",

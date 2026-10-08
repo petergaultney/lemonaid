@@ -744,3 +744,37 @@ def test_toss_evidence_does_not_override_another_servers_brief(monkeypatch, tmp_
     assert teardown.toss("closing", []) is None
     _watcher_tick(monkeypatch, {}, "blocked")
     assert _active_channels() == {"claude:other"}
+
+
+def test_release_commands_use_each_root_without_touching_a_same_named_neighbor(tmp_path):
+    first = tmp_path / "root with spaces"
+    second = tmp_path / "root's second"
+    first.mkdir()
+    second.mkdir()
+    unrelated = first / "beta"
+    unrelated.mkdir()
+    places = [
+        _place(first, "alpha", PlaceRoot(path=first, destroy="rmdir {key}")),
+        _place(second, "beta", PlaceRoot(path=second, destroy="rmdir {key}")),
+    ]
+    commands = teardown._release_commands(places, "/dev/null")
+
+    result = subprocess.run(["sh", "-c", "; ".join(commands)], cwd=first)
+
+    assert result.returncode == 0
+    assert unrelated.is_dir()
+    assert all(not place.exists for place in places)
+
+
+def test_failed_root_change_never_runs_destroy_in_the_reaper_directory(tmp_path):
+    unrelated = tmp_path / "feat"
+    unrelated.mkdir()
+    place = ownership.Place(
+        "feat", PlaceRoot(path=tmp_path / "missing", destroy="rmdir {key}"), unrelated
+    )
+    command = teardown._release_commands([place], "/dev/null")[0]
+
+    result = subprocess.run(["sh", "-c", command], cwd=tmp_path)
+
+    assert result.returncode != 0
+    assert unrelated.is_dir()

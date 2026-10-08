@@ -1,54 +1,13 @@
-"""Working out what `place toss` should tear down.
-
-Teardown is place-first: the unit is a managed directory, and what closes with
-it is whatever tmux has sitting in it. Bare `toss` starts from the directory you
-are standing in; `toss <key>` names one from anywhere. A session closes along
-with the place only when it is dedicated to that place - named for it, or
-entirely inside it, and holding no other managed place. In a session that holds
-other places as well, only the windows sitting in this one close.
-
-Named `toss` can close an exact session when the name has no existing or listed
-place. Bare `toss` never falls back to the session the caller is in. A directory that
-resolves to no place is a refusal, not a session to kill: the one time that
-fallback ran, it closed the session of the lemon that ran it.
-
-Problems come back as messages rather than being printed here, so the caller
-decides how to report them.
-"""
+"""Resolve a workspace first, with directory-only cleanup as a fallback."""
 
 import os
-import typing as ty
 from collections import abc
 from pathlib import Path
 
 from .. import tmux
 from ..config import Config
-from . import hooks, ownership, plan, session
-
-
-class TossTarget(ty.NamedTuple):
-    # The session closed whole, or "" when none is: a place with no session, or
-    # one held only by shared sessions.
-    session: str
-    # What is released: the place, unless it is protected (then nothing resolves).
-    places: list[ownership.Place]
-    # The place the toss was aimed at.
-    place: ownership.Place | None
-    # Every window of the closing session, with its panes as planned.
-    session_windows: dict[str, list[ownership.Pane]]
-    # Windows closed on their own, in sessions that survive, with their panes.
-    partial: dict[str, list[ownership.Pane]]
-    # Windows in protected sessions that sit in the place and are left as they
-    # are, as 'session:@id'. They end up in a released directory.
-    left_open: list[str]
-
-    @property
-    def windows(self) -> list[str]:
-        return list(self.session_windows)
-
-    @property
-    def closing(self) -> list[str]:
-        return [*self.session_windows, *self.partial]
+from . import hooks, ownership, plan, session, workspace, workspace_purpose
+from .toss_target import TossTarget
 
 
 def _session_refusal(config: Config, session: str) -> str:
@@ -94,13 +53,26 @@ def _for_place(config: Config, place: ownership.Place) -> tuple[TossTarget | Non
     if refusal := _place_refusal(place, known):
         return None, refusal
 
+    panes = ownership.panes()
     planned = plan.plan_toss(
         place,
-        ownership.panes(),
+        panes,
         known if any(p.directory == place.directory for p in known) else [*known, place],
     )
     if planned.refusals:
         return None, "\n".join(planned.refusals)
+
+    for candidate in planned.sessions:
+        if config.places.is_protected_session(candidate.name):
+            continue
+        lemons = workspace_purpose.lemon_panes(candidate.name)
+        if lemons is None:
+            return (
+                None,
+                f"Could not inspect lemons in workspace {candidate.name!r}; nothing was closed",
+            )
+        if refusal := workspace.hybrid_refusal(candidate.name, panes, lemons, known):
+            return None, refusal
 
     dedicated = [s for s in planned.sessions if s.dedicated]
     if len(dedicated) > 1:
@@ -133,29 +105,7 @@ def _for_place(config: Config, place: ownership.Place) -> tuple[TossTarget | Non
     ), ""
 
 
-def _for_session(
-    config: Config, name: str, known: list[ownership.Place]
-) -> tuple[TossTarget | None, str]:
-    """A named tmux session with no managed directory behind it."""
-    if refusal := _session_refusal(config, name):
-        return None, refusal
-
-    windows, why_not = session.inspect(name, known)
-    if windows is None:
-        return None, why_not
-
-    return TossTarget(name, [], None, windows, {}, []), ""
-
-
 def _here(config: Config, unattended: bool) -> tuple[TossTarget | None, str]:
-    """Bare `toss`: the place the current directory is in, and nothing else.
-
-    The caller's own tmux session is never a fallback target. It closes only
-    when the directory resolved to a place that session is dedicated to, and
-    an unattended caller (`--yes` or `--json`) has to name even that: a lemon
-    tearing down its own session should say so. Not knowing which session the
-    caller is in counts as it being this one.
-    """
     cwd = Path(os.getcwd())
     known = ownership.managed_places(config)
     place = ownership.place_at(cwd, known)
@@ -198,16 +148,24 @@ def _here(config: Config, unattended: bool) -> tuple[TossTarget | None, str]:
 def resolve_toss_target(
     config: Config, key: str | None, unattended: bool = False
 ) -> tuple[TossTarget | None, str]:
-    """What to tear down and what closes with it, or why that can't be worked out.
-
-    With a key, the place is found by name - which works from anywhere, and is
-    what a script or an agent should use. Without one, it is the place the
-    current directory is in; *unattended* (`--yes` or `--json`) says no one is
-    at a prompt, which tightens what a bare toss may do to the caller's own
-    session.
-    """
     if key is None:
+        current, _ = tmux.navigation.get_current_location()
+        if current:
+            if unattended:
+                return None, (
+                    f"This would close the session you are running in ({current!r}). "
+                    f"An unattended toss has to name it: `place toss {current}`."
+                )
+
+            return workspace.resolve(config, current)
+
         return _here(config, unattended)
+
+    if refusal := _session_refusal(config, key):
+        return None, refusal
+
+    if session.exists(key):
+        return workspace.resolve(config, key)
 
     known = ownership.managed_places_checked(config)
     if known is None:
@@ -225,7 +183,10 @@ def resolve_toss_target(
                 break
 
     if place is None:
-        return _for_session(config, key, known)
+        return (
+            None,
+            f"No configured root has a directory for {key!r}, and no tmux session has that name",
+        )
 
     return _for_place(config, place)
 
@@ -233,14 +194,7 @@ def resolve_toss_target(
 def changed_since(
     config: Config, key: str | None, planned: TossTarget, unattended: bool = False
 ) -> str:
-    """Why *planned* no longer describes tmux, or "" when it still does.
-
-    The confirmation prompt sits between planning and teardown for as long as
-    the person takes. So the plan is made again from a fresh snapshot, and any
-    difference - a pane that moved, a window split or opened in the place, a
-    session that gained a window - stops the toss: it is work the person never
-    saw in the confirmation.
-    """
+    """Reject changes to the closure or cleanup plan while confirmation was open."""
     now, why_not = resolve_toss_target(config, key, unattended)
     if now is None:
         return f"{why_not}\nThat changed since the plan was made; nothing was closed."
