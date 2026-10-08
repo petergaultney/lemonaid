@@ -106,15 +106,14 @@ def test_no_safe_destination_does_not_resume_in_another_session(monkeypatch, tmp
     assert not resumed
 
 
-def test_vanished_directory_does_not_respawn(monkeypatch, tmp_path):
-    """A worktree that has been removed has nowhere to put a session."""
+def test_vanished_directory_resumes_in_surviving_parent(monkeypatch, tmp_path):
     _no_pane(monkeypatch)
     resumed = _resumes_into(monkeypatch)
 
-    assert not handlers.handle_notification(
+    assert handlers.handle_notification(
         _row(tmp_path / "removed-worktree"), _CONFIG, switch_source="tmux"
     )
-    assert not resumed
+    assert resumed == [("existing", None, str(tmp_path), ["lemonaid", "claude", "resume", "abc"])]
 
 
 def test_missing_cwd_does_not_respawn(monkeypatch):
@@ -143,3 +142,16 @@ def test_auto_session_name_falls_back_to_one_component(tmp_path):
         handlers.tmux.session.auto_session_name(Path("/a/protostellar/tenant-org-identity"))
         == "tenant-org-identity"
     )
+
+
+def test_missing_codex_directory_passes_explicit_working_directory(monkeypatch, tmp_path):
+    _no_pane(monkeypatch)
+    resumed = _resumes_into(monkeypatch)
+    assert handlers.handle_notification(
+        {"channel": "codex:id", "session_id": "id", "cwd": str(tmp_path / "gone")},
+        _CONFIG,
+        switch_source="tmux",
+    )
+    assert resumed == [
+        ("existing", None, str(tmp_path), ["codex", "resume", "id", "--cd", str(tmp_path)])
+    ]

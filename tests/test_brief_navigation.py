@@ -166,7 +166,7 @@ def test_a_wake_during_a_switch_keeps_the_new_brief(monkeypatch, tmp_path):
     asyncio.run(check())
 
 
-def test_a_failed_switch_goes_back_to_the_lemon_beside_it(monkeypatch, tmp_path):
+def test_a_failed_switch_keeps_the_selected_brief_visible(monkeypatch, tmp_path):
     rows, state = _lemons(monkeypatch, tmp_path, 2)
     state["result"] = False
 
@@ -177,7 +177,13 @@ def test_a_failed_switch_goes_back_to_the_lemon_beside_it(monkeypatch, tmp_path)
             await pilot.press("down")
             await app.workers.wait_for_complete()
             await pilot.pause()
-            assert app._get_current_row_key() == str(rows[0].id)
+            assert app._get_current_row_key() == str(rows[1].id)
+            assert app._brief_target == state["targets"][1]
+            assert app.query_one(".brief-terminal-notice")
+            await pilot.press("f12")
+            assert app._brief_target == state["targets"][1]
+            await pilot.press("up")
+            await app.workers.wait_for_complete()
             assert app._brief_target == state["targets"][0]
 
     asyncio.run(check())
@@ -309,5 +315,75 @@ def test_clicking_the_selected_row_in_a_focused_scratch_pane_stays_put(monkeypat
             table.post_message(ClickToActTable.SelectedRowClicked(table, key))
             await pilot.pause()
             assert switched == [rows[0].id, rows[0].id]
+
+    asyncio.run(check())
+
+
+def test_detached_briefs_are_reachable_in_both_directions(monkeypatch, tmp_path):
+    rows, state = _lemons(monkeypatch, tmp_path, 3)
+
+    async def check():
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            app._set_detached_channels({rows[1].channel})
+            app.action_brief()
+            await pilot.press("down")
+            await pilot.pause()
+            assert app._get_current_row_key() == str(rows[1].id)
+            assert app._brief_target == state["targets"][1]
+            assert not state["switched"]
+            assert app.query_one(".brief-terminal-notice")
+            await pilot.press("down")
+            await app.workers.wait_for_complete()
+            assert app._brief_target == state["targets"][2]
+            await pilot.press("up")
+            assert app._brief_target == state["targets"][1]
+            await pilot.press("up")
+            await app.workers.wait_for_complete()
+            assert app._brief_target == state["targets"][0]
+
+    asyncio.run(check())
+
+
+def test_clicking_a_detached_row_attempts_resume(monkeypatch, tmp_path):
+    rows, _ = _lemons(monkeypatch, tmp_path, 2)
+    switched = []
+    monkeypatch.setattr(
+        LemonaidApp, "_switch_to_notification", lambda self, row: switched.append(row.id) or True
+    )
+
+    async def check():
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            app._set_detached_channels({rows[1].channel})
+            table = app.query_one("#main_table", ClickToActTable)
+            table.move_cursor(row=1)
+            key = table.coordinate_to_cell_key(table.cursor_coordinate)[0]
+            table.post_message(ClickToActTable.SelectedRowClicked(table, key))
+            await pilot.pause()
+            assert switched == [rows[1].id]
+            await pilot.press("enter")
+            assert switched == [rows[1].id, rows[1].id]
+
+    asyncio.run(check())
+
+
+def test_enter_resumes_the_detached_row_whose_brief_has_focus(monkeypatch, tmp_path):
+    rows, state = _lemons(monkeypatch, tmp_path, 3)
+    resumed = []
+    monkeypatch.setattr(
+        LemonaidApp, "_switch_to_notification", lambda self, row: resumed.append(row.id) or True
+    )
+
+    async def check():
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            app._set_detached_channels({rows[1].channel})
+            app.action_brief()
+            await pilot.press("down")
+            assert app.focused is app.query_one(BriefView)
+            assert app._brief_target == state["targets"][1]
+            await pilot.press("enter")
+            assert resumed == [rows[1].id]
 
     asyncio.run(check())

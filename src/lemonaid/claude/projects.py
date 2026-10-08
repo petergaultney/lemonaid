@@ -7,6 +7,7 @@ handles the encoding, lookup, and history-based resolution.
 
 import dataclasses
 import json
+import os
 import re
 import threading
 from pathlib import Path
@@ -46,7 +47,9 @@ def find_project_path(cwd: str) -> Path | None:
 
     Returns the first existing project directory found, or None.
     """
-    projects_dir = Path.home() / ".claude" / "projects"
+    projects_dir = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "projects"
+    )
     path = Path(cwd)
 
     # Try cwd and each parent up to root
@@ -117,13 +120,18 @@ def _read_history(index: _HistoryIndex, path: Path) -> None:
 
 
 def _find_in_history(session_id: str) -> str | None:
-    if not _HISTORY_PATH.exists():
-        _log.warning("history.jsonl not found at %s", _HISTORY_PATH)
+    history_path = (
+        Path(os.environ["CLAUDE_CONFIG_DIR"]) / "history.jsonl"
+        if os.environ.get("CLAUDE_CONFIG_DIR")
+        else _HISTORY_PATH
+    )
+    if not history_path.exists():
+        _log.warning("history.jsonl not found at %s", history_path)
         return None
 
     with _history_lock:
         try:
-            _read_history(_history, _HISTORY_PATH)
+            _read_history(_history, history_path)
         except OSError as e:
             _log.warning("failed to read history.jsonl: %s", e)
         return _history.projects.get(session_id)
@@ -135,7 +143,9 @@ def _find_in_projects(session_id: str) -> str | None:
     The directory name encoding (/ and . both collapse to -) is lossy, so we
     read the actual cwd from a transcript entry rather than trying to decode.
     """
-    projects_dir = Path.home() / ".claude" / "projects"
+    projects_dir = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "projects"
+    )
     if not projects_dir.exists():
         return None
 

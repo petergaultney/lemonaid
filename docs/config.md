@@ -34,7 +34,12 @@ resume_command = "lemonaid claude --allow-dangerously-skip-permissions --resume 
 
 `lemonaid claude` followed by a flag runs `claude` with the same arguments,
 after changing to the project directory recorded for the `--resume` session.
-`claude --resume` alone finds only sessions from the current directory.
+When that directory is gone, it uses the nearest surviving parent and resumes
+from the saved transcript path. Configured flags and any first prompt are kept.
+Modern Claude versions can also resolve a session ID across projects directly.
+Codex resumes from a surviving parent with `--cd` when its directory is gone;
+an existing `--cd` or `-C` in its configured resume command takes precedence.
+If that configured directory is gone too, its nearest surviving parent is used.
 
 When both harnesses use Ctrl+Enter to submit, configure both backends:
 

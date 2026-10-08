@@ -18,15 +18,11 @@ _log = get_logger("cmux.recreate")
 
 def recreate(metadata: dict[str, Any], config: Config) -> bool:
     """Resume the notification's session in a new cmux workspace rooted at its cwd."""
-    cwd = metadata.get("cwd")
-    if not cwd or not Path(cwd).is_dir():
-        return False
-
     channel = metadata.get("channel", "")
     resumable = build_resume_command(config, channel, metadata)
     if resumable is None:
         _log.warning("not recreating %s: no way to resume it", channel or "a session")
         return False
 
-    _, argv = resumable
+    cwd, argv = resumable
     return navigation.open_workspace(cwd, argv, metadata.get("name") or Path(cwd).name)

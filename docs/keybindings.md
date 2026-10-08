@@ -35,12 +35,21 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 Rows retained after their terminal pane closes show a `detached` marker. When the
 saved session details are insufficient to resume one, its marker also says
-`resume unavailable`. Enter and click keep switching live rows; on a detached
-row they explain whether `R` can resume it. For tmux, `R` opens a new window in
+`resume unavailable`. Enter, click, and `R` attempt to resume a detached row.
+An unavailable terminal never removes a row from brief navigation: up/down
+keeps its brief visible, with instructions for resuming. Resume error dialogs
+stay open until Escape or Enter, so continued arrows do not dismiss them.
+For tmux, resuming opens a new window in
 the recorded session when its identity still matches. If that identity is no
 longer available, it uses the session only when the saved directory identifies
 exactly one. Otherwise, a dialog shows the resume command and lets you copy it
 to paste into the session you choose. It never starts another tmux session.
+
+If a Claude or Codex session's directory has been removed, the resume command
+uses its nearest surviving parent directory. Claude loads the saved transcript
+by its path; Codex receives an explicit `--cd` override. The conversation is
+preserved, but the deleted directory and its files are not recreated. Restore
+the directory through your configured place commands if you need its files.
 
 The key hints occupy the bottom row for the first 10 seconds, then hand it back to
 the unread/read counts. `?` brings them up again and cancels that timeout, so they

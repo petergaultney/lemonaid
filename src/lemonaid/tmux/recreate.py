@@ -3,7 +3,6 @@
 import os
 import shlex
 import subprocess
-from pathlib import Path
 from typing import Any
 
 from ..config import Config
@@ -198,10 +197,6 @@ def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: lis
 
 def recreate(metadata: dict[str, Any], config: Config) -> bool:
     """Resume in a recorded or uniquely cwd-matched session, never a new session."""
-    cwd = metadata.get("cwd")
-    if not cwd or not Path(cwd).is_dir():
-        return False
-
     channel = metadata.get("channel", "")
     resumable = build_resume_command(config, channel, metadata)
     destination = _destination(metadata)
@@ -209,7 +204,7 @@ def recreate(metadata: dict[str, Any], config: Config) -> bool:
         return False
 
     destination_name, socket = destination
-    _, argv = resumable
+    cwd, argv = resumable
     if not _resume_in_session(destination_name, socket, cwd, argv):
         return False
 

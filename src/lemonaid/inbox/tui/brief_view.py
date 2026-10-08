@@ -209,6 +209,11 @@ class BriefView(VerticalScroll):
         border-left: outer $foreground 30%;
         color: $text-muted;
     }}
+    BriefView .brief-terminal-notice {{
+        height: auto;
+        color: $warning;
+        margin-bottom: 1;
+    }}
     BriefView Rule {{
         color: $foreground 30%;
         margin: 0;
@@ -248,6 +253,7 @@ class BriefView(VerticalScroll):
         self._sections: tuple[render.Section, ...] = ()
         self._selected: brief_questions.Choice | None = None
         self._needs: dict[Path, _Markdown] = {}
+        self._notice = ""
         # Built as a map, not bound one by one, so a character such as `(` becomes its key name.
         self._bindings = BindingsMap.merge(
             [
@@ -267,16 +273,27 @@ class BriefView(VerticalScroll):
         )
 
     def show(self, found: target.Target, unread: bool = False) -> None:
+        self._notice = ""
         self._rendered_markdown = None
         self._selected = None
         self.update_brief(found, unread)
         self.scroll_home(animate=False)
 
+    def notice(self, message: str) -> None:
+        self._notice = message
+        self.query(".brief-terminal-notice").remove()
+        self.mount(Static(message, classes="brief-terminal-notice", markup=False), before=0)
+
     def _widgets(
         self, shown: render.View, now: float, unread: bool
     ) -> list[Static | Markdown | Rule]:
+        notice = (
+            [Static(self._notice, classes="brief-terminal-notice", markup=False)]
+            if self._notice
+            else []
+        )
         if not shown.sections:
-            return [_Markdown(links.linkify(render.to_markdown(shown, now), self._vaults))]
+            return [*notice, _Markdown(links.linkify(render.to_markdown(shown, now), self._vaults))]
 
         top: list[Static | Markdown | Rule] = (
             [_SessionBar(shown.header)]
@@ -306,6 +323,7 @@ class BriefView(VerticalScroll):
             )
         ]
         return [
+            *notice,
             *top,
             *sections,
             Rule(),

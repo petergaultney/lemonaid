@@ -1,8 +1,10 @@
 """Config-driven resume command building for lemon backends."""
 
 import shlex
+from pathlib import Path
 
 from .config import Config
+from .resume_directory import codex_directory, surviving_directory
 
 _DEFAULT_RESUME_COMMANDS: dict[str, str] = {
     "claude": "lemonaid claude resume {session_id}",
@@ -51,4 +53,17 @@ def build_resume_command(
     except KeyError:
         return None
 
-    return (cwd, shlex.split(cmd))
+    argv = shlex.split(cmd)
+    if not argv:
+        return None
+
+    if not Path(cwd).is_dir():
+        backend = _backend_name(channel)
+        if backend not in {"claude", "codex"}:
+            return None
+
+        cwd = surviving_directory(cwd)
+        if backend == "codex":
+            cwd, argv = codex_directory(cwd, argv)
+
+    return (cwd, argv)

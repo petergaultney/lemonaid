@@ -20,7 +20,7 @@ def _notification(
     name: str = "a session",
     session: str | None = "work",
     window: str | None = "2",
-    cwd: str = "/tmp/somewhere",
+    cwd: str = "/tmp",
     order: list[int] | None = None,
 ) -> Notification:
     metadata: dict = {"cwd": cwd, "session_id": channel.split(":")[-1]}
@@ -41,7 +41,7 @@ def test_plans_one_window_per_session():
 
     assert [p.name for p in plans] == ["work"]
     assert [w.index for w in plans[0].windows] == [2]
-    assert plans[0].windows[0].cwd == "/tmp/somewhere"
+    assert plans[0].windows[0].cwd == "/tmp"
 
 
 def test_groups_several_lemons_into_one_session():
@@ -177,18 +177,22 @@ def test_sessions_with_no_recorded_order_go_last_by_name():
     assert [p.name for p in plans] == ["new", "garbled", "old-a", "old-b"]
 
 
-def test_each_window_keeps_its_own_cwd():
+def test_each_window_keeps_its_own_cwd(tmp_path):
     """One session's lemons routinely sit in different worktrees."""
+    first = tmp_path / "a"
+    second = tmp_path / "b"
+    first.mkdir()
+    second.mkdir()
     plans = restore.plan_restore(
         [
-            _notification(channel="claude:a", window="1", cwd="/a"),
-            _notification(channel="claude:b", window="2", cwd="/b"),
+            _notification(channel="claude:a", window="1", cwd=str(first)),
+            _notification(channel="claude:b", window="2", cwd=str(second)),
         ],
         _CONFIG,
         {},
     )
 
-    assert [w.cwd for w in plans[0].windows] == ["/a", "/b"]
+    assert [w.cwd for w in plans[0].windows] == [str(first), str(second)]
 
 
 def test_a_session_with_no_recorded_location_is_skipped():
@@ -255,7 +259,7 @@ def test_as_json_carries_what_a_caller_needs_to_act():
             "windows": [
                 {
                     "index": 3,
-                    "cwd": "/tmp/somewhere",
+                    "cwd": "/tmp",
                     "name": "a session",
                     "channel": "claude:abc123",
                     "line": "lemonaid claude resume abc123",

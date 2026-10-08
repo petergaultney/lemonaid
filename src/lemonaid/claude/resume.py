@@ -1,35 +1,41 @@
-"""Claude Code session resumption with project directory resolution.
-
-Claude's --resume only searches the project dir matching the current cwd.
-This module looks up the correct project directory from ~/.claude/history.jsonl
-so resume works from any directory.
-"""
+"""Resume Claude conversations in their directory or a surviving parent."""
 
 import os
 import sys
+from pathlib import Path
 
+from ..resume_directory import surviving_directory
 from .projects import find_session_project
 
 
-def _resolve_project_dir(session_id: str) -> str:
-    """Look up project dir for a session ID, or exit with an error."""
+def _resume_context(session_id: str) -> tuple[str, str]:
     project = find_session_project(session_id)
     if not project:
         print(f"Session {session_id} not found in Claude history", file=sys.stderr)
         sys.exit(1)
 
-    if not os.path.isdir(project):
-        print(f"Project directory no longer exists: {project}", file=sys.stderr)
+    if Path(project).is_dir():
+        return project, session_id
+
+    projects = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "projects"
+    transcripts = list(projects.glob(f"*/{session_id}.jsonl"))
+    if len(transcripts) != 1:
+        print(
+            f"Cannot resume {session_id}: expected one saved transcript, found {len(transcripts)}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    return project
+    directory = surviving_directory(project)
+    print(f"Original directory is gone: {project}. Resuming in {directory}.", file=sys.stderr)
+    return directory, str(transcripts[0])
 
 
 def resume_session(session_id: str, prompt: str = "") -> None:
     """cd to the correct project directory and exec claude --resume, starting on *prompt* if given."""
-    project = _resolve_project_dir(session_id)
+    project, target = _resume_context(session_id)
     os.chdir(project)
-    os.execvp("claude", ["claude", "--resume", session_id, *([prompt] if prompt else [])])
+    os.execvp("claude", ["claude", "--resume", target, *([prompt] if prompt else [])])
 
 
 def forward_to_claude(claude_args: list[str]) -> None:
@@ -40,7 +46,9 @@ def forward_to_claude(claude_args: list[str]) -> None:
     """
     for i, arg in enumerate(claude_args):
         if arg == "--resume" and i + 1 < len(claude_args):
-            project = _resolve_project_dir(claude_args[i + 1])
+            project, target = _resume_context(claude_args[i + 1])
+            claude_args = [*claude_args]
+            claude_args[i + 1] = target
             os.chdir(project)
             break
 

@@ -1,3 +1,10 @@
+# 0.85.1 (2026-10-08)
+
+#### Fixed
+
+- **Detached inbox rows resume on click or Enter, and remain reachable while browsing briefs.** An unavailable terminal leaves its brief visible with recovery instructions.
+- **Claude and Codex conversations can resume after their working directory is removed.** They use the nearest surviving parent directory, with the saved conversation intact.
+
 # 0.85.0 (2026-10-08)
 
 #### Added

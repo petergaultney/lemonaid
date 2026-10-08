@@ -12,6 +12,7 @@ import itertools
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.error_screen import ErrorScreen
+from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
 from lemonaid.lemon_watchers import watcher
 
 _ttys = itertools.count(900)
@@ -225,10 +226,10 @@ def test_a_failed_switch_says_so_until_dismissed(monkeypatch):
         app._resume_session()
         await pilot.pause()
         shown = type(app.screen)
-        await pilot.press("x")
+        await pilot.press("escape")
         await pilot.pause()
         return shown, type(app.screen)
 
     shown, after = _run(steps, monkeypatch=monkeypatch)
-    assert shown is ErrorScreen
-    assert after is not ErrorScreen
+    assert shown is ResumeErrorScreen
+    assert after is not ResumeErrorScreen

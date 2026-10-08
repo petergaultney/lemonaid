@@ -26,7 +26,7 @@ from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
-from textual.widgets.data_table import RowDoesNotExist, RowKey
+from textual.widgets.data_table import RowKey
 
 from ... import brief, claude, codex, handlers, openclaw, opencode
 from ... import resume as resume_mod
@@ -73,6 +73,7 @@ from .brief_view import BriefView
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .notes import NotesPanel
+from .resume_error import ResumeErrorScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .utils import (
@@ -888,11 +889,11 @@ class LemonaidApp(App):
         self._projects: dict[tuple[str, str, str], card_context.Part] = {}
         self._project_names = project_names.Cache()
         self._brief_target: brief.target.Target | None = None
-        self._brief_row_id: int | None = None  # the row whose lemon the main pane is on
         # Browsing briefs redraws at once and switches the main pane behind it;
         # only the newest selection is switched to once a switch finishes.
         self._brief_switch_pending: tuple[db.Notification, brief.target.Target] | None = None
         self._brief_switching = False
+        self._brief_local = False
         # Resolving a target asks tmux twice, which is most of an arrow's cost.
         self._brief_targets: dict[int, brief.target.Target] = {}
         self._brief_saved_focus = "main_table"
@@ -914,6 +915,7 @@ class LemonaidApp(App):
         # Select row (Enter always works via DataTable, these are additional keys)
         for b in _build_bindings(kb.select, "select", "Switch"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
+        self._bindings.bind("enter", "select_brief", "Switch", show=False, priority=True)
 
         for b in _build_bindings(kb.refresh, "refresh", "Refresh", show=False):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -1023,6 +1025,13 @@ class LemonaidApp(App):
             self.bind(down, "cursor_down", description="Down", show=False)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "select_brief":
+            return (
+                self._brief_target is not None
+                and not isinstance(self.screen, ModalScreen)
+                and not isinstance(self.focused, Input)
+            )
+
         if action in {"cursor_up", "cursor_down"} and (
             isinstance(self.focused, Input) or isinstance(self.screen, ModalScreen)
         ):
@@ -1032,7 +1041,7 @@ class LemonaidApp(App):
             return self.focused is self.query_one("#history_table", DataTable)
 
         if action == "resume_detached":
-            return self._selected_channel() in self._detached_channels
+            return self._selected_channel() in self._detached_channels or self._brief_local
 
         if action in ("brief", "cursor_first", "cursor_last") and (
             isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
@@ -1049,6 +1058,7 @@ class LemonaidApp(App):
                 "flip_position",
                 "cursor_up",
                 "cursor_down",
+                "select",
                 "mark_read",
                 "mark_unread",
                 "undo",
@@ -2098,7 +2108,9 @@ class LemonaidApp(App):
         update_static(self.query_one("#status", Static), text)
 
     def _refresh_resume_binding(self) -> None:
-        resume_footer_shown = self._selected_channel() in self._detached_channels
+        resume_footer_shown = (
+            self._selected_channel() in self._detached_channels or self._brief_local
+        )
         if resume_footer_shown != self._resume_footer_shown:
             self._resume_footer_shown = resume_footer_shown
             self._set_binding_footer("resume_detached", show=resume_footer_shown)
@@ -2500,17 +2512,22 @@ class LemonaidApp(App):
                 if notification.switch_source == "tmux"
                 else None
             )
-            if resume and Path(resume[0]).is_dir():
+            if resume:
                 cwd, argv = resume
                 command = f"cd {shlex.quote(cwd)} && {shlex.join(argv)}"
                 self.push_screen(
-                    ErrorScreen(
+                    ResumeErrorScreen(
                         "No safe tmux destination",
                         "Lemonaid could not identify one existing session safely. "
                         "Copy this command, then paste it into the session where you want "
                         "the lemon to run.",
                         offer="copy the resume command",
-                        details=command,
+                        details=(
+                            f"Original directory is gone: {notification.metadata.get('cwd')}. "
+                            f"The conversation will resume in {cwd}.\n\n{command}"
+                            if cwd != notification.metadata.get("cwd")
+                            else command
+                        ),
                     ),
                     lambda copy: self._copy_resume_command(command) if copy else None,
                 )
@@ -2520,7 +2537,11 @@ class LemonaidApp(App):
             message = "Its pane is gone and lemonaid could not recreate one for it."
             _log.warning("%s: %s", title, message)
             self.push_screen(
-                ErrorScreen(title, message, offer="archive it"),
+                ResumeErrorScreen(
+                    title,
+                    message + " Open its brief with b, or restore its directory and try again.",
+                    offer="archive it",
+                ),
                 lambda archive: self._archive_notification(notification.id) if archive else None,
             )
             return False
@@ -2551,7 +2572,7 @@ class LemonaidApp(App):
 
     def action_resume_detached(self) -> None:
         """Resume the selected row only when its pane is known to be gone."""
-        if self._selected_channel() not in self._detached_channels:
+        if self._selected_channel() not in self._detached_channels and not self._brief_local:
             return
 
         table = self.query_one("#main_table", DataTable)
@@ -2567,7 +2588,14 @@ class LemonaidApp(App):
             return
 
         if not self._can_resume_detached(notification):
-            self.notify("Resume unavailable for this backend or its saved session details")
+            self.push_screen(
+                ResumeErrorScreen(
+                    "Resume unavailable",
+                    "This backend or its saved session details do not provide a resume command. "
+                    "Press Escape to return, then b to read its brief. Restore its directory "
+                    "or start the harness manually with the saved session ID.",
+                )
+            )
             return
 
         self._switch_to_notification(notification)
@@ -2886,7 +2914,7 @@ class LemonaidApp(App):
             notification = db.get(conn, int(key.value))
             attached = brief.attached.for_rows(conn, [notification] if notification else [])
             emojis = emoji.by_channel(conn)
-        if notification is None or notification.switch_source != "tmux":
+        if notification is None:
             return
 
         found = self._brief_targets.get(notification.id) or brief.target.for_notification(
@@ -2895,6 +2923,15 @@ class LemonaidApp(App):
         table.move_cursor(row=next_row)
         self._set_brief_view(found)
         self._prefetch_brief_targets()
+        if notification.channel in self._detached_channels or notification.switch_source != "tmux":
+            self._brief_switch_pending = None
+            self._brief_local = True
+            self.query_one(BriefView).notice(
+                f"Its terminal is unavailable here. Press {self.config.tui.keybindings.resume_detached} "
+                "to resume; up/down keeps browsing."
+            )
+            return
+
         self._brief_switch_pending = (notification, found)
         if not self._brief_switching:
             self._brief_switching = True
@@ -2969,8 +3006,11 @@ class LemonaidApp(App):
                 brief.sidebar.clear(pane)
             return
 
+        if self._get_current_row_key() != str(notification.id):
+            return
+
         if switched:
-            self._brief_row_id = notification.id
+            self._brief_local = False
             tty = notification.metadata.get("tty")
             if isinstance(tty, str) and tty:
                 self._focused = frozenset({tty})
@@ -2979,21 +3019,14 @@ class LemonaidApp(App):
             return
 
         if not switched:
-            self._show_error(
-                "Could not show that session", "Its pane could not be found beside its brief."
+            self._brief_local = True
+            self.query_one(BriefView).notice(
+                f"Its terminal could not be opened. Press {self.config.tui.keybindings.resume_detached} "
+                "to try resuming; up/down keeps browsing."
             )
-            self._select_row_id(self._brief_row_id)
-        self._sync_brief_view()
-
-    def _select_row_id(self, row_id: int | None) -> None:
-        table = self.query_one("#main_table", DataTable)
-        if row_id is None:
             return
 
-        try:
-            table.move_cursor(row=table.get_row_index(str(row_id)))
-        except RowDoesNotExist:
-            _log.info("row %s left the table while its brief was shown", row_id)
+        self._sync_brief_view()
 
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
@@ -3004,6 +3037,9 @@ class LemonaidApp(App):
             self._wake_selected()
         elif table.id == "main_table":
             table.action_select_cursor()
+
+    def action_select_brief(self) -> None:
+        self.action_select()
 
     def action_refresh(self) -> None:
         if self._brief_target is not None:
@@ -3328,6 +3364,7 @@ class LemonaidApp(App):
                 return
 
             self._brief_target = None
+            self._brief_local = False
             self._brief_targets.clear()
             switcher.current = "inbox_content"
             self.sub_title = self._brief_saved_subtitle
@@ -3346,6 +3383,7 @@ class LemonaidApp(App):
             )
             self._brief_saved_subtitle = self.sub_title
 
+        self._brief_local = False
         self._brief_target = found
         switcher.current = "brief_view"
         self.sub_title = "brief"
@@ -3365,6 +3403,9 @@ class LemonaidApp(App):
         return bool(notification and notification.is_unread)
 
     def _sync_brief_view(self) -> None:
+        if self._brief_local and self._brief_target is not None:
+            return
+
         pane = os.environ.get("TMUX_PANE")
         shown = brief.sidebar.read(pane) if pane else None
         if shown and brief.sidebar.window_id(pane) == shown[1]:
@@ -3409,7 +3450,6 @@ class LemonaidApp(App):
         ):
             pane = os.environ.get("TMUX_PANE", "")
             if brief.sidebar.toggle(target, brief.sidebar.window_id(pane)):
-                self._brief_row_id = notification.id
                 self._sync_brief_view()
                 if self._brief_target is not None:
                     self._prefetch_brief_targets()
@@ -3701,17 +3741,6 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
 
         if notification:
-            if notification.channel in self._detached_channels:
-                if self._can_resume_detached(notification):
-                    self.notify(
-                        "Detached — press R to resume or copy a command; b / Tab opens the brief"
-                    )
-                else:
-                    self.notify(
-                        "Detached session — resume unavailable; press b / Tab to open its brief"
-                    )
-                return
-
             self._switch_to_notification(notification)
 
 
