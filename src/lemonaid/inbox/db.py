@@ -405,6 +405,7 @@ def _reconcile_name(
 # is replaced wholesale on update - so without this, one such observation erases
 # the location that `tmux restore` needs after a crash.
 _STICKY_METADATA = (
+    "place_teardown",
     "tmux_session",
     "tmux_window",
     "tmux_socket",
@@ -420,6 +421,9 @@ _STICKY_METADATA = (
 def _carry_forward(existing: Notification, metadata: dict[str, Any]) -> None:
     """Keep known facts that this observation couldn't see. Mutates *metadata*."""
     for key in _STICKY_METADATA:
+        if key == "place_teardown" and existing.is_archived:
+            continue
+
         if key not in metadata and key in existing.metadata:
             metadata[key] = existing.metadata[key]
 

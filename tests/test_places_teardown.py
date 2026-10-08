@@ -8,11 +8,15 @@ import shutil
 import subprocess
 import time
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
+from lemonaid.brief import attached
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
+from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.lemon_watchers import watcher
 from lemonaid.places import ownership, teardown
 
 
@@ -301,7 +305,7 @@ def test_reaper_does_not_kill_a_prefix_named_session(monkeypatch, tmp_path):
 def _lemon(channel: str, cwd, tty: str | None = None) -> None:
     metadata = {"cwd": str(cwd), **({"tty": tty} if tty else {})}
     with db.connect() as conn:
-        db.add(conn, channel=channel, message="waiting", metadata=metadata)
+        db.add(conn, channel=channel, message="waiting", metadata=metadata, switch_source="tmux")
 
 
 def _active_channels() -> set[str]:
@@ -309,10 +313,55 @@ def _active_channels() -> set[str]:
         return {n.channel for n in db.get_active(conn)}
 
 
+def _watcher_tick(monkeypatch, locations, protected_status=""):
+    protected = set()
+    if protected_status:
+        monkeypatch.setattr(
+            attached,
+            "by_channel",
+            lambda conn, channels: {channel: channel for channel in channels},
+        )
+        app = SimpleNamespace(
+            _brief_cache={
+                channel: SimpleNamespace(status=protected_status) for channel in _active_channels()
+            }
+        )
+        protected = LemonaidApp._protected_brief_channels(app)
+    monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name: True)
+    with db.connect() as conn:
+        rows = db.get_active(conn)
+    active = [
+        (
+            n.channel,
+            "",
+            n.metadata.get("cwd", ""),
+            n.created_at,
+            True,
+            n.metadata.get("tty"),
+            n.message,
+            n.switch_source,
+        )
+        for n in rows
+    ]
+
+    def archive(channel):
+        with db.connect() as conn:
+            db.archive_channel(conn, channel, "watcher")
+
+    return watcher._archive_stale_sessions(
+        active, archive, {}, {None: locations}, protected_channels=protected
+    )
+
+
 def _session_panes(monkeypatch, ttys: set[str]) -> None:
     """*ttys* are the doomed session's panes, and no client is watching it."""
     monkeypatch.setattr(teardown.tmux.navigation, "session_ttys", lambda session: ttys)
     monkeypatch.setattr(teardown.escape, "evacuate", lambda session: "")
+    monkeypatch.setattr(
+        teardown.tmux.navigation,
+        "locations_by_tty",
+        lambda socket: {tty: teardown.tmux.navigation.PaneLocation("review", "1") for tty in ttys},
+    )
 
 
 def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
@@ -326,7 +375,7 @@ def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
     monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
 
     assert teardown.toss("review", [place]) is None
-    assert _active_channels() == {"claude:elsewhere"}
+    assert _active_channels() == {"claude:elsewhere", "claude:author"}
 
 
 def test_toss_archives_the_lemons_on_the_killed_sessions_panes(monkeypatch, tmp_path):
@@ -338,6 +387,10 @@ def test_toss_archives_the_lemons_on_the_killed_sessions_panes(monkeypatch, tmp_
 
     teardown.toss("review", [])
 
+    assert _active_channels() == {"claude:window-2", "claude:elsewhere"}
+    _watcher_tick(
+        monkeypatch, {"/dev/ttys042": teardown.tmux.navigation.PaneLocation("elsewhere", "1")}
+    )
     assert _active_channels() == {"claude:elsewhere"}
 
 
@@ -488,16 +541,16 @@ def test_the_reaper_kills_the_callers_window_before_releasing(monkeypatch, tmp_p
     assert script.index("kill-window -t @7") < script.index("release k")
 
 
-def test_doomed_rows_include_lemons_on_closing_windows(monkeypatch, tmp_path):
-    monkeypatch.setattr(teardown.windows, "ttys", lambda ws: {"/dev/ttys004"} if ws else set())
+def test_toss_leaves_closing_window_rows_to_the_watcher(monkeypatch, tmp_path):
+    _partial_stubs(monkeypatch)
     _lemon("claude:on-window", "/x", tty="/dev/ttys004")
     _lemon("claude:elsewhere", "/x", tty="/dev/ttys009")
-
-    doomed = teardown._doomed_rows("", [], ["@4"])
-
-    with db.connect() as conn:
-        by_id = {n.id: n.channel for n in db.get_active(conn)}
-    assert [by_id[i] for i in doomed] == ["claude:on-window"]
+    assert teardown.toss("", [], {"@4": []}) is None
+    assert _active_channels() == {"claude:on-window", "claude:elsewhere"}
+    _watcher_tick(
+        monkeypatch, {"/dev/ttys009": teardown.tmux.navigation.PaneLocation("elsewhere", "1")}
+    )
+    assert _active_channels() == {"claude:elsewhere"}
 
 
 def test_a_partial_toss_closes_only_the_planned_windows(monkeypatch, tmp_path):
@@ -546,3 +599,148 @@ def test_a_partial_toss_closes_only_the_planned_windows(monkeypatch, tmp_path):
         assert "released feat/merged" in (tmp_path / "reap.log").read_text()
     finally:
         tmux("kill-server")
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+def test_toss_keeps_a_pinned_lemon_in_a_surviving_pane_inside_the_place(
+    monkeypatch, tmp_path, harness
+):
+    place = _place(tmp_path, "child")
+    with db.connect() as conn:
+        db.add(
+            conn,
+            channel=f"{harness}:lead",
+            message="waiting",
+            switch_source="tmux",
+            metadata={
+                "cwd": str(place.directory),
+                "tty": "/dev/lead",
+                "tmux_session_order": [1, 1, 1],
+                "tmux_pane_identity": ["%1", 1],
+            },
+        )
+    _lemon("claude:child", place.directory, tty="/dev/child")
+    _session_panes(monkeypatch, {"/dev/child"})
+    monkeypatch.setattr(
+        teardown.tmux.navigation,
+        "locations_by_tty",
+        lambda socket: {
+            "/dev/lead": teardown.tmux.navigation.PaneLocation("lead", "1", (1, 1, 1)),
+            "/dev/child": teardown.tmux.navigation.PaneLocation("child", "1"),
+        },
+    )
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+    with db.connect() as conn:
+        lead = next(n for n in db.get_active(conn) if n.channel == f"{harness}:lead")
+        conn.execute("INSERT INTO pins (channel, position) VALUES (?, 0)", (lead.channel,))
+        conn.commit()
+
+    assert teardown.toss("child", [place]) is None
+    assert _active_channels() == {f"{harness}:lead", "claude:child"}
+    _watcher_tick(
+        monkeypatch, {"/dev/lead": teardown.tmux.navigation.PaneLocation("lead", "1", (1, 1, 1))}
+    )
+    with db.connect() as conn:
+        remaining = db.get_active(conn)
+        assert [n.channel for n in remaining] == [f"{harness}:lead"]
+        assert conn.execute("SELECT channel FROM pins").fetchall()[0][0] == f"{harness}:lead"
+
+
+def test_toss_archives_legacy_codex_daemon_rows_in_the_released_directory(monkeypatch, tmp_path):
+    place = _place(tmp_path)
+    _lemon("codex:legacy", place.directory, tty="/daemon")
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+    assert teardown.toss("", [place]) is None
+    assert _active_channels() == set()
+
+
+def test_toss_then_watcher_archives_identified_codex_without_directory_release(
+    monkeypatch, tmp_path
+):
+    with db.connect() as conn:
+        db.add(
+            conn,
+            channel="codex:cli",
+            message="waiting",
+            switch_source="tmux",
+            metadata={
+                "cwd": str(tmp_path),
+                "tty": "/cli",
+                "tmux_session_order": [1, 1, 1],
+                "tmux_pane_identity": ["%1", 1],
+            },
+        )
+    _session_panes(monkeypatch, {"/cli"})
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+    assert teardown.toss("cli", []) is None
+    assert _active_channels() == {"codex:cli"}
+    _watcher_tick(monkeypatch, {})
+    assert _active_channels() == set()
+
+
+@pytest.mark.parametrize("status", ["merge", "approve", "blocked", "alert"])
+@pytest.mark.parametrize("partial", [False, True])
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+def test_watcher_honors_toss_evidence_for_protected_rows(
+    monkeypatch, tmp_path, status, partial, harness
+):
+    with db.connect() as conn:
+        db.add(
+            conn,
+            channel=f"{harness}:closing",
+            message="waiting",
+            switch_source="tmux",
+            metadata={
+                "tty": "/closing",
+                "tmux_session_order": [1, 1, 1],
+                "tmux_pane_identity": ["%1", 1],
+            },
+        )
+    _lemon("claude:surviving", tmp_path, tty="/surviving")
+    if partial:
+        _partial_stubs(monkeypatch)
+        monkeypatch.setattr(teardown.windows, "ttys", lambda windows: {"/closing"})
+        assert teardown.toss("", [], {"@4": []}) is None
+    else:
+        _session_panes(monkeypatch, {"/closing"})
+        monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+        assert teardown.toss("closing", []) is None
+    assert _active_channels() == {f"{harness}:closing", "claude:surviving"}
+    _watcher_tick(
+        monkeypatch,
+        {
+            "/closing": teardown.tmux.navigation.PaneLocation("closing", "1", (1, 1, 1)),
+            "/surviving": teardown.tmux.navigation.PaneLocation("surviving", "1"),
+        },
+        status,
+    )
+    assert _active_channels() == {f"{harness}:closing", "claude:surviving"}
+    _watcher_tick(
+        monkeypatch, {"/surviving": teardown.tmux.navigation.PaneLocation("surviving", "1")}, status
+    )
+    assert _active_channels() == {"claude:surviving"}
+
+
+def test_failed_teardown_records_no_terminal_evidence(monkeypatch, tmp_path):
+    _lemon("claude:closing", tmp_path, tty="/closing")
+    _session_panes(monkeypatch, {"/closing"})
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: "failed")
+    assert teardown.toss("closing", []) == "failed"
+    _watcher_tick(monkeypatch, {}, "blocked")
+    assert _active_channels() == {"claude:closing"}
+
+
+def test_toss_evidence_does_not_override_another_servers_brief(monkeypatch, tmp_path):
+    with db.connect() as conn:
+        db.add(
+            conn,
+            channel="claude:other",
+            message="waiting",
+            switch_source="tmux",
+            metadata={"tty": "/closing", "tmux_socket": "/other"},
+        )
+    _session_panes(monkeypatch, {"/closing"})
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+    assert teardown.toss("closing", []) is None
+    _watcher_tick(monkeypatch, {}, "blocked")
+    assert _active_channels() == {"claude:other"}

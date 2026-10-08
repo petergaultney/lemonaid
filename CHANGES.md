@@ -1,3 +1,9 @@
+# 0.83.1 (2026-10-08)
+
+#### Fixed
+
+- **`place toss` leaves terminal rows to the watcher, preserving lemons and pins in surviving panes.** Direct archiving is limited to Codex daemon rows in directories being released.
+
 # 0.83.0 (2026-10-07)
 
 #### Added

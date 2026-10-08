@@ -8,15 +8,13 @@ then does the work in a detached process.
 """
 
 import shlex
-import sqlite3
 import subprocess
 from collections import abc
 from pathlib import Path
 
 from .. import tmux
-from ..inbox import db
 from ..log import get_logger
-from . import escape, hooks, ownership, windows
+from . import escape, hooks, inbox_cleanup, ownership, windows
 
 _log = get_logger("places.teardown")
 
@@ -132,47 +130,6 @@ def _reaper_cwd(places: abc.Sequence[ownership.Place]) -> Path:
     return next((place.root.path for place in places), Path.home())
 
 
-def _doomed_rows(
-    session: str, places: abc.Sequence[ownership.Place], closing: abc.Iterable[str] = ()
-) -> list[int]:
-    """Inbox rows on a closing pane, or whose cwd is inside a place about to be destroyed.
-
-    Closing panes are *session*'s and those of the *closing* windows. Chosen
-    before anything is killed, which would remove the panes and directories
-    before this could look at them. A Codex row's tty is not trusted: under the
-    shared app-server, older rows recorded the pane of the TUI that started it,
-    which may be in this session while they run elsewhere. The watcher judges
-    those, and Codex rows in a directory that survives.
-    """
-    ttys = (tmux.navigation.session_ttys(session) if session else set()) | windows.ttys(closing)
-    doomed = [place.directory.resolve() for place in places if place.root.destroy and place.exists]
-    try:
-        with db.connect() as conn:
-            rows = db.get_active(conn)
-    except sqlite3.Error as e:
-        _log.warning("could not read the inbox to archive %s's lemons: %s", session, e)
-        return []
-
-    return [
-        n.id
-        for n in rows
-        if (n.metadata.get("tty") in ttys and not n.channel.startswith("codex:"))
-        or (
-            (cwd := n.metadata.get("cwd"))
-            and any(Path(cwd).resolve().is_relative_to(d) for d in doomed)
-        )
-    ]
-
-
-def _archive(row_ids: abc.Iterable[int]) -> None:
-    try:
-        with db.connect() as conn:
-            for row_id in row_ids:
-                db.archive(conn, row_id, "place-teardown")
-    except sqlite3.Error as e:
-        _log.warning("could not archive torn-down lemons: %s", e)
-
-
 def toss(
     session: str,
     places: abc.Sequence[ownership.Place],
@@ -196,7 +153,7 @@ def toss(
     if partial and (error := windows.move_clients_off(partial)):
         return error
 
-    doomed = _doomed_rows(session, places, partial)
+    snapshot = inbox_cleanup.capture(session, places, partial)
 
     # The caller's own window is left to the reaper: closing it here would end
     # this process before the directory is released.
@@ -208,5 +165,5 @@ def toss(
     if error:
         return error
 
-    _archive(doomed)
+    inbox_cleanup.finish(snapshot)
     return None

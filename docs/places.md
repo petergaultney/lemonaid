@@ -281,6 +281,31 @@ it. Toss those first.
 They're separate so an agent can tear down unattended without also being able to discard
 commits you haven't pushed.
 
+### Which inbox rows are archived
+
+`toss` closes terminals and releases directories. The inbox watcher archives terminal
+rows after their panes or harness processes exit. A lemon in a surviving pane keeps
+its row and pin even if its last recorded cwd is inside the released place. The
+watcher must be running for terminal rows to leave the inbox.
+
+After teardown starts successfully, toss records which terminal rows it intended to
+close. The watcher honors this evidence once their panes or harnesses exit, even if
+an attached brief is `merge`, `approve`, `blocked`, or `alert`. This overrides brief
+protection only for the recorded terminal identity; moving or resuming the lemon in
+another terminal leaves the usual protection in place. A failed teardown records
+no evidence.
+
+Toss directly archives only Codex rows without their own recorded terminal identity.
+Shared app-server hooks have no tty, and older hooks could record the daemon's tty.
+These rows use cwd membership: toss archives them only when their recorded cwd is
+inside an existing place directory being released by `destroy`. Codex CLI rows with
+TTY, pane identity, and session order are left to the watcher like other terminal rows.
+
+The Codex fallback set is captured before directories disappear and archived only
+after teardown starts successfully. A place with no `destroy` hook, or whose directory
+is already gone, does not archive rows by cwd. Closing a bare session leaves inbox
+cleanup to the watcher.
+
 ### Order of operations
 
 1. Work out the place, which windows sit in it, and whether its session is dedicated to it;

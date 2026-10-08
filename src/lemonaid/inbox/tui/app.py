@@ -57,7 +57,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, search, unarchive, undo, view
+from .. import db, emoji, order, pins, search, teardown_evidence, unarchive, undo, view
 from ..arrange import answer, child
 from . import (
     backend_indicators,
@@ -3590,7 +3590,11 @@ class LemonaidApp(App):
     def _protected_brief_channels(self) -> set[str]:
         """Channels whose attached brief is waiting for a person to act."""
         with db.connect() as conn:
-            channels = [n.channel for n in db.get_active(conn, switch_source=None)]
+            channels = [
+                n.channel
+                for n in db.get_active(conn, switch_source=None)
+                if not teardown_evidence.applies(n)
+            ]
             paths = brief_attached.by_channel(conn, channels)
         return {
             channel
