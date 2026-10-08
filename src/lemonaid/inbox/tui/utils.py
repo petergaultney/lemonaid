@@ -5,6 +5,7 @@ import sys
 from rich.text import Text
 from textual.widgets import Static
 
+from ...brief import colors
 from ...tmux import window_status
 
 
@@ -54,7 +55,7 @@ FIELD_STYLES = {
 }
 # A soft lemon rather than warning red: unread means "ready for you", not an
 # error. One value feeds both the marker and the table's attention bar.
-ATTENTION_COLOR = "#e3cf65"
+ATTENTION_COLOR = colors.ATTENTION_COLOR
 # Links in a brief: a sky blue, lighter than the blue that marks a directory.
 LINK_COLOR = "#6cb6ff"
 
@@ -62,7 +63,7 @@ LINK_COLOR = "#6cb6ff"
 # read at 10:1 or better; on a light one they fall to 2:1 or less. Text takes
 # these darker ones under a light theme instead. A fill, a colour behind black
 # or white text, reads on either and keeps its colour.
-ATTENTION_TEXT_LIGHT = "#8a6d00"
+ATTENTION_TEXT_LIGHT = colors.ATTENTION_TEXT_LIGHT
 LINK_COLOR_LIGHT = "#1f62b8"
 
 _light_theme = False

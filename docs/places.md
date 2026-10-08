@@ -281,6 +281,12 @@ it. Toss those first.
 They're separate so an agent can tear down unattended without also being able to discard
 commits you haven't pushed.
 
+The interactive confirmation names affected lemons whose attached brief says
+`merge`, `approve`, `blocked`, or `alert`, with each name and status in the
+inbox's status text color. This includes Codex daemon rows in directories being
+released. Pressing Enter declines the toss; type `y` or `yes` to confirm.
+`--yes` and `--json` still skip the confirmation.
+
 ### Which inbox rows are archived
 
 `toss` closes terminals and releases directories. The inbox watcher archives terminal

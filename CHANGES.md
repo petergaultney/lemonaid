@@ -1,3 +1,9 @@
+# 0.86.1 (2026-10-08)
+
+#### Changed
+
+- **`place toss` names lemons awaiting action in its confirmation, in their inbox status colors.** Enter declines the toss.
+
 # 0.86.0 (2026-10-07)
 
 #### Added

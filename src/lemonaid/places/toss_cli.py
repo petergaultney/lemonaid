@@ -9,7 +9,7 @@ import json
 import sys
 
 from ..config import load_config
-from . import ownership, self_install, target, teardown
+from . import ownership, self_install, target, teardown, toss_warning
 
 
 def _fate(place: ownership.Place, reasons: list[str]) -> str:
@@ -81,6 +81,7 @@ def _confirmed(doomed: target.TossTarget, concerns: dict[str, list[str]]) -> boo
     for line in _describe(doomed, concerns):
         print(line, file=sys.stderr)
 
+    toss_warning.show(doomed)
     prompt = _prompt(doomed)
     try:
         return input(prompt).strip().lower() in ("y", "yes")

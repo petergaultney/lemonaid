@@ -15,6 +15,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Markdown
 
+from lemonaid.brief import colors
 from lemonaid.config import Config
 from lemonaid.inbox.tui import app, brief_cards, brief_detail, brief_popup, utils
 from lemonaid.inbox.tui.brief_cards import CardBrief
@@ -69,7 +70,7 @@ def test_a_light_theme_darkens_text_but_not_fills():
         utils.ATTENTION_TEXT_LIGHT,
         utils.LINK_COLOR_LIGHT,
         brief_cards.RUNNING_TEXT_COLOR_LIGHT,
-        *(style.split()[-1] for style in brief_cards._STATE_STYLES_LIGHT.values() if "#" in style),
+        *(style.split()[-1] for style in colors._STATE_STYLES_LIGHT.values() if "#" in style),
     ],
 )
 def test_every_light_text_colour_reads_on_white(colour):
