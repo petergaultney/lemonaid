@@ -41,16 +41,26 @@ The line is how groups travel with a brief to another machine:
 
 Two machines both working on one brief at once would each rewrite its line from their own database. That isn't supported.
 
-## In the inbox (coming next)
+## In the inbox
 
-Groups are drawn as sections of the list, each under a header line with its name:
+`lma` draws each group under a header line naming it and how many of its lemons have rows (`▾ Inbox work (3)`):
 
-- **Order:** pinned rows first, then each group in its order, then the lemons in no group. Groups are reordered with a key, and keep their order across restarts.
-- **A lemon in two groups appears in both.** A pinned lemon appears only among the pins.
-- **Within a group,** rows keep the order lemonaid or the arranger gives them. The arranger's snapshot gains each row's groups, and its `folded` list folds only rows in no group: a group that's in the way is collapsed instead.
-- **A group is never hidden.** Collapsing one leaves its header, which shows how many lemons it has and takes the highlight of its most important status, in the band order of `docs/arrange.md` (`alert` first). A group whose lemons have no rows shows its header alone.
+- **Order:** pinned lemons in no group come first. Each group then sits among the other rows by its most pressing row's status, above single lemons of the same status: a group holding a `blocked` lemon heads the `blocked` rows. Groups in the same band keep their own order, and an empty group goes last.
+- **A pinned lemon in a group heads that group,** and stays visible when the group is collapsed. Pin a lead to keep it in sight with its group out of the way.
+- **A lemon in two groups appears in both.**
+- **`Enter` on a header collapses the group,** leaving only the header, and opens it again. `Tab` does the same from the header or any of the group's lemons; a lemon you collapse from stays drawn under the cursor until you move off it. A collapsed header (`▸`) is filled with the colour of its most pressing row: `alert` red, `blocked` yellow, and so on in the band order of `docs/arrange.md`. Being unread doesn't fill a header: a group with an unread row shows a dot after its count.
+- **`Shift`+`↑` / `Shift`+`↓` on a header swap the group with the next header up or down,** the keys that move a pin. They only reorder groups in the same band; past a group in another band they say so and do nothing.
+- **Each header is underlined across the list's width,** so stacked collapsed headers of one colour stay apart.
+- **The header's arrow takes the group's colour,** like its name. Under the cursor the arrow becomes a block of that colour, and in the sidebar a white block marks the right edge, since the table's cursor colour doesn't show through a status fill.
+- **In the sidebar, a group's cards sit one column in, behind a rail** (`▌`) in the group's colour that runs unbroken down every line. Where the rail stops, the group ends. Cards in no group keep the full width.
+- **A group is never hidden.** One whose lemons have no rows shows its header alone, with `(0)`.
+- **Row keys skip headers.** Number keys count lemons only, the brief view's up and down step over headers, and actions on a header (mark read, archive, ...) do nothing.
+- **Folding:** a row that `[tui] fold_statuses` or an arranger's `folded` list folds is hidden in place inside its group, and the fold key shows it there again. The header's count then reads `(2/3)`: two rows not folded, three in all.
+- **Search** shows matches as a flat list, without groups.
 
-## Editing in the inbox (after that)
+Collapse and order are stored in this machine's database and survive restarts.
+
+## Editing in the inbox (coming next)
 
 - **One key makes a group** of the selected lemon, its children and their children, named after the lemon's session, and lets you rename it there.
 - **Keys to add or remove** the selected lemon, and to rename or delete the group under the cursor.

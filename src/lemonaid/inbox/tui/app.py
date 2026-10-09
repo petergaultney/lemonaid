@@ -28,7 +28,7 @@ from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, claude, codex, handlers, openclaw, opencode
+from ... import brief, claude, codex, groups, handlers, openclaw, opencode
 from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
@@ -64,6 +64,7 @@ from .. import (
     pins,
     resume_archived,
     search,
+    sections,
     teardown_evidence,
     unarchive,
     undo,
@@ -77,6 +78,7 @@ from . import (
     card_context,
     context_reading,
     focus,
+    group_headers,
     pr_numbers,
     project_names,
     utils,
@@ -140,6 +142,7 @@ _CONTEXT_WIDTH = 7  # ` 999% ` and the model's padding, when readings are config
 _CARD_MIN_TEXT = 16
 _CARD_CHROME_ROWS = 3  # title, status row, and a little slack
 _INDENT = " "  # one column, so a card's body clears the marker but little else
+GROUP_RAIL = HERE_BAR  # one kind of edge, in the group's colour
 # Cards draw their own gutter - a single space, with the marker in the column
 # before it - so the table adds none. Every column a narrow pane spends on
 # padding is one the message doesn't get.
@@ -305,6 +308,7 @@ def _as_card(
     context_parts: abc.Sequence[card_context.Part] | None = None,
     age_inline: bool = False,
     neutral_timing: bool = False,
+    rail: str = "",
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -349,6 +353,12 @@ def _as_card(
     # than before it. Prepending would push the whole card right by one the
     # moment it was marked, which reads as the list jumping under the cursor.
     edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text(_INDENT)
+
+    # A card in an open group gives up its first column to an unbroken rail in
+    # the group's colour, so the run of colour shows where the group starts and
+    # ends. Ungrouped cards keep the full width.
+    if rail:
+        width -= 1
     bar_unread = unread_style == "bar" and bool(marker.plain) and card_brief is None
     if bar_unread:
         headline = selector + Text("  ") + name
@@ -495,6 +505,9 @@ def _as_card(
         # genuinely empty otherwise, so an unmarked card ends where it did.
         edge if is_here else Text(""),
     ]
+    if rail:
+        # Added last, as a span, so no status fill, dimming or base style reaches it.
+        lines = [Text.assemble((GROUP_RAIL, rail)) + line for line in lines]
     # Model and pin live in the first two lines rather than a second table
     # column. That gives the message every column below them instead of making
     # a short label reserve a blank strip down the entire card.
@@ -504,6 +517,11 @@ def _as_card(
 def _without_marker(cells: list[Text]) -> list[Text]:
     """Cells minus the unread marker, for a table built without that column."""
     return [cell for index, cell in enumerate(cells) if index != _UNREAD_CELL]
+
+
+def _key_id(key: RowKey | None) -> int | None:
+    """The notification a table row's key names, or None for none or a group header."""
+    return sections.notification_id(str(key.value)) if key is not None and key.value else None
 
 
 def _row_height(cells: list[Text]) -> int:
@@ -561,8 +579,12 @@ def _sync_rows(
     contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
     age_inline: bool = False,
     neutral_timing: bool = False,
+    headers: abc.Mapping[str, tuple[list[Text], Style | None]] | None = None,
+    rails_by_row: abc.Mapping[str, str] | None = None,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
+
+    `headers` are group header rows by key, already drawn, with their fill.
 
     `table.clear()` plus re-adding resets the cursor and scroll offset, which
     reads as the list flashing to the top on every refresh tick. When the row set
@@ -574,41 +596,52 @@ def _sync_rows(
     change still costs a rebuild.
     """
     cards = card_width > 0
-    shaped = [
-        (
-            key,
-            _as_card(
-                cells,
-                card_width,
-                *shape,
-                gutter_width,
-                unread_style,
-                (emojis_by_row or {}).get(key, ""),
-                (briefs_by_row or {}).get(key),
-                stale_hours,
-                now,
-                (contexts_by_row or {}).get(key),
-                age_inline,
-                neutral_timing,
+    headers = headers or {}
+    shapes = iter(
+        [
+            (
+                key,
+                _as_card(
+                    cells,
+                    card_width,
+                    *shape,
+                    gutter_width,
+                    unread_style,
+                    (emojis_by_row or {}).get(key, ""),
+                    (briefs_by_row or {}).get(key),
+                    stale_hours,
+                    now,
+                    (contexts_by_row or {}).get(key),
+                    age_inline,
+                    neutral_timing,
+                    (rails_by_row or {}).get(key, ""),
+                )
+                if cards
+                else brief_rows.styled(
+                    cells,
+                    (briefs_by_row or {}).get(key),
+                    _UNREAD_CELL,
+                    _BACKEND_CELL,
+                    _NAME_CELL,
+                    gutter_width,
+                ),
             )
-            if cards
-            else brief_rows.styled(
-                cells,
-                (briefs_by_row or {}).get(key),
-                _UNREAD_CELL,
-                _BACKEND_CELL,
-                _NAME_CELL,
-                gutter_width,
-            ),
-        )
-        for key, cells in rows
-    ]
+            for key, cells in rows
+            if key not in headers
+        ]
+    )
+    shaped = [(key, headers[key][0]) if key in headers else next(shapes) for key, _ in rows]
 
     if isinstance(table, ClickToActTable):
         table.row_backgrounds = {
             key: fill
             for key, _ in rows
-            if not cards and (fill := brief_rows.background((briefs_by_row or {}).get(key)))
+            if not cards
+            and (
+                fill := headers[key][1]
+                if key in headers
+                else brief_rows.background((briefs_by_row or {}).get(key))
+            )
         }
 
     if [str(key.value) for key in table.rows] == [key for key, _ in shaped]:
@@ -911,7 +944,12 @@ class LemonaidApp(App):
         self._arrange_error = ""
         self._arrange_logged: set[str] = set()
         self._fold_name = ""  # the arranger's name for the folded group
-        self._drawn: list[db.Notification] = []  # the main table's rows, top to bottom
+        self._drawn: list[db.Notification | None] = []  # the main table's rows; None for a header
+        self._group_bands: dict[int, str] = {}  # each drawn group's band, by group id
+        self._headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
+        self._marked_header = ""  # the header drawn with the cursor's marker
+        # The row a group was collapsed from, drawn until the cursor leaves it.
+        self._kept: frozenset[str] = frozenset()
         self._detached_channels: frozenset[str] = frozenset()
         self._resume_footer_shown = True
         # Each row's project, by (cwd, branch, area): finding one resolves paths,
@@ -989,6 +1027,9 @@ class LemonaidApp(App):
             # Textual gives Tab to focus-next, so this has to come first; check_action
             # hands the key back where something else wants it. App.bind can't set priority.
             self._bindings.bind(kb.brief_key, "brief", "Brief", show=False, priority=True)
+        if kb.group_key:
+            # Priority for the same reason as brief_key's.
+            self._bindings.bind(kb.group_key, "toggle_group", "Group", show=False, priority=True)
 
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
@@ -1073,7 +1114,7 @@ class LemonaidApp(App):
         if action == "resume_detached":
             return self._selected_channel() in self._detached_channels or self._brief_local
 
-        if action in ("brief", "cursor_first", "cursor_last") and (
+        if action in ("brief", "toggle_group", "cursor_first", "cursor_last") and (
             isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
         ):
             return False
@@ -1489,8 +1530,8 @@ class LemonaidApp(App):
         return "#main_table"
 
     @staticmethod
-    def _row_key(table: DataTable) -> str | None:
-        """Get the notification ID at a table's cursor."""
+    def _raw_row_key(table: DataTable) -> str | None:
+        """The key of the row at a table's cursor: a notification's, or a group header's."""
         if table.row_count == 0:
             return None
         try:
@@ -1498,6 +1539,17 @@ class LemonaidApp(App):
             return row_key.value if row_key else None
         except Exception:
             return None
+
+    @classmethod
+    def _row_key(cls, table: DataTable) -> str | None:
+        """The notification ID at a table's cursor, or None on a group header.
+
+        A lemon in two groups is drawn twice, under keys `<id>@<group>`; both
+        name the same notification.
+        """
+        raw = cls._raw_row_key(table)
+        found = sections.notification_id(raw) if raw else None
+        return str(found) if found is not None else None
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
@@ -1754,6 +1806,8 @@ class LemonaidApp(App):
 
         # Remember current selection (both key and index) for both tables
         current_key = self._get_current_row_key()
+        current_row = self._raw_row_key(main_table)  # a header's, or a lemon's under its group
+        self._kept = self._kept if current_row in self._kept else frozenset()
         current_index = self._get_current_row_index()
         other_index = other_table.cursor_coordinate.row if other_table.row_count > 0 else 0
         focused_on_other = self.focused is other_table
@@ -1793,6 +1847,7 @@ class LemonaidApp(App):
                 },
             )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
             emojis = emoji.by_channel(conn)
+            group_list = groups.store.all_groups(conn)
             wordybins = (
                 {
                     c: brief.identity.brief_name(i)
@@ -1824,13 +1879,30 @@ class LemonaidApp(App):
 
         shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
+        entries: list[sections.Header | sections.Row]
         if matching_ids is not None:
-            current_notifications = [n for n in [*shown, *folded] if n.id in matching_ids]
+            entries = [
+                sections.Row(str(n.id), n) for n in [*shown, *folded] if n.id in matching_ids
+            ]
             other_notifications = [n for n in other_notifications if n.id in matching_ids]
         else:
-            current_notifications = [*shown, *folded] if self._fold_open else shown
+            entries, folded = sections.layout(
+                shown,
+                folded,
+                pinned,
+                active.memberships,
+                group_list,
+                view.statuses(cards),
+                self._kept,
+                self._fold_open,
+            )
+            if self._fold_open:
+                entries = [*entries, *(sections.Row(str(n.id), n) for n in folded)]
+        drawn = [e for e in entries if isinstance(e, sections.Row)]
+        numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
+        current_notifications = [e.notification for e in drawn]
         briefs = (
-            {str(n.id): cards[n.channel] for n in current_notifications if n.channel in cards}
+            {e.key: cards[e.notification.channel] for e in drawn if e.notification.channel in cards}
             if self.config.tui.brief_status
             else {}
         )
@@ -1845,41 +1917,76 @@ class LemonaidApp(App):
         )
         now = time.time()
 
-        self._drawn = current_notifications
+        self._drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
+        self._group_bands = {
+            e.group.group_id: e.band for e in entries if isinstance(e, sections.Header)
+        }
         areas = {channel: card.area for channel, card in cards.items() if card.area}
-        unread_count = sum(1 for n in current_notifications if n.is_unread)
+        unread_count = len({n.id for n in current_notifications if n.is_unread})
+        self._headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
+        self._marked_header = current_row if current_row in self._headers else ""
+        headers = {
+            e.key: (
+                group_headers.cells(
+                    e,
+                    self._card_width(),
+                    len(main_table.columns),
+                    _NAME_CELL,
+                    e.key == self._marked_header,
+                ),
+                group_headers.background(e),
+            )
+            for e in entries
+            if isinstance(e, sections.Header)
+        }
         self.set_class(bool(unread_count), "-unread")
         rebuilt = _sync_rows(
             main_table,
             [
-                self._active_row(
-                    n,
-                    i,
-                    focused_channels,
-                    pinned,
-                    emojis,
-                    areas.get(n.channel, ""),
-                    wordybins.get(n.channel, ""),
-                    numbers.get(n.channel),
+                (e.key, headers[e.key][0])
+                if isinstance(e, sections.Header)
+                else (
+                    e.key,
+                    self._active_row(
+                        e.notification,
+                        numbers_by_key[e.key],
+                        focused_channels,
+                        pinned,
+                        emojis,
+                        areas.get(e.notification.channel, ""),
+                        wordybins.get(e.notification.channel, ""),
+                        numbers.get(e.notification.channel),
+                    )[1],
                 )
-                for i, n in enumerate(current_notifications)
+                for e in entries
             ],
             self._card_width(),
             self._card_shape(extra_lines),
             GUTTER_WIDTH,
             self.config.tui.card_unread_style,
-            {str(n.id): emojis.get(n.channel, "") for n in current_notifications},
+            {e.key: emojis.get(e.notification.channel, "") for e in drawn},
             briefs,
             self.config.tui.brief_stale_hours,
             now,
             {
-                str(n.id): self._context_parts(
-                    n, n.is_unread, areas.get(n.channel, ""), briefs.get(str(n.id)), now
+                e.key: self._context_parts(
+                    e.notification,
+                    e.notification.is_unread,
+                    areas.get(e.notification.channel, ""),
+                    briefs.get(e.key),
+                    now,
                 )
-                for n in current_notifications
+                for e in drawn
             },
             age_inline,
             self.config.tui.project_name_colors,
+            headers,
+            {
+                e.key: utils.project_color(self._headers[f"group:{group}"].group.name)
+                for e in drawn
+                if (group := sections.row_group_id(e.key)) is not None
+                and f"group:{group}" in self._headers
+            },
         )
 
         fold_label.display = bool(folded) and not self._search_mode
@@ -1943,7 +2050,7 @@ class LemonaidApp(App):
         # it every tick is what made the list flash back to the top.
         if main_table.row_count > 0 and (rebuilt or stay_on_unread):
             target_index = None
-            unread_rows = [i for i, n in enumerate(current_notifications) if n.is_unread]
+            unread_rows = [i for i, n in enumerate(self._drawn) if n and n.is_unread]
             if stay_on_unread and unread_rows:
                 # The next unread at or below the cursor, else the last one above.
                 # Pins and blocked rows mean unread rows need not be contiguous.
@@ -1952,10 +2059,11 @@ class LemonaidApp(App):
                 # No unread left, go to top
                 target_index = 0
             else:
-                # Try to find the same row by key
-                if current_key:
-                    with contextlib.suppress(Exception):
-                        target_index = main_table.get_row_index(current_key)
+                # The same row, else the same lemon wherever it went, else the same place
+                for key in (current_row, current_key):
+                    if key and target_index is None:
+                        with contextlib.suppress(Exception):
+                            target_index = main_table.get_row_index(key)
                 # Fall back to same position (clamped to valid range)
                 if target_index is None:
                     target_index = min(current_index, main_table.row_count - 1)
@@ -2628,11 +2736,11 @@ class LemonaidApp(App):
 
         table = self.query_one("#main_table", DataTable)
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if row_key is None:
+        if (notification_id := _key_id(row_key)) is None:
             return
 
         with db.connect() as conn:
-            notification = db.get(conn, int(row_key.value))
+            notification = db.get(conn, notification_id)
 
         if notification is None:
             self._show_error("That session is gone", "Its row was removed from the inbox.")
@@ -2970,11 +3078,19 @@ class LemonaidApp(App):
         if not 0 <= next_row < table.row_count:
             return
 
+        while (
+            0 <= next_row < table.row_count
+            and _key_id(table.coordinate_to_cell_key(Coordinate(next_row, 0))[0]) is None
+        ):
+            next_row += direction  # past a group header
+        if not 0 <= next_row < table.row_count:
+            return
+
         key, _ = table.coordinate_to_cell_key(Coordinate(next_row, 0))
-        if key is None:
+        if (notification_id := _key_id(key)) is None:
             return
         with db.connect() as conn:
-            notification = db.get(conn, int(key.value))
+            notification = db.get(conn, notification_id)
             attached = brief.attached.for_rows(conn, [notification] if notification else [])
             emojis = emoji.by_channel(conn)
         if notification is None:
@@ -3013,9 +3129,9 @@ class LemonaidApp(App):
             rows = [
                 notification
                 for key in keys
-                if key is not None
-                and int(key.value) not in self._brief_targets
-                and (notification := db.get(conn, int(key.value)))
+                if (found := _key_id(key)) is not None
+                and found not in self._brief_targets
+                and (notification := db.get(conn, found))
             ]
             if not rows:
                 return
@@ -3121,8 +3237,7 @@ class LemonaidApp(App):
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if row_key:
-            notification_id = int(row_key.value)
+        if (notification_id := _key_id(row_key)) is not None:
             with db.connect() as conn:
                 n = db.get(conn, notification_id)
                 if not n:
@@ -3147,10 +3262,9 @@ class LemonaidApp(App):
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if not row_key:
+        if (notification_id := _key_id(row_key)) is None:
             return
 
-        notification_id = int(row_key.value)
         with db.connect() as conn:
             n = db.get(conn, notification_id)
             if not n or n.is_unread:
@@ -3175,10 +3289,10 @@ class LemonaidApp(App):
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if not row_key:
+        if (notification_id := _key_id(row_key)) is None:
             return
 
-        self._archive_notification(int(row_key.value))
+        self._archive_notification(notification_id)
 
     def _archive_notification(self, notification_id: int) -> None:
         with db.connect() as conn:
@@ -3212,9 +3326,9 @@ class LemonaidApp(App):
         with db.connect() as conn:
             for row in range(table.row_count):
                 key, _ = table.coordinate_to_cell_key(Coordinate(row, 0))
-                notification = db.get(conn, int(key.value)) if key and key.value else None
-                if notification:
-                    channels.append(notification.channel)
+                found = _key_id(key)
+                notification = db.get(conn, found) if found is not None else None
+                channels.append(notification.channel if notification else "")
 
         return channels
 
@@ -3274,11 +3388,99 @@ class LemonaidApp(App):
         self._refresh_notifications()
         self._select_channel(channel)
 
+    def _selected_group(self) -> "groups.store.Group | None":
+        """The group whose header is under the cursor, in the main list only."""
+        if self._history_mode or self._snoozed_mode:
+            return None
+
+        raw = self._raw_row_key(self.query_one("#main_table", DataTable))
+        found = sections.group_id(raw) if raw else None
+        if found is None:
+            return None
+
+        with db.connect() as conn:
+            return next((g for g in groups.store.all_groups(conn) if g.group_id == found), None)
+
+    def _select_key(self, key: str) -> None:
+        table = self.query_one("#main_table", DataTable)
+        with contextlib.suppress(Exception):
+            table.move_cursor(row=table.get_row_index(key))
+
+    def _toggle_group(self, group_id: int, from_row: str = "") -> None:
+        """Collapse an open group to its header, or open a collapsed one.
+
+        Collapsing from one of its lemons keeps that lemon drawn, under the
+        cursor, until the cursor moves off it.
+        """
+        with db.connect() as conn:
+            group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+            if group is None:
+                return
+
+            groups.arrangement.set_collapsed(conn, group, not group.collapsed)
+
+        self._kept = frozenset({from_row} if from_row and not group.collapsed else ())
+        self._refresh_notifications()
+        self._select_key(from_row or f"group:{group_id}")
+
+    def action_toggle_group(self) -> None:
+        """Open or collapse the group whose header or lemon is under the cursor."""
+        if self._history_mode or self._snoozed_mode:
+            return
+
+        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
+        if (found := sections.group_id(raw)) is not None:
+            self._toggle_group(found)
+            return
+
+        if (found := sections.row_group_id(raw)) is not None:
+            self._toggle_group(found, from_row=raw)
+
+    def _move_group(self, group: "groups.store.Group", offset: int) -> None:
+        """Trade places with the group header *offset* away on screen.
+
+        Groups sort by their most pressing row first, so only the order among
+        groups drawn next to each other is the user's to change.
+        """
+        table = self.query_one("#main_table", DataTable)
+        on_screen = [
+            found
+            for row in range(table.row_count)
+            if (key := table.coordinate_to_cell_key(Coordinate(row, 0))[0]) is not None
+            and (found := sections.group_id(str(key.value))) is not None
+        ]
+        neighbour = on_screen.index(group.group_id) + offset
+        if not 0 <= neighbour < len(on_screen):
+            return
+
+        if self._group_bands.get(on_screen[neighbour]) != self._group_bands.get(group.group_id):
+            self.notify("Groups sort by their most pressing lemon; this one can't pass that group")
+            return
+
+        with db.connect() as conn:
+            other = next(
+                (g for g in groups.store.all_groups(conn) if g.group_id == on_screen[neighbour]),
+                None,
+            )
+            if other is None:
+                return
+
+            groups.arrangement.swap(conn, group, other)
+
+        self._refresh_notifications()
+        self._select_key(f"group:{group.group_id}")
+
     def action_move_pin_up(self) -> None:
-        self._move_pin(-1)
+        if group := self._selected_group():
+            self._move_group(group, -1)
+        else:
+            self._move_pin(-1)
 
     def action_move_pin_down(self) -> None:
-        self._move_pin(1)
+        if group := self._selected_group():
+            self._move_group(group, 1)
+        else:
+            self._move_pin(1)
 
     def _select_channel(self, channel: str) -> None:
         """Put the cursor back on a channel after the list around it moved."""
@@ -3522,7 +3724,7 @@ class LemonaidApp(App):
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
-        unread = [(n.created_at, row) for row, n in enumerate(self._drawn) if n.is_unread]
+        unread = [(n.created_at, row) for row, n in enumerate(self._drawn) if n and n.is_unread]
         if not unread:
             self.notify("No unread notifications", severity="information")
             return
@@ -3548,11 +3750,14 @@ class LemonaidApp(App):
         if not table.display:
             return
 
-        row = JUMP_DIGITS.find(digit)
-        if row < 0 or row >= table.row_count:
+        lemons = [
+            row for row, n in enumerate(self._drawn) if n is not None
+        ]  # headers are unnumbered
+        nth = JUMP_DIGITS.find(digit)
+        if nth < 0 or nth >= len(lemons):
             return
 
-        table.move_cursor(row=row)
+        table.move_cursor(row=lemons[nth])
         self.action_select()
 
     def action_patch_claude(self) -> None:
@@ -3763,11 +3968,37 @@ class LemonaidApp(App):
         with db.connect() as conn:
             db.archive_channel(conn, channel, "watcher-stale-session")
 
-    def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self.is_running:
             return  # queued highlights can arrive after shutdown removes the tables
 
+        if event.data_table.id == "main_table":
+            self._mark_header(str(event.row_key.value) if event.row_key else "")
         self._refresh_resume_binding()
+
+    def _mark_header(self, key: str) -> None:
+        """Move the cursor's marker to the header at *key*, or off every header."""
+        wanted = key if key in self._headers else ""
+        if wanted == self._marked_header:
+            return
+
+        table = self.query_one("#main_table", DataTable)
+        for changed in (self._marked_header, wanted):
+            if not changed:
+                continue
+
+            cells = group_headers.cells(
+                self._headers[changed],
+                self._card_width(),
+                len(table.columns),
+                _NAME_CELL,
+                changed == wanted,
+            )
+            with contextlib.suppress(Exception):  # the row may be gone before a refresh
+                row = table.get_row_index(changed)
+                for column, value in enumerate(cells):
+                    table.update_cell_at((row, column), value, update_width=False)
+        self._marked_header = wanted
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self._activate_row(event.data_table.id, event.row_key)
@@ -3779,7 +4010,8 @@ class LemonaidApp(App):
         # pane behind it. An external jump can leave the cursor on another lemon.
         if event.data_table.id == "main_table" and self.has_class("-input-active"):
             with db.connect() as conn:
-                notification = db.get(conn, int(event.row_key.value))
+                found = _key_id(event.row_key)
+                notification = db.get(conn, found) if found is not None else None
             behind = focus.behind_scratch(os.environ.get("TMUX_PANE", ""), get_tmux_socket())
             if notification and behind and notification.metadata.get("tty") == behind:
                 return
@@ -3799,10 +4031,12 @@ class LemonaidApp(App):
         if table_id != "main_table":
             return
 
-        if row_key is None:
+        if row_key is not None and (group_id := sections.group_id(str(row_key.value))) is not None:
+            self._toggle_group(group_id)
             return
 
-        notification_id = int(row_key.value)
+        if (notification_id := _key_id(row_key)) is None:
+            return
 
         with db.connect() as conn:
             notification = db.get(conn, notification_id)

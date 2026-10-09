@@ -44,7 +44,7 @@ def _band(status: str, is_unread: bool) -> int:
     return _UNREAD if is_unread else _READ
 
 
-_BAND_NAMES = (
+BAND_NAMES = (
     "alert",
     "blocked",
     "running",
@@ -60,7 +60,7 @@ _BAND_NAMES = (
 
 def band(status: str, is_unread: bool, is_pinned: bool) -> str:
     """The name of the band `by_status` puts a row in: "pinned", "alert", ... "read"."""
-    return "pinned" if is_pinned else _BAND_NAMES[_band(status, is_unread)]
+    return "pinned" if is_pinned else BAND_NAMES[_band(status, is_unread)]
 
 
 def special_status(status: str) -> bool:

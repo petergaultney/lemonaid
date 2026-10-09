@@ -35,14 +35,14 @@ def test_alternatives_are_shown_together():
 def test_a_modifier_key_is_spelled_out():
     kb = KeybindingsConfig(move_pin_up="shift+up")
 
-    assert _entries(kb)["Move a pinned session up one slot"] == "Shift+up"
+    assert _entries(kb)["Move a pinned session, or the group under the cursor, up"] == "Shift+up"
 
 
 def test_the_pin_keys_are_listed():
     listed = _entries(KeybindingsConfig())
 
     assert "Pin the selected session, or unpin it" in listed
-    assert "Move a pinned session down one slot" in listed
+    assert "Move a pinned session, or the group under the cursor, down" in listed
 
 
 def test_the_columns_are_close_to_the_same_height():
@@ -72,6 +72,6 @@ def test_both_columns_get_something():
 def test_the_brief_row_shows_its_named_key_too():
     brief = "Show where its work stands, from its brief"
 
-    assert _entries(KeybindingsConfig())[brief] == "b / Tab"
-    assert _entries(KeybindingsConfig(brief_key=""))[brief] == "b"
-    assert _entries(KeybindingsConfig(brief=""))[brief] == "Tab"
+    assert _entries(KeybindingsConfig(brief_key="tab"))[brief] == "b / Tab"
+    assert _entries(KeybindingsConfig())[brief] == "b"
+    assert _entries(KeybindingsConfig(brief="", brief_key="tab"))[brief] == "Tab"

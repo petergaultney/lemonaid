@@ -1,3 +1,13 @@
+# 0.93.0 (2026-10-09)
+
+#### Added
+
+- **`lma` draws each group under a header line, placed by its most pressing row's status, above single lemons of that status.** `Enter` on a header, or `Tab` on it or any of its lemons, collapses the group, and a collapsed header takes the colour of its most pressing row's status, and a dot when a row is unread; `Shift`+`↑`/`↓` move it. A pinned lemon in a group heads it and stays visible when it's collapsed. In the sidebar a group's cards sit one column in, behind an unbroken rail in the group's colour. The focused lemon's green bar on a card is now the same half block. A lemon in two groups appears in both. A folded lemon in a group is hidden inside it, and the header counts `(2/3)`: two active of three.
+
+#### Changed
+
+- **`Tab` collapses and opens groups instead of showing the brief** (new `group_key`; `brief_key` now defaults to none). `b` still shows the brief, and `brief_key = "tab"` with `group_key = ""` restores the old Tab.
+
 # 0.92.0 (2026-10-09)
 
 #### Added

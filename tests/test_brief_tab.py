@@ -1,4 +1,4 @@
-"""Tab opens the brief like `b`, and is left alone in dialogs and inputs."""
+"""A `brief_key` of Tab opens the brief like `b`, and is left alone in dialogs and inputs."""
 
 import asyncio
 
@@ -12,8 +12,16 @@ from lemonaid.inbox.tui.screens import SnoozeScreen
 from .test_brief_navigation import _lemons, _until
 
 
+def _tab_for_briefs(monkeypatch) -> None:
+    cfg = config_mod.load_config()
+    cfg.tui.keybindings.brief_key = "tab"
+    cfg.tui.keybindings.group_key = ""
+    monkeypatch.setattr(app_mod, "load_config", lambda: cfg)
+
+
 def test_tab_opens_the_brief_and_goes_back_to_the_inbox(monkeypatch, tmp_path):
     rows, state = _lemons(monkeypatch, tmp_path, 2)
+    _tab_for_briefs(monkeypatch)
 
     async def check() -> None:
         app = LemonaidApp(scratch_mode=True)
@@ -53,6 +61,7 @@ def test_an_empty_brief_key_leaves_tab_unbound(monkeypatch):
 
 
 def test_tab_in_a_dialog_does_not_open_a_brief(monkeypatch):
+    _tab_for_briefs(monkeypatch)
     called = _briefs_opened(monkeypatch)
 
     async def run():
@@ -71,6 +80,7 @@ def test_tab_in_a_dialog_does_not_open_a_brief(monkeypatch):
 
 
 def test_tab_in_the_history_filter_does_not_open_a_brief(monkeypatch):
+    _tab_for_briefs(monkeypatch)
     called = _briefs_opened(monkeypatch)
 
     async def run():

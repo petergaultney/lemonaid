@@ -118,6 +118,7 @@ closes. Flush after each answer.
         "mtime": 1790891000.0,
         "since": 1790804600.0
       },
+      "groups": ["Inbox work"],
       "default": {"position": 0, "band": "blocked", "folded": false}
     }
   ]
@@ -130,6 +131,7 @@ closes. Flush after each answer.
   `working` for a mid-turn lemon when `[tui] mid_turn_working` is on.
   `mtime` is the brief's last edit, and `since` when lemonaid first saw its
   current `status`.
+- `groups` names the row's groups, in their inbox order (`docs/groups.md`).
 - `default` is lemonaid's own answer: the row's position, its band (`pinned`,
   `alert`, `blocked`, `running`, `merge`, `approve`, `review`, `unread done`, `done`,
   `unread`, `read`), and whether `fold_statuses` folds it.
@@ -145,5 +147,8 @@ closes. Flush after each answer.
   own order puts it.
 - An unread row stays in the list even if the answer folds it, unless
   `[inbox] arrange_may_fold_unread = true`.
+- `lma` then draws groups from the answer's order: rows in no group keep it, and
+  each group lists its rows in it under the group's header. Folding a row in a
+  group has no effect; it is drawn in its group.
 - `{"error": "..."}` reports a failure; `lma` shows it and draws its own order.
 - Ids that aren't rows, and fields `lma` doesn't know, are ignored.

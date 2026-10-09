@@ -6,8 +6,8 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox |
-| `1`-`9`, `0` | Switch to that row of the list, counting from the top |
+| `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox. On a group's header, collapse the group or open it |
+| `1`-`9`, `0` | Switch to that session in the list, counting from the top; group headers aren't counted |
 | `u` | Jump directly to earliest unread session |
 | `Ctrl`+`a` / `Home` | Move to the top row of the list, pins included |
 | `Ctrl`+`e` / `End` | Move to the bottom row of the list (see below) |
@@ -19,10 +19,11 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `w` | Show or hide the folded sessions, when `[tui] fold_statuses` is set |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
 | `p` | Pin the session below any other pins, or unpin it |
-| `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot |
+| `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |
 | `z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name) |
-| `b` / `Tab` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
+| `Tab` | Collapse or open the group of the row under the cursor, its header or one of its lemons |
+| `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `R` | Resume the selected detached session when available |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
@@ -92,7 +93,7 @@ Press `/` from the inbox to filter session and attached brief names, messages, c
 
 ## Brief
 
-When the scratch pane follows on the left, `b` (or Tab) shows the selected lemon's brief
+When the scratch pane follows on the left, `b` shows the selected lemon's brief
 in place of the inbox without leaving the inbox pane. Up/down arrows (or the configured
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
@@ -238,7 +239,8 @@ last = "ctrl+e"  # the bottom row; End always works too
 undo = "z"
 rename = "r"
 brief = "b"  # show the session's brief
-brief_key = "tab"  # a second key for brief, as a key name
+brief_key = ""  # a second key for brief, as a key name
+group_key = "tab"  # collapse or open the group the cursor is in
 history = "h"  # toggle history view
 search = "/"  # search inbox and archive sessions; filter in history
 copy_resume = "c"  # copy resume command (history)
@@ -266,7 +268,7 @@ select = "o"
 
 ### Keys given by name
 
-`brief_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
+`brief_key`, `group_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
 `answer_yes` and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
@@ -276,9 +278,9 @@ Loading the config warns on stderr when one key is bound to two actions in the i
 or in the brief view, the `up_down` keys and arrows included. The question keys act only in
 a brief view, so `a` answers there and archives in the list.
 
-`brief_key` defaults to `Tab`, so that a tmux binding which opens the scratch pane
-can be followed by Tab to reach the brief. Tab is taken before Textual's own
-focus-next, except in the snooze, rename and help dialogs and in the history
+`group_key` defaults to `Tab`. Set `brief_key = "tab"` and `group_key = ""` instead,
+and a tmux binding which opens the scratch pane can be followed by Tab to reach the
+brief. Either way Tab is taken before Textual's own focus-next, except in the snooze, rename and help dialogs and in the history
 filter, where it still moves focus.
 
 ### Multiple keys per action

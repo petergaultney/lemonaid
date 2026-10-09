@@ -158,10 +158,11 @@ JUMP_GUTTER_STYLE = "bright_black"
 GUTTER_WIDTH = 2  # "<digit> ", or the bar and a space
 # Two marks for the same thing, because the two layouts give it different room.
 # A column row is one line tall, so it spends its single cell on a full block to
-# be visible at that size. A card draws a thin rule instead, which reads as an
-# edge over the height of the card where the heavier glyph would read as a slab.
+# be visible at that size. A card draws a half block instead, which reads as an
+# edge over the height of the card where the full block would read as a slab,
+# and matches the rail a group draws beside it.
 HERE_BLOCK = "\u2588"
-HERE_BAR = "\u2503"
+HERE_BAR = "\u258c"
 HERE_BAR_STYLE = "bright_green"
 
 # Square, where the unread marker is round: the two sit near each other and say
