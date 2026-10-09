@@ -258,6 +258,18 @@ def process_group_on_tty(pgid: int, tty: str) -> bool | None:
     return None
 
 
+def _end_source(pgid: int, tty: str, grace: float = 5.0) -> None:
+    """Terminate a harness that cannot exit itself; it stays resumable by session id."""
+    with suppress(ProcessLookupError):
+        os.killpg(pgid, signal.SIGTERM)
+    end = time.monotonic() + grace
+    while process_group_on_tty(pgid, tty) and time.monotonic() < end:
+        time.sleep(0.1)
+    if process_group_on_tty(pgid, tty):
+        with suppress(ProcessLookupError):
+            os.killpg(pgid, signal.SIGKILL)
+
+
 def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:
     """Resume one verified stopped source, then run the replacement in this terminal."""
     if not sys.stdin.isatty():
@@ -282,6 +294,7 @@ def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:
     ) != (pgid, source_tty, started):
         raise ValueError("The stopped harness changed before terminal handoff")
 
+    harness = channel.split(":", 1)[0]
     source_was_resumed = False
     with db.connect() as conn:
         deadline = handoff_state.get(conn, token)["deadline"]
@@ -303,6 +316,9 @@ def launch_from_tty(token: str, source_job: tuple[int, int, str, str]) -> None:
             source_running = process_group_on_tty(pgid, tty)
             if source_running is None:
                 raise ValueError(f"Could not check whether the outgoing harness left {tty}")
+            if report["phase"] == "launched" and source_running and harness == "codex":
+                _end_source(pgid, tty)
+                break
             if report["phase"] == "launched" and not source_running:
                 break
             if report["phase"] != "launched" and not source_running:

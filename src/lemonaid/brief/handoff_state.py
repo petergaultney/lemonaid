@@ -12,13 +12,36 @@ from . import check, handoff_claude
 _PHRASE = re.compile(r"^lemonaid handoff (ready|accept) ([0-9a-f]{24})$")
 
 
+def _heading_lines(lines: list[str]) -> list[int]:
+    """Indexes of `## ` lines that are headings: not in a code fence or an open code span.
+
+    A code span cannot outlive its paragraph, so a blank line closes it; a `## ` line is
+    prose only if it contains the backtick that closes the open span.
+    """
+    found = []
+    in_fence = False
+    in_span = False
+    for i, line in enumerate(lines):
+        if line.startswith(("```", "~~~")):
+            in_fence = not in_fence
+        elif in_fence:
+            continue
+        elif line.startswith("## ") and not (in_span and "`" in line):
+            found.append(i)
+        if not in_fence:
+            in_span = not in_span if line.count("`") % 2 else in_span and bool(line.strip())
+
+    return found
+
+
 def section(text: str) -> str:
     lines = text.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip() == "## Handoff"), None)
+    headings = _heading_lines(lines)
+    start = next((i for i in headings if lines[i].strip() == "## Handoff"), None)
     if start is None:
         return ""
 
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    end = next((i for i in headings if i > start), len(lines))
     return "\n".join(lines[start:end]).strip()
 
 
