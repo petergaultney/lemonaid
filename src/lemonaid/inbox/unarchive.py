@@ -6,6 +6,7 @@ on, a pane on the session's tty and the harness process running there, to
 decide whether Enter should switch to a session or resume it.
 """
 
+import json
 import sqlite3
 import time
 from collections import abc
@@ -13,6 +14,7 @@ from collections import abc
 from .. import handlers
 from ..handlers import check_pane_exists_by_tty
 from ..lemon_watchers import watcher
+from ..tmux import navigation
 from . import db
 
 
@@ -63,6 +65,44 @@ def restore(conn: sqlite3.Connection, channel: str) -> int:
     )
     conn.commit()
     return cursor.rowcount
+
+
+def moved(
+    conn: sqlite3.Connection,
+    channel: str,
+    tty: str,
+    socket: str | None,
+    location: navigation.PaneLocation | None,
+) -> None:
+    """Record that `channel` now runs on `tty` of the tmux server at `socket`,
+    after a resume put it in a new pane.
+
+    Codex reports its tty only when a turn ends, so until then the watcher would
+    judge a resumed session by its dead pane and archive it again. Without a
+    `location` the old tmux session identity is dropped rather than kept, since
+    the watcher archives a row whose pane sits in a session other than the
+    recorded one.
+    """
+    row = conn.execute(
+        "SELECT id, metadata FROM notifications WHERE channel = ? ORDER BY id DESC LIMIT 1",
+        (channel,),
+    ).fetchone()
+    if row is None:
+        return
+
+    metadata = {**json.loads(row["metadata"] or "{}"), "tty": tty, "tmux_socket": socket}
+    metadata.pop("tmux_session_order", None)
+    if socket is None:
+        metadata.pop("tmux_socket")
+    if location is not None:
+        metadata["tmux_session"] = location.session
+        metadata["tmux_window"] = location.window
+        if location.session_order:
+            metadata["tmux_session_order"] = list(location.session_order)
+    conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ?", (json.dumps(metadata), row["id"])
+    )
+    conn.commit()
 
 
 def restore_focused(conn: sqlite3.Connection, ttys: abc.Iterable[str]) -> list[str]:

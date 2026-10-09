@@ -56,8 +56,18 @@ from ...tmux.scratch import (
     save_current_size,
     size_has_drifted,
 )
-from ...tmux.session import spawn_session
-from .. import db, emoji, order, pins, search, teardown_evidence, unarchive, undo, view
+from .. import (
+    db,
+    emoji,
+    order,
+    pins,
+    resume_archived,
+    search,
+    teardown_evidence,
+    unarchive,
+    undo,
+    view,
+)
 from ..arrange import answer, child
 from . import (
     backend_indicators,
@@ -2655,8 +2665,25 @@ class LemonaidApp(App):
             if argv
             else f"cd {shlex.quote(cwd)}"
         )
-        mode = "copy" if copy_only else ("scratch-copy" if self._scratch_mode else "exec")
+        mode = "copy" if copy_only else ("tmux" if self._scratch_mode else "exec")
         _log.info("resume: %s (%s) -> %s", notification.channel, mode, cmd_str)
+
+        # The scratch pane has no terminal of its own to run the session in.
+        if mode == "tmux" and argv:
+            error = resume_archived.in_tmux(notification, self.config)
+            if error:
+                self._resume_failed(cmd_str, error)
+                return
+
+            self._refresh_notifications()
+            if not is_follow_enabled():
+                self._hide_scratch_pane()
+            return
+
+        # Before the row is unread, or the watcher judges it by its dead pane.
+        if mode == "exec" and argv and navigation.is_inside_tmux() and os.isatty(0):
+            with db.connect() as conn:
+                resume_archived.recorded_here(conn, notification.channel, os.ttyname(0))
 
         # Unarchive so the session appears in the main inbox immediately
         with db.connect() as conn:
@@ -2667,7 +2694,7 @@ class LemonaidApp(App):
             conn.commit()
 
         # Non-scratch, non-copy: exec in the current terminal
-        if not copy_only and not self._scratch_mode and argv:
+        if mode == "exec" and argv:
             self._exec_on_exit = (cwd, argv)
             self.exit()
             return
@@ -2679,8 +2706,17 @@ class LemonaidApp(App):
         except (subprocess.CalledProcessError, FileNotFoundError):
             self.notify(f"Resume: {cmd_str}", severity="information")
 
-        if self._scratch_mode and not copy_only and not is_follow_enabled():
-            self._hide_scratch_pane()
+    def _resume_failed(self, command: str, reason: str) -> None:
+        _log.warning("resume failed: %s", reason)
+        self.push_screen(
+            ResumeErrorScreen(
+                "Could not resume that session",
+                f"{reason} Copy the command to run it in a terminal of your choice.",
+                offer="copy the resume command",
+                details=command,
+            ),
+            lambda copy: self._copy_resume_command(command) if copy else None,
+        )
 
     def action_copy_resume(self) -> None:
         """Copy the resume command for the selected history session."""
@@ -2723,26 +2759,12 @@ class LemonaidApp(App):
             return
 
         cwd, argv = resume
-
-        # Unarchive so the session appears in the inbox once it starts
-        with db.connect() as conn:
-            conn.execute(
-                "UPDATE notifications SET status = 'unread', read_at = NULL, created_at = ? WHERE id = ?",
-                (time.time(), notification.id),
-            )
-            conn.commit()
-
-        error = spawn_session(
-            cwd=cwd,
-            config=self.config.tmux_session,
-            resume_argv=argv,
-            channel=notification.channel,
-            session_metadata=notification.metadata,
-            session_name=notification.name or "",
-        )
+        error = resume_archived.in_new_session(notification, self.config)
         if error:
-            _log.warning("tmux_resume failed: %s", error)
-            self._show_error("Could not start a tmux session", error)
+            self._resume_failed(f"cd {shlex.quote(cwd)} && {shlex.join(argv)}", error)
+            return
+
+        self._refresh_notifications()
 
     def action_filter_history(self) -> None:
         """Search inbox rows, or focus the existing history filter."""

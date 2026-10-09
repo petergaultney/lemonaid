@@ -196,31 +196,21 @@ def spawned_name(session_name: str, cwd: str) -> str:
     return sanitize_name(session_name or auto_session_name(Path(cwd)))
 
 
-def spawn_session(
+def _spawn(
     cwd: str,
     config: TmuxSessionConfig,
-    resume_argv: list[str] | None = None,
-    channel: str = "",
-    session_metadata: dict | None = None,
-    session_name: str = "",
-    attach: bool = True,
-    template_name: str = "default",
-    initial_prompt: str = "",
-) -> str | None:
-    """Create a tmux session from a configured template, rooted at *cwd*.
-
-    With *resume_argv*, the window at `config.resume_window` is replaced by that
-    command; without it the template is used as-is, which is what recreating a
-    session for a directory that no longer has one needs.
-
-    For Claude sessions, resolves the project directory from history.jsonl to
-    use as the session root.
-
-    Returns an error message string on failure, or None on success.
-    """
+    resume_argv: list[str] | None,
+    channel: str,
+    session_metadata: dict | None,
+    session_name: str,
+    attach: bool,
+    template_name: str,
+    initial_prompt: str,
+) -> tuple[str | None, str]:
+    """`spawn_session`, plus the tmux target of the window running *resume_argv*."""
     windows = config.get_template(template_name)
     if not windows:
-        return f"No tmux-session template {template_name!r} in config"
+        return f"No tmux-session template {template_name!r} in config", ""
 
     # Never mutate the list held by Config: the next session may choose a
     # different prompt or no prompt at all.
@@ -236,7 +226,10 @@ def spawn_session(
 
     idx = launch.command.template_window(config, windows)
     if initial_prompt and not windows[idx].strip():
-        return f"Tmux-session template {template_name!r} has no harness command in window {idx}"
+        return (
+            f"Tmux-session template {template_name!r} has no harness command in window {idx}",
+            "",
+        )
 
     writable = launch.command.codex_writable_roots(config)
     environments: list[dict[str, str]] = [{} for _ in windows]
@@ -263,6 +256,79 @@ def spawn_session(
         attach=attach,
         environments=environments,
     ):
-        return f"Failed to create tmux session '{session_name}' (name may already exist)"
+        return f"Failed to create tmux session '{session_name}' (name may already exist)", ""
 
-    return None
+    return None, f"={session_name}:{get_base_index() + idx}"
+
+
+def _pane_tty(target: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["tmux", "display-message", "-p", "-t", target, "#{pane_tty}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not find the tty of %s: %s", target, e)
+        return None
+
+    return result.stdout.strip() or None
+
+
+def spawn_session(
+    cwd: str,
+    config: TmuxSessionConfig,
+    resume_argv: list[str] | None = None,
+    channel: str = "",
+    session_metadata: dict | None = None,
+    session_name: str = "",
+    attach: bool = True,
+    template_name: str = "default",
+    initial_prompt: str = "",
+) -> str | None:
+    """Create a tmux session from a configured template, rooted at *cwd*.
+
+    With *resume_argv*, the window at `config.resume_window` is replaced by that
+    command; without it the template is used as-is, which is what recreating a
+    session for a directory that no longer has one needs.
+
+    For Claude sessions, resolves the project directory from history.jsonl to
+    use as the session root.
+
+    Returns an error message string on failure, or None on success.
+    """
+    error, _target = _spawn(
+        cwd,
+        config,
+        resume_argv,
+        channel,
+        session_metadata,
+        session_name,
+        attach,
+        template_name,
+        initial_prompt,
+    )
+    return error
+
+
+def spawn_resumed(
+    cwd: str,
+    config: TmuxSessionConfig,
+    resume_argv: list[str],
+    channel: str,
+    session_metadata: dict | None,
+    session_name: str,
+) -> tuple[str | None, str | None]:
+    """`spawn_session` for a resume: (error, tty of the window running *resume_argv*).
+
+    The tty is None when tmux could not say, which leaves the session running.
+    """
+    error, target = _spawn(
+        cwd, config, resume_argv, channel, session_metadata, session_name, True, "default", ""
+    )
+    if error:
+        return error, None
+
+    return None, _pane_tty(target)

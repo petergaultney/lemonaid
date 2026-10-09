@@ -68,13 +68,14 @@ def test_resume_opens_a_window_in_the_selected_session(monkeypatch):
 
     def run(command, **kwargs):
         calls.append((command, kwargs))
-        return SimpleNamespace(stdout="%42|@7\n")
+        return SimpleNamespace(stdout="%42|@7|/dev/ttys009\n")
 
     monkeypatch.setattr(recreate.subprocess, "run", run)
     monkeypatch.setattr(recreate.navigation, "switch_to_pane", lambda session, pane: True)
 
-    assert recreate._resume_in_session(
-        "workspace", None, "/work/project", ["codex", "resume", "id"]
+    assert (
+        recreate._resume_in_session("workspace", None, "/work/project", ["codex", "resume", "id"])
+        == "/dev/ttys009"
     )
     assert calls[0][0][1:4] == ["new-window", "-d", "-P"]
     assert calls[0][0][calls[0][0].index("-t") + 1] == "=workspace"
@@ -87,7 +88,7 @@ def test_resume_attaches_to_the_session_when_run_outside_tmux(monkeypatch):
 
     def run(command, **kwargs):
         calls.append(command)
-        return SimpleNamespace(stdout="%42|@7\n")
+        return SimpleNamespace(stdout="%42|@7|/dev/ttys009\n")
 
     monkeypatch.setattr(recreate.subprocess, "run", run)
     monkeypatch.setattr(

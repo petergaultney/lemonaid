@@ -1,3 +1,9 @@
+# 0.89.5 (2026-10-09)
+
+#### Fixed
+
+- **Resuming an archived session from the scratch pane starts it.** It used to only copy the resume command, and the row went back to the archive a second later; it now opens in a tmux window and stays in the inbox, and a failure says why.
+
 # 0.89.4 (2026-10-08)
 
 #### Fixed
