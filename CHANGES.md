@@ -1,3 +1,9 @@
+# 0.89.2 (2026-10-08)
+
+#### Fixed
+
+- **`lemonaid usage --watch` no longer repeats a step alert or alerts again when a lower reading follows a higher one.** A step now alerts once per limit window and re-arms only when the window resets.
+
 # 0.89.1 (2026-10-08)
 
 #### Changed

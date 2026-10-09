@@ -18,6 +18,8 @@ def crossings(
     """New state plus alert lines.
 
     A window seen for the first time, or after a reset, is baselined silently for step crossings.
+    Within a window a step alerts once: a lower reading (another session's older capture) never
+    re-arms it.
     Pace alerts fire once when the projection goes over `pace_over_percent` and once when it falls
     back under `pace_recovered_percent`.
     """
@@ -26,7 +28,7 @@ def crossings(
         step, prev = _step(s.used_percent, config.step_percent), alerted.get(key)
         reset = prev is None or abs(prev["resets_at"] - s.resets_at) > _RESET_JITTER_S
         over = False if reset else prev.get("over", False)
-        if reset or step < prev["step"]:
+        if reset:
             new_step = step
         else:
             new_step = max(step, prev["step"])
