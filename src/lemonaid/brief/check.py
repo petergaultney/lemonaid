@@ -26,6 +26,19 @@ def _headings(lines: abc.Sequence[str]) -> list[tuple[int, str]]:
     return found
 
 
+def _stray_ticks(lines: abc.Sequence[str]) -> list[str]:
+    """A `#` or `##` heading line with an unpaired backtick, which is prose cut at a line start."""
+    found = []
+    in_fence = False
+    for line in lines:
+        if _FENCE.match(line):
+            in_fence = not in_fence
+        elif not in_fence and _HEADING.fullmatch(line) and line.count("`") % 2:
+            found.append(f"`{line.strip()}` is a heading line with an unpaired backtick")
+
+    return found
+
+
 def _status(lines: abc.Sequence[str]) -> list[str]:
     header = lines[
         : next((i for i, line in enumerate(lines) if line.startswith("## ")), len(lines))
@@ -106,6 +119,7 @@ def structure(text: str) -> list[str]:
         for name in dict.fromkeys(sections)
         if lowered.count(name.lower()) > 1 and lowered.index(name.lower()) == sections.index(name)
     )
+    problems.extend(_stray_ticks(lines))
     problems.extend(_status(lines))
     try:
         identity.read(text)

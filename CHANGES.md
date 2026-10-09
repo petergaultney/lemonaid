@@ -1,3 +1,10 @@
+# 0.89.3 (2026-10-08)
+
+#### Fixed
+
+- **`lemonaid brief handoff --to claude` no longer times out when the outgoing lemon is Codex.** Once the ready marker is seen the Codex session is terminated, since it cannot exit itself, and stays resumable by session id.
+- **A `## ` line inside prose no longer ends the `## Handoff` section early,** and `lemonaid brief check` flags a heading line with an unpaired backtick.
+
 # 0.89.2 (2026-10-08)
 
 #### Fixed

@@ -281,3 +281,9 @@ def test_check_all_lists_every_live_brief_and_fails_if_one_does(capsys):
     assert results["task.md"] == []
     assert "Status 'busy'" in results["other.md"][0]
     assert results["gone.md"] == ["The attached brief does not exist"]
+
+
+def test_structure_flags_a_heading_line_with_an_unpaired_backtick():
+    text = _BRIEF.replace("## Goal", "## Waiters` is where they go", 1)
+    assert any("unpaired backtick" in p for p in check.structure(text))
+    assert not any("unpaired backtick" in p for p in check.structure(_BRIEF))

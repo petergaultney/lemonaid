@@ -2,6 +2,8 @@
 
 import argparse
 import signal
+import subprocess
+import sys
 import time
 from contextlib import nullcontext
 from unittest.mock import Mock
@@ -161,3 +163,33 @@ def test_watch_ends_stopped_job_only_after_brief_readiness(tmp_path, monkeypatch
 
     handoff_cli._cmd(args)
     stopped.assert_called_once_with(400, 401, "ttys2", "start")
+
+
+@pytest.mark.parametrize("ignores_sigterm", [False, True], ids=["terminates", "killed"])
+def test_end_source_stops_a_harness_that_will_not_exit(monkeypatch, ignores_sigterm: bool):
+    code = "import signal, time; " + (
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); " if ignores_sigterm else ""
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code + "print('up', flush=True); time.sleep(60)"],
+        stdout=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        assert proc.stdout.readline() == b"up\n"  # signal handler is installed
+        monkeypatch.setattr(handoff_shell, "process_group_on_tty", lambda *_: proc.poll() is None)
+        handoff_shell._end_source(proc.pid, "/dev/ttys9", grace=0.5)
+        assert proc.wait(timeout=5) == (-signal.SIGKILL if ignores_sigterm else -signal.SIGTERM)
+    finally:
+        proc.kill()
+        proc.stdout.close()
+
+
+def test_handoff_section_still_ends_at_a_heading_after_an_unmatched_backtick():
+    text = "# T\n\n## Handoff\n\n- Note with a stray ` tick.\n\n## Next\n\n- y\n"
+    assert handoff_state.section(text) == "## Handoff\n\n- Note with a stray ` tick."
+
+
+def test_handoff_section_ends_at_a_heading_right_after_an_unmatched_backtick():
+    text = "# T\n\n## Handoff\n\n- Note with a stray ` tick.\n## Next\n\n- y\n"
+    assert handoff_state.section(text) == "## Handoff\n\n- Note with a stray ` tick."
