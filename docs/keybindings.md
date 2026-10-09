@@ -67,11 +67,17 @@ When a session has an attached brief, its status appears after its name.
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Resume selected session (replaces current terminal) |
+| `Enter` | Resume selected session (replaces current terminal; from the scratch pane, see below) |
 | `c` | Copy resume command to clipboard |
 | `T` | Spawn a tmux session around the selected session |
 | `/` | Filter by name, cwd, branch |
 | `h` | Exit history |
+
+From the tmux scratch pane, `Enter` opens the session in a new window of its
+recorded tmux session, or of the one session working in its directory, and
+switches there. When no such session exists it starts one, as `T` does. The row
+returns to the inbox on its new pane. If the resume cannot start, a dialog says
+why and offers to copy the command.
 
 ### Search mode
 

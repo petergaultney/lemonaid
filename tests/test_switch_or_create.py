@@ -27,7 +27,7 @@ def _resumes_into(monkeypatch) -> list[tuple]:
 
     def _resume(session, socket, cwd, argv):
         resumed.append((session, socket, cwd, argv))
-        return True
+        return "/dev/ttys009"
 
     monkeypatch.setattr(handlers.tmux.recreate, "_resume_in_session", _resume)
     return resumed
@@ -126,7 +126,7 @@ def test_missing_cwd_does_not_respawn(monkeypatch):
 
 def test_failed_resume_in_existing_session_is_reported_as_failure(monkeypatch, tmp_path):
     _no_pane(monkeypatch)
-    monkeypatch.setattr(handlers.tmux.recreate, "_resume_in_session", lambda *args: False)
+    monkeypatch.setattr(handlers.tmux.recreate, "_resume_in_session", lambda *args: None)
 
     assert not handlers.handle_notification(_row(tmp_path), _CONFIG, switch_source="tmux")
 

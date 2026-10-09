@@ -14,8 +14,7 @@ _log = get_logger("tmux.recreate")
 
 
 def _current_socket() -> str | None:
-    tmux = os.environ.get("TMUX", "")
-    return tmux.split(",", 1)[0] or None
+    return navigation.current_socket()
 
 
 def _stored_order(metadata: dict[str, Any]) -> tuple[int, int, int] | None:
@@ -132,7 +131,10 @@ def _destination(metadata: dict[str, Any]) -> tuple[str, str | None] | None:
     return next(iter(candidates)), current_socket
 
 
-def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: list[str]) -> bool:
+def _resume_in_session(
+    destination: str, socket: str | None, cwd: str, argv: list[str]
+) -> str | None:
+    """The tty of the window the session was resumed in, None if it could not be."""
     try:
         result = subprocess.run(
             [
@@ -141,7 +143,7 @@ def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: lis
                 "-d",
                 "-P",
                 "-F",
-                "#{pane_id}|#{window_id}",
+                "#{pane_id}|#{window_id}|#{pane_tty}",
                 "-t",
                 f"={destination}",
                 "-c",
@@ -155,15 +157,13 @@ def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: lis
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         _log.warning("could not resume in tmux session %s: %s", destination, e)
-        return False
+        return None
 
-    identifiers = result.stdout.strip().split("|", 1)
-    pane_id = identifiers[0] if identifiers else ""
-    window_id = identifiers[1] if len(identifiers) == 2 else ""
+    pane_id, window_id, tty = [*result.stdout.strip().split("|", 2), "", ""][:3]
     if pane_id and window_id:
         if os.environ.get("TMUX"):
             if navigation.switch_to_pane(destination, pane_id):
-                return True
+                return tty
         else:
             try:
                 subprocess.run(
@@ -177,7 +177,7 @@ def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: lis
                     check=True,
                     timeout=5,
                 )
-                return True
+                return tty
             except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
                 _log.warning("could not attach to tmux session %s: %s", destination, e)
 
@@ -192,21 +192,30 @@ def _resume_in_session(destination: str, socket: str | None, cwd: str, argv: lis
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             _log.warning("could not remove failed resume window %s: %s", pane_id, e)
 
-    return False
+    return None
 
 
-def recreate(metadata: dict[str, Any], config: Config) -> bool:
-    """Resume in a recorded or uniquely cwd-matched session, never a new session."""
+def resume(metadata: dict[str, Any], config: Config) -> str | None:
+    """Resume in a recorded or uniquely cwd-matched session, never a new session.
+
+    Returns the tty the session now runs on, which the inbox row has to be told:
+    a Codex session reports its tty only when a turn ends.
+    """
     channel = metadata.get("channel", "")
     resumable = build_resume_command(config, channel, metadata)
     destination = _destination(metadata)
     if resumable is None or destination is None:
-        return False
+        return None
 
     destination_name, socket = destination
     cwd, argv = resumable
-    if not _resume_in_session(destination_name, socket, cwd, argv):
-        return False
+    tty = _resume_in_session(destination_name, socket, cwd, argv)
+    if tty is None:
+        return None
 
-    _log.info("resumed %s in tmux session %s", channel, destination_name)
-    return True
+    _log.info("resumed %s in tmux session %s on %s", channel, destination_name, tty)
+    return tty
+
+
+def recreate(metadata: dict[str, Any], config: Config) -> bool:
+    return resume(metadata, config) is not None

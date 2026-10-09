@@ -217,3 +217,31 @@ def test_a_resumed_codex_session_can_write_the_configured_roots(monkeypatch, tmp
     words = shlex.split(created[0]["windows"][1])
     assert words[-2:] == ["resume", "abc"]
     assert any(w.startswith("sandbox_workspace_write.writable_roots=") for w in words)
+
+
+def test_spawn_resumed_finds_the_window_in_the_session_it_named(monkeypatch, tmp_path):
+    """A Claude session is rooted at its project directory, which also names it."""
+    _created_sessions(monkeypatch)
+    project = tmp_path / "project"
+    monkeypatch.setattr(session, "find_session_project", lambda _id: str(project))
+    monkeypatch.setattr(session, "get_base_index", lambda: 1)
+    asked: list[list[str]] = []
+    monkeypatch.setattr(
+        session.subprocess,
+        "run",
+        lambda command, **kw: (
+            asked.append(command)
+            or subprocess.CompletedProcess(command, 0, stdout="/dev/ttys977\n")
+        ),
+    )
+    config = TmuxSessionConfig(templates={"default": ["editor", "claude", ""]}, resume_window=1)
+
+    assert session.spawn_resumed(
+        str(tmp_path / "moved"),
+        config,
+        ["claude", "--resume", "abc"],
+        "claude:abc",
+        {"session_id": "abc"},
+        "",
+    ) == (None, "/dev/ttys977")
+    assert asked[-1][asked[-1].index("-t") + 1] == "=project:2"

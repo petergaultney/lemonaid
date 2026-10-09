@@ -71,6 +71,11 @@ class TmuxUnavailable(Exception):
     """tmux could not answer, which is not the same as answering "no"."""
 
 
+def current_socket() -> str | None:
+    """The socket of the tmux server this process runs under, None outside tmux."""
+    return os.environ.get("TMUX", "").split(",", 1)[0] or None
+
+
 def server_args(socket: str | None) -> list[str]:
     """`tmux`, aimed at *socket* when there is one.
 
