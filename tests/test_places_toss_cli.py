@@ -48,6 +48,7 @@ def _resolves_to(monkeypatch, doomed: target.TossTarget | None, why_not: str = "
         target, "resolve_toss_target", lambda config, key, unattended=False: (doomed, why_not)
     )
     monkeypatch.setattr(target, "changed_since", lambda config, key, planned, unattended=False: "")
+    monkeypatch.setattr(toss_cli.toss_warning, "affected", lambda doomed: [])
     tossed: list = []
     monkeypatch.setattr(toss_cli.teardown, "toss", lambda *a, **kw: tossed.append((a, kw)) or None)
 
@@ -64,6 +65,52 @@ def test_confirmation_is_required_by_default(monkeypatch, tmp_path, capsys):
 
     assert not tossed
     assert "Nothing was torn down" in capsys.readouterr().err
+
+
+def test_enter_accepts_a_routine_toss(monkeypatch, tmp_path):
+    doomed = _target("work", [_place(tmp_path, "feat")])
+    tossed = _resolves_to(monkeypatch, doomed)
+    prompts = []
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
+
+    toss_cli.cmd_toss(_args())
+
+    assert len(tossed) == 1
+    assert prompts == ["close it and release the directories? [Y/n] "]
+
+
+@pytest.mark.parametrize("unusual", ["awaiting", "work", "kept", "partial", "left_open", "gone"])
+def test_enter_cancels_an_unusual_toss(monkeypatch, tmp_path, unusual):
+    place = _place(tmp_path, "feat")
+    doomed = _target("work", [place])
+    args = _args()
+    if unusual == "work":
+        args.force = True
+    elif unusual == "kept":
+        doomed = doomed._replace(kept=("place lookup skipped",))
+    elif unusual == "partial":
+        partial = {"@4": [_pane("shared", "@4", "%4")]}
+        doomed = _target("", [place], partial)
+    elif unusual == "left_open":
+        doomed = doomed._replace(left_open=["protected:@7"])
+    else:
+        doomed = _target("work", [ownership.Place("feat", place.root, tmp_path / "gone")])
+
+    tossed = _resolves_to(monkeypatch, doomed)
+    if unusual == "awaiting":
+        monkeypatch.setattr(
+            toss_cli.toss_warning, "affected", lambda target: [("ready lemon", "merge")]
+        )
+    elif unusual == "work":
+        monkeypatch.setattr(toss_cli.teardown, "concerns", lambda target: ["unpushed commits"])
+    prompts = []
+    monkeypatch.setattr("builtins.input", lambda prompt: prompts.append(prompt) or "")
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(args)
+
+    assert not tossed
+    assert prompts[0].endswith("[y/N] ")
 
 
 def test_confirming_tears_down(monkeypatch, tmp_path):
@@ -147,7 +194,7 @@ def test_session_only_confirmation_says_work_was_not_inspected(monkeypatch, caps
 
     assert tossed[0][0][1] == []
     assert "workspace 'notes'" in capsys.readouterr().err
-    assert prompts == ["close this workspace? [y/N] "]
+    assert prompts == ["close this workspace? [Y/n] "]
 
 
 def test_session_only_json_reports_no_released_place(monkeypatch, capsys):
