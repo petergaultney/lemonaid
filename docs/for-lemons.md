@@ -812,9 +812,21 @@ When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
 `lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
 described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
 
-To stop your own waiter, kill its specific PID (`kill <pid>`), or use `TaskStop` for a
-Claude background task. Never use `pkill -f` with a waiter command such as
-`lemonaid inbox watch --self`: the pattern matches other lemons' waiters too.
+### Stopping your waiters
+
+`lemonaid watch stop --self` stops every waiter you started (`inbox watch`, `watch pr`,
+`doc`, `file` and `briefs`) and removes each from your brief's `## Waiters`. Name one to stop
+only that: `lemonaid watch stop --self pr 12`, `... doc <path>`, `... inbox`. Each waiter
+registers under your channel while it runs and holds that entry locked, so `stop` signals
+only processes that are still your waiters. A waiter started before lemonaid 0.90.1 isn't
+registered; stop it with `TaskStop` or its pid.
+
+Never use `pkill -f` with a waiter command such as `lemonaid inbox watch --self`: the
+pattern matches every lemon's waiter on the machine.
+
+A waiter stopped by SIGTERM prints that it was stopped and the command that rearms it, then
+exits 143 (Claude Code reports the task as exit 144). If you didn't stop it yourself, another
+process did: rearm it.
 
 ## Watching a document for comments
 

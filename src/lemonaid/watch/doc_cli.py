@@ -42,7 +42,16 @@ import os
 import pathlib
 import sys
 
-from . import brief_record, delivery, doc_events, doc_wait, own_edits, waiter_lock, watch_list
+from . import (
+    brief_record,
+    delivery,
+    doc_events,
+    doc_wait,
+    own_edits,
+    registry,
+    waiter_lock,
+    watch_list,
+)
 
 _OPENCLAW_TURN_TIMEOUT_MS = 600_000
 
@@ -138,34 +147,37 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     try:
-        if a.watch_list:
-            doc_wait.wait_list(
-                a.state_dir,
-                a.watch_list,
-                lock,
-                a.me,
-                a.legacy,
-                a.edits,
-                a.quiet,
-                deliver,
-                a.idle_expire,
-                a.interval,
-            )
-        else:
-            doc_wait.wait_doc(
-                doc_events.open_watch(
+        with registry.watching(
+            a, "doc", (str((a.wait or a.watch_list).resolve()),), a.codex_thread
+        ):
+            if a.watch_list:
+                doc_wait.wait_list(
                     a.state_dir,
-                    a.wait,
+                    a.watch_list,
+                    lock,
                     a.me,
                     a.legacy,
                     a.edits,
                     a.quiet,
-                    own_edits.writer_from_env(os.environ),
-                ),
-                deliver,
-                once,
-                a.interval,
-            )
+                    deliver,
+                    a.idle_expire,
+                    a.interval,
+                )
+            else:
+                doc_wait.wait_doc(
+                    doc_events.open_watch(
+                        a.state_dir,
+                        a.wait,
+                        a.me,
+                        a.legacy,
+                        a.edits,
+                        a.quiet,
+                        own_edits.writer_from_env(os.environ),
+                    ),
+                    deliver,
+                    once,
+                    a.interval,
+                )
     except KeyboardInterrupt:
         pass
     except delivery.Failed as e:

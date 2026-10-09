@@ -13,7 +13,7 @@ import time
 
 from ..brief import lemon, store
 from ..inbox import db
-from . import brief_record, briefs_events, delivery, waiter_lock
+from . import brief_record, briefs_events, delivery, registry, waiter_lock
 
 
 def _wait(
@@ -73,12 +73,13 @@ def run(a: argparse.Namespace) -> int:
         if error := brief_record.record(a, "briefs", thread):
             print(f"not started: could not record waiter: {error}")
             return 2
-        _wait(
-            briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to),
-            deliver,
-            a.once or bool(thread),
-            a.interval,
-        )
+        with registry.watching(a, "briefs", (parent,), thread):
+            _wait(
+                briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to),
+                deliver,
+                a.once or bool(thread),
+                a.interval,
+            )
     except KeyboardInterrupt:
         pass
     except delivery.Failed as error:

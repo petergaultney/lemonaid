@@ -163,6 +163,16 @@ def remove(text: str, match: str) -> str:
     return _with_body(text, change)
 
 
+def remove_where(text: str, unwanted: abc.Callable[[str], bool]) -> str:
+    """*text* without every waiter whose command is *unwanted*."""
+
+    def change(body: list[str]) -> list[str]:
+        drop = {i for i, command in _commands(body).items() if unwanted(command)}
+        return [line for i, line in enumerate(body) if i not in drop]
+
+    return _with_body(text, change)
+
+
 def upsert(text: str, command: str, same: abc.Callable[[str], bool]) -> str:
     """Replace entries for one watch without substring collisions or duplicate rearms."""
     line = _bullet(command)

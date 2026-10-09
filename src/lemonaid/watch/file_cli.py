@@ -22,7 +22,7 @@ import pathlib
 import sys
 import time
 
-from . import brief_record, delivery, file_events, waiter_lock
+from . import brief_record, delivery, file_events, registry, waiter_lock
 
 
 def _wait(w: file_events.FileWatch, deliver: delivery.Deliver, once: bool, interval: float) -> None:
@@ -75,12 +75,13 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     try:
-        _wait(
-            file_events.open_watch(a.state_dir, paths, a.me, a.quiet),
-            deliver,
-            a.once or bool(a.codex_thread),
-            a.interval,
-        )
+        with registry.watching(a, "file", (str(p.resolve()) for p in paths), a.codex_thread):
+            _wait(
+                file_events.open_watch(a.state_dir, paths, a.me, a.quiet),
+                deliver,
+                a.once or bool(a.codex_thread),
+                a.interval,
+            )
     except KeyboardInterrupt:
         pass
     except delivery.Failed as e:

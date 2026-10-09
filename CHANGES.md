@@ -1,3 +1,9 @@
+# 0.90.1 (2026-10-09)
+
+#### Fixed
+
+- **A lemon can stop its own waiters without stopping everyone else's.** `lemonaid watch stop --self` stops all of the caller's waiters of every kind, or one named by kind and target, and removes them from its brief's `## Waiters`; the `pkill -f "lemonaid inbox watch --self"` lemons used instead killed every lemon's waiter on the machine. A waiter stopped by SIGTERM now says so and prints its rearm command, where it used to exit with no output.
+
 # 0.90.0 (2026-10-09)
 
 #### Added

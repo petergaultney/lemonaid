@@ -106,7 +106,7 @@ Run `lemonaid brief children --self` when updating your brief; use `--json` for 
 
 `cleanup: ready` means the child and its descendants say `done` and none of their sessions has an attached client. It says nothing about whether their code is on the trunk. Verify accepted output and preserved work yourself, then follow your user's cleanup authority and safeguards. Use an explicit place key with `lemonaid place toss <key>`; do not infer permission to force a teardown from `ready`. Preserve briefs as the record.
 
-When your own work is accepted and nothing remains, stop the waiters, remove their entries, set `done`, and let your parent clean up your place. Remove closed PR rows from your table.
+When your own work is accepted and nothing remains, stop your waiters with `lemonaid watch stop --self`, which also removes their entries (never `pkill -f` a waiter command: it stops every lemon's matching waiter). Remove any entry left for a waiter that had already exited, set `done`, and let your parent clean up your place. Remove closed PR rows from your table.
 
 ## Start a reviewer
 

@@ -31,7 +31,7 @@ import subprocess
 import sys
 
 from .. import config
-from . import brief_record, delivery, pr_activity, pr_wait, waiter_lock
+from . import brief_record, delivery, pr_activity, pr_wait, registry, waiter_lock
 
 
 def _repo_name(repo: str) -> str:
@@ -109,23 +109,28 @@ def run(a: argparse.Namespace, repo: str) -> int:
 
     try:
         filters = config.load_config().watch.pr
-        pr_wait.wait(
-            lambda: pr_activity.fetch(
-                repo,
+        with registry.watching(a, "pr", (f"{repo}#{pr}",), a.codex_thread, repo):
+            pr_wait.wait(
+                lambda: pr_activity.fetch(
+                    repo,
+                    pr,
+                    (a.me, *a.legacy),
+                    skip_outdated=filters.skip_outdated
+                    if a.skip_outdated is None
+                    else a.skip_outdated,
+                    skip_resolved=filters.skip_resolved
+                    if a.skip_resolved is None
+                    else a.skip_resolved,
+                ),
                 pr,
-                (a.me, *a.legacy),
-                skip_outdated=filters.skip_outdated if a.skip_outdated is None else a.skip_outdated,
-                skip_resolved=filters.skip_resolved if a.skip_resolved is None else a.skip_resolved,
-            ),
-            pr,
-            a.interval,
-            a.head,
-            a.comments,
-            deliver,
-            a.once or bool(a.codex_thread),
-            stem,
-            ci=a.ci,
-        )
+                a.interval,
+                a.head,
+                a.comments,
+                deliver,
+                a.once or bool(a.codex_thread),
+                stem,
+                ci=a.ci,
+            )
     except KeyboardInterrupt:
         pass
     except delivery.Failed as e:

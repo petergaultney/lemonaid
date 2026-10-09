@@ -64,6 +64,6 @@ Every form takes `--json`.
 1. Upgrade the install. Restart `lma` and any scratch pane, and close or revert editor buffers visiting files in `~/.brief-lemons/`: nothing can stop an editor from saving there, so one left open recreates the old home after cutover.
 2. Run `lemonaid home migrate --dry-run` and note the armed waiters it lists.
 3. Run `lemonaid home migrate --pause`. From here a Claude lemon whose waiter exits can't rearm it: the rearm fails with "migration in progress" rather than racing the migration.
-4. Stop each waiter by the pid in its `.waiter.lock`. Never `pkill -f` a pattern, which matches every lemon's waiter.
+4. Have each lemon stop its waiters with `lemonaid watch stop --self`, or stop each by the pid in its `.waiter.lock`. Never `pkill -f` a pattern, which matches every lemon's waiter.
 5. Run `lemonaid home migrate`. If it reports that the old home exists again, run `--reconcile`. Then have each lemon rearm.
 6. Update anything outside lemonaid that names `~/.brief-lemons/`: prompts, skills, and other watchers.

@@ -2,7 +2,7 @@
 
 import argparse
 
-from . import briefs_cli, doc_cli, file_cli, openclaw_cli, pr_cli
+from . import briefs_cli, doc_cli, file_cli, openclaw_cli, pr_cli, stop_cli
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -15,3 +15,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     pr_cli.add_parser(watch_subparsers)
     file_cli.add_parser(watch_subparsers)
     briefs_cli.add_parser(watch_subparsers)
+    stop_cli.add_parser(watch_subparsers)
