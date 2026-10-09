@@ -46,5 +46,6 @@ what you are waiting on current.
 
 State and locks are separate from other watchers, under `$TMPDIR/lemonaid-watch-briefs/`.
 `--state-dir` moves them. A failed delivery is not recorded, so a rearm retries it.
-Stop your own waiter by its process ID when the child work no longer needs watching,
-and remove its command from your brief. Do not delete shared lock files.
+Stop your own waiter with `lemonaid watch stop --self briefs` when the child work no longer
+needs watching; it also removes the entry from your brief. Never `pkill -f` the waiter
+command, which stops every lemon's matching waiter. Do not delete shared lock files.

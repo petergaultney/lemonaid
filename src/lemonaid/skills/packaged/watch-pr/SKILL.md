@@ -70,7 +70,7 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 - **Review decision `CHANGES_REQUESTED`:** the reviewer's comments arrive as their own event, or in the same line; handle those. If none are visible, read `gh pr view <n> --json reviews`.
 - **Review decision `REVIEW_REQUIRED` or `none`:** an approval was dismissed (often by a push) or the requirement changed. Note it and rearm.
 - **New comments:** the event names each comment's author and location. Make any fix that is clearly asked for. Reply in the comment's own thread, starting with `🍋 <your signature>:`, if you are allowed to post; otherwise draft the reply in your final message for your human to post. Then rearm.
-- **Merged or closed:** nothing is left to watch, whether you wrote the PR or reviewed it. Stop the waiter (`TaskStop` the background task in Claude Code; in Codex, don't rearm) and end your turn with one line saying so.
+- **Merged or closed:** nothing is left to watch, whether you wrote the PR or reviewed it. Stop the waiter with `lemonaid watch stop --self pr <number>` (in Codex, don't rearm), never `pkill -f` the command, which stops every lemon's matching waiter, and end your turn with one line saying so.
 
 ## Notes
 
