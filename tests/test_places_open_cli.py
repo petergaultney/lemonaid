@@ -8,9 +8,11 @@ what keeps a mistyped key from silently becoming an empty session.
 
 import argparse
 import json
+from pathlib import Path
 
 import pytest
 
+from lemonaid import groups
 from lemonaid.brief import attached, identity, store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
 from lemonaid.inbox import db
@@ -31,6 +33,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "brief": "",
             "parent": "",
             "name": "",
+            "group": [],
             **kwargs,
         }
     )
@@ -156,6 +159,7 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
         "brief": None,
         "lemon_id": None,
         "parent": None,
+        "groups": [],
         "error": None,
     }
 
@@ -263,6 +267,66 @@ def test_a_parent_that_cannot_be_resolved_is_refused_before_opening(monkeypatch,
         cli.cmd_open(_args(key="notes", brief="task", parent="self"))
 
     assert not sessions
+
+
+def test_group_puts_the_briefs_lemon_in_an_existing_group(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.parent.mkdir(parents=True)
+    child_brief.write_text("# task\n\nStatus: working\n")
+    with db.connect() as conn:
+        groups.store.create(conn, "Inbox work")
+
+    cli.cmd_open(_args(key="notes", brief="task", group=["Inbox work"], json=True))
+
+    opened = json.loads(capsys.readouterr().out)
+    assert opened["groups"] == ["Inbox work"]
+    with db.connect() as conn:
+        assert groups.store.find(conn, "Inbox work").members == (identity.from_path(child_brief),)
+
+
+def test_a_missing_group_is_refused_before_opening(monkeypatch, tmp_path):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.parent.mkdir(parents=True)
+    child_brief.write_text("# task\n\nStatus: working\n")
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", brief="task", group=["Nope"]))
+
+    assert not sessions
+
+
+def _child_of_a_grouped_parent(monkeypatch, tmp_path) -> Path:
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:parent")
+    parent = _parent_brief("claude:parent")
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.write_text("# task\n\nStatus: working\n")
+    with db.connect() as conn:
+        groups.store.create(conn, "Other")
+        groups.store.add(conn, groups.store.create(conn, "Inbox work"), [parent])
+    return child_brief
+
+
+def test_a_child_joins_its_parents_groups(monkeypatch, tmp_path, capsys):
+    child_brief = _child_of_a_grouped_parent(monkeypatch, tmp_path)
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="self", json=True))
+
+    assert json.loads(capsys.readouterr().out)["groups"] == ["Inbox work"]
+    with db.connect() as conn:
+        assert identity.from_path(child_brief) in groups.store.find(conn, "Inbox work").members
+
+
+def test_a_childs_own_group_replaces_its_parents(monkeypatch, tmp_path, capsys):
+    _child_of_a_grouped_parent(monkeypatch, tmp_path)
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="self", group=["Other"], json=True))
+
+    assert json.loads(capsys.readouterr().out)["groups"] == ["Other"]
 
 
 def _dialog_checks(monkeypatch, created: bool) -> list[str]:

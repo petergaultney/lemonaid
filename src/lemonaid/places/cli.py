@@ -33,7 +33,7 @@ def _harness_window(config: Config, harness: str, session: str) -> tuple[str, st
 def cmd_open(args: argparse.Namespace) -> None:
     """Get a session for a key, acquiring its directory if it doesn't exist yet."""
     config = load_config()
-    given, error = launch.handoff.prepare(args.brief, args.parent, args.name)
+    given, error = launch.handoff.prepare(args.brief, args.parent, args.name, tuple(args.group))
     windows = config.tmux_session.get_template(args.harness) or [""]
     line = windows[launch.command.template_window(config.tmux_session, windows)]
     if not error and given.brief:
@@ -95,6 +95,7 @@ def cmd_open(args: argparse.Namespace) -> None:
                     "brief": str(given.brief) if given.brief else None,
                     "lemon_id": given.link[0] if given.link else None,
                     "parent": given.link[1] if given.link else None,
+                    "groups": list(given.groups),
                     "error": error,
                 }
             )
@@ -270,6 +271,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="LEMON",
         help="Record LEMON (`self`, a Lemon-ID, channel, or brief) as the parent of "
         "the --brief's lemon",
+    )
+    open_parser.add_argument(
+        "--group",
+        action="append",
+        default=[],
+        metavar="GROUP",
+        help="Put the --brief lemon in this existing group (repeatable); default: its parent's",
     )
     open_parser.add_argument(
         "--name", default="", help="Name the --brief's lemon's session once it starts"

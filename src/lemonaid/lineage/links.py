@@ -70,3 +70,20 @@ def clear_parent(conn: sqlite3.Connection, lemon_id: str) -> bool:
     cursor = conn.execute("DELETE FROM lemon_parents WHERE lemon_id = ?", (lemon_id,))
     conn.commit()
     return cursor.rowcount > 0
+
+
+def descendants(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
+    """*lemon_id*'s children, their children, and so on, each once, parents first."""
+    found: list[str] = []
+    frontier = [lemon_id]
+    while frontier:
+        fresh = [
+            child
+            for parent in frontier
+            for child in children_of(conn, parent)
+            if child != lemon_id and child not in found
+        ]
+        found.extend(dict.fromkeys(fresh))
+        frontier = list(dict.fromkeys(fresh))
+
+    return found

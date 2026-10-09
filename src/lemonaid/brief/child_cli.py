@@ -1,6 +1,6 @@
 """`brief new --child`: write a brief for a lemon that hasn't started, attached to no one.
 
-The parent passes the printed path as `--brief` to `place open` or `lemon start`.
+The new lemon joins its parent's groups. The parent passes the printed path as `--brief` to `place open` or `lemon start`.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from .. import home
+from .. import groups, home
 from ..config import load_config
 from ..inbox import db
 from . import child, identity, lemon, store
@@ -65,6 +65,8 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             store.edit(
                 path, lambda _: child.render(body, title, lemon_id, parent, today, values, area)
             )
+        with db.connect() as conn:
+            groups.sync.join_parents(conn, lemon_id, parent[0])
     except BaseException:
         path.unlink(missing_ok=True)
         raise

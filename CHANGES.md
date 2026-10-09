@@ -1,3 +1,9 @@
+# 0.92.0 (2026-10-09)
+
+#### Added
+
+- **`lemonaid group` names sets of lemons: `create`, `add`, `remove`, `rename`, `delete`, `list` and `sync`.** A child joins its parent's groups when `brief new --child` writes its brief, or when `place open` or `lemon start` starts it with `--parent`; `--group` names others instead. Each member brief gets a `Groups:` line, read in when its Brief-ID is new to a database, so groups follow a brief to another machine; `brief check` reports a line that disagrees.
+
 # 0.91.0 (2026-10-09)
 
 #### Added
