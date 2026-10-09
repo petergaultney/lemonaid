@@ -20,6 +20,7 @@ import lemonaid.places.cli
 import lemonaid.restore.cli
 import lemonaid.skills.cli
 import lemonaid.tmux.cli
+import lemonaid.usage.cli
 import lemonaid.watch.cli
 import lemonaid.wezterm.cli
 
@@ -143,6 +144,7 @@ def main() -> None:
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
     lemonaid.tmux.cli.setup_parser(subparsers)
+    lemonaid.usage.cli.setup_parser(subparsers)
     lemonaid.watch.cli.setup_parser(subparsers)
     lemonaid.wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)

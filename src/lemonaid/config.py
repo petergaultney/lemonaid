@@ -12,6 +12,7 @@ from typing import Any
 
 from . import auto_read, keys, watch_config
 from .inbox import snooze_time
+from .usage import settings
 
 
 def get_config_path() -> Path:
@@ -322,6 +323,7 @@ class Config:
     backends: dict[str, BackendConfig] = field(default_factory=dict)
     places: PlacesConfig = field(default_factory=PlacesConfig)
     watch: watch_config.WatchConfig = field(default_factory=watch_config.WatchConfig)
+    usage: settings.UsageConfig = field(default_factory=settings.UsageConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -599,6 +601,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         backends=backends,
         places=places,
         watch=watch_config.parse(data.get("watch", {})),
+        usage=settings.parse(data.get("usage", {})),
     )
 
 

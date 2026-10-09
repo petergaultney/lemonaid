@@ -1,3 +1,9 @@
+# 0.89.0 (2026-10-08)
+
+#### Added
+
+- **`lemonaid usage` shows Claude and Codex subscription usage, and `--watch` blocks until an alert.** It alerts on each 20% step and when pace projects running out before the reset; thresholds are set in `[usage]`. On a terminal the summary colors each window's usage by pace and its projection at reset by how close it comes to the cap (`--no-color` disables it). `lemonaid-claude-statusline` now saves the `rate_limits` Claude Code passes it, which is where Claude usage comes from.
+
 # 0.88.1 (2026-10-08)
 
 #### Fixed
