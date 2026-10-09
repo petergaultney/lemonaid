@@ -5,7 +5,7 @@ import sys
 
 from ..brief import attached
 from ..inbox import db
-from . import brief_record, registry
+from . import brief_record, registry, stopping
 
 _HELP = """\
 Stop your own running waiters of any kind - inbox watch, watch pr, doc, file and
@@ -36,7 +36,7 @@ def run(a: argparse.Namespace) -> int:
     failed = False
     for waiter in found:
         try:
-            registry.stop(waiter)
+            stopping.stop(waiter, channel)
         except TimeoutError as error:
             print(error)
             failed = True
