@@ -99,7 +99,7 @@ A doc outside your workspace needs the same escalated permissions as any other e
 
 ## Stopping
 
-Only a human telling you the document conversation is over ends the watch. Stop the waiter (`TaskStop` the background task in Claude Code; in Codex, end the exec session or don't rearm; in OpenClaw, `lemonaid watch openclaw stop <doc>`), then confirm `--status` says `no waiter running`. A "thanks" or one answered question does not end the watch; the human may keep commenting.
+Only a human telling you the document conversation is over ends the watch. Stop the waiter (`lemonaid watch stop --self doc <doc>`, which also removes it from your brief's `## Waiters`; in OpenClaw, `lemonaid watch openclaw stop <doc>`), then confirm `--status` says `no waiter running`. A "thanks" or one answered question does not end the watch; the human may keep commenting.
 
 ## Notes
 

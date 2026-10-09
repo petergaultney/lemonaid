@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shlex
 import sqlite3
 import sys
 from pathlib import Path
@@ -9,9 +10,11 @@ from pathlib import Path
 from .. import brief, lineage
 from ..inbox import db
 from ..log import get_logger
+from ..watch import registry
 from . import codex_delivery, service, store, waiter
 
 _log = get_logger("messages.cli")
+_INBOX_WATCH = ["lemonaid", "inbox", "watch", "--self"]
 
 
 def _fail(message: str) -> None:
@@ -99,18 +102,23 @@ def cmd_tell(args: argparse.Namespace) -> None:
     print(path)
 
 
-def _receive(args: argparse.Namespace, wait: bool) -> None:
+def own_lemon(explicit_channel: str) -> tuple[str, str]:
+    """(channel, Lemon-ID) of the calling lemon; exits with a message if it has no brief."""
     with db.connect() as conn:
         try:
-            channel = brief.lemon.self_channel(conn, args.channel or "")
+            channel = brief.lemon.self_channel(conn, explicit_channel)
         except LookupError as error:
             _fail(str(error))
         brief_path = _attachment(conn, channel)
         try:
-            lemon_id = brief.identity.ensure(conn, brief_path)
+            return channel, brief.identity.ensure(conn, brief_path)
         except (ValueError, brief.store.ChangedUnderneath) as error:
             _fail(str(error))
+            raise
 
+
+def _receive(args: argparse.Namespace, wait: bool) -> None:
+    channel, lemon_id = own_lemon(args.channel or "")
     inbox = store.inbox_for_id(lemon_id)
 
     if wait:
@@ -133,7 +141,15 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
 
         codex_thread = args.codex_thread or codex_delivery.own_thread(channel)
         try:
-            with waiter.armed(inbox):
+            with (
+                waiter.armed(inbox),
+                registry.registered(
+                    "inbox",
+                    (lemon_id,),
+                    channel,
+                    shlex.join(getattr(args, "invocation", None) or _INBOX_WATCH),
+                ),
+            ):
                 result = store.watch_next(
                     inbox,
                     still_attached,

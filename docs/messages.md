@@ -46,6 +46,7 @@ lemonaid tell 2026-09-25-review "The PR is ready."
 lemonaid inbox next --self --channel codex:thread-id
 lemonaid inbox watch --self --channel codex:thread-id
 lemonaid inbox watch --self --timeout 3600
+lemonaid watch stop --self inbox
 ```
 
 `tell` accepts a lemon ID, attached channel, or unique attached brief filename

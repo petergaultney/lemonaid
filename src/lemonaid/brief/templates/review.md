@@ -12,7 +12,7 @@ Don't post to GitHub, push, merge, or edit the author's worktree. Findings go on
 
 Write the review doc at `$review_doc`. When it's written, $tell a one-line pointer to it.
 
-Stay `waiting` for as long as the PR is open, whatever your verdict: on the author while you ask for changes, and on the merge once you approve. Keep both waiters below armed until then, and rearm each after handling its event. When the PR merges or closes, stop them and set yourself `done`.
+Stay `waiting` for as long as the PR is open, whatever your verdict: on the author while you ask for changes, and on the merge once you approve. Keep both waiters below armed until then, and rearm each after handling its event. When the PR merges or closes, stop them and set yourself `done`. Stop them with `lemonaid watch stop --self`; never `pkill -f` a waiter command, which stops every other lemon's matching waiter too.
 
 ## Waiters
 
