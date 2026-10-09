@@ -19,7 +19,7 @@ from typing import Literal, Protocol
 from .. import auto_read, tmux
 from ..log import get_logger
 from . import untracked
-from .common import ModelInfo
+from .common import ContextReading, ModelInfo
 
 _log = get_logger("watcher")
 
@@ -549,6 +549,7 @@ def unified_watch_loop(
     ]
     | None = None,
     record_model: Callable[[str, str, str], None] | None = None,
+    record_context: Callable[[str, int, int], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
@@ -577,6 +578,7 @@ def unified_watch_loop(
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
             tmux_session_order)
         record_model: Optional callback to note a channel's (provider, model)
+        record_context: Optional callback to note a channel's context (used, window) tokens
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
         session_orders: Optional callback returning each channel's recorded tmux session identity
@@ -599,6 +601,7 @@ def unified_watch_loop(
     # Track last "needs attention" timestamp per channel to avoid re-marking
     last_attention_ts: dict[str, float] = {}
     last_observed_model: dict[str, ModelInfo] = {}
+    saved_contexts: dict[str, ContextReading] = {}
     last_recorded_turn: dict[str, float | None] = {}
     initial_model_checked: set[str] = set()
     # Successful transcript lookups are stable. Missing paths are retried: a
@@ -661,6 +664,7 @@ def unified_watch_loop(
                 for channel in archived_channels:
                     last_observed_ts.pop(channel, None)
                     last_observed_model.pop(channel, None)
+                    saved_contexts.pop(channel, None)
                     last_recorded_turn.pop(channel, None)
                     initial_model_checked.discard(channel)
                     to_remove = [k for k in session_cache if k.startswith(f"{channel}:")]
@@ -750,6 +754,12 @@ def unified_watch_loop(
                                 model.model,
                             )
 
+                if record_context and (get_context := getattr(backend, "get_context", None)):
+                    reading = get_context(recent, session_path)
+                    if reading and reading != saved_contexts.get(channel):
+                        record_context(channel, reading.used, reading.window)
+                        saved_contexts[channel] = reading
+
                 if record_turn and (turn_open := getattr(backend, "turn_open", None)):
                     is_open = turn_open(recent)
                     if is_open is not None:
@@ -834,6 +844,7 @@ def start_unified_watcher(
     ]
     | None = None,
     record_model: Callable[[str, str, str], None] | None = None,
+    record_context: Callable[[str, int, int], None] | None = None,
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
@@ -860,6 +871,7 @@ def start_unified_watcher(
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
             tmux_session_order)
         record_model: Optional callback to note a channel's (provider, model)
+        record_context: Optional callback to note a channel's context (used, window) tokens
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
         session_orders: Optional callback returning each channel's recorded tmux session identity
@@ -885,6 +897,7 @@ def start_unified_watcher(
             "mark_unread": mark_unread,
             "record_location": record_location,
             "record_model": record_model,
+            "record_context": record_context,
             "models": models,
             "sockets": sockets,
             "session_orders": session_orders,

@@ -308,6 +308,27 @@ openclaw = "🦞"
 
 When the session transcript names a recognized model family, its friendly name and version replace the backend fallback: for example, `Opus 5.5`, `Fable 5.6`, or `Sol 5.6`. Labels are right-aligned and use the provider's color.
 
+### `[tui.context_threshold]`
+
+Show how much context each Claude and Codex lemon has used, before its model label: `42%  Opus 5.5`. The number is a percentage of the threshold you set, not of the model's whole window, so 100% means the lemon has reached the point you care about. Its colour runs from deep purple at 0% through blue, green and yellow to red at 100%, then on to magenta. On a row or card filled by brief status, the colour becomes the background of the reading and one cell of padding on each side, as the model label becomes a badge. The two cells between them are always there, so the number sits in the same place on a filled row as on a plain one.
+
+Nothing is shown unless you configure it. Keys are a backend (`claude`, `codex`) or an exact model id as its transcript records it (`claude-opus-5-5`, `gpt-5.6-sol`); a model's entry wins over its backend's, and a backend with neither shows no reading. Each value is a share of the window, as a string like `"50%"`, or a number of tokens, written as `650000`, `"650k"` or `"0.65M"`. A quoted number with no unit is ignored with a warning, since `"50"` could mean either. `0` hides the reading. Configuring any entry widens the model column by five cells.
+
+```toml
+[tui.context_threshold]
+claude = "50%"
+codex = "0.65M"
+"claude-haiku-5-5" = "80%"
+```
+
+What each harness reports:
+
+- **Codex:** each `token_count` event in the rollout gives the tokens the last request sent and the model's context window.
+- **Claude:** the transcript gives each request's input tokens, including cached ones, but not the window. `lemonaid-claude-statusline` saves the window Claude Code passes it, per session, under the state directory. Without that statusLine command, a share like `"50%"` has no window to apply to and the row shows nothing; a token count still works.
+- OpenClaw and OpenCode rows show no reading.
+
+The reading is the newest request's input, so it updates when the lemon next calls the model, and drops after a compaction or `/clear`.
+
 ### `[tui.keybindings]`
 
 `answer_yes = "Y"` immediately sends `Yes, approved` for the selected brief question.

@@ -352,3 +352,15 @@ def test_record_model_is_preserved_by_later_notifications():
 
     assert updated.metadata["model_provider"] == "anthropic"
     assert updated.metadata["model"] == "claude-opus-5-5"
+
+
+def test_record_context_keeps_a_known_window_when_a_reading_lacks_one():
+    with tempfile.TemporaryDirectory() as tmpdir, db.connect(Path(tmpdir) / "t.db") as conn:
+        db.add(conn, channel="claude:abc", message="first", metadata={"cwd": "/tmp"})
+        assert db.record_context(conn, "claude:abc", 1_000, 200_000) is True
+        assert db.record_context(conn, "claude:abc", 1_000, 0) is False
+        assert db.record_context(conn, "claude:abc", 2_000, 0) is True
+        updated = db.add(conn, channel="claude:abc", message="second", metadata={"cwd": "/tmp"})
+
+    assert updated.metadata["context_tokens"] == 2_000
+    assert updated.metadata["context_window"] == 200_000

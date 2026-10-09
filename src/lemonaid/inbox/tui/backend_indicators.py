@@ -3,6 +3,7 @@
 from rich.text import Text
 
 from ..model_label import model_label
+from . import context_reading
 from .utils import styled_cell
 
 _DEFAULT_BACKEND_LABELS = {
@@ -40,6 +41,7 @@ def backend_text(
     model: object = "",
     model_provider: object = "",
     history: bool = False,
+    context_percent: int | None = None,
 ) -> Text:
     prefix = channel.split(":")[0] if ":" in channel else channel
     indicator = model_label(model)
@@ -53,5 +55,7 @@ def backend_text(
     provider = provider or (indicator[1] if indicator else _BACKEND_PROVIDERS.get(prefix, ""))
     if style := _PROVIDER_STYLES.get(provider.lower()):
         label.stylize(style)
+    if context_percent is not None:
+        label = context_reading.text(context_percent) + label
     label.justify = "right"
     return label

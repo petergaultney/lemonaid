@@ -19,7 +19,7 @@ import re
 from collections import abc
 from pathlib import Path
 
-from ..lemon_watchers.common import ModelInfo
+from ..lemon_watchers.common import ContextReading, ModelInfo
 from .utils import find_latest_session_for_cwd, get_sessions_root
 
 # Channel prefix for Codex notifications
@@ -40,6 +40,25 @@ def get_model(entry: dict) -> ModelInfo | None:
 
     model = entry.get("payload", {}).get("model")
     return ModelInfo("openai", model) if isinstance(model, str) and model else None
+
+
+def get_context(entries: list[dict], _session_path: Path) -> ContextReading | None:
+    """The newest `token_count` event's last request, against the window it reports."""
+    for entry in entries:
+        payload = entry.get("payload", {})
+        if entry.get("type") != "event_msg" or payload.get("type") != "token_count":
+            continue
+
+        info = payload.get("info")
+        if not isinstance(info, dict):
+            continue
+
+        used = (info.get("last_token_usage") or {}).get("input_tokens")
+        window = info.get("model_context_window")
+        if isinstance(used, int) and used > 0:
+            return ContextReading(used, window if isinstance(window, int) else 0)
+
+    return None
 
 
 def get_initial_model(session_path: Path) -> ModelInfo | None:

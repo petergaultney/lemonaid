@@ -150,3 +150,34 @@ def test_a_running_row_is_teal():
     assert app.brief_rows.background(CardBrief("running", "", 0)).bgcolor.name == "#00838f"
     assert _style(running[6]).color.name == "#ffffff"
     assert _style(running[1]).color.name == "#ffffff"
+
+
+def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
+    from lemonaid.inbox.tui import backend_indicators
+
+    cells = _row("review")
+    cells[2] = backend_indicators.backend_text(
+        "claude:s", {}, False, model="claude-opus-5-5", context_percent=100
+    )
+    backend = app.brief_rows.styled(
+        cells, CardBrief("review", "", 0), app._UNREAD_CELL, app._BACKEND_CELL, 3, 2
+    )[2]
+
+    assert backend.plain == " 100%  Opus 5.5"
+    assert backend.justify == "right"
+    for padded in (0, 1, 5):
+        assert _style(backend, padded).bgcolor.get_truecolor() == (255, 60, 30)
+    assert _style(backend, 1).color.name == "#000000"
+    for model in (6, 7):  # its padding, then the name
+        assert _style(backend, model).bgcolor.name == "#d88760"
+
+
+def test_a_reading_badge_at_the_purple_end_takes_white_text():
+    from lemonaid.inbox.tui import context_reading
+
+    def text_colour(percent: int) -> str:
+        badge = context_reading.filled(context_reading.text(percent))
+        return _style(badge, 1).color.name
+
+    assert text_colour(0) == "#ffffff"
+    assert text_colour(50) == "#000000"

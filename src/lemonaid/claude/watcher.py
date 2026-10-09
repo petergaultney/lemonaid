@@ -9,7 +9,8 @@ Provides Claude-specific functions for the unified watcher:
 from collections import abc
 from pathlib import Path
 
-from ..lemon_watchers.common import ModelInfo, short_filename
+from ..lemon_watchers.common import ContextReading, ModelInfo, short_filename
+from . import context_window
 
 # Channel prefix for Claude notifications
 CHANNEL_PREFIX = "claude:"
@@ -24,6 +25,26 @@ def get_model(entry: dict) -> ModelInfo | None:
 
     model = entry.get("message", {}).get("model")
     return ModelInfo("anthropic", model) if isinstance(model, str) and model else None
+
+
+def get_context(entries: list[dict], session_path: Path) -> ContextReading | None:
+    """The newest main-thread request's input, against the window the statusLine saw."""
+    for entry in entries:
+        if entry.get("type") != "assistant" or entry.get("isSidechain"):
+            continue
+
+        usage = entry.get("message", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+
+        used = sum(
+            n
+            for key in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+            if isinstance((n := usage.get(key)), int)
+        )
+        return ContextReading(used, context_window.read(session_path.stem)) if used else None
+
+    return None
 
 
 def get_session_path(session_id: str, cwd: str, recorded: str = "") -> Path | None:

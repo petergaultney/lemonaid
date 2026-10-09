@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import auto_read, keys, watch_config
-from .inbox import snooze_time
+from .inbox import context_use, snooze_time
 from .usage import settings
 
 
@@ -181,6 +181,8 @@ class TuiConfig:
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
     # Unset backends default to their channel prefix.
     backend_labels: dict[str, str] = field(default_factory=dict)
+    # Where each harness or model counts as 100% context used; unset is its whole window.
+    context_threshold: dict[str, context_use.Threshold] = field(default_factory=dict)
 
 
 @dataclass
@@ -539,6 +541,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         notes=_notes(tui_data.get("notes")),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),
+        context_threshold=context_use.parse_thresholds(tui_data.get("context_threshold")),
     )
 
     brief_data = data.get("brief", {})
