@@ -586,6 +586,21 @@ shows it anyway. One whose place lemonaid couldn't find stays in.
 `ready` says nothing about the branch. lemonaid knows nothing about git, so before you tear a
 place down, check yourself that its work is on the trunk.
 
+### Groups
+
+A group names a set of lemons so the inbox keeps them together; see `docs/groups.md`. A child
+made with `brief new --child` or started with `--parent` joins its parent's groups; `--group` puts it in others instead. A lead
+finds its groups with `group list --self`:
+
+```bash
+lemonaid group list --self --json
+lemonaid place open feat/thing --brief "$f" --parent self    # into the parent's groups
+lemonaid group add "Inbox work" <lemon> --tree    # a lemon and its descendants
+```
+
+Lemonaid keeps a `Groups:` line in each member brief's header. Change groups with `lemonaid
+group`, not by editing the line: `brief check` reports a line that disagrees with the database.
+
 ### Child briefs
 
 A parent writes its child's brief with `brief new --child`, which attaches it to no one and
@@ -692,6 +707,7 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
   or that has no rows;
 - a `## Waiters` section that is not last;
 - no `Parent:` line, when the database records a parent for the brief;
+- a `Groups:` line that doesn't name the groups the database records for the brief;
 - with `--all`, an attached brief whose file is gone.
 
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
@@ -700,7 +716,7 @@ anything, listing what. A brief that already fails takes only an edit that fixes
 `Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Waiters` or a
 wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
 way the other verbs do. The verbs never drop a `Parent:` line, and refuse an edit that
-would, but they still edit a brief that has already lost one. A `Parent:` or `Area:` line given to
+would, but they still edit a brief that has already lost one. A `Parent:`, `Area:` or `Groups:` line given to
 `brief now` replaces the brief's line for that field, and a field it leaves out stays as it was. A Claude lemon's Stop hook
 runs it too, and blocks the turn's end until the brief passes. **After editing a brief by hand,
 run `lemonaid brief check --self`**: nothing else checks a Codex lemon's hand edits.

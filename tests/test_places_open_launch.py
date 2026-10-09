@@ -135,6 +135,7 @@ def _args(**kwargs) -> argparse.Namespace:
             "brief": "",
             "parent": "",
             "name": "",
+            "group": [],
             **kwargs,
         }
     )

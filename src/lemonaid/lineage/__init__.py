@@ -1,3 +1,3 @@
 from . import links
 
-__all__ = ["cli", "links"]
+__all__ = ["cli", "describe", "links"]

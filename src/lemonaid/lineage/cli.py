@@ -10,15 +10,7 @@ import lemonaid.launch.cli
 
 from .. import brief
 from ..inbox import db
-from . import links
-
-
-@dataclasses.dataclass(frozen=True)
-class Lemon:
-    lemon_id: str
-    brief: str  # "" when lemonaid knows no brief for it
-    status: str
-    channel: str  # "" when its brief is not attached to a running lemon
+from . import describe, links
 
 
 def _fail(args: argparse.Namespace, error: str) -> None:
@@ -41,18 +33,6 @@ def _named(conn: sqlite3.Connection, args: argparse.Namespace, name: str) -> str
         raise
 
 
-def _describe(conn: sqlite3.Connection, lemon_id: str) -> Lemon:
-    path = brief.lemon.brief_of(conn, lemon_id)
-    if path is None or not path.is_file():
-        return Lemon(lemon_id, str(path or ""), "", "")
-
-    parts = brief.status.split(path.read_text())
-    channel = conn.execute(
-        "SELECT channel FROM session_briefs WHERE path = ?", (str(path),)
-    ).fetchone()
-    return Lemon(lemon_id, str(path), parts.status, channel["channel"] if channel else "")
-
-
 def _cmd_parent(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         child = _named(conn, args, "self" if args.use_self else args.lemon)
@@ -65,7 +45,7 @@ def _cmd_parent(args: argparse.Namespace) -> None:
             _fail(args, str(error))
 
         parent = links.parent_of(conn, child)
-        described = _describe(conn, parent) if parent else None
+        described = describe.describe(conn, parent) if parent else None
 
     if args.json:
         print(
@@ -84,7 +64,7 @@ def _cmd_parent(args: argparse.Namespace) -> None:
 def _cmd_children(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         parent = _named(conn, args, "self" if args.use_self else args.lemon)
-        children = [_describe(conn, child) for child in links.children_of(conn, parent)]
+        children = [describe.describe(conn, child) for child in links.children_of(conn, parent)]
 
     if args.json:
         print(

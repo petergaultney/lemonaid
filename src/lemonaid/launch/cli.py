@@ -27,7 +27,7 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if directory is None:
         return {}, f"No tmux session {session!r}"
 
-    given, error = handoff.prepare(args.brief, args.parent, args.name)
+    given, error = handoff.prepare(args.brief, args.parent, args.name, tuple(args.group))
     if error:
         return {}, error
 
@@ -50,6 +50,7 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         "brief": str(given.brief) if given.brief else None,
         "lemon_id": given.link[0] if given.link else None,
         "parent": given.link[1] if given.link else None,
+        "groups": list(given.groups),
         "name": given.name or None,
     }
     handoff.complete(given, session, index, pane.window_id)
@@ -107,6 +108,13 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         default="",
         metavar="LEMON",
         help="Record LEMON (`self`, a Lemon-ID, channel, or brief) as the --brief lemon's parent",
+    )
+    start.add_argument(
+        "--group",
+        action="append",
+        default=[],
+        metavar="GROUP",
+        help="Put the --brief lemon in this existing group (repeatable); default: its parent's",
     )
     start.add_argument(
         "--name", default="", help="Name the lemon's session once it starts (needs --brief)"

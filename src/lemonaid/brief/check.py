@@ -5,6 +5,7 @@ import sqlite3
 from collections import abc
 from pathlib import Path
 
+from .. import groups
 from ..lineage import links
 from . import identity, layout, now, now_edit, pr_table, questions, status, store
 
@@ -191,5 +192,34 @@ def parent_line(conn: sqlite3.Connection, text: str) -> list[str]:
     return [f"No `Parent:` line, but {parent} is this brief's parent; add `Parent: {parent}`"]
 
 
+def groups_line(conn: sqlite3.Connection, text: str) -> list[str]:
+    """A `Groups:` line that disagrees with the groups the database records for the brief."""
+    try:
+        lemon_id = identity.read(text)
+    except ValueError:
+        return []  # structure() reports it
+
+    known = conn.execute(
+        "SELECT 1 FROM lemon_identities WHERE lemon_id = ?", (lemon_id,)
+    ).fetchone()
+    if not known:
+        return []  # registering the brief reads its line in
+
+    expected = groups.store.names_of(conn, lemon_id)
+    written = groups.line.read(text) or ()
+    if set(written) == set(expected):
+        return []
+
+    if not expected:
+        return ["The `Groups:` line names groups this brief isn't in; remove it"]
+
+    return [f"The `Groups:` line should read `{groups.line.render(expected)}`"]
+
+
 def problems(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
-    return [*structure(text), *recorded(conn, path, text), *parent_line(conn, text)]
+    return [
+        *structure(text),
+        *recorded(conn, path, text),
+        *parent_line(conn, text),
+        *groups_line(conn, text),
+    ]

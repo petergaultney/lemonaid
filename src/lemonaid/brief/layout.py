@@ -3,8 +3,8 @@
 Each `### <heading>` comes in the order of `ORDER`, with a blank line around it,
 and none is empty. Headings outside that list are allowed and keep their place
 after the known heading they follow. Lines above the first sub-heading (an older
-brief's `- Label:` bullets) are kept as written. The header's `Parent:` and
-`Area:` lines, which a `## Now` written under `Status:` takes in, are kept at
+brief's `- Label:` bullets) are kept as written. The header's `Parent:`,
+`Area:` and `Groups:` lines, which a `## Now` written under `Status:` takes in, are kept at
 the end of the section.
 """
 
@@ -20,7 +20,7 @@ _SUB_HEADING = re.compile(r"###\s+(?P<heading>.+?)\s*#*\s*")
 _NEEDS = re.compile(r"needs(?:\s+\S+)?", re.IGNORECASE)
 _BULLET = re.compile(r"[-*+]\s+")
 _FENCE = re.compile(r"(```|~~~)")
-_HEADER_LINE = re.compile(r"(Parent|Area):")
+_HEADER_LINE = re.compile(r"(Parent|Area|Groups):")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -33,7 +33,7 @@ class Section:
 class Now:
     lead: tuple[str, ...]
     sections: tuple[Section, ...]
-    tail: tuple[str, ...]  # `Parent:` and `Area:` lines
+    tail: tuple[str, ...]  # `Parent:`, `Area:` and `Groups:` lines
 
 
 def rank(heading: str) -> int | None:
@@ -68,7 +68,7 @@ def bounds(lines: abc.Sequence[str]) -> tuple[int, int] | None:
 
 
 def is_field(line: str) -> bool:
-    """Whether *line* is a `Parent:` or `Area:` line."""
+    """Whether *line* is a `Parent:`, `Area:` or `Groups:` line."""
     return bool(_HEADER_LINE.match(line))
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from lemonaid import groups
 from lemonaid.brief import attached, child, identity, links, status, write_cli
 from lemonaid.inbox import db
 
@@ -66,6 +67,17 @@ def test_a_child_brief_is_attached_to_no_one(capsys, parent):
     with db.connect() as conn:
         assert all(a.path != Path(result["path"]) for a in attached.everything(conn))
         assert identity.ensure(conn, Path(result["path"])) == result["lemon_id"]
+
+
+def test_a_child_brief_joins_its_parents_groups(capsys, parent):
+    with db.connect() as conn:
+        groups.store.add(conn, groups.store.create(conn, "Widgets"), [_PARENT])
+
+    result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
+
+    with db.connect() as conn:
+        assert groups.store.names_of(conn, result["lemon_id"]) == ("Widgets",)
+    assert groups.line.read(Path(result["path"]).read_text()) == ("Widgets",)
 
 
 def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_path):

@@ -1,10 +1,15 @@
-"""Stable lemon identity stored in a brief and registered by its path."""
+"""Stable lemon identity stored in a brief and registered by its path.
+
+Registering a Brief-ID this database has never seen also reads in the brief's
+`Groups:` line, which is how groups follow a brief to another machine.
+"""
 
 import re
 import sqlite3
 import unicodedata
 from pathlib import Path
 
+from .. import groups
 from . import store
 
 _LINE = re.compile(r"(?:Brief-ID|Lemon-ID): (.+)")
@@ -121,7 +126,8 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
         if recorded and not valid(recorded):
             raise ValueError(f"Database has an invalid Lemon-ID for {path}")
 
-        in_file = read(path.read_text())
+        text = path.read_text()
+        in_file = read(text)
         if recorded and in_file and recorded != in_file:
             raise ValueError(f"Lemon-ID in {path} disagrees with the database")
 
@@ -162,6 +168,8 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
                 "INSERT INTO lemon_identities (path, lemon_id) VALUES (?, ?)",
                 (str(path), lemon_id),
             )
+            if (names := groups.line.read(text)) is not None:
+                groups.store.replace_memberships(conn, lemon_id, names)
 
         if not in_file:
             store.edit(path, lambda text: _with_id(text, lemon_id))

@@ -63,6 +63,7 @@ def _relabel(conn: sqlite3.Connection, path: Path, old_id: str, new_id: str) -> 
     conn.execute("UPDATE lemon_parents SET lemon_id = ? WHERE lemon_id = ?", (new_id, old_id))
     conn.execute("UPDATE lemon_parents SET parent_id = ? WHERE parent_id = ?", (new_id, old_id))
     conn.execute("UPDATE lemon_aliases SET lemon_id = ? WHERE lemon_id = ?", (new_id, old_id))
+    conn.execute("UPDATE lemon_group_members SET lemon_id = ? WHERE lemon_id = ?", (new_id, old_id))
     conn.execute("INSERT INTO lemon_aliases (old_id, lemon_id) VALUES (?, ?)", (old_id, new_id))
 
 
