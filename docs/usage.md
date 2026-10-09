@@ -20,7 +20,7 @@ Example line: `codex primary (10080min): 77% used (pace 2.85x), elapsed 27%, pro
 
 `--watch` prints one line per alert and exits, so a Claude background Bash task wakes its session once. Rearm it after each wake.
 
-- **A step crossing.** Usage crosses a multiple of `step_percent` (20 by default) in any window. The line also gives the elapsed share of the window and either the projected percentage at reset or the projected run-out time. A window seen for the first time, or after it resets, is baselined silently at its current step.
+- **A step crossing.** Usage crosses a multiple of `step_percent` (20 by default) in any window. The line also gives the elapsed share of the window and either the projected percentage at reset or the projected run-out time. A window seen for the first time, or after it resets, is baselined silently at its current step. A step alerts once per window: a lower reading after a higher one (for example from a different session's older capture) does not re-arm it.
 - **Over pace.** Usage divided by the elapsed share of the window projects past `pace_over_percent` (100 by default) at reset. The line says when it would run out and how long before the reset that is. It fires once per window.
 - **Back on pace.** After an over-pace alert, the projection falls under `pace_recovered_percent` (90% of `pace_over_percent` by default). It fires once, then over-pace can fire again.
 

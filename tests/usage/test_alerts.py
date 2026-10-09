@@ -63,3 +63,25 @@ def test_thresholds_are_configurable():
         state, {"c": sample(70)}, MID, config
     )  # 140% projected, and before min elapsed
     assert [line for line in lines if "run out" in line] == []
+
+
+def test_step_alerts_once_per_window():
+    state, _ = alerts.crossings({}, {"c": sample(10)}, MID, DEFAULT)
+    state, lines = alerts.crossings(state, {"c": sample(20)}, MID, DEFAULT)
+    assert len(lines) == 1 and "crossed 20%" in lines[0]
+
+    for used in (20, 21, 20.5):
+        state, lines = alerts.crossings(state, {"c": sample(used)}, MID, DEFAULT)
+        assert [line for line in lines if "crossed" in line] == []
+
+
+def test_lower_reading_after_higher_does_not_rearm_or_regress_state():
+    state, _ = alerts.crossings({}, {"c": sample(70)}, MID, DEFAULT)
+    state, lines = alerts.crossings(state, {"c": sample(80)}, MID, DEFAULT)
+    assert "crossed 80%" in lines[0]
+
+    state, lines = alerts.crossings(state, {"c": sample(71)}, MID, DEFAULT)
+    assert [line for line in lines if "crossed" in line] == [] and state["c"]["step"] == 80
+
+    _, lines = alerts.crossings(state, {"c": sample(80)}, MID, DEFAULT)
+    assert [line for line in lines if "crossed" in line] == []
