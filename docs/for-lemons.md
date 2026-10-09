@@ -866,6 +866,10 @@ selected status without duplicates. Read the changed briefs, act, then rearm. St
 independent per database, parent, optional `--me` name, and target-status set. Details:
 [watch.md](watch.md#watching-childrens-briefs).
 
+## Watching subscription usage
+
+`lemonaid usage` prints one line per Claude and Codex limit window. `lemonaid usage --watch` blocks until usage crosses a step or its pace projects running out, prints one line per alert, and exits. Run it as a background Bash task and rearm it after each wake. See `docs/usage.md`.
+
 ## Installing the skills
 
 `lemonaid skills install` installs the `brief`, `watch-doc`, `watch-pr`, and `watch-briefs` skills for Claude Code

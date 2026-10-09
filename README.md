@@ -64,6 +64,8 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
+- **[Subscription usage](docs/usage.md)**: `lemonaid usage` shows how much of each Claude and Codex limit window is used against its pace, and `--watch` blocks until usage crosses a step or is on track to run out before the reset. Thresholds are configurable.
+
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
 - **Project names within a root**: An optional [per-root hook](docs/config.md#project-names-within-a-root) maps working directories to project labels in the inbox
 - **Quiet reviewer sessions**: Reviewer lemons stay out of the default inbox until you switch to them, select or pin them, or their brief enters a specially ranked status

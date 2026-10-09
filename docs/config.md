@@ -541,3 +541,22 @@ skip_resolved = true
 `--skip-outdated` and `--skip-resolved` override the respective config setting to true.
 `--no-skip-outdated` and `--no-skip-resolved` override it to false for one wait.
 These filters do not affect submitted review bodies or PR conversation comments.
+
+## `[usage]`
+
+Thresholds for [`lemonaid usage --watch`](usage.md).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `step_percent` | `20` | Alert each time usage crosses a multiple of this in any limit window. |
+| `pace_over_percent` | `100` | Alert when the pace projects usage past this percentage at the window's reset. |
+| `pace_recovered_percent` | 90% of `pace_over_percent` | After an over-pace alert, alert again when the projection falls under this. Must not exceed `pace_over_percent`. |
+| `pace_min_elapsed_percent` | `5` | Skip pace alerts until this share of the window has elapsed. |
+| `pace_color_ratios` | `[0.8, 1.15, 1.4, 1.8]` | Pace ratios shown as green, yellow, orange and red in the `lemonaid usage` summary. Cyan and blue sit as far below green as orange and red sit above it. Four increasing positive numbers. |
+| `poll_seconds` | `30` | How often `--watch` rereads usage. |
+
+```toml
+[usage]
+step_percent = 10
+pace_over_percent = 110
+```

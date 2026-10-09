@@ -39,6 +39,8 @@ import sys
 import time
 from pathlib import Path
 
+from ..usage import samples
+
 # Colors matching common prompt themes
 ORANGE = "\033[38;5;214m"  # #ffaf00
 CYAN = "\033[38;5;80m"  # #5dd8c8
@@ -270,6 +272,10 @@ def main():
     else:
         # Default mode: render the statusline
         data = json.load(sys.stdin)
+        try:
+            samples.save_claude_limits(data)
+        except OSError as e:
+            print(f"lemonaid usage: could not save rate limits: {e}", file=sys.stderr)
         render_statusline(data)
 
 
