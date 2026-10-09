@@ -29,6 +29,7 @@ class Group:
     name: str
     position: float
     members: tuple[str, ...]  # Lemon-IDs, in the order they joined
+    collapsed: bool = False
 
 
 def checked_name(name: str) -> str:
@@ -58,7 +59,13 @@ def _members(conn: sqlite3.Connection, group_id: int) -> tuple[str, ...]:
 
 
 def _group(conn: sqlite3.Connection, row: sqlite3.Row) -> Group:
-    return Group(row["group_id"], row["name"], row["position"], _members(conn, row["group_id"]))
+    return Group(
+        row["group_id"],
+        row["name"],
+        row["position"],
+        _members(conn, row["group_id"]),
+        bool(row["collapsed"]),
+    )
 
 
 def find(conn: sqlite3.Connection, name: str) -> Group:

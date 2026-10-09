@@ -23,6 +23,9 @@ class Active:
     cards: dict[str, brief_cards.CardBrief]  # by channel
     briefs: dict[str, Path]  # the attached brief's path, by channel
     reviewers: frozenset[str]  # channels whose stable brief ID starts with review-
+    memberships: dict[str, tuple[str, ...]] = dataclasses.field(
+        default_factory=dict
+    )  # each channel's group names, in group order
 
 
 def _cards(
@@ -47,6 +50,19 @@ def _cards(
         )
         for channel, (path, card) in found.items()
     }
+
+
+def _memberships(conn: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
+    found: dict[str, tuple[str, ...]] = {}
+    for row in conn.execute(
+        "SELECT b.channel, g.name FROM session_briefs b"
+        " JOIN lemon_identities i ON i.path = b.path"
+        " JOIN lemon_group_members m ON m.lemon_id = i.lemon_id"
+        " JOIN lemon_groups g ON g.group_id = m.group_id"
+        " ORDER BY g.position, g.group_id"
+    ):
+        found[row["channel"]] = (*found.get(row["channel"], ()), row["name"])
+    return found
 
 
 def statuses(cards: abc.Mapping[str, brief_cards.CardBrief]) -> dict[str, str]:
@@ -93,6 +109,7 @@ def ordered_active(
         cards,
         attached,
         reviewers,
+        _memberships(conn),
     )
 
 
@@ -139,6 +156,7 @@ def _row(
         "branch": n.metadata.get("git_branch", ""),
         "tty": n.metadata.get("tty", ""),
         "brief": _brief(card, active.briefs.get(n.channel)),
+        "groups": list(active.memberships.get(n.channel, ())),
         "default": {
             "position": position,
             "band": order.band(card.status if card else "", n.is_unread, n.channel in pinned),

@@ -261,7 +261,7 @@ def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
     async def run() -> None:
         app = LemonaidApp(scratch_mode=True)
         async with app.run_test(size=(80, 40)) as pilot:
-            await pilot.press("tab")
+            await pilot.press("b")
             await _until(pilot, lambda: app._brief_target is not None)
             await pilot.pause()
             await pilot.press("]", "a")

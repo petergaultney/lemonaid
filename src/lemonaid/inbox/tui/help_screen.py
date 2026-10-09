@@ -42,11 +42,13 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "Pinning and folding",
+        "Pinning, groups and folding",
         [
             ("pin", "Pin the selected session, or unpin it"),
-            ("move_pin_up", "Move a pinned session up one slot"),
-            ("move_pin_down", "Move a pinned session down one slot"),
+            ("move_pin_up", "Move a pinned session, or the group under the cursor, up"),
+            ("move_pin_down", "Move a pinned session, or the group under the cursor, down"),
+            ("select", "On a group's header: collapse it, or open it"),
+            ("group_key", "Collapse or open the group the cursor is in"),
             ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
         ],
     ),
@@ -72,6 +74,9 @@ def _key_display(value: str, field: str) -> str:
     Most fields hold a set of single-character alternatives; the pin-move fields
     hold one key name, which may carry a modifier.
     """
+    if field == "group_key":
+        return value.capitalize()
+
     if field in ("move_pin_up", "move_pin_down", "first", "last", "search"):
         return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+")
 

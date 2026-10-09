@@ -127,7 +127,8 @@ class KeybindingsConfig:
     pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it
     # Unlike the fields above, these name one key each rather than a set of
     # single-character alternatives, so that they can be a named key or carry a modifier.
-    brief_key: str = "tab"  # A second key for brief
+    brief_key: str = ""  # A second key for brief
+    group_key: str = "tab"  # Open or collapse the group of the row under the cursor
     move_pin_up: str = "shift+up"
     move_pin_down: str = "shift+down"
     first: str = "ctrl+a"  # The top row of the list; Home always works too

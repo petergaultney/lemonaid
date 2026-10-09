@@ -1,3 +1,3 @@
-from . import line, store, sync
+from . import arrangement, line, store, sync
 
-__all__ = ["cli", "line", "store", "sync"]
+__all__ = ["arrangement", "cli", "line", "store", "sync"]
