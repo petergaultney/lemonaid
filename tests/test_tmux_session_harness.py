@@ -1,5 +1,6 @@
 """Choosing a configured harness when a tmux session is created."""
 
+import shlex
 import subprocess
 
 from lemonaid.config import TmuxSessionConfig
@@ -83,7 +84,8 @@ def test_a_codex_harness_starts_past_its_trust_and_update_prompts(monkeypatch, t
     harness = created[0]["windows"][1]
     assert harness.startswith("codex -c ")
     assert f'{{"{tmp_path}"={{trust_level="trusted"}}}}' in harness
-    assert harness.endswith("check_for_update_on_startup=false --no-daemon")
+    assert "-c check_for_update_on_startup=false -c " in harness
+    assert harness.endswith("--no-daemon")
 
 
 def test_prompt_can_target_a_window_other_than_resume(monkeypatch, tmp_path):
@@ -174,3 +176,44 @@ def test_rename_submits_with_configured_composer_key(monkeypatch, tmp_path):
         "35",
         "75",
     ] in calls
+
+
+def test_a_new_codex_session_can_write_the_configured_roots(monkeypatch, tmp_path):
+    created = _created_sessions(monkeypatch)
+    config = TmuxSessionConfig(
+        templates={"codex": ["editor", "codex --no-daemon"]},
+        resume_window=1,
+        codex_writable_roots=(tmp_path / "reviews",),
+    )
+
+    session.spawn_session(
+        str(tmp_path), config, session_name="work", template_name="codex", attach=False
+    )
+
+    words = shlex.split(created[0]["windows"][1])
+    assert any(
+        w.startswith("sandbox_workspace_write.writable_roots=") and str(tmp_path / "reviews") in w
+        for w in words
+    )
+
+
+def test_a_resumed_codex_session_can_write_the_configured_roots(monkeypatch, tmp_path):
+    created = _created_sessions(monkeypatch)
+    config = TmuxSessionConfig(
+        templates={"codex": ["editor", "codex --no-daemon"]},
+        resume_window=1,
+        codex_writable_roots=(tmp_path / "reviews",),
+    )
+
+    session.spawn_session(
+        str(tmp_path),
+        config,
+        resume_argv=["codex", "resume", "abc"],
+        session_name="work",
+        template_name="codex",
+        attach=False,
+    )
+
+    words = shlex.split(created[0]["windows"][1])
+    assert words[-2:] == ["resume", "abc"]
+    assert any(w.startswith("sandbox_workspace_write.writable_roots=") for w in words)

@@ -3,6 +3,8 @@
 import shlex
 from pathlib import Path
 
+from lemonaid.config import TmuxSessionConfig, _parse_config
+from lemonaid.inbox import db
 from lemonaid.launch import command
 
 
@@ -66,3 +68,37 @@ def test_only_a_one_command_line_drops_the_prompt_from_the_harness_environment()
         command.harness_line("setup\nclaude", Path("/w"), "go")[0]
         == 'setup\nclaude "$LEMONAID_PROMPT"'
     )
+
+
+def test_codex_gets_the_writable_roots_it_is_given():
+    line, _ = command.harness_line(
+        "codex", Path("/w"), writable=[Path("/db"), Path("/docs"), Path("/db")]
+    )
+
+    assert 'sandbox_workspace_write.writable_roots=["/db", "/docs"]' in shlex.split(line)
+
+
+def test_other_harnesses_get_no_writable_roots():
+    line, _ = command.harness_line("claude", Path("/w"), writable=[Path("/db")])
+
+    assert line == "claude"
+
+
+def test_default_roots_are_the_database_and_state_directories_plus_configured(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(db, "get_db_path", lambda: tmp_path / "db" / "inbox.db")
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "state"))
+    config = TmuxSessionConfig(codex_writable_roots=(tmp_path / "reviews",))
+
+    assert command.codex_writable_roots(config) == [
+        tmp_path / "db",
+        tmp_path / "state",
+        tmp_path / "reviews",
+    ]
+
+
+def test_configured_roots_expand_the_home_directory():
+    config = _parse_config({"tmux-session": {"codex_writable_roots": ["~/reviews", 3]}})
+
+    assert config.tmux_session.codex_writable_roots == (Path("~/reviews").expanduser(),)

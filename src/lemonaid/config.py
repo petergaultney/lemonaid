@@ -68,6 +68,9 @@ class TmuxSessionConfig:
     # 0-based template window whose command accepts an initial prompt. None
     # follows resume_window, since both normally identify the lemon window.
     harness_window: int | None = None
+    # Extra directories a Codex lemon may write, beyond the lemonaid database and
+    # state directories (review-doc folders, for instance).
+    codex_writable_roots: tuple[Path, ...] = ()
     # Where the scratch pane sits: "top" or "left".
     scratch_position: str = "left"
     # Size of the scratch pane along the axis it splits. A top pane is measured
@@ -401,6 +404,19 @@ def _vaults(raw: object) -> tuple[Path, ...]:
     return tuple(Path(root).expanduser() for root in raw if isinstance(root, str) and root)
 
 
+def _paths(raw: object) -> tuple[Path, ...]:
+    """A list of path strings with `~` expanded; anything else is reported and dropped."""
+    entries = raw if isinstance(raw, list) else [raw]
+    for entry in entries:
+        if not isinstance(entry, str) or not entry:
+            print(
+                f"lemonaid: [tmux-session] codex_writable_roots: ignoring {entry!r}",
+                file=sys.stderr,
+            )
+
+    return tuple(Path(e).expanduser() for e in entries if isinstance(e, str) and e)
+
+
 def _templates(raw: dict[str, Any]) -> dict[str, list[str]]:
     """`[tmux-session.templates]`, with a string `default` resolved to the template it names.
 
@@ -474,6 +490,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         templates=_templates(tmux_session_data.get("templates", {})),
         resume_window=tmux_session_data.get("resume_window", 0),
         harness_window=tmux_session_data.get("harness_window"),
+        codex_writable_roots=_paths(tmux_session_data.get("codex_writable_roots", [])),
         scratch_position=tmux_session_data.get(
             "scratch_position", tmux_session_defaults.scratch_position
         ),

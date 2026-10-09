@@ -1,3 +1,9 @@
+# 0.89.4 (2026-10-08)
+
+#### Fixed
+
+- **A Codex lemon started by lemonaid in a workspace-write sandbox can write the lemonaid database and state directories, so `lemonaid tell` works there.** Add other directories it must write, such as a folder of review documents, to `codex_writable_roots` in `[tmux-session]`.
+
 # 0.89.3 (2026-10-08)
 
 #### Fixed

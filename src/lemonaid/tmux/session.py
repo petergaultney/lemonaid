@@ -238,15 +238,18 @@ def spawn_session(
     if initial_prompt and not windows[idx].strip():
         return f"Tmux-session template {template_name!r} has no harness command in window {idx}"
 
+    writable = launch.command.codex_writable_roots(config)
     environments: list[dict[str, str]] = [{} for _ in windows]
     if windows[idx].strip():
         windows[idx], environments[idx] = launch.command.harness_line(
-            windows[idx], Path(cwd), initial_prompt
+            windows[idx], Path(cwd), initial_prompt, writable
         )
 
     if resume_argv:
         idx = min(config.resume_window, len(windows) - 1)
-        resume_cmd = " ".join(shlex.quote(a) for a in resume_argv)
+        resume_cmd, _ = launch.command.harness_line(
+            " ".join(shlex.quote(a) for a in resume_argv), Path(cwd), writable=writable
+        )
         windows = [*windows[:idx], resume_cmd, *windows[idx + 1 :]]
 
     session_name = spawned_name(session_name, cwd)

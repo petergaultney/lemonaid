@@ -3,6 +3,7 @@
 import shlex
 from pathlib import Path
 
+from ..config import load_config
 from ..launch import command
 from . import handoff_launch
 
@@ -31,10 +32,15 @@ def build(row) -> dict:
             "Your brief will attach only after that acknowledgement."
         )
         report["start_prompt"] = prompt
+        typed, _ = command.harness_line(
+            handoff_launch.configured_line(row["harness"], row["harness"]),
+            Path(row["source_command"]),
+            writable=command.codex_writable_roots(load_config().tmux_session),
+        )
         report["start_command"] = (
             f"cd {shlex.quote(row['source_command'])} && "
             f"export LEMONAID_HANDOFF_TOKEN={shlex.quote(row['token'])} && "
-            f"{command.harness_line(handoff_launch.configured_line(row['harness'], row['harness']), Path(row['source_command']))[0]} "
+            f"{typed} "
             f"{shlex.quote(prompt)}"
         )
     return report
