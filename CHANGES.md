@@ -1,3 +1,9 @@
+# 0.90.2 (2026-10-09)
+
+#### Fixed
+
+- **A waiter stopped by SIGTERM now says who stopped it.** It names the lemon and pid when `lemonaid watch stop` sent the signal, and says the signal came from outside lemonaid (a `kill`, a `pkill` pattern or the harness) otherwise; both go to the lemonaid log too.
+
 # 0.90.1 (2026-10-09)
 
 #### Fixed

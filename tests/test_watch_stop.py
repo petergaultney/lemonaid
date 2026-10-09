@@ -3,14 +3,18 @@
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from lemonaid.brief import attached, identity, waiters
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
-from lemonaid.watch import registry, stop_cli, waiter_lock
+from lemonaid.lineage import links
+from lemonaid.watch import registry, stop_cli, stop_sender, stopping, waiter_lock
 
 
 def _briefed(channel: str, name: str, listed: str = "") -> Path:
@@ -72,7 +76,7 @@ def test_stop_ends_only_the_callers_waiters_and_drops_their_entries(capsys, tmp_
         assert f"pid {mine_file.pid}" in _stop(capsys, "claude:mine", "file", str(watched))
         _, err = mine_file.communicate(timeout=10)
         assert mine_file.returncode == 143
-        assert "stopped by SIGTERM" in err
+        assert "stopped by SIGTERM from `lemonaid watch stop`, run by claude:mine" in err
         assert f"lemonaid watch file --wait {watched}" in err
         assert mine_inbox.poll() is None
 
@@ -110,11 +114,13 @@ def test_an_entry_nobody_holds_is_never_signalled():
             }
         )
     )
+    stop_sender.record(gone, "claude:other")
     alive = entries / f"{os.getpid()}.json"  # this process, holding no lock on it
     alive.write_text(gone.read_text().replace("999999", str(os.getpid())))
 
     assert registry.mine("claude:mine") == []
     assert not gone.exists()
+    assert "outside lemonaid" in stop_sender.describe(gone)
     assert alive.exists()
     alive.unlink()
 
@@ -128,3 +134,69 @@ def test_a_waiter_registers_only_while_it_runs():
         )
 
     assert registry.mine("claude:mine") == []
+
+
+def test_a_waiter_signalled_outside_lemonaid_says_so(tmp_path):
+    _briefed("claude:mine", "mine")
+    waiter = _start("claude:mine", tmp_path, "inbox", "watch", "--self")
+    try:
+        assert _registered("claude:mine", "inbox")
+
+        waiter.send_signal(signal.SIGTERM)  # what a stray `pkill -f` does
+        _, err = waiter.communicate(timeout=10)
+        assert waiter.returncode == 143
+        assert "from a process outside lemonaid" in err
+    finally:
+        waiter.kill()
+        waiter.wait()
+
+
+def test_a_descendant_arming_its_waiters_leaves_its_ancestors_alone(tmp_path):
+    lemons = ["claude:parent", "claude:child", "claude:grandchild"]
+    with db.connect() as conn:
+        ids = [identity.ensure(conn, _briefed(c, c.split(":")[1])) for c in lemons]
+        links.set_parent(conn, ids[1], ids[0])
+        links.set_parent(conn, ids[2], ids[1])
+    ancestors = [_start(c, tmp_path, "inbox", "watch", "--self") for c in lemons[:2]]
+    grandchild = _start(lemons[2], tmp_path, "inbox", "watch", "--self")
+    try:
+        assert all(_registered(c, "inbox") for c in lemons)
+        added = _start(
+            lemons[2], tmp_path, "brief", "waiter", "add", "--self", "lemonaid inbox watch --self"
+        )
+        assert added.wait(timeout=20) == 0
+
+        assert [a.poll() for a in ancestors] == [None, None]
+        assert grandchild.poll() is None
+    finally:
+        for process in (*ancestors, grandchild):
+            process.kill()
+            process.wait()
+
+
+_IGNORES_SIGTERM = """
+import signal, time
+from lemonaid.watch import registry
+with registry.registered("file", ("x",), "claude:mine", "lemonaid watch file --wait x"):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    print("ready", flush=True)
+    time.sleep(60)
+"""
+
+
+def test_a_stop_that_times_out_leaves_no_note_to_blame_later(tmp_path):
+    waiter = subprocess.Popen(
+        [sys.executable, "-c", _IGNORES_SIGTERM], stdout=subprocess.PIPE, text=True
+    )
+    try:
+        assert waiter.stdout and waiter.stdout.readline() == "ready\n"
+        [found] = registry.mine("claude:mine", "file")
+
+        with pytest.raises(TimeoutError):
+            stopping.stop(found, "claude:mine", grace=0.2)
+
+        assert waiter.poll() is None
+        assert "outside lemonaid" in stop_sender.describe(registry.entry(waiter.pid))
+    finally:
+        waiter.kill()
+        waiter.wait()

@@ -14,14 +14,16 @@ import shlex
 import signal
 import sys
 import threading
-import time
 import typing as ty
 from collections import abc
 
 from ..brief import lemon
 from ..inbox import db
 from ..inbox.channel import full_channel_id
-from . import waiter_lock
+from ..log import get_logger
+from . import stop_sender, waiter_lock
+
+_log = get_logger("watch.registry")
 
 KINDS = ("inbox", "pr", "doc", "file", "briefs")
 
@@ -42,6 +44,11 @@ def _registry() -> pathlib.Path:
     return pathlib.Path(state).expanduser() / "waiters"
 
 
+def entry(pid: int) -> pathlib.Path:
+    """The registry file the waiter with `pid` holds locked while it runs."""
+    return _registry() / f"{pid}.json"
+
+
 def owner_channel(explicit: str = "", codex_thread: str = "") -> str:
     """The caller's channel, or "" when it has none."""
     if codex_thread:
@@ -54,17 +61,16 @@ def owner_channel(explicit: str = "", codex_thread: str = "") -> str:
             return ""
 
 
-def _stopped_message(waiter: Waiter) -> str:
+def _stopped_message(waiter: Waiter, sender: str) -> str:
     return (
-        f"This {waiter.kind} waiter ({', '.join(waiter.targets)}) was stopped by SIGTERM. "
-        "If you didn't stop it yourself, another process did: rearm it with "
-        f"`{waiter.command}`."
+        f"This {waiter.kind} waiter ({', '.join(waiter.targets)}) was stopped by SIGTERM "
+        f"from {sender}. If you didn't stop it yourself, rearm it with `{waiter.command}`."
     )
 
 
 @contextlib.contextmanager
-def _reports_termination(message: str) -> abc.Iterator[None]:
-    """Prints `message` to stderr and exits 143 if SIGTERM arrives.
+def _reports_termination(message: abc.Callable[[], str]) -> abc.Iterator[None]:
+    """Logs and prints `message()` to stderr, and exits 143, if SIGTERM arrives.
 
     A harness reports a killed background task only by its exit code, so without
     this a lemon whose waiter another process killed cannot tell why it woke.
@@ -75,8 +81,12 @@ def _reports_termination(message: str) -> abc.Iterator[None]:
         return
 
     def _exit(signum: int, _frame: object) -> None:
-        print(message, file=sys.stderr, flush=True)
-        raise SystemExit(128 + signum)
+        try:
+            text = message()
+            _log.warning("pid %s: %s", os.getpid(), text)
+            print(text, file=sys.stderr, flush=True)
+        finally:
+            raise SystemExit(128 + signum)  # whatever reporting did
 
     previous = signal.signal(signal.SIGTERM, _exit)
     try:
@@ -94,18 +104,20 @@ def registered(
         os.getpid(), channel, kind, tuple(targets), command, str(pathlib.Path.cwd()), repo
     )
     _registry().mkdir(parents=True, exist_ok=True)
-    path = _registry() / f"{waiter.pid}.json"
+    path = entry(waiter.pid)
     lock = waiter_lock.acquire(path)
     if lock is None:
         raise RuntimeError(f"{path} is held by another process")
 
     try:
+        stop_sender.clear(path)  # left by an earlier process with this pid
         lock.truncate(0)
         lock.write(json.dumps(dataclasses.asdict(waiter)))
         lock.flush()
-        with _reports_termination(_stopped_message(waiter)):
+        with _reports_termination(lambda: _stopped_message(waiter, stop_sender.describe(path))):
             yield waiter
     finally:
+        stop_sender.clear(path)
         path.unlink(missing_ok=True)
         lock.close()
 
@@ -135,6 +147,7 @@ def _running() -> abc.Iterator[Waiter]:
         if not waiter_lock.held(path):
             if not _alive(path.stem):
                 path.unlink(missing_ok=True)  # its process exited without removing it
+                stop_sender.clear(path)
             continue
 
         if waiter := _read(path):
@@ -159,25 +172,6 @@ def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
         for waiter in _running()
         if waiter.channel == channel and kind in ("", waiter.kind) and _matches(waiter, target)
     ]
-
-
-def stop(waiter: Waiter, grace: float = 2.0) -> None:
-    """SIGTERMs `waiter` if it still holds its entry, then waits up to `grace` seconds for it."""
-    path = _registry() / f"{waiter.pid}.json"
-    if not waiter_lock.held(path):
-        return
-
-    try:
-        os.kill(waiter.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-
-    deadline = time.monotonic() + grace
-    while waiter_lock.held(path):
-        if time.monotonic() >= deadline:
-            raise TimeoutError(f"{waiter.kind} waiter pid {waiter.pid} did not exit")
-
-        time.sleep(0.05)
 
 
 def watching(
