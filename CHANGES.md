@@ -1,3 +1,9 @@
+# 0.91.0 (2026-10-09)
+
+#### Added
+
+- **`lemonaid watch briefs --children --orphans` also watches briefs no live lemon owns,** meaning briefs with no parent link or whose parent's session is gone. It wakes on `blocked`, `alert`, `merge`, `approve`, `review` and `done` by default (`--to` replaces the set), and on a new or changed Needs ask.
+
 # 0.90.2 (2026-10-09)
 
 #### Fixed
