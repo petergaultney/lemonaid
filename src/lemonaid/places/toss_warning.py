@@ -40,8 +40,9 @@ def affected(doomed: target.TossTarget) -> list[tuple[str, str]]:
     return list(result.values())
 
 
-def show(doomed: target.TossTarget) -> None:
-    lemons = affected(doomed)
+def show(doomed: target.TossTarget, lemons: list[tuple[str, str]] | None = None) -> None:
+    if lemons is None:
+        lemons = affected(doomed)
     if not lemons:
         return
 

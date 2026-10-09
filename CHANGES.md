@@ -1,3 +1,9 @@
+# 0.89.1 (2026-10-08)
+
+#### Changed
+
+- **`place toss` accepts routine confirmations by default and declines plans that show unusual work or side effects.**
+
 # 0.89.0 (2026-10-08)
 
 #### Added

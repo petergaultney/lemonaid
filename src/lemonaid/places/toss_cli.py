@@ -73,27 +73,38 @@ def _describe(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> lis
     ]
 
 
-def _prompt(doomed: target.TossTarget) -> str:
+def _prompt(doomed: target.TossTarget, default_yes: bool) -> str:
+    choice = "[Y/n] " if default_yes else "[y/N] "
     if doomed.place is None:
-        return "close this workspace? [y/N] "
+        return f"close this workspace? {choice}"
 
     if doomed.session:
-        return "close it and release the directories? [y/N] "
+        return f"close it and release the directories? {choice}"
 
     if doomed.partial:
-        return f"close {_plural(len(doomed.partial), 'window')} and release the place? [y/N] "
+        return f"close {_plural(len(doomed.partial), 'window')} and release the place? {choice}"
 
-    return "release it? [y/N] "
+    return f"release it? {choice}"
 
 
 def _confirmed(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> bool:
     for line in _describe(doomed, concerns):
         print(line, file=sys.stderr)
 
-    toss_warning.show(doomed)
-    prompt = _prompt(doomed)
+    lemons = toss_warning.affected(doomed)
+    toss_warning.show(doomed, lemons)
+    default_yes = not (
+        any(concerns.values())
+        or lemons
+        or doomed.kept
+        or doomed.partial
+        or doomed.left_open
+        or any(not place.exists for place in doomed.places)
+    )
+    prompt = _prompt(doomed, default_yes)
     try:
-        return input(prompt).strip().lower() in ("y", "yes")
+        answer = input(prompt).strip().lower()
+        return answer in ("y", "yes") or (default_yes and not answer)
     except (EOFError, KeyboardInterrupt):
         print(file=sys.stderr)
         return False

@@ -174,14 +174,18 @@ lemonaid place toss <session> --yes # unattended callers must name it
 A named tmux session wins over a same-named managed directory. Inside tmux,
 interactive bare `toss` selects the current session regardless of the caller's
 working directory. `--yes` and `--json` require an explicit session name.
-The confirmation defaults to no and shows all closing windows, released
-directories, and directories being kept.
+The confirmation shows all closing windows, released directories, and directories
+being kept. It defaults to yes when that list shows only a workspace closing and
+clean directories being released. Actionable lemons, work-check concerns, kept or
+unresolved directories, windows closing in shared sessions, and windows left
+open in protected sessions make it default to no. Enter accepts the routine case
+and cancels the unusual case.
 
 ```
 $ lp toss relay-notifications
 workspace 'relay-notifications'
   session 'relay-notifications' closes (2 windows)
-close this workspace? [y/N]
+close this workspace? [Y/n]
 ```
 
 If no session matches a supplied name, the existing directory-key cleanup is
