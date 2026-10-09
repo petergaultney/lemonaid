@@ -6,13 +6,19 @@ from lemonaid.lineage import links
 from lemonaid.watch import briefs_events, cli
 
 
-def lemon(name, state="working", ask="", channel=""):
+def lemon(name, state="working", ask="", channel="", session="", socket=""):
     path = store.briefs_dir() / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"# {name}\n\nStatus: {state}\n\n## Now\n\n### Needs Peter\n\n{ask}\n")
     with db.connect() as conn:
         if channel:
-            db.add(conn, channel, "", name=name)
+            db.add(
+                conn,
+                channel,
+                "",
+                name=name,
+                metadata={"tmux_session": session, "tmux_socket": socket} if session else None,
+            )
             attached.attach(conn, channel, path)
         lemon_id = identity.ensure(conn, path)
     return lemon_id, path

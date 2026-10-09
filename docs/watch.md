@@ -199,6 +199,26 @@ status is selected. The ask reported with a status event is the first `### Needs
 section (also `Needs` or `Needs you`), or an older `- Needs Peter:` bullet and its
 continuation lines. Whitespace and bullet marks are normalized.
 
+### Also watching briefs no live lemon owns
+
+`--orphans` adds every attached brief that has no parent link, or whose parent's session is
+gone, to what `--children` watches. A brief a live lemon owns stays out, so a lead's own
+children are never reported to its parent. A control-center lemon uses this to hear about
+lemons that nobody else is watching.
+
+```bash
+lemonaid watch briefs --children --orphans --self --once
+lemonaid watch briefs --children --orphans --self --to blocked --to done --once
+```
+
+- `--to` defaults to `blocked`, `alert`, `merge`, `approve`, `review` and `done`; passing
+  `--to` replaces that set. `waiting`, `running` and `working` stay quiet unless selected.
+- A Needs ask that appears or changes wakes even when the status does not, which
+  `--children` alone never does.
+- If tmux cannot list its sessions, a brief that has a parent link counts as owned and
+  stays quiet.
+- State is kept separately from a plain `--children` waiter with the same `--me`.
+
 Other edits, including progress under `Next` or `Done`, do not wake the parent. Missing
 or unlinked briefs are ignored; returning with the same Status and ask does not repeat
 an event. A batch gives each changed child's Lemon-ID, Status, current ask, and brief path.

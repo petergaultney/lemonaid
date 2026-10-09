@@ -879,7 +879,9 @@ for a running waiter, with the same `--to` options. An explicit parent Lemon-ID,
 channel, or brief name can replace `--self`. The first run takes existing children as
 its baseline; rearms report changes between waiters and newly linked children in a
 selected status without duplicates. Read the changed briefs, act, then rearm. State is
-independent per database, parent, optional `--me` name, and target-status set. Details:
+independent per database, parent, optional `--me` name, and target-status set. Add
+`--orphans` to also watch briefs no live lemon owns (default `--to`: `blocked`, `alert`,
+`merge`, `approve`, `review`, `done`; Needs asks wake too). Details:
 [watch.md](watch.md#watching-childrens-briefs).
 
 ## Watching subscription usage

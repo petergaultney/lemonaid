@@ -14,7 +14,7 @@ from ..brief import lemon, status
 from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
-from . import delivery
+from . import briefs_orphans, delivery
 
 _log = get_logger("watch.briefs")
 
@@ -76,10 +76,15 @@ class _Mark:
     path: str = dataclasses.field(default="", compare=False)
 
 
-def _snapshot(parent: str) -> dict[str, _Mark]:
+def _snapshot(parent: str, orphans: bool = False) -> dict[str, _Mark]:
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
-        for child in links.children_of(conn, lemon.current(conn, parent)):
+        watched = links.children_of(conn, lemon.current(conn, parent))
+        if orphans:
+            watched += briefs_orphans.find(
+                conn, {lemon.current(conn, parent), *watched}, briefs_orphans.live_sessions
+            )
+        for child in watched:
             path = lemon.brief_of(conn, child)
             if path is None:
                 continue
@@ -100,10 +105,15 @@ def default_state_dir() -> pathlib.Path:
 
 
 def state_stem(
-    state_dir: pathlib.Path, parent: str, me: str, to: frozenset[str] = frozenset({"merge", "done"})
+    state_dir: pathlib.Path,
+    parent: str,
+    me: str,
+    to: frozenset[str] = frozenset({"merge", "done"}),
+    orphans: bool = False,
 ) -> pathlib.Path:
     key = f"{db.get_db_path().resolve()}\0{parent}\0{me}"
     key += "\0to:" + ",".join(sorted(to))
+    key += "\0orphans" if orphans else ""
     return state_dir / hashlib.sha256(key.encode()).hexdigest()[:24]
 
 
@@ -133,6 +143,7 @@ class BriefsWatch:
     pending: dict[str, _Mark]
     pending_since: float
     to: frozenset[str]
+    orphans: bool = False
 
 
 def open_watch(
@@ -141,15 +152,16 @@ def open_watch(
     me: str,
     quiet: float,
     to: frozenset[str] = frozenset({"merge", "done"}),
+    orphans: bool = False,
 ) -> BriefsWatch:
     state_dir.mkdir(parents=True, exist_ok=True)
-    path = state_stem(state_dir, parent, me, to).with_suffix(".reported.json")
-    current = _snapshot(parent)
+    path = state_stem(state_dir, parent, me, to, orphans).with_suffix(".reported.json")
+    current = _snapshot(parent, orphans)
     reported = _load(path)
     if reported is None:
         reported = current
         _save(path, reported)
-    return BriefsWatch(parent, quiet, path, reported, current, time.monotonic(), to)
+    return BriefsWatch(parent, quiet, path, reported, current, time.monotonic(), to, orphans)
 
 
 def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
@@ -166,13 +178,21 @@ def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
     return f"{child}: {state}{ask} ({current.path})"
 
 
+def _absorbed(w: BriefsWatch, mark: _Mark, previous: _Mark | None) -> bool:
+    """Whether a changed mark advances the baseline without waking: a Needs ask that appeared or
+    changed always wakes in orphans mode."""
+    if w.orphans and mark.needs and (previous is None or previous.needs != mark.needs):
+        return False
+
+    return mark.status not in w.to or bool(previous and mark.status == previous.status)
+
+
 def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
-    current = _snapshot(w.parent)
+    current = _snapshot(w.parent, w.orphans)
     absorbed = {
         child: mark
         for child, mark in current.items()
-        if mark != (previous := w.reported.get(child))
-        and (mark.status not in w.to or (previous and mark.status == previous.status))
+        if mark != (previous := w.reported.get(child)) and _absorbed(w, mark, previous)
     }
     if absorbed:
         w.reported = w.reported | absorbed

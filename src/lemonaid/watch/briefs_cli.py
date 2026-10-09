@@ -15,6 +15,9 @@ from ..brief import lemon, store
 from ..inbox import db
 from . import brief_record, briefs_events, delivery, registry, waiter_lock
 
+_CHILD_TO = ("merge", "done")
+_ORPHAN_TO = ("blocked", "alert", "merge", "approve", "review", "done")
+
 
 def _wait(
     w: briefs_events.BriefsWatch, deliver: delivery.Deliver, once: bool, interval: float
@@ -40,8 +43,10 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     a.state_dir.mkdir(parents=True, exist_ok=True)
-    to = frozenset(a.to or ("merge", "done"))
-    lock_path = briefs_events.state_stem(a.state_dir, parent, a.me, to).with_suffix(".lock")
+    to = frozenset(a.to or (_ORPHAN_TO if a.orphans else _CHILD_TO))
+    lock_path = briefs_events.state_stem(a.state_dir, parent, a.me, to, a.orphans).with_suffix(
+        ".lock"
+    )
     if a.status:
         running = waiter_lock.held(lock_path)
         print(
@@ -75,7 +80,7 @@ def run(a: argparse.Namespace) -> int:
             return 2
         with registry.watching(a, "briefs", (parent,), thread):
             _wait(
-                briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to),
+                briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to, a.orphans),
                 deliver,
                 a.once or bool(thread),
                 a.interval,
@@ -115,7 +120,14 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=store.STATES,
         default=[],
         metavar="STATUS",
-        help="wake only on entry into this status (repeatable; default: merge, done)",
+        help="wake only on entry into this status (repeatable; default: merge, done; with "
+        "--orphans: blocked, alert, merge, approve, review, done)",
+    )
+    ap.add_argument(
+        "--orphans",
+        action="store_true",
+        help="also watch briefs no live lemon owns (no parent, or a parent whose session is gone); "
+        "their Needs asks wake too, and --to defaults to blocked, alert, merge, approve, review, done",
     )
     ap.add_argument("--channel", help="override self detection")
     ap.add_argument("--me", default="", help="watcher name, to keep independent watchers apart")
