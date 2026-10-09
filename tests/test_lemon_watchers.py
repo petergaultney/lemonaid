@@ -14,6 +14,7 @@ from lemonaid.lemon_watchers import (
     parse_timestamp,
     watcher,
 )
+from lemonaid.lemon_watchers.common import ContextReading
 from lemonaid.lemon_watchers.watcher import _latest_model
 
 
@@ -312,3 +313,53 @@ def test_fish_path_absolute():
 
 def test_fish_path_empty():
     assert fish_path("") == ""
+
+
+def test_watch_loop_records_each_new_context_reading_once(tmp_path, monkeypatch):
+    session = tmp_path / "session.jsonl"
+    session.write_text(json.dumps({"used": 1_000}))
+
+    class Backend:
+        CHANNEL_PREFIX = "codex:"
+
+        @staticmethod
+        def get_session_path(_session_id, _cwd):
+            return session
+
+        @staticmethod
+        def get_context(entries, _session_path):
+            used = next((e["used"] for e in entries if "used" in e), 0)
+            return ContextReading(used, 258_400) if used else None
+
+        @staticmethod
+        def describe_activity(_entry):
+            return None
+
+        @staticmethod
+        def should_dismiss(_entry):
+            return False
+
+    recorded: list[tuple[str, int, int]] = []
+    polls = 0
+
+    def next_poll(_seconds: float) -> None:
+        nonlocal polls
+        polls += 1
+        if polls == 2:
+            session.write_text(json.dumps({"used": 3_000}))
+        if polls == 4:
+            raise StopIteration
+
+    monkeypatch.setattr(watcher.time, "sleep", next_poll)
+
+    with pytest.raises(StopIteration):
+        watcher.unified_watch_loop(
+            [Backend],
+            lambda: [("codex:abc", "abc", "/tmp", 0.0, False, None, "", None)],
+            lambda _channel: 0,
+            lambda _channel, _message: 0,
+            record_context=lambda channel, used, window: recorded.append((channel, used, window)),
+            poll_interval=0,
+        )
+
+    assert recorded == [("codex:abc", 1_000, 258_400), ("codex:abc", 3_000, 258_400)]

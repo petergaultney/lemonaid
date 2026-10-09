@@ -41,7 +41,7 @@ def test_a_name_another_lemon_holds_is_asked_for_again(tmp_path):
         ("exit 1", "printed no name"),
         ("true", "printed no name"),
         ("echo bad.name", "letters, digits"),
-        ("echo \"it's\"", "letters, digits"),
+        ('echo "it\'s"', "letters, digits"),
     ],
 )
 def test_a_failing_command_or_unsafe_name_creates_no_brief(command, error):

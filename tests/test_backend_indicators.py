@@ -1,4 +1,8 @@
-from lemonaid.inbox.tui import backend_indicators
+from rich.console import Console
+
+from lemonaid.inbox.tui import backend_indicators, context_reading
+
+_CONSOLE = Console(color_system="truecolor")
 
 
 def test_default_backend_labels_name_the_provider_until_the_model_is_known():
@@ -58,3 +62,38 @@ def test_openclaw_can_show_an_underlying_model_provider():
 
     assert sonnet.plain == "Sonnet 4.6"
     assert sonnet.spans[-1].style == "#d88760"
+
+
+def test_context_use_precedes_the_model_and_runs_purple_to_red_at_its_threshold():
+    def reading(percent: int):
+        cell = backend_indicators.backend_text(
+            "claude:session", {}, False, model="claude-opus-5-5", context_percent=percent
+        )
+        return cell, cell.get_style_at_offset(_CONSOLE, 0).color.get_truecolor()
+
+    low, purple = reading(0)
+    _, blue = reading(15)
+    _, middle = reading(50)
+    _, red = reading(100)
+    over, magenta = reading(200)
+
+    assert low.plain == "0%  Opus 5.5"
+    assert low.justify == "right"
+    assert (purple.red, purple.green, purple.blue) == (75, 0, 130)
+    assert (blue.red, blue.green, blue.blue) == (50, 130, 255)
+    assert middle not in (blue, red)
+    assert (red.red, red.green, red.blue) == (255, 60, 30)
+    assert (magenta.red, magenta.green, magenta.blue) == (255, 0, 255)
+    assert over.get_style_at_offset(_CONSOLE, len(over.plain) - 1).color.name == "#d88760"
+
+
+def test_split_separates_the_reading_from_the_model_label():
+    cell = backend_indicators.backend_text(
+        "codex:session", {}, False, model="gpt-5.6-sol", context_percent=12
+    )
+    reading, model = context_reading.split(cell)
+
+    assert (reading.plain, model.plain) == ("12%  ", "Sol 5.6")
+    assert (
+        context_reading.split(backend_indicators.backend_text("codex:s", {}, False))[0].plain == ""
+    )

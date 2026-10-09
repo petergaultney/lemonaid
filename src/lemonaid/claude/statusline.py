@@ -40,6 +40,7 @@ import time
 from pathlib import Path
 
 from ..usage import samples
+from . import context_window
 
 # Colors matching common prompt themes
 ORANGE = "\033[38;5;214m"  # #ffaf00
@@ -276,6 +277,10 @@ def main():
             samples.save_claude_limits(data)
         except OSError as e:
             print(f"lemonaid usage: could not save rate limits: {e}", file=sys.stderr)
+        try:
+            context_window.save(data)
+        except OSError as e:
+            print(f"lemonaid: could not save context window: {e}", file=sys.stderr)
         render_statusline(data)
 
 

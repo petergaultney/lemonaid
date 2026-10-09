@@ -57,6 +57,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import (
+    context_use,
     db,
     emoji,
     order,
@@ -74,6 +75,7 @@ from . import (
     brief_cards,
     brief_rows,
     card_context,
+    context_reading,
     focus,
     pr_numbers,
     project_names,
@@ -134,6 +136,7 @@ _CARD_BODY_COLUMN = 0
 # the pin in a single-line row. The fixed width prevents a row from reflowing
 # when its model becomes known, and the labels share their right edge.
 _BACKEND_WIDTH = 11
+_CONTEXT_WIDTH = 7  # ` 999% ` and the model's padding, when readings are configured
 _CARD_MIN_TEXT = 16
 _CARD_CHROME_ROWS = 3  # title, status row, and a little slack
 _INDENT = " "  # one column, so a card's body clears the marker but little else
@@ -282,6 +285,12 @@ def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> li
     return bindings
 
 
+def _overlay(target: Text, piece: Text, offset: int) -> None:
+    """Apply `piece`'s styles to the same text in `target`, starting at `offset`."""
+    for span in piece.spans:
+        target.stylize(span.style, offset + span.start, offset + span.end)
+
+
 def _as_card(
     cells: list[Text],
     width: int,
@@ -367,10 +376,13 @@ def _as_card(
     if backend.plain.endswith(PIN_MARK):
         pin = backend[-len(PIN_MARK) :]
         backend = backend[: -len(PIN_MARK)]
+    reading, backend = context_reading.split(backend)
+    reading.justify = None
     backend.justify = None
     pin.justify = None
     if card_brief and card_brief.shown == "waiting" and not marker.plain:
         backend.stylize("dim")
+        reading.stylize("dim")
     markers = Text(emoji)
     if pin.plain:
         markers += Text(" ") if emoji else Text("")
@@ -397,7 +409,8 @@ def _as_card(
                 bgcolor=backend_style.color or ATTENTION_COLOR,
             )
         )
-        headline = _right_aligned(headline, badge, width)
+        filled = context_reading.filled(reading)
+        headline = _right_aligned(headline, filled + badge, width)
         # Keep the selected-session bar green; everything after it is the
         # yellow title bar until the provider-coloured model badge begins.
         headline.stylize(
@@ -405,6 +418,7 @@ def _as_card(
             1 if is_here else 0,
             len(headline) - len(badge),
         )
+        _overlay(headline, filled, len(headline) - len(badge) - len(filled))
         name_offset = len(selector) + 2
         for span in name.spans:
             if isinstance(span.style, Style) and span.style.meta.get("lemonaid_wordybin"):
@@ -414,7 +428,12 @@ def _as_card(
                     name_offset + span.end,
                 )
     else:
-        headline = _right_aligned(headline, backend, width)
+        if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
+            backend = context_reading.padded_model(
+                reading, backend, backend.get_style_at_offset(_CONSOLE, 0)
+            )
+            reading = context_reading.filled(reading)
+        headline = _right_aligned(headline, reading + backend, width)
 
     if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
         headline.stylize(brief_cards.STATUS_STYLES[card_brief.shown], 1 if is_here else 0)
@@ -425,6 +444,7 @@ def _as_card(
                 Style(color="#000000", bgcolor=provider or ATTENTION_COLOR),
                 len(headline) - len(backend),
             )
+        _overlay(headline, reading, len(headline) - len(backend) - len(reading))
         if marker.plain:
             headline.stylize(
                 brief_cards.DOT_STYLES.get(card_brief.shown, utils.unread_marker_style()),
@@ -1192,6 +1212,7 @@ class LemonaidApp(App):
             mark_unread=self._mark_channel_unread,
             record_location=self._record_channel_location,
             record_model=self._record_channel_model,
+            record_context=self._record_channel_context,
             models=self._recorded_models,
             sockets=self._recorded_sockets,
             session_orders=self._recorded_tmux_session_orders,
@@ -1448,7 +1469,10 @@ class LemonaidApp(App):
         # that this is a different list rather than a differently-tinted one.
         if marker_column:
             table.add_column("", width=1)  # Unread indicator
-        table.add_column("", width=_BACKEND_WIDTH)  # Model, right-aligned
+        table.add_column(  # Model, right-aligned
+            "",
+            width=_BACKEND_WIDTH + (_CONTEXT_WIDTH if self.config.tui.context_threshold else 0),
+        )
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
         table.add_column(self._where_label(f"#{table.id}"), width=16)
@@ -1515,7 +1539,24 @@ class LemonaidApp(App):
             model=remembered.model if remembered else "",
             model_provider=remembered.provider if remembered else "",
             history=history,
+            context_percent=None if history else self._context_percent(n, remembered),
         )
+
+    def _context_percent(self, n: db.Notification, model: ModelInfo | None) -> int | None:
+        used = n.metadata.get("context_tokens")
+        window = n.metadata.get("context_window")
+        if not isinstance(used, int):
+            return None
+
+        threshold = context_use.threshold_for(
+            self.config.tui.context_threshold,
+            n.channel.split(":")[0],
+            model.model if model else "",
+        )
+        if threshold is None:
+            return None
+
+        return context_use.percent(used, window if isinstance(window, int) else 0, threshold)
 
     def _project_names_changed(self) -> None:
         self._projects.clear()
@@ -3712,6 +3753,10 @@ class LemonaidApp(App):
     def _record_channel_model(self, channel: str, provider: str, model: str) -> None:
         with db.connect() as conn:
             db.record_model(conn, channel, provider, model)
+
+    def _record_channel_context(self, channel: str, used: int, window: int) -> None:
+        with db.connect() as conn:
+            db.record_context(conn, channel, used, window)
 
     def _archive_channel(self, channel: str) -> None:
         """Archive all notifications for a channel (session exited)."""

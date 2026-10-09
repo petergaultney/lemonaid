@@ -19,6 +19,13 @@ class ModelInfo(NamedTuple):
     model: str
 
 
+class ContextReading(NamedTuple):
+    """Tokens the latest request sent, and the model's window, or 0 if unreported."""
+
+    used: int
+    window: int
+
+
 def get_tty() -> str | None:
     """Get the TTY name for this process or an ancestor process.
 

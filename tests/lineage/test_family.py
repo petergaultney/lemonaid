@@ -140,6 +140,6 @@ def test_the_brief_view_shows_the_parent_and_children(capsys):
     rendered, shown, children = asyncio.run(check())
     assert f"Brief-ID: {child}" in shown and f"Parent: {parent}" in shown
     assert (
-        f"Brief-ID: {identity.markdown_id(child)}  \n" f"Parent: {identity.markdown_id(parent)}"
+        f"Brief-ID: {identity.markdown_id(child)}  \nParent: {identity.markdown_id(parent)}"
     ) in rendered
     assert children == f"Children:\n  working  {grandchild}"

@@ -714,3 +714,23 @@ def test_an_inline_age_leaves_the_card_without_an_age_line():
 
     assert "updated" not in body.plain
     assert body.plain.splitlines()[2].strip() == "review"
+
+
+def test_a_card_keeps_context_use_beside_the_model_badge_on_a_status_fill():
+    backend = backend_indicators.backend_text(
+        "claude:s", {}, False, model="claude-opus-5-5", context_percent=100
+    )
+    cells = [Text("09:00"), Text(""), backend, Text("task"), Text(""), Text(""), Text("m")]
+    (plain,) = app._as_card(cells, 40)
+    (filled,) = app._as_card(cells, 40, card_brief=CardBrief("review", "", 0))
+
+    headline = filled.plain.split("\n")[0]
+    reading = headline.index("100%")
+    console = Console(color_system="truecolor")
+
+    assert plain.plain.split("\n")[0].endswith("100%  Opus 5.5")
+    assert headline.endswith(" 100%  Opus 5.5")
+    for padded in (reading - 1, reading, reading + 4):
+        assert filled.get_style_at_offset(console, padded).bgcolor.get_truecolor() == (255, 60, 30)
+    for model in (reading + 5, len(headline) - 1):  # its padding, then the name
+        assert filled.get_style_at_offset(console, model).bgcolor.name == "#d88760"

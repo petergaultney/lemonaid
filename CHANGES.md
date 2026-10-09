@@ -1,3 +1,9 @@
+# 0.90.0 (2026-10-09)
+
+#### Added
+
+- **Inbox rows can show each Claude and Codex lemon's context use, as a percentage of a threshold you set in `[tui.context_threshold]`.** It is off until configured. The threshold is per backend or per model, as a share of the window (`"50%"`) or a token count (`"0.65M"`). The number's colour runs from purple through blue to red at the threshold, and on to magenta past it. Claude's window comes from `lemonaid-claude-statusline`, which now saves it per session.
+
 # 0.89.5 (2026-10-09)
 
 #### Fixed

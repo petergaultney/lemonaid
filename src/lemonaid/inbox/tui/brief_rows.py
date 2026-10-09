@@ -4,6 +4,7 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
+from . import context_reading
 from .brief_cards import DOT_STYLES, STATUS_STYLES, CardBrief
 from .utils import ATTENTION_COLOR
 
@@ -59,8 +60,13 @@ def styled(
             dot = DOT_STYLES.get(brief.shown)
             return _restyled(cell, dot) if dot else cell
         if index == backend_cell:
-            provider = cell.get_style_at_offset(_CONSOLE, 0).color if cell.plain else None
-            return _restyled(cell, Style(color="#000000", bgcolor=provider or ATTENTION_COLOR))
+            reading, model = context_reading.split(cell)
+            provider = model.get_style_at_offset(_CONSOLE, 0).color if model.plain else None
+            fill = Style(color="#000000", bgcolor=provider or ATTENTION_COLOR)
+            badge = _restyled(context_reading.padded_model(reading, model, fill), fill)
+            backend = context_reading.filled(reading) + badge
+            backend.justify = cell.justify
+            return backend
 
         return _restyled(cell, Style(color=style.color), gutter_width if index == name_cell else 0)
 

@@ -143,6 +143,8 @@ Lemonaid provides an optional statusline command that shows:
 
 Example output: `<14:32:15 3.2s> lemonaid feature/new-thing 23%`
 
+It also saves each session's context window size under the state directory, so inbox rows can show context use against a share of the window; see [`[tui.context_threshold]`](config.md#tuicontext_threshold).
+
 ### Setup
 
 Add to `~/.claude/settings.json`:

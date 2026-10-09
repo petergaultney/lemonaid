@@ -134,7 +134,7 @@ def test_focused_scratch_keeps_the_last_lemon_pane_in_view(monkeypatch):
         output = (
             "/dev/scratch|@1|1\n/dev/other-client|@2|\n"
             if "list-clients" in argv
-            else ("@1|/dev/scratch|0|1\n" "@1|/dev/reviewer|1|\n" "@2|/dev/unrelated|1|\n")
+            else ("@1|/dev/scratch|0|1\n@1|/dev/reviewer|1|\n@2|/dev/unrelated|1|\n")
         )
         return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
 

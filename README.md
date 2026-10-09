@@ -64,6 +64,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
+- **[Context use in the inbox](docs/config.md#tuicontext_threshold)**: Opt in to see how much context each Claude and Codex lemon has used, as a percentage of a threshold you set per backend or model, coloured from blue to red at the threshold
 - **[Subscription usage](docs/usage.md)**: `lemonaid usage` shows how much of each Claude and Codex limit window is used against its pace, and `--watch` blocks until usage crosses a step or is on track to run out before the reset. Thresholds are configurable.
 
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
