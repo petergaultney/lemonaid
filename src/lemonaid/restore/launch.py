@@ -36,6 +36,9 @@ def launch(notification: Notification, config: Config, prompt: str) -> Launch | 
     cwd, argv = resumable
     prompted = bool(prompt) and notification.channel.partition(":")[0] in _PROMPTABLE
     line, environment = command.harness_line(
-        shlex.join(argv), Path(cwd), prompt if prompted else ""
+        shlex.join(argv),
+        Path(cwd),
+        prompt if prompted else "",
+        command.codex_writable_roots(config.tmux_session),
     )
     return Launch(cwd, line, environment, prompted)

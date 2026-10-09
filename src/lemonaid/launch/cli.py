@@ -34,7 +34,9 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if given.brief and (error := command.unclaimable(line)):
         return {}, error
 
-    typed, environment = command.harness_line(line, directory, args.prompt)
+    typed, environment = command.harness_line(
+        line, directory, args.prompt, command.codex_writable_roots(config.tmux_session)
+    )
     pane, error = window.open_window(session, index, directory, environment)
     if pane is None:
         return {}, error

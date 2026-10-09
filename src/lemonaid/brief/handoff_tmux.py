@@ -110,7 +110,9 @@ def resume_source(conn, row) -> bool:
         f"Handoff {row['token']} did not finish. Your brief remains attached. "
         "Rearm your waiters, then inspect the handoff status before retrying."
     )
-    line, environment = command.harness_line(line, Path(cwd), prompt)
+    line, environment = command.harness_line(
+        line, Path(cwd), prompt, command.codex_writable_roots(load_config().tmux_session)
+    )
     return not respawn(row["source_pane_id"], Path(cwd), line, environment)
 
 

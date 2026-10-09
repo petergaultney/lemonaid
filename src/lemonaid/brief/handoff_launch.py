@@ -50,7 +50,9 @@ def run(conn, row) -> None:
         f"lemonaid brief handoff accept {row['token']}. "
         f"Your brief will attach only after that acknowledgement."
     )
-    typed, environment = command.harness_line(line, directory, prompt)
+    typed, environment = command.harness_line(
+        line, directory, prompt, command.codex_writable_roots(load_config().tmux_session)
+    )
     pane_id = row["source_pane_id"]
     window_id = row["source_window_id"]
     if row["phase"] == "requested":
