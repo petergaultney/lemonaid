@@ -102,6 +102,8 @@ Idle lemons wait on one-shot events and end the turn; do not self-poll or schedu
 
 ## Check children and finished work
 
+A lemon with children keeps `lemonaid watch briefs --children --self --once` armed and listed in its brief's `## Waiters`, and rearms it after each wake; that is how it learns a child's Status changed. `--to` picks which statuses wake it (default `merge` and `done`).
+
 Run `lemonaid brief children --self` when updating your brief; use `--json` for the tree and `held_by` reasons, or `--all` to include cleaned children. It lists child places, sessions, PRs, status, and descendants such as reviewers.
 
 `cleanup: ready` means the child and its descendants say `done` and none of their sessions has an attached client. It says nothing about whether their code is on the trunk. Verify accepted output and preserved work yourself, then follow your user's cleanup authority and safeguards. Use an explicit place key with `lemonaid place toss <key>`; do not infer permission to force a teardown from `ready`. Preserve briefs as the record.
