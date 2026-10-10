@@ -88,6 +88,8 @@ A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is
 
 A second `tell` within a minute of a start doesn't start the lemon again. After 3 starts in 20 minutes (`autoresume_max`, `autoresume_window`), `tell` stops starting it, tells the sender it is crash-looping, and posts an alert to the inbox; a lemon dead again within three minutes of a start counts that start twice. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.
 
+Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the inbox root (`~/.lemons/inbox/dead-letters.jsonl` by default), one JSON object per line with `at`, `from`, `to`, `state`, `said` (the line the sender saw) and `message` (the queued file). Whoever minds the lemons can wait on it with `lemonaid watch file --wait <path>`.
+
 `tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again would only deliver it twice.
 
 ## Delivery

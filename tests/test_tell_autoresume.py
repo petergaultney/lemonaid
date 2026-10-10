@@ -1,6 +1,7 @@
 """`tell` starts a recipient that won't read its message, unless it finished its work."""
 
 import argparse
+import json
 
 import pytest
 
@@ -8,7 +9,7 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, autoresume_tmux, cli, recipient
+from lemonaid.messages import autoresume, autoresume_tmux, cli, dead_letters, recipient
 from lemonaid.messages_config import MessagesConfig
 
 
@@ -171,3 +172,28 @@ def test_a_recipient_with_no_session_record_fails(capsys, monkeypatch):
 
     assert _tell("claude:gone") == 1
     assert "ask your user to resume it" in capsys.readouterr().err
+
+
+def test_a_message_that_will_not_be_read_is_logged_as_a_dead_letter(started):
+    _attach("claude:finished", "# t\n\nStatus: done\n", cwd="/tmp", session_id="abc")
+
+    assert _tell("claude:finished") == 1
+    entries = [json.loads(line) for line in dead_letters.path().read_text().splitlines()]
+    assert [(e["to"].split(".")[0], e["state"]) for e in entries] == [("recipient", "dead")]
+    assert entries[0]["from"].startswith("claude:sender")
+    assert "was marked done" in entries[0]["said"]
+
+
+def test_a_started_lemon_leaves_no_dead_letter(started):
+    _attach("claude:gone", "# t\n\nStatus: working\n")
+
+    assert _tell("claude:gone") == 0
+    assert not dead_letters.path().exists()
+
+
+def test_an_unwritable_dead_letter_log_still_exits_1(started, monkeypatch):
+    _attach("claude:finished", "# t\n\nStatus: done\n", cwd="/tmp", session_id="abc")
+    dead_letters.path().parent.mkdir(parents=True, exist_ok=True)
+    dead_letters.path().mkdir()  # a directory where the log file should be
+
+    assert _tell("claude:finished") == 1
