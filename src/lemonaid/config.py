@@ -171,6 +171,9 @@ class TuiConfig:
     group_colors: dict[str, str] = field(default_factory=dict)
     # Override the selected inbox row background. Otherwise dark themes use a deeper blue.
     active_row_color: str | None = None
+    # Override the selected inbox row background while the scratch pane is not
+    # receiving keys. Otherwise the selected row's colour, blended toward the background.
+    inactive_row_color: str | None = None
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
@@ -553,6 +556,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         project_name_colors=tui_data.get("project_name_colors", False),
         group_colors=_group_colors(tui_data.get("group_colors")),
         active_row_color=tui_data.get("active_row_color"),
+        inactive_row_color=tui_data.get("inactive_row_color"),
         fold_statuses=[
             {"waiting": "idle", "working": "active"}.get(status, status)
             for status in tui_data.get("fold_statuses", [])

@@ -800,6 +800,10 @@ class LemonaidApp(App):
         background: $active-row-color;
     }
 
+    App.-input-inactive #main_table > .datatable--cursor {
+        background: $inactive-row-color;
+    }
+
     /* HeaderIcon is only a second route to the command palette, which already
        has a keybinding in the footer. Hide its matching empty clock spacer too,
        so the title remains centred across the full pane. */
@@ -1139,7 +1143,7 @@ class LemonaidApp(App):
         except ColorParseError:
             _log.warning("tui.focus_color %r is not a colour", self.config.tui.focus_color)
             focus = Color.parse(TuiConfig.focus_color)
-        active_row = "#17365d"
+        active_row = "#1f4a85"
         if self.config.tui.active_row_color:
             try:
                 active_row = Color.parse(self.config.tui.active_row_color).hex
@@ -1147,24 +1151,43 @@ class LemonaidApp(App):
                 _log.warning(
                     "tui.active_row_color %r is not a colour", self.config.tui.active_row_color
                 )
+        variables = super().get_css_variables()
+        cursor = Color.parse(
+            active_row
+            if self._uses_custom_active_row()
+            else variables.get("block-cursor-background", active_row)
+        )
+        inactive_row = cursor.blend(Color.parse(variables.get("background", "#000000")), 0.7).hex
+        if self.config.tui.inactive_row_color:
+            try:
+                inactive_row = Color.parse(self.config.tui.inactive_row_color).hex
+            except ColorParseError:
+                _log.warning(
+                    "tui.inactive_row_color %r is not a colour", self.config.tui.inactive_row_color
+                )
         return {
-            **super().get_css_variables(),
+            **variables,
             "input-focus": focus.hex,
             "input-focus-text": focus.get_contrast_text(1.0).hex,
             "active-row-color": active_row,
+            "inactive-row-color": inactive_row,
         }
 
-    def _update_active_row_background(self) -> None:
+    def _uses_custom_active_row(self) -> bool:
         configured = self.config.tui.active_row_color
-        use_custom = self.current_theme.dark
         if configured:
             try:
                 Color.parse(configured)
             except ColorParseError:
-                _log.warning("tui.active_row_color %r is not a colour", configured)
-            else:
-                use_custom = True
-        self.query_one("#main_table", ClickToActTable).set_class(use_custom, "-custom-active-row")
+                return self.current_theme.dark
+            return True
+
+        return self.current_theme.dark
+
+    def _update_active_row_background(self) -> None:
+        self.query_one("#main_table", ClickToActTable).set_class(
+            self._uses_custom_active_row(), "-custom-active-row"
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1312,6 +1335,7 @@ class LemonaidApp(App):
         active = _tmux_pane_receives_keys(pane)
         if active is not None:
             self.set_class(active, "-input-active")
+            self.set_class(not active, "-input-inactive")
 
     def on_resize(self, event: events.Resize) -> None:
         # self.size still reports the old width while this event is being handled,

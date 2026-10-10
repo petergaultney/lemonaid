@@ -96,7 +96,7 @@ def test_the_cursor_does_not_repaint_the_row_it_marks():
 @pytest.mark.parametrize(
     ("theme", "override", "expected"),
     [
-        ("textual-dark", None, "#17365d"),
+        ("textual-dark", None, "#1f4a85"),
         ("textual-light", None, None),
         ("textual-light", "#123456", "#123456"),
     ],
@@ -170,7 +170,7 @@ def test_the_selected_row_keeps_each_field_its_own_colour(monkeypatch, theme, ov
     if expected is not None:
         assert expected in backgrounds
     else:
-        assert "#17365d" not in backgrounds
+        assert "#1f4a85" not in backgrounds
 
 
 def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():

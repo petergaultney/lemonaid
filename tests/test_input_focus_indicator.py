@@ -83,3 +83,52 @@ def test_the_focus_colour_comes_from_config(monkeypatch, configured, background,
             assert app.screen.styles.border_bottom[1] == Color.parse(background)
 
     asyncio.run(check())
+
+
+def test_the_cursor_row_dims_only_while_tmux_says_the_pane_is_inactive(monkeypatch):
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nactive_row_color = "#ff0000"\n')
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    receives = True
+    monkeypatch.setattr(app_module, "_tmux_pane_receives_keys", lambda pane: receives)
+
+    async def check():
+        nonlocal receives
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 20)) as pilot:
+            await pilot.pause()
+            normal = app.get_css_variables()["active-row-color"]
+            dimmed = app.get_css_variables()["inactive-row-color"]
+            assert normal == "#FF0000" and dimmed != normal
+            assert not app.has_class("-input-inactive")
+
+            receives = False
+            app._input_focus_asked_at = 0
+            app._refresh_notifications()
+            await pilot.pause()
+            assert app.has_class("-input-inactive")
+
+    asyncio.run(check())
+
+
+def test_the_dimmed_cursor_colour_can_be_configured(monkeypatch):
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\ninactive_row_color = "#123456"\n')
+    app = LemonaidApp()
+    assert app.get_css_variables()["inactive-row-color"] == "#123456"
+
+
+def test_the_cursor_row_is_not_dimmed_outside_scratch_mode(monkeypatch):
+    async def check():
+        app = LemonaidApp()
+        async with app.run_test(size=(50, 20)) as pilot:
+            await pilot.pause()
+            app._refresh_notifications()
+            await pilot.pause()
+            assert not app.has_class("-input-inactive")
+
+    asyncio.run(check())
+
+
+def test_an_invalid_inactive_row_colour_falls_back_to_the_blend():
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\ninactive_row_color = "nope"\n')
+    colour = LemonaidApp().get_css_variables()["inactive-row-color"]
+    assert Color.parse(colour) and colour != "nope"
