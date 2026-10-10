@@ -22,7 +22,9 @@ def _sender(monkeypatch):
 @pytest.fixture
 def started(monkeypatch) -> list[str]:
     calls: list[str] = []
-    monkeypatch.setattr(autoresume_tmux, "start", lambda row, config: calls.append("start") or "")
+    monkeypatch.setattr(
+        autoresume_tmux, "start", lambda row, config, text: calls.append("start") or ""
+    )
     return calls
 
 

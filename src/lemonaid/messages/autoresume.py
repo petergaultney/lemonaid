@@ -5,14 +5,13 @@ sender is told how to resume it by hand.
 """
 
 import sqlite3
-import time
 import typing as ty
 from pathlib import Path
 
 from ..brief import status
 from ..config import Config
 from ..inbox import db
-from . import autoresume_cmux, autoresume_tmux, recipient, resume_log
+from . import autoresume_tmux, recipient, revive
 
 START = "start"  # its harness exited: resume it in a new window
 PROMPT = "prompt"  # its harness is idle with no waiter: type the wake prompt into it
@@ -120,23 +119,6 @@ def post(conn: sqlite3.Connection, line: str) -> None:
     db.add(conn, CHANNEL, line, name="autoresume")
 
 
-def _bring_back(row: db.Notification, action: str, config: Config) -> str:
-    """Start or prompt *row*'s lemon in the terminal it runs in. Returns why not, or ""."""
-    terminal = row.switch_source or ("tmux" if row.metadata.get("tmux_session") else "")
-    if terminal == "tmux":
-        return (autoresume_tmux.start if action == START else autoresume_tmux.prompt)(row, config)
-
-    if terminal == "cmux" and action == START:
-        return autoresume_cmux.start(row, config)
-
-    by_hand = autoresume_tmux.resume_line(row, config)
-    return (
-        f"lemonaid can't {'start' if action == START else 'prompt'} a lemon in "
-        f"{terminal or 'this terminal'}"
-        + (f"; it resumes with: {by_hand}" if action == START and by_hand else "")
-    )
-
-
 def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[str, bool]:
     """What to tell the sender about a recipient in *state*, and whether it will now read the message."""
     action = plan(
@@ -158,28 +140,17 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
             "will read it after it is answered. Don't send it again; tell your user."
         ), False
 
-    now, log = time.time(), resume_log.entries(found.inbox)
-    if resume_log.starting(log, now):
+    outcome = revive.revive(found.row, found.inbox, action == START, config, autoresume_tmux.PROMPT)
+    if outcome.kind == revive.STARTING:
         return (
             f"{found.lemon_id} is already being started, and reads the message once it is up.",
             True,
         )
 
-    if state.state == recipient.DEAD and resume_log.died_quickly(log, now):
-        resume_log.record(found.inbox, resume_log.FAILED)
-        log = resume_log.entries(found.inbox)
-    if (
-        resume_log.within(log, now, config.messages.autoresume_window)
-        >= config.messages.autoresume_max
-    ):
+    if outcome.kind == revive.CRASH_LOOPING:
         return crash_looping(found), False
 
-    why = _bring_back(found.row, action, config)
-    line = failed(found, state, why) if why else started(found, action)
-    if not why:
-        resume_log.record(found.inbox)
+    line = failed(found, state, outcome.why) if outcome.why else started(found, action)
     with db.connect() as conn:
-        if not why:
-            db.hold_snooze_through_turns(conn, found.row.id)
         post(conn, line)
-    return line, not why
+    return line, not outcome.why
