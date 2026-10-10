@@ -12,7 +12,9 @@ from lemonaid.brief import attached, handoff_state, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.claude import install_hooks, waiter_check
 from lemonaid.inbox import db
+from lemonaid.lineage import links
 from lemonaid.messages import cli, store, waiter
+from lemonaid.watch import briefs_cli, briefs_events, children_waiter, waiter_lock
 
 _SESSION = "abcd1234-0000-0000-0000-000000000000"
 
@@ -205,3 +207,66 @@ def test_expired_handoff_restores_waiter_check(capsys):
         )
 
     assert "inbox watch" in _stop(capsys)["reason"]
+
+
+def _parent_with_child(status: str) -> str:
+    _briefed()
+    with db.connect() as conn:
+        [path] = brief_store.briefs_dir().glob("lemon.md")
+        parent_id = identity.read(path.read_text())
+        path_child = brief_store.briefs_dir() / "child.md"
+        path_child.write_text(f"# child\n\nStatus: {status}\n")
+        links.set_parent(conn, identity.ensure(conn, path_child), parent_id)
+    return parent_id
+
+
+def test_a_parent_with_a_child_and_no_children_waiter_is_blocked(capsys):
+    inbox_lemon = _parent_with_child("working")
+
+    with waiter.armed(store.inbox_for_id(inbox_lemon)):
+        blocked = _stop(capsys)
+
+    assert blocked is not None
+    assert children_waiter.COMMAND in blocked["reason"]
+
+
+def test_a_parent_whose_children_are_all_done_still_needs_the_waiter(capsys):
+    lemon_id = _parent_with_child("done")
+
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        blocked = _stop(capsys)
+
+    assert blocked is not None
+    assert children_waiter.COMMAND in blocked["reason"]
+
+
+def test_a_running_children_waiter_lets_the_parent_stop(capsys, tmp_path, monkeypatch):
+    lemon_id = _parent_with_child("working")
+    monkeypatch.setattr(briefs_events, "default_state_dir", lambda: tmp_path)
+    stem = briefs_events.state_stem(tmp_path, lemon_id, "", frozenset(briefs_cli.CHILD_TO), False)
+
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        lock = waiter_lock.acquire(stem.with_suffix(".lock"))
+        assert lock is not None
+        try:
+            assert _stop(capsys) is None
+        finally:
+            lock.close()
+
+
+def test_a_done_parent_is_not_asked_to_watch_children(capsys):
+    lemon_id = _parent_with_child("working")
+    assert _stop(capsys) is not None
+    path = brief_store.briefs_dir() / "lemon.md"
+    path.write_text(path.read_text().replace("Status: working", "Status: done"))
+    assert identity.read(path.read_text()) == lemon_id
+
+    assert _stop(capsys) is None
+
+
+def test_the_reminder_names_the_codex_command_inside_codex(monkeypatch):
+    assert "--codex-thread" not in children_waiter.reminder()
+
+    monkeypatch.setenv("CODEX_THREAD_ID", "thread")
+
+    assert "--codex-thread" in children_waiter.reminder()

@@ -15,7 +15,7 @@ from ..brief import lemon, store
 from ..inbox import db
 from . import brief_record, briefs_events, delivery, registry, waiter_lock
 
-_CHILD_TO = ("merge", "done")
+CHILD_TO = ("merge", "done")
 _ORPHAN_TO = ("blocked", "alert", "merge", "approve", "review", "done")
 
 
@@ -43,7 +43,7 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     a.state_dir.mkdir(parents=True, exist_ok=True)
-    to = frozenset(a.to or (_ORPHAN_TO if a.orphans else _CHILD_TO))
+    to = frozenset(a.to or (_ORPHAN_TO if a.orphans else CHILD_TO))
     lock_path = briefs_events.state_stem(a.state_dir, parent, a.me, to, a.orphans).with_suffix(
         ".lock"
     )

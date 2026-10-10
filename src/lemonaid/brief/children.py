@@ -135,7 +135,7 @@ def _child(
             else "held"
             if held_by
             else "cleaned"
-            if child.alive is False and child.place and not child.place.exists
+            if child.alive is False and not (child.place and child.place.exists)
             else "ready"
         ),
     )

@@ -640,8 +640,8 @@ nested under it:
 - the PRs in its `### PRs` table
 - `cleanup`: `ready` when it and every descendant say `done` and no client is attached to any
   of their sessions. `orphan` when it isn't `done` but its session is gone, which usually means a
-  lemon that stopped without finishing its brief. `cleaned` when it is `done` and neither its
-  session nor its directory is left. Otherwise `held`, with what holds it up.
+  lemon that stopped without finishing its brief. `cleaned` when it is `done` and its session
+  is gone and it has no place, or its directory is gone. Otherwise `held`, with what holds it up.
 
 A child whose brief says `done` is left out once its directory is known to be gone; `--all`
 shows it anyway. One whose place lemonaid couldn't find stays in.
@@ -885,6 +885,11 @@ queued either way, so don't send it again. Each such message is also logged to
 `dead-letters.jsonl` in the inbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.
 A Codex lemon needs no waiter: lemonaid's delivery service queues each message
 into your thread with `codex queue`, and starts itself when a message is sent.
+A lemon with children also keeps `lemonaid watch briefs --children --self --once` running.
+`brief new --child`, `place open --brief` and `lemon start --brief` print a reminder to stderr
+when they link a child. A Claude lemon's `waiter-check` Stop hook refuses to let the turn end
+while it has any child with a brief and the default children waiter (no `--to`, no `--me`) isn't
+running. A Codex lemon has no Stop hook, so the reminder is all it gets; for it the reminder names `lemonaid watch briefs --children --self --codex-thread`, which queues each event into its thread.
 A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a
 background task; if the `waiter-check` Stop hook is installed, it refuses to
 let your turn end until that watch is running. Start it with

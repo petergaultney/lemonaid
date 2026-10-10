@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .. import brief, launch
+from .. import brief, launch, watch
 from ..config import Config, PlaceRoot, load_config
 from . import lifecycle, ownership, toss_cli
 
@@ -75,6 +75,8 @@ def cmd_open(args: argparse.Namespace) -> None:
     if session and not error and (given.brief or args.prompt):
         index, window_id = _harness_window(config, args.harness, session)
         launch.handoff.complete(given, session, index, window_id)
+        if given.link:
+            print(watch.children_waiter.reminder(), file=sys.stderr)
         if (
             opened.created
             and args.prompt

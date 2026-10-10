@@ -17,6 +17,7 @@ from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
 from ..log import get_logger
 from ..messages import store, waiter
+from ..watch import children_waiter
 
 _log = get_logger("claude.waiter_check")
 
@@ -26,6 +27,12 @@ _ARM = (
     "then end your turn."
 )
 
+
+_WATCH = (
+    "You have children and no waiter on them. "
+    + children_waiter.CLAUDE_REMINDER
+    + " Then end your turn."
+)
 
 _BROKEN = (
     "`lemonaid brief check --self` finds {brief} broken:\n{problems}\n"
@@ -60,6 +67,23 @@ def _missing_waiter(path: Path, text: str, grace: float) -> str:
     return _ARM.format(lemon=lemon_id or path.name)
 
 
+def _unwatched_children(text: str) -> str:
+    if brief.status.split(text).status == "done":
+        return ""
+
+    try:
+        lemon_id = brief.identity.read(text)
+    except ValueError:
+        return ""
+
+    with db.connect() as conn:
+        waiting_on = children_waiter.with_briefs(conn, lemon_id)
+    if not waiting_on or children_waiter.is_armed(lemon_id):
+        return ""
+
+    return _WATCH
+
+
 def _broken(path: Path, text: str) -> str:
     with db.connect() as conn:
         problems = brief.check.problems(conn, path, text)
@@ -88,6 +112,7 @@ def reason_to_block(data: dict, grace: float) -> str:
         reason
         for reason in (
             ("" if handing_off else _missing_waiter(path, text, grace)),
+            _unwatched_children(text),
             _broken(path, text),
         )
         if reason
