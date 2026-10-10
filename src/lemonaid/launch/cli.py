@@ -5,6 +5,7 @@ import json
 import sys
 
 from ..config import load_config
+from ..watch import children_waiter
 from . import command, handoff, window
 
 
@@ -54,6 +55,8 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         "name": given.name or None,
     }
     handoff.complete(given, session, index, pane.window_id)
+    if given.link:
+        print(children_waiter.reminder(), file=sys.stderr)
     if error := window.run(pane, typed):
         return result, error
 

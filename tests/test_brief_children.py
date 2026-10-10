@@ -224,6 +224,16 @@ def test_a_done_child_with_no_session_or_directory_left_is_cleaned(tmp_path):
     assert (found.place and found.place.exists, found.cleanup) == (False, "cleaned")
 
 
+def test_a_done_child_with_no_place_and_its_session_gone_is_cleaned(tmp_path):
+    parent = _lemon("parent", "working", "claude:parent")
+    gone = _lemon("gone", "done", "claude:gone")
+    _link(gone, parent)
+
+    [found] = _of(parent, _world(tmp_path))
+
+    assert (found.place, found.alive, found.cleanup) == (None, False, "cleaned")
+
+
 def _run(capsys, *argv: str) -> dict:
     parser = argparse.ArgumentParser()
     lemonaid.brief.write_cli.add_parsers(parser.add_subparsers())

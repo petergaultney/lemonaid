@@ -12,6 +12,7 @@ from pathlib import Path
 from .. import groups, home
 from ..config import load_config
 from ..inbox import db
+from ..watch import children_waiter
 from . import child, identity, lemon, store
 
 
@@ -102,6 +103,8 @@ def cmd(args: argparse.Namespace) -> None:
         print(json.dumps(result, ensure_ascii=False))
     else:
         print(path)
+
+    print(children_waiter.reminder(), file=sys.stderr)
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:

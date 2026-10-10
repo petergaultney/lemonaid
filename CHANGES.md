@@ -1,3 +1,13 @@
+# 0.100.1 (2026-10-10)
+
+#### Changed
+
+- **A Claude lemon with any child can't end its turn until `lemonaid watch briefs --children --self --once` is running,** and the Stop hook names the command. `brief new --child`, `place open` and `lemon start` print the same reminder when they link a child. Codex lemons have no Stop hook, so they get only the reminder, naming the `--codex-thread` form of the command.
+
+#### Fixed
+
+- **`brief children` counts a `done` child with no place and no session as `cleaned`,** instead of listing it as `ready` forever.
+
 # 0.100.0 (2026-10-10)
 
 #### Added
