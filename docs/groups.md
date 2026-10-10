@@ -66,13 +66,13 @@ Collapse and order are stored in this machine's database and survive restarts.
 
 | Key | On a lemon | On a group's header |
 |-----|------------|---------------------|
-| `G` | Name a new group of the lemon, its children and their children | - |
+| `G` | Put the lemon, its children and their children in a group you name, new or existing | - |
 | `+` | Put the lemon in a group: pick one, or type a new name | - |
 | `-` | Take the lemon out of the group it's drawn under | Delete the group |
 | `r` | Rename the session | Rename the group |
 | `z` | Undo the last change, a group edit included | |
 
-- **`G` asks for the group's name first,** offering the lemon's session name (`fix-auth`, or `fix-auth 2` when a group with members has that name, with commas made spaces). Enter makes the group, or brings back an empty one of that name; Escape makes none. To add a lemon's tree to a group with members, use `lemonaid group add <name> <lemon> --tree`.
+- **`G` asks for the group's name first,** offering the lemon's session name, with commas made spaces. Enter puts the lemon and its tree in the group of that name, making it if there's none; a name already taken means that group, never a near copy of it. Escape changes nothing.
 - **`+` lists the groups with members that the lemon isn't in.** Typing narrows the list, and a name no group has adds `New group: <name>` at the bottom. Enter takes the highlighted line. Naming a group the lemon is already in says so and changes nothing.
 - **The cursor stays on the lemon** wherever an edit moves it: into a group, out of one, or into a collapsed group, where it stays drawn until the cursor leaves it.
 - **`-` acts at once, without asking,** and says what it did. A lemon in two groups is drawn under each, so the row you're on says which group it leaves. Deleting a group leaves its lemons as they were.

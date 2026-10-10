@@ -197,3 +197,17 @@ def test_the_cursor_follows_a_lemon_into_a_collapsed_group_and_out_to_another(in
     assert into == "claude:lead" and key.endswith(f"@{_group_id('Work')}")
     assert out == "claude:lead"
     assert _groups()["Other"] == (inbox["lead"],)
+
+
+def test_g_with_an_existing_groups_name_adds_the_tree_to_it(inbox):
+    async def steps(app, pilot):
+        await pilot.pause()
+        _cursor_on(app, "claude:lead")
+        await pilot.press("G")
+        await pilot.pause()
+        await pilot.press("ctrl+u", *"Work", "enter")
+        await pilot.pause()
+
+    _run(steps)
+
+    assert _groups() == {"Work": (inbox["loose"], inbox["lead"], inbox["child"])}

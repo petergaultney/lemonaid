@@ -2,7 +2,7 @@
 
 #### Added
 
-- **`lma` edits groups: `G` names a new group of the selected lemon, its children and theirs, and `+` puts a lemon in a group, picked from a list or named new.** `-` takes a lemon out of the group it's drawn under, or on a header deletes the group, and `r` on a header renames it. `z` undoes each, and each rewrites its briefs' `Groups:` lines. The keys are `group_tree`, `group_add` and `group_remove`.
+- **`lma` edits groups: `G` puts the selected lemon, its children and theirs in a group you name, new or existing, and `+` puts a lemon in a group, picked from a list or named new.** `-` takes a lemon out of the group it's drawn under, or on a header deletes the group, and `r` on a header renames it. `z` undoes each, and each rewrites its briefs' `Groups:` lines. The keys are `group_tree`, `group_add` and `group_remove`.
 
 #### Changed
 

@@ -3647,10 +3647,13 @@ class LemonaidApp(App):
             assert edit.group
             self._group_edited(edit, [f"{notification.id}@{edit.group.group_id}"])
 
-        with db.connect() as conn:
-            suggested = groups.editing.free_name(conn, lemon_name)
         self.push_screen(
-            RenameScreen(suggested, title="Name the new group", placeholder="Group name"), named
+            RenameScreen(
+                groups.editing.valid_name(lemon_name),
+                title="Group this lemon and its children",
+                placeholder="Group name, new or existing",
+            ),
+            named,
         )
 
     def action_group_add(self) -> None:
