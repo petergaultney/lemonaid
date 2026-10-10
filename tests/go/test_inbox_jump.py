@@ -70,6 +70,9 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
                 assert table.get_row(str(target.id))[3].plain.startswith(HERE_BLOCK)
                 assert not table.get_row(str(old.id))[3].plain.startswith(HERE_BLOCK)
                 return
+            assert table.cursor_coordinate.row == table.get_row_index(str(target.id))
+            row = table.get_row_index(str(sender.id))
+            table.move_cursor(row=row)
             _query(server, "select-pane", "-t", scratch)
             app._input_focus_asked_at = 0
             app._update_input_indicator()

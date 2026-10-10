@@ -260,11 +260,16 @@ def test_a_focused_waiting_lemon_leaves_the_fold_and_returns_when_focus_moves(fo
         focus["ttys"] = set()
         app._refresh_notifications()
         await pilot.pause()
-        return focused, (app._row_channels(), _label(app))
+        held = app._row_channels()
+        app._select_channel(working)
+        app._refresh_notifications()
+        await pilot.pause()
+        return focused, held, (app._row_channels(), _label(app))
 
-    focused, left = _run(steps)
+    focused, held, left = _run(steps)
 
     assert focused == ([waiting, working], "")
+    assert held == [waiting, working]  # the cursor followed focus, so the row stays under it
     assert left == ([working], "▸ waiting (1) · w to show")
 
 

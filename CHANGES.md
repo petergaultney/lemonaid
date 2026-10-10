@@ -2,6 +2,7 @@
 
 #### Changed
 
+- **The inbox cursor follows the focused lemon, however focus moved.** Switching in tmux used to move only the here-marker, leaving the highlighted row behind; the cursor now goes to the focused lemon's row unless it is already on one of that lemon's rows.
 - **Place, group and tmux window colors now come from the whole hue wheel** instead of 23 hand-picked colors: a table of slots at one saturation (never grey), no two near-identical, with a luminance that reads on black text and a dark background. Existing names get new colors. A collapsed group header with no status fill no longer dims its name badge and count, and a header's count and underline take the group's colour.
 - **A group's colour is its hash slot moved off any look-alike among the current groups,** so two groups don't share a hue, and `[tui.group_colors]` sets one by name. `DIR_COLORS` no longer applies to groups.
 
