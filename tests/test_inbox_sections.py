@@ -72,11 +72,10 @@ def test_a_collapsed_group_keeps_its_header_and_its_most_pressing_band():
     assert (header.count, header.band) == (2, "blocked")
 
 
-def test_an_empty_group_still_has_its_header():
-    entries, _ = sections.layout([], [], set(), {}, [_group(1, "Empty")], {})
+def test_a_group_with_no_rows_is_not_drawn():
+    entries, _ = sections.layout([_n(1, "a")], [], set(), {}, [_group(1, "Empty")], {})
 
-    [header] = entries
-    assert (header.key, header.count, header.band) == ("group:1", 0, "")
+    assert _keys(entries) == ["1"]
 
 
 def test_a_folded_row_in_a_group_hides_in_place_and_the_rest_stay_in_the_fold():

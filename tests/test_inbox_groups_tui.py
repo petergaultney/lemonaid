@@ -54,7 +54,7 @@ def inbox():
             work,
             [_session(conn, "lead", "working"), _session(conn, "stuck", "blocked", unread=True)],
         )
-        groups.store.create(conn, "Later")
+        groups.store.create(conn, "Later")  # empty, so not drawn
 
 
 def _keys(app) -> list[str]:
@@ -84,8 +84,8 @@ def test_groups_sit_at_the_top_of_their_most_pressing_rows_band():
 
     channels, keys = _run(steps)
 
-    assert channels == ["", "claude:stuck", "claude:lead", "claude:loose", ""]
-    assert keys[0].startswith("group:") and keys[4].startswith("group:")
+    assert channels == ["", "claude:stuck", "claude:lead", "claude:loose"]
+    assert keys[0].startswith("group:")
 
 
 @pytest.mark.usefixtures("inbox")
@@ -102,9 +102,9 @@ def test_enter_on_a_header_collapses_the_group_and_keeps_the_cursor_there():
 
     (collapsed, cursor), reopened = _run(steps)
 
-    assert collapsed == ["", "claude:loose", ""]
+    assert collapsed == ["", "claude:loose"]
     assert cursor == 0
-    assert reopened == ["", "claude:stuck", "claude:lead", "claude:loose", ""]
+    assert reopened == ["", "claude:stuck", "claude:lead", "claude:loose"]
     with db.connect() as conn:
         assert not groups.store.find(conn, "Work").collapsed
 
@@ -125,9 +125,9 @@ def test_tab_on_a_lemon_collapses_its_group_around_it_until_the_cursor_leaves():
 
     (kept, cursor), left = _run(steps)
 
-    assert kept == ["", "claude:lead", "claude:loose", ""]
+    assert kept == ["", "claude:lead", "claude:loose"]
     assert cursor == 1
-    assert left == ["", "claude:loose", ""]
+    assert left == ["", "claude:loose"]
     with db.connect() as conn:
         assert groups.store.find(conn, "Work").collapsed
 
@@ -149,7 +149,7 @@ def test_tab_on_a_kept_lemon_opens_its_group_again_and_does_nothing_outside_one(
 
     (reopened, on), outside = _run(steps)
 
-    assert reopened == ["", "claude:stuck", "claude:lead", "claude:loose", ""]
+    assert reopened == ["", "claude:stuck", "claude:lead", "claude:loose"]
     assert on == "claude:lead"
     assert outside == reopened
 
@@ -182,7 +182,7 @@ def test_row_actions_on_a_header_do_nothing():
         await pilot.pause()
         return _channels(app)
 
-    assert _run(steps) == ["", "claude:stuck", "claude:lead", "claude:loose", ""]
+    assert _run(steps) == ["", "claude:stuck", "claude:lead", "claude:loose"]
 
 
 @pytest.mark.usefixtures("inbox")
@@ -230,7 +230,7 @@ def test_the_cursor_stays_on_a_grouped_lemon_when_rows_above_it_change():
 @pytest.mark.usefixtures("inbox")
 def test_the_cursor_stays_on_a_header_when_rows_above_it_change():
     async def steps(app, pilot):
-        app.query_one("#main_table", DataTable).move_cursor(row=4)
+        app.query_one("#main_table", DataTable).move_cursor(row=0)
         before = _cursor_key(app)
         _add_row_above(app)
         await pilot.pause()
@@ -262,7 +262,7 @@ def test_a_group_does_not_move_past_a_group_in_another_band():
         await pilot.pause()
         return _channels(app)
 
-    assert _run(steps) == ["", "claude:stuck", "claude:lead", "claude:loose", ""]
+    assert _run(steps) == ["", "claude:stuck", "claude:lead", "claude:loose"]
     with db.connect() as conn:
         assert [g.name for g in groups.store.all_groups(conn)] == ["Work", "Later"]
 

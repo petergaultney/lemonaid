@@ -6,6 +6,7 @@
 
 #### Changed
 
+- **A group with no members is gone as far as anything shows,** with nothing to clean up: `group list`, the inbox and its `+` list leave it out, and making a group with its name again brings it back. The inbox also leaves out a group whose lemons all have no rows, instead of drawing its header with `(0)`.
 - **In the sidebar, the current lemon's bar runs down its card's right edge instead of its left,** leaving the left edge to group rails. A group's rail could run straight into the bar on an ungrouped card below, reading as one rail. Every card keeps that column free, so a card doesn't shift as it gains or loses the bar.
 - **The current lemon's bar is near white on a dark theme and near black on a light one, instead of green,** so it's never a group's colour.
 

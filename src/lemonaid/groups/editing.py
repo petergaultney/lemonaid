@@ -27,7 +27,7 @@ class Edit:
 
 
 def free_name(conn: sqlite3.Connection, wanted: str) -> str:
-    """*wanted* made a valid group name no group has yet: `name`, else `name 2`, `name 3`..."""
+    """*wanted* made a valid group name no group with members has: `name`, else `name 2`..."""
     base = (
         re.sub(
             r"\s+",
@@ -39,7 +39,7 @@ def free_name(conn: sqlite3.Connection, wanted: str) -> str:
         ).strip()
         or "Group"
     )
-    taken = {group.name for group in store.all_groups(conn)}
+    taken = {group.name for group in store.all_groups(conn) if group.members}
     return next(
         name
         for name in (base, *(f"{base} {n}" for n in range(2, len(taken) + 3)))
@@ -48,16 +48,20 @@ def free_name(conn: sqlite3.Connection, wanted: str) -> str:
 
 
 def group_tree(conn: sqlite3.Connection, lemon_id: str, name: str, lemon_name: str) -> Edit:
-    """A new group *name* of *lemon_id*, its children, their children...
+    """Group *name*, new or brought back, of *lemon_id*, its children, their children...
 
     Raises GroupError for a name that's invalid or taken.
     """
+    try:
+        before = snapshot.capture(conn, [store.find(conn, name).group_id])
+    except LookupError:
+        before = ()
     group = store.create(conn, name)
     added = store.add(conn, group, [lemon_id, *lineage.links.descendants(conn, lemon_id)])
     count = f" and {len(added) - 1} more" if len(added) > 1 else ""
     return Edit(
         f'Made group "{group.name}" of {lemon_name}{count}',
-        _changed(conn, (snapshot.absent(group.group_id),)),
+        _changed(conn, before or (snapshot.absent(group.group_id),)),
         sync.write_lines(conn, added),
         store.find(conn, group.name),
     )

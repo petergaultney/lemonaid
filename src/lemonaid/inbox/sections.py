@@ -87,6 +87,7 @@ def layout(
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
     *memberships* names each channel's groups; *all_groups* is every group, in order.
+    A group with no rows here isn't drawn.
     *kept* holds row keys drawn even inside a collapsed group or folded.
     """
     every = [*shown, *folded]
@@ -125,7 +126,7 @@ def layout(
         ]
 
     pending = sorted(
-        all_groups,
+        (group for group in all_groups if grouped[group.name]),
         key=lambda g: _rank(_band(grouped[g.name], statuses)),
     )  # stable, so groups in one band keep their order
     entries: list[Header | Row] = [
