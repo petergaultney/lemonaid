@@ -948,6 +948,7 @@ class LemonaidApp(App):
         self._group_bands: dict[int, str] = {}  # each drawn group's band, by group id
         self._headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
+        self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
         # The row a group was collapsed from, drawn until the cursor leaves it.
         self._kept: frozenset[str] = frozenset()
         self._detached_channels: frozenset[str] = frozenset()
@@ -2052,7 +2053,18 @@ class LemonaidApp(App):
         # Restore cursor position. An in-place update leaves the cursor where it
         # was, so only a rebuild (or an explicit jump) needs to move it — moving
         # it every tick is what made the list flash back to the top.
-        if main_table.row_count > 0 and (rebuilt or stay_on_unread):
+        # When the focused lemon changes, by whatever route, the cursor goes to its
+        # row, unless the cursor is already on one of its rows.
+        follow = None
+        if focused_channels != self._followed_focus:
+            self._followed_focus = focused_channels
+            if not any(
+                str(n.id) == current_key and n.channel in focused_channels for n in active.rows
+            ):
+                follow = focus.first_row(entries, focused_channels)
+        if main_table.row_count > 0 and follow is not None:
+            main_table.move_cursor(row=follow)
+        elif main_table.row_count > 0 and (rebuilt or stay_on_unread):
             target_index = None
             unread_rows = [i for i, n in enumerate(self._drawn) if n and n.is_unread]
             if stay_on_unread and unread_rows:

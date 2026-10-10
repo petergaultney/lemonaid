@@ -1,10 +1,10 @@
 """Choose the inbox row representing each focused terminal."""
 
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from ...tmux import navigation
-from .. import db
+from .. import db, sections
 
 
 def behind_scratch(pane: str, socket: str | None) -> str | None:
@@ -52,3 +52,17 @@ def channels(rows: Iterable[db.Notification], ttys: frozenset[str]) -> frozenset
             latest[tty] = row
 
     return frozenset(row.channel for row in latest.values())
+
+
+def first_row(
+    entries: Sequence[sections.Header | sections.Row], channels: frozenset[str]
+) -> int | None:
+    """The index of the first drawn row of one of *channels*, if any is drawn."""
+    return next(
+        (
+            i
+            for i, entry in enumerate(entries)
+            if isinstance(entry, sections.Row) and entry.notification.channel in channels
+        ),
+        None,
+    )
