@@ -14,6 +14,8 @@ rows may not have shared a status.
 import sqlite3
 import typing as ty
 
+from .. import groups
+
 _MAX_DEPTH: ty.Final = 50
 
 _UNDOABLE_COLUMNS: ty.Final = (
@@ -39,6 +41,7 @@ class Entry(ty.NamedTuple):
     action: str
     description: str
     rows: tuple[_RowSnapshot, ...]
+    group_change: groups.snapshot.Change | None = None
 
 
 def _snapshot_rows(conn: sqlite3.Connection, ids: ty.Iterable[int]) -> tuple[_RowSnapshot, ...]:
@@ -86,7 +89,10 @@ def capture(
 
 
 def restore(conn: sqlite3.Connection, entry: Entry) -> int:
-    """Restore the rows in `entry` to their snapshotted state. Returns rows changed."""
+    """Restore the rows in `entry` to their snapshotted state. Returns rows changed.
+
+    Its `group_change` is the caller's to undo, with `groups.editing.undo`.
+    """
     assignments = ", ".join(f"{c} = ?" for c in _UNDOABLE_COLUMNS)
     changed = 0
     for snapshot in entry.rows:
@@ -115,7 +121,7 @@ class Stack:
         return len(self._entries)
 
     def push(self, entry: Entry) -> None:
-        if not entry.rows:
+        if not entry.rows and not entry.group_change:
             return
 
         self._entries.append(entry)

@@ -21,8 +21,11 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `p` | Pin the session below any other pins, or unpin it |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |
 | `z` | Undo the last inbox change |
-| `r` | Rename session (clear to revert to auto-name) |
+| `r` | Rename session (clear to revert to auto-name); on a group's header, rename the group |
 | `Tab` | Collapse or open the group of the row under the cursor, its header or one of its lemons |
+| `G` | Name a new group of the session, its children and theirs ([groups.md](groups.md#editing-in-the-inbox)) |
+| `+` | Put the session in a group, picked from a list or named new |
+| `-` | Take the session out of the group it's drawn under; on a group's header, delete the group |
 | `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `R` | Resume the selected detached session when available |
 | `H` | Save scratch pane size (follow mode, only when it has drifted) |
@@ -207,7 +210,7 @@ Set `jump_by_number = false` to leave the digits unbound.
 
 `z` reverses the last change you made to the inbox, and keeps going back through
 earlier ones. Actions that only change a session's state are undoable — archive,
-mark-read, snooze, rename. Actions that reach outside the inbox are not:
+mark-read, snooze, rename, and group edits. Actions that reach outside the inbox are not:
 switching to a session and resuming one both do something to your terminal that
 restoring a database row wouldn't take back.
 
@@ -232,6 +235,9 @@ archive = "a"
 snooze = "s"
 snoozed_list = "S"
 pin = "p"
+group_tree = "G"  # make a group of the session's tree
+group_add = "+"  # put the session in a group
+group_remove = "-"  # take it out of its group; on a header, delete the group
 move_pin_up = "shift+up"
 move_pin_down = "shift+down"
 first = "ctrl+a"  # the top row; Home always works too

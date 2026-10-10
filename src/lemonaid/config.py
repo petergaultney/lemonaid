@@ -125,6 +125,9 @@ class KeybindingsConfig:
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     brief: str = "b"  # Show the session's brief in a tmux popup
     pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it
+    group_tree: str = "G"  # Make a group of the selected lemon, its children and theirs
+    group_add: str = "+"  # Put the selected lemon in a group, picked or new
+    group_remove: str = "-"  # Take a lemon out of its group; on a header, delete the group
     # Unlike the fields above, these name one key each rather than a set of
     # single-character alternatives, so that they can be a named key or carry a modifier.
     brief_key: str = ""  # A second key for brief
