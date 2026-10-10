@@ -26,9 +26,9 @@ class Edit:
     group: store.Group | None = None  # the group as it is now, None once deleted
 
 
-def free_name(conn: sqlite3.Connection, wanted: str) -> str:
-    """*wanted* made a valid group name no group with members has: `name`, else `name 2`..."""
-    base = (
+def valid_name(wanted: str) -> str:
+    """*wanted* as a group name: commas and control characters made spaces, runs of space one."""
+    return (
         re.sub(
             r"\s+",
             " ",
@@ -39,29 +39,32 @@ def free_name(conn: sqlite3.Connection, wanted: str) -> str:
         ).strip()
         or "Group"
     )
-    taken = {group.name for group in store.all_groups(conn) if group.members}
-    return next(
-        name
-        for name in (base, *(f"{base} {n}" for n in range(2, len(taken) + 3)))
-        if name not in taken
-    )
 
 
 def group_tree(conn: sqlite3.Connection, lemon_id: str, name: str, lemon_name: str) -> Edit:
-    """Group *name*, new or brought back, of *lemon_id*, its children, their children...
+    """Put *lemon_id*, its children, their children... in the group *name*, made if need be.
 
-    Raises GroupError for a name that's invalid or taken.
+    Raises GroupError for an invalid name, or when they're all members already.
     """
     try:
-        before = snapshot.capture(conn, [store.find(conn, name).group_id])
+        group = store.find(conn, name)
+        before = snapshot.capture(conn, [group.group_id])
+        made = bool(not group.members)
     except LookupError:
-        before = ()
-    group = store.create(conn, name)
+        group = store.create(conn, name)
+        before = (snapshot.absent(group.group_id),)
+        made = True
     added = store.add(conn, group, [lemon_id, *lineage.links.descendants(conn, lemon_id)])
-    count = f" and {len(added) - 1} more" if len(added) > 1 else ""
+    if not added:
+        raise store.GroupError(f'{lemon_name} and its children are already in "{group.name}"')
+
+    if lemon_id not in added:
+        who = f"{len(added)} of {lemon_name}'s children"
+    else:
+        who = lemon_name + (f" and {len(added) - 1} more" if len(added) > 1 else "")
     return Edit(
-        f'Made group "{group.name}" of {lemon_name}{count}',
-        _changed(conn, before or (snapshot.absent(group.group_id),)),
+        f'Made group "{group.name}" of {who}' if made else f'Added {who} to "{group.name}"',
+        _changed(conn, before),
         sync.write_lines(conn, added),
         store.find(conn, group.name),
     )

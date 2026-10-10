@@ -12,15 +12,26 @@ def _line(lemon_id: str) -> tuple[str, ...] | None:
     return groups.line.read(path.read_text())
 
 
-def test_a_free_name_cleans_the_wanted_one_and_numbers_a_taken_one():
-    one = lemon("one")
+def test_a_valid_name_cleans_the_wanted_one():
+    assert groups.editing.valid_name("fix, the\tbug") == "fix the bug"
+    assert groups.editing.valid_name(" ,\n") == "Group"
+
+
+def test_a_tree_group_with_a_taken_name_adds_the_tree_to_that_group():
+    lead, child, other = lemon("lead"), lemon("child"), lemon("other")
     with db.connect() as conn:
-        assert groups.editing.free_name(conn, "fix, the\tbug") == "fix the bug"
-        groups.store.create(conn, "fix the bug")
-        assert groups.editing.free_name(conn, "fix the bug") == "fix the bug"  # no members
-        groups.store.add(conn, groups.store.find(conn, "fix the bug"), [one])
-        assert groups.editing.free_name(conn, "fix the bug") == "fix the bug 2"
-        assert groups.editing.free_name(conn, " ,\n") == "Group"
+        lineage.links.set_parent(conn, child, lead)
+        work = groups.store.create(conn, "Work")
+        groups.store.add(conn, work, [other])
+
+        edit = groups.editing.group_tree(conn, lead, "Work", "lead")
+
+        assert edit.description == 'Added lead and 1 more to "Work"'
+        assert groups.store.find(conn, "Work").members == (other, lead, child)
+        with pytest.raises(groups.store.GroupError, match="already in"):
+            groups.editing.group_tree(conn, lead, "Work", "lead")
+        groups.editing.undo(conn, edit.change)
+        assert groups.store.find(conn, "Work").members == (other,)
 
 
 def test_a_tree_group_holds_the_lemon_and_every_descendant_and_undoes_to_nothing():
@@ -162,3 +173,15 @@ def test_renaming_to_an_empty_groups_name_takes_it():
 
         assert renamed and (renamed.group_id, renamed.members) == (work.group_id, (one,))
         assert [g.name for g in groups.store.all_groups(conn)] == ["Old"]
+
+
+def test_joining_a_group_its_lemon_is_already_in_counts_only_the_children():
+    lead, child, grandchild = lemon("lead"), lemon("child"), lemon("grand")
+    with db.connect() as conn:
+        lineage.links.set_parent(conn, child, lead)
+        lineage.links.set_parent(conn, grandchild, child)
+        groups.store.add(conn, groups.store.create(conn, "Work"), [lead])
+
+        edit = groups.editing.group_tree(conn, lead, "Work", "lead")
+
+    assert edit.description == 'Added 2 of lead\'s children to "Work"'
