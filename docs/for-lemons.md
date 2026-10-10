@@ -816,7 +816,8 @@ recipient whose harness exited (`dead`), or an idle Claude lemon with no inbox
 waiter (`deaf`), is started on a prompt to read its inbox, unless its brief
 says `done` or its row is archived. `tell` exits 1 when the recipient still
 won't read it, and its stderr line says what to do instead. The message stays
-queued either way, so don't send it again. See [messages](messages.md#will-it-be-read) for every state.
+queued either way, so don't send it again. Each such message is also logged to
+`dead-letters.jsonl` in the inbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.
 A Codex lemon needs no waiter: lemonaid's delivery service queues each message
 into your thread with `codex queue`, and starts itself when a message is sent.
 A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a

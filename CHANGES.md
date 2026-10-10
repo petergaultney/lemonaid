@@ -4,6 +4,7 @@
 
 - **`lemonaid tell` starts a recipient that won't read the message.** A lemon whose harness exited is resumed in a new window of its tmux session, and an idle Claude with no inbox waiter is prompted, both to read their inbox; each start is posted to the inbox. A lemon whose brief says `done`, or whose row is archived, is left alone, and the sender gets its Status, its `## Now` and the command to resume it. `[messages] autoresume` (`on`, `off`, `claude`, `codex`) chooses which harnesses are started.
 - **`tell` stops starting a lemon that keeps dying.** After `autoresume_max` starts (default 3) within `autoresume_window` (default `"20m"`), the sender is told the lemon is crash-looping and an alert goes to the inbox. A lemon dead again within three minutes of a start counts that start twice.
+- **Messages that won't be read are logged** to `dead-letters.jsonl` in the inbox root, one JSON line each with the sender, recipient, state and what the sender was told, so the lemons' minder can watch one file.
 
 # 0.94.0 (2026-10-09)
 

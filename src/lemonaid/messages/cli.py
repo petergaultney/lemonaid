@@ -12,7 +12,7 @@ from ..config import load_config
 from ..inbox import db
 from ..log import get_logger
 from ..watch import registry
-from . import autoresume, codex_delivery, recipient, service, store, waiter
+from . import autoresume, codex_delivery, dead_letters, recipient, service, store, waiter
 
 _log = get_logger("messages.cli")
 _INBOX_WATCH = ["lemonaid", "inbox", "watch", "--self"]
@@ -117,17 +117,18 @@ def cmd_tell(args: argparse.Namespace) -> None:
         print(recipient.describe(lemon_id, state), file=sys.stderr)
         return
 
-    if row is None or brief_path is None:  # no record of its session to start
-        print(autoresume.off(lemon_id, parent, state), file=sys.stderr)
-        raise SystemExit(1)
-
-    line, will_read = autoresume.respond(
-        autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
-        state,
-        load_config(),
+    line, will_read = (
+        (autoresume.off(lemon_id, parent, state), False)  # no record of its session to start
+        if row is None or brief_path is None
+        else autoresume.respond(
+            autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
+            state,
+            load_config(),
+        )
     )
     print(line, file=sys.stderr)
     if not will_read:
+        dead_letters.record(sender, lemon_id, state.state, line, path)
         raise SystemExit(1)
 
 
