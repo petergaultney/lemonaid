@@ -1,3 +1,9 @@
+# 0.94.0 (2026-10-09)
+
+#### Changed
+
+- **`lemonaid tell` says whether the recipient will read the message, and exits 1 when it won't.** A lemon whose harness has exited is `dead`; an idle Claude lemon with no inbox waiter is `deaf`. The message is still queued for when it comes back.
+
 # 0.93.0 (2026-10-09)
 
 #### Added

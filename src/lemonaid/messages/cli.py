@@ -11,7 +11,7 @@ from .. import brief, lineage
 from ..inbox import db
 from ..log import get_logger
 from ..watch import registry
-from . import codex_delivery, service, store, waiter
+from . import codex_delivery, recipient, service, store, waiter
 
 _log = get_logger("messages.cli")
 _INBOX_WATCH = ["lemonaid", "inbox", "watch", "--self"]
@@ -53,11 +53,11 @@ def _linked(conn: sqlite3.Connection, args: argparse.Namespace) -> str:
     return child
 
 
-def _recipient(conn: sqlite3.Connection, target: str) -> tuple[str, str]:
-    """(Lemon-ID, channel) for *target*."""
+def _recipient(conn: sqlite3.Connection, target: str) -> tuple[str, brief.attached.Attachment]:
+    """(Lemon-ID, attachment) for *target*."""
     try:
         recipient = brief.lemon.attachment(conn, target)
-        return brief.identity.ensure(conn, recipient.path), recipient.channel
+        return brief.identity.ensure(conn, recipient.path), recipient
     except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
         _fail(str(error))
         raise
@@ -75,11 +75,13 @@ def cmd_tell(args: argparse.Namespace) -> None:
         if linked:
             lemon_id = _linked(conn, args)
             try:
-                channel = brief.lemon.attachment(conn, lemon_id).channel
+                found = brief.lemon.attachment(conn, lemon_id)
+                channel, row = found.channel, found.notification
             except LookupError:
-                channel = ""  # not started yet; its messages wait in its inbox
+                channel, row = "", None  # not started yet; its messages wait in its inbox
         else:
-            lemon_id, channel = _recipient(conn, args.target)
+            lemon_id, found = _recipient(conn, args.target)
+            channel, row = found.channel, found.notification
 
         sender = brief.lemon.self_channel(
             conn, args.channel or "", os.environ.get("USER") or "unknown"
@@ -100,6 +102,10 @@ def cmd_tell(args: argparse.Namespace) -> None:
     if channel.startswith("codex:"):
         service.ensure_running()
     print(path)
+    state = recipient.probe(channel, row, inbox)
+    print(recipient.describe(lemon_id, state), file=sys.stderr)
+    if state.state in recipient.UNREAD:
+        raise SystemExit(1)
 
 
 def own_lemon(explicit_channel: str) -> tuple[str, str]:
@@ -189,8 +195,21 @@ def cmd_watch(args: argparse.Namespace) -> None:
     _receive(args, wait=True)
 
 
+_TELL_EPILOG = """\
+The message is always queued. tell then says on stderr whether the recipient
+will read it, and exits 1 when it won't (its harness isn't running, or it is
+an idle Claude lemon with no inbox waiter). On exit 1, don't resend or wait
+for a reply; follow the next step that line gives.
+"""
+
+
 def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("tell", help="Send a Markdown message to a lemon's inbox")
+    parser = subparsers.add_parser(
+        "tell",
+        help="Send a Markdown message to a lemon's inbox",
+        epilog=_TELL_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--parent", action="store_true", help="Send to this lemon's parent")
     group.add_argument(

@@ -131,7 +131,8 @@ def test_telling_a_codex_lemon_starts_the_service(capsys, monkeypatch):
     _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
     _lemon("claude-lemon", "claude:abcd1234", "abcd1234-session")
 
-    _tell("claude:abcd1234", "No service for Claude.")
+    with pytest.raises(SystemExit):
+        _tell("claude:abcd1234", "No service for Claude.")  # idle with no waiter, so tell fails
     assert not started
 
     _tell("codex:01a0d8ce-long-thread-id", "Please review.")
