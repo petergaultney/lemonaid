@@ -162,8 +162,7 @@ class TuiConfig:
     # The second line of a card, in order; any of CARD_FIELDS.
     card_fields: tuple[str, ...] = ("time", "project", "branch")
     brief_status: bool = False
-    brief_stale_hours: float = 6.0
-    # Show a mid-turn lemon as working, whatever its brief's Status says.
+    # Show a mid-turn lemon as active, whatever its brief's Status says.
     mid_turn_working: bool = False
     # Show each attached brief's short name after its session name.
     brief_names_in_inbox: bool = False
@@ -549,7 +548,6 @@ def _parse_config(data: dict[str, Any]) -> Config:
         card_unread_style=tui_data.get("card_unread_style", "dot"),
         card_fields=_card_fields(tui_data.get("card_fields")),
         brief_status=tui_data.get("brief_status", False),
-        brief_stale_hours=tui_data.get("brief_stale_hours", 6.0),
         mid_turn_working=tui_data.get("mid_turn_working", False),
         brief_names_in_inbox=tui_data.get("brief_names_in_inbox", False),
         project_name_colors=tui_data.get("project_name_colors", False),

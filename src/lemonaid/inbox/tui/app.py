@@ -304,7 +304,6 @@ def _as_card(
     unread_style: str = "dot",
     emoji: str = "",
     card_brief: brief_cards.CardBrief | None = None,
-    stale_hours: float = 6.0,
     now: float = 0.0,
     context_parts: abc.Sequence[card_context.Part] | None = None,
     age_inline: bool = False,
@@ -475,11 +474,7 @@ def _as_card(
             *(
                 []
                 if age_inline
-                else [
-                    card_brief.age_text(
-                        now, stale_hours, style="bright_black" if neutral_timing else "dim"
-                    )
-                ]
+                else [card_brief.age_text(now, style="bright_black" if neutral_timing else "dim")]
             ),
             *(
                 [Text(card_brief.running_line, style=brief_cards.running_text())]
@@ -575,7 +570,6 @@ def _sync_rows(
     unread_style: str = "dot",
     emojis_by_row: abc.Mapping[str, str] | None = None,
     briefs_by_row: abc.Mapping[str, brief_cards.CardBrief | None] | None = None,
-    stale_hours: float = 6.0,
     now: float = 0.0,
     contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
     age_inline: bool = False,
@@ -610,7 +604,6 @@ def _sync_rows(
                     unread_style,
                     (emojis_by_row or {}).get(key, ""),
                     (briefs_by_row or {}).get(key),
-                    stale_hours,
                     now,
                     (contexts_by_row or {}).get(key),
                     age_inline,
@@ -1660,7 +1653,7 @@ class LemonaidApp(App):
             n.metadata.get("git_branch", ""),
             n.metadata.get("cwd", ""),
             is_unread,
-            card_brief.age_text(now, self.config.tui.brief_stale_hours) if card_brief else "",
+            card_brief.age_text(now) if card_brief else "",
             self.config.tui.project_name_colors,
             neutral_timing=self.config.tui.project_name_colors,
         )
@@ -1978,7 +1971,6 @@ class LemonaidApp(App):
             self.config.tui.card_unread_style,
             {e.key: emojis.get(e.notification.channel, "") for e in drawn},
             briefs,
-            self.config.tui.brief_stale_hours,
             now,
             {
                 e.key: self._context_parts(

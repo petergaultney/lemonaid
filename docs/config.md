@@ -130,7 +130,6 @@ The name may come from the interpreter's command line or the pane title. Add
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `age`, `project`, `branch` and `cwd` (see below). |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
-| `brief_stale_hours` | `6` | Mark `active`, `idle` and `running` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `active` even when its brief sets a status, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
 | `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
@@ -149,22 +148,23 @@ and `deaf` or `dead` when a message sent to it would not be read.
   purple, `review` brown, `done` blue, and `running` teal. On each, the model
   label becomes a badge in its provider colour.
 - A read `idle` card is dimmed. An unread one is not.
-- An `idle` card's age is how long its lemon has been idle (`idle 3 days`), in
-  place of the time since its last edit.
+- The age line names the status and how long it has held it: `idle 1h` (since
+  the lemon's last turn ended), `active just now`, `done 1m ago`, `blocked 2h
+  ago`. A set status counts from when lemonaid first saw it, so edits to `## Now`
+  or to the file by anything else don't reset it.
 - `active` keeps the ordinary read style.
 - `deaf` or `dead` comes before the age in red, on a card with a status other
   than `done` too: a `blocked` lemon that has exited will not see the answer.
 - Under the name and location come the first line of `Needs` from `## Now`,
-  with its label (`Needs you: ...`) in the attention colour, then the brief's
-  age, marked `(stale)` for an `active`, `idle` or `running` brief older than
-  `brief_stale_hours`, then, for `running`, the first line of `Running`, and for
+  with its label (`Needs you: ...`) in the attention colour, then the age line,
+  then, for `running`, the first line of `Running`, and for
   a brief without a status between turns, the first line of `Waiting on`.
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
   only for cards without a brief.
 - With `mid_turn_working = true`, while a read session is mid-turn, its card
   is drawn as `active` whatever its brief says, except `running`: no status
-  fill and no `Needs` line, with the brief's status in its status color before its age
-  (`blocked · updated 3m`). Its brief view still shows the need and its
+  fill and no `Needs` line, with the brief's status in its status color in the age line
+  (`blocked 3m ago`). Its brief view still shows the need and its
   questions, dimmed, and `a` still answers them. The card keeps the place in the list, and the fold, that its brief's
   status gives it, so a lemon doesn't jump around as its turns start and end.
   The brief's status applies again when the turn ends. A lemon rewrites
@@ -185,7 +185,6 @@ Sessions sort by brief status in both layouts either way; see
 ```toml
 [tui]
 brief_status = true
-brief_stale_hours = 6
 ```
 
 ### Folding sessions by brief status

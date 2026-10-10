@@ -92,8 +92,7 @@ def test_active_row_color_defaults_and_can_be_overridden():
 def test_brief_cards_are_opt_in():
     assert _parse_config({}).tui.brief_status is False
     config = _parse_config({"tui": {"brief_status": True, "brief_stale_hours": 12}})
-    assert config.tui.brief_status is True
-    assert config.tui.brief_stale_hours == 12
+    assert config.tui.brief_status is True  # an old brief_stale_hours is ignored
 
 
 def test_parse_named_tmux_window_processes():
