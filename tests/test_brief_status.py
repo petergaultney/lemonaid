@@ -38,7 +38,11 @@ def test_status_and_now_come_first_then_the_task_then_where_it_is(tmp_path):
 
     assert out.startswith("### make the thing")
     assert "Brief:" not in out
-    assert out.index("**Status:** working") < out.index("**Next:** the popup.") < out.index("---")
+    assert (
+        out.index("**Status:** no Status: active or idle")
+        < out.index("**Next:** the popup.")
+        < out.index("---")
+    )
     assert out.index("**Done:** the parser.") < out.index("---") < out.index("## Goal")
     assert out.index("## Goal") < out.index(str(tmp_path / ".z" / "brief.md"))
     assert "updated 5m ago" in out

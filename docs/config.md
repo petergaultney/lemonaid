@@ -130,8 +130,8 @@ The name may come from the interpreter's command line or the pane title. Add
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `age`, `project`, `branch` and `cwd` (see below). |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |
-| `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
-| `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
+| `brief_stale_hours` | `6` | Mark `active`, `idle` and `running` cards stale after this many hours without a brief edit. |
+| `mid_turn_working` | `false` | Draw a session that is mid-turn as `active` even when its brief sets a status, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
 | `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
 | `group_colors` | `{}` | A table of group name to `#rrggbb`, used instead of the group's automatic colour. See [Group colors](#group-colors). |
@@ -140,26 +140,29 @@ The name may come from the interpreter's command line or the pane title. Add
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 | `notes` | *(unset)* | A Markdown file to show under the sessions when they are cards (see below). |
 
-With `brief_status = true`, a card whose session has an attached brief with a
-`Status:` line is drawn from that brief:
+With `brief_status = true`, a card whose session has an attached brief is drawn
+from that brief. A brief without a status is drawn as its lemon's own state
+(`docs/brief-status.md`): `active` while it is mid-turn, `idle` between turns,
+and `deaf` or `dead` when a message sent to it would not be read.
 
 - `alert` fills the headline red, `blocked` yellow, `merge` green, `approve`
   purple, `review` brown, `done` blue, and `running` teal. On each, the model
   label becomes a badge in its provider colour.
-- A read `waiting` card is dimmed. An unread one is not.
-- A `waiting` card's age is how long it has waited (`waiting 3 days`), in
-  place of the time since its last edit. lemonaid records when it first sees a
-  brief's `Status:` change, so later edits to `## Now` don't reset the count.
-- `working` keeps the ordinary read style.
+- A read `idle` card is dimmed. An unread one is not.
+- An `idle` card's age is how long its lemon has been idle (`idle 3 days`), in
+  place of the time since its last edit.
+- `active` keeps the ordinary read style.
+- `deaf` or `dead` comes before the age in red, on a card with a status other
+  than `done` too: a `blocked` lemon that has exited will not see the answer.
 - Under the name and location come the first line of `Needs` from `## Now`,
   with its label (`Needs you: ...`) in the attention colour, then the brief's
-  age, marked `(stale)` for a `working`, `running` or `waiting` brief older than
+  age, marked `(stale)` for an `active`, `idle` or `running` brief older than
   `brief_stale_hours`, then, for `running`, the first line of `Running`, and for
-  `waiting`, the first line of `Waiting on`.
+  a brief without a status between turns, the first line of `Waiting on`.
 - Unread is always the dot, even with `card_unread_style = "bar"`: the bar is
   only for cards without a brief.
 - With `mid_turn_working = true`, while a read session is mid-turn, its card
-  is drawn as `working` whatever its brief says, except `running`: no status
+  is drawn as `active` whatever its brief says, except `running`: no status
   fill and no `Needs` line, with the brief's status in its status color before its age
   (`blocked · updated 3m`). Its brief view still shows the need and its
   questions, dimmed, and `a` still answers them. The card keeps the place in the list, and the fold, that its brief's
@@ -171,7 +174,7 @@ With `brief_status = true`, a card whose session has an attached brief with a
 
 In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
 than the header's unread yellow), a `merge` row green, an `approve` row purple, a `review` row brown, a `done` row blue, and a `running` row teal, with
-the model as the same badge, and a read `waiting` row dims. The green bar that
+the model as the same badge, and a read `idle` row dims. The green bar that
 marks the current session stays green. Rows carry no age, `Needs`, `Running` or
 `Waiting on` lines; there is no room for them.
 
@@ -187,9 +190,12 @@ brief_stale_hours = 6
 
 ### Folding sessions by brief status
 
-`fold_statuses = ["waiting"]` takes read sessions whose attached brief says
-`waiting` out of the list and shows one line at its bottom in their place:
-`▸ waiting (4) · w to show`. `w` (the `fold` key) opens the group, listing those
+`fold_statuses = ["idle"]` takes read sessions whose attached brief sets no
+status out of the list, between turns, and shows one line at its bottom in their
+place: `▸ idle (4) · w to show`. A lemon comes out while it is `active`, as it
+used to when it set `working`, and while it is `deaf` or `dead` unless those are
+listed too. `waiting` and `working`, from before lemonaid derived them, mean
+`idle` and `active`. `w` (the `fold` key) opens the group, listing those
 sessions at the bottom of the list, and closes it again. It works the same in the
 column layout and the sidebar.
 
@@ -202,7 +208,7 @@ can be listed; the default folds nothing.
 
 ```toml
 [tui]
-fold_statuses = ["waiting"]
+fold_statuses = ["idle"]
 ```
 
 With `card_unread_style = "bar"`, an unread card without a brief (see above)

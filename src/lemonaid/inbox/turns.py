@@ -1,10 +1,11 @@
 """Whether a lemon is mid-turn, and the brief status it shows while it is.
 
-A lemon rewrites its brief's `Status:` late in a turn, so while it works on
-your answer its brief still says `blocked`. Mid-turn, the inbox draws it as
-`working` instead, and the brief's own status applies again once the turn
-ends. Only the drawing changes: the brief's own status still places it in the
-list. `running` stays: it means minding a process across turns.
+A brief without a status shows `active` while its lemon is mid-turn. With
+`mid_turn_working`, so does a brief whose lemon rewrites its `Status:` late in
+a turn and still says `blocked` while it works on your answer; the brief's own
+status applies again once the turn ends. Only the drawing changes: the brief's
+own status still places it in the list. `running` stays: it means minding a
+process across turns.
 """
 
 from collections import abc
@@ -15,7 +16,7 @@ from . import db
 # A turn whose transcript has been silent this long counts as over. A session
 # killed mid-turn never writes the entry that ends it.
 STALE_SECONDS = 20 * 60
-_KEPT = frozenset({"", "running", "working"})
+_KEPT = frozenset({"running"})
 
 
 def mid_turn(n: db.Notification, now: float) -> bool:
@@ -29,7 +30,7 @@ def mid_turn(n: db.Notification, now: float) -> bool:
 
 def shown(status: str) -> str:
     """The status a mid-turn lemon whose brief says *status* shows."""
-    return status if status in _KEPT else "working"
+    return status if status in _KEPT else "active"
 
 
 def briefs(

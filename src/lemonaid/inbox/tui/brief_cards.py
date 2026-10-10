@@ -70,8 +70,8 @@ def _waited(seconds: float) -> str:
 class CardBrief:
     """A brief as its card needs it.
 
-    `status` is the brief's own, which places the card in the list; `shown` is
-    the one the card is drawn as, which differs while the lemon is mid-turn.
+    `status` is the brief's own, "" when it sets none; `placed` puts the card in
+    the list and the fold, so a set status keeps its place through a turn; `shown` is the one the card is drawn as.
     """
 
     status: str
@@ -82,24 +82,44 @@ class CardBrief:
     running: str = ""
     area: str = ""  # the part of its project the brief says it works in
     mid_turn: bool = False
-    since: float = 0.0  # when the brief entered its status; 0 when unrecorded
+    held_mid_turn: bool = False  # `mid_turn_working`: a set status is drawn `active` mid-turn
+    mark: str = ""  # `deaf` or `dead`, from `presence`
+    since: float = 0.0  # when the brief entered its placed status; 0 when unrecorded
+
+    @property
+    def placed(self) -> str:
+        if self.status:
+            return self.status
+
+        if self.mark == "dead":
+            return self.mark  # a harness killed mid-turn leaves its turn open for a while
+
+        return "active" if self.mid_turn else self.mark or "idle"
 
     @property
     def shown(self) -> str:
-        return turns.shown(self.status) if self.mid_turn else self.status
+        if not self.status:
+            return self.placed
+
+        return turns.shown(self.status) if self.mid_turn and self.held_mid_turn else self.status
+
+    @property
+    def held(self) -> bool:
+        """Whether the card is drawn as other than the status its brief sets."""
+        return bool(self.status) and self.shown != self.status
 
     @property
     def needs_line(self) -> str:
-        """What a person has to do, under the label the worker wrote; "" once done or mid-turn."""
+        """What a person has to do, under the label the worker wrote; "" once done or held."""
         return (
             f"{self.needs_label}: {self.needs}"
-            if self.needs and self.shown == self.status and self.status != "done"
+            if self.needs and not self.held and self.status != "done"
             else ""
         )
 
     @property
     def waiting_line(self) -> str:
-        return self.waiting_on if self.shown == "waiting" else ""
+        return self.waiting_on if not self.status and not self.mid_turn else ""
 
     @property
     def running_line(self) -> str:
@@ -117,41 +137,39 @@ class CardBrief:
         )
 
     def age(self, now: float, stale_hours: float) -> str:
-        """How long a waiting brief has waited, else the brief's age.
+        """How long an idle lemon has been idle, else the brief's age.
 
-        The age follows the brief's own status when the card is drawn as another.
+        A held status, and a `deaf` or `dead` mark, come first.
         """
         stale = (
             " (stale)"
-            if self.shown in {"working", "running", "waiting"}
+            if self.shown in {"active", "running", "idle"}
             and now - self.mtime >= stale_hours * 3600
             else ""
         )
-        if self.shown == "waiting" and self.since:
-            return f"waiting {_waited(now - self.since)}{stale}"
+        if self.shown == "idle" and self.since:
+            return f"idle {_waited(now - self.since)}{stale}"
 
-        held = f"{self.status} · " if self.shown != self.status else ""
-        return f"{held}updated {brief_status.age(max(0, now - self.mtime))}{stale}"
+        return f"{self._prefix()}updated {brief_status.age(max(0, now - self.mtime))}{stale}"
+
+    def _prefixed(self) -> list[str]:
+        return [word for word in (self.status if self.held else "", self.mark) if word]
+
+    def _prefix(self) -> str:
+        return "".join(f"{word} · " for word in self._prefixed())
 
     def age_text(self, now: float, stale_hours: float, *, style: str = "") -> Text:
-        """The age label with a held status styled independently from its age."""
-        value = self.age(now, stale_hours)
-        held = f"{self.status} · " if self.shown != self.status else ""
-        text = Text(value, style=style)
-        if held:
-            text.stylize(status_text_style(self.status, "dim"), 0, len(held))
+        """The age label, with each word before it in its own status colour."""
+        text = Text(self.age(now, stale_hours), style=style)
+        start = 0
+        for word in self._prefixed():
+            text.stylize(status_text_style(word, "dim"), start, start + len(word))
+            start += len(word) + len(" · ")
         return text
 
 
-def mid_turn(card: CardBrief) -> CardBrief:
-    return dataclasses.replace(card, mid_turn=True)
-
-
-def _parse(text: str, mtime: float) -> CardBrief | None:
+def _parse(text: str, mtime: float) -> CardBrief:
     parts = brief_status.split(text)
-    if not parts.status:
-        return None
-
     now = brief_now.parse(parts.now)
     return CardBrief(
         parts.status,
@@ -166,7 +184,7 @@ def _parse(text: str, mtime: float) -> CardBrief | None:
 
 class BriefCache:
     def __init__(self) -> None:
-        self._entries: dict[Path, tuple[int, int, CardBrief | None]] = {}
+        self._entries: dict[Path, tuple[int, int, CardBrief]] = {}
         self._lock = threading.RLock()
 
     def get(self, path: Path) -> CardBrief | None:

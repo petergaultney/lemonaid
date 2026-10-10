@@ -212,7 +212,7 @@ lemonaid watch briefs --children --orphans --self --to blocked --to done --once
 ```
 
 - `--to` defaults to `blocked`, `alert`, `merge`, `approve`, `review` and `done`; passing
-  `--to` replaces that set. `waiting`, `running` and `working` stay quiet unless selected.
+  `--to` replaces that set. `running` stays quiet unless selected, and a child that clears its status never wakes it.
 - A Needs ask that appears or changes wakes even when the status does not, which
   `--children` alone never does.
 - If tmux cannot list its sessions, a brief that has a parent link counts as owned and

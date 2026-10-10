@@ -99,6 +99,19 @@ def _cmd(a: argparse.Namespace) -> None:
     sys.exit(run(a))
 
 
+def _target(value: str) -> str:
+    if value in store.RETIRED:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is no longer a brief status: a child without one shows active or idle,"
+            " and never wakes this waiter. Drop it, or name the statuses it moves to"
+        )
+
+    if value not in store.STATES:
+        raise argparse.ArgumentTypeError(f"{value!r} is not one of {', '.join(store.STATES)}")
+
+    return value
+
+
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap = subparsers.add_parser(
         "briefs", help="Wait for children to enter selected brief statuses", description=__doc__
@@ -117,7 +130,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--to",
         action="append",
-        choices=store.STATES,
+        type=_target,
         default=[],
         metavar="STATUS",
         help="wake only on entry into this status (repeatable; default: merge, done; with "

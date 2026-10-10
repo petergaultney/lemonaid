@@ -42,11 +42,11 @@ def styled(
     Under a status fill every field takes the fill's text colour, since
     the field colours were picked for the plain background. The model label
     becomes a badge in its provider colour, as it does on an unread card in bar
-    mode, and the gutter keeps its jump digit or green bar. A read `waiting` row
+    mode, and the gutter keeps its jump digit or green bar. A read `idle` row
     dims, as its card does.
     """
     unread = bool(cells[unread_cell].plain)
-    if brief and brief.shown == "waiting" and not unread:
+    if brief and brief.shown == "idle" and not unread:
         return [
             cell if i == unread_cell else _restyled(cell, "dim") for i, cell in enumerate(cells)
         ]

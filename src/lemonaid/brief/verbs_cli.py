@@ -61,7 +61,14 @@ def _cmd_now(args: argparse.Namespace) -> None:
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
-    _edited(args, lambda brief: store.with_status(brief, args.state))
+    if args.state in store.RETIRED:
+        print(
+            f"`{args.state}` is no longer set by hand; cleared Status, so the inbox shows"
+            " whether the lemon is active, idle, deaf or dead",
+            file=sys.stderr,
+        )
+    state = store.CLEAR if args.state in store.RETIRED else args.state
+    _edited(args, lambda brief: store.with_status(brief, state))
 
 
 def _cmd_bullet(args: argparse.Namespace) -> None:
@@ -140,8 +147,13 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     now.add_argument("markdown", help="The new section body; - reads it from stdin")
     now.set_defaults(func=_cmd_now)
 
-    status = command.parser(brief_subparsers, "status", "Set the Status line of a lemon's brief")
-    status.add_argument("state", choices=store.STATES)
+    status = command.parser(
+        brief_subparsers,
+        "status",
+        "Set the Status line of a lemon's brief; `clear` removes it, so the inbox shows the "
+        "lemon's own state",
+    )
+    status.add_argument("state", choices=(*store.STATES, store.CLEAR, *store.RETIRED))
     status.set_defaults(func=_cmd_status)
 
     bullet = brief_subparsers.add_parser(

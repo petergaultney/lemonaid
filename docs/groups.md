@@ -27,7 +27,7 @@ The inbox database holds groups and their members, keyed on Lemon-ID (the brief'
 Each member brief also carries a `Groups:` line in its header, after `Status:`, `Parent:` and `Area:`, naming its groups:
 
 ```markdown
-Status: working
+Status: blocked
 Parent: lead.TinCup (lead), 2026-10-09
 Groups: Inbox work, Relay
 ```

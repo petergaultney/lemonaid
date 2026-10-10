@@ -95,8 +95,7 @@ def _snapshot(parent: str, orphans: bool = False) -> dict[str, _Mark]:
             except OSError as error:
                 _log.warning("Cannot read child brief %s: %s", path, error)
                 continue
-            if state := status.split(text).status:
-                found[child] = _Mark(state, _needs(text), str(path))
+            found[child] = _Mark(status.split(text).status, _needs(text), str(path))
         return found
 
 
@@ -166,9 +165,9 @@ def open_watch(
 
 def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
     state = (
-        f"Status: {previous.status} -> {current.status}"
+        f"Status: {previous.status or 'none'} -> {current.status or 'none'}"
         if previous and previous.status != current.status
-        else f"Status: {current.status}"
+        else f"Status: {current.status or 'none'}"
     )
     ask = (
         f"; Needs: {current.needs or '(none)'}"

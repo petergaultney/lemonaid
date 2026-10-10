@@ -95,7 +95,7 @@ def split(text: str) -> Parts:
     questions: list[str] = []
     rest: list[str] = []
     within: list[str] | None = None  # `now` or `questions` while inside that section
-    in_header = True  # above the first `##` heading, where lemonaid writes `Area:`
+    in_header = True  # above the first `##` heading, where `Status:` and `Area:` go
     for line in text.splitlines():
         if within is not None and _SECTION_END.match(line):
             within = None
@@ -104,7 +104,7 @@ def split(text: str) -> Parts:
 
         if not title and line.startswith("# "):
             title = line[2:].strip()
-        elif not status and (match := _STATUS.fullmatch(line.strip())):
+        elif in_header and not status and (match := _STATUS.fullmatch(line.strip())):
             status = match["status"]
         elif line.startswith("Parent:"):
             rest.append(line)  # template metadata, whether it sits above Now or below
@@ -119,8 +119,8 @@ def split(text: str) -> Parts:
         else:
             rest.append(line)
 
-    state = status.split(maxsplit=1)[0] if status else ""
-    state = state.lower() if state.lower() in store.STATES else ""
+    state = status.split(maxsplit=1)[0].lower() if status else ""
+    state = state if state in store.STATES else ""
 
     return Parts(
         title,

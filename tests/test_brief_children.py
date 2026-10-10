@@ -95,7 +95,7 @@ def test_a_child_carries_its_place_session_prs_and_reviewer(tmp_path):
     assert [c.lemon_id for c in child.children] == [reviewer]
     assert child.held_by == (
         "status merge",
-        f"reviewer work ({reviewer.rsplit('.', 1)[-1]}) is waiting",
+        f"reviewer work ({reviewer.rsplit('.', 1)[-1]}) is without a status",
     )
 
 
@@ -209,7 +209,7 @@ def test_a_child_not_done_whose_session_is_gone_is_an_orphan(tmp_path):
 
     assert (found[orphan].cleanup, found[orphan].held_by) == (
         "orphan",
-        ("session gone, status working",),
+        ("session gone, status none",),
     )
     assert (found[finished].alive, found[finished].cleanup) == (False, "ready")
 
@@ -252,7 +252,7 @@ def test_the_command_lists_self_s_children_as_json_and_text(capsys, monkeypatch,
     assert (child["cleanup"], child["place"]["key"]) == ("held", "feat")
     assert [(c["lemon_id"], c["cleanup"]) for c in child["children"]] == [(reviewer, "held")]
     assert f"{author}  done" in text
-    assert f"\n    {reviewer}  waiting" in text
+    assert f"\n    {reviewer}  - " in text
     assert "    cleanup  held: reviewer work" in text
 
 
@@ -265,7 +265,7 @@ def test_self_without_a_brief_is_an_error(capsys, monkeypatch, tmp_path):
 
 def test_since_is_when_the_status_last_changed_not_the_last_edit(tmp_path):
     parent = _lemon("parent", "working", "claude:parent")
-    child = _lemon("child", "waiting", "claude:child", tmp_path / "feat")
+    child = _lemon("child", "running", "claude:child", tmp_path / "feat")
     _link(child, parent)
     path = store.briefs_dir() / "child.md"
     os.utime(path, (1000, 1000))
@@ -275,12 +275,12 @@ def test_since_is_when_the_status_last_changed_not_the_last_edit(tmp_path):
     os.utime(path, (2000, 2000))
     [edited] = _of(parent, _world(tmp_path))
 
-    path.write_text(path.read_text().replace("Status: waiting", "Status: blocked"))
+    path.write_text(path.read_text().replace("Status: running", "Status: blocked"))
     os.utime(path, (3000, 3000))
     [changed] = _of(parent, _world(tmp_path))
 
     assert [(c.status, c.since, c.updated) for c in (first, edited, changed)] == [
-        ("waiting", 1000, 1000),
-        ("waiting", 1000, 2000),
+        ("running", 1000, 1000),
+        ("running", 1000, 2000),
         ("blocked", 3000, 3000),
     ]

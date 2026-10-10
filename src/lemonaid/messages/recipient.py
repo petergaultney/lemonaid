@@ -33,7 +33,7 @@ class State(ty.NamedTuple):
     detail: str
 
 
-def _is_harness(command: str) -> bool:
+def is_harness(command: str) -> bool:
     """Claude Code may title itself with its version number rather than its name."""
     name = Path(command).name
     return name in _HARNESSES or (name.replace(".", "").isdigit() and "." in name)
@@ -75,7 +75,7 @@ def harness_alive(row: db.Notification) -> bool | None:
     if commands is None:
         return False if row.is_archived else None
 
-    return any(_is_harness(command) for command in commands)
+    return any(is_harness(command) for command in commands)
 
 
 def classify(

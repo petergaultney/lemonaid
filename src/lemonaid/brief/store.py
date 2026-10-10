@@ -19,7 +19,12 @@ from pathlib import Path
 from .. import home
 from . import names
 
-STATES = ("working", "running", "waiting", "done", "blocked", "merge", "approve", "alert", "review")
+# The statuses a lemon sets. Without one, the inbox shows the lemon's own state
+# (active, idle, deaf or dead); see docs/brief-status.md.
+STATES = ("running", "done", "blocked", "merge", "approve", "alert", "review")
+# Statuses lemons once set by hand, now read as no status.
+RETIRED = ("working", "waiting")
+CLEAR = "clear"
 
 _EDIT_ATTEMPTS = 5
 
@@ -29,8 +34,6 @@ _SECTION = re.compile(r"#{1,2}\s")
 
 _TEMPLATE = """\
 # {title}
-
-Status: working
 
 Brief-ID: {lemon_id}
 
@@ -151,13 +154,25 @@ def edit(path: Path, change: abc.Callable[[str], str]) -> None:
     raise ChangedUnderneath(f"{path} kept changing while it was being edited; try again")
 
 
+def _without_status(lines: list[str], i: int) -> str:
+    """*lines* less the `Status:` line at *i* and the blank line that set it apart."""
+    end = i + 1 if i + 1 < len(lines) and lines[i + 1].strip() else i + 2
+    return "\n".join([*lines[:i], *lines[end:]]).rstrip("\n") + "\n"
+
+
 def with_status(text: str, state: str) -> str:
-    """Set the first `Status:` line without changing `## Now`."""
+    """Set the first `Status:` line without changing `## Now`; `CLEAR` removes it."""
     line = f"Status: {state}"
     lines = text.splitlines()
     for i, existing in enumerate(lines):
         if _STATUS_LINE.fullmatch(existing.strip()):
+            if state == CLEAR:
+                return _without_status(lines, i)
+
             return "\n".join([*lines[:i], line, *lines[i + 1 :]]) + "\n"
+
+    if state == CLEAR:
+        return text
 
     title_end = 1 if lines and lines[0].startswith("# ") else 0
     return "\n".join([*lines[:title_end], "", line, *lines[title_end:]]).lstrip("\n") + "\n"
@@ -166,8 +181,8 @@ def with_status(text: str, state: str) -> str:
 def with_now(text: str, now: str) -> str:
     """*text* with its `## Now` section's body replaced.
 
-    A missing one goes after the header lines below `Status:` (`Parent:`, `Area:`),
-    so they stay outside it.
+    A missing one goes after the header lines (`Status:`, `Parent:`, `Area:`), so
+    they stay outside it.
     """
     lines = text.splitlines()
     body = [*now.strip().splitlines(), ""]
@@ -175,7 +190,7 @@ def with_now(text: str, now: str) -> str:
     if start is None:
         status = next(
             (i + 1 for i, line in enumerate(lines) if _STATUS_LINE.fullmatch(line.strip())),
-            len(lines),
+            1 if lines and lines[0].startswith("# ") else 0,
         )
         at = next((i for i in range(status, len(lines)) if _SECTION.match(lines[i])), len(lines))
         head = lines[:at]

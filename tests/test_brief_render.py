@@ -53,7 +53,7 @@ def test_sub_headings_render_like_bullets(tmp_path):
 
 
 def test_pr_state_follows_the_status(tmp_path):
-    path = _brief(tmp_path, "task", "# Task\n\nStatus: waiting\n\n## Now\n- Waiting on: PR #74\n")
+    path = _brief(tmp_path, "task", "# Task\n\nStatus: running\n\n## Now\n- Waiting on: PR #74\n")
     asked: list[tuple[str, Path | None]] = []
 
     def pr_state(ref: str, cwd: Path | None) -> str:
@@ -62,7 +62,7 @@ def test_pr_state_follows_the_status(tmp_path):
 
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, pr_state)
 
-    assert "**Status:** waiting · **PR:** #74 merged" in out
+    assert "**Status:** running · **PR:** #74 merged" in out
     assert asked == [("74", tmp_path)]
 
 
@@ -124,11 +124,11 @@ def test_a_lemon_id_and_parent_follow_the_title_on_one_line_in_a_compact_section
 
     assert (
         "### w2 · author · Claude / Opus\n\n**Build (v2)**  \nBrief-ID: `build`.**QuickOdd**  \n"
-        "Parent: lemonaid HQ (`hq`.**BlessBar**)  \n**Status:** working"
+        "Parent: lemonaid HQ (`hq`.**BlessBar**)  \n**Status:** no Status: active or idle"
     ) in out
     assert (
         "**Review**  \nBrief-ID: `review`.**SaltyEbb** · Parent: lemonaid HQ (`hq`.**BlessBar**)  \n"
-        "**Status:** waiting"
+        "**Status:** no Status: active or idle"
     ) in out
 
 

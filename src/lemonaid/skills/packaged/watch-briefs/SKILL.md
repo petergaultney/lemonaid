@@ -34,7 +34,7 @@ previous status. Progress edits stay quiet. Missing or unlinked briefs are ignor
 Changes are sampled every 5 seconds and delivered after 2 quiet seconds; `--interval`
 and `--quiet` adjust these timings.
 
-Target values must be known brief statuses. Each target set has independent state and
+Target values must be statuses a brief sets; `active` and `idle` are not, so they can't be targets. Each target set has independent state and
 locks, regardless of argument order or duplicates. Omitting `--to` shares state with
 explicit `--to merge --to done`. Use the same options for status checks and rearms.
 

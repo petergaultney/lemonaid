@@ -1,3 +1,5 @@
+import argparse
+
 import pytest
 
 from lemonaid.brief import store
@@ -10,13 +12,9 @@ from .shared import args, lemon, link, open_watch, poll
 @pytest.mark.parametrize("state", store.STATES)
 def test_only_selected_destination_wakes(family, target, state):
     _, child, path, _ = family
-    before = "waiting" if state == "working" else "working"
-    path.write_text(path.read_text().replace("Status: working", f"Status: {before}"))
     w = open_watch(family, to=frozenset({target}))
-    path.write_text(path.read_text().replace(f"Status: {before}", f"Status: {state}"))
-    assert poll(w) == (
-        [f"{child}: Status: {before} -> {state} ({path})"] if state == target else []
-    )
+    path.write_text(path.read_text().replace("Status: working", f"Status: {state}"))
+    assert poll(w) == ([f"{child}: Status: none -> {state} ({path})"] if state == target else [])
     assert poll(open_watch(family, to=frozenset({target}))) == []
 
 
@@ -70,14 +68,14 @@ def test_cli_accepts_repeatable_targets_and_passes_them_to_watch(family, capsys)
     parsed = args(state_dir, parent, "--once", "--to", "merge", "--to", "done")
     assert parsed.to == ["merge", "done"]
     assert briefs_cli.run(parsed) == 0
-    assert "Status: working -> done" in capsys.readouterr().out
+    assert "Status: none -> done" in capsys.readouterr().out
 
 
 def test_cli_rejects_unknown_target(family, capsys):
     with pytest.raises(SystemExit) as error:
         args(family[3], family[0], "--to", "finished")
     assert error.value.code == 2
-    assert "invalid choice" in capsys.readouterr().err
+    assert "is not one of running" in capsys.readouterr().err
 
 
 def test_filtered_delivery_failure_is_retried(family):
@@ -91,7 +89,7 @@ def test_filtered_delivery_failure_is_retried(family):
 
     with pytest.raises(delivery.Failed):
         briefs_events.poll(w, fail)
-    assert poll(open_watch(family, to=targets)) == [f"{child}: Status: working -> done ({path})"]
+    assert poll(open_watch(family, to=targets)) == [f"{child}: Status: none -> done ({path})"]
 
 
 def test_cli_status_lock_uses_target_set(family):
@@ -115,3 +113,9 @@ def test_cli_status_lock_uses_target_set(family):
         assert briefs_cli.run(args(state_dir, parent, "--status")) == 0
     finally:
         lock.close()
+
+
+@pytest.mark.parametrize("retired", store.RETIRED)
+def test_a_retired_status_is_refused_with_why(retired):
+    with pytest.raises(argparse.ArgumentTypeError, match="no longer a brief status"):
+        briefs_cli._target(retired)

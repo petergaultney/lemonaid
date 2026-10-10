@@ -62,6 +62,7 @@ from .. import (
     emoji,
     order,
     pins,
+    presence,
     resume_archived,
     search,
     sections,
@@ -370,7 +371,7 @@ def _as_card(
         )
 
     message = cells[_MSG_CELL]
-    dimmed = bool(card_brief and card_brief.shown == "waiting" and not marker.plain)
+    dimmed = bool(card_brief and card_brief.shown == "idle" and not marker.plain)
     if dimmed:
         headline.stylize("dim")
         message = message.copy()
@@ -390,7 +391,7 @@ def _as_card(
     reading.justify = None
     backend.justify = None
     pin.justify = None
-    if card_brief and card_brief.shown == "waiting" and not marker.plain:
+    if card_brief and card_brief.shown == "idle" and not marker.plain:
         backend.stylize("dim")
         reading.stylize("dim")
     markers = Text(emoji)
@@ -935,6 +936,7 @@ class LemonaidApp(App):
         self._notes_open = True  # the notes key's choice; shown only in card layout too
         self._models_by_channel: dict[str, ModelInfo] = {}
         self._brief_cache = brief_cards.BriefCache()
+        self._presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
         self._pr_numbers = pr_numbers.Cache()
         self._arranger = (
             child.Arranger(child.parse_command(self.config.inbox.arrange))
@@ -1261,7 +1263,7 @@ class LemonaidApp(App):
             locate_sessions=self._locate_sessions,
             auto_read_patterns=self.config.inbox.auto_read,
             mark_read_after_turn=self._mark_channel_read_after_turn,
-            record_turn=self._record_channel_turn if self.config.tui.mid_turn_working else None,
+            record_turn=self._record_channel_turn,
             protected_channels=self._protected_brief_channels,
             detached_channels=self._set_detached_channels,
         )
@@ -1723,7 +1725,12 @@ class LemonaidApp(App):
 
     def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> "view.Active":
         return view.ordered_active(
-            conn, switch_source, self._brief_cache, self.config.tui.mid_turn_working, time.time()
+            conn,
+            switch_source,
+            self._brief_cache,
+            self._presence,
+            self.config.tui.mid_turn_working,
+            time.time(),
         )
 
     def _arranged(
@@ -2497,9 +2504,9 @@ class LemonaidApp(App):
             branch = n.metadata.get("git_branch", "")
 
             name_cell = styled_cell(n.name or "", False, "name", history=True)
-            area = ""
-            if (path := brief_paths.get(n.channel)) and (card := self._brief_cache.get(path)):
-                area = card.area
+            card = (path := brief_paths.get(n.channel)) and self._brief_cache.get(path)
+            area = card.area if card else ""
+            if card and card.status:
                 name_cell.append(
                     f" · {card.status}",
                     style=brief_cards.STATUS_STYLES.get(card.status, "dim"),

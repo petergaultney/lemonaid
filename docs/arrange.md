@@ -23,7 +23,7 @@ DAY = 24 * 3600
 
 
 def arrange(snapshot):
-    """The inbox's own order, with read `waiting` lemons idle for a day folded."""
+    """The inbox's own order, with read lemons idle for a day folded."""
     order = answer.default(snapshot)
     rows = {r["id"]: r for r in snapshot["rows"]}
 
@@ -32,8 +32,8 @@ def arrange(snapshot):
         return (
             not row["unread"]
             and brief
-            and brief["status"] == "waiting"
-            and snapshot["now"] - brief["mtime"] > DAY
+            and brief["shown"] == "idle"
+            and snapshot["now"] - brief["since"] > DAY
         )
 
     return {
@@ -111,6 +111,7 @@ closes. Flush after each answer.
         "path": "/home/sam/.lemons/brief/2026-10-01-plan.md",
         "status": "blocked",
         "shown": "blocked",
+        "mark": "",
         "needs_label": "Needs Sam",
         "needs": "Approve slice 1",
         "waiting_on": "",
@@ -127,10 +128,13 @@ closes. Flush after each answer.
 
 - `layout` is `sidebar` (cards) or `table` (columns), and `width` the pane's width.
 - `brief` is `null` for a session with no attached brief. Its `status` is the
-  brief's own, which places the row, and `shown` is what the card is drawn as:
-  `working` for a mid-turn lemon when `[tui] mid_turn_working` is on.
-  `mtime` is the brief's last edit, and `since` when lemonaid first saw its
-  current `status`.
+  brief's own, `""` when it sets none, and `shown` is what the card is drawn as:
+  `active` or `idle` for a brief without a status, or `deaf` or `dead`, and
+  `active` for any mid-turn lemon when `[tui] mid_turn_working` is on. `mark` is
+  `deaf` or `dead` when a message to the lemon would not be read, whatever its
+  status (`docs/brief-status.md`). `mtime` is the brief's last edit, and
+  `since` when lemonaid first saw its current `status`, or for a brief without
+  one, when its lemon last went `idle`.
 - `groups` names the row's groups, in their inbox order (`docs/groups.md`).
 - `default` is lemonaid's own answer: the row's position, its band (`pinned`,
   `alert`, `blocked`, `running`, `merge`, `approve`, `review`, `unread done`, `done`,

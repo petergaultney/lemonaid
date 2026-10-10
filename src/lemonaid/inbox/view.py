@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import brief
-from . import db, order, pins, status_since, turns
+from . import db, order, pins, presence, status_since, turns
 from .tui import brief_cards
 
 SNAPSHOT_VERSION = 1
@@ -30,25 +30,50 @@ class Active:
 
 def _cards(
     conn: sqlite3.Connection,
-    rows: abc.Iterable[db.Notification],
+    rows: abc.Sequence[db.Notification],
     attached: abc.Mapping[str, Path],
     cache: brief_cards.BriefCache,
+    probe: presence.Probe,
     mid_turn_working: bool,
     now: float,
 ) -> dict[str, brief_cards.CardBrief]:
-    """The card of each attached brief by channel, marked while its lemon is mid-turn."""
-    working = turns.briefs(rows, attached, now) if mid_turn_working else frozenset()
+    """The card of each attached brief by channel, with its lemon's turn and presence."""
+    working = turns.briefs(rows, attached, now)
     found = {
         channel: (path, card) for channel, path in attached.items() if (card := cache.get(path))
     }
-    since = status_since.observe(
-        conn, {path: (card.status, card.mtime) for path, card in found.values()}
+    lemon_ids = brief.identity.by_channel(conn)
+    marks = probe.marks(
+        rows,
+        {
+            channel: lemon_ids[channel]
+            for channel, (_path, card) in found.items()
+            if channel in lemon_ids and card.status != "done"
+        },
+        now,
     )
-    return {
+    cards = {
         channel: dataclasses.replace(
-            brief_cards.mid_turn(card) if path in working else card, since=since[path]
+            card,
+            mid_turn=path in working,
+            held_mid_turn=mid_turn_working,
+            mark=marks.get(channel, ""),
         )
         for channel, (path, card) in found.items()
+    }
+    since = status_since.observe(
+        conn, {found[channel][0]: (card.status, card.mtime) for channel, card in cards.items()}
+    )
+    # Without a status, an idle lemon's time counts from its last report, which ends a turn.
+    reported = {n.channel: n.created_at for n in rows}
+    return {
+        channel: dataclasses.replace(
+            card,
+            since=since[found[channel][0]]
+            if card.status
+            else max(card.mtime, reported.get(channel, 0.0)),
+        )
+        for channel, card in cards.items()
     }
 
 
@@ -66,7 +91,8 @@ def _memberships(conn: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
 
 
 def statuses(cards: abc.Mapping[str, brief_cards.CardBrief]) -> dict[str, str]:
-    return {channel: card.status for channel, card in cards.items()}
+    """The status that places each card in the list and the fold, by channel."""
+    return {channel: card.placed for channel, card in cards.items()}
 
 
 def inbox_rows(
@@ -88,6 +114,7 @@ def ordered_active(
     conn: sqlite3.Connection,
     switch_source: str | None,
     cache: brief_cards.BriefCache,
+    probe: presence.Probe,
     mid_turn_working: bool,
     now: float,
 ) -> Active:
@@ -98,7 +125,7 @@ def ordered_active(
     """
     rows = db.get_active(conn, switch_source=switch_source)
     attached = brief.attached.for_rows(conn, rows)
-    cards = _cards(conn, rows, attached, cache, mid_turn_working, now)
+    cards = _cards(conn, rows, attached, cache, probe, mid_turn_working, now)
     reviewers = frozenset(
         channel
         for channel, brief_id in brief.identity.by_channel(conn).items()
@@ -121,6 +148,7 @@ def _brief(card: brief_cards.CardBrief | None, path: Path | None) -> dict[str, A
         "path": str(path),
         "status": card.status,
         "shown": card.shown,
+        "mark": card.mark,
         "needs_label": card.needs_label,
         "needs": card.needs,
         "waiting_on": card.waiting_on,
@@ -159,7 +187,7 @@ def _row(
         "groups": list(active.memberships.get(n.channel, ())),
         "default": {
             "position": position,
-            "band": order.band(card.status if card else "", n.is_unread, n.channel in pinned),
+            "band": order.band(card.placed if card else "", n.is_unread, n.channel in pinned),
             "folded": folded,
         },
     }

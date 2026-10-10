@@ -14,7 +14,9 @@ from lemonaid.tmux import scratch
 _CONSOLE = Console(color_system="truecolor")
 
 
-def _row(brief_status: str, unread: bool = False, here: bool = False) -> list[Text]:
+def _row(
+    brief_status: str, unread: bool = False, here: bool = False, mid_turn: bool = False
+) -> list[Text]:
     cells = [
         Text("12:30", style="#888888"),
         Text("●", style=f"bold {ATTENTION_COLOR}") if unread else Text(""),
@@ -27,7 +29,7 @@ def _row(brief_status: str, unread: bool = False, here: bool = False) -> list[Te
     ]
     return app.brief_rows.styled(
         cells,
-        CardBrief(brief_status, "", 0),
+        CardBrief(brief_status, "", 0, mid_turn=mid_turn),
         app._UNREAD_CELL,
         app._BACKEND_CELL,
         app._NAME_CELL,
@@ -66,12 +68,12 @@ def test_the_current_session_keeps_its_green_bar():
     assert _style(name).color.name == "#000000"
 
 
-def test_waiting_dims_only_once_read_and_working_is_unchanged():
-    assert _style(_row("waiting")[6]).dim
-    assert not _style(_row("waiting", unread=True)[6]).dim
-    assert app.brief_rows.background(CardBrief("waiting", "", 0)) is None
-    assert not _style(_row("working")[6]).dim
-    assert _style(_row("working")[4]).color.name == "#ff0066"
+def test_idle_dims_only_once_read_and_active_is_unchanged():
+    assert _style(_row("")[6]).dim
+    assert not _style(_row("", unread=True)[6]).dim
+    assert app.brief_rows.background(CardBrief("", "", 0)) is None
+    assert not _style(_row("", mid_turn=True)[6]).dim
+    assert _style(_row("", mid_turn=True)[4]).color.name == "#ff0066"
 
 
 def test_the_top_strip_fills_blocked_and_done_rows(monkeypatch, tmp_path):

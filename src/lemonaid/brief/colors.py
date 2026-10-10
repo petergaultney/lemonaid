@@ -20,8 +20,10 @@ _STATE_STYLES = {
     "review": "bold #c08a52",
     "running": f"bold {RUNNING_TEXT_COLOR}",
     "done": "bold #6f9fe0",
-    "working": "bold",
-    "waiting": "bright_black",
+    "active": "bold",
+    "idle": "bright_black",
+    "deaf": "bold #ff5c5c",
+    "dead": "bold #ff5c5c",
 }
 _STATE_STYLES_LIGHT = {
     **_STATE_STYLES,
@@ -32,6 +34,8 @@ _STATE_STYLES_LIGHT = {
     "review": f"bold {REVIEW_COLOR}",
     "running": f"bold {RUNNING_TEXT_COLOR_LIGHT}",
     "done": "bold #285995",
+    "deaf": f"bold {ALERT_COLOR}",
+    "dead": f"bold {ALERT_COLOR}",
 }
 
 

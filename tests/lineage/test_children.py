@@ -1,7 +1,7 @@
 from .shared import lemon, run
 
 
-def test_children_are_listed_with_their_brief_status(capsys, monkeypatch):
+def test_children_are_listed_with_their_brief_status_or_none(capsys, monkeypatch):
     parent = lemon("parent", "claude:parent")
     done = lemon("done-child", "codex:done", status="done")
     pending = lemon("pending-child")
@@ -15,7 +15,7 @@ def test_children_are_listed_with_their_brief_status(capsys, monkeypatch):
     assert listed["lemon_id"] == parent
     assert [(c["lemon_id"], c["status"], c["channel"]) for c in listed["children"]] == [
         (done, "done", "codex:done"),
-        (pending, "working", ""),
+        (pending, "", ""),
     ]
     assert unrelated not in {c["lemon_id"] for c in listed["children"]}
 

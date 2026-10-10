@@ -39,9 +39,18 @@ def _href(style: Style) -> str:
     return ast.literal_eval(match["href"]) if match else ""
 
 
-def _working(section: render.Section) -> render.Section:
-    """*section* as its lemon shows mid-turn, its brief's status kept as `held`."""
-    state = turns.shown(section.state)
+def _drawn(section: render.Section, mid_turn: bool, held_mid_turn: bool) -> render.Section:
+    """*section* in the state its lemon shows: `active` or `idle` without a status of its own.
+
+    With *held_mid_turn*, a set status shows `active` mid-turn, kept as `held`.
+    """
+    if section.path is None:
+        return section
+
+    if not section.state:
+        return dataclasses.replace(section, state="active" if mid_turn else "idle")
+
+    state = turns.shown(section.state) if mid_turn and held_mid_turn else section.state
     return (
         section
         if state == section.state
@@ -49,8 +58,8 @@ def _working(section: render.Section) -> render.Section:
     )
 
 
-def _mid_turn(shown: render.View, now: float) -> render.View:
-    """*shown* with each section whose lemon is mid-turn in the state it shows meanwhile."""
+def _turns(shown: render.View, now: float, held_mid_turn: bool) -> render.View:
+    """*shown* with each section in the state its lemon shows."""
     with db.connect() as conn:
         rows = db.get_active(conn)
         working = turns.briefs(rows, attached.by_channel(conn, (n.channel for n in rows)), now)
@@ -58,7 +67,7 @@ def _mid_turn(shown: render.View, now: float) -> render.View:
     return dataclasses.replace(
         shown,
         sections=tuple(
-            _working(section) if section.path in working else section for section in shown.sections
+            _drawn(section, section.path in working, held_mid_turn) for section in shown.sections
         ),
     )
 
@@ -402,7 +411,7 @@ class BriefView(VerticalScroll):
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
-        shown = _mid_turn(shown, now) if self._mid_turn_working else shown
+        shown = _turns(shown, now, self._mid_turn_working)
         rendered = render.to_markdown(shown, now, expanded=True)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):

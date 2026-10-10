@@ -69,14 +69,21 @@ def _posted() -> str:
     return row.message if row else ""
 
 
-def test_a_dead_working_lemon_is_started_and_tell_succeeds(capsys, started):
-    _attach("claude:gone", "# t\n\nStatus: working\n\n## Now\n\n- fixing\n")
+def test_a_dead_lemon_is_started_and_tell_succeeds(capsys, started):
+    _attach("claude:gone", "# t\n\nStatus: blocked\n\n## Now\n\n- fixing\n")
 
     assert _tell("claude:gone") == 0
     assert started == ["start"]
     err = capsys.readouterr().err
-    assert "last status was working; lemonaid started a resume for you" in err
+    assert "last status was blocked; lemonaid started a resume for you" in err
     assert "started a resume for you" in _posted()
+
+
+def test_a_dead_lemon_without_a_status_says_so(capsys, started):
+    _attach("claude:gone", "# t\n\nStatus: working\n")
+
+    assert _tell("claude:gone") == 0
+    assert "was not running and its brief set no status" in capsys.readouterr().err
 
 
 def test_a_deaf_lemon_is_prompted(capsys, started, monkeypatch):

@@ -1,4 +1,5 @@
-"""A lemon mid-turn shows as working, whatever its brief's Status says, until the turn ends.
+"""A lemon mid-turn shows as active: always without a Status, and with `mid_turn_working`
+whatever its brief's Status says, until the turn ends.
 
 It keeps the place in the list its brief's Status gives it.
 """
@@ -109,15 +110,14 @@ def test_an_unread_row_is_not_mid_turn():
 @pytest.mark.parametrize(
     ("status", "shown"),
     [
-        ("blocked", "working"),
-        ("alert", "working"),
-        ("merge", "working"),
-        ("waiting", "working"),
+        ("blocked", "active"),
+        ("alert", "active"),
+        ("merge", "active"),
         ("running", "running"),
-        ("", ""),
+        ("", "active"),
     ],
 )
-def test_a_mid_turn_lemon_shows_working_unless_running(status, shown):
+def test_a_mid_turn_lemon_shows_active_unless_running(status, shown):
     assert turns.shown(status) == shown
 
 
@@ -212,7 +212,7 @@ def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
     return asyncio.run(run())
 
 
-def test_a_mid_turn_blocked_lemon_shows_as_working_in_its_blocked_place():
+def test_a_mid_turn_blocked_lemon_shows_as_active_in_its_blocked_place():
     with db.connect() as conn:
         idle = _session(conn, "idle", "blocked", time.time() - 100)
         busy = _session(conn, "busy", "blocked", time.time() - 50)
@@ -221,26 +221,23 @@ def test_a_mid_turn_blocked_lemon_shows_as_working_in_its_blocked_place():
 
     cards = _cards()
 
-    assert cards[busy] == (0, "working", "")
+    assert cards[busy] == (0, "active", "")
     assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
     assert cards[newer][0] == 2
 
 
 def test_a_mid_turn_card_names_its_brief_status_beside_its_age():
     card = brief_cards.CardBrief("blocked", "", time.time() - 60, needs="an answer")
+    held = dataclasses.replace(card, mid_turn=True, held_mid_turn=True)
 
-    assert brief_cards.mid_turn(card).age(time.time(), 6).startswith("blocked · updated")
+    assert held.age(time.time(), 6).startswith("blocked · updated")
     assert card.age(time.time(), 6).startswith("updated")
-    assert (
-        brief_cards.mid_turn(dataclasses.replace(card, status="running"))
-        .age(time.time(), 6)
-        .startswith("updated")
-    )
+    assert dataclasses.replace(held, status="running").age(time.time(), 6).startswith("updated")
 
 
 def test_a_folded_status_folds_mid_turn_too():
     with db.connect() as conn:
-        idle = _session(conn, "idle", "working", time.time() - 100)
+        idle = _session(conn, "idle", "running", time.time() - 100)
         busy = _session(conn, "busy", "merge", time.time())
         db.record_turn(conn, busy, time.time())
     Path(os.environ["LEMONAID_CONFIG"]).write_text(
@@ -267,7 +264,19 @@ def test_by_default_a_mid_turn_lemon_keeps_its_brief_status():
 
     assert cards[busy] == (0, "blocked", "Needs Peter: an answer")
     assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
-    assert cards[newer][1] == "working"
+    assert cards[newer][1] == "idle"
+
+
+def test_a_brief_without_a_status_shows_active_mid_turn_without_the_setting():
+    with db.connect() as conn:
+        busy = _session(conn, "busy", "working", time.time())
+        resting = _session(conn, "resting", "waiting", time.time() - 50)
+        db.record_turn(conn, busy, time.time())
+
+    cards = _cards(mid_turn_working=False)
+
+    assert cards[busy][1] == "active"
+    assert cards[resting][1] == "idle"
 
 
 def test_the_brief_status_applies_again_once_the_turn_ends():
@@ -310,8 +319,8 @@ def test_the_brief_view_of_a_mid_turn_lemon_keeps_its_needs_and_questions():
     path = brief_store.briefs_dir() / "busy.md"
     path.write_text(_ASKING)
 
-    shown = brief_view._mid_turn(_view(path), time.time())
+    shown = brief_view._turns(_view(path), time.time(), True)
 
-    assert [(s.state, s.held) for s in shown.sections] == [("working", "blocked")]
+    assert [(s.state, s.held) for s in shown.sections] == [("active", "blocked")]
     assert "Pick a name" in render.to_markdown(shown, time.time(), expanded=True)
     assert brief_questions.choices(shown.sections) == brief_questions.choices(_view(path).sections)

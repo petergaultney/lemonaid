@@ -45,7 +45,7 @@ def _with_fields(lines: abc.Sequence[str], given: dict[str, str]) -> list[str]:
 
 
 def with_now(text: str, now: layout.Now) -> str:
-    """*text* with `## Now` rewritten from *now*, added after `Status:` if missing.
+    """*text* with `## Now` rewritten from *now*, added after the header if missing.
 
     `Parent:` and `Area:` are fields, one line each: a line *now* gives replaces
     the brief's line for that field, above Now or at its end, and a field *now*

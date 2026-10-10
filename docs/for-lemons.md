@@ -485,7 +485,7 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
-lemonaid brief status --self waiting            # Status: waiting  (working | running | waiting | blocked | merge | approve | review | alert | done)
+lemonaid brief status --self blocked            # Status: blocked  (running | blocked | merge | approve | review | alert | done | clear)
 lemonaid brief bullet add --self "Next" "open the PR"       # under ### Next; Done adds at the top
 lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
@@ -632,7 +632,7 @@ the replacement session.
 nested under it:
 
 - its Lemon-ID, display name, `Status:` and how long it has held it, and when its brief was last
-  edited. The time in a Status counts from when lemonaid first saw it, as on a `waiting` card
+  edited. The time in a Status counts from when lemonaid first saw it, as on an `idle` card
 - its place's key and directory, and whether the directory still exists. Under a root with no
   `list` hook, lemonaid can't enumerate places, so it reports the shallowest directory below the
   root that the child's session or lemon sits in, marked `unlisted`
@@ -676,7 +676,7 @@ lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12
     --review-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
 ```
 
-The file has the title, its own `Lemon-ID:`, `Status: working`, and `Parent: <your Lemon-ID>
+The file has the title, its own `Lemon-ID:`, and `Parent: <your Lemon-ID>
 (<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief).
 `--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is
@@ -690,7 +690,7 @@ literal `$`). Lemonaid packages two:
 - `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Output` and `## Waiters`.
 - `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
   findings only in the `--review-doc` (linked into Obsidian when it is under a `[brief] vaults`
-  root), the rule to stay `waiting` until the PR merges or closes, a `lemonaid tell` to the parent
+  root), the rule to keep watching, with no status, until the PR merges or closes, a `lemonaid tell` to the parent
   and `--author` when it is someone else, and the `watch pr` and `watch doc` waiters signed with
   the child's WordyBin. Fill in `## Context` yourself.
 
@@ -709,8 +709,12 @@ the inbox hasn't placed in the window yet gets the brief once it is. A Codex on 
 app-server is never placed, so for one of those the command fails and asks for `--channel`. Every command
 takes `--json`.
 
-`brief status` takes only the state and writes one word after `Status:`. Put notes in `## Now`
-with `brief bullet`. Readers still recognize older `Status: done - PR #12` lines as `done`.
+`brief status` takes only the state and writes one word after `Status:`; `clear` removes the
+line. A brief sets a status only when its lemon's judgment is needed. Without one, the inbox
+shows the lemon's own state: `active`, `idle`, `deaf` or `dead`. `working` and `waiting` are
+read as no status, and `brief status` clears the line when given either. See
+`docs/brief-status.md`. Put notes in `## Now` with `brief bullet`. Readers still recognize older
+`Status: done - PR #12` lines as `done`.
 Use `review` when the next move is a teammate's approving review rather than your user's; say whose
 under `Needs`, which its card shows as it does for `blocked`.
 Use `approve` when you reviewed a teammate's PR, recommend approving it, and the only move left is
@@ -763,7 +767,7 @@ listed changes nothing.
 `brief check` (`--self`, another target, a file, or `--all` for every brief attached to a session
 that isn't archived or waiting for one) reports what is wrong with a brief:
 - more or fewer than one `# ` title, or a `## ` section that appears twice;
-- a missing, repeated, or unknown `Status:` word;
+- a repeated or unknown `Status:` word (a missing one is fine);
 - a malformed `Lemon-ID` line, or one that differs from the ID the database records for the file;
 - `## Now` sub-headings out of order, repeated, empty, or without a blank line above and below;
 - a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
@@ -847,11 +851,9 @@ subdirectory finds the place's `.z/`, but a `.z/` above the place, or in a lemon
 outside it, belongs to other work, so a place without a `.z/` of its own has no brief.
 
 **Keep `Status:` and `## Now` current if you work from a brief.** They are what a person reads without
-switching to your session:
+switching to your session. Leave `Status:` out unless one of the words in `brief status` applies:
 
 ```markdown
-Status: working
-
 ## Now
 - Done: <what is finished, with PR numbers>
 - Next: <what you are doing now>

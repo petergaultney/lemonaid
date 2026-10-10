@@ -205,7 +205,7 @@ def test_upsert_does_not_match_command_prefixes_or_code_examples():
 
 
 def test_existing_brief_problems_do_not_block_a_watch(brief, tmp_path):
-    store.edit(brief, lambda s: s.replace("Status: working", "Status: nonsense"))
+    store.edit(brief, lambda s: store.with_status(s, "nonsense"))
     assert brief_record.record(args("doc", tmp_path), "doc") == ""
     assert "Status: nonsense" in brief.read_text()
     assert len(waiters.commands(brief.read_text())) == 1

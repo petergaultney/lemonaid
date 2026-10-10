@@ -12,7 +12,7 @@ from textual.widgets import DataTable
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import load_config
-from lemonaid.inbox import db, pins, view
+from lemonaid.inbox import db, pins, presence, view
 from lemonaid.inbox.arrange.cli import _snapshot
 from lemonaid.inbox.tui import app as app_mod
 from lemonaid.inbox.tui.app import LemonaidApp
@@ -83,7 +83,9 @@ def test_quiet_reviewers_hide_even_when_unread_and_a_renamed_reviewer_stays_iden
         db.update_name(
             conn, db.get_by_channel(conn, reviewer, unread_only=False).id, "ordinary name"
         )
-        active = view.ordered_active(conn, "tmux", BriefCache(), False, time.time())
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
 
     assert active.reviewers == {reviewer}
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [ordinary]
@@ -96,7 +98,9 @@ def test_every_special_brief_status_keeps_a_reviewer_visible(status):
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
         _brief(conn, reviewer, status, reviewer=True)
-        active = view.ordered_active(conn, "tmux", BriefCache(), False, time.time())
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
 
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
@@ -106,7 +110,9 @@ def test_pin_keeps_a_quiet_reviewer_visible():
         reviewer = _session(conn, "reviewer")
         _brief(conn, reviewer, "waiting", reviewer=True)
         pins.pin(conn, reviewer)
-        active = view.ordered_active(conn, "tmux", BriefCache(), False, time.time())
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
 
     assert [row.channel for row in view.inbox_rows(active, {reviewer}, set())] == [reviewer]
 
