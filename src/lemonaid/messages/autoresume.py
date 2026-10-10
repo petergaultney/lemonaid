@@ -103,6 +103,18 @@ def off(lemon_id: str, parent: str, state: recipient.State) -> str:
     )
 
 
+def crash_looping(found: Recipient) -> str:
+    """Tell the sender, and the user, that *found* won't be started again for now."""
+    line = (
+        f"queued, but {found.lemon_id} is crash-looping and not responding: lemonaid has "
+        "started it too often recently and won't start it again yet. Don't send it again; "
+        "tell your user, your parent if you have one, or both."
+    )
+    with db.connect() as conn:
+        post(conn, f"ALERT: {found.lemon_id} is crash-looping; autoresume stopped starting it.")
+    return line
+
+
 def post(conn: sqlite3.Connection, line: str) -> None:
     """One line in the user's inbox, under the channel autoresume reports on."""
     db.add(conn, CHANNEL, line, name="autoresume")
@@ -129,11 +141,21 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
             "will read it after it is answered. Don't send it again; tell your user."
         ), False
 
-    if resume_log.starting(found.inbox, time.time()):
+    now, log = time.time(), resume_log.entries(found.inbox)
+    if resume_log.starting(log, now):
         return (
             f"{found.lemon_id} is already being started, and reads the message once it is up.",
             True,
         )
+
+    if state.state == recipient.DEAD and resume_log.died_quickly(log, now):
+        resume_log.record(found.inbox, resume_log.FAILED)
+        log = resume_log.entries(found.inbox)
+    if (
+        resume_log.within(log, now, config.messages.autoresume_window)
+        >= config.messages.autoresume_max
+    ):
+        return crash_looping(found), False
 
     why = (
         autoresume_tmux.start(found.row, config)
