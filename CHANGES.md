@@ -1,3 +1,9 @@
+# 0.100.2 (2026-10-10)
+
+#### Fixed
+
+- **The Stop hook counts any running `watch briefs --children` waiter,** including `--orphans` and `--to` ones, so a parent running the `--orphans` form is no longer blocked at every turn end. The hook doesn't check which statuses the waiter wakes on.
+
 # 0.100.1 (2026-10-10)
 
 #### Changed

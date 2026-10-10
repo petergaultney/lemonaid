@@ -1,16 +1,14 @@
 """Whether a parent is watching its children, and the words that tell it to.
 
-The check only knows the default waiter (`--to` unset, no `--me`); a parent that arms
-another one is reminded until it arms the default too.
+Any running children waiter for the parent counts, whatever its options.
 """
 
 import os
-import pathlib
 import sqlite3
 
 from ..brief import lemon
 from ..lineage import links
-from . import briefs_cli, briefs_events, waiter_lock
+from . import registry
 
 COMMAND = "lemonaid watch briefs --children --self --once"
 
@@ -40,12 +38,6 @@ def with_briefs(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     ]
 
 
-def is_armed(lemon_id: str, state_dir: pathlib.Path | None = None) -> bool:
-    stem = briefs_events.state_stem(
-        state_dir or briefs_events.default_state_dir(),
-        lemon_id,
-        "",
-        frozenset(briefs_cli.CHILD_TO),
-        False,
-    )
-    return waiter_lock.held(stem.with_suffix(".lock"))
+def is_armed(lemon_id: str) -> bool:
+    """Whether any `watch briefs --children` waiter (including `--orphans` or `--to`) runs for *lemon_id*."""
+    return bool(registry.running_for("briefs", lemon_id))

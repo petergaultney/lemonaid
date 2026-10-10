@@ -14,7 +14,7 @@ from lemonaid.claude import install_hooks, waiter_check
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import cli, store, waiter
-from lemonaid.watch import briefs_cli, briefs_events, children_waiter, waiter_lock
+from lemonaid.watch import children_waiter, registry
 
 _SESSION = "abcd1234-0000-0000-0000-000000000000"
 
@@ -240,18 +240,52 @@ def test_a_parent_whose_children_are_all_done_still_needs_the_waiter(capsys):
     assert children_waiter.COMMAND in blocked["reason"]
 
 
-def test_a_running_children_waiter_lets_the_parent_stop(capsys, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "command",
+    [
+        "lemonaid watch briefs --children --self --once",
+        "lemonaid watch briefs --children --orphans --self --once",
+        "lemonaid watch briefs --children --to blocked --self --once",
+    ],
+)
+def test_any_running_children_waiter_lets_the_parent_stop(capsys, tmp_path, monkeypatch, command):
     lemon_id = _parent_with_child("working")
-    monkeypatch.setattr(briefs_events, "default_state_dir", lambda: tmp_path)
-    stem = briefs_events.state_stem(tmp_path, lemon_id, "", frozenset(briefs_cli.CHILD_TO), False)
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
-        lock = waiter_lock.acquire(stem.with_suffix(".lock"))
-        assert lock is not None
-        try:
-            assert _stop(capsys) is None
-        finally:
-            lock.close()
+    with (
+        waiter.armed(store.inbox_for_id(lemon_id)),
+        registry.registered("briefs", [lemon_id], "claude:abcd1234", command),
+    ):
+        assert _stop(capsys) is None
+
+
+def test_a_children_waiter_started_by_another_lemon_for_this_parent_counts(
+    capsys, tmp_path, monkeypatch
+):
+    lemon_id = _parent_with_child("working")
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
+
+    with (
+        waiter.armed(store.inbox_for_id(lemon_id)),
+        registry.registered("briefs", [lemon_id], "claude:other", "cmd"),
+    ):
+        assert _stop(capsys) is None
+
+
+def test_a_waiter_for_a_different_parent_does_not_let_the_parent_stop(
+    capsys, tmp_path, monkeypatch
+):
+    lemon_id = _parent_with_child("working")
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
+
+    with (
+        waiter.armed(store.inbox_for_id(lemon_id)),
+        registry.registered("briefs", ["someone-else.AbcDef"], "claude:other", "cmd"),
+    ):
+        blocked = _stop(capsys)
+
+    assert blocked is not None
+    assert children_waiter.COMMAND in blocked["reason"]
 
 
 def test_a_done_parent_is_not_asked_to_watch_children(capsys):
