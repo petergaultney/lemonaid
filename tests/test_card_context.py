@@ -156,27 +156,27 @@ def test_the_age_field_shows_the_brief_age_in_place_of_the_time(tmp_path):
 
 def test_inline_age_keeps_the_held_status_color():
     where = card_context.Part("project", Text("pantry"))
-    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60, 6)
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60)
     (part,) = card_context.parts(("age",), _TIME, where, "main", "/pantry", False, age)
     console = Console(color_system="truecolor")
     status_style = part.text.get_style_at_offset(console, 0)
-    age_offset = part.text.plain.index("updated")
+    age_offset = part.text.plain.index("1m")
     age_style = part.text.get_style_at_offset(console, age_offset)
 
-    assert part.text.plain == "blocked · updated 1m ago"
+    assert part.text.plain == "blocked 1m ago"
     assert status_style.color.name == utils.ATTENTION_COLOR
     assert age_style.color.name == utils.FIELD_STYLES["time"]
 
 
 def test_inline_age_keeps_held_status_color_with_neutral_timing():
     where = card_context.Part("project", Text("pantry"))
-    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60, 6)
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60)
     (part,) = card_context.parts(
         ("age",), _TIME, where, "main", "/pantry", False, age, neutral_timing=True
     )
     console = Console(color_system="truecolor")
     status_style = part.text.get_style_at_offset(console, 0)
-    age_style = part.text.get_style_at_offset(console, part.text.plain.index("updated"))
+    age_style = part.text.get_style_at_offset(console, part.text.plain.index("1m"))
 
     assert status_style.color.name == utils.ATTENTION_COLOR
     assert age_style.color.name == "bright_black"

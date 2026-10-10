@@ -337,13 +337,13 @@ def test_idle_brief_lines_keep_the_current_session_edge_and_age():
         40,
         gutter_width=2,
         unread_style="bar",
-        card_brief=CardBrief("", "review", 3600),
+        card_brief=CardBrief("", "review", 0, since=3600),
         now=7200,
     )
     lines = body.plain.splitlines()
 
     assert all(line.startswith(HERE_BAR) for line in lines)
-    assert lines[2] == f"{HERE_BAR}updated 1h ago"
+    assert lines[2] == f"{HERE_BAR}idle 1h"
     assert lines[3] == f"{HERE_BAR}review"
     assert "●" in lines[0]
 
@@ -357,12 +357,12 @@ def test_mid_turn_age_line_keeps_the_held_status_color():
         now=60,
     )
     status_offset = body.plain.index("blocked")
-    age_offset = body.plain.index("updated")
+    age_offset = body.plain.index("1m")
     console = Console(color_system="truecolor")
     status_style = body.get_style_at_offset(console, status_offset)
     age_style = body.get_style_at_offset(console, age_offset)
 
-    assert body.plain.splitlines()[2].strip() == "blocked · updated 1m ago"
+    assert body.plain.splitlines()[2].strip() == "blocked 1m ago"
     assert status_style.color.name == ATTENTION_COLOR
     assert age_style.dim
 
@@ -378,7 +378,7 @@ def test_project_colors_make_a_separate_brief_age_line_neutral():
     )
     console = Console(color_system="truecolor")
     status_style = body.get_style_at_offset(console, body.plain.index("blocked"))
-    age_style = body.get_style_at_offset(console, body.plain.index("updated"))
+    age_style = body.get_style_at_offset(console, body.plain.index("1m"))
 
     assert status_style.color.name == ATTENTION_COLOR
     assert age_style.color.name == "bright_black"
@@ -398,7 +398,7 @@ def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour()
     style = body.get_style_at_offset(Console(color_system="truecolor"), need)
 
     assert lines[2].strip() == "Needs Peter: approve the release"
-    assert lines[3].strip() == "updated 1m ago" and lines[4].strip() == "CI"
+    assert lines[3].strip() == "idle 1m" and lines[4].strip() == "CI"
     assert style.color.name == ATTENTION_COLOR and not style.dim
 
 
@@ -705,12 +705,12 @@ def test_an_inline_age_leaves_the_card_without_an_age_line():
         _brief_cells(),
         40,
         gutter_width=2,
-        card_brief=CardBrief("", "review", 3600),
+        card_brief=CardBrief("", "review", 0, since=3600),
         now=7200,
         age_inline=True,
     )
 
-    assert "updated" not in body.plain
+    assert "idle" not in body.plain
     assert body.plain.splitlines()[2].strip() == "review"
 
 

@@ -63,7 +63,7 @@ def _waited(seconds: float) -> str:
     if days:
         return f"{days} day" if days == 1 else f"{days} days"
 
-    return brief_status.age(seconds).removesuffix(" ago").replace("just now", "<1m")
+    return brief_status.age(max(0, seconds)).removesuffix(" ago")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -84,7 +84,7 @@ class CardBrief:
     mid_turn: bool = False
     held_mid_turn: bool = False  # `mid_turn_working`: a set status is drawn `active` mid-turn
     mark: str = ""  # `deaf` or `dead`, from `presence`
-    since: float = 0.0  # when the brief entered its placed status; 0 when unrecorded
+    since: float = 0.0  # when it entered its status, or without one, its lemon's last report
 
     @property
     def placed(self) -> str:
@@ -136,34 +136,32 @@ class CardBrief:
             + bool(self.running_line)
         )
 
-    def age(self, now: float, stale_hours: float) -> str:
-        """How long an idle lemon has been idle, else the brief's age.
+    def _word(self) -> str:
+        """The status the age line names: the brief's own when it sets one, else the lemon's."""
+        return self.status or ("idle" if self.mark else self.shown)
 
-        A held status, and a `deaf` or `dead` mark, come first.
-        """
-        stale = (
-            " (stale)"
-            if self.shown in {"active", "running", "idle"}
-            and now - self.mtime >= stale_hours * 3600
-            else ""
-        )
-        if self.shown == "idle" and self.since:
-            return f"idle {_waited(now - self.since)}{stale}"
+    def _when(self, now: float) -> str:
+        if not self.status:
+            # mid-turn is happening now; otherwise, how long it has been idle
+            return "just now" if self.shown == "active" else _waited(now - self.since)
 
-        return f"{self._prefix()}updated {brief_status.age(max(0, now - self.mtime))}{stale}"
+        return brief_status.age(max(0.0, now - (self.since or self.mtime)))
 
-    def _prefixed(self) -> list[str]:
-        return [word for word in (self.status if self.held else "", self.mark) if word]
+    def _words(self) -> list[str]:
+        """The status words the age line opens with: a `deaf` or `dead` mark, then the status."""
+        return [word for word in (self.mark, self._word()) if word]
 
-    def _prefix(self) -> str:
-        return "".join(f"{word} · " for word in self._prefixed())
+    def age(self, now: float) -> str:
+        """The status and how long it has held it: `idle 1h`, `done 1m ago`, `dead · idle 3h`."""
+        return f"{' · '.join(self._words())} {self._when(now)}"
 
-    def age_text(self, now: float, stale_hours: float, *, style: str = "") -> Text:
-        """The age label, with each word before it in its own status colour."""
-        text = Text(self.age(now, stale_hours), style=style)
+    def age_text(self, now: float, *, style: str = "") -> Text:
+        """The age label, with each status word in its own colour."""
+        text = Text(self.age(now), style=style)
         start = 0
-        for word in self._prefixed():
-            text.stylize(status_text_style(word, "dim"), start, start + len(word))
+        for word in self._words():
+            if word == self.mark or word == self.status:
+                text.stylize(status_text_style(word, "dim"), start, start + len(word))
             start += len(word) + len(" · ")
         return text
 

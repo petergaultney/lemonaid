@@ -20,12 +20,11 @@ def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> No
     assert cache.get(tmp_path / "missing.md") is None
 
 
-def test_only_active_idle_and_running_get_stale_hint() -> None:
-    assert CardBrief("", "", 0, mid_turn=True).age(8 * 3600, 6) == "updated 8h ago (stale)"
-    assert CardBrief("", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
-    assert CardBrief("", "", 0).age(3600, 6) == "updated 1h ago"
-    assert CardBrief("done", "", 0).age(8 * 3600, 6) == "updated 8h ago"
-    assert CardBrief("blocked", "", 0).age(8 * 3600, 6) == "updated 8h ago"
+def test_the_age_names_the_status_and_how_long_it_has_held_it() -> None:
+    assert CardBrief("", "", 0, mid_turn=True, since=1).age(3600) == "active just now"
+    assert CardBrief("done", "", 0, since=3540).age(3600) == "done 1m ago"
+    assert CardBrief("blocked", "", 0, since=10).age(8 * 3600) == "blocked 7h ago"
+    assert CardBrief("blocked", "", 7200).age(3 * 3600) == "blocked 1h ago"  # unrecorded: its edit
 
 
 def test_cards_follow_the_popup_status_and_now(tmp_path: Path) -> None:
@@ -104,17 +103,18 @@ def test_running_shows_its_first_line_only_while_running(tmp_path: Path) -> None
     assert card.running_line == "UA run in work:3 (+1 more)"
     assert card.extra_lines(False) == 2
     assert CardBrief("", "", 0, running="UA run").running_line == ""
-    assert CardBrief("running", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
+    assert CardBrief("running", "", 0, since=10).age(8 * 3600) == "running 7h ago"
 
 
-def test_an_idle_card_shows_how_long_it_has_been_idle_instead_of_its_age() -> None:
+def test_an_idle_card_shows_how_long_it_has_been_idle() -> None:
     day = 86400
-    assert CardBrief("", "", 9 * day, since=day).age(10 * day, 999) == "idle 9 days"
-    assert CardBrief("", "", day, since=day).age(2 * day + 60, 999) == "idle 1 day"
-    assert CardBrief("", "", 0, since=1).age(3 * 3600, 6) == "idle 2h"
-    assert CardBrief("", "", 0, since=1).age(8 * 3600, 6) == "idle 7h (stale)"
-    assert CardBrief("", "", 0).age(3600, 6) == "updated 1h ago"
-    assert CardBrief("", "", 0, mid_turn=True, since=1).age(3600, 6) == "updated 1h ago"
+    assert CardBrief("", "", 9 * day, since=day).age(10 * day) == "idle 9 days"
+    assert CardBrief("", "", day, since=day).age(2 * day + 60) == "idle 1 day"
+    assert CardBrief("", "", 0, since=1).age(3 * 3600) == "idle 2h"
+    assert CardBrief("", "", 0, since=3590).age(3600) == "idle just now"
+    assert (
+        CardBrief("", "", 9 * day, since=day).age(2 * day) == "idle 1 day"
+    )  # its brief edit doesn't count
 
 
 def test_a_brief_without_a_status_shows_the_lemon_s_own_state() -> None:
@@ -128,7 +128,7 @@ def test_a_brief_without_a_status_shows_the_lemon_s_own_state() -> None:
 
 def test_a_dead_lemon_whose_turn_never_ended_shows_dead() -> None:
     card = CardBrief("", "", 0, mid_turn=True, mark="dead")
-    assert (card.placed, card.shown, card.age(0, 6)) == ("dead", "dead", "dead · updated just now")
+    assert (card.placed, card.shown, card.age(0)) == ("dead", "dead", "dead · idle just now")
 
 
 def test_a_set_status_shows_unless_held_mid_turn() -> None:
@@ -139,8 +139,8 @@ def test_a_set_status_shows_unless_held_mid_turn() -> None:
 
 
 def test_a_deaf_or_dead_mark_prefixes_the_age() -> None:
-    assert CardBrief("", "", 0, mark="deaf").age(3600, 6) == "deaf · updated 1h ago"
+    assert CardBrief("", "", 0, mark="deaf").age(3600) == "deaf · idle 1h"
     assert CardBrief("blocked", "", 0, mark="dead").shown == "blocked"
-    assert CardBrief("blocked", "", 0, mark="dead").age(3600, 6) == "dead · updated 1h ago"
+    assert CardBrief("blocked", "", 0, mark="dead").age(3600) == "dead · blocked 1h ago"
     held = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
-    assert held.age(3600, 6) == "blocked · updated 1h ago"
+    assert held.age(3600) == "blocked 1h ago"

@@ -108,9 +108,9 @@ def test_the_status_word_follows_the_theme():
 
 def test_a_held_status_age_uses_the_theme_appropriate_text_colour():
     brief = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
-    dark = brief.age_text(60, 6)
+    dark = brief.age_text(60)
     utils.use_light_theme(True)
-    light = brief.age_text(60, 6)
+    light = brief.age_text(60)
     console = Console(color_system="truecolor")
 
     assert dark.get_style_at_offset(console, 0).color.name == utils.ATTENTION_COLOR

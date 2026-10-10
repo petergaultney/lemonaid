@@ -230,9 +230,9 @@ def test_a_mid_turn_card_names_its_brief_status_beside_its_age():
     card = brief_cards.CardBrief("blocked", "", time.time() - 60, needs="an answer")
     held = dataclasses.replace(card, mid_turn=True, held_mid_turn=True)
 
-    assert held.age(time.time(), 6).startswith("blocked · updated")
-    assert card.age(time.time(), 6).startswith("updated")
-    assert dataclasses.replace(held, status="running").age(time.time(), 6).startswith("updated")
+    assert held.age(time.time()) == "blocked 1m ago"
+    assert card.age(time.time()) == "blocked 1m ago"
+    assert dataclasses.replace(held, status="running").age(time.time()) == "running 1m ago"
 
 
 def test_a_folded_status_folds_mid_turn_too():

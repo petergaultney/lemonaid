@@ -64,14 +64,13 @@ def _cards(
     since = status_since.observe(
         conn, {found[channel][0]: (card.status, card.mtime) for channel, card in cards.items()}
     )
-    # Without a status, an idle lemon's time counts from its last report, which ends a turn.
+    # Without a status, an idle lemon's time counts from its last report, which ends a turn;
+    # an edit to its brief by anyone else says nothing about it.
     reported = {n.channel: n.created_at for n in rows}
     return {
         channel: dataclasses.replace(
             card,
-            since=since[found[channel][0]]
-            if card.status
-            else max(card.mtime, reported.get(channel, 0.0)),
+            since=since[found[channel][0]] if card.status else reported.get(channel, card.mtime),
         )
         for channel, card in cards.items()
     }
