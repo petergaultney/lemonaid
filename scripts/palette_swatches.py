@@ -17,7 +17,7 @@ MEANING = {
     "done": "#285995",
     "link": "#6cb6ff",
     "anthropic": "#d88760",
-    "row cursor": "#17365d",
+    "row cursor": "#1f4a85",
 }
 
 

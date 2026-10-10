@@ -135,6 +135,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
 | `group_colors` | `{}` | A table of group name to `#rrggbb`, used instead of the group's automatic colour. See [Group colors](#group-colors). |
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
+| `inactive_row_color` | *(unset)* | The selected inbox row background while the scratch pane is not receiving keys. By default, the selected row's colour blended 70% toward the background. Has no effect outside scratch mode, where the pane cannot be asked. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 | `notes` | *(unset)* | A Markdown file to show under the sessions when they are cards (see below). |

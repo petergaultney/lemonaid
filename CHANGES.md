@@ -1,3 +1,13 @@
+# 0.98.1 (2026-10-10)
+
+#### Added
+
+- **The selected inbox row dims while the scratch pane isn't receiving keys.** It uses the row's colour blended toward the background; `inactive_row_color` overrides it. Outside scratch mode the row keeps its normal colour.
+
+#### Changed
+
+- The default selected-row colour in dark themes is a little brighter (`#1f4a85`, was `#17365d`).
+
 # 0.98.0 (2026-10-10)
 
 #### Changed
