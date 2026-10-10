@@ -42,20 +42,29 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "Pinning, groups and folding",
+        "Pinning",
         [
             ("pin", "Pin the selected session, or unpin it"),
             ("move_pin_up", "Move a pinned session, or the group under the cursor, up"),
             ("move_pin_down", "Move a pinned session, or the group under the cursor, down"),
+        ],
+    ),
+    (
+        "Groups",
+        [
             ("select", "On a group's header: collapse it, or open it"),
             ("group_key", "Collapse or open the group the cursor is in"),
-            ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
+            ("group_tree", "Make a group of the session, its children and theirs"),
+            ("group_add", "Put the session in a group, picked or new"),
+            ("group_remove", "Take the session out of its group; on a header, delete it"),
+            ("rename", "On a group's header: rename the group"),
         ],
     ),
     (
         "Views and the pane",
         [
             ("search", "Search inbox sessions"),
+            ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),
             ("notes", "Show or hide your notes (tui.notes)"),

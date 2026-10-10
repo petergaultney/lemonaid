@@ -177,16 +177,23 @@ class RenameScreen(ModalScreen[str | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, current_name: str = "") -> None:
+    def __init__(
+        self,
+        current_name: str = "",
+        title: str = "Rename Session",
+        placeholder: str = "Enter name (empty to use auto-name)",
+    ) -> None:
         super().__init__()
         self.current_name = current_name
+        self._title = title
+        self._placeholder = placeholder
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("Rename Session")
+            yield Label(self._title)
             yield Input(
                 value=self.current_name,
-                placeholder="Enter name (empty to use auto-name)",
+                placeholder=self._placeholder,
                 id="rename-input",
             )
             yield Label("Press Enter to save, Escape to cancel", classes="hint")

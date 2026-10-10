@@ -1,3 +1,14 @@
+# 0.99.0 (2026-10-09)
+
+#### Added
+
+- **`lma` edits groups: `G` names a new group of the selected lemon, its children and theirs, and `+` puts a lemon in a group, picked from a list or named new.** `-` takes a lemon out of the group it's drawn under, or on a header deletes the group, and `r` on a header renames it. `z` undoes each, and each rewrites its briefs' `Groups:` lines. The keys are `group_tree`, `group_add` and `group_remove`.
+
+#### Fixed
+
+- **The inbox cursor stays on a lemon whose row moves into or out of a group,** rather than falling back to the row's old position.
+- **A key binding given as a symbol, such as `+` or `?`, now works.** It used to be bound under the character, which Textual never sends.
+
 # 0.98.1 (2026-10-10)
 
 #### Added

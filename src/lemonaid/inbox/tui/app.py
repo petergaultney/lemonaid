@@ -80,6 +80,7 @@ from . import (
     context_reading,
     focus,
     group_headers,
+    group_picker,
     pr_numbers,
     project_names,
     utils,
@@ -278,15 +279,17 @@ def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> li
     if not keys:
         return []
 
-    bindings = []
-    # First key gets the visible binding
-    bindings.append(Binding(keys[0], action, label, show=show))
-
-    # Additional keys get hidden bindings
-    for key in keys[1:]:
-        bindings.append(Binding(key, action, label, show=False))
-
-    return bindings
+    # make_bindings turns a character into Textual's key name, `+` into `plus`,
+    # but takes a comma for a separator.
+    names = ["comma" if key == "," else key for key in keys]
+    return list(
+        Binding.make_bindings(
+            [
+                Binding(names[0], action, label, show=show),  # only the first is shown
+                *(Binding(key, action, label, show=False) for key in names[1:]),
+            ]
+        )
+    )
 
 
 def _overlay(target: Text, piece: Text, offset: int) -> None:
@@ -1033,6 +1036,14 @@ class LemonaidApp(App):
 
         for b in _build_bindings(kb.pin, "pin", "Pin"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for field, action in (
+            ("group_tree", "group_tree"),
+            ("group_add", "group_add"),
+            ("group_remove", "group_remove"),
+        ):
+            for b in _build_bindings(getattr(kb, field), action, "Group", show=False):
+                self.bind(b.key, b.action, description=b.description, show=b.show)
 
         if self.config.tui.fold_statuses or self.config.inbox.arrange:
             for b in _build_bindings(kb.fold, "toggle_fold", "Folded"):
@@ -2103,6 +2114,16 @@ class LemonaidApp(App):
                     if key and target_index is None:
                         with contextlib.suppress(Exception):
                             target_index = main_table.get_row_index(key)
+                if target_index is None and current_key:
+                    # Into or out of a group, or between groups, its key changed.
+                    target_index = next(
+                        (
+                            i
+                            for i, key in enumerate(main_table.rows)
+                            if str(sections.notification_id(str(key.value))) == current_key
+                        ),
+                        None,
+                    )
                 # Fall back to same position (clamped to valid range)
                 if target_index is None:
                     target_index = min(current_index, main_table.row_count - 1)
@@ -3521,6 +3542,142 @@ class LemonaidApp(App):
         else:
             self._move_pin(1)
 
+    def _selected_lemon(self) -> "tuple[db.Notification, str] | None":
+        """The row under the cursor in the main list and its Lemon-ID, when it has a brief."""
+        channel = self._selected_channel()
+        if not channel or self._brief_target is not None:
+            return None
+
+        with db.connect() as conn:
+            notification = db.get(conn, int(self._get_current_row_key() or 0))
+            try:
+                lemon_id = brief.lemon.lemon_id(conn, channel)
+            except (LookupError, ValueError, brief.store.ChangedUnderneath):
+                self.notify("This session has no brief, so it can't be in a group")
+                return None
+
+        return (notification, lemon_id) if notification else None
+
+    def _group_edited(self, edit: "groups.editing.Edit", select: abc.Sequence[str] = ()) -> None:
+        """Make *edit* undoable, redraw, and put the cursor on the first of *select* drawn.
+
+        A lemon key in *select* stays drawn even in a collapsed group, as one
+        collapsed from does, until the cursor leaves it. Otherwise the redraw
+        follows the lemon under the cursor wherever it went.
+        """
+        self._undo_stack.push(undo.Entry("group", edit.description, (), edit.change))
+        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
+        self._kept = frozenset({raw, *(key for key in select if "@" in key)})
+        self._refresh_notifications()
+        table = self.query_one("#main_table", DataTable)
+        drawn = [key for key in select if key in table.rows]
+        if drawn:
+            self._select_key(drawn[0])
+        self.notify(f"{edit.description} — press {self._undo_key()} to undo")
+        for path in edit.unwritten:
+            self.notify(f"Couldn't update the Groups: line in {path}", severity="warning")
+
+    def _rename_group(self, group: "groups.store.Group", title: str) -> None:
+        def renamed(name: str | None) -> None:
+            if name is None or name.strip() == group.name:
+                return
+
+            try:
+                with db.connect() as conn:
+                    edit = groups.editing.rename(conn, group, name)
+            except groups.store.GroupError as error:
+                self.notify(str(error), severity="warning")
+                return
+
+            self._group_edited(edit, [f"group:{group.group_id}"])
+
+        self.push_screen(RenameScreen(group.name, title=title, placeholder="Group name"), renamed)
+
+    def action_group_tree(self) -> None:
+        """Ask for a name, then make a group of the selected lemon, its children and theirs."""
+        found = self._selected_lemon()
+        if found is None:
+            return
+
+        notification, lemon_id = found
+        lemon_name = notification.name or brief.identity.brief_description(lemon_id)
+
+        def named(name: str | None) -> None:
+            if not name or not name.strip():
+                return
+
+            try:
+                with db.connect() as conn:
+                    edit = groups.editing.group_tree(conn, lemon_id, name, lemon_name)
+            except groups.store.GroupError as error:
+                self.notify(str(error), severity="warning")
+                return
+
+            assert edit.group
+            self._group_edited(edit, [f"{notification.id}@{edit.group.group_id}"])
+
+        with db.connect() as conn:
+            suggested = groups.editing.free_name(conn, lemon_name)
+        self.push_screen(
+            RenameScreen(suggested, title="Name the new group", placeholder="Group name"), named
+        )
+
+    def action_group_add(self) -> None:
+        """Put the selected lemon in a group picked from a list, or a new one."""
+        found = self._selected_lemon()
+        if found is None:
+            return
+
+        notification, lemon_id = found
+        name = notification.name or notification.channel
+        with db.connect() as conn:
+            names = [g.name for g in groups.store.all_groups(conn) if lemon_id not in g.members]
+
+        def picked(group_name: str | None) -> None:
+            if not group_name:
+                return
+
+            try:
+                with db.connect() as conn:
+                    edit = groups.editing.add(conn, group_name, lemon_id, name)
+            except groups.store.GroupError as error:
+                self.notify(str(error), severity="warning")
+                return
+
+            assert edit.group
+            self._group_edited(
+                edit,
+                [f"{notification.id}@{edit.group.group_id}", f"group:{edit.group.group_id}"],
+            )
+
+        self.push_screen(group_picker.GroupPickerScreen(f"Add {name} to a group", names), picked)
+
+    def action_group_remove(self) -> None:
+        """Take the lemon out of the group it's drawn in; on a header, delete the group."""
+        if group := self._selected_group():
+            with db.connect() as conn:
+                edit = groups.editing.delete(conn, group)
+            self._group_edited(edit)
+            return
+
+        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
+        group_id = sections.row_group_id(raw)
+        found = self._selected_lemon() if group_id is not None else None
+        if found is None:
+            return
+
+        notification, lemon_id = found
+        with db.connect() as conn:
+            group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+            if group is None:
+                return
+
+            edit = groups.editing.remove(
+                conn, group, lemon_id, notification.name or notification.channel
+            )
+
+        self._group_edited(edit)
+
     def _select_channel(self, channel: str) -> None:
         """Put the cursor back on a channel after the list around it moved."""
         table = self.query_one(self._active_table_id(), DataTable)
@@ -3575,13 +3732,27 @@ class LemonaidApp(App):
 
     def action_undo(self) -> None:
         """Reverse the most recent undoable inbox change."""
-        entry = self._undo_stack.pop()
+        entry = self._undo_stack.peek()
         if entry is None:
             self.notify("Nothing to undo", severity="information")
             return
 
-        with db.connect() as conn:
-            restored = undo.restore(conn, entry)
+        try:
+            with db.connect() as conn:
+                unwritten = (
+                    groups.editing.undo(conn, entry.group_change) if entry.group_change else []
+                )
+                restored = undo.restore(conn, entry)
+        except groups.store.GroupError as error:
+            # A name taken since can be freed again; a group changed since stays changed.
+            if isinstance(error, groups.snapshot.Changed):
+                self._undo_stack.pop()
+            self.notify(f"Can't undo {entry.description}: {error}", severity="warning")
+            return
+
+        self._undo_stack.pop()
+        for path in unwritten:
+            self.notify(f"Couldn't update the Groups: line in {path}", severity="warning")
 
         _log.info("undo: %s (%d rows)", entry.action, restored)
         self._retarget_brief()
@@ -3595,7 +3766,11 @@ class LemonaidApp(App):
         self.notify(f"Undid: {entry.description}")
 
     def action_rename(self) -> None:
-        """Rename the selected session."""
+        """Rename the selected session, or the group whose header is under the cursor."""
+        if self._brief_target is None and (group := self._selected_group()):
+            self._rename_group(group, "Rename Group")
+            return
+
         row_key = self._get_current_row_key()
         if not row_key:
             return

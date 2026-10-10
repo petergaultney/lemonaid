@@ -61,7 +61,22 @@ Two machines both working on one brief at once would each rewrite its line from 
 
 Collapse and order are stored in this machine's database and survive restarts.
 
-## Editing in the inbox (coming next)
+## Editing in the inbox
 
-- **One key makes a group** of the selected lemon, its children and their children, named after the lemon's session, and lets you rename it there.
-- **Keys to add or remove** the selected lemon, and to rename or delete the group under the cursor.
+| Key | On a lemon | On a group's header |
+|-----|------------|---------------------|
+| `G` | Name a new group of the lemon, its children and their children | - |
+| `+` | Put the lemon in a group: pick one, or type a new name | - |
+| `-` | Take the lemon out of the group it's drawn under | Delete the group |
+| `r` | Rename the session | Rename the group |
+| `z` | Undo the last change, a group edit included | |
+
+- **`G` asks for the group's name first,** offering the lemon's session name (`fix-auth`, or `fix-auth 2` when that's taken, with commas made spaces). Enter makes the group; Escape makes none. The group is new each time: to add a lemon's tree to an existing group, use `lemonaid group add <name> <lemon> --tree`.
+- **`+` lists the groups the lemon isn't in.** Typing narrows the list, and a name no group has adds `New group: <name>` at the bottom. Enter takes the highlighted line. Naming a group the lemon is already in says so and changes nothing.
+- **The cursor stays on the lemon** wherever an edit moves it: into a group, out of one, or into a collapsed group, where it stays drawn until the cursor leaves it.
+- **`-` acts at once, without asking,** and says what it did. A lemon in two groups is drawn under each, so the row you're on says which group it leaves. Deleting a group leaves its lemons as they were.
+- **`z` undoes each of these,** a deleted group coming back with its name, place, collapse and members. It refuses, changing nothing, once the group has changed since, by another inbox edit or `lemonaid group`, and drops that edit from the undo list. When the group's old name has been taken, it keeps the edit, so `z` works again once the name is free.
+- **Each edit rewrites the `Groups:` line** of the briefs it touches, as the CLI does. A brief it couldn't write is named in a warning.
+- **A lemon needs a brief to be in a group,** since membership is kept by Lemon-ID; the keys say so on a session without one. They do nothing in the brief view, history or the snoozed list.
+
+The keys are `group_tree`, `group_add` and `group_remove` in `[tui.keybindings]` (see [keybindings.md](keybindings.md)).

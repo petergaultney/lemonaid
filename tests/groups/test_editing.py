@@ -1,0 +1,135 @@
+import pytest
+
+from lemonaid import brief, groups, lineage
+from lemonaid.inbox import db
+from tests.lineage.shared import lemon
+
+
+def _line(lemon_id: str) -> tuple[str, ...] | None:
+    with db.connect() as conn:
+        path = brief.lemon.brief_of(conn, lemon_id)
+    assert path
+    return groups.line.read(path.read_text())
+
+
+def test_a_free_name_cleans_the_wanted_one_and_numbers_a_taken_one():
+    with db.connect() as conn:
+        assert groups.editing.free_name(conn, "fix, the\tbug") == "fix the bug"
+        groups.store.create(conn, "fix the bug")
+        assert groups.editing.free_name(conn, "fix the bug") == "fix the bug 2"
+        assert groups.editing.free_name(conn, " ,\n") == "Group"
+
+
+def test_a_tree_group_holds_the_lemon_and_every_descendant_and_undoes_to_nothing():
+    lead, child, grandchild, other = lemon("lead"), lemon("child"), lemon("grand"), lemon("x")
+    with db.connect() as conn:
+        lineage.links.set_parent(conn, child, lead)
+        lineage.links.set_parent(conn, grandchild, child)
+
+        edit = groups.editing.group_tree(conn, lead, "lead", "lead")
+
+    assert edit.group and edit.group.name == "lead"
+    assert edit.group.members == (lead, child, grandchild)
+    assert edit.description == 'Made group "lead" of lead and 2 more'
+    assert _line(grandchild) == ("lead",)
+    assert _line(other) is None
+
+    with db.connect() as conn:
+        groups.editing.undo(conn, edit.change)
+        assert groups.store.all_groups(conn) == []
+    assert _line(lead) is None
+
+
+def test_adding_to_a_new_name_makes_the_group_and_undo_removes_it():
+    one = lemon("one")
+    with db.connect() as conn:
+        edit = groups.editing.add(conn, "Fresh", one, "one")
+
+        assert edit.description == 'Added one to "Fresh" (new)'
+        assert groups.store.find(conn, "Fresh").members == (one,)
+        groups.editing.undo(conn, edit.change)
+        assert groups.store.all_groups(conn) == []
+    assert _line(one) is None
+
+
+def test_removing_and_undoing_puts_the_lemon_back_in_its_place():
+    one, two = lemon("one"), lemon("two")
+    with db.connect() as conn:
+        group = groups.store.create(conn, "Work")
+        groups.store.add(conn, group, [one, two])
+
+        edit = groups.editing.remove(conn, group, one, "one")
+        assert groups.store.find(conn, "Work").members == (two,)
+        assert _line(one) is None
+        groups.editing.undo(conn, edit.change)
+        assert groups.store.find(conn, "Work").members == (one, two)
+    assert _line(one) == ("Work",)
+
+
+def test_a_deleted_group_comes_back_with_its_place_collapse_and_members():
+    one = lemon("one")
+    with db.connect() as conn:
+        groups.store.create(conn, "First")
+        work = groups.store.create(conn, "Work")
+        groups.store.add(conn, work, [one])
+        groups.arrangement.set_collapsed(conn, work, True)
+        work = groups.store.find(conn, "Work")
+
+        edit = groups.editing.delete(conn, work)
+        assert _line(one) is None
+        groups.editing.undo(conn, edit.change)
+
+        assert groups.store.find(conn, "Work") == work
+    assert _line(one) == ("Work",)
+
+
+def test_rename_rewrites_lines_and_refuses_a_taken_name():
+    one = lemon("one")
+    with db.connect() as conn:
+        work = groups.store.create(conn, "Work")
+        groups.store.add(conn, work, [one])
+        groups.store.create(conn, "Taken")
+
+        with pytest.raises(groups.store.GroupError):
+            groups.editing.rename(conn, work, "Taken")
+        edit = groups.editing.rename(conn, groups.store.find(conn, "Work"), "Job")
+        assert _line(one) == ("Job",)
+
+        groups.editing.undo(conn, edit.change)
+    assert _line(one) == ("Work",)
+
+
+def test_undo_changes_nothing_once_the_group_has_changed_since():
+    one, two = lemon("one"), lemon("two")
+    with db.connect() as conn:
+        work = groups.store.create(conn, "Work")
+        edit = groups.editing.add(conn, "Work", one, "one")
+        groups.store.add(conn, work, [two])
+
+        with pytest.raises(groups.snapshot.Changed):
+            groups.editing.undo(conn, edit.change)
+
+        assert groups.store.find(conn, "Work").members == (one, two)
+
+
+def test_undo_changes_nothing_when_a_new_group_took_the_deleted_ones_place():
+    one = lemon("one")
+    with db.connect() as conn:
+        work = groups.store.create(conn, "Work")
+        groups.store.add(conn, work, [one])
+        edit = groups.editing.delete(conn, work)
+        groups.store.create(conn, "Work")
+
+        with pytest.raises(groups.store.GroupError):
+            groups.editing.undo(conn, edit.change)
+
+        assert [(g.name, g.members) for g in groups.store.all_groups(conn)] == [("Work", ())]
+
+
+def test_adding_a_member_again_is_refused():
+    one = lemon("one")
+    with db.connect() as conn:
+        groups.store.add(conn, groups.store.create(conn, "Work"), [one])
+
+        with pytest.raises(groups.store.GroupError, match="already in"):
+            groups.editing.add(conn, "Work", one, "one")
