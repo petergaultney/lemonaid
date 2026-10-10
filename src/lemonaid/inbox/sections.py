@@ -87,7 +87,8 @@ def layout(
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
     *memberships* names each channel's groups; *all_groups* is every group, in order.
-    A group with no rows here isn't drawn.
+    A group with no rows here isn't drawn, nor is one whose rows are all
+    folded while the fold is closed: its header would have nothing to open.
     *kept* holds row keys drawn even inside a collapsed group or folded.
     """
     every = [*shown, *folded]
@@ -125,8 +126,18 @@ def layout(
             ),
         ]
 
+    def shows_a_row(group: groups.store.Group) -> bool:
+        """Whether anything goes under its header: a group folded away shows nothing."""
+        return any(
+            fold_open
+            or n.id not in folded_ids
+            or n.channel in pinned
+            or f"{n.id}@{group.group_id}" in kept
+            for n in grouped[group.name]
+        )
+
     pending = sorted(
-        (group for group in all_groups if grouped[group.name]),
+        (group for group in all_groups if shows_a_row(group)),
         key=lambda g: _rank(_band(grouped[g.name], statuses)),
     )  # stable, so groups in one band keep their order
     entries: list[Header | Row] = [

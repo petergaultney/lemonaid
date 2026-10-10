@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from textual.widgets import DataTable, Static
 
+from lemonaid import brief, groups
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, order, pins
@@ -323,3 +324,30 @@ def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
 
     assert before == [working]
     assert after == [old, working]
+
+
+def test_a_group_with_every_row_folded_leaves_the_list_and_the_label_says_so(fold_waiting):
+    with db.connect() as conn:
+        working = _session(conn, "working", age=30)
+        loose = _session(conn, "loose", age=20)
+        grouped = _session(conn, "grouped", age=10)
+        _brief(conn, working, "running")
+        _brief(conn, loose, "waiting")
+        _brief(conn, grouped, "waiting")
+        groups.store.add(
+            conn,
+            groups.store.create(conn, "misc"),
+            [brief.lemon.lemon_id(conn, grouped)],
+        )
+
+    async def steps(app, pilot):
+        closed = app._row_channels(), _label(app)
+        await pilot.press("w")
+        await pilot.pause()
+        return closed, app._row_channels()
+
+    (drawn, label), opened = _run(steps)
+
+    assert drawn == [working]
+    assert label == "▸ idle (2) · 1 group hidden · w to show"
+    assert sorted(opened) == sorted(["", working, grouped, loose])

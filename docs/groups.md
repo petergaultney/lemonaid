@@ -57,7 +57,7 @@ Two machines both working on one brief at once would each rewrite its line from 
 - **In the sidebar, a group's cards sit one column in, behind a rail** (`▌`) in the group's colour that runs unbroken down every line. Where the rail stops, the group ends. Cards in no group keep the full width. The current lemon's bar runs down its card's right edge, a column every card keeps free for it, so it never meets a rail. It's near white on a dark theme and near black on a light one, which no group's colour is.
 - **A group with no rows isn't drawn,** whether it has no members or all its lemons have been archived. It comes back when one of its lemons has a row again. Other groups are never hidden to make room.
 - **Row keys skip headers.** Number keys count lemons only, the brief view's up and down step over headers, and actions on a header (mark read, archive, ...) do nothing.
-- **Folding:** a row that `[tui] fold_statuses` or an arranger's `folded` list folds is hidden in place inside its group, and the fold key shows it there again. The header's count then reads `(2/3)`: two rows not folded, three in all.
+- **Folding:** a row that `[tui] fold_statuses` or an arranger's `folded` list folds is hidden in place inside its group, and the fold key shows it there again. The header's count then reads `(2/3)`: two rows not folded, three in all. A group whose rows are all folded leaves the list, unless one is pinned, and comes back when the fold opens. The fold line counts folded rows in groups too, and says how many groups it hides: `▸ idle (5) · 2 groups hidden · w to show`.
 - **Search** shows matches as a flat list, without groups.
 
 Collapse and order are stored in this machine's database and survive restarts.
