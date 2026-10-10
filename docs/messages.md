@@ -81,8 +81,8 @@ and ends with an error if the brief moves to another channel or is detached.
 
 A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
 
-- **An exited harness** (`dead`) is resumed in a new window of its recorded tmux session, starting on a prompt to run `lemonaid inbox next --self` and rearm its waiters.
-- **An idle Claude with no waiter** (`deaf`) has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted.
+- **An exited harness** (`dead`) is resumed starting on a prompt to run `lemonaid inbox next --self` and rearm its waiters: in a new window of its recorded tmux session, or in cmux, a new workspace that doesn't take focus. In any other terminal the sender gets the command that resumes it.
+- **An idle Claude with no waiter** (`deaf`) in tmux has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted. lemonaid can't type into cmux, so an idle cmux lemon is only reported.
 - **A Claude stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
 - **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
 

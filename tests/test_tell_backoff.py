@@ -31,7 +31,7 @@ def _attach() -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("# t\n\nStatus: working\n")
     with db.connect() as conn:
-        db.add(conn, "claude:gone", "", metadata={"tty": "/dev/ttys900"})
+        db.add(conn, "claude:gone", "", metadata={"tty": "/dev/ttys900"}, switch_source="tmux")
         attached.attach(conn, "claude:gone", path)
         return identity.ensure(conn, path)
 

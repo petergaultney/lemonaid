@@ -12,7 +12,7 @@ from pathlib import Path
 from ..brief import status
 from ..config import Config
 from ..inbox import db
-from . import autoresume_tmux, recipient, resume_log
+from . import autoresume_cmux, autoresume_tmux, recipient, resume_log
 
 START = "start"  # its harness exited: resume it in a new window
 PROMPT = "prompt"  # its harness is idle with no waiter: type the wake prompt into it
@@ -120,6 +120,23 @@ def post(conn: sqlite3.Connection, line: str) -> None:
     db.add(conn, CHANNEL, line, name="autoresume")
 
 
+def _bring_back(row: db.Notification, action: str, config: Config) -> str:
+    """Start or prompt *row*'s lemon in the terminal it runs in. Returns why not, or ""."""
+    terminal = row.switch_source or ("tmux" if row.metadata.get("tmux_session") else "")
+    if terminal == "tmux":
+        return (autoresume_tmux.start if action == START else autoresume_tmux.prompt)(row, config)
+
+    if terminal == "cmux" and action == START:
+        return autoresume_cmux.start(row, config)
+
+    by_hand = autoresume_tmux.resume_line(row, config)
+    return (
+        f"lemonaid can't {'start' if action == START else 'prompt'} a lemon in "
+        f"{terminal or 'this terminal'}"
+        + (f"; it resumes with: {by_hand}" if action == START and by_hand else "")
+    )
+
+
 def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[str, bool]:
     """What to tell the sender about a recipient in *state*, and whether it will now read the message."""
     action = plan(
@@ -157,11 +174,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
     ):
         return crash_looping(found), False
 
-    why = (
-        autoresume_tmux.start(found.row, config)
-        if action == START
-        else autoresume_tmux.prompt(found.row, config)
-    )
+    why = _bring_back(found.row, action, config)
     line = failed(found, state, why) if why else started(found, action)
     if not why:
         resume_log.record(found.inbox)

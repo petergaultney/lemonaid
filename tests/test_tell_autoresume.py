@@ -9,7 +9,14 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, autoresume_tmux, cli, dead_letters, recipient
+from lemonaid.messages import (
+    autoresume,
+    autoresume_cmux,
+    autoresume_tmux,
+    cli,
+    dead_letters,
+    recipient,
+)
 from lemonaid.messages_config import MessagesConfig
 
 
@@ -33,7 +40,9 @@ def _attach(channel: str, brief: str, **metadata) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(brief)
     with db.connect() as conn:
-        db.add(conn, channel, "", metadata={"tty": "/dev/ttys900", **metadata})
+        db.add(
+            conn, channel, "", metadata={"tty": "/dev/ttys900", **metadata}, switch_source="tmux"
+        )
         attached.attach(conn, channel, path)
         identity.ensure(conn, path)
 
@@ -197,3 +206,20 @@ def test_an_unwritable_dead_letter_log_still_exits_1(started, monkeypatch):
     dead_letters.path().mkdir()  # a directory where the log file should be
 
     assert _tell("claude:finished") == 1
+
+
+def test_a_dead_cmux_lemon_is_started_through_cmux(capsys, monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(autoresume_cmux, "start", lambda row, config: calls.append("cmux") or "")
+    monkeypatch.setattr(
+        recipient.handlers, "where_sessions_are", lambda sessions, fresh: {"claude:incmux": False}
+    )
+    path = brief_store.briefs_dir() / "recipient.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# t\n\nStatus: working\n")
+    with db.connect() as conn:
+        db.add(conn, "claude:incmux", "", metadata={"cwd": "/tmp"}, switch_source="cmux")
+        attached.attach(conn, "claude:incmux", path)
+
+    assert _tell("claude:incmux") == 0
+    assert calls == ["cmux"]
