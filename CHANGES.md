@@ -4,6 +4,11 @@
 
 - **`lma` edits groups: `G` names a new group of the selected lemon, its children and theirs, and `+` puts a lemon in a group, picked from a list or named new.** `-` takes a lemon out of the group it's drawn under, or on a header deletes the group, and `r` on a header renames it. `z` undoes each, and each rewrites its briefs' `Groups:` lines. The keys are `group_tree`, `group_add` and `group_remove`.
 
+#### Changed
+
+- **In the sidebar, the current lemon's bar runs down its card's right edge instead of its left,** leaving the left edge to group rails. A group's rail could run straight into the bar on an ungrouped card below, reading as one rail. Every card keeps that column free, so a card doesn't shift as it gains or loses the bar.
+- **The current lemon's bar is near white on a dark theme and near black on a light one, instead of green,** so it's never a group's colour.
+
 #### Fixed
 
 - **The inbox cursor stays on a lemon whose row moves into or out of a group,** rather than falling back to the row's old position.

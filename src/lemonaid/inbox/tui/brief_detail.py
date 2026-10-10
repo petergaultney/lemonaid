@@ -32,7 +32,7 @@ _SESSION_BAR = f"bold #000000 on {utils.ATTENTION_COLOR}"
 
 
 def _edge() -> Text:
-    return Text(f"{utils.HERE_BAR} ", style=utils.HERE_BAR_STYLE)
+    return Text(f"{utils.HERE_BAR} ", style=utils.here_bar_style())
 
 
 def _headline(section: render.Section, width: int, unread: bool) -> Text:

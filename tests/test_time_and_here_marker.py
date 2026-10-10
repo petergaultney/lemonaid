@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from lemonaid.inbox.tui.app import _format_timestamp, _time_cell
-from lemonaid.inbox.tui.utils import HERE_BAR, HERE_BAR_STYLE, HERE_BLOCK, jump_gutter
+from lemonaid.inbox.tui.utils import HERE_BAR, HERE_BLOCK, here_bar_style, jump_gutter
 
 
 def _at(dt: datetime) -> float:
@@ -58,7 +58,18 @@ def test_the_focused_row_is_marked_instead_of_numbered():
     gutter = jump_gutter(0, is_here=True)
     assert "1" not in gutter.plain
     assert gutter.plain == f"{HERE_BLOCK} "
-    assert gutter.spans[0].style == HERE_BAR_STYLE
+    assert gutter.spans[0].style == here_bar_style()
+
+
+def test_the_here_mark_takes_the_themes_text_colour_rather_than_a_hue(monkeypatch):
+    """A hue could be some group's colour; near white or black is none's."""
+    from lemonaid.inbox.tui import utils
+
+    dark = here_bar_style()
+    monkeypatch.setattr(utils, "_light_theme", True)
+
+    assert dark == "#f2f2f2"
+    assert jump_gutter(0, is_here=True).spans[0].style == "#1c1c1c"
 
 
 def test_the_focused_gutter_is_the_width_of_the_digit_it_replaces():
@@ -192,7 +203,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
     ]
     context = _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[1]
 
-    assert context.startswith(HERE_BAR)
+    assert context.endswith(HERE_BAR)
     assert HERE_BLOCK not in context
 
 
@@ -221,11 +232,11 @@ def test_a_focused_card_carries_the_bar_down_every_line():
         return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")
 
     focused = card_for(True)
-    assert all(line.startswith(HERE_BAR) for line in focused if line)
+    assert all(line.endswith(HERE_BAR) and len(line) == 44 for line in focused)
 
     # Including the blank line that separates it from the next card, which
     # takes the row cursor's background along with the rest of the cell.
-    assert focused[-1] == HERE_BAR
+    assert focused[-1] == " " * 43 + HERE_BAR
 
     plain = card_for(False)
     assert not any(HERE_BAR in line for line in plain)
@@ -276,10 +287,10 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
 
 
 def test_marking_a_card_does_not_move_anything_in_it():
-    """The bar goes in the column the card already spends on padding.
+    """The bar goes in the right-hand column every card keeps free for it.
 
-    Prepending it instead pushed every line right by one the moment a card was
-    marked, which reads as the list jumping under the cursor.
+    Taking a column only when marked pushed the card's labels one left the
+    moment it was, which reads as the list jumping under the cursor.
     """
     from rich.text import Text
 
@@ -302,8 +313,9 @@ def test_marking_a_card_does_not_move_anything_in_it():
 
     assert marked[0].index("a-name") == plain[0].index("a-name")
     assert marked[1].index("15:24") == plain[1].index("15:24")
-    assert marked[1][0] == HERE_BAR
-    assert plain[1][0] == " "
+    assert marked[0][1:].rstrip(HERE_BAR).rstrip() == plain[0][1:].rstrip()
+    assert marked[1][-1] == HERE_BAR
+    assert HERE_BAR not in plain[1]
 
 
 def test_an_unmarked_card_keeps_its_jump_digit():
@@ -363,7 +375,7 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
 
 
 def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout():
-    """The bar replaces the number; the dot and title remain where they were."""
+    """The number gives way to a blank; the dot and title remain where they were."""
     from rich.text import Text
 
     from lemonaid.inbox.tui.app import _as_card
@@ -383,7 +395,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
 
     marked, plain = headline(True, 0), headline(False, 1)
 
-    assert marked[0] == HERE_BAR
+    assert marked[0] == " " and marked.endswith(HERE_BAR)
     assert plain[0] == "2"
     assert marked.index("●") == plain.index("●") == 2
     assert marked.index("a-session") == plain.index("a-session")

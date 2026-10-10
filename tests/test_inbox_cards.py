@@ -146,7 +146,7 @@ def test_a_short_card_does_not_pad_to_the_budget():
     (body,) = app._as_card(cells, 40, message_lines=3)
 
     lines = body.plain.split("\n")
-    assert lines[0] == "   n" + " " * 34 + "CC"
+    assert lines[0] == "   n" + " " * 33 + "CC"  # the last column is the current session's
     assert lines[1:] == [" 15:24 · ~/w", " m", ""]
 
 
@@ -228,7 +228,7 @@ def test_the_backend_label_sits_against_the_right_edge():
     (body,) = app._as_card(cells, 40)
 
     assert body.plain.split("\n")[0].endswith("cx")
-    assert len(body.plain.split("\n")[0]) == 40
+    assert len(body.plain.split("\n")[0]) == 39  # the last column is the current session's
 
 
 def test_the_message_uses_width_that_only_the_header_label_needs():
@@ -239,13 +239,13 @@ def test_the_message_uses_width_that_only_the_header_label_needs():
         Text("n"),
         Text(""),
         Text(""),
-        Text("x" * 39),
+        Text("x" * 38),
     ]
     (body,) = app._as_card(cells, 40, message_lines=2)
 
     lines = body.plain.split("\n")
     assert lines[0].endswith("Opus 5.5")
-    assert lines[2] == " " + "x" * 39
+    assert lines[2] == " " + "x" * 38
     assert lines[3] == ""
 
 
@@ -289,9 +289,10 @@ def test_bar_mode_does_not_paint_over_the_selected_green_edge():
     (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar")
     console = Console(color_system="truecolor")
 
-    assert body.plain.startswith(HERE_BAR)
-    assert body.get_style_at_offset(console, 0).bgcolor is None
-    assert body.get_style_at_offset(console, 1).bgcolor.name == ATTENTION_COLOR
+    bar = body.plain.index("\n") - 1
+    assert body.plain[bar] == HERE_BAR
+    assert body.get_style_at_offset(console, bar).bgcolor is None
+    assert body.get_style_at_offset(console, 0).bgcolor.name == ATTENTION_COLOR
 
 
 def _brief_cells(unread: bool = False, here: bool = False) -> list[Text]:
@@ -342,9 +343,9 @@ def test_idle_brief_lines_keep_the_current_session_edge_and_age():
     )
     lines = body.plain.splitlines()
 
-    assert all(line.startswith(HERE_BAR) for line in lines)
-    assert lines[2] == f"{HERE_BAR}idle 1h"
-    assert lines[3] == f"{HERE_BAR}review"
+    assert all(line.endswith(HERE_BAR) for line in lines)
+    assert lines[2][:-1].rstrip() == " idle 1h"
+    assert lines[3][:-1].rstrip() == " review"
     assert "●" in lines[0]
 
 
@@ -453,11 +454,11 @@ def test_card_emoji_sits_on_the_second_line_before_the_pin():
 
     assert emoji not in headline
     assert "a name" in headline
-    assert context.endswith(f"{emoji} {PIN_MARK}")
+    assert context.endswith(f"{emoji} {PIN_MARK}{HERE_BAR}")
     assert body.get_style_at_offset(console, 2).bgcolor.name == ATTENTION_COLOR
     emoji_start = body.plain.index(emoji)
     assert body.get_style_at_offset(console, emoji_start).bgcolor is None
-    assert body.get_style_at_offset(console, 0).bgcolor is None
+    assert body.get_style_at_offset(console, len(headline) - 1).bgcolor is None
 
 
 def test_card_emoji_uses_the_right_edge_when_there_is_no_pin():

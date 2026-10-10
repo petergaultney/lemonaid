@@ -96,7 +96,6 @@ from .utils import (
     ATTENTION_COLOR,
     GUTTER_WIDTH,
     HERE_BAR,
-    HERE_BAR_STYLE,
     HERE_BLOCK,
     JUMP_DIGITS,
     PIN_MARK,
@@ -339,23 +338,26 @@ def _as_card(
     marker = cells[_UNREAD_CELL]
     dot = Text("●", style=utils.unread_marker_style()) if marker.plain else Text(" ")
 
-    # The first cell is one stable navigation slot: a jump digit until this is
-    # the current session, then the green bar. Read titles start in the fourth
-    # cell; an unread dot, with breathing room on both sides, nudges the title
-    # one cell right as part of the attention signal.
+    # The first cell is one stable navigation slot: a jump digit, or blank for
+    # the current session, which has no reason to be jumped to. Read titles
+    # start in the fourth cell; an unread dot, with breathing room on both
+    # sides, nudges the title one cell right as part of the attention signal.
     name = cells[_NAME_CELL]
     is_here = name.plain.startswith(HERE_BLOCK)
     selector = Text(_INDENT)
     if gutter_width:
-        selector = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else name[: len(_INDENT)]
+        selector = Text(_INDENT) if is_here else name[: len(_INDENT)]
         name = name[gutter_width:]
     if emoji and name.plain.startswith(f"{emoji} "):
         name = name[len(emoji) + 1 :]
 
-    # The bar goes in the column every line already spends on padding, rather
-    # than before it. Prepending would push the whole card right by one the
-    # moment it was marked, which reads as the list jumping under the cursor.
-    edge = Text(HERE_BAR, style=HERE_BAR_STYLE) if is_here else Text(_INDENT)
+    edge = Text(_INDENT)
+
+    # The current session's bar runs down the card's right edge, which every
+    # card keeps free for it, so a card doesn't shift as it gains or loses the
+    # bar. The left edge is left to a group's rail: the two side by side read as
+    # one rail.
+    width -= len(HERE_BAR)
 
     # A card in an open group gives up its first column to an unbroken rail in
     # the group's colour, so the run of colour shows where the group starts and
@@ -428,7 +430,7 @@ def _as_card(
         # yellow title bar until the provider-coloured model badge begins.
         headline.stylize(
             Style(color="#000000", bgcolor=ATTENTION_COLOR),
-            1 if is_here else 0,
+            0,
             len(headline) - len(badge),
         )
         _overlay(headline, filled, len(headline) - len(badge) - len(filled))
@@ -449,7 +451,7 @@ def _as_card(
         headline = _right_aligned(headline, reading + backend, width)
 
     if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
-        headline.stylize(brief_cards.STATUS_STYLES[card_brief.shown], 1 if is_here else 0)
+        headline.stylize(brief_cards.STATUS_STYLES[card_brief.shown])
         if backend.plain:
             # The model keeps its provider colour, as a badge, like the column row's.
             provider = backend.get_style_at_offset(_CONSOLE, 0).color
@@ -500,10 +502,16 @@ def _as_card(
         # Separates this card from the next, and carries the bar when there is
         # one: the blank line is part of the card's own cell, so it takes the row
         # cursor's background with the rest, and an edge stopping short of it
-        # reads as one that ran out rather than one that ends the card. Left
-        # genuinely empty otherwise, so an unmarked card ends where it did.
-        edge if is_here else Text(""),
+        # reads as one that ran out rather than one that ends the card.
+        Text(""),
     ]
+    if is_here:
+        lines = [
+            Text.assemble(
+                line, " " * max(0, width - line.cell_len), (HERE_BAR, utils.here_bar_style())
+            )
+            for line in lines
+        ]
     if rail:
         # Added last, as a span, so no status fill, dimming or base style reaches it.
         lines = [Text.assemble((GROUP_RAIL, rail)) + line for line in lines]

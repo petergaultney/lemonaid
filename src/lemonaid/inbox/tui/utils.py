@@ -163,7 +163,12 @@ GUTTER_WIDTH = 2  # "<digit> ", or the bar and a space
 # and matches the rail a group draws beside it.
 HERE_BLOCK = "\u2588"
 HERE_BAR = "\u258c"
-HERE_BAR_STYLE = "bright_green"
+
+
+def here_bar_style() -> str:
+    """The theme's own text colour, near white or near black: no group's colour is either."""
+    return "#1c1c1c" if _light_theme else "#f2f2f2"
+
 
 # Square, where the unread marker is round: the two sit near each other and say
 # different things. It shares the backend column rather than taking one of its
@@ -209,7 +214,7 @@ def jump_gutter(row_index: int, is_here: bool = False) -> Text:
     """
     if is_here:
         gutter = Text(f"{HERE_BLOCK} ")
-        gutter.stylize(HERE_BAR_STYLE, 0, len(HERE_BLOCK))
+        gutter.stylize(here_bar_style(), 0, len(HERE_BLOCK))
         return gutter
 
     digit = jump_digit(row_index)

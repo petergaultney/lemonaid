@@ -106,7 +106,7 @@ Reviewer lemons whose brief ID starts with `review-` stay out of the default inb
 
 When the scratch inbox has keyboard focus, its window's last selected lemon
 pane still counts as in view. Moving the inbox cursor to another row does not
-hide that lemon or remove its green bar. Switching to another window changes
+hide that lemon or remove its bar. Switching to another window changes
 which lemon is in view.
 
 ### Switching to notifications
