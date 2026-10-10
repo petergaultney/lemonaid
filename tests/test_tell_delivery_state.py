@@ -60,7 +60,7 @@ def test_idle_claude_without_a_waiter_is_deaf_and_tell_fails(capsys):
     _attach("claude:deaf", {})
 
     assert _tell("claude:deaf") == 1
-    assert "deaf, it is idle" in capsys.readouterr().err
+    assert "is deaf (it is idle" in capsys.readouterr().err
 
 
 def test_claude_mid_turn_is_fine(capsys):
@@ -75,7 +75,7 @@ def test_no_harness_on_the_recorded_tty_is_dead(capsys, monkeypatch):
     _attach("codex:gone", {"tty": "/dev/ttys999"})
 
     assert _tell("codex:gone") == 1
-    assert "dead, its harness" in capsys.readouterr().err
+    assert "is dead (its harness" in capsys.readouterr().err
 
 
 def test_codex_with_a_live_harness_is_listening(capsys, monkeypatch):
@@ -146,3 +146,9 @@ def test_other_harnesses_are_unknown_even_without_a_process():
     assert (
         recipient.classify("opencode:x", row, False, False, time.time()).state == recipient.UNKNOWN
     )
+
+
+def test_claude_stopped_at_a_question_is_asking():
+    row = db.Notification(id=1, channel="claude:x", message="", turn_at=time.time())
+
+    assert recipient.classify("claude:x", row, True, False, time.time()).state == recipient.ASKING

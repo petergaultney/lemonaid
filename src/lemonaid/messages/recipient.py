@@ -18,10 +18,11 @@ LISTENING = "listening"
 MID_TURN = "mid-turn"
 NOT_STARTED = "not started"
 UNKNOWN = "unknown"
+ASKING = "asking"
 DEAF = "deaf"
 DEAD = "dead"
 
-UNREAD = frozenset({DEAF, DEAD})
+UNREAD = frozenset({ASKING, DEAF, DEAD})
 
 _HARNESSES = ("claude", "codex")
 
@@ -92,6 +93,9 @@ def classify(
     if turns.mid_turn(row, now):
         return State(MID_TURN, "it will arm its inbox waiter when this turn ends")
 
+    if row.turn_at is not None:  # however old: it may have sat at a permission prompt for hours
+        return State(ASKING, "it stopped mid-turn to ask its user something")
+
     return State(DEAF, "it is idle with no inbox waiter")
 
 
@@ -109,11 +113,4 @@ def probe(channel: str, row: db.Notification | None, inbox: Path) -> State:
 
 
 def describe(lemon_id: str, found: State) -> str:
-    if found.state in UNREAD:
-        return (
-            f"queued, but {lemon_id} will not read it until it comes back: "
-            f"{found.state}, {found.detail}. Don't send it again; ask its parent, or your "
-            "user, to resume it."
-        )
-
     return f"queued for {lemon_id}: {found.state}, {found.detail}"

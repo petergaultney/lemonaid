@@ -75,10 +75,20 @@ and ends with an error if the brief moves to another channel or is detached.
 | `mid-turn` | A Claude lemon working on a turn; its Stop hook makes it arm a waiter when the turn ends | 0 |
 | `not started` | The brief is attached to a lemon that hasn't started yet; it reads its inbox when it does | 0 |
 | `unknown` | A harness other than Claude or Codex, which lemonaid can't check | 0 |
+| `asking` | A Claude lemon stopped mid-turn at a question for its user, such as a permission prompt | 1 |
 | `deaf` | A Claude lemon that is idle with no inbox waiter | 1 |
 | `dead` | No harness runs on the terminal the lemon last reported, or its row is archived and the terminal is unknown | 1 |
 
-A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. `tell` exits 1 so the sender knows not to wait for a reply; sending the message again would only deliver it twice.
+A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
+
+- **An exited harness** (`dead`) is resumed in a new window of its recorded tmux session, starting on a prompt to run `lemonaid inbox next --self` and rearm its waiters.
+- **An idle Claude with no waiter** (`deaf`) has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted.
+- **A Claude stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
+- **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
+
+A second `tell` within a minute of a start doesn't start the lemon again. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.
+
+`tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again would only deliver it twice.
 
 ## Delivery
 

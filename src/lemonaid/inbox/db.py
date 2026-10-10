@@ -805,6 +805,15 @@ def mark_all_read_for_channel(
     return cursor.rowcount
 
 
+def hold_snooze_through_turns(conn: sqlite3.Connection, notification_id: int) -> None:
+    """Keep a snoozed row snoozed through the turns that end from now on."""
+    conn.execute(
+        "UPDATE notifications SET snooze_through_turns = 1 WHERE id = ? AND status = 'snoozed'",
+        (notification_id,),
+    )
+    conn.commit()
+
+
 def record_turn(conn: sqlite3.Connection, channel: str, at: float | None) -> int:
     """Record that *channel* is mid-turn as of *at*, or between turns when None."""
     cursor = conn.execute("UPDATE notifications SET turn_at = ? WHERE channel = ?", (at, channel))
