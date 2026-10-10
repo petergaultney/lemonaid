@@ -6,6 +6,10 @@
 - In `fold_statuses`, `waiting` now means `idle` and `working` means `active`. `watch briefs --to` no longer takes `working` or `waiting`, and says why.
 - The inbox records lemons' turns whether or not `mid_turn_working` is on.
 
+#### Fixed
+
+- An edit that leaves a brief's text unchanged, such as rewriting a `Groups:` line that already matches, no longer rewrites the file, so its modification time stays when it last changed.
+
 # 0.97.0 (2026-10-10)
 
 #### Added
