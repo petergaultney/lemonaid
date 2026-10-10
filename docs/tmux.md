@@ -495,7 +495,7 @@ named_processes = ["mops-console"]
 The color constants remain source-level customization in
 `src/lemonaid/tmux/window_status.py`:
 
-- `palette.SLOTS` (`src/lemonaid/palette.py`) - The 108 generated colors names hash into: 36 hues, 10 degrees apart, in three lightness tiers. See [Name colors](#name-colors).
+- `palette.SLOTS` (`src/lemonaid/palette.py`) - The generated colors names hash into: hues 10 degrees apart in three lightness tiers, with near-identical ones dropped. See [Name colors](#name-colors).
 - `DIR_COLORS` - Override colors for specific directory names
 - `PROCESS_COLORS` - Override colors for specific process names
 - `HIDDEN_PROCESSES` - Shells/wrappers that shouldn't appear (just show directory)
@@ -503,7 +503,7 @@ The color constants remain source-level customization in
 
 ### Name colors
 
-Directory and process names, `lma` project labels and group headers all take their color from `lemonaid.palette`. A name hashes to one of 108 slots covering the whole hue wheel.
+Directory and process names, `lma` project labels and group headers all take their color from `lemonaid.palette`. A name hashes to one of 41 slots covering the whole hue wheel, no two of them near-identical (OKLab distance of at least 0.05).
 
 - Every slot has the same saturation, so none is grey.
 - Every slot has a luminance giving 7:1 to 12:1 contrast against black, so it reads under the black text of a group header and against a dark terminal background.
@@ -511,7 +511,9 @@ Directory and process names, `lma` project labels and group headers all take the
 
 Colors are 24-bit hex. tmux and the inbox quantize them to the nearest 256-color entry on terminals without truecolor, which keeps hue and contrast. On a light background name text has less contrast; header fills are unaffected.
 
-`python scripts/palette_swatches.py` prints the slots beside the status colors.
+`python scripts/palette_swatches.py` prints the slots beside the status colors, and checks that no two groups' colors are close (`--db PATH` checks a real inbox database, read-only).
+
+Groups hash too, then move off any look-alike among the current groups, and `[tui.group_colors]` can set one by name; see [Group colors](config.md#group-colors). `DIR_COLORS` doesn't apply to groups.
 
 ## Surviving a crash
 

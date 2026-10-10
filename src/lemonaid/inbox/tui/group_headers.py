@@ -15,7 +15,7 @@ from rich.text import Text
 
 from .. import sections
 from .brief_cards import DOT_STYLES, STATUS_STYLES
-from .utils import project_color, unread_marker_style
+from .utils import unread_marker_style
 
 # White is no status's colour, so the cursor's marker stands out on any fill.
 _SELECTED = Style(color="#000000", bgcolor="#ffffff", bold=True, underline=False)
@@ -49,11 +49,14 @@ def style(header: sections.Header) -> Style:
 def label(header: sections.Header, width: int = 0, selected: bool = False) -> Text:
     """Arrow, name and count, padded to *width* so the fill and rule reach the edge.
 
-    The arrow takes the group's colour, above its cards' rail. Under the cursor
-    it turns into a block of that colour, in place, and a white block ends the
-    line, since the table's cursor colour is lost under a status fill.
+    The arrow, the count and the rule across the rest of the line take the
+    group's colour, above its cards' rail; the count keeps a status fill's text
+    colour. Under the cursor the arrow turns into a block of that colour, in
+    place, and a white block ends the line, since the table's cursor colour is
+    lost under a status fill.
     """
-    colour = project_color(header.group.name)
+    colour = header.group.colour
+    filled = _fill(header).bgcolor is not None
     name = (
         Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=colour, dim=False))
         if header.group.collapsed
@@ -70,14 +73,15 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
             else Style(color=colour, dim=False),
         ),
         name,
-        (f" ({header.tally})", Style(dim=False)),
+        (f" ({header.tally})", Style(color=None if filled else colour, dim=False)),
         _dot(header),
         style=style(header),
     )
     if width:
         end = Text(" ◀ ", style=_SELECTED) if selected else Text("")
         text.truncate(width - end.cell_len)
-        text.pad_right(width - end.cell_len - text.cell_len)
+        # The rule is drawn in each cell's text colour, so coloured spaces colour it.
+        text.append(" " * (width - end.cell_len - text.cell_len), Style(color=colour))
         text.append_text(end)
     return text
 
@@ -92,7 +96,7 @@ def cells(
     return [
         label(header, selected=selected)
         if i == name_cell
-        else Text("", style=Style(underline=True))
+        else Text("", style=Style(color=header.group.colour, underline=True))
         for i in range(columns)
     ]
 

@@ -134,6 +134,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
 | `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
+| `group_colors` | `{}` | A table of group name to `#rrggbb`, used instead of the group's automatic colour. See [Group colors](#group-colors). |
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
@@ -226,6 +227,19 @@ cwd's directory name. With no root and no branch either, the line shows the
 cwd as before. When the line doesn't fit, the branch is cut first, then the
 area, and then the time is dropped, so the project's name stays whole wherever
 it fits on its own.
+
+### Group colors
+
+A group's header, arrow and rail take a colour from the same generated palette as project labels (see [Name colors](tmux.md#name-colors)). Each group starts from the slot its name hashes to. Groups are taken in name order, and one whose slot is within a perceptual distance of 0.08 (OKLab) of a colour already given out moves to the nearest slot that isn't, so no two groups share a look. Nothing is stored: the colours depend only on the current set of group names.
+
+To choose one, set it by name. A group set this way keeps that colour, and the others keep clear of it:
+
+```toml
+[tui.group_colors]
+oria = "#e0a227"
+```
+
+A value that isn't `#rrggbb` is reported at start-up and ignored.
 
 Set `project_name_colors = true` to color each project label with the same
 selection used by tmux window labels: a stable hash into the generated palette,

@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read, keys, messages_config, watch_config
+from . import auto_read, keys, messages_config, palette, watch_config
 from .inbox import context_use, snooze_time
 from .usage import settings
 
@@ -168,6 +168,8 @@ class TuiConfig:
     # Show each attached brief's short name after its session name.
     brief_names_in_inbox: bool = False
     project_name_colors: bool = False
+    # Group name -> `#rrggbb`, used instead of the group's automatic colour.
+    group_colors: dict[str, str] = field(default_factory=dict)
     # Override the selected inbox row background. Otherwise dark themes use a deeper blue.
     active_row_color: str | None = None
     # Brief statuses whose read, unpinned sessions fold into one group at the
@@ -338,6 +340,20 @@ class Config:
             if fnmatch(channel, pattern):
                 return handler
         return None
+
+
+def _group_colors(raw: object) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+
+    colours = {str(k): v for k, v in raw.items() if isinstance(v, str) and palette.is_colour(v)}
+    for name in raw.keys() - colours.keys():
+        print(
+            f"Warning: [tui.group_colors] {name!r} is not a #rrggbb colour; ignored",
+            file=sys.stderr,
+        )
+
+    return colours
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -537,6 +553,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         mid_turn_working=tui_data.get("mid_turn_working", False),
         brief_names_in_inbox=tui_data.get("brief_names_in_inbox", False),
         project_name_colors=tui_data.get("project_name_colors", False),
+        group_colors=_group_colors(tui_data.get("group_colors")),
         active_row_color=tui_data.get("active_row_color"),
         fold_statuses=list(tui_data.get("fold_statuses", [])),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),

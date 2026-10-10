@@ -2,6 +2,7 @@
 
 import argparse
 import colorsys
+import sqlite3
 
 from lemonaid import palette
 
@@ -60,19 +61,45 @@ def slots() -> None:
     ratios = [contrast_with_black(c) for c in palette.SLOTS]
     print(f"\nContrast of black text on a slot: min {min(ratios):.1f}, max {max(ratios):.1f}")
 
-    print(f"\nPalette slots ({len(palette.SLOTS)}): rows are luminance tiers, columns hues")
-    per_row = len(palette.SLOTS) // 3
-    for row in range(3):
-        print(
-            "  "
-            + "".join(
-                block(c, "")[:-4] + "  \033[0m"
-                for c in palette.SLOTS[row * per_row : (row + 1) * per_row]
-            )
+    print(f"\nPalette slots ({len(palette.SLOTS)}), at least {palette.MIN_DISTANCE} apart:")
+    for start in range(0, len(palette.SLOTS), 14):
+        print(_strip(palette.SLOTS[start : start + 14]))
+
+
+def _strip(colours: list[str]) -> str:
+    return "  " + "".join(block(c, "")[:-4] + "  \033[0m" for c in colours)
+
+
+def groups(db_path: str) -> None:
+    """Check that no two groups' colours are close: for the groups in the DB at *db_path*, else sample names."""
+    if db_path:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        names = [r[0] for r in conn.execute("SELECT name FROM lemon_groups ORDER BY position")]
+        title = f"{len(names)} groups in {db_path}"
+    else:
+        names = (
+            "oria mops relay watchers lemonaid protostellar eval infra docs ml tars lint".split()
         )
+        title = f"{len(names)} sample group names"
+    given = palette.assign_groups(names, {})
+    print(f"\n{title}:")
+    for name in sorted(names):
+        print(f"{_strip([given[name]])} {name:<14} {given[name]}")
+    if len(names) > 1:
+        colours = list(given.values())
+        gap, a, b = min(
+            (palette.distance(a, b), a, b) for i, a in enumerate(colours) for b in colours[:i]
+        )
+        verdict = "ok" if gap >= palette.GROUP_MIN_DISTANCE else "TOO CLOSE"
+        print(f"  closest pair {a} {b}: {gap:.3f} (minimum {palette.GROUP_MIN_DISTANCE}) {verdict}")
 
 
 if __name__ == "__main__":
-    argparse.ArgumentParser(description=__doc__).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--db", default="", help="Check the groups in this inbox DB (opened read-only)"
+    )
+    args = parser.parse_args()
     main()
     slots()
+    groups(args.db)

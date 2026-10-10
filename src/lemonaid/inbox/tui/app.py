@@ -28,7 +28,7 @@ from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, claude, codex, groups, handlers, openclaw, opencode
+from ... import brief, claude, codex, groups, handlers, openclaw, opencode, palette
 from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
@@ -1848,6 +1848,10 @@ class LemonaidApp(App):
             )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
             emojis = emoji.by_channel(conn)
             group_list = groups.store.all_groups(conn)
+            colours = palette.assign_groups(
+                (g.name for g in group_list), self.config.tui.group_colors
+            )
+            group_list = [dataclasses.replace(g, colour=colours[g.name]) for g in group_list]
             wordybins = (
                 {
                     c: brief.identity.brief_name(i)
@@ -1982,7 +1986,7 @@ class LemonaidApp(App):
             self.config.tui.project_name_colors,
             headers,
             {
-                e.key: utils.project_color(self._headers[f"group:{group}"].group.name)
+                e.key: self._headers[f"group:{group}"].group.colour
                 for e in drawn
                 if (group := sections.row_group_id(e.key)) is not None
                 and f"group:{group}" in self._headers

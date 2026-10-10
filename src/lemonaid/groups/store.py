@@ -30,6 +30,8 @@ class Group:
     position: float
     members: tuple[str, ...]  # Lemon-IDs, in the order they joined
     collapsed: bool = False
+    # `#rrggbb` as drawn: set by the inbox from `palette.assign_groups`, never stored.
+    colour: str = ""
 
 
 def checked_name(name: str) -> str:
