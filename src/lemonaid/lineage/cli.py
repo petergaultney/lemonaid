@@ -7,6 +7,7 @@ import sqlite3
 import sys
 
 import lemonaid.launch.cli
+import lemonaid.lemon_facts.cli
 import lemonaid.messages.resume_cli
 
 from .. import brief
@@ -102,7 +103,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         description="A lemon's parent is the lemon that started it. Links are "
         "stored by Lemon-ID, so they survive resumes, renamed briefs, and tmux. "
         "A lemon with no parent belongs to whoever you treat as the default "
-        "(for many, a control center). `start` launches one from config; `resume` brings one back.",
+        "(for many, a control center). `start` launches one from config; `resume` brings one back; `doctor` reports what lemonaid can see.",
     )
     lemon_subparsers = parser.add_subparsers(dest="lemon_command", required=True)
 
@@ -125,3 +126,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     lemonaid.launch.cli.add_parser(lemon_subparsers)
     lemonaid.messages.resume_cli.add_parser(lemon_subparsers)
+    lemonaid.lemon_facts.cli.add_parser(lemon_subparsers)

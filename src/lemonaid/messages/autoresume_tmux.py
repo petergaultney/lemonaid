@@ -56,6 +56,16 @@ def _pane(row: db.Notification) -> str:
     return pane or ""
 
 
+def screen(row: db.Notification) -> str | None:
+    """What *row*'s pane shows now, or None when its pane can't be found."""
+    pane = _pane(row)
+    if not pane:
+        return None
+
+    captured = _tmux(row, "capture-pane", "-p", "-t", pane)
+    return captured.stdout if captured.returncode == 0 else None
+
+
 def ready_for_input(screen: str) -> bool:
     """Whether *screen* shows an empty composer and no dialog."""
     return not window.dialog_in(screen) and any(

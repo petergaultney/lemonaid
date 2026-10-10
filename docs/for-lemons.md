@@ -325,6 +325,40 @@ you decided. A lemon that is listening or mid-turn is left alone (exit 0); one s
 question for its user is refused, as is one started too often recently (exit 1). Each start,
 and each failed start, adds a line to the user's inbox.
 
+### Checking on lemons: `lemon doctor`
+
+```bash
+lemonaid lemon doctor --children --self            # a lead: its children
+lemonaid lemon doctor --children --orphans --self  # whoever minds lemons nobody leads
+lemonaid lemon doctor <lemon> --json               # one lemon, every fact
+```
+
+`doctor` reports what lemonaid can see and leaves the judging to you. An orphan is a lemon with
+no parent, or whose parent's tmux session is gone, as in `watch briefs --orphans`; a lead's
+children become orphans when it dies. `--all` takes every attached lemon, at the cost of a `ps`
+and a pane capture each. Text output starts with a count, then lists only lemons that are `deaf`
+or `dead` and whose brief isn't `done` or archived; a lemon `asking` its user is left out, since
+that is how a lemon waiting on a person looks. `--verbose` lists every lemon. `--json` gives
+`{"lemons", "skipped", "error"}`, with every fact for every lemon in scope, and `skipped` the
+names that matched no attached lemon. It exits 1 when any lemon in scope is `deaf` or `dead` and
+not `done` or archived, and 2 on an error. Like every brief lookup, it attaches a brief waiting
+for a lemon that has since started.
+
+| Fact | Where it comes from | How it misleads |
+|---|---|---|
+| `state`, `state_detail` | The same check `tell` makes | See [messages](messages.md#will-it-be-read) |
+| `harness_running` | A `claude` or `codex` process on the terminal the lemon last reported; cmux is asked where its session is now | A reused tty can show another lemon's harness; `null` when the terminal can't be checked |
+| `inbox_waiter` | The lock its `inbox watch` holds | Codex lemons don't need one |
+| `pane` | `empty prompt`, `dialog: <what>`, or `other`, from a capture of its tmux pane | `other` covers working, a draft, and a permission prompt alike |
+| `exited_at`, `exit_reason` | The `SessionEnd` hook (`claude hooks --session-end`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; missing when the hook isn't installed, for Codex, and for a session that was killed or crashed |
+| `last_activity` | The transcript file's last write | A lemon waiting on a long process writes nothing |
+| `waiters_listed`, `waiters_running` | The brief's `## Waiters` bullets, and the waiters registered under its channel | Listed commands are as written, so compare them by hand |
+| `messages_queued` | Unread messages in its inbox | |
+| `recent_starts` | Starts by autoresume or `lemon resume` within `autoresume_window` | |
+
+Acting on what you find is up to you: `lemon resume` brings a lemon back, `tell` reaches one
+that is listening, and its parent or the user decides about the rest.
+
 ### A session where there is no place
 
 Run from a directory no configured root manages the names of, there is no key to resolve,

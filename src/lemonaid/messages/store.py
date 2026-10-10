@@ -94,6 +94,10 @@ def _pending(inbox: Path) -> abc.Iterator[Path]:
             yield path
 
 
+def pending_count(inbox: Path) -> int:
+    return sum(1 for _ in _pending(inbox))
+
+
 def mark_done(path: Path) -> Path:
     done = path.parent / "done"
     done.mkdir(exist_ok=True)

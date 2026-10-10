@@ -1,3 +1,11 @@
+# 0.97.0 (2026-10-10)
+
+#### Added
+
+- **`lemonaid lemon resume <lemon>` brings one lemon back on request.** It resumes an exited harness in a new window, or prompts an idle Claude with no inbox waiter, the way `tell`'s autoresume does, but also for a lemon marked `done` or archived. `--prompt` sets what it is told on waking, and it counts against autoresume's start limit.
+- **`lemonaid lemon doctor` reports what lemonaid can see about lemons: whether each harness runs, its inbox waiter, its pane, its last exit, its listed and running waiters.** `--children --self`, `--orphans --self`, `--all` or Lemon-IDs choose which; text lists only lemons that are deaf or dead and not `done` or archived, and `--json` gives every fact.
+- **`lemonaid claude hooks --session-end` records when a Claude session ended and the reason Claude gave,** as `exited_at` and `exit_reason` on its inbox row, until the session next registers or reports.
+
 # 0.96.0 (2026-10-09)
 
 #### Changed
