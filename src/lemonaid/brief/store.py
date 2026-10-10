@@ -147,6 +147,9 @@ def edit(path: Path, change: abc.Callable[[str], str]) -> None:
         for _ in range(_EDIT_ATTEMPTS):
             before = path.read_text()
             after = change(before)
+            if after == before:
+                return  # a rewrite would move the mtime that says when the brief last changed
+
             if path.read_text() == before:
                 _replace(path, after)
                 return

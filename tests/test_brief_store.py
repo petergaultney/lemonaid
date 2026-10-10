@@ -1,6 +1,7 @@
 """Brief files: where they go, and the two edits a worker makes to one."""
 
 import datetime
+import os
 
 import pytest
 
@@ -136,7 +137,17 @@ def test_a_file_that_never_settles_is_refused(tmp_path):
 
     def change(text: str) -> str:
         path.write_text(f"{_BRIEF}{next(count)}")
-        return text
+        return f"{text}edited\n"
 
     with pytest.raises(store.ChangedUnderneath):
         store.edit(path, change)
+
+
+def test_an_edit_that_changes_nothing_leaves_the_file_alone(tmp_path):
+    path = tmp_path / "brief.md"
+    path.write_text(_BRIEF)
+    os.utime(path, (1000, 1000))
+
+    store.edit(path, lambda text: text)
+
+    assert path.stat().st_mtime == 1000
