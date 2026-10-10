@@ -11,6 +11,7 @@ import time
 import typing as ty
 from pathlib import Path
 
+from .. import handlers
 from ..inbox import db, turns
 from . import waiter
 
@@ -58,7 +59,17 @@ def _tty_commands(tty: str) -> list[str] | None:
 
 
 def harness_alive(row: db.Notification) -> bool | None:
-    """Whether a harness still runs on the terminal *row* last reported, or None if unknowable."""
+    """Whether a harness still runs on the terminal *row* last reported, or None if unknowable.
+
+    A cmux session can move to a new tty when cmux restarts, so cmux is asked
+    where it is now instead.
+    """
+    if row.switch_source in handlers.PER_SESSION_SOURCES:
+        found = handlers.where_sessions_are(
+            [(row.switch_source, {**row.metadata, "channel": row.channel})], fresh=True
+        ).get(row.channel)
+        return None if found is None else bool(found)
+
     tty = str(row.metadata.get("tty") or "")
     commands = _tty_commands(tty) if tty else None
     if commands is None:

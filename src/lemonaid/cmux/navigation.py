@@ -242,8 +242,8 @@ def switch_to_surface(target: Surface) -> bool:
     return True
 
 
-def open_workspace(cwd: str, argv: list[str], name: str) -> bool:
-    """Run *argv* in a new, focused workspace rooted at *cwd*.
+def open_workspace(cwd: str, argv: list[str], name: str, focus: bool = True) -> bool:
+    """Run *argv* in a new workspace rooted at *cwd*, focused unless *focus* is False.
 
     cmux types `--command` into the workspace's shell, so it is quoted for one.
     """
@@ -257,7 +257,7 @@ def open_workspace(cwd: str, argv: list[str], name: str) -> bool:
             "--command",
             shlex.join(argv),
             "--focus",
-            "true",
+            "true" if focus else "false",
         )
     except (subprocess.SubprocessError, OSError) as e:
         _log.warning("could not open a cmux workspace in %s: %s", cwd, e)
