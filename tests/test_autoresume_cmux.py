@@ -5,7 +5,7 @@ import pytest
 from lemonaid import handlers
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, autoresume_cmux, autoresume_tmux, recipient
+from lemonaid.messages import autoresume_cmux, autoresume_tmux, recipient, revive
 
 
 def _row(**metadata) -> db.Notification:
@@ -48,7 +48,7 @@ def test_start_opens_an_unfocused_workspace_on_the_wake_prompt(monkeypatch):
 
 
 def test_an_idle_cmux_lemon_cannot_be_prompted():
-    why = autoresume._bring_back(_row(), autoresume.PROMPT, Config())
+    why = revive.bring_back(_row(), False, Config(), autoresume_tmux.PROMPT)
 
     assert why == "lemonaid can't prompt a lemon in cmux"
 
@@ -62,7 +62,7 @@ def test_another_terminal_gets_the_command_to_resume_by_hand():
         switch_source="wezterm",
     )
 
-    why = autoresume._bring_back(row, autoresume.START, Config())
+    why = revive.bring_back(row, True, Config(), autoresume_tmux.PROMPT)
 
     assert why == (
         "lemonaid can't start a lemon in wezterm; it resumes with: "

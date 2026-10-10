@@ -63,13 +63,13 @@ def ready_for_input(screen: str) -> bool:
     )
 
 
-def start(row: db.Notification, config: Config) -> str:
-    """Resume *row*'s exited harness in a new window of its tmux session. Returns why not, or ""."""
+def start(row: db.Notification, config: Config, text: str = PROMPT) -> str:
+    """Resume *row*'s exited harness on *text* in a new window of its tmux session. Returns why not, or ""."""
     session = str(row.metadata.get("tmux_session") or "")
     if not session:
         return "no tmux session is recorded for it"
 
-    planned = launch.launch(row, config, PROMPT)
+    planned = launch.launch(row, config, text)
     if planned is None:
         return "no working directory or resume command is recorded for it"
 
@@ -94,8 +94,8 @@ def start(row: db.Notification, config: Config) -> str:
     return "" if typed.returncode == 0 else f"could not type the resume into pane {pane}"
 
 
-def prompt(row: db.Notification, config: Config) -> str:
-    """Type the wake prompt into *row*'s idle harness. Returns why not, or ""."""
+def prompt(row: db.Notification, config: Config, text: str = PROMPT) -> str:
+    """Type *text* into *row*'s idle harness and submit it. Returns why not, or ""."""
     pane = _pane(row)
     if not pane:
         return "its tmux pane could not be found"
@@ -105,7 +105,7 @@ def prompt(row: db.Notification, config: Config) -> str:
             f"pane {pane} doesn't show an empty prompt, so typing could answer a dialog or a draft"
         )
 
-    if _tmux(row, "send-keys", "-t", pane, "-l", PROMPT).returncode != 0:
+    if _tmux(row, "send-keys", "-t", pane, "-l", text).returncode != 0:
         return f"could not type into pane {pane}"
 
     time.sleep(_SUBMIT_PAUSE_SECONDS)

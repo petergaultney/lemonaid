@@ -296,6 +296,23 @@ checks the pane once and fails if the lemon is stuck at a startup dialog; `--no-
 that. `--json` returns `{"session", "window", "window_id", "dir", "harness", "brief",
 "lemon_id", "parent", "name", "error"}`.
 
+### Bringing one back: `lemon resume`
+
+To bring back a lemon whose harness exited, or a Claude that is idle with no inbox waiter, in
+the terminal it ran in:
+
+```bash
+lemonaid lemon resume <lemon> [--prompt '<what it should do on waking>']
+```
+
+A dead lemon is resumed in a new window of its recorded tmux session (or a new cmux workspace)
+and an idle one has the prompt typed into its pane, as `tell`'s autoresume does (see
+[messages](messages.md#will-it-be-read)). The default prompt names you and tells it to read its
+inbox and rearm its waiters. Unlike autoresume, this resumes a lemon marked `done` or archived:
+you decided. A lemon that is listening or mid-turn is left alone (exit 0); one stopped at a
+question for its user is refused, as is one started too often recently (exit 1). Each start,
+and each failed start, adds a line to the user's inbox.
+
 ### A session where there is no place
 
 Run from a directory no configured root manages the names of, there is no key to resolve,

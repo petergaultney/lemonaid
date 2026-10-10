@@ -15,8 +15,8 @@ from ..resume import build_resume_command
 from . import autoresume_tmux
 
 
-def start(row: db.Notification, config: Config) -> str:
-    """Resume *row*'s session on the wake prompt in a new, unfocused workspace. Returns why not, or ""."""
+def start(row: db.Notification, config: Config, text: str = autoresume_tmux.PROMPT) -> str:
+    """Resume *row*'s session on *text* in a new, unfocused workspace. Returns why not, or ""."""
     resumable = build_resume_command(config, row.channel, row.metadata)
     if resumable is None:
         return "no working directory or resume command is recorded for it"
@@ -27,7 +27,7 @@ def start(row: db.Notification, config: Config) -> str:
     line, _ = command.harness_line(
         shlex.join(argv), Path(cwd), "", command.codex_writable_roots(config.tmux_session)
     )
-    words = [*shlex.split(line), autoresume_tmux.PROMPT]
+    words = [*shlex.split(line), text]
     if not navigation.open_workspace(cwd, words, row.name or Path(cwd).name, focus=False):
         return "cmux could not open a workspace for it"
 

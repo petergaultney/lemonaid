@@ -30,8 +30,12 @@ def _sender(monkeypatch):
 @pytest.fixture
 def started(monkeypatch) -> list[str]:
     calls: list[str] = []
-    monkeypatch.setattr(autoresume_tmux, "start", lambda row, config: calls.append("start") or "")
-    monkeypatch.setattr(autoresume_tmux, "prompt", lambda row, config: calls.append("prompt") or "")
+    monkeypatch.setattr(
+        autoresume_tmux, "start", lambda row, config, text: calls.append("start") or ""
+    )
+    monkeypatch.setattr(
+        autoresume_tmux, "prompt", lambda row, config, text: calls.append("prompt") or ""
+    )
     return calls
 
 
@@ -101,7 +105,7 @@ def test_a_done_lemon_is_left_alone_with_its_status_and_resume_command(capsys, s
 
 def test_a_failed_start_tells_the_sender_whom_to_inform(capsys, monkeypatch):
     monkeypatch.setattr(
-        autoresume_tmux, "start", lambda row, config: "no tmux session is recorded for it"
+        autoresume_tmux, "start", lambda row, config, text: "no tmux session is recorded for it"
     )
     _attach("codex:gone", "# t\n\nStatus: working\n")
 
@@ -210,7 +214,9 @@ def test_an_unwritable_dead_letter_log_still_exits_1(started, monkeypatch):
 
 def test_a_dead_cmux_lemon_is_started_through_cmux(capsys, monkeypatch):
     calls: list[str] = []
-    monkeypatch.setattr(autoresume_cmux, "start", lambda row, config: calls.append("cmux") or "")
+    monkeypatch.setattr(
+        autoresume_cmux, "start", lambda row, config, text: calls.append("cmux") or ""
+    )
     monkeypatch.setattr(
         recipient.handlers, "where_sessions_are", lambda sessions, fresh: {"claude:incmux": False}
     )

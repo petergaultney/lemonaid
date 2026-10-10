@@ -92,6 +92,8 @@ Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the
 
 `tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again would only deliver it twice.
 
+`lemonaid lemon resume <lemon>` starts or prompts one lemon the same way, on request: it also resumes a lemon marked `done` or archived, ignores `[messages] autoresume`, and counts against the same start limit. See [for lemons](for-lemons.md#bringing-one-back-lemon-resume).
+
 ## Delivery
 
 A Codex lemon arms nothing. The delivery service queues each pending message
