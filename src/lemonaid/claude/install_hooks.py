@@ -17,6 +17,7 @@ from pathlib import Path
 
 _SESSION_START_COMMAND = "lemonaid claude session-start"
 WAITER_CHECK_COMMAND = "lemonaid claude waiter-check"
+SESSION_END_COMMAND = "lemonaid claude session-end"
 _STATUS_NOTE_SCRIPT = "; ".join(
     [
         "d=$(cat)",

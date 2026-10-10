@@ -2,7 +2,7 @@
 
 import argparse
 
-from . import install_hooks, own_edit, status_note, waiter_check
+from . import install_hooks, own_edit, session_end, status_note, waiter_check
 from .bootstrap import run_bootstrap
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
@@ -33,11 +33,12 @@ def cmd_session_start(args: argparse.Namespace) -> None:
 
 
 def cmd_hooks(args: argparse.Namespace) -> None:
-    """Install or remove the optional SessionStart hook, the Stop waiter check, the status note, or the own-edit record."""
+    """Install or remove the optional SessionStart hook, the Stop waiter check, the status note, the own-edit record, or the exit record."""
     chosen = [
         (event, command, matcher)
         for picked, event, command, matcher in (
             (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND, ""),
+            (args.session_end, "SessionEnd", install_hooks.SESSION_END_COMMAND, ""),
             (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND, ""),
             *(
                 (
@@ -64,6 +65,11 @@ def cmd_hooks(args: argparse.Namespace) -> None:
         return
 
     print(install_session_start(dry_run=args.dry_run))
+
+
+def cmd_session_end(args: argparse.Namespace) -> None:
+    """Handle the SessionEnd hook that records when and why a session ended."""
+    session_end.handle_session_end()
 
 
 def cmd_status_note(args: argparse.Namespace) -> None:
@@ -258,6 +264,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "without `lemonaid inbox watch --self` running",
     )
     hooks_parser.add_argument(
+        "--session-end",
+        action="store_true",
+        help="Act on the SessionEnd hook that records when a session ended and Claude's "
+        "reason, as exited_at and exit_reason on its inbox row",
+    )
+    hooks_parser.add_argument(
         "--status-note",
         action="store_true",
         help="Act on the PostToolUse hook that, once a turn, reminds a lemon whose brief "
@@ -270,6 +282,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "the docs it watches, so `lemonaid watch doc` does not wake it for them",
     )
     hooks_parser.set_defaults(func=cmd_hooks)
+
+    # claude session-end
+    session_end_parser = claude_subparsers.add_parser(
+        "session-end",
+        help="Record when a session ended and why (SessionEnd hook; reads JSON from stdin)",
+    )
+    session_end_parser.set_defaults(func=cmd_session_end)
 
     # claude own-edit
     own_edit_parser = claude_subparsers.add_parser(

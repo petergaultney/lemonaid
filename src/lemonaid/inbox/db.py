@@ -490,6 +490,25 @@ def record_model(conn: sqlite3.Connection, channel: str, provider: str, model: s
     return True
 
 
+def record_exit(conn: sqlite3.Connection, channel: str, at: float, reason: str) -> bool:
+    """Record that a session's harness exited and the reason it gave.
+
+    The session's next registration or report (`add`, `register_working`) replaces
+    its metadata and so drops this; the watcher's own observations keep it.
+    """
+    existing = get_by_channel(conn, channel, unread_only=False)
+    if existing is None:
+        return False
+
+    conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ?",
+        (json.dumps({**existing.metadata, "exited_at": at, "exit_reason": reason}), existing.id),
+    )
+    conn.commit()
+
+    return True
+
+
 def record_context(conn: sqlite3.Connection, channel: str, used: int, window: int) -> bool:
     """Record a session's latest context reading; a window of 0 keeps the one known."""
     existing = get_by_channel(conn, channel, unread_only=False)
