@@ -34,33 +34,8 @@ import subprocess
 import sys
 from collections.abc import Collection
 
+from .. import palette
 from ..config import load_config
-
-COLORS = [
-    "#FF5555",  # Bright Red
-    "#50FA7B",  # Bright Green
-    "#F1FA8C",  # Bright Yellow
-    "#A66BE0",  # Bright Purple
-    "#FF79C6",  # Bright Pink
-    "#8BE9FD",  # Bright Cyan
-    "#FFB86C",  # Bright Orange
-    "#9AEDFE",  # Light Blue
-    "#5AF78E",  # Light Green
-    "#F4F99D",  # Light Yellow
-    "#CAA9FA",  # Light Purple
-    "#FF6E67",  # Light Red
-    "#ADEDC8",  # Soft Green
-    "#FEA44D",  # Soft Orange
-    "#F07178",  # Coral
-    "#00B1B3",  # Teal
-    "#E6DB74",  # Muted Yellow
-    "#7DCFFF",  # Sky Blue
-    "#D8A0DF",  # Lavender
-    "#36C2C2",  # Aqua
-    "#FF9E64",  # Peach
-    "#85DACC",  # Mint
-    "#E3CF65",  # Gold
-]
 
 # Special overrides for known directory names
 DIR_COLORS: dict[str, str] = {
@@ -156,17 +131,9 @@ def _detect_named_app(pane_pid: str, names: Collection[str]) -> str | None:
     return None
 
 
-def djb2(s: str) -> int:
-    """DJB2 hash algorithm for deterministic string hashing."""
-    h = 5381
-    for c in s:
-        h = ((h * 33) + ord(c)) & 0xFFFFFFFF
-    return h
-
-
 def get_color(name: str) -> str:
     """Get a deterministic color for a directory/file name."""
-    return DIR_COLORS.get(name, COLORS[djb2(name) % len(COLORS)])
+    return DIR_COLORS.get(name, palette.colour_for(name))
 
 
 def format_path(path: str) -> str:

@@ -495,11 +495,23 @@ named_processes = ["mops-console"]
 The color constants remain source-level customization in
 `src/lemonaid/tmux/window_status.py`:
 
-- `COLORS` - The color palette (23 distinct colors)
+- `palette.SLOTS` (`src/lemonaid/palette.py`) - The 108 generated colors names hash into: 36 hues, 10 degrees apart, in three lightness tiers. See [Name colors](#name-colors).
 - `DIR_COLORS` - Override colors for specific directory names
 - `PROCESS_COLORS` - Override colors for specific process names
 - `HIDDEN_PROCESSES` - Shells/wrappers that shouldn't appear (just show directory)
 - `INTERPRETER_PROCESSES` - Interpreters where pane_title is preferred
+
+### Name colors
+
+Directory and process names, `lma` project labels and group headers all take their color from `lemonaid.palette`. A name hashes to one of 108 slots covering the whole hue wheel.
+
+- Every slot has the same saturation, so none is grey.
+- Every slot has a luminance giving 7:1 to 12:1 contrast against black, so it reads under the black text of a group header and against a dark terminal background.
+- No hue is excluded for resembling a status color, so a name sometimes shares a hue with one.
+
+Colors are 24-bit hex. tmux and the inbox quantize them to the nearest 256-color entry on terminals without truecolor, which keeps hue and contrast. On a light background name text has less contrast; header fills are unaffected.
+
+`python scripts/palette_swatches.py` prints the slots beside the status colors.
 
 ## Surviving a crash
 

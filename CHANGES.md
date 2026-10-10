@@ -1,3 +1,9 @@
+# 0.96.0 (2026-10-09)
+
+#### Changed
+
+- **Place, group and tmux window colors now come from the whole hue wheel** instead of 23 hand-picked colors: 108 slots at one saturation (never grey) and a luminance that reads on black text and a dark background. Existing names get new colors. A collapsed group header with no status fill no longer dims its name badge and count.
+
 # 0.95.0 (2026-10-09)
 
 #### Added

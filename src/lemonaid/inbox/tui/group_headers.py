@@ -55,7 +55,7 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
     """
     colour = project_color(header.group.name)
     name = (
-        Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=colour))
+        Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=colour, dim=False))
         if header.group.collapsed
         else Text(header.group.name, style=Style(color=colour))
     )
@@ -65,12 +65,12 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
         # header's badge rather than leaving a sliver of fill between them.
         (
             f"{arrow} ",
-            Style(color="#000000", bgcolor=colour, bold=True, underline=False)
+            Style(color="#000000", bgcolor=colour, bold=True, underline=False, dim=False)
             if selected
-            else Style(color=colour),
+            else Style(color=colour, dim=False),
         ),
         name,
-        f" ({header.tally})",
+        (f" ({header.tally})", Style(dim=False)),
         _dot(header),
         style=style(header),
     )
