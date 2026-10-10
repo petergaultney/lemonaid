@@ -65,6 +65,21 @@ requires that the recipient's brief is currently attached to a session.
 bounds that wait. The watch keeps the stable ID if the brief file is renamed,
 and ends with an error if the brief moves to another channel or is detached.
 
+## Will it be read?
+
+`tell` writes the message, prints its path, then prints one line on stderr saying whether the recipient will read it, judged from what is running at that moment:
+
+| State | Meaning | Exit |
+|---|---|---|
+| `listening` | A Codex lemon whose harness is running (the delivery service queues the message into its thread), or a Claude lemon whose inbox waiter is armed | 0 |
+| `mid-turn` | A Claude lemon working on a turn; its Stop hook makes it arm a waiter when the turn ends | 0 |
+| `not started` | The brief is attached to a lemon that hasn't started yet; it reads its inbox when it does | 0 |
+| `unknown` | A harness other than Claude or Codex, which lemonaid can't check | 0 |
+| `deaf` | A Claude lemon that is idle with no inbox waiter | 1 |
+| `dead` | No harness runs on the terminal the lemon last reported, or its row is archived and the terminal is unknown | 1 |
+
+A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. `tell` exits 1 so the sender knows not to wait for a reply; sending the message again would only deliver it twice.
+
 ## Delivery
 
 A Codex lemon arms nothing. The delivery service queues each pending message

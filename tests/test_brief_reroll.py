@@ -8,7 +8,7 @@ import pytest
 from lemonaid import lineage
 from lemonaid.brief import attached, identity, lemon, reroll, store, write_cli
 from lemonaid.inbox import db
-from lemonaid.messages import cli
+from lemonaid.messages import cli, waiter
 from lemonaid.messages import store as message_store
 
 
@@ -76,7 +76,8 @@ def test_tell_to_the_old_id_reaches_the_new_inbox(capsys, monkeypatch):
     new = _reroll("center").new_id
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
 
-    _run("tell", old, "by old name")
+    with waiter.armed(message_store.inbox_for_id(new)):
+        _run("tell", old, "by old name")
     message_store.send(stale_inbox, "resolved early", "claude:sender")
 
     new_inbox = message_store.inbox_for_id(new)
