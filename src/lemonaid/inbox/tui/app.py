@@ -1927,6 +1927,7 @@ class LemonaidApp(App):
 
         shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
+        all_folded = folded  # grouped ones too, which hide in place rather than in the fold
         entries: list[sections.Header | sections.Row]
         if matching_ids is not None:
             entries = [
@@ -2036,8 +2037,21 @@ class LemonaidApp(App):
             },
         )
 
-        fold_label.display = bool(folded) and not self._search_mode
-        update_static(fold_label, self._fold_label(len(folded)))
+        fold_label.display = bool(all_folded) and not self._search_mode
+        update_static(
+            fold_label,
+            self._fold_label(
+                len(all_folded),
+                len(
+                    {
+                        name
+                        for n in [*shown, *all_folded]
+                        for name in active.memberships.get(n.channel, ())
+                    }
+                )
+                - len(self._headers),
+            ),
+        )
 
         # Populate non-switchable table (always dim, not interactive).
         # Hide it if the terminal is too short — main table gets priority.
@@ -2206,8 +2220,12 @@ class LemonaidApp(App):
 
         self._set_status(status_text)
 
-    def _fold_label(self, count: int) -> str:
-        """The folded group's one line: which statuses, how many, and the key that opens it."""
+    def _fold_label(self, count: int, hidden_groups: int = 0) -> str:
+        """The fold's one line: which statuses, how many, any groups it hides, and its key.
+
+        *count* includes folded rows in groups, which hide in place under
+        their headers, and *hidden_groups* the groups with every row folded.
+        """
         key = self.config.tui.keybindings.fold[:1]
         group = (
             f"{self._fold_name or ', '.join(self.config.tui.fold_statuses) or 'folded'} ({count})"
@@ -2215,7 +2233,12 @@ class LemonaidApp(App):
         if self._fold_open:
             return f"▴ {group} above" + (f" · {key} to fold" if key else "")
 
-        return f"▸ {group}" + (f" · {key} to show" if key else "")
+        hidden = f" · {hidden_groups} group{'s' if hidden_groups != 1 else ''} hidden"
+        return (
+            f"▸ {group}"
+            + (hidden if hidden_groups > 0 else "")
+            + (f" · {key} to show" if key else "")
+        )
 
     def action_toggle_fold(self) -> None:
         if self._history_mode or self._snoozed_mode:

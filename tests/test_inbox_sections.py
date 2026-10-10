@@ -126,3 +126,11 @@ def test_a_group_floats_to_the_top_of_its_most_pressing_rows_band():
     )
 
     assert _keys(entries) == ["1", "group:2", "5@2", "2", "3", "group:1", "6@1", "4"]
+
+
+def test_a_group_with_every_row_folded_is_drawn_only_with_the_fold_open():
+    loose, quiet = _n(1, "l"), _n(2, "q")
+    args = ([loose], [quiet], set(), {"q": ("A",)}, [_group(1, "A")], {})
+
+    assert _keys(sections.layout(*args)[0]) == ["1"]
+    assert _keys(sections.layout(*args, fold_open=True)[0]) == ["group:1", "2@1", "1"]

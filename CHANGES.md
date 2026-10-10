@@ -12,6 +12,7 @@
 
 #### Fixed
 
+- **The fold line counts folded lemons in groups, and says how many groups it hides; a group whose lemons are all folded leaves the list until the fold opens.** Such a group used to show as a header with `(0/1)` that couldn't be opened, and the fold line was missing when every folded lemon was in a group.
 - **The inbox cursor stays on a lemon whose row moves into or out of a group,** rather than falling back to the row's old position.
 - **A key binding given as a symbol, such as `+` or `?`, now works.** It used to be bound under the character, which Textual never sends.
 

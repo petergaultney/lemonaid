@@ -196,7 +196,9 @@ place: `▸ idle (4) · w to show`. A lemon comes out while it is `active`, as i
 used to when it set `working`, and while it is `deaf` or `dead` unless those are
 listed too. `waiting` and `working`, from before lemonaid derived them, mean
 `idle` and `active`. `w` (the `fold` key) opens the group, listing those
-sessions at the bottom of the list, and closes it again. It works the same in the
+sessions at the bottom of the list, and closes it again. A folded session in a
+group stays hidden in its group instead, and still counts on the line; see
+[groups.md](groups.md#in-the-inbox). It works the same in the
 column layout and the sidebar.
 
 A folded session comes back into the list while it is unread or while its tmux
