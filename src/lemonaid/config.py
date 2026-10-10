@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read, keys, watch_config
+from . import auto_read, keys, messages_config, watch_config
 from .inbox import context_use, snooze_time
 from .usage import settings
 
@@ -330,6 +330,7 @@ class Config:
     places: PlacesConfig = field(default_factory=PlacesConfig)
     watch: watch_config.WatchConfig = field(default_factory=watch_config.WatchConfig)
     usage: settings.UsageConfig = field(default_factory=settings.UsageConfig)
+    messages: messages_config.MessagesConfig = field(default_factory=messages_config.MessagesConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -623,6 +624,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         places=places,
         watch=watch_config.parse(data.get("watch", {})),
         usage=settings.parse(data.get("usage", {})),
+        messages=messages_config.parse(data.get("messages", {})),
     )
 
 

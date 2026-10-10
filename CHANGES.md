@@ -1,3 +1,9 @@
+# 0.95.0 (2026-10-09)
+
+#### Added
+
+- **`lemonaid tell` starts a recipient that won't read the message.** A lemon whose harness exited is resumed in a new window of its tmux session, and an idle Claude with no inbox waiter is prompted, both to read their inbox; each start is posted to the inbox. A lemon whose brief says `done`, or whose row is archived, is left alone, and the sender gets its Status, its `## Now` and the command to resume it. `[messages] autoresume` (`on`, `off`, `claude`, `codex`) chooses which harnesses are started.
+
 # 0.94.0 (2026-10-09)
 
 #### Changed

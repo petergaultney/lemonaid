@@ -8,10 +8,11 @@ import sys
 from pathlib import Path
 
 from .. import brief, lineage
+from ..config import load_config
 from ..inbox import db
 from ..log import get_logger
 from ..watch import registry
-from . import codex_delivery, recipient, service, store, waiter
+from . import autoresume, codex_delivery, recipient, service, store, waiter
 
 _log = get_logger("messages.cli")
 _INBOX_WATCH = ["lemonaid", "inbox", "watch", "--self"]
@@ -53,6 +54,14 @@ def _linked(conn: sqlite3.Connection, args: argparse.Namespace) -> str:
     return child
 
 
+def _text(path: Path) -> str:
+    try:
+        return path.read_text()
+    except OSError as error:
+        _log.warning("Could not read brief %s: %s", path, error)
+        return ""
+
+
 def _recipient(conn: sqlite3.Connection, target: str) -> tuple[str, brief.attached.Attachment]:
     """(Lemon-ID, attachment) for *target*."""
     try:
@@ -76,12 +85,13 @@ def cmd_tell(args: argparse.Namespace) -> None:
             lemon_id = _linked(conn, args)
             try:
                 found = brief.lemon.attachment(conn, lemon_id)
-                channel, row = found.channel, found.notification
+                channel, row, brief_path = found.channel, found.notification, found.path
             except LookupError:
-                channel, row = "", None  # not started yet; its messages wait in its inbox
+                channel, row, brief_path = "", None, None  # not started; its messages wait
         else:
             lemon_id, found = _recipient(conn, args.target)
-            channel, row = found.channel, found.notification
+            channel, row, brief_path = found.channel, found.notification, found.path
+        parent = lineage.links.parent_of(conn, lemon_id) or ""
 
         sender = brief.lemon.self_channel(
             conn, args.channel or "", os.environ.get("USER") or "unknown"
@@ -103,8 +113,21 @@ def cmd_tell(args: argparse.Namespace) -> None:
         service.ensure_running()
     print(path)
     state = recipient.probe(channel, row, inbox)
-    print(recipient.describe(lemon_id, state), file=sys.stderr)
-    if state.state in recipient.UNREAD:
+    if state.state not in recipient.UNREAD:
+        print(recipient.describe(lemon_id, state), file=sys.stderr)
+        return
+
+    if row is None or brief_path is None:  # no record of its session to start
+        print(autoresume.off(lemon_id, parent, state), file=sys.stderr)
+        raise SystemExit(1)
+
+    line, will_read = autoresume.respond(
+        autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
+        state,
+        load_config(),
+    )
+    print(line, file=sys.stderr)
+    if not will_read:
         raise SystemExit(1)
 
 
@@ -197,9 +220,11 @@ def cmd_watch(args: argparse.Namespace) -> None:
 
 _TELL_EPILOG = """\
 The message is always queued. tell then says on stderr whether the recipient
-will read it, and exits 1 when it won't (its harness isn't running, or it is
-an idle Claude lemon with no inbox waiter). On exit 1, don't resend or wait
-for a reply; follow the next step that line gives.
+will read it. A lemon whose harness exited, or an idle Claude with no inbox
+waiter, is started on a prompt to read its inbox, unless it is done or
+archived ([messages] autoresume). tell exits 1 when the recipient still won't
+read it. On exit 1, don't resend or wait for a reply; follow the next step
+that line gives.
 """
 
 

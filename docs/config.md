@@ -564,6 +564,15 @@ skip_resolved = true
 `--no-skip-outdated` and `--no-skip-resolved` override it to false for one wait.
 These filters do not affect submitted review bodies or PR conversation comments.
 
+## `[messages]`
+
+```toml
+[messages]
+autoresume = "on"  # "off", "claude", or "codex"
+```
+
+When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is an idle Claude with no inbox waiter, it starts that lemon on a prompt to read its inbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. See [messages](messages.md#will-it-be-read).
+
 ## `[usage]`
 
 Thresholds for [`lemonaid usage --watch`](usage.md).
