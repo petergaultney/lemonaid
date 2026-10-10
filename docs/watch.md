@@ -199,6 +199,11 @@ status is selected. The ask reported with a status event is the first `### Needs
 section (also `Needs` or `Needs you`), or an older `- Needs Peter:` bullet and its
 continuation lines. Whitespace and bullet marks are normalized.
 
+A Claude lemon with children cannot end its turn until some `watch briefs --children`
+waiter is running for it. Any form counts, including `--orphans`, `--to` and `--me`, whichever
+lemon started it, so one `--orphans` waiter is enough and no second one is needed. The hook
+does not check which statuses the waiter wakes on.
+
 ### Also watching briefs no live lemon owns
 
 `--orphans` adds every attached brief that has no parent link, or whose parent's session is

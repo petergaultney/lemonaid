@@ -174,6 +174,11 @@ def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
     ]
 
 
+def running_for(kind: str, target: str) -> list[Waiter]:
+    """Running waiters of `kind` watching `target`, whichever lemon started them."""
+    return [w for w in _running() if w.kind == kind and target in w.targets]
+
+
 def watching(
     a: ty.Any, kind: str, targets: abc.Iterable[str], codex_thread: str = "", repo: str = ""
 ) -> ty.ContextManager[Waiter]:
