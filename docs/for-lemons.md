@@ -178,6 +178,18 @@ resume, recording the session and its current location without a turn.
 Sessions register as working, never unread. Installing is additive and idempotent; hooks you did not
 write are never touched.
 
+```bash
+lemonaid claude hooks --session-end   # record when, and why, each session ended
+```
+
+Claude Code runs `SessionEnd` when a session ends, with its own word for why. lemonaid records
+the time and that word on the session's inbox row as `exited_at` and `exit_reason`, and they are
+cleared the next time the session registers or reports (any hook that writes its row). A record
+means Claude reported an end. It doesn't mean the process stopped: `clear` ends a session id
+while Claude carries on under a new one. No record means nothing on its own: the hook may not
+be installed, the session may have been killed or crashed, or Claude may not have waited for
+the hook. Codex has no such hook.
+
 ## Places
 
 A **place** is a directory you work in. lemonaid knows about directories and terminals — it
