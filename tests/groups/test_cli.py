@@ -73,7 +73,7 @@ def test_remove_takes_a_lemon_out_of_one_group_only(capsys):
 def test_rename_keeps_members_and_refuses_a_taken_name(capsys):
     one = lemon("one")
     run(capsys, "group", "create", "Old", one, "--json")
-    run(capsys, "group", "create", "Taken", "--json")
+    run(capsys, "group", "create", "Taken", one, "--json")
 
     refused = run(capsys, "group", "rename", "Old", "Taken", "--json")
     renamed = run(capsys, "group", "rename", "Old", "New", "--json")
@@ -94,10 +94,26 @@ def test_delete_forgets_the_group_and_its_memberships(capsys):
 
 
 def test_groups_list_in_the_order_they_were_made(capsys):
+    lemon("one")
     for name in ("b", "a", "c"):
-        run(capsys, "group", "create", name, "--json")
+        run(capsys, "group", "create", name, "one", "--json")
 
     assert [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]] == ["b", "a", "c"]
+
+
+def test_a_group_with_no_members_is_not_listed_and_making_it_again_brings_it_back(capsys):
+    lemon("one")
+    run(capsys, "group", "create", "First", "--json")
+    first = run(capsys, "group", "create", "Old", "one", "--json")["group"]
+    run(capsys, "group", "remove", "Old", "one", "--json")
+
+    listed = [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]]
+    again = run(capsys, "group", "create", "Old", "--json")
+
+    assert listed == []
+    assert again["error"] is None and again["group"]["position"] == first["position"]
+    run(capsys, "group", "add", "Old", "one", "--json")
+    assert run(capsys, "group", "create", "Old", "--json")["error"]  # it has a member again
 
 
 def test_a_missing_group_or_lemon_is_an_error(capsys):

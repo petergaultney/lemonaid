@@ -105,27 +105,34 @@ def test_plus_with_a_new_name_makes_the_group(inbox):
     assert _groups()["Review"] == (inbox["child"],)
 
 
-def test_minus_takes_a_lemon_out_of_its_group_and_on_a_header_deletes_it(inbox):
+def test_minus_takes_a_lemon_out_and_its_emptied_group_goes_from_the_list(inbox):
     async def steps(app, pilot):
         await pilot.pause()
         _cursor_on(app, "claude:loose")
         await pilot.press("minus")
         await pilot.pause()
-        removed = _groups()
-        assert _under_cursor(app) == "claude:loose"
+        return _channels(app), _under_cursor(app)
+
+    channels, cursor = _run(steps)
+
+    assert _groups() == {"Work": ()}
+    assert "" not in channels
+    assert cursor == "claude:loose"
+
+
+def test_minus_on_a_header_deletes_the_group_and_z_brings_it_back(inbox):
+    async def steps(app, pilot):
+        await pilot.pause()
         app.query_one("#main_table", DataTable).move_cursor(row=_channels(app).index(""))
         await pilot.press("minus")
         await pilot.pause()
         deleted = _groups()
         await pilot.press("z")
         await pilot.pause()
-        return removed, deleted
+        return deleted
 
-    removed, deleted = _run(steps)
-
-    assert removed == {"Work": ()}
-    assert deleted == {}
-    assert _groups() == {"Work": ()}
+    assert _run(steps) == {}
+    assert _groups() == {"Work": (inbox["loose"],)}
 
 
 def test_r_on_a_header_renames_the_group(inbox):

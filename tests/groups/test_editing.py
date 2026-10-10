@@ -13,9 +13,12 @@ def _line(lemon_id: str) -> tuple[str, ...] | None:
 
 
 def test_a_free_name_cleans_the_wanted_one_and_numbers_a_taken_one():
+    one = lemon("one")
     with db.connect() as conn:
         assert groups.editing.free_name(conn, "fix, the\tbug") == "fix the bug"
         groups.store.create(conn, "fix the bug")
+        assert groups.editing.free_name(conn, "fix the bug") == "fix the bug"  # no members
+        groups.store.add(conn, groups.store.find(conn, "fix the bug"), [one])
         assert groups.editing.free_name(conn, "fix the bug") == "fix the bug 2"
         assert groups.editing.free_name(conn, " ,\n") == "Group"
 
@@ -84,11 +87,11 @@ def test_a_deleted_group_comes_back_with_its_place_collapse_and_members():
 
 
 def test_rename_rewrites_lines_and_refuses_a_taken_name():
-    one = lemon("one")
+    one, other = lemon("one"), lemon("other")
     with db.connect() as conn:
         work = groups.store.create(conn, "Work")
         groups.store.add(conn, work, [one])
-        groups.store.create(conn, "Taken")
+        groups.store.add(conn, groups.store.create(conn, "Taken"), [other])
 
         with pytest.raises(groups.store.GroupError):
             groups.editing.rename(conn, work, "Taken")
@@ -133,3 +136,29 @@ def test_adding_a_member_again_is_refused():
 
         with pytest.raises(groups.store.GroupError, match="already in"):
             groups.editing.add(conn, "Work", one, "one")
+
+
+def test_a_tree_group_with_an_old_empty_groups_name_brings_it_back_and_undo_empties_it():
+    one = lemon("one")
+    with db.connect() as conn:
+        groups.store.create(conn, "First")
+        old = groups.store.create(conn, "Old")
+
+        edit = groups.editing.group_tree(conn, one, "Old", "one")
+        assert edit.group and (edit.group.group_id, edit.group.members) == (old.group_id, (one,))
+        groups.editing.undo(conn, edit.change)
+
+        assert groups.store.find(conn, "Old") == old
+
+
+def test_renaming_to_an_empty_groups_name_takes_it():
+    one = lemon("one")
+    with db.connect() as conn:
+        groups.store.create(conn, "Old")
+        work = groups.store.create(conn, "Work")
+        groups.store.add(conn, work, [one])
+
+        renamed = groups.editing.rename(conn, groups.store.find(conn, "Work"), "Old").group
+
+        assert renamed and (renamed.group_id, renamed.members) == (work.group_id, (one,))
+        assert [g.name for g in groups.store.all_groups(conn)] == ["Old"]

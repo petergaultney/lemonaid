@@ -3639,7 +3639,11 @@ class LemonaidApp(App):
         notification, lemon_id = found
         name = notification.name or notification.channel
         with db.connect() as conn:
-            names = [g.name for g in groups.store.all_groups(conn) if lemon_id not in g.members]
+            names = [
+                g.name
+                for g in groups.store.all_groups(conn)
+                if g.members and lemon_id not in g.members
+            ]
 
         def picked(group_name: str | None) -> None:
             if not group_name:

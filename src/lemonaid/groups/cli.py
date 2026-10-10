@@ -99,7 +99,7 @@ def _cmd_list(args: argparse.Namespace) -> None:
                 conn, _named(conn, args, "self" if args.use_self else args.lemon)
             )
         else:
-            groups = store.all_groups(conn)
+            groups = [group for group in store.all_groups(conn) if group.members]
 
         if args.json:
             print(json.dumps({"groups": [_as_json(conn, g) for g in groups], "error": None}))

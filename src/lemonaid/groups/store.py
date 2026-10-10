@@ -82,7 +82,7 @@ def find(conn: sqlite3.Connection, name: str) -> Group:
 
 
 def all_groups(conn: sqlite3.Connection) -> list[Group]:
-    """Every group, in inbox order."""
+    """Every group, in inbox order, including those with no members."""
     return [
         _group(conn, row)
         for row in conn.execute("SELECT * FROM lemon_groups ORDER BY position, group_id")
@@ -116,12 +116,18 @@ def names_of(conn: sqlite3.Connection, lemon_id: str) -> tuple[str, ...]:
 
 
 def create(conn: sqlite3.Connection, name: str) -> Group:
-    """A new, empty group below every other. Refuses a name already taken."""
+    """A new group below every other, or the one called *name* if it has no members.
+
+    A group with no members is gone as far as anything shows, so making it
+    again brings it back, in its old place. Refuses a name a group with members
+    has.
+    """
     name = checked_name(name)
     try:
         _insert(conn, name)
     except sqlite3.IntegrityError:
-        raise GroupError(f"A group named {name!r} already exists") from None
+        if find(conn, name).members:
+            raise GroupError(f"A group named {name!r} already exists") from None
 
     conn.commit()
     return find(conn, name)
@@ -161,11 +167,18 @@ def remove(conn: sqlite3.Connection, group: Group, lemon_ids: abc.Iterable[str])
 
 
 def rename(conn: sqlite3.Connection, group: Group, name: str) -> Group:
+    """Refuses a name a group with members has; one with none gives its name up."""
     name = checked_name(name)
     try:
-        conn.execute("UPDATE lemon_groups SET name = ? WHERE group_id = ?", (name, group.group_id))
-    except sqlite3.IntegrityError:
-        raise GroupError(f"A group named {name!r} already exists") from None
+        holder = find(conn, name)
+    except LookupError:
+        holder = None
+    if holder and holder.group_id != group.group_id:
+        if holder.members:
+            raise GroupError(f"A group named {name!r} already exists")
+
+        conn.execute("DELETE FROM lemon_groups WHERE group_id = ?", (holder.group_id,))
+    conn.execute("UPDATE lemon_groups SET name = ? WHERE group_id = ?", (name, group.group_id))
 
     conn.commit()
     return find(conn, name)

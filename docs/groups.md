@@ -17,6 +17,7 @@ lemonaid lemon start work:4 --brief <file> --group "Inbox work"
 A `<lemon>` is a Lemon-ID, an attached lemon's channel, a brief's name or path, or `self`, as for `lemon parent`. The brief need not be attached yet, so a lead can put a child in its group before the child starts. Every command takes `--json`.
 
 - **`create` makes a group; `add` needs one that exists,** so a mistyped name is an error rather than a second group. So does `--group` on `place open` and `lemon start`, which checks before anything opens.
+- **A group with no members is gone,** as far as anything shows: `list`, the inbox and its `+` list leave it out, and there's nothing to clean up. Making a group with its name again brings it back, in its old place, and renaming another group to that name takes it over.
 - **Names are trimmed, unique, and can't contain a comma** or a control character.
 - **A child joins its parent's groups:** when `brief new --child` writes its brief, and when `place open` or `lemon start` starts it with `--parent` and no `--group`. `--group` names other groups instead. A resumed or replacement session on the same brief keeps its groups, since they belong to the brief's Lemon-ID. Starting it again with `--parent` adds the parent's groups back, even ones it was removed from. A lead finds its own groups with `group list --self`.
 
@@ -45,7 +46,7 @@ Two machines both working on one brief at once would each rewrite its line from 
 
 `lma` draws each group under a header line naming it and how many of its lemons have rows (`▾ Inbox work (3)`):
 
-- **Order:** pinned lemons in no group come first. Each group then sits among the other rows by its most pressing row's status, above single lemons of the same status: a group holding a `blocked` lemon heads the `blocked` rows. Groups in the same band keep their own order, and an empty group goes last.
+- **Order:** pinned lemons in no group come first. Each group then sits among the other rows by its most pressing row's status, above single lemons of the same status: a group holding a `blocked` lemon heads the `blocked` rows. Groups in the same band keep their own order.
 - **A pinned lemon in a group heads that group,** and stays visible when the group is collapsed. Pin a lead to keep it in sight with its group out of the way.
 - **A lemon in two groups appears in both.**
 - **`Enter` on a header collapses the group,** leaving only the header, and opens it again. `Tab` does the same from the header or any of the group's lemons; a lemon you collapse from stays drawn under the cursor until you move off it. A collapsed header (`▸`) is filled with the colour of its most pressing row: `alert` red, `blocked` yellow, and so on in the band order of `docs/arrange.md`. Being unread doesn't fill a header: a group with an unread row shows a dot after its count.
@@ -54,7 +55,7 @@ Two machines both working on one brief at once would each rewrite its line from 
 - **A group's colour comes from the palette by name,** moved off any look-alike among the current groups, so two groups don't share a hue. `[tui.group_colors]` in the config sets one by name; see [Group colors](config.md#group-colors).
 - **The header's arrow, count and underline take the group's colour,** like its name; only the unread dot and a status fill's text keep theirs. Under the cursor the arrow becomes a block of that colour, and in the sidebar a white block marks the right edge, since the table's cursor colour doesn't show through a status fill.
 - **In the sidebar, a group's cards sit one column in, behind a rail** (`▌`) in the group's colour that runs unbroken down every line. Where the rail stops, the group ends. Cards in no group keep the full width. The current lemon's bar runs down its card's right edge, a column every card keeps free for it, so it never meets a rail. It's near white on a dark theme and near black on a light one, which no group's colour is.
-- **A group is never hidden.** One whose lemons have no rows shows its header alone, with `(0)`.
+- **A group with no rows isn't drawn,** whether it has no members or all its lemons have been archived. It comes back when one of its lemons has a row again. Other groups are never hidden to make room.
 - **Row keys skip headers.** Number keys count lemons only, the brief view's up and down step over headers, and actions on a header (mark read, archive, ...) do nothing.
 - **Folding:** a row that `[tui] fold_statuses` or an arranger's `folded` list folds is hidden in place inside its group, and the fold key shows it there again. The header's count then reads `(2/3)`: two rows not folded, three in all.
 - **Search** shows matches as a flat list, without groups.
@@ -71,8 +72,8 @@ Collapse and order are stored in this machine's database and survive restarts.
 | `r` | Rename the session | Rename the group |
 | `z` | Undo the last change, a group edit included | |
 
-- **`G` asks for the group's name first,** offering the lemon's session name (`fix-auth`, or `fix-auth 2` when that's taken, with commas made spaces). Enter makes the group; Escape makes none. The group is new each time: to add a lemon's tree to an existing group, use `lemonaid group add <name> <lemon> --tree`.
-- **`+` lists the groups the lemon isn't in.** Typing narrows the list, and a name no group has adds `New group: <name>` at the bottom. Enter takes the highlighted line. Naming a group the lemon is already in says so and changes nothing.
+- **`G` asks for the group's name first,** offering the lemon's session name (`fix-auth`, or `fix-auth 2` when a group with members has that name, with commas made spaces). Enter makes the group, or brings back an empty one of that name; Escape makes none. To add a lemon's tree to a group with members, use `lemonaid group add <name> <lemon> --tree`.
+- **`+` lists the groups with members that the lemon isn't in.** Typing narrows the list, and a name no group has adds `New group: <name>` at the bottom. Enter takes the highlighted line. Naming a group the lemon is already in says so and changes nothing.
 - **The cursor stays on the lemon** wherever an edit moves it: into a group, out of one, or into a collapsed group, where it stays drawn until the cursor leaves it.
 - **`-` acts at once, without asking,** and says what it did. A lemon in two groups is drawn under each, so the row you're on says which group it leaves. Deleting a group leaves its lemons as they were.
 - **`z` undoes each of these,** a deleted group coming back with its name, place, collapse and members. It refuses, changing nothing, once the group has changed since, by another inbox edit or `lemonaid group`, and drops that edit from the undo list. When the group's old name has been taken, it keeps the edit, so `z` works again once the name is free.
