@@ -1,3 +1,15 @@
+# 0.100.0 (2026-10-10)
+
+#### Added
+
+- **`lma`'s header shows one overall usage pace figure after the subtitle, such as `usage 1.12x`, colored like `lemonaid usage`.** It is the mean of each harness's worst window pace, weighted by `[usage.weights]` (equal by default); a harness with no usable pace is left out. Windows under a day (the five-hour windows) and windows past their reset don't count (`overall_min_window_minutes`). Set `overall_pace = false` in `[usage]` to hide it.
+- **`U` opens a usage view in place of the inbox: one row per limit window, worst pace first, with pace, used, elapsed and reset.** Pace is colored like `lemonaid usage`; used is a separate linear 0-100% ramp through purple, blue, green, yellow and orange, red at exactly 100%. `q` goes back. The key is `usage_view` in `[tui.keybindings]`.
+
+#### Changed
+
+- **The pace colors are recalibrated, and run on to magenta.** The defaults for `pace_color_ratios` are now `[0.85, 1.05, 1.25, 1.4]` (were `[0.8, 1.15, 1.4, 1.8]`), so on pace is yellow-green and 1.2 is yellow-orange. Pace slides from red to magenta, fully magenta at 1.2 times the red ratio.
+- **The key reference lists `b` first under "Views and the pane"**, since it changes the view rather than acting on a session.
+
 # 0.99.0 (2026-10-09)
 
 #### Added

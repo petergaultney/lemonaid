@@ -117,6 +117,7 @@ class KeybindingsConfig:
     rename: str = "r"
     snooze: str = "s"  # Snooze a session out of the inbox for a while
     snoozed_list: str = "S"  # Toggle the snoozed-sessions view
+    usage_view: str = "U"  # Toggle the usage-pace view
     undo: str = "z"  # Undo the last inbox state change
     history: str = "h"  # Toggle history view
     search: str = "/"  # Search the inbox, or filter history

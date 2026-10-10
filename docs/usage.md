@@ -9,7 +9,7 @@ lemonaid usage --watch  # block until an alert, print it, and exit
 
 On a terminal, two parts of each line are colored, on separate scales.
 
-- **Used, with its pace.** Pace is usage so far divided by the share of the window elapsed, where 1.0 is exactly on pace. The colors are green at 0.8, yellow at 1.15, orange at 1.4 and red at 1.8 by default (set with `pace_color_ratios`), so being exactly on pace is a yellow-green. Cyan and blue are further below green than orange and red are above it. The scale is logarithmic, so running at twice the pace and at half the pace are equally far apart. With too little of the window elapsed to judge, it is dim.
+- **Used, with its pace.** Pace is usage so far divided by the share of the window elapsed, where 1.0 is exactly on pace. The colors are green at 0.85, yellow at 1.05, orange at 1.25 and red at 1.4 by default (set with `pace_color_ratios`), so being exactly on pace is a yellow-green. Past red the color slides to magenta, fully reached at 1.2 times the red ratio (1.68 by default). Cyan and blue are further below green than orange and red are above it, so a window far under its allowance (wasted allowance) reads as blue. The scale is logarithmic, so running at twice the pace and at half the pace are equally far apart. With too little of the window elapsed to judge, it is dim.
 - **Projected at reset.** The usage expected at reset if the pace so far continues, on a linear scale from 0 to 100% of the cap: blue at 0, green at 55%, yellow at 75%, orange at 90%. Red means reaching or passing the cap, so anything less says how close the window is expected to come.
 
 `--no-color` or `NO_COLOR` turns color off, and output that isn't a terminal is never colored.

@@ -93,7 +93,9 @@ def _while_current(inbox: Path, thread: str) -> abc.Iterator[bool]:
     with db.connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            yield next((t for found, t in _claimed_recipients(conn) if found == inbox), "") == thread
+            yield (
+                next((t for found, t in _claimed_recipients(conn) if found == inbox), "") == thread
+            )
         finally:
             conn.rollback()
 
@@ -126,7 +128,9 @@ def _pass(retry_at: dict[Path, float], retry: float) -> bool:
                 _deliver_all(inbox, thread)
                 retry_at.pop(inbox, None)
             except RuntimeError as error:
-                _log.warning("delivery to %s failed; retrying in %.0fs: %s", inbox.name, retry, error)
+                _log.warning(
+                    "delivery to %s failed; retrying in %.0fs: %s", inbox.name, retry, error
+                )
                 retry_at[inbox] = time.monotonic() + retry
 
         pending = pending or store.peek_next(inbox) is not None

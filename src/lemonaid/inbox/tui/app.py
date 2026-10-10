@@ -25,7 +25,7 @@ from textual.containers import Container
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
-from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Input, Static
+from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
 from ... import brief, claude, codex, groups, handlers, openclaw, opencode, palette
@@ -83,6 +83,7 @@ from . import (
     group_picker,
     pr_numbers,
     project_names,
+    usage_view,
     utils,
 )
 from .brief_view import BriefView
@@ -92,6 +93,7 @@ from .notes import NotesPanel
 from .resume_error import ResumeErrorScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
+from .usage_view import UsageHeader
 from .utils import (
     ATTENTION_COLOR,
     GUTTER_WIDTH,
@@ -908,7 +910,7 @@ class LemonaidApp(App):
         height: auto;
     }
 
-    #snoozed_table {
+    #snoozed_table, #usage_table {
         height: 1fr;
     }
     """
@@ -925,6 +927,7 @@ class LemonaidApp(App):
         self._history_mode = False
         self._search_mode = False
         self._snoozed_mode = False
+        self._usage_mode = False
         self._fold_open = False
         self._unfolded_ids: frozenset[str] = (
             frozenset()
@@ -1018,6 +1021,9 @@ class LemonaidApp(App):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.snoozed_list, "toggle_snoozed", "Snoozed"):
+            self.bind(b.key, b.action, description=b.description, show=b.show)
+
+        for b in _build_bindings(kb.usage_view, "toggle_usage", "Usage"):
             self.bind(b.key, b.action, description=b.description, show=b.show)
 
         for b in _build_bindings(kb.undo, "undo", "Undo"):
@@ -1209,7 +1215,7 @@ class LemonaidApp(App):
         )
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield UsageHeader()
         with ContentSwitcher(initial="inbox_content", id="content_switcher"):
             with Container(id="inbox_content"):
                 yield Input(
@@ -1224,6 +1230,7 @@ class LemonaidApp(App):
                 # That wants picking a row and committing to it to stay separate.
                 yield DataTable(id="history_table")
                 yield DataTable(id="snoozed_table")
+                yield DataTable(id="usage_table")
                 if self.config.tui.notes is not None:
                     yield NotesPanel(self.config.tui.notes, id="notes")
                 yield Static("", id="status")
@@ -1244,9 +1251,28 @@ class LemonaidApp(App):
         if self.is_mounted and self._screen_stack:
             self._update_active_row_background()
 
+    def _refresh_usage(self) -> None:
+        if not (self.config.usage.overall_pace or self._usage_mode):
+            return
+
+        def load() -> None:
+            self.call_from_thread(self._show_usage, usage_view.read_samples())
+
+        self.run_worker(load, thread=True, group="usage", exclusive=True)
+
+    def _show_usage(self, current: dict) -> None:
+        usage_view.show(
+            self.query_one(UsageHeader),
+            self.query_one("#usage_table", DataTable) if self._usage_mode else None,
+            current,
+            self.config.usage,
+        )
+
     def on_mount(self) -> None:
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
+        self._refresh_usage()
+        self.set_interval(self.config.usage.poll_seconds, self._refresh_usage)
         utils.use_light_theme(not self.current_theme.dark)
         self._update_active_row_background()
         # Apply transparent styles if configured
@@ -1273,6 +1299,8 @@ class LemonaidApp(App):
         other_table.display = False
         history_table.display = False
         snoozed_table.display = False
+        usage_view.setup_table(self.query_one("#usage_table", DataTable))
+        self.query_one("#usage_table", DataTable).display = False
         self.query_one("#history_filter", Input).display = False
 
         self._refresh_notifications()
@@ -1565,6 +1593,8 @@ class LemonaidApp(App):
             return "#history_table"
         if self._snoozed_mode:
             return "#snoozed_table"
+        if self._usage_mode:
+            return "#usage_table"
 
         return "#main_table"
 
@@ -1833,7 +1863,7 @@ class LemonaidApp(App):
 
         # Alternate views own the screen; the periodic tick still needs to wake
         # expired snoozes so they're waiting when the inbox comes back.
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             self._wake_expired_snoozes()
             if self._snoozed_mode:
                 self._refresh_snoozed()
@@ -2241,7 +2271,7 @@ class LemonaidApp(App):
         )
 
     def action_toggle_fold(self) -> None:
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             return
 
         self._fold_open = not self._fold_open
@@ -2265,6 +2295,10 @@ class LemonaidApp(App):
             self._set_snoozed_mode(False)
             return
 
+        if self._usage_mode:
+            self._set_usage_mode(False)
+            return
+
         if self._search_mode:
             self._stop_search()
             return
@@ -2275,11 +2309,22 @@ class LemonaidApp(App):
             self.exit()
 
     def action_toggle_history(self) -> None:
+        if self._usage_mode:
+            self._set_usage_mode(False)
         if self._snoozed_mode:
             self._set_snoozed_mode(False)
         self._set_history_mode(not self._history_mode)
 
+    def action_toggle_usage(self) -> None:
+        if self._history_mode:
+            self._set_history_mode(False)
+        if self._snoozed_mode:
+            self._set_snoozed_mode(False)
+        self._set_usage_mode(not self._usage_mode)
+
     def action_toggle_snoozed(self) -> None:
+        if self._usage_mode:
+            self._set_usage_mode(False)
         if self._history_mode:
             self._set_history_mode(False)
         self._set_snoozed_mode(not self._snoozed_mode)
@@ -2655,6 +2700,35 @@ class LemonaidApp(App):
         else:
             self.sub_title = "attention inbox"
             snoozed_table.display = False
+            main_table.display = True
+            self._refresh_notifications()
+            main_table.focus()
+
+    def _set_usage_mode(self, enabled: bool) -> None:
+        if enabled and self._search_mode:
+            self._stop_search(refresh=False)
+        self._usage_mode = enabled
+
+        main_table = self.query_one("#main_table", DataTable)
+        usage_table = self.query_one("#usage_table", DataTable)
+        for action in ("jump_unread", "mark_read", "mark_unread", "snooze", "toggle_fold"):
+            self._set_binding_footer(action, show=not enabled)
+
+        self._set_binding_footer("toggle_usage", label="Exit Usage" if enabled else "Usage")
+        self.refresh_bindings()
+
+        if enabled:
+            self.sub_title = "usage"
+            main_table.display = False
+            self.query_one("#fold_label", Static).display = False
+            self.query_one("#other_sources_label", Static).display = False
+            self.query_one("#other_sources_table", DataTable).display = False
+            usage_table.display = True
+            self._refresh_usage()
+            usage_table.focus()
+        else:
+            self.sub_title = "attention inbox"
+            usage_table.display = False
             main_table.display = True
             self._refresh_notifications()
             main_table.focus()
@@ -3425,7 +3499,7 @@ class LemonaidApp(App):
 
     def _selected_channel(self) -> str | None:
         """The channel of the row under the cursor, in the main list only."""
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             return None
 
         row_key = self._get_current_row_key()
@@ -3481,7 +3555,7 @@ class LemonaidApp(App):
 
     def _selected_group(self) -> "groups.store.Group | None":
         """The group whose header is under the cursor, in the main list only."""
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             return None
 
         raw = self._raw_row_key(self.query_one("#main_table", DataTable))
@@ -3516,7 +3590,7 @@ class LemonaidApp(App):
 
     def action_toggle_group(self) -> None:
         """Open or collapse the group whose header or lemon is under the cursor."""
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             return
 
         raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
@@ -3726,7 +3800,7 @@ class LemonaidApp(App):
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""
-        if self._history_mode or self._snoozed_mode:
+        if self._history_mode or self._snoozed_mode or self._usage_mode:
             return
 
         row_key = self._get_current_row_key()
@@ -3963,6 +4037,7 @@ class LemonaidApp(App):
             and is_follow_enabled()
             and not self._history_mode
             and not self._snoozed_mode
+            and not self._usage_mode
             and current_position(self.config.tmux_session.scratch_position) == "left"
         ):
             pane = os.environ.get("TMUX_PANE", "")

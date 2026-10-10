@@ -36,7 +36,6 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("archive", "Archive - remove it from the list"),
             ("snooze", "Snooze until a time you pick"),
             ("rename", "Rename (clear it to go back to the auto name)"),
-            ("brief", "Show where its work stands, from its brief"),
             ("resume_detached", "Resume a detached session when available"),
             ("undo", "Undo the last inbox change"),
         ],
@@ -63,10 +62,12 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Views and the pane",
         [
+            ("brief", "Show where its work stands, from its brief"),
             ("search", "Search inbox sessions"),
             ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),
+            ("usage_view", "Show usage pace for each limit window"),
             ("notes", "Show or hide your notes (tui.notes)"),
             ("flip_position", "Move the scratch pane between top and left"),
             ("save_size", "Save the scratch pane size (follow mode)"),

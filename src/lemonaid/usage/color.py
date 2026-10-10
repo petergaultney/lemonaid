@@ -3,8 +3,12 @@
 Pace is usage so far divided by the share of the window elapsed. 1.0 is exactly on pace. Ratios
 are multiplicative (twice as fast and half as fast are equally far from on pace), so the pace
 colors are placed on a log scale. The configured ratios are where the color is green, yellow,
-orange and red; on pace falls between green and yellow. Below green, cyan and blue sit as far
-under it as orange and red sit over it.
+orange and red; on pace falls between green and yellow. Past red the color slides on to magenta,
+fully reached 1.2 times the red ratio, for "too late to fix". Below green, cyan and blue sit as far
+under it as orange and red sit over it, so running far under the allowance (waste) reads as blue.
+
+Used share is its own linear 0-100% ramp, purple through blue, green, yellow and orange to red
+exactly at 100%. Pace reaches red at its own ratio, and the two measure different things.
 
 The projection is the usage expected at reset, from 0 to 100% of the cap, on a linear scale. Red
 means reaching or passing the cap, so anything less says how close the window is expected to come.
@@ -25,6 +29,11 @@ _YELLOW = (255, 220, 0)
 _ORANGE = (255, 140, 0)
 _RED = (255, 50, 40)
 _RESET = "\033[0m"
+
+_MAGENTA = (255, 0, 200)
+_PURPLE = (130, 90, 220)
+_USED_COLORS = (_PURPLE, _BLUE, _GREEN, _YELLOW, _ORANGE, _RED)
+_MAGENTA_AFTER_RED = 1.2  # the ratio multiple past red where the color is fully magenta
 
 _PROJECTION_STOPS = [
     (0, _BLUE),
@@ -55,6 +64,7 @@ def _pace_stops(ratios: tuple[float, float, float, float]) -> Sequence[tuple[flo
         (yellow, _YELLOW),
         (orange, _ORANGE),
         (red, _RED),
+        (red + math.log(_MAGENTA_AFTER_RED), _MAGENTA),
     ]
 
 
@@ -77,6 +87,11 @@ def _interpolate(x: float, stops: Sequence[tuple[float, _RGB]]) -> _RGB:
 
 def pace_rgb(ratio: float, ratios: tuple[float, float, float, float]) -> _RGB:
     return _interpolate(math.log(max(ratio, 1e-9)), _pace_stops(ratios))
+
+
+def used_rgb(percent: float) -> _RGB:
+    """Linear 0-100%: purple, blue, green, yellow, orange, and red exactly at 100%."""
+    return _interpolate(percent, list(zip(range(0, 101, 20), _USED_COLORS, strict=True)))
 
 
 def projection_rgb(percent: float) -> _RGB:

@@ -607,11 +607,20 @@ Thresholds for [`lemonaid usage --watch`](usage.md).
 | `pace_over_percent` | `100` | Alert when the pace projects usage past this percentage at the window's reset. |
 | `pace_recovered_percent` | 90% of `pace_over_percent` | After an over-pace alert, alert again when the projection falls under this. Must not exceed `pace_over_percent`. |
 | `pace_min_elapsed_percent` | `5` | Skip pace alerts until this share of the window has elapsed. |
-| `pace_color_ratios` | `[0.8, 1.15, 1.4, 1.8]` | Pace ratios shown as green, yellow, orange and red in the `lemonaid usage` summary. Cyan and blue sit as far below green as orange and red sit above it. Four increasing positive numbers. |
-| `poll_seconds` | `30` | How often `--watch` rereads usage. |
+| `pace_color_ratios` | `[0.85, 1.05, 1.25, 1.4]` | Pace ratios shown as green, yellow, orange and red in `lemonaid usage` and `lma`; the color reaches magenta at 1.2 times the red ratio. Cyan and blue sit as far below green as orange and red sit above it. Four increasing positive numbers. |
+| `poll_seconds` | `30` | How often `--watch` rereads usage, and how often `lma` refreshes its title figure. |
+| `overall_pace` | `true` | Show one overall pace figure after `lma`'s header title, colored by `pace_color_ratios`, for example `usage 1.12x`. Shown only when at least one window has a usable pace. |
+| `overall_min_window_minutes` | `1440` | Windows shorter than this (the five-hour windows of Claude and Codex by default) don't count toward the overall pace. Windows already past their reset are skipped too. |
+| `weights` | `{}` | Relative subscription weight per harness (`claude`, `codex`) in the overall pace. A harness not listed counts as 1. Positive numbers. |
+
+The overall pace is `used / elapsed` as in the summary, 1.0 meaning exactly on track. Each harness contributes its worst (highest-pace) window, and those are averaged using `weights`. A harness with no window past `pace_min_elapsed_percent` is left out of the average rather than counted as 0.
 
 ```toml
 [usage]
 step_percent = 10
 pace_over_percent = 110
+
+[usage.weights]
+claude = 2
+codex = 1
 ```

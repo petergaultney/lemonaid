@@ -2,7 +2,8 @@
 
 import math
 import sys
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 _RECOVERED_FRACTION = 0.9
 
@@ -14,11 +15,14 @@ class UsageConfig:
     pace_recovered_percent: float = 90
     pace_min_elapsed_percent: float = 5
     poll_seconds: float = 30
+    overall_pace: bool = True
+    overall_min_window_minutes: float = 1440
+    weights: Mapping[str, float] = field(default_factory=dict)
     pace_color_ratios: tuple[float, float, float, float] = (
-        0.8,
-        1.15,
+        0.85,
+        1.05,
+        1.25,
         1.4,
-        1.8,
     )  # green, yellow, orange, red
 
 
@@ -58,6 +62,29 @@ def _color_ratios(
     return default
 
 
+def _weights(data: dict) -> dict[str, float]:
+    value = data.get("weights", {})
+    if isinstance(value, dict) and all(
+        isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) and v > 0
+        for v in value.values()
+    ):
+        return {str(k): float(v) for k, v in value.items()}
+
+    print("Warning: [usage.weights] values must be positive numbers", file=sys.stderr)
+
+    return {}
+
+
+def _flag(data: dict, key: str, default: bool) -> bool:
+    value = data.get(key, default)
+    if isinstance(value, bool):
+        return value
+
+    print(f"Warning: [usage] {key} must be true or false", file=sys.stderr)
+
+    return default
+
+
 def parse(data: dict) -> UsageConfig:
     defaults = UsageConfig()
     over = _number(data, "pace_over_percent", defaults.pace_over_percent, 1, 1000)
@@ -78,4 +105,13 @@ def parse(data: dict) -> UsageConfig:
         ),
         poll_seconds=_number(data, "poll_seconds", defaults.poll_seconds, 1, 86400),
         pace_color_ratios=_color_ratios(data, defaults.pace_color_ratios),
+        overall_min_window_minutes=_number(
+            data,
+            "overall_min_window_minutes",
+            defaults.overall_min_window_minutes,
+            0,
+            10**6,
+        ),
+        overall_pace=_flag(data, "overall_pace", defaults.overall_pace),
+        weights=_weights(data),
     )

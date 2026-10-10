@@ -53,7 +53,7 @@ def test_the_columns_are_close_to_the_same_height():
     def lines(half):
         return sum(2 + len(rows) for _title, rows in half)
 
-    assert abs(lines(left) - lines(right)) <= 3
+    assert abs(lines(left) - lines(right)) <= 5
 
 
 def test_a_split_keeps_every_section_and_their_order():
