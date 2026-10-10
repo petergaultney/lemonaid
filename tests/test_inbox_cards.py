@@ -503,7 +503,7 @@ def _shown_headers(position: str, unread_style: str = "dot") -> dict[str, bool]:
             return {
                 table.id: table.show_header
                 for table in tui.query(app.DataTable)
-                if table.id is not None
+                if table.id not in (None, "usage_table")  # not a card table
             }
 
     return asyncio.run(check())

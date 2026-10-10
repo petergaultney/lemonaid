@@ -49,6 +49,7 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "archive": kb.archive,
         "snooze": kb.snooze,
         "snoozed_list": kb.snoozed_list,
+        "usage_view": kb.usage_view,
         "history": kb.history,
         "copy_resume": kb.copy_resume,
         "resume_detached": kb.resume_detached,

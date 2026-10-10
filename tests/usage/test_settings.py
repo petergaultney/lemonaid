@@ -35,15 +35,28 @@ def test_color_ratios_override_and_validation(capsys):
         2,
     )
     assert settings.parse({"pace_color_ratios": [1.5, 1.2, 2, 3]}).pace_color_ratios == (
-        0.8,
-        1.15,
+        0.85,
+        1.05,
+        1.25,
         1.4,
-        1.8,
     )
     assert "pace_color_ratios" in capsys.readouterr().err
 
 
 def test_infinite_color_ratio_is_rejected(capsys):
     config = settings.parse({"pace_color_ratios": [0.8, 1.4, 1.8, float("inf")]})
-    assert config.pace_color_ratios == (0.8, 1.15, 1.4, 1.8)
+    assert config.pace_color_ratios == (0.85, 1.05, 1.25, 1.4)
     assert "pace_color_ratios" in capsys.readouterr().err
+
+
+def test_weights_parse_and_reject_non_positive(capsys):
+    assert settings.parse({"weights": {"claude": 2}}).weights == {"claude": 2.0}
+    assert settings.parse({"weights": {"claude": 0}}).weights == {}
+    assert "weights" in capsys.readouterr().err
+
+
+def test_overall_options(capsys):
+    assert settings.parse({"overall_pace": False}).overall_pace is False
+    assert settings.parse({"overall_pace": "no"}).overall_pace is True
+    assert "overall_pace" in capsys.readouterr().err
+    assert settings.parse({"overall_min_window_minutes": 60}).overall_min_window_minutes == 60
