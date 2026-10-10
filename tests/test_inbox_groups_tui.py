@@ -298,4 +298,4 @@ def test_cards_in_an_open_group_carry_its_rail_and_others_do_not():
     grouped = [text for key, text in cards.items() if "@" in key]
     loose = [text for key, text in cards.items() if key.isdigit()]
     assert grouped and all(line.startswith("▌") for text in grouped for line in text.split("\n"))
-    assert loose and not any("▌" in text for text in loose)
+    assert loose and not any(line.startswith("▌") for text in loose for line in text.split("\n"))

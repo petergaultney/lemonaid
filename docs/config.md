@@ -175,8 +175,8 @@ and `deaf` or `dead` when a message sent to it would not be read.
 
 In the column layout, an `alert` row fills red, a `blocked` row amber (deeper
 than the header's unread yellow), a `merge` row green, an `approve` row purple, a `review` row brown, a `done` row blue, and a `running` row teal, with
-the model as the same badge, and a read `idle` row dims. The green bar that
-marks the current session stays green. Rows carry no age, `Needs`, `Running` or
+the model as the same badge, and a read `idle` row dims. The bar that
+marks the current session keeps its own colour. Rows carry no age, `Needs`, `Running` or
 `Waiting on` lines; there is no room for them.
 
 Sessions without an attached brief look the same whether or not this is set.
