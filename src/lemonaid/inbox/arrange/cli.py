@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ...config import Config, load_config
-from .. import db, emoji, order, pins, view
+from .. import db, emoji, order, pins, presence, view
 from ..tui import brief_cards
 from . import answer, child, serve
 
@@ -21,7 +21,12 @@ def _snapshot(
     now = time.time()
     with db.connect() as conn:
         active = view.ordered_active(
-            conn, None, brief_cards.BriefCache(), config.tui.mid_turn_working, now
+            conn,
+            None,
+            brief_cards.BriefCache(),
+            presence.Probe(),
+            config.tui.mid_turn_working,
+            now,
         )
         pinned = frozenset(pins.pinned_positions(conn))
         emojis = emoji.by_channel(conn)

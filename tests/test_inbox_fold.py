@@ -85,29 +85,29 @@ def _split(
         for i, (channel, _status, unread) in enumerate(rows)
     ]
     statuses = {channel: status for channel, status, _unread in rows}
-    shown, folded = order.fold(notifications, statuses, pinned, {"waiting"}, in_view)
+    shown, folded = order.fold(notifications, statuses, pinned, {"idle"}, in_view)
     return [n.channel for n in shown], [n.channel for n in folded]
 
 
 def test_read_rows_of_a_folded_status_fold_and_keep_their_order():
     rows = [
-        ("c:w1", "waiting", False),
-        ("c:working", "working", False),
-        ("c:w2", "waiting", False),
+        ("c:w1", "idle", False),
+        ("c:running", "running", False),
+        ("c:w2", "idle", False),
         ("c:none", "", False),
     ]
 
-    assert _split(rows) == (["c:working", "c:none"], ["c:w1", "c:w2"])
+    assert _split(rows) == (["c:running", "c:none"], ["c:w1", "c:w2"])
 
 
 def test_unread_and_pinned_rows_never_fold():
-    rows = [("c:unread", "waiting", True), ("c:pinned", "waiting", False)]
+    rows = [("c:unread", "idle", True), ("c:pinned", "idle", False)]
 
     assert _split(rows, pinned={"c:pinned"}) == (["c:unread", "c:pinned"], [])
 
 
 def test_a_row_in_view_never_folds():
-    rows = [("c:focused", "waiting", False), ("c:other", "waiting", False)]
+    rows = [("c:focused", "idle", False), ("c:other", "idle", False)]
 
     assert _split(rows, in_view={"c:focused"}) == (["c:focused"], ["c:other"])
 
@@ -125,14 +125,14 @@ def test_folded_rows_leave_the_list_and_the_label_counts_them(fold_waiting):
         working = _session(conn, "working", age=30)
         w1 = _session(conn, "w1", age=20)
         w2 = _session(conn, "w2", age=10)
-        _brief(conn, working, "working")
+        _brief(conn, working, "running")
         _brief(conn, w1, "waiting")
         _brief(conn, w2, "waiting")
 
     drawn, label = _drawn_and_label()
 
     assert drawn == [working]
-    assert label == "▸ waiting (2) · w to show"
+    assert label == "▸ idle (2) · w to show"
 
 
 def test_the_fold_key_opens_the_group_at_the_bottom_and_closes_it(fold_waiting):
@@ -151,11 +151,11 @@ def test_the_fold_key_opens_the_group_at_the_bottom_and_closes_it(fold_waiting):
 
     opened, closed = _run(steps)
 
-    assert opened == ([working, waiting], "▴ waiting (1) above · w to fold")
-    assert closed == ([working], "▸ waiting (1) · w to show")
+    assert opened == ([working, waiting], "▴ idle (1) above · w to fold")
+    assert closed == ([working], "▸ idle (1) · w to show")
 
 
-def test_an_unread_waiting_row_breaks_out_and_a_pinned_one_stays(fold_waiting):
+def test_an_unread_idle_row_breaks_out_and_a_pinned_one_stays(fold_waiting):
     with db.connect() as conn:
         unread = _session(conn, "unread", unread=True)
         pinned = _session(conn, "pinned")
@@ -167,7 +167,7 @@ def test_an_unread_waiting_row_breaks_out_and_a_pinned_one_stays(fold_waiting):
     drawn, label = _drawn_and_label()
 
     assert drawn == [pinned, unread]
-    assert label == "▸ waiting (1) · w to show"
+    assert label == "▸ idle (1) · w to show"
 
 
 def test_the_sidebar_folds_the_same_rows(fold_waiting):
@@ -176,7 +176,7 @@ def test_the_sidebar_folds_the_same_rows(fold_waiting):
         waiting = _session(conn, "waiting")
         _brief(conn, waiting, "waiting")
 
-    assert _drawn_and_label((40, 60)) == ([working], "▸ waiting (1) · w to show")
+    assert _drawn_and_label((40, 60)) == ([working], "▸ idle (1) · w to show")
 
 
 def _help_lists_fold(app) -> bool:
@@ -245,7 +245,7 @@ def focus(monkeypatch) -> dict[str, set[str]]:
     return focused
 
 
-def test_a_focused_waiting_lemon_leaves_the_fold_and_returns_when_focus_moves(fold_waiting, focus):
+def test_a_focused_idle_lemon_leaves_the_fold_and_returns_when_focus_moves(fold_waiting, focus):
     with db.connect() as conn:
         working = _session(conn, "working", age=30)
         waiting = _session(conn, "waiting", age=5, tty="/dev/ttys-focus")
@@ -270,7 +270,7 @@ def test_a_focused_waiting_lemon_leaves_the_fold_and_returns_when_focus_moves(fo
 
     assert focused == ([waiting, working], "")
     assert held == [waiting, working]  # the cursor followed focus, so the row stays under it
-    assert left == ([working], "▸ waiting (1) · w to show")
+    assert left == ([working], "▸ idle (1) · w to show")
 
 
 def test_a_lemon_that_loses_focus_under_the_cursor_stays_until_the_cursor_moves(

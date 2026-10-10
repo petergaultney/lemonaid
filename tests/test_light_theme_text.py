@@ -79,7 +79,7 @@ def test_every_light_text_colour_reads_on_white(colour):
 
 
 def test_a_cards_needs_line_and_dot_follow_the_theme():
-    brief = CardBrief("waiting", "", 0, needs="answer")
+    brief = CardBrief("", "", 0, needs="answer")
 
     (dark,) = app._as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
     utils.use_light_theme(True)
@@ -107,7 +107,7 @@ def test_the_status_word_follows_the_theme():
 
 
 def test_a_held_status_age_uses_the_theme_appropriate_text_colour():
-    brief = CardBrief("blocked", "", 0, mid_turn=True)
+    brief = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
     dark = brief.age_text(60, 6)
     utils.use_light_theme(True)
     light = brief.age_text(60, 6)

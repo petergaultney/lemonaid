@@ -72,7 +72,9 @@ def test_a_second_lemon_id_run_into_the_first_is_caught():
     ("before", "after", "found"),
     [
         ("Status: working", "Status: done - PR #12", "is not one word of"),
-        ("Status: working\n", "", "No `Status:` line"),
+        ("Status: working\n", "", ""),
+        ("Status: working", "Status: waiting", ""),
+        ("Status: working", "Status: working\nStatus: done", "2 `Status:` lines"),
         ("### PRs", "### Needs Peter\n\n- x\n\n### PRs", "out of order"),
         ("- write the docs\n", "", "`### Next` in ## Now is empty"),
         ("|---|---|---|\n", "", "`|---|---|---|`"),
@@ -151,10 +153,10 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
     text = _BRIEF.replace("## Goal", "## Questions\n\n### old decision\n\n- Context\n\n## Goal")
     path = _attached(text)
 
-    assert _run(capsys, "status", "--channel", "codex:t1", "waiting")["error"] is None
+    assert _run(capsys, "status", "--channel", "codex:t1", "running")["error"] is None
     assert _run(capsys, "bullet", "add", "--channel", "codex:t1", "Next", "review")["error"] is None
     assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")["error"] is None
-    assert "Status: waiting" in path.read_text()
+    assert "Status: running" in path.read_text()
     assert check.structure(path.read_text()) == [
         "`### old decision` in ## Questions has no matching bullet under ### Needs Peter"
     ]

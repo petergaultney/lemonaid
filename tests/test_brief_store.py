@@ -66,12 +66,26 @@ def test_now_is_added_after_status_when_missing():
     assert out.index("Status: working") < out.index("## Now\n- a") < out.index("## Goal")
 
 
+def test_now_is_added_before_the_first_section_without_a_status():
+    out = store.with_now("# t\n\nParent: hq\n\n## Goal\nx\n", "- a")
+
+    assert out == "# t\n\nParent: hq\n\n## Now\n- a\n\n## Goal\nx\n"
+
+
+def test_clear_removes_the_status_line_and_its_blank_line():
+    text = "# t\n\nStatus: blocked\n\nParent: hq\n\n## Now\n- a\n"
+
+    assert store.with_status(text, store.CLEAR) == "# t\n\nParent: hq\n\n## Now\n- a\n"
+    assert store.with_status("# t\n\n## Now\n- a\n", store.CLEAR) == "# t\n\n## Now\n- a\n"
+
+
 def test_new_briefs_are_dated_and_named_after_the_work():
     path = store.create("Lemonaid: session briefs!", datetime.date(2026, 9, 24))
 
     assert path.name == "2026-09-24-lemonaid-session-briefs.md"
     assert path.parent == store.briefs_dir().resolve()
-    assert path.read_text().startswith("# Lemonaid: session briefs!\n\nStatus: working\n")
+    assert path.read_text().startswith("# Lemonaid: session briefs!\n\nBrief-ID: ")
+    assert "Status:" not in path.read_text()
 
 
 def test_new_never_overwrites():

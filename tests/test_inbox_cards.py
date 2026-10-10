@@ -331,13 +331,13 @@ def test_a_blocked_headline_keeps_the_model_in_its_provider_colour():
     assert (style.color.name, style.bgcolor.name) == ("#000000", "#d88760")
 
 
-def test_waiting_brief_lines_keep_the_current_session_edge_and_age():
+def test_idle_brief_lines_keep_the_current_session_edge_and_age():
     (body,) = app._as_card(
         _brief_cells(unread=True, here=True),
         40,
         gutter_width=2,
         unread_style="bar",
-        card_brief=CardBrief("waiting", "review", 3600),
+        card_brief=CardBrief("", "review", 3600),
         now=7200,
     )
     lines = body.plain.splitlines()
@@ -353,7 +353,7 @@ def test_mid_turn_age_line_keeps_the_held_status_color():
         _brief_cells(unread=False),
         40,
         gutter_width=2,
-        card_brief=CardBrief("blocked", "", 0, mid_turn=True),
+        card_brief=CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True),
         now=60,
     )
     status_offset = body.plain.index("blocked")
@@ -372,7 +372,7 @@ def test_project_colors_make_a_separate_brief_age_line_neutral():
         _brief_cells(),
         40,
         gutter_width=2,
-        card_brief=CardBrief("blocked", "", 0, mid_turn=True),
+        card_brief=CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True),
         now=60,
         neutral_timing=True,
     )
@@ -390,7 +390,7 @@ def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour()
         _brief_cells(),
         50,
         gutter_width=2,
-        card_brief=CardBrief("waiting", "CI", 0, "approve the release", "Needs Peter"),
+        card_brief=CardBrief("", "CI", 0, "approve the release", "Needs Peter"),
         now=60,
     )
     lines = body.plain.splitlines()
@@ -410,10 +410,8 @@ def test_done_headline_is_blue_with_white_text():
     assert style.color.name == "#ffffff"
 
 
-def test_read_waiting_card_dims_its_model_badge():
-    (body,) = app._as_card(
-        _brief_cells(), 40, gutter_width=2, card_brief=CardBrief("waiting", "", 0)
-    )
+def test_read_idle_card_dims_its_model_badge():
+    (body,) = app._as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("", "", 0))
 
     assert body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index("CC")).dim
 
@@ -430,7 +428,7 @@ def test_brief_lines_reduce_the_message_budget():
     shape = app.LemonaidApp._card_shape(pane, extra_lines=2)
     assert shape == (1, 1)
     (body,) = app._as_card(
-        _brief_cells(), 40, *shape, gutter_width=2, card_brief=CardBrief("waiting", "review", 0)
+        _brief_cells(), 40, *shape, gutter_width=2, card_brief=CardBrief("", "review", 0)
     )
     assert len(body.plain.split("\n")) == 30 // 4 - 1
 
@@ -707,7 +705,7 @@ def test_an_inline_age_leaves_the_card_without_an_age_line():
         _brief_cells(),
         40,
         gutter_width=2,
-        card_brief=CardBrief("waiting", "review", 3600),
+        card_brief=CardBrief("", "review", 3600),
         now=7200,
         age_inline=True,
     )

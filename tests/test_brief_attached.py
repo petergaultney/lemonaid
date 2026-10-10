@@ -228,15 +228,36 @@ def test_status_rejects_a_note_argument():
         parser.parse_args(["status", "--channel", "codex:t1", "done", "PR #9"])
 
 
+@pytest.mark.parametrize("word", ["clear", "waiting", "working"])
+def test_clear_and_the_retired_words_remove_the_status_line(capsys, word):
+    _lemon("codex:t1", "work", "4", 1)
+    _run(capsys, "attach", "--channel", "codex:t1", str(_brief("task")))
+    _run(capsys, "status", "--channel", "codex:t1", "blocked")
+
+    parser = argparse.ArgumentParser()
+    write_cli.add_parsers(parser.add_subparsers())
+    args = parser.parse_args(["status", "--channel", "codex:t1", word, "--json"])
+    with contextlib.suppress(SystemExit):
+        args.func(args)
+    out = capsys.readouterr()
+
+    assert json.loads(out.out)["error"] is None
+    assert ("no longer set by hand" in out.err) == (word != "clear")
+    text = _brief("task").read_text()
+    assert "Status:" not in text
+    assert "\n\n\n" not in text
+    assert text.endswith("\n\n## Now\n- Starting.\n")
+
+
 def test_status_then_now_sets_state_and_notes(capsys):
     _lemon("codex:t1", "work", "4", 1)
     _run(capsys, "attach", "--channel", "codex:t1", str(_brief("task")))
 
-    _run(capsys, "status", "--channel", "codex:t1", "waiting")
+    _run(capsys, "status", "--channel", "codex:t1", "blocked")
     _run(capsys, "now", "--channel", "codex:t1", "- Waiting on: review\n- Note: PR #9")
 
     text = _brief("task").read_text()
-    assert "Status: waiting\n" in text
+    assert "Status: blocked\n" in text
     assert "## Now\n\n- Waiting on: review\n- Note: PR #9\n" in text
 
 

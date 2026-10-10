@@ -34,7 +34,7 @@ def observe(
     changed = {
         str(path): (state, mtime)
         for path, (state, mtime) in statuses.items()
-        if recorded.get(str(path), ("", 0.0))[0] != state
+        if str(path) not in recorded or recorded[str(path)][0] != state
     }
     if changed:
         conn.executemany(

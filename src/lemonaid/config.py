@@ -555,7 +555,10 @@ def _parse_config(data: dict[str, Any]) -> Config:
         project_name_colors=tui_data.get("project_name_colors", False),
         group_colors=_group_colors(tui_data.get("group_colors")),
         active_row_color=tui_data.get("active_row_color"),
-        fold_statuses=list(tui_data.get("fold_statuses", [])),
+        fold_statuses=[
+            {"waiting": "idle", "working": "active"}.get(status, status)
+            for status in tui_data.get("fold_statuses", [])
+        ],
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         notes=_notes(tui_data.get("notes")),
         keybindings=keybindings,

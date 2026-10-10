@@ -225,3 +225,8 @@ def test_default_template_naming_nothing_is_rejected(capsys, alias, reason):
 
     assert config.tmux_session.get_template("default") is None
     assert reason in capsys.readouterr().err
+
+
+def test_retired_fold_statuses_mean_the_derived_states():
+    tui = {"tui": {"fold_statuses": ["waiting", "working", "done"]}}
+    assert _parse_config(tui).tui.fold_statuses == ["idle", "active", "done"]

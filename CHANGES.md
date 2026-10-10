@@ -1,3 +1,11 @@
+# 0.98.0 (2026-10-10)
+
+#### Changed
+
+- **A brief sets `Status:` only when the lemon's judgment is needed; otherwise the inbox shows the lemon's own state.** That is `active` mid-turn, `idle` between turns, and `deaf` or `dead` when a message to it would not be read, which is also marked on a card with any status but `done`; `deaf` shows only after 15 seconds, since a Claude lemon is deaf briefly each time it takes a message. `working` and `waiting` are read as no status, `brief status clear` (or either old word) removes the line, and new briefs start without one. See `docs/brief-status.md`.
+- In `fold_statuses`, `waiting` now means `idle` and `working` means `active`. `watch briefs --to` no longer takes `working` or `waiting`, and says why.
+- The inbox records lemons' turns whether or not `mid_turn_working` is on.
+
 # 0.97.0 (2026-10-10)
 
 #### Added

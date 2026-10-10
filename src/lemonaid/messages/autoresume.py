@@ -75,9 +75,10 @@ def finished(found: Recipient, state: recipient.State, config: Config) -> str:
 def started(found: Recipient, action: str) -> str:
     snoozed = " It stays snoozed." if found.row.is_snoozed else ""
     if action == START:
-        last = status.split(found.brief_text).status or "unknown"
+        last = status.split(found.brief_text).status
+        said = f"its last status was {last}" if last else "its brief set no status"
         return (
-            f"{found.lemon_id} was not running and its last status was {last}; "
+            f"{found.lemon_id} was not running and {said}; "
             f"lemonaid started a resume for you, and it reads the message once it is up.{snoozed}"
         )
 

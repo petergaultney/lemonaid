@@ -46,7 +46,7 @@ def test_unparented_brief_is_watched(grove):
     loner, path = lemon("loner", channel="codex:loner", session="loner")
     assert _poll(w) == []
     _set(path, "working", "blocked")
-    assert _poll(w) == [f"{loner}: Status: working -> blocked ({path})"]
+    assert _poll(w) == [f"{loner}: Status: none -> blocked ({path})"]
 
 
 def test_brief_with_a_live_parent_is_ignored(grove):
@@ -75,7 +75,7 @@ def test_needs_ask_wakes_in_orphans_mode_without_a_status_change(grove):
     path.write_text(
         path.read_text().replace("### Needs Peter\n\n", "### Needs Peter\n\n- decide\n")
     )
-    assert _poll(w) == [f"{loner}: Status: working; Needs: decide ({path})"]
+    assert _poll(w) == [f"{loner}: Status: none; Needs: decide ({path})"]
 
 
 def test_status_outside_to_does_not_wake(grove):

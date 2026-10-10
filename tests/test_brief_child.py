@@ -45,7 +45,7 @@ def test_a_child_brief_has_the_header_and_no_now(capsys, parent):
     text = path.read_text()
     assert path.name == f"{datetime.date.today().isoformat()}-fix-the-widget.md"
     assert text.startswith(
-        f"# Fix the widget\n\nBrief-ID: {result['lemon_id']}\n\nStatus: working\n\n"
+        f"# Fix the widget\n\nBrief-ID: {result['lemon_id']}\n\n"
         f"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Goal\n"
     )
     assert "## Now" not in text

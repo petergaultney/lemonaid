@@ -45,7 +45,7 @@ def test_rearm_reports_changes_between_waiters_without_duplicates(family):
         path.read_text().replace("Status: working", "Status: merge") + "- merge the PR\n"
     )
     assert poll(open_watch(family)) == [
-        f"{child}: Status: working -> merge; Needs: merge the PR ({path})"
+        f"{child}: Status: none -> merge; Needs: merge the PR ({path})"
     ]
     assert poll(open_watch(family)) == []
 
@@ -63,7 +63,7 @@ def test_new_children_are_filtered_and_nonchildren_and_grandchildren_ignored(fam
     link(new, parent)
     assert poll(w) == []
     new_path.write_text(new_path.read_text().replace("Status: waiting", "Status: done"))
-    assert poll(w) == [f"{new}: Status: waiting -> done ({new_path})"]
+    assert poll(w) == [f"{new}: Status: none -> done ({new_path})"]
     assert poll(open_watch(family)) == []
 
 
@@ -80,7 +80,7 @@ def test_missing_brief_and_unlink_do_not_fire_or_repeat_old_changes(family):
     path.write_text(original.replace("working", "done"))
     assert poll(w) == []
     link(child, parent)
-    assert "Status: working -> done" in poll(w)[0]
+    assert "Status: none -> done" in poll(w)[0]
     with db.connect() as conn:
         links.clear_parent(conn, child)
     assert poll(w) == []
@@ -129,8 +129,8 @@ def test_quiet_window_ignores_progress_and_batches_children(family, monkeypatch)
     assert poll(w) == []
     clock[0] = 3
     [event] = poll(w)
-    assert "Status: working -> merge" in event
-    assert f"{other}: Status: working -> done" in event
+    assert "Status: none -> merge" in event
+    assert f"{other}: Status: none -> done" in event
 
 
 def test_filtered_sequence_reports_latest_previous_status_without_rearm(family):
@@ -158,7 +158,7 @@ def test_filtered_state_is_saved_even_when_other_child_delivery_fails(family):
 
     with pytest.raises(delivery.Failed):
         briefs_events.poll(w, fail)
-    assert poll(open_watch(family)) == [f"{other}: Status: working -> merge ({other_path})"]
+    assert poll(open_watch(family)) == [f"{other}: Status: none -> merge ({other_path})"]
     path.write_text(path.read_text().replace("Status: blocked", "Status: done"))
     assert "Status: blocked -> done" in poll(open_watch(family))[0]
 
@@ -178,7 +178,7 @@ def test_ignored_changes_do_not_postpone_pending_selected_event(family, monkeypa
     )
     assert poll(w) == []
     clock[0] = 2
-    assert "Status: working -> merge" in poll(w)[0]
+    assert "Status: none -> merge" in poll(w)[0]
 
 
 @pytest.mark.parametrize("rearm", [False, True])
@@ -197,7 +197,7 @@ def test_pending_needs_edits_do_not_delay_delivery_or_failed_delivery_retry(
     clock[0] = 2
 
     def fail(message):
-        assert message == f"{child}: Status: working -> merge; Needs: second ask ({path})"
+        assert message == f"{child}: Status: none -> merge; Needs: second ask ({path})"
         raise delivery.Failed("queue failed")
 
     with pytest.raises(delivery.Failed):
@@ -209,5 +209,5 @@ def test_pending_needs_edits_do_not_delay_delivery_or_failed_delivery_retry(
     if rearm:
         assert poll(w) == []
         clock[0] = 4
-    assert poll(w) == [f"{child}: Status: working -> merge; Needs: latest ask ({path})"]
+    assert poll(w) == [f"{child}: Status: none -> merge; Needs: latest ask ({path})"]
     assert poll(open_watch(family)) == []

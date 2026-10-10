@@ -9,7 +9,7 @@ def test_cli_once_and_self_resolution(family, monkeypatch, capsys):
     open_watch(family, me="")
     path.write_text(path.read_text().replace("working", "done"))
     assert briefs_cli.run(args(state_dir, "--self", "--once")) == 0
-    assert f"{child}: Status: working -> done" in capsys.readouterr().out
+    assert f"{child}: Status: none -> done" in capsys.readouterr().out
 
 
 def test_cli_status_and_duplicate_lock(family, capsys):

@@ -45,14 +45,14 @@ def _status(lines: abc.Sequence[str]) -> list[str]:
         : next((i for i, line in enumerate(lines) if line.startswith("## ")), len(lines))
     ]
     values = [m["value"].strip() for line in header if (m := _STATUS.fullmatch(line.strip()))]
-    if not values:
-        return ["No `Status:` line above the first `## ` section"]
-
     if len(values) > 1:
         return [f"{len(values)} `Status:` lines; a brief has one"]
 
-    if values[0] not in store.STATES:
-        return [f"Status {values[0]!r} is not one word of: {', '.join(store.STATES)}"]
+    if values and values[0] not in (*store.STATES, *store.RETIRED):
+        return [
+            f"Status {values[0]!r} is not one word of: {', '.join(store.STATES)};"
+            " leave it out to show the lemon's own state"
+        ]
 
     return []
 

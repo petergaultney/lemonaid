@@ -17,7 +17,7 @@ from . import attached, child_place, layout, lemon, pr_table, status
 class Child:
     lemon_id: str
     name: str  # its session's display name, or else its brief's title
-    status: str  # "" when its brief is missing or has no known Status word
+    status: str  # "" when its brief is missing or sets no known Status word
     since: float  # when lemonaid first saw the brief in this Status; 0 without a brief
     updated: float  # the brief's mtime; 0 without a brief
     brief: str
@@ -66,10 +66,14 @@ def _held_by(child: Child, world: child_place.World) -> tuple[str, ...]:
     sessions = dict.fromkeys(
         c.tmux_session for c in family if c.tmux_session and c.alive is not False
     )
-    own = f"status {child.status or 'unknown'}"
+    own = f"status {child.status or 'none'}"
     return (
         *([] if child.status == "done" else [f"session gone, {own}" if _orphaned(child) else own]),
-        *(f"{_label(c)} is {c.status or 'unknown'}" for c in family[1:] if c.status != "done"),
+        *(
+            f"{_label(c)} is {c.status or 'without a status'}"
+            for c in family[1:]
+            if c.status != "done"
+        ),
         *(
             ["tmux didn't say who is attached"]
             if sessions and world.clients is None

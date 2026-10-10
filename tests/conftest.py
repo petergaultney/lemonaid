@@ -8,7 +8,7 @@ os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 
 import pytest  # noqa: E402
 
-from lemonaid.inbox import db  # noqa: E402
+from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
 
@@ -39,6 +39,15 @@ def _no_real_tmux(monkeypatch):
     override this.
     """
     monkeypatch.setenv("TMUX", "/nonexistent/lemonaid-tests,0,0")
+
+
+@pytest.fixture(autouse=True)
+def _no_presence_marks(monkeypatch):
+    """No card is marked `deaf` or `dead` from the host's processes and waiter locks.
+
+    tests/test_presence.py keeps the real `Probe.marks` from import time.
+    """
+    monkeypatch.setattr(presence.Probe, "marks", lambda self, rows, lemon_ids, now: {})
 
 
 @pytest.fixture(autouse=True)

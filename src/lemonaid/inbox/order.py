@@ -2,8 +2,8 @@
 
 Pins come first. Below them, `alert` sessions, then `blocked`, then `running`,
 then `merge`, then `approve`, then `review`, then `done` sessions, unread above
-read, then every other unread session, then everything else read: `working`,
-`waiting`, and no brief. Within each band rows keep `db.get_active` order: pins
+read, then every other unread session, then everything else read: a brief
+without a status (`active`, `idle`, `deaf` or `dead`), and no brief. Within each band rows keep `db.get_active` order: pins
 by position, everything else unread first and then newest first.
 
 `fold` takes the rows of configured statuses out of that list, for the inbox
@@ -22,7 +22,7 @@ _APPROVE = 4
 _REVIEW = 5
 _UNREAD_DONE = 6
 _DONE = 7
-_UNREAD = 8  # working, waiting, or no brief
+_UNREAD = 8  # a brief without a status, or no brief
 _READ = 9
 _BANDS = {
     "alert": _ALERT,

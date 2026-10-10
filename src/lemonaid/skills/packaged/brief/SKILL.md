@@ -11,31 +11,31 @@ Your user reads your brief through `lemonaid brief show`, the inbox's `b` key, o
 
 Run `lemonaid brief show --self`. Your brief is the file attached to your session, normally in `~/.lemons/brief/`. If none is attached but an older `.z/brief*.md` in your place is clearly yours, move it into that folder with a dated name for the work and run `lemonaid brief attach --self <file>`.
 
-If you have no brief, run `lemonaid brief new --self "<what the work is>"`. It creates a dated file and attaches it to you. Give it a task title, `Status: working`, `## Now`, and a short `## Goal` saying what done looks like. Leave out `Parent:` when nobody assigned the work. Keep any generated ID line unchanged.
+If you have no brief, run `lemonaid brief new --self "<what the work is>"`. It creates a dated file and attaches it to you. Give it a task title, `## Now`, and a short `## Goal` saying what done looks like. Leave out `Parent:` when nobody assigned the work. Keep any generated ID line unchanged.
 
 Name the session for the work, with a short area and change, rather than the brief filename or a personal name: `lemonaid inbox rename --self "<area and change>"`. A launch prompt should name the work first, then point to the brief.
 
 ## Choose the status
 
+Set `Status:` only when one of the words below applies, and leave it out otherwise. Without one, lemonaid shows your own state: `active` while you are mid-turn, `idle` between turns, and `deaf` or `dead` if a message sent to you would not be read. `lemonaid brief status --self clear` removes a status that no longer applies. Older briefs may say `working` or `waiting`; both read as no status, and setting either clears it.
+
 `Status:` contains exactly one word. The reason goes in `## Now`. Choose by whose move it is:
 
 | Status | When to use it |
 |---|---|
-| `working` | You are actively doing the work, including fixing conflicts, failed CI, or review findings. |
 | `running` | Nothing waits on your user and you are monitoring a named long process. Put the process and its `session:window` under `### Running`. |
-| `waiting` | Another lemon, CI, a background run, or a reply comes next. Name it under `### Waiting on`. A lemon reviewer's verdict is `waiting`. |
 | `review` | A teammate's approving review on GitHub comes next, rather than your user's or a lemon's. Name the teammate and PR under `### Needs <who>`. |
 | `blocked` | Your user can act now: a decision, answer, review, trial, or text to post. Name the move under `### Needs <who>`. Asking your user in your final message counts too. |
 | `alert` | Your user's move is needed and harm grows while it waits. Keep this rare; importance alone does not qualify. Say what is getting worse under `### Needs <who>`. |
 | `merge` | Only your user's merge remains: reviewer approved, CI green, out of draft, and no conflicts. Check `gh pr view <n> --json mergeable` says `MERGEABLE` every time you set this. |
-| `approve` | You reviewed a teammate's PR and recommend your user's approval on GitHub. Name the PR and review doc under `### Needs <who>`. A review of a lemon's PR stays `waiting` on its author or merge. |
+| `approve` | You reviewed a teammate's PR and recommend your user's approval on GitHub. Name the PR and review doc under `### Needs <who>`. A review of a lemon's PR sets no status while it waits on its author or merge. |
 | `done` | Your PR merged or closed, or your output was accepted, and no work or waiter remains. |
 
-An open PR is never `done`, and being idle does not make you `done`. Keep watching it until it closes. A reviewer stays `waiting` while a reviewed PR is open, including after approval, because a new push still needs a look.
+When another lemon, CI, a background run, or a reply comes next, set no status and name it under `### Waiting on`. An open PR is never `done`, and being idle does not make you `done`. Keep watching it until it closes. A reviewer sets no status while a reviewed PR is open, including after approval, because a new push still needs a look.
 
-If your user's move is parked behind something they cannot act on yet, use `waiting`. Name that prerequisite and the move that follows it, then return to `blocked` when they can act. When several lemons wait on the same user move, only the lemon owning the ask uses `blocked` or `merge`; the others wait on it.
+If your user's move is parked behind something they cannot act on yet, clear your status. Name that prerequisite and the move that follows it under `### Waiting on`, then set `blocked` when they can act. When several lemons wait on the same user move, only the lemon owning the ask uses `blocked` or `merge`; the others wait on it.
 
-Before asking your user to review a PR, check mergeability and green CI too. Conflicts and failed checks are yours to handle. If a `merge` PR gains a conflict, failed CI, or a new finding, return to `working`. Status does not authorize merging; follow your user's review and merge policy.
+Before asking your user to review a PR, check mergeability and green CI too. Conflicts and failed checks are yours to handle. If a `merge` PR gains a conflict, failed CI, or a new finding, clear the status while you fix it. Status does not authorize merging; follow your user's review and merge policy.
 
 ## Lay out the brief
 
@@ -69,7 +69,8 @@ The worker owns `Status:`, `## Now`, `## Questions`, and `## Waiters`. The assig
 Prefer the edit verbs. They preserve heading order and spacing, remove empty headings, validate the result, and refuse edits that break the brief:
 
 ```sh
-lemonaid brief status --self working
+lemonaid brief status --self blocked
+lemonaid brief status --self clear
 lemonaid brief bullet add --self "Next" "open the PR"
 lemonaid brief bullet set --self "open the PR" "PR #12 open"
 lemonaid brief bullet rm --self "PR #12 open"
@@ -121,4 +122,4 @@ lemonaid lemon start <your-session>:<review-window> --harness <claude-or-codex> 
 
 The first command prints an unattached child brief with you as parent. Add the context the template cannot know: what changed and what needs the hardest check. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session <session>:<window> <file>`.
 
-The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer `waiting` until the PR closes. Fill its head and harness flags before arming those waiters. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.
+The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer watching, with no status, until the PR closes. Fill its head and harness flags before arming those waiters. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.

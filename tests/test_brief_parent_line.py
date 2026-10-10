@@ -90,10 +90,7 @@ def test_every_verb_keeps_the_parent_line(brief, verb):
 def test_a_new_now_goes_below_the_header_lines():
     out = now_edit.add(_BRIEFS["child, no Now"], "Next", "x")
 
-    assert (
-        f"Status: working\n\n{_PARENT}\n\nArea: lemonaid\n\n## Now\n\n### Next\n\n- x\n\n## Goal"
-        in out
-    )
+    assert f"{_PARENT}\n\nArea: lemonaid\n\n## Now\n\n### Next\n\n- x\n\n## Goal" in out
 
 
 @pytest.mark.parametrize("brief", _BRIEFS)

@@ -10,7 +10,7 @@ def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> No
 
     first = cache.get(path)
     assert first is not None
-    assert (first.status, first.waiting_on) == ("waiting", "review")
+    assert (first.status, first.shown, first.waiting_on) == ("", "idle", "review")
     assert cache.get(path) is first
 
     path.write_text("# Task\n\nStatus: blocked\n\n## Now\n- Needs Peter: answer\n")
@@ -20,10 +20,12 @@ def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> No
     assert cache.get(tmp_path / "missing.md") is None
 
 
-def test_only_active_statuses_get_stale_hint() -> None:
-    assert CardBrief("working", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
-    assert CardBrief("waiting", "", 0).age(3600, 6) == "updated 1h ago"
+def test_only_active_idle_and_running_get_stale_hint() -> None:
+    assert CardBrief("", "", 0, mid_turn=True).age(8 * 3600, 6) == "updated 8h ago (stale)"
+    assert CardBrief("", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
+    assert CardBrief("", "", 0).age(3600, 6) == "updated 1h ago"
     assert CardBrief("done", "", 0).age(8 * 3600, 6) == "updated 8h ago"
+    assert CardBrief("blocked", "", 0).age(8 * 3600, 6) == "updated 8h ago"
 
 
 def test_cards_follow_the_popup_status_and_now(tmp_path: Path) -> None:
@@ -49,11 +51,16 @@ def test_nothing_is_not_a_waiting_subtitle(tmp_path: Path) -> None:
     assert card.waiting_on == ""
 
 
-def test_unknown_status_has_no_card_state(tmp_path: Path) -> None:
-    path = tmp_path / "brief.md"
-    path.write_text("Status: reviewing - soon\n")
+def test_an_unknown_or_missing_status_shows_the_lemon_s_own_state(tmp_path: Path) -> None:
+    unknown = tmp_path / "unknown.md"
+    unknown.write_text("Status: reviewing - soon\n")
+    missing = tmp_path / "missing.md"
+    missing.write_text("# Task\n\n## Now\n- Next: x\n")
 
-    assert BriefCache().get(path) is None
+    for path in (unknown, missing):
+        card = BriefCache().get(path)
+        assert card is not None
+        assert (card.status, card.placed, card.shown) == ("", "idle", "idle")
 
 
 def test_needs_keeps_its_label_in_either_form(tmp_path: Path) -> None:
@@ -71,9 +78,11 @@ def test_needs_keeps_its_label_in_either_form(tmp_path: Path) -> None:
     assert card.extra_lines(True) == 2
 
 
-def test_waiting_on_shows_only_while_waiting_and_needs_not_once_done() -> None:
-    assert CardBrief("waiting", "review", 0).waiting_line == "review"
-    assert CardBrief("working", "review", 0).waiting_line == ""
+def test_waiting_on_shows_only_while_idle_and_needs_not_once_done() -> None:
+    assert CardBrief("", "review", 0).waiting_line == "review"
+    assert CardBrief("", "review", 0, mid_turn=True).waiting_line == ""
+    assert CardBrief("", "review", 0, mark="dead").waiting_line == "review"
+    assert CardBrief("", "", 0, "answer").needs_line == "Needs: answer"
     assert CardBrief("review", "Sam", 0).waiting_line == ""
     assert CardBrief("done", "", 0, "answer").needs_line == ""
     assert CardBrief("blocked", "", 0, "answer").needs_line == "Needs: answer"
@@ -94,15 +103,44 @@ def test_running_shows_its_first_line_only_while_running(tmp_path: Path) -> None
     assert card is not None
     assert card.running_line == "UA run in work:3 (+1 more)"
     assert card.extra_lines(False) == 2
-    assert CardBrief("working", "", 0, running="UA run").running_line == ""
+    assert CardBrief("", "", 0, running="UA run").running_line == ""
     assert CardBrief("running", "", 0).age(8 * 3600, 6) == "updated 8h ago (stale)"
 
 
-def test_a_waiting_card_shows_how_long_it_has_waited_instead_of_its_age() -> None:
+def test_an_idle_card_shows_how_long_it_has_been_idle_instead_of_its_age() -> None:
     day = 86400
-    assert CardBrief("waiting", "", 9 * day, since=day).age(10 * day, 999) == "waiting 9 days"
-    assert CardBrief("waiting", "", day, since=day).age(2 * day + 60, 999) == "waiting 1 day"
-    assert CardBrief("waiting", "", 0, since=1).age(3 * 3600, 6) == "waiting 2h"
-    assert CardBrief("waiting", "", 0, since=1).age(8 * 3600, 6) == "waiting 7h (stale)"
-    assert CardBrief("waiting", "", 0).age(3600, 6) == "updated 1h ago"
-    assert CardBrief("working", "", 0, since=1).age(3600, 6) == "updated 1h ago"
+    assert CardBrief("", "", 9 * day, since=day).age(10 * day, 999) == "idle 9 days"
+    assert CardBrief("", "", day, since=day).age(2 * day + 60, 999) == "idle 1 day"
+    assert CardBrief("", "", 0, since=1).age(3 * 3600, 6) == "idle 2h"
+    assert CardBrief("", "", 0, since=1).age(8 * 3600, 6) == "idle 7h (stale)"
+    assert CardBrief("", "", 0).age(3600, 6) == "updated 1h ago"
+    assert CardBrief("", "", 0, mid_turn=True, since=1).age(3600, 6) == "updated 1h ago"
+
+
+def test_a_brief_without_a_status_shows_the_lemon_s_own_state() -> None:
+    assert CardBrief("", "", 0, mid_turn=True).shown == "active"
+    assert CardBrief("", "", 0).shown == "idle"
+    assert CardBrief("", "", 0, mark="deaf").shown == "deaf"
+    assert CardBrief("", "", 0, mark="dead").shown == "dead"
+    assert CardBrief("", "", 0, mark="dead").placed == "dead"
+    assert CardBrief("", "", 0, mid_turn=True).placed == "active"
+
+
+def test_a_dead_lemon_whose_turn_never_ended_shows_dead() -> None:
+    card = CardBrief("", "", 0, mid_turn=True, mark="dead")
+    assert (card.placed, card.shown, card.age(0, 6)) == ("dead", "dead", "dead · updated just now")
+
+
+def test_a_set_status_shows_unless_held_mid_turn() -> None:
+    assert CardBrief("blocked", "", 0, mid_turn=True).shown == "blocked"
+    assert CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).shown == "active"
+    assert CardBrief("running", "", 0, mid_turn=True, held_mid_turn=True).shown == "running"
+    assert CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).placed == "blocked"
+
+
+def test_a_deaf_or_dead_mark_prefixes_the_age() -> None:
+    assert CardBrief("", "", 0, mark="deaf").age(3600, 6) == "deaf · updated 1h ago"
+    assert CardBrief("blocked", "", 0, mark="dead").shown == "blocked"
+    assert CardBrief("blocked", "", 0, mark="dead").age(3600, 6) == "dead · updated 1h ago"
+    held = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
+    assert held.age(3600, 6) == "blocked · updated 1h ago"

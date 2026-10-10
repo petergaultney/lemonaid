@@ -20,7 +20,9 @@ then the message wrapped over as many lines as the pane can spare. With
 [`brief_status`](docs/config.md#tui) on, a card also shows its lemon's brief:
 a red headline and what it needs from you when `alert`, yellow when `blocked`,
 green when `merge`, purple when `approve`, brown when `review`, blue when `done`,
-teal while `running`, dimmed while `waiting`.
+teal while `running`. A brief that sets no status shows its lemon's own state:
+`active` mid-turn, dimmed while `idle`, and red `deaf` or `dead` when a message to
+it would not be read ([brief status](docs/brief-status.md)).
 
 Across the top, it has room for columns instead, one row per session, with
 `alert` rows red, `blocked` rows amber, `merge` rows green, `approve` rows purple,
@@ -242,11 +244,11 @@ The inbox and the scratch sidebar list sessions in the same order:
 7. Sessions whose brief says `review`: a teammate's approving review comes before your merge.
 8. Sessions whose brief says `done`.
 9. Every other unread session.
-10. Every other read session: `working`, `waiting`, or no brief.
+10. Every other read session: a brief without a status, or no brief.
 
 With [`[tui] mid_turn_working`](docs/config.md#tui) on, a read session that is
-mid-turn sorts as `working` until the turn ends, whatever its brief says, unless
-it says `running`.
+mid-turn is drawn as `active` until the turn ends, whatever its brief says, unless
+it says `running`. It keeps the place its brief gives it.
 
 With [`[tui] fold_statuses`](docs/config.md#folding-sessions-by-brief-status) set,
 read sessions of those statuses fold into one line at the bottom, which `w` opens.

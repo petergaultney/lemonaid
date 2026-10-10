@@ -99,7 +99,7 @@ def test_message_is_queued_even_when_it_will_not_be_read(capsys):
     [("claude", True), ("2.1.295", True), ("/opt/bin/codex", True), ("-fish", False), ("1", False)],
 )
 def test_harness_names(command, expected):
-    assert recipient._is_harness(command) is expected
+    assert recipient.is_harness(command) is expected
 
 
 def test_dead_harness_outranks_an_armed_waiter():

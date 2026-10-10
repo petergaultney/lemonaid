@@ -15,7 +15,7 @@ from collections import abc
 from pathlib import Path
 
 from ..config import PlaceRoot
-from . import display, identity, now, pr, project, questions, status, target
+from . import display, identity, now, pr, project, questions, status, store, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -78,7 +78,7 @@ class Child(ty.NamedTuple):
 class Section:
     lemon: target.Identity | None
     title: str
-    state: str  # one of store.STATES, or ""
+    state: str  # one of store.STATES; "" for none, which the inbox draws `active` or `idle`
     raw_status: str
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
     path: Path | None  # None for a lemon with no brief
@@ -296,7 +296,11 @@ def view(
 
 
 def status_text(section: Section) -> str:
-    return section.state or section.raw_status or "(no Status line)"
+    if section.state:
+        return section.state
+
+    word = section.raw_status.split(maxsplit=1)[0].lower() if section.raw_status.strip() else ""
+    return "no Status: active or idle" if word in ("", *store.RETIRED) else section.raw_status
 
 
 def where(lemon: target.Identity) -> str:

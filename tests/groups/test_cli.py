@@ -11,7 +11,7 @@ def test_a_group_holds_the_lemons_it_was_created_with(capsys):
     assert created["group"]["name"] == "Inbox work"
     assert members(created) == [one, two]
     assert created["group"]["members"][0]["channel"] == "claude:one"
-    assert created["group"]["members"][1]["status"] == "working"
+    assert created["group"]["members"][1]["status"] == ""
 
 
 def test_a_lemon_can_be_in_more_than_one_group(capsys, monkeypatch):
@@ -116,7 +116,7 @@ def test_text_output_lists_each_member_under_its_group(capsys):
     one = lemon("one", "claude:one")
     run(capsys, "group", "create", "G", one, "--json")
 
-    assert run(capsys, "group", "list")["out"] == f"G\n\t{one}\tworking\tclaude:one\n"
+    assert run(capsys, "group", "list")["out"] == f"G\n\t{one}\t-\tclaude:one\n"
 
 
 def test_a_name_with_a_comma_is_refused(capsys):

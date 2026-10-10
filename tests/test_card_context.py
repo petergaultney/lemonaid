@@ -150,13 +150,13 @@ def test_the_age_field_shows_the_brief_age_in_place_of_the_time(tmp_path):
         parts = card_context.parts(fields, _TIME, where, "main", str(cwd), False, age)
         return card_context.fitted(parts, 200).plain
 
-    assert line("waiting 3 days") == "waiting 3 days · pantry · main"
+    assert line("idle 3 days") == "idle 3 days · pantry · main"
     assert line("") == "15:32:47 · pantry · main"
 
 
 def test_inline_age_keeps_the_held_status_color():
     where = card_context.Part("project", Text("pantry"))
-    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True).age_text(60, 6)
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60, 6)
     (part,) = card_context.parts(("age",), _TIME, where, "main", "/pantry", False, age)
     console = Console(color_system="truecolor")
     status_style = part.text.get_style_at_offset(console, 0)
@@ -170,7 +170,7 @@ def test_inline_age_keeps_the_held_status_color():
 
 def test_inline_age_keeps_held_status_color_with_neutral_timing():
     where = card_context.Part("project", Text("pantry"))
-    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True).age_text(60, 6)
+    age = brief_cards.CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True).age_text(60, 6)
     (part,) = card_context.parts(
         ("age",), _TIME, where, "main", "/pantry", False, age, neutral_timing=True
     )
@@ -185,7 +185,7 @@ def test_inline_age_keeps_held_status_color_with_neutral_timing():
 def test_a_narrow_card_keeps_the_age_and_cuts_the_project_instead(tmp_path):
     cwd = tmp_path / "engineering-backend"
     where = card_context.project_part(_places(tmp_path), str(cwd), "main")
-    age = "waiting 4 days (stale)"
+    age = "idle 4 days (stale)"
     for fields in (("age", "project", "branch"), ("project", "age", "branch")):
         parts = card_context.parts(fields, _TIME, where, "main", str(cwd), False, age)
         line = card_context.fitted(parts, 31)

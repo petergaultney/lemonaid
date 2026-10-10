@@ -50,7 +50,7 @@ def test_a_child_is_named_for_its_session_when_it_has_one(capsys):
 
     [section] = family.added(_shown("parent")).sections
 
-    assert section.children == (render.Child("working", "fold waiting", child),)
+    assert section.children == (render.Child("", "fold waiting", child),)
 
 
 def test_a_parent_is_named_for_its_session_when_it_has_one(capsys):
@@ -142,4 +142,4 @@ def test_the_brief_view_shows_the_parent_and_children(capsys):
     assert (
         f"Brief-ID: {identity.markdown_id(child)}  \nParent: {identity.markdown_id(parent)}"
     ) in rendered
-    assert children == f"Children:\n  working  {grandchild}"
+    assert children == f"Children:\n  -  {grandchild}"
