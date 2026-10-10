@@ -133,7 +133,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `brief_stale_hours` | `6` | Mark `working`, `running` and `waiting` cards stale after this many hours without a brief edit. |
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `working`, whatever its brief says, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
-| `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from a 23-color palette with directory overrides. Timing labels become neutral grey. |
+| `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
@@ -228,7 +228,7 @@ area, and then the time is dropped, so the project's name stays whole wherever
 it fits on its own.
 
 Set `project_name_colors = true` to color each project label with the same
-selection used by tmux window labels: a stable hash into the 23-color palette,
+selection used by tmux window labels: a stable hash into the generated palette,
 with the same named directory overrides. The same name keeps the same color
 across runs; this applies to the project label, not the area or cwd fallback.
 
