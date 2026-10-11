@@ -306,6 +306,7 @@ def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
     fold_waiting, focus, monkeypatch
 ):
     monkeypatch.setattr(app_mod.unarchive, "running", lambda n: True)
+    monkeypatch.setattr(app_mod.unarchive, "_started_by", lambda *a: True)
     with db.connect() as conn:
         working = _session(conn, "working", age=30)
         old = _session(conn, "old", age=900_000, tty="/dev/ttys-old")

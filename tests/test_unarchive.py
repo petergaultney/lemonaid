@@ -1,5 +1,6 @@
 """Telling a still-running archived session from an exited one, and restoring it."""
 
+import subprocess
 import time
 
 from lemonaid.inbox import db, unarchive
@@ -24,7 +25,21 @@ def _session(channel: str, *, archived: bool, created_at: float, **metadata) -> 
     return found
 
 
-def _live(monkeypatch, pane: bool | None = True, process: bool = True) -> list[tuple]:
+def _live(
+    monkeypatch, pane: bool | None = True, process: bool = True, started: float = 0.0
+) -> list[tuple]:
+    """Each harness on TTY started at *started*, as `ps` would print it."""
+    lstart = time.strftime("%a %b %e %H:%M:%S %Y", time.localtime(started))
+    monkeypatch.setattr(
+        unarchive.subprocess,
+        "run",
+        lambda argv, **_: subprocess.CompletedProcess(
+            argv,
+            0,
+            f"{lstart}     -fish\n{lstart}     claude\n{lstart}     codex --no-daemon\n",
+            "",
+        ),
+    )
     asked: list[tuple] = []
     monkeypatch.setattr(
         unarchive,
@@ -159,6 +174,38 @@ def test_a_focused_tty_whose_newest_row_is_live_restores_nothing(monkeypatch):
 def test_a_focused_tty_whose_harness_exited_restores_nothing(monkeypatch):
     _live(monkeypatch, process=False)
     n = _session("claude:gone", archived=True, created_at=100.0)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == []
+        assert db.get(conn, n.id).status == "archived"
+
+
+def test_a_new_lemon_on_a_reused_tty_does_not_bring_back_the_old_session(monkeypatch):
+    """A Codex has no row until its first turn ends; its pane is not the archived one's."""
+    _live(monkeypatch, started=time.time())
+    n = _session("codex:old", archived=True, created_at=time.time() - 3600)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == []
+        assert db.get(conn, n.id).status == "archived"
+
+
+def test_a_lemon_started_just_before_the_row_s_last_notification_is_that_session(monkeypatch):
+    _live(monkeypatch, started=time.time() - 60)
+    _session("codex:still", archived=True, created_at=time.time() - 30)
+
+    with db.connect() as conn:
+        assert unarchive.restore_focused(conn, [TTY]) == ["codex:still"]
+
+
+def test_a_tty_ps_cannot_list_restores_nothing(monkeypatch):
+    _live(monkeypatch)
+
+    def fails(argv, **_):
+        raise subprocess.TimeoutExpired(argv, 2)
+
+    monkeypatch.setattr(unarchive.subprocess, "run", fails)
+    n = _session("codex:unknown", archived=True, created_at=time.time())
 
     with db.connect() as conn:
         assert unarchive.restore_focused(conn, [TTY]) == []

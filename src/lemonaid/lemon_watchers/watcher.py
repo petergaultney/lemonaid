@@ -105,6 +105,27 @@ def parse_timestamp(ts_str: str) -> float | None:
         return None
 
 
+def is_harness(args: str, process_name: str) -> bool:
+    """Whether a `ps` args line runs *process_name*.
+
+    `comm` can be truncated or name Node instead of Codex, so argv is inspected instead.
+    """
+    try:
+        argv = shlex.split(args)
+    except ValueError:
+        argv = args.split()
+    if not argv:
+        return False
+
+    executable = os.path.basename(argv[0])
+    return executable == process_name or (
+        process_name == "codex"
+        and executable in {"node", "nodejs"}
+        and len(argv) > 1
+        and os.path.basename(argv[1]) == process_name
+    )
+
+
 def process_on_tty(tty: str, process_name: str) -> bool | None:
     """Whether a process named *process_name* runs on *tty*, or None if `ps` could not say."""
     tty_name = tty.replace("/dev/", "")
@@ -127,25 +148,7 @@ def process_on_tty(tty: str, process_name: str) -> bool | None:
         _log.warning("ps failed on %s: %s", tty_name, result.stderr.strip())
         return None
 
-    # `comm` can be truncated or name Node instead of Codex; inspect argv instead.
-    for line in result.stdout.splitlines():
-        try:
-            argv = shlex.split(line)
-        except ValueError:
-            argv = line.split()
-        if not argv:
-            continue
-        executable = os.path.basename(argv[0])
-        if executable == process_name:
-            return True
-        if (
-            process_name == "codex"
-            and executable in {"node", "nodejs"}
-            and len(argv) > 1
-            and os.path.basename(argv[1]) == process_name
-        ):
-            return True
-    return False
+    return any(is_harness(line, process_name) for line in result.stdout.splitlines())
 
 
 def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:

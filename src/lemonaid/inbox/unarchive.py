@@ -7,15 +7,23 @@ decide whether Enter should switch to a session or resume it.
 """
 
 import json
+import os
 import sqlite3
+import subprocess
 import time
 from collections import abc
 
 from .. import handlers
 from ..handlers import check_pane_exists_by_tty
 from ..lemon_watchers import watcher
+from ..log import get_logger
 from ..tmux import navigation
 from . import db
+
+_log = get_logger("inbox.unarchive")
+
+_PS_TIMEOUT_SECONDS = 2
+_LSTART_FORMAT = "%a %b %d %H:%M:%S %Y"
 
 
 def running(n: db.Notification) -> bool:
@@ -105,6 +113,34 @@ def moved(
     conn.commit()
 
 
+def _started_by(tty: str, harness: str, at: float) -> bool:
+    """Whether a *harness* process on *tty* started no later than *at*; False if `ps` can't say."""
+    try:
+        result = subprocess.run(
+            ["ps", "-t", tty.removeprefix("/dev/"), "-o", "lstart=,args="],
+            capture_output=True,
+            text=True,
+            timeout=_PS_TIMEOUT_SECONDS,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _log.warning("could not list the processes on %s: %s", tty, e)
+        return False
+
+    for line in result.stdout.splitlines():
+        fields = line.split(maxsplit=5)  # lstart is five words: "Sun Oct 11 15:53:02 2026"
+        if len(fields) < 6 or not watcher.is_harness(fields[5], harness):
+            continue
+        try:
+            started = time.mktime(time.strptime(" ".join(fields[:5]), _LSTART_FORMAT))
+        except ValueError:
+            continue
+        if started <= at:
+            return True
+
+    return False
+
+
 def restore_focused(conn: sqlite3.Connection, ttys: abc.Iterable[str]) -> list[str]:
     """Bring back, as read, each session on `ttys` that was archived while still running there.
 
@@ -123,6 +159,11 @@ def restore_focused(conn: sqlite3.Connection, ttys: abc.Iterable[str]) -> list[s
 
         n = db.Notification.from_row(row)
         if not running(n):
+            continue
+
+        # ttys are reused: a lemon that started after this row's last notification
+        # is a new one in the same terminal, not this session still running.
+        if not _started_by(n.metadata["tty"], watcher.harness_process(n.channel), n.created_at):
             continue
 
         restore(conn, n.channel)

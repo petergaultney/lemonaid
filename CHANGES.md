@@ -1,3 +1,9 @@
+# 0.101.2 (2026-10-12)
+
+#### Fixed
+
+- **Looking at a newly started lemon no longer brings back an archived session that once used its terminal.** The inbox restored an archived row whenever its recorded tty was focused and a lemon of the same harness ran there, so a new Codex (which has no row until its first turn ends) on a reused tty revived a stranger's row; clicking that row switched to the new lemon. The lemon on the tty must now have started before the archived row's last notification.
+
 # 0.101.1 (2026-10-12)
 
 #### Fixed
