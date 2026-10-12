@@ -68,6 +68,7 @@ from ..arrange import answer, child
 from . import (
     brief_cards,
     card_context,
+    cursor_target,
     focus,
     group_headers,
     group_picker,
@@ -1275,13 +1276,8 @@ class LemonaidApp(App):
         elif main_table.row_count > 0 and (rebuilt or stay_on_unread):
             target_index = None
             unread_rows = [i for i, n in enumerate(self._drawn) if n and n.is_unread]
-            if stay_on_unread and unread_rows:
-                # The next unread at or below the cursor, else the last one above.
-                # Pins and blocked rows mean unread rows need not be contiguous.
-                target_index = next((i for i in unread_rows if i >= current_index), unread_rows[-1])
-            elif stay_on_unread:
-                # No unread left, go to top
-                target_index = 0
+            if stay_on_unread:
+                target_index = cursor_target.after_unread_action(unread_rows, current_index)
             else:
                 # The same row, else the same lemon wherever it went, else the same place
                 for key in (current_row, current_key):
