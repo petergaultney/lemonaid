@@ -1,8 +1,6 @@
 """Main Lemonaid TUI application."""
 
 import os
-import threading
-import time
 import typing as ty
 from collections import abc
 from pathlib import Path
@@ -71,7 +69,6 @@ from .table import ClickToActTable
 from .usage_view import UsageHeader
 from .utils import JUMP_DIGITS, set_terminal_title
 
-_NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
 _log = get_logger("tui")
@@ -93,8 +90,7 @@ class LemonaidApp(App):
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
         self._undo_stack = undo.Stack()
-        self._last_name_refresh = 0.0
-        self._name_scan_mtimes: dict[str, float] = {}
+        self._names = session_names.Scanner()
         self._attention = focus.Probe()
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
@@ -326,21 +322,8 @@ class LemonaidApp(App):
         content = self._the(InboxContent)
         return bool(content and content.searching)
 
-    @property
-    def _history_filter(self) -> str:
-        return self._content.filter_text
-
-    def _card_width(self) -> int:
-        return self._content.card_width()
-
-    def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
-        return self._content.card_shape(extra_lines)
-
-    def _active_table_id(self) -> str:
-        return f"#{self._content.active_table().id}"
-
     def _get_current_row_key(self) -> str | None:
-        return row_keys.notification_at_cursor(self.query_one(self._active_table_id(), DataTable))
+        return row_keys.notification_at_cursor(self._content.active_table())
 
     def _project_names_changed(self) -> None:
         if self._mode is view_modes.HISTORY:
@@ -370,19 +353,19 @@ class LemonaidApp(App):
             return
 
         self._wake_expired_snoozes()
-        self._refresh_session_names()
+        self._names.maybe_scan(lambda: self.call_from_thread(self._refresh_notifications))
 
         inbox = self._content.inbox
         drawn = inbox.refresh_list(
             focused=self._attention.ttys(),
             env_filter=self.current_env if self.current_env != "unknown" else None,
-            search_text=self._history_filter if self._search_mode else None,
+            search_text=self._content.filter_text if self._search_mode else None,
             detached=self._detached_channels,
             cards=self._content.cards,
             width=self.size.width,
             height=self.size.height,
-            card_width=self._card_width(),
-            card_shape=self._card_shape,
+            card_width=self._content.card_width(),
+            card_shape=self._content.card_shape,
             stay_on_unread=stay_on_unread,
         )
         self.set_class(bool(drawn.unread), "-unread")
@@ -472,10 +455,7 @@ class LemonaidApp(App):
         in a modal that gets the whole pane. The startup peek at the footer is
         left alone - it is a reminder that keys exist, not the reference.
         """
-        if self._hint_timer is not None:
-            self._hint_timer.stop()
-            self._hint_timer = None
-
+        self._stop_hint_timer()
         self._show_keys(False)
         self.push_screen(HelpScreen(bindings.help_keys(self.config), wide=not self._content.cards))
 
@@ -489,11 +469,13 @@ class LemonaidApp(App):
     def action_toggle_keys(self) -> None:
         # An explicit toggle outranks the startup timer, which would otherwise
         # hide the hints part-way through the user reading them.
+        self._stop_hint_timer()
+        self._show_keys(not self._keys_shown)
+
+    def _stop_hint_timer(self) -> None:
         if self._hint_timer is not None:
             self._hint_timer.stop()
             self._hint_timer = None
-
-        self._show_keys(not self._keys_shown)
 
     def _show_keys(self, shown: bool) -> None:
         self._keys_shown = shown
@@ -511,23 +493,6 @@ class LemonaidApp(App):
             self._resume_footer_shown = resume_footer_shown
             self._set_binding_footer("resume_detached", show=resume_footer_shown)
             self.refresh_bindings()
-
-    def _refresh_session_names(self) -> None:
-        """Pull newly-available backend titles into the inbox.
-
-        Throttled and run off the event loop: resolving a title reads a
-        transcript, which is too slow to do synchronously on every tick.
-        """
-        now = time.time()
-        if now - self._last_name_refresh < _NAME_REFRESH_SECONDS:
-            return
-
-        def scan() -> None:
-            if session_names.upgrade(self._name_scan_mtimes):
-                self.call_from_thread(self._refresh_notifications)
-
-        self._last_name_refresh = now
-        threading.Thread(target=scan, daemon=True).start()
 
     def _wake_expired_snoozes(self) -> None:
         with db.connect() as conn:
@@ -582,9 +547,6 @@ class LemonaidApp(App):
         self._undo_stack.push(entry)
         self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
 
-    def _wake_selected(self) -> None:
-        self.query_one(SnoozedTable).wake()
-
     def _switch_to_notification(self, notification: db.Notification) -> bool:
         if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):
             return False
@@ -609,13 +571,10 @@ class LemonaidApp(App):
         if self._selected_channel() not in self._detached_channels and not self._brief_local():
             return
 
-        table = self.query_one("#main_table", DataTable)
-        if (notification_id := row_keys.key_id(row_keys.at_row(table, table.cursor_row))) is None:
+        if not (key := row_keys.notification_at_cursor(self._content.inbox.main)):
             return
 
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-        if notification is None:
+        if (notification := row_keys.notification(key)) is None:
             error_screen.show(self, "That session is gone", "Its row was removed from the inbox.")
         elif not inbox_draw.can_resume_detached(notification, self.config):
             inbox_switch.resume_unavailable(self)
@@ -695,24 +654,20 @@ class LemonaidApp(App):
             self._refresh_notifications()
             return
 
-        if not (isinstance(self.focused, Input) and self.focused.id == "history_filter"):
+        if not (
+            isinstance(self.focused, Input)
+            and self.focused.id == "history_filter"
+            and event.key in ("down", "enter", "escape")
+        ):
             return
 
-        # Down/Enter: keep filter active, move focus to matching rows.
-        if event.key in ("down", "enter"):
-            event.prevent_default()
-            event.stop()
-            table_nav.into_results(*self._stacked_tables(), self._search_mode)
-            return
-
-        # Escape: clear filter, hide it, focus table
-        if event.key == "escape":
-            event.prevent_default()
-            event.stop()
-            if self._search_mode:
-                self._stop_search()
-                return
-
+        event.prevent_default()
+        event.stop()
+        if event.key != "escape":  # keep the filter, and move to the rows it matches
+            table_nav.into_results(*self._content.stacked(), self._search_mode)
+        elif self._search_mode:
+            self._stop_search()
+        else:
             self._content.clear_history_filter()
             self._refresh_history()
             self._content.history.focus()
@@ -723,21 +678,18 @@ class LemonaidApp(App):
             return focused
         return self.query_one("#main_table", DataTable)
 
-    def _stacked_tables(self) -> tuple[DataTable, DataTable, DataTable]:
-        return self._content.stacked()
-
     def action_cursor_up(self) -> None:
         if self._brief_target is not None:
             self.query_one(BriefPane).navigate(-1, self._detached_channels)
         else:
-            main, other, _ = self._stacked_tables()
+            main, other, _ = self._content.stacked()
             table_nav.up(self._focused_table(), main, other, self._search_mode)
 
     def action_cursor_down(self) -> None:
         if self._brief_target is not None:
             self.query_one(BriefPane).navigate(1, self._detached_channels)
         else:
-            table_nav.down(self._focused_table(), *self._stacked_tables(), self._search_mode)
+            table_nav.down(self._focused_table(), *self._content.stacked(), self._search_mode)
 
     def action_cursor_first(self) -> None:
         """Move to the top row: the main table's first, pins included."""
@@ -757,7 +709,7 @@ class LemonaidApp(App):
         if (self._mode is view_modes.HISTORY or self._search_mode) and table.id == "history_table":
             self._resume_session()
         elif self._mode is view_modes.SNOOZED and table.id == "snoozed_table":
-            self._wake_selected()
+            self._content.snoozed.wake()
         elif table.id == "main_table":
             table.action_select_cursor()
 
@@ -802,7 +754,7 @@ class LemonaidApp(App):
             self._undoable(entry)
 
     def _row_channels(self) -> list[str]:
-        return row_keys.channels(self.query_one(self._active_table_id(), DataTable))
+        return row_keys.channels(self._content.active_table())
 
     def _selected_channel(self) -> str | None:
         """The channel of the row under the cursor, in the main list only."""
@@ -836,7 +788,7 @@ class LemonaidApp(App):
         self._groups_at_cursor(inbox_groups.remove_at_cursor)
 
     def _select_channel(self, channel: str) -> None:
-        row_keys.select_channel(self.query_one(self._active_table_id(), DataTable), channel)
+        row_keys.select_channel(self._content.active_table(), channel)
 
     def _selected_notification(self) -> db.Notification | None:
         return row_keys.notification(self._get_current_row_key())
@@ -965,27 +917,20 @@ class LemonaidApp(App):
             self._refresh_notifications()
 
     def action_flip_position(self) -> None:
-        if not self._scratch_mode:
-            return
-
-        default = self.config.tmux_session.scratch_position
-        position = flip_position(default)
-        move_scratch(
-            self.config.tmux_session.scratch_width
-            if position == "left"
-            else self.config.tmux_session.scratch_height,
-            position,
-        )
-        self.notify(f"Pane moved to the {position}")
+        if self._scratch_mode:
+            scratch = self.config.tmux_session
+            position = flip_position(scratch.scratch_position)
+            move_scratch(
+                scratch.scratch_width if position == "left" else scratch.scratch_height, position
+            )
+            self.notify(f"Pane moved to the {position}")
 
     def action_save_scratch_size(self) -> None:
-        if not self._scratch_mode:
-            return
-
-        position = current_position(self.config.tmux_session.scratch_position)
-        save_current_size(position)
-        self.notify("Pane width saved" if position == "left" else "Pane height saved")
-        self._refresh_notifications()
+        if self._scratch_mode:
+            position = current_position(self.config.tmux_session.scratch_position)
+            save_current_size(position)
+            self.notify("Pane width saved" if position == "left" else "Pane height saved")
+            self._refresh_notifications()
 
     def _hide_scratch_pane(self) -> None:
         """Hide the scratch pane back to its holding session.
@@ -1012,7 +957,7 @@ class LemonaidApp(App):
 
         if event.data_table.id == "main_table":
             self.query_one(InboxList).mark_header(
-                str(event.row_key.value) if event.row_key else "", self._card_width()
+                str(event.row_key.value) if event.row_key else "", self._content.card_width()
             )
         self._refresh_resume_binding()
 
@@ -1039,7 +984,7 @@ class LemonaidApp(App):
         if table_id == "history_table":
             self._resume_session()
         elif table_id == "snoozed_table":
-            self._wake_selected()
+            self._content.snoozed.wake()
         elif table_id == "main_table" and row_key is not None:
             if (group_id := sections.group_id(str(row_key.value))) is not None:
                 inbox_groups.toggle_group(self._content.inbox, group_id)

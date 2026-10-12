@@ -1,5 +1,9 @@
 """Claude session titles that arrive after the inbox first named a session."""
 
+import threading
+import time
+from collections import abc
+
 from ...claude import notify
 from ...log import get_logger
 from .. import db
@@ -64,3 +68,29 @@ def upgrade(mtimes: dict[str, float]) -> bool:
                 )
 
     return upgraded
+
+
+_RESCAN_SECONDS = 20
+
+
+class Scanner:
+    """Runs `upgrade` off the event loop, at most every 20 seconds: resolving a title
+    reads a transcript, which is too slow to do on every refresh tick.
+    """
+
+    def __init__(self) -> None:
+        self._mtimes: dict[str, float] = {}
+        self._last = 0.0
+
+    def maybe_scan(self, upgraded: abc.Callable[[], None]) -> None:
+        """Start a scan if one is due; `upgraded` runs, on the scan's thread, if a name changed."""
+        now = time.time()
+        if now - self._last < _RESCAN_SECONDS:
+            return
+
+        def scan() -> None:
+            if upgrade(self._mtimes):
+                upgraded()
+
+        self._last = now
+        threading.Thread(target=scan, daemon=True).start()

@@ -115,7 +115,7 @@ def test_the_cards_give_up_the_rows_the_notes_take(notes):
     _add_session(" ".join(f"word{i}" for i in range(300)))
 
     def lines(tui: app.LemonaidApp) -> int:
-        return tui._card_shape()[1]
+        return tui._content.card_shape()[1]
 
     assert _run(_SIDEBAR, lines) < _run(_SIDEBAR, lines, "N")
 
