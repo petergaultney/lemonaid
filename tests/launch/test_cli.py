@@ -103,6 +103,17 @@ def test_a_new_window_runs_the_template_line_and_waits_for_its_lemon(capsys, tmu
     assert (waiting["tmux_window_id"], waiting["name"]) == (started["window_id"], "REVIEW")
 
 
+def test_a_brief_without_a_prompt_starts_the_lemon_on_the_default_prompt(capsys, tmux):
+    _brief("review")
+
+    started = _start(capsys, "work:4", "--brief", "review")
+
+    assert started["error"] is None
+    assert "read it all and do the work." in _screen(tmux, "work:4", "do the work.").replace(
+        "\n", ""
+    )
+
+
 def test_a_live_window_is_refused(capsys, tmux):
     _brief("review")
     index = tmux("display", "-p", "-t", "=work:", "#{window_index}")

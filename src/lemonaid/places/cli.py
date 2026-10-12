@@ -43,6 +43,8 @@ def cmd_open(args: argparse.Namespace) -> None:
         print(error, file=sys.stderr)
         sys.exit(1)
 
+    prompt = launch.handoff.first_prompt(given, args.prompt)
+
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
     root = (
@@ -59,7 +61,7 @@ def cmd_open(args: argparse.Namespace) -> None:
             config,
             attach=not args.detach,
             harness=args.harness,
-            prompt=args.prompt,
+            prompt=prompt,
         )
     else:
         directory, opened = lifecycle.open_key(
@@ -68,18 +70,18 @@ def cmd_open(args: argparse.Namespace) -> None:
             root,
             attach=not args.detach,
             harness=args.harness,
-            prompt=args.prompt,
+            prompt=prompt,
         )
 
     session, error = opened.session, opened.error
-    if session and not error and (given.brief or args.prompt):
+    if session and not error and (given.brief or prompt):
         index, window_id = _harness_window(config, args.harness, session)
         launch.handoff.complete(given, session, index, window_id)
         if given.link:
             print(watch.children_waiter.reminder(), file=sys.stderr)
         if (
             opened.created
-            and args.prompt
+            and prompt
             and window_id
             and not args.no_check
             and (dialog := launch.window.startup_dialog(window_id))
@@ -258,7 +260,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     open_parser.add_argument(
         "--prompt",
         default="",
-        help="Pass an initial prompt to the configured harness window",
+        help="Pass an initial prompt to the configured harness window (with --brief, "
+        "the default is to read the brief and do the work)",
     )
     open_parser.add_argument(
         "--brief",
@@ -287,7 +290,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     open_parser.add_argument(
         "--no-check",
         action="store_true",
-        help="With --prompt, don't wait to check the harness window for a startup dialog",
+        help="With a first prompt, don't wait to check the harness window for a startup dialog",
     )
     open_parser.add_argument(
         "-d",

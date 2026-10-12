@@ -270,6 +270,9 @@ in any shell. Both options matter only
 when `open` creates the session. If a session already exists, `open` switches to
 it without starting another harness or sending the prompt.
 
+With `--brief` and no `--prompt`, a new lemon's first prompt is `Your brief is <path>; read
+it all and do the work.` An explicit `--prompt` replaces it. `lemon start --brief` does the same.
+
 A template line whose program is `codex` also gets `-c` overrides that trust the
 directory and skip the update check, so Codex reads its prompt instead of stopping
 at a dialog. It also gets `sandbox_workspace_write.writable_roots` covering the
@@ -277,7 +280,7 @@ lemonaid database and state directories plus `codex_writable_roots` from
 `[tmux-session]`, so a sandboxed Codex can run `lemonaid tell`. Nothing is written
 to `~/.codex/config.toml`.
 
-With `--prompt`, a new session's harness window is checked once, a few seconds after
+With a first prompt (`--prompt`, or the default one above), a new session's harness window is checked once, a few seconds after
 it starts. If the lemon is stuck at a startup dialog (Claude's folder-trust prompt has
 no override), `open` fails with `"error": "Opened, but the lemon in <session>:<window> is
 waiting at ..."`. The session and any `--brief` are still set up, and the brief attaches

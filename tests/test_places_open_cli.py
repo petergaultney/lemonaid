@@ -220,6 +220,42 @@ def test_a_brief_waits_on_the_new_sessions_harness_window(monkeypatch, tmp_path)
     )
 
 
+def test_a_brief_without_a_prompt_sends_the_default_first_prompt(monkeypatch, tmp_path):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    brief_file = store.briefs_dir() / "task.md"
+    brief_file.parent.mkdir(parents=True)
+    brief_file.write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task"))
+
+    assert sessions[0][-1] == f"Your brief is {brief_file.resolve()}; read it all and do the work."
+
+
+def test_the_default_prompt_gets_the_startup_dialog_check(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(cli, "_harness_window", lambda config, harness, session: ("0", "@1"))
+    monkeypatch.setattr(cli.launch.window, "startup_dialog", lambda window_id: "a trust dialog")
+    brief_file = store.briefs_dir() / "task.md"
+    brief_file.parent.mkdir(parents=True)
+    brief_file.write_text("# task\n\nStatus: working\n")
+
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes", brief="task"))
+
+    assert "waiting at a trust dialog" in capsys.readouterr().err
+
+
+def test_an_explicit_prompt_wins_over_the_default(monkeypatch, tmp_path):
+    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    brief_file = store.briefs_dir() / "task.md"
+    brief_file.parent.mkdir(parents=True)
+    brief_file.write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", prompt="do it differently"))
+
+    assert sessions[0][-1] == "do it differently"
+
+
 def test_a_missing_brief_is_refused_before_opening(monkeypatch, tmp_path):
     _, sessions = _records(monkeypatch, _config(), tmp_path)
 

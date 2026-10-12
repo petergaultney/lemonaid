@@ -36,7 +36,10 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         return {}, error
 
     typed, environment = command.harness_line(
-        line, directory, args.prompt, command.codex_writable_roots(config.tmux_session)
+        line,
+        directory,
+        handoff.first_prompt(given, args.prompt),
+        command.codex_writable_roots(config.tmux_session),
     )
     pane, error = window.open_window(session, index, directory, environment)
     if pane is None:
@@ -99,7 +102,12 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         help="The harness to start, e.g. claude or codex: [tmux-session.templates].NAME"
         " (without it, the template named default)",
     )
-    start.add_argument("--prompt", default="", help="The lemon's first prompt")
+    start.add_argument(
+        "--prompt",
+        default="",
+        help="The lemon's first prompt (with --brief, the default is to read the brief "
+        "and do the work)",
+    )
     start.add_argument(
         "--brief",
         default="",

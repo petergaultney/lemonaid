@@ -1,3 +1,10 @@
+# 0.101.0 (2026-10-12)
+
+#### Changed
+
+- **`place open --brief` and `lemon start --brief` send a first prompt when `--prompt` isn't given:** "Your brief is <path>; read it all and do the work." An explicit `--prompt` still wins, and an existing session that `place open` switches to is never sent it.
+- **`place open` checks a new session for a startup dialog whenever it sends a first prompt,** including the default one, not only with `--prompt`.
+
 # 0.100.2 (2026-10-10)
 
 #### Fixed

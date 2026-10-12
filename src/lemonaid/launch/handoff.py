@@ -26,6 +26,14 @@ class Handoff:
     groups: tuple[str, ...] = ()
 
 
+def first_prompt(given: Handoff, prompt: str) -> str:
+    """*prompt*, or the default that sends a new lemon to its brief."""
+    if prompt or not given.brief:
+        return prompt
+
+    return f"Your brief is {given.brief}; read it all and do the work."
+
+
 def prepare(
     brief_arg: str, parent: str, name: str, group_names: tuple[str, ...] = ()
 ) -> tuple[Handoff, str]:
