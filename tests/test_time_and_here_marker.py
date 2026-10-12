@@ -405,10 +405,11 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
 def test_a_successful_inbox_switch_marks_its_tty_immediately(monkeypatch):
     from lemonaid.inbox import db
     from lemonaid.inbox.tui import app as app_mod
+    from lemonaid.inbox.tui import inbox_switch
 
     pane = app_mod.LemonaidApp()
     refreshed: list[bool] = []
-    monkeypatch.setattr(app_mod, "handle_notification", lambda *args, **kwargs: True)
+    monkeypatch.setattr(inbox_switch, "handle_notification", lambda *args, **kwargs: True)
     monkeypatch.setattr(pane, "_refresh_notifications", lambda: refreshed.append(True))
     notification = db.Notification(
         id=1,

@@ -11,7 +11,7 @@ import pytest
 
 from lemonaid.config import Config
 from lemonaid.inbox import db, resume_archived
-from lemonaid.inbox.tui import watcher_hooks
+from lemonaid.inbox.tui import inbox_switch, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
 from lemonaid.lemon_watchers import watcher
@@ -131,7 +131,7 @@ def test_scratch_pane_enter_starts_the_session(monkeypatch, tmp_path):
     n = _archived(tmp_path)
     _no_session_to_reuse(monkeypatch)
     copied: list = []
-    monkeypatch.setattr(LemonaidApp, "_copy_resume_command", lambda self, c: copied.append(c))
+    monkeypatch.setattr(inbox_switch, "copy_command", lambda widget, c: copied.append(c))
     monkeypatch.setattr(LemonaidApp, "_hide_scratch_pane", lambda self: None)
     monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 

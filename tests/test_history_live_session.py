@@ -76,7 +76,7 @@ def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
     """A still-running archived session is returned to the active inbox."""
     nid = _archived()
     _pane_and_process(monkeypatch, True)
-    monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: True)
+    monkeypatch.setattr("lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: True)
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -95,10 +95,11 @@ def test_a_live_session_is_switched_to_not_resumed(monkeypatch):
     resumed: list = []
     _pane_and_process(monkeypatch, True)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: switched.append(a) or True
+        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        lambda *a, **k: switched.append(a) or True,
     )
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.resume_mod.build_resume_command",
+        "lemonaid.resume.build_resume_command",
         lambda *a: resumed.append(a) or None,
     )
 
@@ -119,7 +120,7 @@ def test_a_dead_session_still_resumes(monkeypatch):
     resumed: list = []
     _pane_and_process(monkeypatch, False)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.resume_mod.build_resume_command",
+        "lemonaid.resume.build_resume_command",
         lambda *a: resumed.append(a) or None,
     )
 
@@ -143,7 +144,7 @@ def test_the_recorded_server_is_the_one_asked(monkeypatch):
         "lemonaid.inbox.unarchive.check_pane_exists_by_tty",
         lambda tty, src, socket=None, not_after=None: asked.append(socket) or True,
     )
-    monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: True)
+    monkeypatch.setattr("lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: True)
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -161,9 +162,10 @@ def test_copying_a_command_never_switches(monkeypatch):
     switched: list = []
     _pane_and_process(monkeypatch, True)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: switched.append(a) or True
+        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        lambda *a, **k: switched.append(a) or True,
     )
-    monkeypatch.setattr("lemonaid.inbox.tui.app.resume_mod.build_resume_command", lambda *a: None)
+    monkeypatch.setattr("lemonaid.resume.build_resume_command", lambda *a: None)
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -182,10 +184,11 @@ def test_a_pane_left_at_a_shell_prompt_resumes(monkeypatch):
     resumed: list = []
     _pane_and_process(monkeypatch, True, process=False)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: switched.append(a) or True
+        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        lambda *a, **k: switched.append(a) or True,
     )
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.app.resume_mod.build_resume_command",
+        "lemonaid.resume.build_resume_command",
         lambda *a: resumed.append(a) or None,
     )
 
@@ -204,7 +207,7 @@ def test_a_session_with_nowhere_to_resume_says_so(monkeypatch):
     """Enter on a dead session with no recorded cwd pops up why, rather than doing nothing."""
     _archived()
     _pane_and_process(monkeypatch, False)
-    monkeypatch.setattr("lemonaid.inbox.tui.app.resume_mod.build_resume_command", lambda *a: None)
+    monkeypatch.setattr("lemonaid.resume.build_resume_command", lambda *a: None)
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -219,7 +222,9 @@ def test_a_session_with_nowhere_to_resume_says_so(monkeypatch):
 def test_a_failed_switch_says_so_until_dismissed(monkeypatch):
     _archived()
     _pane_and_process(monkeypatch, True)
-    monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: False)
+    monkeypatch.setattr(
+        "lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: False
+    )
 
     async def steps(app, pilot):
         app._set_history_mode(True)

@@ -2,6 +2,7 @@ import asyncio
 
 from textual.widgets import DataTable
 
+from lemonaid import resume
 from lemonaid.brief import attached
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, _parse_config
 from lemonaid.inbox import db
@@ -62,7 +63,7 @@ def test_hook_names_render_in_both_layouts_and_alternate_views(tmp_path, monkeyp
     root = PlaceRoot(tmp_path, name="repo", project_name="printf 'tools/relay\\n'")
     monkeypatch.setattr(app, "load_config", lambda: Config(places=PlacesConfig(roots=[root])))
     monkeypatch.setattr(watcher_hooks, "start_unified_watcher", lambda **kwargs: None)
-    monkeypatch.setattr(app.resume_mod, "has_resume_command", lambda *args: True)
+    monkeypatch.setattr(resume, "has_resume_command", lambda *args: True)
     with db.connect() as conn:
         active = db.add(conn, "claude:active", "hello", "active", {"cwd": str(tmp_path)})
         archived = db.add(conn, "claude:old", "hello", "old", {"cwd": str(tmp_path)})

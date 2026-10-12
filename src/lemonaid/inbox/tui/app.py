@@ -1,7 +1,6 @@
 """Main Lemonaid TUI application."""
 
 import os
-import shlex
 import subprocess
 import threading
 import time
@@ -17,11 +16,9 @@ from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
 from ... import brief, groups
-from ... import resume as resume_mod
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
 from ...config import load_config
-from ...handlers import handle_notification
 from ...lemon_watchers import (
     detect_terminal_switch_source,
     get_tmux_socket,
@@ -44,18 +41,19 @@ from .. import (
     db,
     emoji,
     pins,
-    resume_archived,
     sections,
-    unarchive,
     undo,
 )
 from . import (
     bindings,
     brief_cards,
     focus,
+    history_resume,
     history_rows,
+    inbox_edits,
     inbox_groups,
     inbox_list,
+    inbox_switch,
     layout,
     row_keys,
     row_parts,
@@ -74,8 +72,7 @@ from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .inbox_list import InboxList
 from .notes import NotesPanel
-from .resume_error import ResumeErrorScreen
-from .screens import RenameScreen, SnoozeScreen, format_wake_time
+from .screens import RenameScreen, SnoozeScreen
 from .table import ClickToActTable
 from .usage_view import UsageHeader
 from .utils import (
@@ -947,86 +944,23 @@ class LemonaidApp(App):
             f"{count} snoozed session{'s' if count != 1 else ''}  |  Enter to wake now"
         )
 
+    def _undoable(self, entry: undo.Entry) -> None:
+        self._undo_stack.push(entry)
+        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
+
     def _wake_selected(self) -> None:
         """Wake the selected snoozed session and return it to the inbox."""
         row_key = self._get_current_row_key()
-        if not row_key:
-            return
-
-        with db.connect() as conn:
-            notification = db.get(conn, int(row_key))
-            if not notification:
-                return
-
-            entry = undo.capture(
-                conn,
-                "unsnooze",
-                f'Woke "{notification.name or notification.channel}"',
-                undo.channel_row_ids(conn, notification.id),
-            )
-            db.unsnooze(conn, notification.channel)
-
-        self._undo_stack.push(entry)
-        _log.info("unsnooze: %s", notification.channel)
-        self._refresh_snoozed()
-        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
+        if row_key and (entry := inbox_edits.wake(int(row_key))):
+            self._refresh_snoozed()
+            self._undoable(entry)
 
     def _show_error(self, title: str, message: str) -> None:
         _log.warning("%s: %s", title, message)
         self.push_screen(ErrorScreen(title, message))
 
-    def _switch_to_notification(self, notification) -> bool:
-        """Put the terminal on this session, recreating its pane if it is gone."""
-        # Channel drives cwd-based fallback resolution; name is the
-        # session name to reuse if the pane is gone and we respawn.
-        if not handle_notification(
-            {
-                **notification.metadata,
-                "channel": notification.channel,
-                "name": notification.name or "",
-            },
-            self.config,
-            switch_source=notification.switch_source,
-        ):
-            resume = (
-                resume_mod.build_resume_command(
-                    self.config, notification.channel, notification.metadata
-                )
-                if notification.switch_source == "tmux"
-                else None
-            )
-            if resume:
-                cwd, argv = resume
-                command = f"cd {shlex.quote(cwd)} && {shlex.join(argv)}"
-                self.push_screen(
-                    ResumeErrorScreen(
-                        "No safe tmux destination",
-                        "Lemonaid could not identify one existing session safely. "
-                        "Copy this command, then paste it into the session where you want "
-                        "the lemon to run.",
-                        offer="copy the resume command",
-                        details=(
-                            f"Original directory is gone: {notification.metadata.get('cwd')}. "
-                            f"The conversation will resume in {cwd}.\n\n{command}"
-                            if cwd != notification.metadata.get("cwd")
-                            else command
-                        ),
-                    ),
-                    lambda copy: self._copy_resume_command(command) if copy else None,
-                )
-                return False
-
-            title = "Could not switch to that session"
-            message = "Its pane is gone and lemonaid could not recreate one for it."
-            _log.warning("%s: %s", title, message)
-            self.push_screen(
-                ResumeErrorScreen(
-                    title,
-                    message + " Open its brief with b, or restore its directory and try again.",
-                    offer="archive it",
-                ),
-                lambda archive: self._archive_notification(notification.id) if archive else None,
-            )
+    def _switch_to_notification(self, notification: db.Notification) -> bool:
+        if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):
             return False
 
         # We already know where a successful in-app switch went. Reflect that
@@ -1045,71 +979,40 @@ class LemonaidApp(App):
 
         return True
 
-    def _copy_resume_command(self, command: str) -> None:
-        try:
-            subprocess.run(["pbcopy"], input=command.encode(), check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.notify(f"Resume: {command}", severity="information")
-        else:
-            self.notify("Copied resume command to clipboard")
-
     def action_resume_detached(self) -> None:
         """Resume the selected row only when its pane is known to be gone."""
         if self._selected_channel() not in self._detached_channels and not self._brief_local:
             return
 
         table = self.query_one("#main_table", DataTable)
-        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := row_keys.key_id(row_key)) is None:
+        if (notification_id := row_keys.key_id(row_keys.at_row(table, table.cursor_row))) is None:
             return
 
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
-
         if notification is None:
             self._show_error("That session is gone", "Its row was removed from the inbox.")
-            return
+        elif not inbox_list.can_resume_detached(notification, self.config):
+            inbox_switch.resume_unavailable(self)
+        else:
+            self._switch_to_notification(notification)
 
-        if not inbox_list.can_resume_detached(notification, self.config):
-            self.push_screen(
-                ResumeErrorScreen(
-                    "Resume unavailable",
-                    "This backend or its saved session details do not provide a resume command. "
-                    "Press Escape to return, then b to read its brief. Restore its directory "
-                    "or start the harness manually with the saved session ID.",
-                )
-            )
-            return
+    def _selected_archived(self) -> db.Notification | None:
+        table = self.query_one("#history_table", DataTable)
+        if table.row_count == 0 or not (key := row_keys.at_row(table, table.cursor_row)):
+            return None
 
-        self._switch_to_notification(notification)
-
-    def _resume_session(self, *, copy_only: bool = False) -> None:
-        """Resume the selected history session."""
-        history_table = self.query_one("#history_table", DataTable)
-        if history_table.row_count == 0:
-            return
-
-        row_key, _ = history_table.coordinate_to_cell_key(history_table.cursor_coordinate)
-        if not row_key:
-            return
-
-        notification_id = int(row_key.value)
         with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-
+            notification = db.get(conn, int(key.value))
         if not notification:
             self._show_error(
                 "That session is gone",
                 "Its row was removed from the inbox since the list was drawn.",
             )
-            return
+        return notification
 
-        # A session that never stopped needs returning to the inbox, not a
-        # second copy of itself started next to the one already running.
-        if not copy_only and unarchive.running(notification):
-            with db.connect() as conn:
-                unarchive.restore(conn, notification.channel)
-
+    def _resume_outcome(self, notification: db.Notification, done: history_resume.Outcome) -> None:
+        if done.kind == "running":
             if self._search_mode:
                 self._stop_search()
             else:
@@ -1119,125 +1022,54 @@ class LemonaidApp(App):
                 f"{notification.name or notification.channel} is running - back in the inbox"
             )
             self._switch_to_notification(notification)
-            return
-
-        resume = resume_mod.build_resume_command(
-            self.config, notification.channel, notification.metadata
-        )
-        if not resume:
+        elif done.kind == "unresumable":
             self._show_error(
                 "Could not resume that session",
                 "No working directory is recorded for it, so there is nowhere to resume it.",
             )
-            return
-
-        cwd, argv = resume
-        quoted_argv = [shlex.quote(a) for a in argv]
-        cmd_str = (
-            f"cd {shlex.quote(cwd)} && {' '.join(quoted_argv)}"
-            if argv
-            else f"cd {shlex.quote(cwd)}"
-        )
-        mode = "copy" if copy_only else ("tmux" if self._scratch_mode else "exec")
-        _log.info("resume: %s (%s) -> %s", notification.channel, mode, cmd_str)
-
-        # The scratch pane has no terminal of its own to run the session in.
-        if mode == "tmux" and argv:
-            error = resume_archived.in_tmux(notification, self.config)
-            if error:
-                self._resume_failed(cmd_str, error)
-                return
-
+        elif done.kind == "failed":
+            inbox_switch.resume_failed(self, done.command, done.reason)
+        elif done.kind == "started":
             self._refresh_notifications()
-            if not is_follow_enabled():
-                self._hide_scratch_pane()
-            return
-
-        # Before the row is unread, or the watcher judges it by its dead pane.
-        if mode == "exec" and argv and navigation.is_inside_tmux() and os.isatty(0):
-            with db.connect() as conn:
-                resume_archived.recorded_here(conn, notification.channel, os.ttyname(0))
-
-        # Unarchive so the session appears in the main inbox immediately
-        with db.connect() as conn:
-            conn.execute(
-                "UPDATE notifications SET status = 'unread', read_at = NULL, created_at = ? WHERE id = ?",
-                (time.time(), notification.id),
-            )
-            conn.commit()
-
-        # Non-scratch, non-copy: exec in the current terminal
-        if mode == "exec" and argv:
-            self._exec_on_exit = (cwd, argv)
+        elif done.kind == "exec":
+            self._exec_on_exit = (done.cwd, list(done.argv))
             self.exit()
+        else:
+            try:
+                subprocess.run(["pbcopy"], input=done.command.encode(), check=True)
+                self.notify(f"Copied: {done.command}")
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                self.notify(f"Resume: {done.command}", severity="information")
+
+    def _resume_session(self, *, copy_only: bool = False) -> None:
+        """Resume the selected history session."""
+        if not (notification := self._selected_archived()):
             return
 
-        # Copy to clipboard
-        try:
-            subprocess.run(["pbcopy"], input=cmd_str.encode(), check=True)
-            self.notify(f"Copied: {cmd_str}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.notify(f"Resume: {cmd_str}", severity="information")
-
-    def _resume_failed(self, command: str, reason: str) -> None:
-        _log.warning("resume failed: %s", reason)
-        self.push_screen(
-            ResumeErrorScreen(
-                "Could not resume that session",
-                f"{reason} Copy the command to run it in a terminal of your choice.",
-                offer="copy the resume command",
-                details=command,
-            ),
-            lambda copy: self._copy_resume_command(command) if copy else None,
+        mode: history_resume.Mode = (
+            "copy" if copy_only else ("tmux" if self._scratch_mode else "exec")
         )
+        here_tty = (
+            os.ttyname(0) if mode == "exec" and navigation.is_inside_tmux() and os.isatty(0) else ""
+        )
+        done = history_resume.resume(notification, self.config, mode, here_tty)
+        self._resume_outcome(notification, done)
+        if done.kind == "started" and not is_follow_enabled():
+            self._hide_scratch_pane()
 
     def action_copy_resume(self) -> None:
         """Copy the resume command for the selected history session."""
-        if not (self._mode is view_modes.HISTORY or self._search_mode):
-            return
-        self._resume_session(copy_only=True)
+        if self._mode is view_modes.HISTORY or self._search_mode:
+            self._resume_session(copy_only=True)
 
     def action_tmux_resume(self) -> None:
         """Spawn a new tmux session around the selected history entry."""
-        if not (self._mode is view_modes.HISTORY or self._search_mode):
-            return
-
-        history_table = self.query_one("#history_table", DataTable)
-        if history_table.row_count == 0:
-            return
-
-        row_key, _ = history_table.coordinate_to_cell_key(history_table.cursor_coordinate)
-        if not row_key:
-            return
-
-        notification_id = int(row_key.value)
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-
-        if not notification:
-            self._show_error(
-                "That session is gone",
-                "Its row was removed from the inbox since the list was drawn.",
+        if (self._mode is view_modes.HISTORY or self._search_mode) and (
+            notification := self._selected_archived()
+        ):
+            self._resume_outcome(
+                notification, history_resume.in_new_session(notification, self.config)
             )
-            return
-
-        resume = resume_mod.build_resume_command(
-            self.config, notification.channel, notification.metadata
-        )
-        if not resume:
-            self._show_error(
-                "Could not resume that session",
-                "No working directory is recorded for it, so there is nowhere to resume it.",
-            )
-            return
-
-        cwd, argv = resume
-        error = resume_archived.in_new_session(notification, self.config)
-        if error:
-            self._resume_failed(f"cd {shlex.quote(cwd)} && {shlex.join(argv)}", error)
-            return
-
-        self._refresh_notifications()
 
     def action_filter_history(self) -> None:
         """Search inbox rows, or focus the existing history filter."""
@@ -1551,88 +1383,35 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
-    def action_mark_read(self) -> None:
+    def _focused_row_id(self) -> int | None:
         table = self._focused_table()
-        if table.row_count == 0:
-            return
+        return (
+            row_keys.key_id(row_keys.at_row(table, table.cursor_row)) if table.row_count else None
+        )
 
-        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := row_keys.key_id(row_key)) is not None:
-            with db.connect() as conn:
-                n = db.get(conn, notification_id)
-                if not n:
-                    return
-
-                entry = undo.capture(
-                    conn,
-                    "mark_read",
-                    f'Marked read "{n.name or n.channel}"',
-                    [notification_id],
-                )
-                db.mark_read(conn, notification_id)
-
+    def action_mark_read(self) -> None:
+        if (found := self._focused_row_id()) is not None and (
+            entry := inbox_edits.mark_read(found)
+        ):
             self._undo_stack.push(entry)
-            _log.info("mark_read: %s", n.channel)
-            # Keep cursor on unread items when possible
-            self._refresh_notifications(stay_on_unread=True)
+            self._refresh_notifications(stay_on_unread=True)  # keep the cursor on unread rows
 
     def action_mark_unread(self) -> None:
-        table = self._focused_table()
-        if table.row_count == 0:
-            return
-
-        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := row_keys.key_id(row_key)) is None:
-            return
-
-        with db.connect() as conn:
-            n = db.get(conn, notification_id)
-            if not n or n.is_unread:
-                return
-
-            entry = undo.capture(
-                conn,
-                "mark_unread",
-                f'Marked unread "{n.name or n.channel}"',
-                [notification_id],
-            )
-            db.mark_unread(conn, notification_id)
-
-        self._undo_stack.push(entry)
-        _log.info("mark_unread: %s", n.channel)
-        self._refresh_notifications()
+        if (found := self._focused_row_id()) is not None and (
+            entry := inbox_edits.mark_unread(found)
+        ):
+            self._undo_stack.push(entry)
+            self._refresh_notifications()
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
-        table = self._focused_table()
-        if table.row_count == 0:
-            return
-
-        row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := row_keys.key_id(row_key)) is None:
-            return
-
-        self._archive_notification(notification_id)
+        if (found := self._focused_row_id()) is not None:
+            self._archive_notification(found)
 
     def _archive_notification(self, notification_id: int) -> None:
-        with db.connect() as conn:
-            n = db.get(conn, notification_id)
-            if not n:
-                return
-
-            # archive() touches every row on the channel, so snapshot them all.
-            entry = undo.capture(
-                conn,
-                "archive",
-                f'Archived "{n.name or n.channel}"',
-                undo.channel_row_ids(conn, notification_id),
-            )
-            db.archive(conn, notification_id, "user-action")
-
-        self._undo_stack.push(entry)
-        _log.info("archive: %s", n.channel)
-        self._refresh_notifications()
-        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
+        if entry := inbox_edits.archive(notification_id):
+            self._refresh_notifications()
+            self._undoable(entry)
 
     def _row_channels(self) -> list[str]:
         """The channel of every row on screen, in the order they are drawn.
@@ -1752,40 +1531,23 @@ class LemonaidApp(App):
                 table.move_cursor(row=index)
                 return
 
+    def _selected_notification(self) -> db.Notification | None:
+        if not (row_key := self._get_current_row_key()):
+            return None
+
+        with db.connect() as conn:
+            return db.get(conn, int(row_key))
+
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""
-        if self._mode is not None:
+        if self._mode is not None or not (notification := self._selected_notification()):
             return
 
-        row_key = self._get_current_row_key()
-        if not row_key:
-            return
-
-        notification_id = int(row_key)
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-
-        if not notification:
-            return
-
-        def handle_snooze(until: float | None) -> None:
-            if until is None:
-                return
-
-            with db.connect() as conn:
-                entry = undo.capture(
-                    conn,
-                    "snooze",
-                    f'Snoozed "{notification.name or notification.channel}" '
-                    f"until {format_wake_time(until)}",
-                    undo.channel_row_ids(conn, notification_id),
-                )
-                db.snooze(conn, notification_id, until)
-
-            self._undo_stack.push(entry)
-            _log.info("snooze: %s until %.0f", notification.channel, until)
-            self._refresh_notifications()
-            self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
+        def snoozed(until: float | None) -> None:
+            if until is not None:
+                entry = inbox_edits.snooze(notification, until)
+                self._refresh_notifications()
+                self._undoable(entry)
 
         self.push_screen(
             SnoozeScreen(
@@ -1793,35 +1555,27 @@ class LemonaidApp(App):
                 presets=self.config.inbox.snooze_presets,
                 day_start=self.config.inbox.snooze_day_starts,
             ),
-            handle_snooze,
+            snoozed,
         )
 
     def action_undo(self) -> None:
         """Reverse the most recent undoable inbox change."""
-        entry = self._undo_stack.peek()
-        if entry is None:
+        if (entry := self._undo_stack.peek()) is None:
             self.notify("Nothing to undo", severity="information")
             return
 
-        try:
-            with db.connect() as conn:
-                unwritten = (
-                    groups.editing.undo(conn, entry.group_change) if entry.group_change else []
-                )
-                restored = undo.restore(conn, entry)
-        except groups.store.GroupError as error:
-            # A name taken since can be freed again; a group changed since stays changed.
-            if isinstance(error, groups.snapshot.Changed):
-                self._undo_stack.pop()
-            self.notify(f"Can't undo {entry.description}: {error}", severity="warning")
+        unwritten = inbox_edits.undo_latest(self._undo_stack, entry)
+        if isinstance(unwritten, str):
+            self.notify(unwritten, severity="warning")
             return
 
-        self._undo_stack.pop()
         for path in unwritten:
             self.notify(f"Couldn't update the Groups: line in {path}", severity="warning")
-
-        _log.info("undo: %s (%d rows)", entry.action, restored)
         self._retarget_brief()
+        self._refresh_view()
+        self.notify(f"Undid: {entry.description}")
+
+    def _refresh_view(self) -> None:
         if self._mode is view_modes.HISTORY:
             self._refresh_history()
         elif self._mode is view_modes.SNOOZED:
@@ -1829,50 +1583,27 @@ class LemonaidApp(App):
         else:
             self._refresh_notifications()
 
-        self.notify(f"Undid: {entry.description}")
-
     def action_rename(self) -> None:
         """Rename the selected session, or the group whose header is under the cursor."""
         if self._brief_target is None and (group := self._selected_group()):
             inbox_groups.rename(self.query_one(InboxList), group, "Rename Group")
             return
 
-        row_key = self._get_current_row_key()
-        if not row_key:
+        if not (notification := self._selected_notification()):
             return
 
-        notification_id = int(row_key)
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-
-        if not notification:
-            return
-
-        def handle_rename(new_name: str | None) -> None:
+        def renamed(new_name: str | None) -> None:
             if new_name is None:
                 return
 
-            name_to_set = new_name.strip() if new_name.strip() else None
-            with db.connect() as conn:
-                entry = undo.capture(
-                    conn,
-                    "rename",
-                    f'Renamed "{notification.name or notification.channel}"',
-                    [notification_id],
-                )
-                db.update_name(conn, notification_id, name_to_set)
-
-            self._undo_stack.push(entry)
+            self._undo_stack.push(inbox_edits.rename(notification, new_name))
             if self._mode is view_modes.HISTORY:
                 self._refresh_history()
             else:
                 self._retarget_brief()
                 self._refresh_notifications()
 
-        self.push_screen(
-            RenameScreen(current_name=notification.name or ""),
-            handle_rename,
-        )
+        self.push_screen(RenameScreen(current_name=notification.name or ""), renamed)
 
     def _retarget_brief(self) -> None:
         """Resolve the shown brief's target again, after a change to the row it is for.

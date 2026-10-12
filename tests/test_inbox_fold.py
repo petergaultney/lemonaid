@@ -12,7 +12,7 @@ from textual.widgets import DataTable, Static
 from lemonaid import brief, groups
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
-from lemonaid.inbox import db, order, pins
+from lemonaid.inbox import db, order, pins, unarchive
 from lemonaid.inbox.tui import app as app_mod
 from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
@@ -306,8 +306,8 @@ def test_a_lemon_that_loses_focus_under_the_cursor_stays_until_the_cursor_moves(
 def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
     fold_waiting, focus, monkeypatch
 ):
-    monkeypatch.setattr(app_mod.unarchive, "running", lambda n: True)
-    monkeypatch.setattr(app_mod.unarchive, "_started_by", lambda *a: True)
+    monkeypatch.setattr(unarchive, "running", lambda n: True)
+    monkeypatch.setattr(unarchive, "_started_by", lambda *a: True)
     with db.connect() as conn:
         working = _session(conn, "working", age=30)
         old = _session(conn, "old", age=900_000, tty="/dev/ttys-old")
