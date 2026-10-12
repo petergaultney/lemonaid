@@ -17,7 +17,6 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.color import Color, ColorParseError
 from textual.containers import Container
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
@@ -30,7 +29,7 @@ from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
-from ...config import KeybindingsConfig, PlaceRoot, TuiConfig, load_config
+from ...config import KeybindingsConfig, PlaceRoot, load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
     ModelInfo,
@@ -81,6 +80,7 @@ from . import (
     pr_numbers,
     project_names,
     row_cells,
+    styles,
     table_columns,
     table_rows,
     usage_view,
@@ -95,7 +95,6 @@ from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .usage_view import UsageHeader
 from .utils import (
-    ATTENTION_COLOR,
     GUTTER_WIDTH,
     JUMP_DIGITS,
     backend_cell,
@@ -176,123 +175,7 @@ def _key_id(key: RowKey | None) -> int | None:
 class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
-    CSS = (
-        f"$attention: {ATTENTION_COLOR};\n"
-        + """
-    #content_switcher, #inbox_content {
-        height: 1fr;
-    }
-
-    #main_table {
-        height: 1fr;
-    }
-
-    #main_table.-custom-active-row > .datatable--cursor {
-        background: $active-row-color;
-    }
-
-    App.-input-inactive #main_table > .datatable--cursor {
-        background: $inactive-row-color;
-    }
-
-    /* HeaderIcon is only a second route to the command palette, which already
-       has a keybinding in the footer. Hide its matching empty clock spacer too,
-       so the title remains centred across the full pane. */
-    HeaderIcon, HeaderClockSpace {
-        display: none;
-    }
-
-    /* Unlike tmux's half-border, these mark the pane that will receive keys.
-       Keep them separate from the unread bar below the title. */
-    App.-input-active Screen {
-        border-bottom: heavy $input-focus;
-    }
-
-    App.-input-active Header {
-        background: $input-focus;
-        color: $input-focus-text;
-        text-style: bold;
-    }
-
-    /* The column layout's header row also carries the state of the list:
-       whether anything in it wants you, and which list you are looking at.
-       The attention colour is shared with the unread marker, so the bar and
-       dot remain the same lemon yellow by construction. */
-    DataTable > .datatable--header {
-        background: ansi_bright_blue;
-    }
-
-    DataTable {
-        scrollbar-size-vertical: 1;
-    }
-
-    App.-unread DataTable > .datatable--header {
-        background: $attention;
-        color: ansi_black;
-    }
-
-    /* History is a record, not a queue. Same specificity as the unread rule
-       above and deliberately after it: which list you are looking at outranks
-       what is in the one you left. */
-    App.-history DataTable > .datatable--header {
-        background: ansi_blue;
-    }
-
-    #fold_label {
-        height: 1;
-        color: $text-muted;
-        padding: 0 1;
-    }
-
-    #other_sources_label {
-        height: 1;
-        background: $surface;
-        color: $text-muted;
-        padding: 0 1;
-        text-style: italic;
-    }
-
-    #other_sources_table {
-        height: auto;
-        max-height: 8;
-        color: $text-muted;
-    }
-
-    /* Only ever displayed while the Footer is hidden, so it takes the Footer's
-       row rather than costing the list a second one. */
-    #status {
-        height: 1;
-        background: $surface;
-        color: $text-muted;
-        padding: 0 1;
-    }
-
-    #history_filter {
-        height: 3;
-        border: solid $accent;
-    }
-
-    #history_table {
-        height: 1fr;
-    }
-
-    #search_archive_label {
-        height: 1;
-        background: $accent;
-        color: $background;
-        padding: 0 1;
-        text-style: bold;
-    }
-
-    App.-search-archive #main_table {
-        height: auto;
-    }
-
-    #snoozed_table, #usage_table {
-        height: 1fr;
-    }
-    """
-    )
+    CSS = styles.CSS
 
     def __init__(self, scratch_mode: bool = False) -> None:
         self.config = load_config()  # before super(), which reads the CSS variables
@@ -541,51 +424,14 @@ class LemonaidApp(App):
         return True
 
     def get_css_variables(self) -> dict[str, str]:
-        try:
-            focus = Color.parse(self.config.tui.focus_color)
-        except ColorParseError:
-            _log.warning("tui.focus_color %r is not a colour", self.config.tui.focus_color)
-            focus = Color.parse(TuiConfig.focus_color)
-        active_row = "#1f4a85"
-        if self.config.tui.active_row_color:
-            try:
-                active_row = Color.parse(self.config.tui.active_row_color).hex
-            except ColorParseError:
-                _log.warning(
-                    "tui.active_row_color %r is not a colour", self.config.tui.active_row_color
-                )
-        variables = super().get_css_variables()
-        cursor = Color.parse(
-            active_row
-            if self._uses_custom_active_row()
-            else variables.get("block-cursor-background", active_row)
+        return styles.css_variables(
+            super().get_css_variables(), self.config.tui, self._uses_custom_active_row()
         )
-        inactive_row = cursor.blend(Color.parse(variables.get("background", "#000000")), 0.7).hex
-        if self.config.tui.inactive_row_color:
-            try:
-                inactive_row = Color.parse(self.config.tui.inactive_row_color).hex
-            except ColorParseError:
-                _log.warning(
-                    "tui.inactive_row_color %r is not a colour", self.config.tui.inactive_row_color
-                )
-        return {
-            **variables,
-            "input-focus": focus.hex,
-            "input-focus-text": focus.get_contrast_text(1.0).hex,
-            "active-row-color": active_row,
-            "inactive-row-color": inactive_row,
-        }
 
     def _uses_custom_active_row(self) -> bool:
-        configured = self.config.tui.active_row_color
-        if configured:
-            try:
-                Color.parse(configured)
-            except ColorParseError:
-                return self.current_theme.dark
-            return True
-
-        return self.current_theme.dark
+        return styles.uses_custom_active_row(
+            self.config.tui.active_row_color, self.current_theme.dark
+        )
 
     def _update_active_row_background(self) -> None:
         self.query_one("#main_table", ClickToActTable).set_class(
