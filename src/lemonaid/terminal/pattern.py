@@ -11,6 +11,7 @@ from pathlib import Path
 from .. import obsidian
 
 _META = frozenset("\\.^$*+?()[]{}|")
+_TOKEN_START = "(?:^|\\s)"  # no lookbehind in Rust regex, so the match includes the space
 _CLASS_META = frozenset("\\[]^-&~")
 
 
@@ -22,14 +23,29 @@ def _class_escaped(chars: str) -> str:
     return "".join(f"\\{char}" if char in _CLASS_META else char for char in chars)
 
 
-def vault_path_regex(roots: abc.Iterable[Path], excluded: str = "") -> str:
+def vault_path_regex(
+    roots: abc.Iterable[Path], excluded: str = "", spaced_folders: abc.Iterable[str] = ()
+) -> str:
     """Matches a path to a `.md` file under one of *roots*, written from `~` or in full.
 
-    The part after the root never contains a character in *excluded*.
+    It also matches a path written without a root: a run of non-space characters
+    ending in `.md` (no `:`, so no URL), or one starting with a folder name from *spaced_folders*, which a
+    plain run could not cover. Either must start a line or follow whitespace (the match
+    includes that whitespace). Nothing after a root or folder contains a character in
+    *excluded*.
     """
     spelled = sorted({s for root in roots for s in obsidian.spellings(root)}, key=len, reverse=True)
-    return (
-        "(?:"
-        + "|".join(map(_escaped, spelled))
-        + f")/[^\\n<>{_class_escaped('`[]' + excluded)}]*?\\.md\\b"
+    barred = _class_escaped("`[]" + excluded)
+    tail = f"/[^\\n<>{barred}]*?\\.md\\b"
+    folders = sorted(spaced_folders, key=len, reverse=True)
+    return "|".join(
+        [
+            "(?:" + "|".join(map(_escaped, spelled)) + ")" + tail,
+            *(
+                [f"{_TOKEN_START}(?:" + "|".join(map(_escaped, folders)) + ")" + tail]
+                if folders
+                else []
+            ),
+            f"{_TOKEN_START}[^\\s/~.:(\"'<>{barred}][^\\s:<>{barred}]*\\.md\\b",
+        ]
     )

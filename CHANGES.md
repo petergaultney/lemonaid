@@ -1,3 +1,9 @@
+# 0.104.0 (2026-10-12)
+
+#### Added
+
+- **`terminal vault-links` also matches a vault path written without its root.** `open-vault` opens a file of that name in the current directory if there is one, else the first `vaults` root that has it; folder names containing a space are read at install time, so a new one needs a re-run.
+
 # 0.103.0 (2026-10-12)
 
 #### Changed

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .. import obsidian
 from ..config import load_config
-from . import iterm2_rules, pattern, wezterm_rules
+from . import iterm2_rules, pattern, vault_files, wezterm_rules
 
 
 def _wezterm_dir() -> Path:
@@ -22,8 +22,13 @@ def _wezterm_dir() -> Path:
 def _wezterm(args: argparse.Namespace, roots: abc.Sequence[Path], lemonaid: str) -> None:
     config_dir: Path = args.wezterm_dir
     module = wezterm_rules.module_path(config_dir)
+    folders = vault_files.spaced_folders(roots)
     text = (
-        "" if args.remove else wezterm_rules.module_text(pattern.vault_path_regex(roots), lemonaid)
+        ""
+        if args.remove
+        else wezterm_rules.module_text(
+            pattern.vault_path_regex(roots, spaced_folders=folders), lemonaid
+        )
     )
     if args.print:
         print(text, end="")
@@ -58,10 +63,13 @@ def _wezterm(args: argparse.Namespace, roots: abc.Sequence[Path], lemonaid: str)
 
 
 def _iterm2(args: argparse.Namespace, roots: abc.Sequence[Path], lemonaid: str) -> None:
+    folders = vault_files.spaced_folders(roots, iterm2_rules.SHELL_CHARS)
     new = (
         None
         if args.remove
-        else iterm2_rules.rule(pattern.vault_path_regex(roots, iterm2_rules.SHELL_CHARS), lemonaid)
+        else iterm2_rules.rule(
+            pattern.vault_path_regex(roots, iterm2_rules.SHELL_CHARS, folders), lemonaid
+        )
     )
     if args.print:
         print(plistlib.dumps(new or {}).decode(), end="")
@@ -117,16 +125,29 @@ def cmd_vault_links(args: argparse.Namespace) -> None:
     install(args, roots, lemonaid)
 
 
-def cmd_open_vault(args: argparse.Namespace) -> None:
-    path = " ".join(args.path)
-    url = obsidian.vault_link(Path(path), load_config().brief.vaults)
-    if url is None:
-        sys.exit(f"{path} is not a .md file under a `[brief] vaults` root")
+def _open(target: str) -> None:
+    subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", target], check=True)
 
-    if not Path(path).expanduser().is_file():
+
+def cmd_open_vault(args: argparse.Namespace) -> None:
+    vaults = load_config().brief.vaults
+    given = Path(" ".join(args.path).strip())
+    if not given.is_absolute() and given.parts[:1] != ("~",) and (args.cwd / given).is_file():
+        _open(str(args.cwd / given))
+        return
+
+    path = vault_files.resolve(given, vaults)
+    if path is None:
+        sys.exit(f"{given} does not exist here or under any vault root")
+
+    if not path.is_file():
         sys.exit(f"{path} does not exist")
 
-    subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", url], check=True)
+    url = obsidian.vault_link(path, vaults)
+    if url is None:
+        sys.exit(f"{given} is not a .md file under a `[brief] vaults` root")
+
+    _open(url)
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -156,6 +177,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     open_vault = terminal.add_parser(
         "open-vault", help="Open a `.md` path under a vault root in Obsidian"
+    )
+    open_vault.add_argument(
+        "--cwd", type=Path, default=Path.cwd(), help="Where a relative path is first looked for"
     )
     open_vault.add_argument("path", nargs="+", help="The path; several words are joined by spaces")
     open_vault.set_defaults(func=cmd_open_vault)

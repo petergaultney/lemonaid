@@ -4,7 +4,8 @@ Lemons print paths to notes, such as `~/notes/Project Plans/launch.md`.
 `lemonaid terminal vault-links` installs a terminal rule that makes such a path
 open in Obsidian when you click it. It matches a `.md` path under a root in
 [`[brief] vaults`](config.md#brief), written from `~` or in full, including
-folder names with spaces.
+folder names with spaces. It also matches a path written without its root, such as
+`product-dev/pitches/plan.md`.
 
 ```sh
 lemonaid terminal vault-links iterm2
@@ -15,10 +16,28 @@ Each run replaces lemonaid's own rule and leaves your other rules alone, so run 
 again after changing `vaults`. `--dry-run` shows what would change, `--print`
 prints the rule without changing anything, and `--remove` takes lemonaid's rule out.
 
-A click runs `lemonaid terminal open-vault <path>`, which builds the
-`obsidian://open` URL the same way briefs do (the vault is named after its
+A click runs `lemonaid terminal open-vault <path>`. For a path with a root it builds
+the `obsidian://open` URL the same way briefs do (the vault is named after its
 folder) and opens it. The rule records the full path of the `lemonaid` it was
 installed by, so reinstall if that moves.
+
+## Paths without a root
+
+A path without a root matches when it is one run of non-space characters ending in
+`.md` that starts a line or follows whitespace. It can't start with `/`, `~`, `.`,
+`(`, a quote or a backtick, and it can't contain `:`, so absolute paths, `./x.md`
+and URLs are left to the terminal. A new vault folder needs no re-run, except one
+whose name contains a space: a plain run can't cover `94 System Lemons/rules.md`,
+so the install reads those names from each root.
+
+Any other relative `.md` path matches too, such as `src/foo.md`. On a click,
+`open-vault` first opens the file in the directory it runs in, if there is one, with
+the system's default application. Otherwise it tries each root in `vaults` order and
+opens the first that has the file in Obsidian. If none does, it prints that to
+stderr and opens nothing. The rule passes the clicked pane's directory: WezTerm's `get_current_working_dir()`
+and iTerm2's `\d` (the session's current directory).
+
+## Rules with spaces
 
 Because a match may contain spaces, a directory mentioned before a later `.md`
 name on the same line, as in `~/notes/drafts/ and then read plan.md`, matches as
@@ -74,4 +93,4 @@ its rule matches any characters except a newline, backtick, `<`, `>`, `[` and `]
 ## Under tmux
 
 Both terminals match the text tmux draws on screen. A path tmux wrapped onto a
-second line, or one cut off at a pane's edge, matches only up to the break.
+second line, or one cut off at a pane's edge, matches only up to the break, and the two halves are not rejoined.

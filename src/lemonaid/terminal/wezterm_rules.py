@@ -37,7 +37,12 @@ wezterm.on('open-uri', function(window, pane, uri)
   if uri:sub(1, #PREFIX) ~= PREFIX then
     return
   end
-  wezterm.background_child_process {{ LEMONAID, 'terminal', 'open-vault', uri:sub(#PREFIX + 1) }}
+  local cwd = pane:get_current_working_dir()
+  local dir = cwd and (cwd.file_path or tostring(cwd))
+  wezterm.background_child_process(
+    dir and {{ LEMONAID, 'terminal', 'open-vault', '--cwd', dir, '--', uri:sub(#PREFIX + 1) }}
+      or {{ LEMONAID, 'terminal', 'open-vault', '--', uri:sub(#PREFIX + 1) }}
+  )
   return false
 end)
 

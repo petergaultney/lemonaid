@@ -9,7 +9,8 @@ Cmd-click on a file that exists normally goes to Semantic History before any
 Smart Selection action, so installing also sets `PRIORITIZE`, the advanced
 setting that checks Smart Selection actions first.
 
-The match reaches a shell as `\\0` in a Run Command action. iTerm2
+The match reaches a shell as `\\0` in a Run Command action, and the session's
+directory as `\\d`. iTerm2
 backslash-escapes it unless the profile uses interpolated strings, and
 `SHELL_CHARS` keeps every character that could start another command out of the
 match, so a printed path can at worst split into several words.
@@ -41,7 +42,7 @@ def rule(regex: str, lemonaid: str) -> dict:
             {
                 "title": "Open in Obsidian",
                 "action": _RUN_COMMAND,
-                "parameter": f"{shlex.quote(lemonaid)} terminal open-vault \\0",
+                "parameter": f"{shlex.quote(lemonaid)} terminal open-vault --cwd \\d -- \\0",
             }
         ],
     }

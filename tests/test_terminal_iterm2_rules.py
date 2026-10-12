@@ -55,7 +55,7 @@ def test_removing_leaves_the_users_rules():
 def test_the_command_quotes_lemonaid_and_leaves_the_match_to_iterm2():
     [action] = iterm2_rules.rule("r", "/bin/lemon aid")["actions"]
 
-    assert action["parameter"] == "'/bin/lemon aid' terminal open-vault \\0"
+    assert action["parameter"] == "'/bin/lemon aid' terminal open-vault --cwd \\d -- \\0"
 
 
 def test_saving_to_a_plist_keeps_its_other_settings(tmp_path):
