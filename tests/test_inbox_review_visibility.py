@@ -92,6 +92,38 @@ def test_quiet_reviewers_hide_even_when_unread_and_a_renamed_reviewer_stays_iden
 
 
 @pytest.mark.parametrize(
+    ("kind", "unread", "shown"),
+    [
+        ("permission_prompt", True, True),
+        ("PermissionRequest", True, True),
+        ("permission_prompt", False, False),
+        ("Stop", True, False),
+    ],
+)
+def test_a_reviewer_asking_you_something_stays_visible(kind, unread, shown):
+    with db.connect() as conn:
+        reviewer = _session(conn, "reviewer", unread=unread)
+        row = db.get_by_channel(conn, reviewer, unread_only=False)
+        db.add(
+            conn,
+            reviewer,
+            "Running kubectl",
+            "reviewer",
+            {**row.metadata, "notification_type": kind},
+            status="unread" if unread else "read",
+            switch_source="tmux",
+        )
+        _brief(conn, reviewer, "", reviewer=True)
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == (
+        [reviewer] if shown else []
+    )
+
+
+@pytest.mark.parametrize(
     "status", ["alert", "blocked", "running", "merge", "approve", "review", "done"]
 )
 def test_every_special_brief_status_keeps_a_reviewer_visible(status):

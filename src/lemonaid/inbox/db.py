@@ -13,6 +13,9 @@ from typing import Any, Self
 from ..log import get_logger
 
 _log = get_logger(__name__)
+# Words in a notification type that mean the lemon stopped to ask you for something,
+# across backends: Claude's `permission_prompt`, Codex and OpenClaw approvals, and so on.
+_ASKING = ("permission", "approval", "elicitation", "question")
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,12 @@ class Notification:
     @property
     def is_unread(self) -> bool:
         return self.status == "unread"
+
+    @property
+    def asks(self) -> bool:
+        """Whether it is unread because its lemon is waiting on your answer, not a finished turn."""
+        kind = str(self.metadata.get("notification_type", "")).lower()
+        return self.is_unread and any(word in kind for word in _ASKING)
 
     @property
     def is_archived(self) -> bool:

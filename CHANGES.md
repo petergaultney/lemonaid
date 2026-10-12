@@ -1,3 +1,9 @@
+# 0.102.1 (2026-10-12)
+
+#### Fixed
+
+- **A reviewer lemon waiting on a permission prompt or a question for you shows in the inbox.** Quiet reviewers are still hidden after an ordinary turn ends.
+
 # 0.102.0 (2026-10-12)
 
 #### Added
