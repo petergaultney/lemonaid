@@ -9,31 +9,31 @@ import pytest
 from textual.color import Color
 from textual.widgets import Header
 
-from lemonaid.inbox.tui import app as app_module
-from lemonaid.inbox.tui.app import LemonaidApp, _tmux_pane_receives_keys
+from lemonaid.inbox.tui import focus
+from lemonaid.inbox.tui.app import LemonaidApp
 
 
 def test_tmux_focus_needs_selected_pane_window_and_attached_session(monkeypatch):
     def response(values):
         return subprocess.CompletedProcess([], 0, values, "")
 
-    monkeypatch.setattr(app_module.subprocess, "run", lambda *a, **kw: response("1 1 1\n"))
-    assert _tmux_pane_receives_keys("%9") is True
+    monkeypatch.setattr(focus.subprocess, "run", lambda *a, **kw: response("1 1 1\n"))
+    assert focus.pane_receives_keys("%9") is True
 
     for values in ("0 1 1\n", "1 0 1\n", "1 1 0\n"):
         monkeypatch.setattr(
-            app_module.subprocess, "run", lambda *a, values=values, **kw: response(values)
+            focus.subprocess, "run", lambda *a, values=values, **kw: response(values)
         )
-        assert _tmux_pane_receives_keys("%9") is False
+        assert focus.pane_receives_keys("%9") is False
 
-    monkeypatch.setattr(app_module.subprocess, "run", lambda *a, **kw: response("not tmux"))
-    assert _tmux_pane_receives_keys("%9") is None
+    monkeypatch.setattr(focus.subprocess, "run", lambda *a, **kw: response("not tmux"))
+    assert focus.pane_receives_keys("%9") is None
 
 
 def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
     monkeypatch.setenv("TMUX_PANE", "%9")
     active = False
-    monkeypatch.setattr(app_module, "_tmux_pane_receives_keys", lambda pane: active)
+    monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: active)
 
     async def check():
         nonlocal active
@@ -71,7 +71,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
 def test_the_focus_colour_comes_from_config(monkeypatch, configured, background, text):
     Path(os.environ["LEMONAID_CONFIG"]).write_text(f'[tui]\nfocus_color = "{configured}"\n')
     monkeypatch.setenv("TMUX_PANE", "%9")
-    monkeypatch.setattr(app_module, "_tmux_pane_receives_keys", lambda pane: True)
+    monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: True)
 
     async def check():
         app = LemonaidApp(scratch_mode=True)
@@ -89,7 +89,7 @@ def test_the_cursor_row_dims_only_while_tmux_says_the_pane_is_inactive(monkeypat
     Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nactive_row_color = "#ff0000"\n')
     monkeypatch.setenv("TMUX_PANE", "%9")
     receives = True
-    monkeypatch.setattr(app_module, "_tmux_pane_receives_keys", lambda pane: receives)
+    monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: receives)
 
     async def check():
         nonlocal receives

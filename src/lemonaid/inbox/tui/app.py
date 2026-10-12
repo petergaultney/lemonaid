@@ -16,7 +16,7 @@ from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
 from ... import brief, groups
-from ...claude import notify, patch_status
+from ...claude import patch_status
 from ...claude.patcher import apply_patch, find_binary
 from ...config import load_config
 from ...lemon_watchers import (
@@ -39,7 +39,6 @@ from ...tmux.scratch import (
 )
 from .. import (
     db,
-    emoji,
     pins,
     sections,
     undo,
@@ -54,20 +53,21 @@ from . import (
     inbox_groups,
     inbox_list,
     inbox_switch,
-    layout,
     row_keys,
     row_parts,
+    session_names,
     snoozed_rows,
     status_line,
     styles,
-    table_columns,
     table_layout,
+    table_nav,
+    table_setup,
     usage_view,
     utils,
     view_modes,
     watcher_hooks,
 )
-from .brief_view import BriefView
+from .brief_pane import BriefPane
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .inbox_list import InboxList
@@ -88,32 +88,6 @@ _FOCUS_CACHE_SECONDS = 1.0
 _INPUT_FOCUS_CACHE_SECONDS = 0.5
 
 _log = get_logger("tui")
-
-
-def _tmux_pane_receives_keys(pane: str) -> bool | None:
-    """Whether this pane is selected in a visible, attached tmux window."""
-    try:
-        result = subprocess.run(
-            [
-                "tmux",
-                "display-message",
-                "-p",
-                "-t",
-                pane,
-                "#{pane_active} #{window_active} #{session_attached}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=0.3,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0:
-        return None
-    parts = result.stdout.split()
-    if len(parts) != 3 or any(not part.isdecimal() for part in parts):
-        return None
-    return parts[0] == "1" and parts[1] == "1" and int(parts[2]) > 0
 
 
 class LemonaidApp(App):
@@ -152,13 +126,6 @@ class LemonaidApp(App):
         self._detached_channels: frozenset[str] = frozenset()
         self._resume_footer_shown = True
         self._brief_target: brief.target.Target | None = None
-        # Browsing briefs redraws at once and switches the main pane behind it;
-        # only the newest selection is switched to once a switch finishes.
-        self._brief_switch_pending: tuple[db.Notification, brief.target.Target] | None = None
-        self._brief_switching = False
-        self._brief_local = False
-        # Resolving a target asks tmux twice, which is most of an arrow's cost.
-        self._brief_targets: dict[int, brief.target.Target] = {}
         self._brief_saved_focus = "main_table"
         self._brief_saved_subtitle = "attention inbox"
         # Enable ANSI colors for terminal transparency support
@@ -187,7 +154,7 @@ class LemonaidApp(App):
             return self.focused is self.query_one("#history_table", DataTable)
 
         if action == "resume_detached":
-            return self._selected_channel() in self._detached_channels or self._brief_local
+            return self._selected_channel() in self._detached_channels or self._brief_local()
 
         if action in ("brief", "toggle_group", "cursor_first", "cursor_last") and (
             isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
@@ -251,15 +218,7 @@ class LemonaidApp(App):
                 if self.config.tui.notes is not None:
                     yield NotesPanel(self.config.tui.notes, id="notes")
                 yield Static("", id="status")
-            yield BriefView(
-                brief.pr.configured(self.config.brief.pr_state),
-                self.config.brief.vaults,
-                self.config.tui.keybindings,
-                self.config.tui.mid_turn_working,
-                self.config.places.roots,
-                self.config.tui.project_name_colors,
-                id="brief_view",
-            )
+            yield BriefPane(self.config, self._brief_switched, id="brief_view")
         yield Footer()
 
     def watch_theme(self, theme: str) -> None:
@@ -299,15 +258,14 @@ class LemonaidApp(App):
             self.query_one("#other_sources_table", DataTable).styles.background = "transparent"
             self.query_one("#history_table", DataTable).styles.background = "transparent"
 
-        self._setup_table(self.query_one("#main_table", DataTable))
+        cards = self._cards()
         other_table = self.query_one("#other_sources_table", DataTable)
-        self._setup_table(other_table)
-
         history_table = self.query_one("#history_table", DataTable)
-        self._setup_table(history_table, marker_column=False)
-
         snoozed_table = self.query_one("#snoozed_table", DataTable)
-        self._setup_table(snoozed_table, wake_column=True)
+        table_setup.setup(self.query_one("#main_table", DataTable), cards, self.config.tui)
+        table_setup.setup(other_table, cards, self.config.tui)
+        table_setup.setup(history_table, cards, self.config.tui, marker_column=False)
+        table_setup.setup(snoozed_table, cards, self.config.tui, wake_column=True)
 
         # Hide other sources section and the alternate views initially
         self.query_one("#fold_label", Static).display = False
@@ -372,7 +330,7 @@ class LemonaidApp(App):
         if now - self._input_focus_asked_at < _INPUT_FOCUS_CACHE_SECONDS:
             return
         self._input_focus_asked_at = now
-        active = _tmux_pane_receives_keys(pane)
+        active = focus.pane_receives_keys(pane)
         if active is not None:
             self.set_class(active, "-input-active")
             self.set_class(not active, "-input-inactive")
@@ -394,21 +352,16 @@ class LemonaidApp(App):
         )
         if crossed:
             self._card_layout = self._cards(width, height)
-            for table_id, wake in (
-                ("#main_table", False),
-                ("#other_sources_table", False),
-                ("#history_table", False),
-                ("#snoozed_table", True),
-            ):
-                self._setup_table(
+            for table_id in table_setup.TABLE_IDS:
+                table_setup.setup(
                     self.query_one(table_id, DataTable),
-                    wake_column=wake,
-                    width=width,
-                    height=height,
+                    self._card_layout,
+                    self.config.tui,
+                    wake_column=table_id == "#snoozed_table",
                 )
 
         # Stretch before refilling: a card truncates to the width its column was
-        # stretched to, which is not the placeholder width _setup_table gave it.
+        # stretched to, which is not the placeholder width table_setup gave it.
         self._stretch_all_tables(width)
         if crossed:
             self._refresh_notifications()
@@ -448,84 +401,12 @@ class LemonaidApp(App):
         )
 
     def _stretch_all_tables(self, width: int | None = None) -> None:
-        w = self.size.width if width is None else width
-        if w <= 0:
-            return
-
-        if self._card_layout:
-            for table_id in (
-                "#main_table",
-                "#other_sources_table",
-                "#history_table",
-                "#snoozed_table",
-            ):
-                table = self.query_one(table_id, DataTable)
-                table_columns.fill_card_columns(
-                    table, w - table_columns.vertical_scrollbar_width(table)
-                )
-            return
-
-        hidden, flex = table_layout.column_plan(w)
-
-        for table_id in ("#main_table", "#other_sources_table", "#history_table", "#snoozed_table"):
-            table = self.query_one(table_id, DataTable)
-            # The snoozed view's last column is a wake time, not a TTY, and is
-            # the whole point of that view — never hide it.
-            table_hidden = hidden - {layout.TTY_COLUMN} if table_id == "#snoozed_table" else hidden
-            table_columns.hide_columns(table, table_hidden, self._column_labels(table_id))
-            # Which columns to show keys off the terminal width, so the layout doesn't
-            # reshuffle when a scrollbar appears; how wide to draw them keys off what
-            # the table can actually paint into.
-            table_columns.stretch_columns(
-                table, flex, w - table_columns.vertical_scrollbar_width(table)
-            )
-
-    def _column_labels(self, table_id: str) -> dict[int, str]:
-        return table_layout.column_labels(table_id, self.config.tui.card_fields)
-
-    def _setup_table(
-        self,
-        table: DataTable,
-        wake_column: bool = False,
-        width: int | None = None,
-        height: int | None = None,
-        marker_column: bool = True,
-    ) -> None:
-        table.cursor_type = "row"
-        # Idempotent: a resize across the card threshold re-runs this on a table
-        # that already has the other layout's columns.
-        if table.columns:
-            table.clear(columns=True)
-
-        if self._cards(width, height):
-            table.cell_padding = layout.CARD_CELL_PADDING
-            table.show_header = False  # The card column has no label
-            table.add_column("", width=20)  # The card body, stretched on resize
-            return
-
-        table.cell_padding = layout.COLUMN_CELL_PADDING
-        if table.id != "other_sources_table":
-            table.show_header = True
-        # Time holds "HH:MM:SS", "y HH:MM" for yesterday, or "YYYY-MM-DD".
-        table.add_column("Time", width=10)
-        # Everything in history is archived, so the marker would always be
-        # empty. Dropping it shifts every row left, which is a structural cue
-        # that this is a different list rather than a differently-tinted one.
-        if marker_column:
-            table.add_column("", width=1)  # Unread indicator
-        table.add_column(  # Model, right-aligned
-            "",
-            width=layout.BACKEND_WIDTH
-            + (layout.CONTEXT_WIDTH if self.config.tui.context_threshold else 0),
+        table_setup.stretch(
+            {table_id: self.query_one(table_id, DataTable) for table_id in table_setup.TABLE_IDS},
+            self._card_layout,
+            self.size.width if width is None else width,
+            self.config.tui.card_fields,
         )
-        table.add_column("Name", width=24)
-        table.add_column("Branch", width=12)
-        table.add_column(
-            table_layout.where_label(f"#{table.id}", self.config.tui.card_fields), width=16
-        )
-        table.add_column("Message", width=30)  # Stretched on resize
-        # TTY holds "ttysNNN"; the snoozed view's wake label is "Fri 09:00".
-        table.add_column("Wakes" if wake_column else "TTY", width=9 if wake_column else 7)
 
     def _active_table_id(self) -> str:
         return self._mode.table_id if self._mode else "#main_table"
@@ -567,7 +448,7 @@ class LemonaidApp(App):
         self._refresh_notes()
         if self._brief_target is not None:
             self._wake_expired_snoozes()
-            self.query_one(BriefView).update_brief(self._brief_target, self._brief_unread())
+            self.query_one(BriefPane).update_brief(self._brief_target, self._brief_unread())
             return
 
         # Alternate views own the screen; the periodic tick still needs to wake
@@ -670,7 +551,7 @@ class LemonaidApp(App):
         The snoozed list is a subview, so q backs out of it instead.
         """
         if self._brief_target is not None:
-            self._brief_switch_pending = None
+            self.query_one(BriefPane).switch_pending = None
             pane = os.environ.get("TMUX_PANE")
             if pane:
                 brief.sidebar.clear(pane)
@@ -768,7 +649,7 @@ class LemonaidApp(App):
 
     def _refresh_resume_binding(self) -> None:
         resume_footer_shown = (
-            self._selected_channel() in self._detached_channels or self._brief_local
+            self._selected_channel() in self._detached_channels or self._brief_local()
         )
         if resume_footer_shown != self._resume_footer_shown:
             self._resume_footer_shown = resume_footer_shown
@@ -778,10 +659,6 @@ class LemonaidApp(App):
     def _refresh_session_names(self) -> None:
         """Pull newly-available backend titles into the inbox.
 
-        Claude names a session only once it has some content, so the name in the
-        inbox starts as a tmux/cwd placeholder. Hook fires alone would leave a
-        long-running session stuck with that placeholder, so re-check here.
-
         Throttled and run off the event loop: resolving a title reads a
         transcript, which is too slow to do synchronously on every tick.
         """
@@ -789,60 +666,12 @@ class LemonaidApp(App):
         if now - self._last_name_refresh < _NAME_REFRESH_SECONDS:
             return
 
+        def scan() -> None:
+            if session_names.upgrade(self._name_scan_mtimes):
+                self.call_from_thread(self._refresh_notifications)
+
         self._last_name_refresh = now
-        threading.Thread(target=self._scan_session_names, daemon=True).start()
-
-    def _scan_session_names(self) -> None:
-        with db.connect() as conn:
-            candidates = [
-                (
-                    n.id,
-                    n.metadata.get("session_id", ""),
-                    n.metadata.get("cwd", ""),
-                    n.metadata.get("transcript_path"),
-                )
-                for n in db.get_active(conn, switch_source=None)
-                if n.channel.startswith("claude:")
-                and n.metadata.get("name_source") not in ("claude_rename", "claude_index")
-                and n.metadata.get("session_id")
-                and n.metadata.get("cwd")
-            ]
-
-        upgraded = False
-        for notification_id, session_id, cwd, transcript_path in candidates:
-            transcript = notify.find_transcript(session_id, cwd, transcript_path)
-            if not transcript:
-                continue
-
-            # resolve_session_name reads the full transcript, which can be
-            # megabytes. With 60+ sessions this dominates CPU when nothing
-            # has changed.
-            cache_key = str(transcript)
-            try:
-                mtime = transcript.stat().st_mtime
-            except OSError:
-                continue
-
-            if mtime == self._name_scan_mtimes.get(cache_key):
-                continue
-
-            self._name_scan_mtimes[cache_key] = mtime
-            resolved = notify.resolve_session_name(session_id, cwd, transcript_path)
-            if not resolved:
-                continue
-
-            with db.connect() as conn:
-                if db.refresh_auto_name(conn, notification_id, resolved.name, resolved.source):
-                    upgraded = True
-                    _log.info(
-                        "name upgraded: %d -> %r (%s)",
-                        notification_id,
-                        resolved.name,
-                        resolved.source,
-                    )
-
-        if upgraded:
-            self.call_from_thread(self._refresh_notifications)
+        threading.Thread(target=scan, daemon=True).start()
 
     def _wake_expired_snoozes(self) -> None:
         with db.connect() as conn:
@@ -981,7 +810,7 @@ class LemonaidApp(App):
 
     def action_resume_detached(self) -> None:
         """Resume the selected row only when its pane is known to be gone."""
-        if self._selected_channel() not in self._detached_channels and not self._brief_local:
+        if self._selected_channel() not in self._detached_channels and not self._brief_local():
             return
 
         table = self.query_one("#main_table", DataTable)
@@ -1110,7 +939,7 @@ class LemonaidApp(App):
         if event.key == "f12" and self._scratch_mode:
             event.prevent_default()
             event.stop()
-            if not self._brief_switching:  # a switch in flight wakes it twice on the way
+            if not self.query_one(BriefPane).switching:  # a switch in flight wakes it twice
                 self._sync_brief_view()
             # The follow hook sends it after moving this pane, so the focused pane has changed.
             self._focused_asked_at = 0.0
@@ -1124,17 +953,7 @@ class LemonaidApp(App):
         if event.key in ("down", "enter"):
             event.prevent_default()
             event.stop()
-            main = self.query_one("#main_table", DataTable)
-            other = self.query_one("#other_sources_table", DataTable)
-            archive = self.query_one("#history_table", DataTable)
-            if self._search_mode and main.row_count:
-                main.focus()
-            elif self._search_mode and other.display and other.row_count:
-                other.focus()
-            elif self._search_mode and archive.display and archive.row_count:
-                archive.focus()
-            else:
-                (main if self._search_mode else archive).focus()
+            table_nav.into_results(*self._stacked_tables(), self._search_mode)
             return
 
         # Escape: clear filter, hide it, focus table
@@ -1158,180 +977,51 @@ class LemonaidApp(App):
             return focused
         return self.query_one("#main_table", DataTable)
 
+    def _stacked_tables(self) -> tuple[DataTable, DataTable, DataTable]:
+        inbox = self.query_one(InboxList)
+        return inbox.main, inbox.other, self.query_one("#history_table", DataTable)
+
     def action_cursor_up(self) -> None:
-        """Move cursor up, jumping to main table from other table when at top."""
         if self._brief_target is not None:
             self._navigate_brief(-1)
-            return
-        table = self._focused_table()
-        if table.id == "history_table" and self._search_mode and table.cursor_coordinate.row == 0:
-            other = self.query_one("#other_sources_table", DataTable)
-            main = self.query_one("#main_table", DataTable)
-            previous = other if other.display and other.row_count else main
-            previous.focus()
-            if previous.row_count:
-                previous.move_cursor(row=previous.row_count - 1)
-        elif table.id == "other_sources_table" and table.cursor_coordinate.row == 0:
-            main = self.query_one("#main_table", DataTable)
-            main.focus()
-            if main.row_count > 0:
-                main.move_cursor(row=main.row_count - 1)
         else:
-            table.action_cursor_up()
+            main, other, _ = self._stacked_tables()
+            table_nav.up(self._focused_table(), main, other, self._search_mode)
 
     def action_cursor_down(self) -> None:
-        """Move cursor down, jumping to other table from main table when at bottom."""
         if self._brief_target is not None:
             self._navigate_brief(1)
-            return
-        table = self._focused_table()
-        if table.id == "main_table" and table.cursor_coordinate.row >= table.row_count - 1:
-            other = self.query_one("#other_sources_table", DataTable)
-            if other.display and other.row_count > 0:
-                other.focus()
-                other.move_cursor(row=0)
-                return
-
-        if (
-            self._search_mode
-            and table.id in {"main_table", "other_sources_table"}
-            and table.cursor_coordinate.row >= table.row_count - 1
-        ):
-            archive = self.query_one("#history_table", DataTable)
-            if archive.display and archive.row_count:
-                archive.focus()
-                archive.move_cursor(row=0)
-                return
-
-        table.action_cursor_down()
+        else:
+            table_nav.down(self._focused_table(), *self._stacked_tables(), self._search_mode)
 
     def action_cursor_first(self) -> None:
         """Move to the top row: the main table's first, pins included."""
-        table = self._focused_table()
-        if table.id == "other_sources_table":
-            table = self.query_one("#main_table", DataTable)
-            table.focus()
-        if table.row_count > 0:
-            table.move_cursor(row=0)
+        table_nav.to_end(self._focused_table(), self.query_one(InboxList).main, last=False)
 
     def action_cursor_last(self) -> None:
-        """Move to the bottom row of the focused table.
-
-        In the inbox that is the main table's last row: a folded group stays
-        folded, and the lower table, which nothing can be switched to, is skipped.
-        """
-        table = self._focused_table()
-        if table.id == "other_sources_table":
-            table = self.query_one("#main_table", DataTable)
-            table.focus()
-        if table.row_count > 0:
-            table.move_cursor(row=table.row_count - 1)
+        """Move to the bottom row of the focused table; in the inbox, a folded group stays folded."""
+        table_nav.to_end(self._focused_table(), self.query_one(InboxList).main, last=True)
 
     def _navigate_brief(self, direction: int) -> None:
         """Show the adjacent row's brief now, and move the main pane to its lemon after."""
-        table = self.query_one("#main_table", DataTable)
-        next_row = table.cursor_coordinate.row + direction
-        if not 0 <= next_row < table.row_count:
+        main = self.query_one(InboxList).main
+        pane = self.query_one(BriefPane)
+        if not (step := pane.adjacent(main, direction)):
             return
 
-        while (
-            0 <= next_row < table.row_count
-            and row_keys.key_id(table.coordinate_to_cell_key(Coordinate(next_row, 0))[0]) is None
-        ):
-            next_row += direction  # past a group header
-        if not 0 <= next_row < table.row_count:
-            return
-
-        key, _ = table.coordinate_to_cell_key(Coordinate(next_row, 0))
-        if (notification_id := row_keys.key_id(key)) is None:
-            return
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-            attached = brief.attached.for_rows(conn, [notification] if notification else [])
-            emojis = emoji.by_channel(conn)
-        if notification is None:
-            return
-
-        found = self._brief_targets.get(notification.id) or brief.target.for_notification(
-            notification, attached, emojis.get(notification.channel, "")
-        )
-        table.move_cursor(row=next_row)
+        row, notification = step
+        found = pane.target_for(notification)
+        main.move_cursor(row=row)
         self._set_brief_view(found)
-        self._prefetch_brief_targets()
+        pane.prefetch(main)
         if notification.channel in self._detached_channels or notification.switch_source != "tmux":
-            self._brief_switch_pending = None
-            self._brief_local = True
-            self.query_one(BriefView).notice(
+            pane.stay_local(
                 f"Its terminal is unavailable here. Press {self.config.tui.keybindings.resume_detached} "
                 "to resume; up/down keeps browsing."
             )
             return
 
-        self._brief_switch_pending = (notification, found)
-        if not self._brief_switching:
-            self._brief_switching = True
-            self.run_worker(self._run_brief_switches, thread=True, group="brief-switch")
-
-    def _prefetch_brief_targets(self) -> None:
-        """Resolve the targets of the rows around the cursor, ready for the next arrows."""
-        table = self.query_one("#main_table", DataTable)
-        row = table.cursor_coordinate.row
-        keys = [
-            table.coordinate_to_cell_key(Coordinate(near, 0))[0]
-            for near in (row - 2, row - 1, row + 1, row + 2)
-            if 0 <= near < table.row_count
-        ]
-        with db.connect() as conn:
-            rows = [
-                notification
-                for key in keys
-                if (found := row_keys.key_id(key)) is not None
-                and found not in self._brief_targets
-                and (notification := db.get(conn, found))
-            ]
-            if not rows:
-                return
-
-            attached = brief.attached.for_rows(conn, rows)
-            emojis = emoji.by_channel(conn)
-
-        def resolve() -> None:
-            try:
-                found = {
-                    n.id: brief.target.for_notification(n, attached, emojis.get(n.channel, ""))
-                    for n in rows
-                }
-            except Exception:  # the thread's top level; the next arrow resolves its own
-                _log.exception("could not resolve briefs near the cursor")
-                return
-            self.call_from_thread(lambda: self._brief_targets.update(found))
-
-        self.run_worker(resolve, thread=True, group="brief-prefetch")
-
-    def _take_brief_switch(self) -> tuple[db.Notification, brief.target.Target] | None:
-        request, self._brief_switch_pending = self._brief_switch_pending, None
-        if request is None:
-            self._brief_switching = False
-
-        return request
-
-    def _run_brief_switches(self) -> None:
-        """The worker thread: switch to the newest selection until none is waiting."""
-        while request := self.call_from_thread(self._take_brief_switch):
-            notification, found = request
-            metadata = {
-                **notification.metadata,
-                "channel": notification.channel,
-                "name": notification.name or "",
-            }
-            try:
-                switched = brief.sidebar.switch_beside(
-                    metadata, notification.switch_source, self.config, found
-                )
-            except Exception:  # the thread's top level; the pane must not die with it
-                _log.exception("brief switch to %s failed", notification.channel)
-                switched = False
-            self.call_from_thread(self._brief_switched, notification, switched)
+        pane.request_switch(notification, found)
 
     def _brief_switched(self, notification: db.Notification, switched: bool) -> None:
         pane = os.environ.get("TMUX_PANE", "")
@@ -1344,18 +1034,19 @@ class LemonaidApp(App):
         if self._get_current_row_key() != str(notification.id):
             return
 
+        view = self.query_one(BriefPane)
         if switched:
-            self._brief_local = False
+            view.local = False
             tty = notification.metadata.get("tty")
             if isinstance(tty, str) and tty:
                 self._focused = frozenset({tty})
                 self._focused_asked_at = time.time()
-        if self._brief_switch_pending is not None:
+        if view.switch_pending is not None:
             return
 
         if not switched:
-            self._brief_local = True
-            self.query_one(BriefView).notice(
+            view.local = True
+            view.notice(
                 f"Its terminal could not be opened. Press {self.config.tui.keybindings.resume_detached} "
                 "to try resuming; up/down keeps browsing."
             )
@@ -1378,7 +1069,7 @@ class LemonaidApp(App):
 
     def action_refresh(self) -> None:
         if self._brief_target is not None:
-            self.query_one(BriefView).show(self._brief_target, self._brief_unread())
+            self.query_one(BriefPane).show(self._brief_target, self._brief_unread())
             return
 
         self._refresh_notifications()
@@ -1611,37 +1302,24 @@ class LemonaidApp(App):
         The target carries the row's name, and so does the sidebar option a wake
         restores it from, so both are replaced.
         """
-        row_key = self._get_current_row_key()
-        if self._brief_target is None or not row_key:
+        if self._brief_target is None or not (notification := self._selected_notification()):
             return
 
-        with db.connect() as conn:
-            notification = db.get(conn, int(row_key))
-            if notification is None:
-                return
-
-            attached = brief.attached.for_rows(conn, [notification])
-            emojis = emoji.by_channel(conn)
-
-        self._brief_targets.pop(notification.id, None)
-        found = brief.target.for_notification(
-            notification, attached, emojis.get(notification.channel, "")
-        )
-        pane = os.environ.get("TMUX_PANE", "")
-        if pane:
+        found = self.query_one(BriefPane).target_for(notification, fresh=True)
+        if pane := os.environ.get("TMUX_PANE", ""):
             brief.sidebar.show(found, brief.sidebar.window_id(pane))
         self._set_brief_view(found)
 
     def _set_brief_view(self, found: brief.target.Target | None) -> None:
-        view = self.query_one(BriefView)
+        view = self.query_one(BriefPane)
         switcher = self.query_one(ContentSwitcher)
         if found is None:
             if self._brief_target is None:
                 return
 
             self._brief_target = None
-            self._brief_local = False
-            self._brief_targets.clear()
+            view.local = False
+            view.targets.clear()
             switcher.current = "inbox_content"
             self.sub_title = self._brief_saved_subtitle
             self.query_one(f"#{self._brief_saved_focus}").focus()
@@ -1659,7 +1337,7 @@ class LemonaidApp(App):
             )
             self._brief_saved_subtitle = self.sub_title
 
-        self._brief_local = False
+        view.local = False
         self._brief_target = found
         switcher.current = "brief_view"
         self.sub_title = "brief"
@@ -1679,7 +1357,7 @@ class LemonaidApp(App):
         return bool(notification and notification.is_unread)
 
     def _sync_brief_view(self) -> None:
-        if self._brief_local and self._brief_target is not None:
+        if self._brief_target is not None and self.query_one(BriefPane).local:
             return
 
         pane = os.environ.get("TMUX_PANE")
@@ -1695,21 +1373,12 @@ class LemonaidApp(App):
             self.action_quit()
             return
 
-        row_key = self._get_current_row_key()
-        if not row_key:
-            return
+        if not (key := self._get_current_row_key()):
+            return  # a group header, or an empty list
 
-        with db.connect() as conn:
-            notification = db.get(conn, int(row_key))
-            attached = brief.attached.for_rows(conn, [notification] if notification else [])
-            emojis = emoji.by_channel(conn)
-
+        notification = row_keys.notification(key)
         target = (
-            brief.target.for_notification(
-                notification, attached, emojis.get(notification.channel, "")
-            )
-            if notification
-            else None
+            self.query_one(BriefPane).target_for(notification, fresh=True) if notification else None
         )
         if not target or not (target.attached or target.dirs):
             self._show_error(
@@ -1727,7 +1396,7 @@ class LemonaidApp(App):
             if brief.sidebar.toggle(target, brief.sidebar.window_id(pane)):
                 self._sync_brief_view()
                 if self._brief_target is not None:
-                    self._prefetch_brief_targets()
+                    self.query_one(BriefPane).prefetch(self.query_one(InboxList).main)
                 return
 
         brief.popup.open_popup(target)
@@ -1813,6 +1482,11 @@ class LemonaidApp(App):
 
     def _set_detached_channels(self, channels: set[str]) -> None:
         self._detached_channels = frozenset(channels)
+
+    def _brief_local(self) -> bool:
+        """Whether the brief shown stays here because its lemon's terminal can't come up."""
+        panes = self.query(BriefPane)
+        return bool(panes) and panes.first().local
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self.is_running:

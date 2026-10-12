@@ -7,6 +7,32 @@ from ...tmux import navigation
 from .. import db, sections
 
 
+def pane_receives_keys(pane: str) -> bool | None:
+    """Whether this pane is selected in a visible, attached tmux window."""
+    try:
+        result = subprocess.run(
+            [
+                "tmux",
+                "display-message",
+                "-p",
+                "-t",
+                pane,
+                "#{pane_active} #{window_active} #{session_attached}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=0.3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    parts = result.stdout.split()
+    if len(parts) != 3 or any(not part.isdecimal() for part in parts):
+        return None
+    return parts[0] == "1" and parts[1] == "1" and int(parts[2]) > 0
+
+
 def behind_scratch(pane: str, socket: str | None) -> str | None:
     """The terminal behind this scratch pane, rather than another client's pane."""
     try:
