@@ -202,6 +202,28 @@ def group_remove(
     edited(inbox, edit)
 
 
+def toggle_pin(inbox: InboxList, channel: str) -> None:
+    """Hold the session at its place in the list, or release it."""
+    with db.connect() as conn:
+        now_pinned = pins.toggle(conn, channel)
+
+    _log.info("pin: %s -> %s", channel, now_pinned)
+    inbox.redraw()
+    inbox.notify(f"{'Pinned' if now_pinned else 'Unpinned'} {channel}")
+
+
+def lemon(inbox: InboxList, notification: db.Notification) -> tuple[db.Notification, str] | None:
+    """The row's notification and Lemon-ID, when it has a brief to group it by."""
+    with db.connect() as conn:
+        try:
+            lemon_id = brief.lemon.lemon_id(conn, notification.channel)
+        except (LookupError, ValueError, brief.store.ChangedUnderneath):
+            inbox.notify("This session has no brief, so it can't be in a group")
+            return None
+
+    return notification, lemon_id
+
+
 def move_pin(inbox: InboxList, channel: str, row_channels: abc.Sequence[str], offset: int) -> bool:
     """Trade places with the nearest pinned session `offset` away on screen.
 

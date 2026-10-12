@@ -5,7 +5,7 @@ import shlex
 import time
 import typing as ty
 
-from ... import resume as resume_mod
+from ... import resume
 from ...config import Config
 from ...log import get_logger
 from .. import db, resume_archived, unarchive
@@ -34,7 +34,7 @@ class Outcome:
     argv: tuple[str, ...] = ()
 
 
-def resume(notification: db.Notification, config: Config, mode: Mode, here_tty: str) -> Outcome:
+def run(notification: db.Notification, config: Config, mode: Mode, here_tty: str) -> Outcome:
     """`here_tty` is this terminal's tty when it is a tmux pane, where an exec would run."""
     # A session that never stopped needs returning to the inbox, not a
     # second copy of itself started next to the one already running.
@@ -43,7 +43,7 @@ def resume(notification: db.Notification, config: Config, mode: Mode, here_tty: 
             unarchive.restore(conn, notification.channel)
         return Outcome("running")
 
-    found = resume_mod.build_resume_command(config, notification.channel, notification.metadata)
+    found = resume.build_resume_command(config, notification.channel, notification.metadata)
     if not found:
         return Outcome("unresumable")
 
@@ -81,7 +81,7 @@ def resume(notification: db.Notification, config: Config, mode: Mode, here_tty: 
 
 def in_new_session(notification: db.Notification, config: Config) -> Outcome:
     """Spawn a new tmux session around the session."""
-    found = resume_mod.build_resume_command(config, notification.channel, notification.metadata)
+    found = resume.build_resume_command(config, notification.channel, notification.metadata)
     if not found:
         return Outcome("unresumable")
 

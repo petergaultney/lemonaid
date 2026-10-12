@@ -6,7 +6,7 @@ from collections import abc
 
 from textual.widget import Widget
 
-from ... import resume as resume_mod
+from ... import resume
 from ...config import Config
 from ...handlers import handle_notification
 from ...log import get_logger
@@ -24,6 +24,15 @@ def copy_command(widget: Widget, command: str) -> None:
         widget.notify(f"Resume: {command}", severity="information")
     else:
         widget.notify("Copied resume command to clipboard")
+
+
+def copy_resume(widget: Widget, command: str) -> None:
+    """Hand a resume command over: on the clipboard, else on screen."""
+    try:
+        subprocess.run(["pbcopy"], input=command.encode(), check=True)
+        widget.notify(f"Copied: {command}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        widget.notify(f"Resume: {command}", severity="information")
 
 
 def resume_failed(widget: Widget, command: str, reason: str) -> None:
@@ -78,13 +87,13 @@ def switch_to(
     ):
         return True
 
-    resume = (
-        resume_mod.build_resume_command(config, notification.channel, notification.metadata)
+    found = (
+        resume.build_resume_command(config, notification.channel, notification.metadata)
         if notification.switch_source == "tmux"
         else None
     )
-    if resume:
-        cwd, argv = resume
+    if found:
+        cwd, argv = found
         _no_destination(widget, notification, cwd, f"cd {shlex.quote(cwd)} && {shlex.join(argv)}")
         return False
 

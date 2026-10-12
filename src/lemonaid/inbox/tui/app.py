@@ -1,7 +1,6 @@
 """Main Lemonaid TUI application."""
 
 import os
-import subprocess
 import threading
 import time
 from pathlib import Path
@@ -9,7 +8,6 @@ from pathlib import Path
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container
-from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
@@ -39,7 +37,6 @@ from ...tmux.scratch import (
 )
 from .. import (
     db,
-    pins,
     sections,
     undo,
 )
@@ -48,15 +45,14 @@ from . import (
     brief_cards,
     focus,
     history_resume,
-    history_rows,
     inbox_draw,
     inbox_edits,
     inbox_groups,
     inbox_switch,
     row_keys,
     row_parts,
+    search_archive,
     session_names,
-    snoozed_rows,
     status_line,
     styles,
     table_layout,
@@ -70,9 +66,11 @@ from . import (
 from .brief_pane import BriefPane
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
+from .history_table import HistoryTable
 from .inbox_list import InboxList
 from .notes import NotesPanel
 from .screens import RenameScreen, SnoozeScreen
+from .snoozed_table import SnoozedTable
 from .table import ClickToActTable
 from .usage_view import UsageHeader
 from .utils import (
@@ -179,8 +177,23 @@ class LemonaidApp(App):
                 yield Static("", id="search_archive_label")
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
-                yield DataTable(id="history_table")
-                yield DataTable(id="snoozed_table")
+                yield HistoryTable(
+                    self.config,
+                    self._parts,
+                    self._brief_cache,
+                    self._back_to_inbox,
+                    self._exec_here,
+                    self._refresh_notifications,
+                    id="history_table",
+                )
+                yield SnoozedTable(
+                    self.config,
+                    self._parts,
+                    self._brief_cache,
+                    self._undo_stack,
+                    self._refresh_snoozed,
+                    id="snoozed_table",
+                )
                 yield DataTable(id="usage_table")
                 if self.config.tui.notes is not None:
                     yield NotesPanel(self.config.tui.notes, id="notes")
@@ -231,25 +244,16 @@ class LemonaidApp(App):
             self.query_one("#other_sources_table", DataTable).styles.background = "transparent"
             self.query_one("#history_table", DataTable).styles.background = "transparent"
 
-        cards = self._cards()
-        other_table = self.query_one("#other_sources_table", DataTable)
-        history_table = self.query_one("#history_table", DataTable)
-        snoozed_table = self.query_one("#snoozed_table", DataTable)
-        table_setup.setup(self.query_one("#main_table", DataTable), cards, self.config.tui)
-        table_setup.setup(other_table, cards, self.config.tui)
-        table_setup.setup(history_table, cards, self.config.tui, marker_column=False)
-        table_setup.setup(snoozed_table, cards, self.config.tui, wake_column=True)
+        for table_id in table_setup.TABLE_IDS:
+            table_setup.setup(
+                self.query_one(table_id, DataTable),
+                self._cards(),
+                self.config.tui,
+                wake_column=table_id == "#snoozed_table",
+                marker_column=table_id != "#history_table",
+            )
 
-        # Hide other sources section and the alternate views initially
-        self.query_one("#fold_label", Static).display = False
-        self.query_one("#other_sources_label", Static).display = False
-        self.query_one("#search_archive_label", Static).display = False
-        other_table.display = False
-        history_table.display = False
-        snoozed_table.display = False
         usage_view.setup_table(self.query_one("#usage_table", DataTable))
-        self.query_one("#usage_table", DataTable).display = False
-        self.query_one("#history_filter", Input).display = False
 
         self._refresh_notifications()
         self.query_one("#main_table", DataTable).focus()
@@ -458,33 +462,19 @@ class LemonaidApp(App):
         history_table = self.query_one("#history_table", DataTable)
         if self._search_mode:
             archive_count = self._refresh_history()
-            update_static(
+            show_archive = search_archive.show(
                 archive_label,
-                f"━ ARCHIVE · {archive_count} MATCH{'ES' if archive_count != 1 else ''} ━",
-            )
-            inbox_height = int(inbox.main.show_header) + sum(
-                row.height for row in inbox.main.rows.values()
-            )
-            if drawn.other_shown:
-                inbox_height += 1 + min(8, sum(row.height for row in inbox.other.rows.values()))
-            available_height = (
+                history_table,
+                inbox.main,
+                inbox.other if drawn.other_shown else None,
+                archive_count,
                 self.query_one("#inbox_content", Container).size.height
                 - self.query_one("#history_filter", Input).outer_size.height
                 - self.query_one("#status", Static).outer_size.height
-                - self._notes_height()
+                - self._notes_height(),
+                drawn.other and not drawn.other_shown,
             )
-            show_archive = bool(archive_count) and (not drawn.other or drawn.other_shown)
-            if show_archive:
-                first_archive_row = next(iter(history_table.rows.values())).height
-                show_archive = table_layout.archive_fits(
-                    available_height,
-                    inbox_height,
-                    int(history_table.show_header),
-                    first_archive_row,
-                )
             self.set_class(show_archive, "-search-archive")
-            history_table.display = show_archive
-            archive_label.display = show_archive
             if not show_archive and self.focused is history_table:
                 inbox.main.focus()
         else:
@@ -710,36 +700,19 @@ class LemonaidApp(App):
         self._set_mode(view_modes.HISTORY, enabled)
 
     def _refresh_history(self) -> int:
-        history_table = self.query_one("#history_table", DataTable)
-        history_rows.fill(
-            history_table,
-            history_rows.load(
-                self._history_filter,
-                self.current_env if self.current_env != "unknown" else None,
-                self._search_mode,
-            ),
-            self.config,
-            self._parts,
-            self._brief_cache,
+        count = self.query_one(HistoryTable).refill(
+            self._history_filter,
+            self.current_env if self.current_env != "unknown" else None,
+            self._search_mode,
             self._card_width(),
             self._card_shape(),
         )
-        count = history_table.row_count
         if not self._search_mode:
             self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
         return count
 
     def _refresh_snoozed(self) -> None:
-        snoozed_table = self.query_one("#snoozed_table", DataTable)
-        snoozed_rows.fill(
-            snoozed_table,
-            self.config,
-            self._parts,
-            self._brief_cache,
-            self._card_width(),
-            self._card_shape(),
-        )
-        count = snoozed_table.row_count
+        count = self.query_one(SnoozedTable).refill(self._card_width(), self._card_shape())
         self._set_status(
             f"{count} snoozed session{'s' if count != 1 else ''}  |  Enter to wake now"
         )
@@ -749,11 +722,7 @@ class LemonaidApp(App):
         self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
 
     def _wake_selected(self) -> None:
-        """Wake the selected snoozed session and return it to the inbox."""
-        row_key = self._get_current_row_key()
-        if row_key and (entry := inbox_edits.wake(int(row_key))):
-            self._refresh_snoozed()
-            self._undoable(entry)
+        self.query_one(SnoozedTable).wake()
 
     def _show_error(self, title: str, message: str) -> None:
         _log.warning("%s: %s", title, message)
@@ -797,64 +766,30 @@ class LemonaidApp(App):
         else:
             self._switch_to_notification(notification)
 
-    def _selected_archived(self) -> db.Notification | None:
-        table = self.query_one("#history_table", DataTable)
-        if table.row_count == 0 or not (key := row_keys.at_row(table, table.cursor_row)):
-            return None
-
-        with db.connect() as conn:
-            notification = db.get(conn, int(key.value))
-        if not notification:
-            self._show_error(
-                "That session is gone",
-                "Its row was removed from the inbox since the list was drawn.",
-            )
-        return notification
-
-    def _resume_outcome(self, notification: db.Notification, done: history_resume.Outcome) -> None:
-        if done.kind == "running":
-            if self._search_mode:
-                self._stop_search()
-            else:
-                self._set_history_mode(False)
-            self._refresh_notifications()
-            self.notify(
-                f"{notification.name or notification.channel} is running - back in the inbox"
-            )
-            self._switch_to_notification(notification)
-        elif done.kind == "unresumable":
-            self._show_error(
-                "Could not resume that session",
-                "No working directory is recorded for it, so there is nowhere to resume it.",
-            )
-        elif done.kind == "failed":
-            inbox_switch.resume_failed(self, done.command, done.reason)
-        elif done.kind == "started":
-            self._refresh_notifications()
-        elif done.kind == "exec":
-            self._exec_on_exit = (done.cwd, list(done.argv))
-            self.exit()
+    def _back_to_inbox(self, notification: db.Notification) -> None:
+        """A session resumed from history that never stopped: show it in the inbox."""
+        if self._search_mode:
+            self._stop_search()
         else:
-            try:
-                subprocess.run(["pbcopy"], input=done.command.encode(), check=True)
-                self.notify(f"Copied: {done.command}")
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                self.notify(f"Resume: {done.command}", severity="information")
+            self._set_history_mode(False)
+        self._refresh_notifications()
+        self.notify(f"{notification.name or notification.channel} is running - back in the inbox")
+        self._switch_to_notification(notification)
+
+    def _exec_here(self, cwd: str, argv: list[str]) -> None:
+        self._exec_on_exit = (cwd, argv)
+        self.exit()
 
     def _resume_session(self, *, copy_only: bool = False) -> None:
         """Resume the selected history session."""
-        if not (notification := self._selected_archived()):
-            return
-
         mode: history_resume.Mode = (
             "copy" if copy_only else ("tmux" if self._scratch_mode else "exec")
         )
         here_tty = (
             os.ttyname(0) if mode == "exec" and navigation.is_inside_tmux() and os.isatty(0) else ""
         )
-        done = history_resume.resume(notification, self.config, mode, here_tty)
-        self._resume_outcome(notification, done)
-        if done.kind == "started" and not is_follow_enabled():
+        done = self.query_one(HistoryTable).resume(mode, here_tty)
+        if done and done.kind == "started" and not is_follow_enabled():
             self._hide_scratch_pane()
 
     def action_copy_resume(self) -> None:
@@ -864,12 +799,8 @@ class LemonaidApp(App):
 
     def action_tmux_resume(self) -> None:
         """Spawn a new tmux session around the selected history entry."""
-        if (self._mode is view_modes.HISTORY or self._search_mode) and (
-            notification := self._selected_archived()
-        ):
-            self._resume_outcome(
-                notification, history_resume.in_new_session(notification, self.config)
-            )
+        if self._mode is view_modes.HISTORY or self._search_mode:
+            self.query_one(HistoryTable).resume_in_new_session()
 
     def action_filter_history(self) -> None:
         """Search inbox rows, or focus the existing history filter."""
@@ -1033,49 +964,16 @@ class LemonaidApp(App):
             self._undoable(entry)
 
     def _row_channels(self) -> list[str]:
-        """The channel of every row on screen, in the order they are drawn.
-
-        Read from the table rather than re-queried, so a reorder acts on the
-        list the user is looking at even when the watcher has changed the
-        inbox since the last refresh.
-        """
-        table = self.query_one(self._active_table_id(), DataTable)
-        channels = []
-        with db.connect() as conn:
-            for row in range(table.row_count):
-                key, _ = table.coordinate_to_cell_key(Coordinate(row, 0))
-                found = row_keys.key_id(key)
-                notification = db.get(conn, found) if found is not None else None
-                channels.append(notification.channel if notification else "")
-
-        return channels
+        return row_keys.channels(self.query_one(self._active_table_id(), DataTable))
 
     def _selected_channel(self) -> str | None:
         """The channel of the row under the cursor, in the main list only."""
-        if self._mode is not None:
-            return None
-
-        row_key = self._get_current_row_key()
-        if not row_key:
-            return None
-
-        with db.connect() as conn:
-            notification = db.get(conn, int(row_key))
-
-        return notification.channel if notification else None
+        found = None if self._mode is not None else self._selected_notification()
+        return found.channel if found else None
 
     def action_pin(self) -> None:
-        """Hold the selected session at its place in the list, or release it."""
-        channel = self._selected_channel()
-        if not channel:
-            return
-
-        with db.connect() as conn:
-            now_pinned = pins.toggle(conn, channel)
-
-        _log.info("pin: %s -> %s", channel, now_pinned)
-        self._refresh_notifications()
-        self.notify(f"{'Pinned' if now_pinned else 'Unpinned'} {channel}")
+        if channel := self._selected_channel():
+            inbox_groups.toggle_pin(self.query_one(InboxList), channel)
 
     def _move_pin(self, offset: int) -> None:
         channel = self._selected_channel()
@@ -1112,19 +1010,11 @@ class LemonaidApp(App):
 
     def _selected_lemon(self) -> "tuple[db.Notification, str] | None":
         """The row under the cursor in the main list and its Lemon-ID, when it has a brief."""
-        channel = self._selected_channel()
-        if not channel or self._brief_target is not None:
+        if self._mode is not None or self._brief_target is not None:
             return None
 
-        with db.connect() as conn:
-            notification = db.get(conn, int(self._get_current_row_key() or 0))
-            try:
-                lemon_id = brief.lemon.lemon_id(conn, channel)
-            except (LookupError, ValueError, brief.store.ChangedUnderneath):
-                self.notify("This session has no brief, so it can't be in a group")
-                return None
-
-        return (notification, lemon_id) if notification else None
+        found = self._selected_notification()
+        return inbox_groups.lemon(self.query_one(InboxList), found) if found else None
 
     def action_group_tree(self) -> None:
         if found := self._selected_lemon():
@@ -1147,19 +1037,10 @@ class LemonaidApp(App):
             inbox_groups.group_remove(inbox, group_id, *found)
 
     def _select_channel(self, channel: str) -> None:
-        """Put the cursor back on a channel after the list around it moved."""
-        table = self.query_one(self._active_table_id(), DataTable)
-        for index, c in enumerate(self._row_channels()):
-            if c == channel and index < table.row_count:
-                table.move_cursor(row=index)
-                return
+        row_keys.select_channel(self.query_one(self._active_table_id(), DataTable), channel)
 
     def _selected_notification(self) -> db.Notification | None:
-        if not (row_key := self._get_current_row_key()):
-            return None
-
-        with db.connect() as conn:
-            return db.get(conn, int(row_key))
+        return row_keys.notification(self._get_current_row_key())
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""

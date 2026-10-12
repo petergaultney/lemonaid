@@ -1,10 +1,14 @@
 """A modal that says why a key did nothing."""
 
 from textual import events
-from textual.app import ComposeResult
+from textual.app import App, ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Label
+
+from ...log import get_logger
+
+_log = get_logger("tui")
 
 
 class ErrorScreen(ModalScreen[bool]):
@@ -77,3 +81,8 @@ class ErrorScreen(ModalScreen[bool]):
 
     def on_click(self) -> None:
         self.dismiss(False)
+
+
+def show(app: App, title: str, message: str) -> None:
+    _log.warning("%s: %s", title, message)
+    app.push_screen(ErrorScreen(title, message))

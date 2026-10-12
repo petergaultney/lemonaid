@@ -15,6 +15,12 @@ CSS = (
     height: 1fr;
 }
 
+/* Shown by the app when a view, a search or the rows call for them. */
+#history_filter, #fold_label, #other_sources_label, #other_sources_table,
+#search_archive_label, #history_table, #snoozed_table, #usage_table {
+    display: none;
+}
+
 #inbox_list, #main_table {
     height: 1fr;
 }
