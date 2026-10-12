@@ -281,8 +281,8 @@ def test_search_keeps_a_deaf_lemon_in_the_lower_table(monkeypatch):
         _brief(conn, deaf, "waiting")
 
     async def steps(app, pilot):
-        app._search_mode = True
-        app._history_filter = "no-such-text"
+        app._content.searching = True
+        app._content.filter_text = "no-such-text"
         app._refresh_notifications()
         await pilot.pause()
         return _channels(app.query_one("#other_sources_table", DataTable))

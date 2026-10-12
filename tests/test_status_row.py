@@ -167,7 +167,7 @@ def test_status_text_survives_a_hint_toggle():
     """No await between setting and reading: the refresh timer rewrites the status."""
 
     async def steps(app, pilot):
-        app._set_status("7 unread, 3 read")
+        app._content.set_status("7 unread, 3 read")
         app._show_keys(True)
         app._show_keys(False)
         return str(app.query_one("#status", Static).render())

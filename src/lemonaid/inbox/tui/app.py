@@ -3,13 +3,14 @@
 import os
 import threading
 import time
+import typing as ty
 from pathlib import Path
 
 from textual import events
 from textual.app import App, ComposeResult
-from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
@@ -52,13 +53,10 @@ from . import (
     inbox_switch,
     row_keys,
     row_parts,
-    search_archive,
     session_names,
     status_line,
     styles,
-    table_layout,
     table_nav,
-    table_setup,
     usage_view,
     utils,
     view_modes,
@@ -68,6 +66,7 @@ from .brief_pane import BriefPane
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .history_table import HistoryTable
+from .inbox_content import InboxContent
 from .inbox_list import InboxList
 from .notes import NotesPanel
 from .snoozed_table import SnoozedTable
@@ -76,7 +75,6 @@ from .usage_view import UsageHeader
 from .utils import (
     JUMP_DIGITS,
     set_terminal_title,
-    update_static,
 )
 
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
@@ -86,6 +84,8 @@ _FOCUS_CACHE_SECONDS = 1.0
 _INPUT_FOCUS_CACHE_SECONDS = 0.5
 
 _log = get_logger("tui")
+
+_W = ty.TypeVar("_W", bound=Widget)
 
 
 class LemonaidApp(App):
@@ -101,9 +101,6 @@ class LemonaidApp(App):
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
-        self._mode: view_modes.Mode | None = None  # an alternate view, while one is shown
-        self._search_mode = False
-        self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
         self._name_scan_mtimes: dict[str, float] = {}
@@ -113,8 +110,6 @@ class LemonaidApp(App):
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
         self._hint_timer: Timer | None = None
-        self._card_layout = False
-        self._notes_open = True  # the notes key's choice; shown only in card layout too
         self._brief_cache = brief_cards.BriefCache()
         self._parts = row_parts.RowParts(
             self.config,
@@ -162,22 +157,24 @@ class LemonaidApp(App):
     def compose(self) -> ComposeResult:
         yield UsageHeader()
         with ContentSwitcher(initial="inbox_content", id="content_switcher"):
-            with Container(id="inbox_content"):
-                yield Input(
+            yield InboxContent(
+                self.config,
+                self._sidebar,
+                Input(
                     placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
-                )
-                yield InboxList(
+                ),
+                InboxList(
                     self.config,
                     self._parts,
                     self._brief_cache,
                     self._undo_stack,
                     self._refresh_notifications,
                     id="inbox_list",
-                )
-                yield Static("", id="search_archive_label")
+                ),
+                Static("", id="search_archive_label"),
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
-                yield HistoryTable(
+                HistoryTable(
                     self.config,
                     self._parts,
                     self._brief_cache,
@@ -185,19 +182,24 @@ class LemonaidApp(App):
                     self._exec_here,
                     self._refresh_notifications,
                     id="history_table",
-                )
-                yield SnoozedTable(
+                ),
+                SnoozedTable(
                     self.config,
                     self._parts,
                     self._brief_cache,
                     self._undo_stack,
                     self._refresh_snoozed,
                     id="snoozed_table",
-                )
-                yield DataTable(id="usage_table")
-                if self.config.tui.notes is not None:
-                    yield NotesPanel(self.config.tui.notes, id="notes")
-                yield Static("", id="status")
+                ),
+                DataTable(id="usage_table"),
+                *(
+                    []
+                    if self.config.tui.notes is None
+                    else [NotesPanel(self.config.tui.notes, id="notes")]
+                ),
+                Static("", id="status"),
+                id="inbox_content",
+            )
             yield BriefPane(
                 self.config,
                 self._get_current_row_key,
@@ -244,14 +246,9 @@ class LemonaidApp(App):
             self.query_one("#other_sources_table", DataTable).styles.background = "transparent"
             self.query_one("#history_table", DataTable).styles.background = "transparent"
 
-        for table_id in table_setup.TABLE_IDS:
-            table_setup.setup(
-                self.query_one(table_id, DataTable),
-                self._cards(),
-                self.config.tui,
-                wake_column=table_id == "#snoozed_table",
-                marker_column=table_id != "#history_table",
-            )
+        self._content.build_tables(
+            self._content.wants_cards(self.size.width, self.size.height), history_marker=False
+        )
 
         usage_view.setup_table(self.query_one("#usage_table", DataTable))
 
@@ -262,7 +259,7 @@ class LemonaidApp(App):
         watcher_hooks.start(self.config, self._brief_cache, self._set_detached_channels)
         self.call_later(self._check_claude_patch)
         self.call_later(self._refresh_skills)
-        self.call_later(self._stretch_all_tables)
+        self.call_later(lambda: self._content.stretch(self.size.width))
         # Kick Footer to pick up dynamically-bound keys
         self.refresh_bindings()
         self._show_keys(True)
@@ -316,77 +313,64 @@ class LemonaidApp(App):
         # self.size still reports the old width while this event is being handled,
         # so every decision here keys off the size the event carries.
         width = event.size.width
-        height = event.size.height
+        cards = self._content.wants_cards(width, event.size.height)
         # Cards and columns are different column sets, so crossing that threshold
         # rebuilds the tables rather than just restretching them.
-        crossed = self._cards(width, height) != self._card_layout
+        crossed = cards != self._content.cards
         _log.info(
             "resize %sx%s -> %s%s",
             width,
-            height,
-            "cards" if self._cards(width, height) else "columns",
+            event.size.height,
+            "cards" if cards else "columns",
             " (changed)" if crossed else "",
         )
         if crossed:
-            self._card_layout = self._cards(width, height)
-            for table_id in table_setup.TABLE_IDS:
-                table_setup.setup(
-                    self.query_one(table_id, DataTable),
-                    self._card_layout,
-                    self.config.tui,
-                    wake_column=table_id == "#snoozed_table",
-                )
+            self._content.cards = cards
+            self._content.build_tables(cards, history_marker=True)
 
         # Stretch before refilling: a card truncates to the width its column was
         # stretched to, which is not the placeholder width table_setup gave it.
-        self._stretch_all_tables(width)
+        self._content.stretch(width)
         if crossed:
             self._refresh_notifications()
 
-    def _cards(self, width: int | None = None, height: int | None = None) -> bool:
-        return table_layout.wants_cards(
-            self.size.width if width is None else width,
-            self.size.height if height is None else height,
-            current_position(self.config.tmux_session.scratch_position) == "left"
-            if self._scratch_mode
-            else None,
-        )
+    def _sidebar(self) -> bool | None:
+        if not self._scratch_mode:
+            return None
 
-    def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
-        if not self._card_layout:
-            return 1, 1
+        return current_position(self.config.tmux_session.scratch_position) == "left"
 
-        return table_layout.card_shape(
-            self.size.height,
-            self._notes_height(),
-            self.query_one("#main_table", DataTable).row_count,
-            extra_lines,
-        )
+    @property
+    def _content(self) -> InboxContent:
+        return self.query_one(InboxContent)
+
+    def _the(self, widget: type[_W]) -> _W | None:
+        """The one *widget*, or None before the screen is up or after it is torn down."""
+        found = self.query(widget) if self._screen_stack else None
+        return found.first() if found else None
+
+    @property
+    def _mode(self) -> view_modes.Mode | None:
+        content = self._the(InboxContent)
+        return content.mode if content else None
+
+    @property
+    def _search_mode(self) -> bool:
+        content = self._the(InboxContent)
+        return bool(content and content.searching)
+
+    @property
+    def _history_filter(self) -> str:
+        return self._content.filter_text
 
     def _card_width(self) -> int:
-        """Width the card's body column was stretched to, or 0 outside card mode.
+        return self._content.card_width()
 
-        Keys off _card_layout rather than the current size: this decides how many
-        cells a row has, and it must match the columns the tables were built with,
-        which self.size disagrees with while a resize is being handled.
-        """
-        if not self._card_layout:
-            return 0
-
-        return table_layout.card_width(
-            [c.width for c in self.query_one("#main_table", DataTable).columns.values()]
-        )
-
-    def _stretch_all_tables(self, width: int | None = None) -> None:
-        table_setup.stretch(
-            {table_id: self.query_one(table_id, DataTable) for table_id in table_setup.TABLE_IDS},
-            self._card_layout,
-            self.size.width if width is None else width,
-            self.config.tui.card_fields,
-        )
+    def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
+        return self._content.card_shape(extra_lines)
 
     def _active_table_id(self) -> str:
-        return self._mode.table_id if self._mode else "#main_table"
+        return f"#{self._content.active_table().id}"
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
@@ -422,7 +406,7 @@ class LemonaidApp(App):
             return  # a timer tick during shutdown, while the screen's widgets are being removed
 
         self._update_input_indicator()
-        self._refresh_notes()
+        self._content.refresh_notes()
         if self._brief_target is not None:
             self._wake_expired_snoozes()
             self.query_one(BriefPane).update_brief(
@@ -441,13 +425,13 @@ class LemonaidApp(App):
         self._wake_expired_snoozes()
         self._refresh_session_names()
 
-        inbox = self.query_one(InboxList)
+        inbox = self._content.inbox
         drawn = inbox.refresh_list(
             focused=self._focused_ttys(),
             env_filter=self.current_env if self.current_env != "unknown" else None,
             search_text=self._history_filter if self._search_mode else None,
             detached=self._detached_channels,
-            cards=self._card_layout,
+            cards=self._content.cards,
             width=self.size.width,
             height=self.size.height,
             card_width=self._card_width(),
@@ -458,33 +442,19 @@ class LemonaidApp(App):
         self._refresh_resume_binding()
 
         archive_count = 0
-        archive_label = self.query_one("#search_archive_label", Static)
-        history_table = self.query_one("#history_table", DataTable)
         if self._search_mode:
             archive_count = self._refresh_history()
-            show_archive = search_archive.show(
-                archive_label,
-                history_table,
-                inbox.main,
-                inbox.other if drawn.other_shown else None,
-                archive_count,
-                self.query_one("#inbox_content", Container).size.height
-                - self.query_one("#history_filter", Input).outer_size.height
-                - self.query_one("#status", Static).outer_size.height
-                - self._notes_height(),
-                drawn.other and not drawn.other_shown,
-            )
+            show_archive = self._content.place_archive(drawn, archive_count)
             self.set_class(show_archive, "-search-archive")
-            if not show_archive and self.focused is history_table:
+            if not show_archive and self.focused is self._content.history:
                 inbox.main.focus()
         else:
             self.set_class(False, "-search-archive")
-            history_table.display = False
-            archive_label.display = False
+            self._content.hide_archive()
 
         position = current_position(self.config.tmux_session.scratch_position)
         dimension = "width" if position == "left" else "height"
-        self._set_status(
+        self._content.set_status(
             status_line.inbox_status(
                 drawn.unread,
                 drawn.read,
@@ -560,33 +530,14 @@ class LemonaidApp(App):
             self._hint_timer = None
 
         self._show_keys(False)
-        self.push_screen(HelpScreen(bindings.help_keys(self.config), wide=not self._card_layout))
+        self.push_screen(HelpScreen(bindings.help_keys(self.config), wide=not self._content.cards))
 
     def action_toggle_notes(self) -> None:
-        self._notes_open = not self._notes_open
+        self._content.notes_open = not self._content.notes_open
         self._refresh_notifications()  # refreshes the notes, then sizes the cards to them
 
     def on_notes_panel_resized(self, _message: NotesPanel.Resized) -> None:
         self._refresh_notifications()
-
-    def _notes_panel(self) -> NotesPanel | None:
-        panels = self.query(NotesPanel)
-        return panels.first() if panels else None
-
-    def _refresh_notes(self) -> None:
-        """Show the notes under the cards, unless hidden; a top strip has no room for them."""
-        panel = self._notes_panel()
-        if panel is None:
-            return
-
-        panel.display = self._notes_open and self._card_layout
-        if panel.display:
-            panel.reload()
-
-    def _notes_height(self) -> int:
-        """Rows the notes take from the cards, as last laid out."""
-        panel = self._notes_panel()
-        return panel.outer_size.height if panel is not None and panel.display else 0
 
     def action_toggle_keys(self) -> None:
         # An explicit toggle outranks the startup timer, which would otherwise
@@ -604,9 +555,6 @@ class LemonaidApp(App):
 
         self.query_one(Footer).display = shown
         self.query_one("#status", Static).display = not shown
-
-    def _set_status(self, text: str) -> None:
-        update_static(self.query_one("#status", Static), text)
 
     def _refresh_resume_binding(self) -> None:
         resume_footer_shown = (
@@ -648,9 +596,7 @@ class LemonaidApp(App):
     def _set_mode(self, mode: view_modes.Mode, enabled: bool) -> None:
         if enabled and self._search_mode:
             self._stop_search(refresh=False)
-        self._mode = mode if enabled else None
-        if mode is view_modes.HISTORY:
-            self._history_filter = ""
+        self._content.show_mode(mode, enabled)
 
         for action in mode.hidden_actions:
             self._set_binding_footer(action, show=not enabled)
@@ -669,53 +615,29 @@ class LemonaidApp(App):
         if mode is view_modes.HISTORY:
             self.set_class(enabled, "-history")
 
-        inbox = self.query_one(InboxList)
-        table = self.query_one(mode.table_id, DataTable)
-        history_filter = self.query_one("#history_filter", Input)
+        self.sub_title = mode.sub_title if enabled else "attention inbox"
         if not enabled:
-            self.sub_title = "attention inbox"
-            table.display = False
-            if mode is view_modes.HISTORY:
-                history_filter.display = False
-            inbox.display = True
             self._refresh_notifications()
-            inbox.main.focus()
-            return
-
-        self.sub_title = mode.sub_title
-        inbox.display = False
-        self.query_one("#search_archive_label", Static).display = False
-        table.display = True
-        if mode is view_modes.HISTORY:
-            history_filter.display = False
-            history_filter.value = ""
+            self._content.inbox.main.focus()
+        elif mode is view_modes.HISTORY:
             self._refresh_history()
         elif mode is view_modes.SNOOZED:
             self._refresh_snoozed()
         else:
             self._refresh_usage()
-        table.focus()
+        if enabled:
+            self.query_one(mode.table_id, DataTable).focus()
 
     def _set_history_mode(self, enabled: bool) -> None:
         self._set_mode(view_modes.HISTORY, enabled)
 
     def _refresh_history(self) -> int:
-        count = self.query_one(HistoryTable).refill(
-            self._history_filter,
-            self.current_env if self.current_env != "unknown" else None,
-            self._search_mode,
-            self._card_width(),
-            self._card_shape(),
+        return self._content.refill_history(
+            self.current_env if self.current_env != "unknown" else None
         )
-        if not self._search_mode:
-            self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
-        return count
 
     def _refresh_snoozed(self) -> None:
-        count = self.query_one(SnoozedTable).refill(self._card_width(), self._card_shape())
-        self._set_status(
-            f"{count} snoozed session{'s' if count != 1 else ''}  |  Enter to wake now"
-        )
+        self._content.refill_snoozed()
 
     def _undoable(self, entry: undo.Entry) -> None:
         self._undo_stack.push(entry)
@@ -805,32 +727,23 @@ class LemonaidApp(App):
     def action_filter_history(self) -> None:
         """Search inbox rows, or focus the existing history filter."""
         if self._mode is not view_modes.HISTORY and not self._search_mode:
-            self._search_mode = True
-            self._history_filter = ""
+            self._content.start_search()
             self.sub_title = "search"
             self.set_class(True, "-search")
             self._refresh_notifications()
-        history_filter = self.query_one("#history_filter", Input)
-        history_filter.display = True
-        history_filter.focus()
+        self._content.open_search_box()
 
     def _stop_search(self, *, refresh: bool = True) -> None:
-        self._search_mode = False
-        self._history_filter = ""
+        self._content.stop_search()
         self.sub_title = "attention inbox"
         self.set_class(False, "-search")
-        history_filter = self.query_one("#history_filter", Input)
-        history_filter.value = ""
-        history_filter.display = False
-        self.query_one("#search_archive_label", Static).display = False
-        self.query_one("#history_table", DataTable).display = False
         if refresh:
             self._refresh_notifications()
-            self.query_one("#main_table", DataTable).focus()
+            self._content.inbox.main.focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "history_filter":
-            self._history_filter = event.value
+            self._content.filter_text = event.value
             if self._search_mode:
                 self._refresh_notifications()
             elif self._mode is view_modes.HISTORY:
@@ -866,12 +779,9 @@ class LemonaidApp(App):
                 self._stop_search()
                 return
 
-            self._history_filter = ""
-            history_filter = self.query_one("#history_filter", Input)
-            history_filter.value = ""
-            history_filter.display = False
+            self._content.clear_history_filter()
             self._refresh_history()
-            self.query_one("#history_table", DataTable).focus()
+            self._content.history.focus()
 
     def _focused_table(self) -> DataTable:
         focused = self.focused
@@ -880,8 +790,7 @@ class LemonaidApp(App):
         return self.query_one("#main_table", DataTable)
 
     def _stacked_tables(self) -> tuple[DataTable, DataTable, DataTable]:
-        inbox = self.query_one(InboxList)
-        return inbox.main, inbox.other, self.query_one("#history_table", DataTable)
+        return self._content.stacked()
 
     def action_cursor_up(self) -> None:
         if self._brief_target is not None:
@@ -1100,8 +1009,8 @@ class LemonaidApp(App):
     @property
     def _brief_target(self) -> brief.target.Target | None:
         """The brief shown in place of the inbox, if one is."""
-        panes = self.query(BriefPane)
-        return panes.first().target if panes else None
+        pane = self._the(BriefPane)
+        return pane.target if pane else None
 
     def _set_brief_view(self, found: brief.target.Target | None) -> None:
         self.query_one(BriefPane).set_view(found)
@@ -1218,8 +1127,8 @@ class LemonaidApp(App):
 
     def _brief_local(self) -> bool:
         """Whether the brief shown stays here because its lemon's terminal can't come up."""
-        panes = self.query(BriefPane)
-        return bool(panes) and panes.first().local
+        pane = self._the(BriefPane)
+        return bool(pane and pane.local)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self.is_running:

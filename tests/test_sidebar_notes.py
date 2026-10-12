@@ -97,7 +97,7 @@ def test_without_the_setting_there_is_no_panel():
 def test_an_edit_shows_without_a_restart(notes):
     def edit_then_look(tui: app.LemonaidApp) -> str | None:
         notes.write_text("- `w` pick a window, from a longer line\n")
-        tui._refresh_notes()
+        tui._content.refresh_notes()
         return _shown(tui)
 
     assert _run(_SIDEBAR, edit_then_look) == "- `w` pick a window, from a longer line\n"
@@ -178,8 +178,8 @@ def test_an_unchanged_file_is_not_rendered_again(notes):
         renders = []
         render = markdown.update
         markdown.update = lambda text: (renders.append(text), render(text))[1]
-        tui._refresh_notes()
-        tui._refresh_notes()
+        tui._content.refresh_notes()
+        tui._content.refresh_notes()
         return len(renders)
 
     assert _run(_SIDEBAR, refresh_twice) == 0

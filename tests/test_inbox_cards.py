@@ -6,13 +6,12 @@ rows; the separator is what keeps them legible as separate entries instead.
 """
 
 import asyncio
-from types import SimpleNamespace
 
 from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, backend_indicators, cards, layout, table_rows
+from lemonaid.inbox.tui import app, backend_indicators, cards, layout, table_layout, table_rows
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
@@ -418,15 +417,8 @@ def test_read_idle_card_dims_its_model_badge():
 
 
 def test_brief_lines_reduce_the_message_budget():
-    pane = SimpleNamespace(
-        _card_layout=True,
-        size=SimpleNamespace(height=30),
-        query_one=lambda *_args: SimpleNamespace(row_count=4),
-        _notes_height=lambda: 0,
-    )
-
-    assert app.LemonaidApp._card_shape(pane) == (1, 4)
-    shape = app.LemonaidApp._card_shape(pane, extra_lines=2)
+    assert table_layout.card_shape(30, 0, 4, 0) == (1, 4)
+    shape = table_layout.card_shape(30, 0, 4, 2)
     assert shape == (1, 1)
     (body,) = cards.as_card(
         _brief_cells(), 40, *shape, gutter_width=2, card_brief=CardBrief("", "review", 0)
@@ -643,9 +635,9 @@ def test_a_scratch_pane_on_the_left_is_cards_whatever_its_size(monkeypatch, tmp_
     scratch.set_position("left")
     sidebar = app.LemonaidApp(scratch_mode=True)
 
-    assert sidebar._cards(58, 89)
-    assert sidebar._cards(245, 16)
-    assert sidebar._cards(245, 89)
+    assert table_layout.wants_cards(58, 89, sidebar._sidebar())
+    assert table_layout.wants_cards(245, 16, sidebar._sidebar())
+    assert table_layout.wants_cards(245, 89, sidebar._sidebar())
 
 
 def test_a_scratch_pane_on_top_is_columns_whatever_its_size(monkeypatch, tmp_path):
@@ -653,13 +645,13 @@ def test_a_scratch_pane_on_top_is_columns_whatever_its_size(monkeypatch, tmp_pat
     scratch.set_position("top")
     strip = app.LemonaidApp(scratch_mode=True)
 
-    assert not strip._cards(245, 16)
-    assert not strip._cards(58, 89)
+    assert not table_layout.wants_cards(245, 16, strip._sidebar())
+    assert not table_layout.wants_cards(58, 89, strip._sidebar())
 
 
 def test_a_plain_lma_still_decides_from_its_shape():
-    assert app.LemonaidApp()._cards(58, 89)
-    assert not app.LemonaidApp()._cards(245, 16)
+    assert table_layout.wants_cards(58, 89, app.LemonaidApp()._sidebar())
+    assert not table_layout.wants_cards(245, 16, app.LemonaidApp()._sidebar())
 
 
 def test_a_read_card_emits_no_bold_at_all():
