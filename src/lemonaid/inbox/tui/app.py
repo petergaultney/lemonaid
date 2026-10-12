@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import typing as ty
+from collections import abc
 from pathlib import Path
 
 from textual import events
@@ -14,13 +15,12 @@ from textual.widget import Widget
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, groups
+from ... import brief
 from ...claude import patch_status
 from ...claude.patcher import find_binary
 from ...config import load_config
 from ...lemon_watchers import (
     detect_terminal_switch_source,
-    get_tmux_socket,
     stop_unified_watcher,
 )
 from ...log import get_logger
@@ -36,16 +36,13 @@ from ...tmux.scratch import (
     save_current_size,
     size_has_drifted,
 )
-from .. import (
-    db,
-    sections,
-    undo,
-)
+from .. import db, sections, undo
 from . import (
     bindings,
     brief_cards,
     claude_patch,
     edit_dialogs,
+    error_screen,
     focus,
     history_resume,
     inbox_draw,
@@ -64,7 +61,6 @@ from . import (
     watcher_hooks,
 )
 from .brief_pane import BriefPane
-from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
 from .history_table import HistoryTable
 from .inbox_content import InboxContent
@@ -73,10 +69,7 @@ from .notes import NotesPanel
 from .snoozed_table import SnoozedTable
 from .table import ClickToActTable
 from .usage_view import UsageHeader
-from .utils import (
-    JUMP_DIGITS,
-    set_terminal_title,
-)
+from .utils import JUMP_DIGITS, set_terminal_title
 
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
@@ -347,13 +340,7 @@ class LemonaidApp(App):
         return f"#{self._content.active_table().id}"
 
     def _get_current_row_key(self) -> str | None:
-        """Get the row key (notification ID) at current cursor."""
         return row_keys.notification_at_cursor(self.query_one(self._active_table_id(), DataTable))
-
-    def _get_current_row_index(self) -> int:
-        """Get the current cursor row index."""
-        table = self.query_one("#main_table", DataTable)
-        return table.cursor_coordinate.row
 
     def _project_names_changed(self) -> None:
         if self._mode is view_modes.HISTORY:
@@ -558,19 +545,11 @@ class LemonaidApp(App):
             self._stop_search(refresh=False)
         self._content.show_mode(mode, enabled)
 
-        for action in mode.hidden_actions:
-            self._set_binding_footer(action, show=not enabled)
-        for action in mode.shown_actions:
-            self._set_binding_footer(action, show=enabled)
-        self._set_binding_footer(
-            mode.toggle_action,
-            label=f"Exit {mode.toggle_label}" if enabled else mode.toggle_label,
-        )
-        if mode.select_label:
-            self._set_binding_footer("select", label=mode.select_label if enabled else "Switch")
-            if enabled and self._resume_footer_shown:
-                self._resume_footer_shown = False
-                self._set_binding_footer("resume_detached", show=False)
+        for action, show, label in view_modes.footer(mode, enabled):
+            self._set_binding_footer(action, show=show, label=label)
+        if mode.select_label and enabled and self._resume_footer_shown:
+            self._resume_footer_shown = False
+            self._set_binding_footer("resume_detached", show=False)
         self.refresh_bindings()
         if mode is view_modes.HISTORY:
             self.set_class(enabled, "-history")
@@ -606,10 +585,6 @@ class LemonaidApp(App):
     def _wake_selected(self) -> None:
         self.query_one(SnoozedTable).wake()
 
-    def _show_error(self, title: str, message: str) -> None:
-        _log.warning("%s: %s", title, message)
-        self.push_screen(ErrorScreen(title, message))
-
     def _switch_to_notification(self, notification: db.Notification) -> bool:
         if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):
             return False
@@ -641,7 +616,7 @@ class LemonaidApp(App):
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
         if notification is None:
-            self._show_error("That session is gone", "Its row was removed from the inbox.")
+            error_screen.show(self, "That session is gone", "Its row was removed from the inbox.")
         elif not inbox_draw.can_resume_detached(notification, self.config):
             inbox_switch.resume_unavailable(self)
         else:
@@ -834,70 +809,31 @@ class LemonaidApp(App):
         found = None if self._mode is not None else self._selected_notification()
         return found.channel if found else None
 
+    def _groups_at_cursor(self, edit: abc.Callable[[InboxList], None]) -> None:
+        """Group and pin edits act on the main list only, and not under a brief."""
+        if self._mode is None and self._brief_target is None:
+            edit(self._content.inbox)
+
     def action_pin(self) -> None:
-        if channel := self._selected_channel():
-            inbox_groups.toggle_pin(self.query_one(InboxList), channel)
-
-    def _move_pin(self, offset: int) -> None:
-        channel = self._selected_channel()
-        if channel and inbox_groups.move_pin(
-            self.query_one(InboxList), channel, self._row_channels(), offset
-        ):
-            self._select_channel(channel)
-
-    def _selected_group(self) -> "groups.store.Group | None":
-        """The group whose header is under the cursor, in the main list only."""
-        return (
-            None
-            if self._mode is not None
-            else inbox_groups.selected_group(self.query_one(InboxList))
-        )
+        self._groups_at_cursor(inbox_groups.pin_at_cursor)
 
     def action_toggle_group(self) -> None:
-        """Open or collapse the group whose header or lemon is under the cursor."""
-        if self._mode is None:
-            inbox_groups.toggle_group_at_cursor(self.query_one(InboxList))
-
-    def _move_pin_or_group(self, offset: int) -> None:
-        if group := self._selected_group():
-            if refused := inbox_groups.move_group(self.query_one(InboxList), group, offset):
-                self.notify(refused)
-        else:
-            self._move_pin(offset)
+        self._groups_at_cursor(inbox_groups.toggle_group_at_cursor)
 
     def action_move_pin_up(self) -> None:
-        self._move_pin_or_group(-1)
+        self._groups_at_cursor(lambda inbox: inbox_groups.move_at_cursor(inbox, -1))
 
     def action_move_pin_down(self) -> None:
-        self._move_pin_or_group(1)
-
-    def _selected_lemon(self) -> "tuple[db.Notification, str] | None":
-        """The row under the cursor in the main list and its Lemon-ID, when it has a brief."""
-        if self._mode is not None or self._brief_target is not None:
-            return None
-
-        found = self._selected_notification()
-        return inbox_groups.lemon(self.query_one(InboxList), found) if found else None
+        self._groups_at_cursor(lambda inbox: inbox_groups.move_at_cursor(inbox, 1))
 
     def action_group_tree(self) -> None:
-        if found := self._selected_lemon():
-            inbox_groups.group_tree(self.query_one(InboxList), *found)
+        self._groups_at_cursor(inbox_groups.tree_at_cursor)
 
     def action_group_add(self) -> None:
-        if found := self._selected_lemon():
-            inbox_groups.group_add(self.query_one(InboxList), *found)
+        self._groups_at_cursor(inbox_groups.add_at_cursor)
 
     def action_group_remove(self) -> None:
-        """Take the lemon out of the group it's drawn in; on a header, delete the group."""
-        inbox = self.query_one(InboxList)
-        if group := self._selected_group():
-            inbox_groups.delete_group(inbox, group)
-            return
-
-        group_id = sections.row_group_id(row_keys.at_cursor(inbox.main) or "")
-        found = self._selected_lemon() if group_id is not None else None
-        if group_id is not None and found is not None:
-            inbox_groups.group_remove(inbox, group_id, *found)
+        self._groups_at_cursor(inbox_groups.remove_at_cursor)
 
     def _select_channel(self, channel: str) -> None:
         row_keys.select_channel(self.query_one(self._active_table_id(), DataTable), channel)
@@ -941,8 +877,12 @@ class LemonaidApp(App):
 
     def action_rename(self) -> None:
         """Rename the selected session, or the group whose header is under the cursor."""
-        if self._brief_target is None and (group := self._selected_group()):
-            inbox_groups.rename(self.query_one(InboxList), group, "Rename Group")
+        if (
+            self._brief_target is None
+            and self._mode is None
+            and (group := inbox_groups.selected_group(self._content.inbox))
+        ):
+            inbox_groups.rename(self._content.inbox, group, "Rename Group")
             return
 
         if notification := self._selected_notification():
@@ -983,8 +923,8 @@ class LemonaidApp(App):
             self.query_one(BriefPane).target_for(notification, fresh=True) if notification else None
         )
         if not target or not (target.attached or target.dirs):
-            self._show_error(
-                "No brief to show", "No brief or directory is recorded for this session."
+            error_screen.show(
+                self, "No brief to show", "No brief or directory is recorded for this session."
             )
             return
 
@@ -1084,41 +1024,27 @@ class LemonaidApp(App):
     ) -> None:
         # Keep a click to stay in scratch only when this row still names the
         # pane behind it. An external jump can leave the cursor on another lemon.
-        if event.data_table.id == "main_table" and self.has_class("-input-active"):
-            with db.connect() as conn:
-                found = row_keys.key_id(event.row_key)
-                notification = db.get(conn, found) if found is not None else None
-            behind = focus.behind_scratch(os.environ.get("TMUX_PANE", ""), get_tmux_socket())
-            if notification and behind and notification.metadata.get("tty") == behind:
-                return
-
-        self._activate_row(event.data_table.id, event.row_key)
+        if not (
+            event.data_table.id == "main_table"
+            and self.has_class("-input-active")
+            and focus.is_behind_scratch(
+                row_keys.notification(str(row_keys.key_id(event.row_key) or "")),
+                os.environ.get("TMUX_PANE", ""),
+            )
+        ):
+            self._activate_row(event.data_table.id, event.row_key)
 
     def _activate_row(self, table_id: str | None, row_key: RowKey | None) -> None:
         """Main table: switch to session. History table: resume session."""
         if table_id == "history_table":
             self._resume_session()
-            return
-
-        if table_id == "snoozed_table":
+        elif table_id == "snoozed_table":
             self._wake_selected()
-            return
-
-        if table_id != "main_table":
-            return
-
-        if row_key is not None and (group_id := sections.group_id(str(row_key.value))) is not None:
-            inbox_groups.toggle_group(self.query_one(InboxList), group_id)
-            return
-
-        if (notification_id := row_keys.key_id(row_key)) is None:
-            return
-
-        with db.connect() as conn:
-            notification = db.get(conn, notification_id)
-
-        if notification:
-            self._switch_to_notification(notification)
+        elif table_id == "main_table" and row_key is not None:
+            if (group_id := sections.group_id(str(row_key.value))) is not None:
+                inbox_groups.toggle_group(self._content.inbox, group_id)
+            elif notification := row_keys.notification(str(row_keys.key_id(row_key) or "")):
+                self._switch_to_notification(notification)
 
 
 def main() -> None:

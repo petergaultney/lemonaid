@@ -248,3 +248,52 @@ def move_pin(inbox: InboxList, channel: str, row_channels: abc.Sequence[str], of
 
     inbox.redraw()
     return True
+
+
+def _notification_at_cursor(inbox: InboxList) -> db.Notification | None:
+    return row_keys.notification(row_keys.notification_at_cursor(inbox.main))
+
+
+def pin_at_cursor(inbox: InboxList) -> None:
+    if notification := _notification_at_cursor(inbox):
+        toggle_pin(inbox, notification.channel)
+
+
+def move_at_cursor(inbox: InboxList, offset: int) -> None:
+    """Move the group whose header is under the cursor, else the pinned lemon, *offset* places."""
+    if group := selected_group(inbox):
+        if refused := move_group(inbox, group, offset):
+            inbox.notify(refused)
+        return
+
+    notification = _notification_at_cursor(inbox)
+    if notification and move_pin(
+        inbox, notification.channel, row_keys.channels(inbox.main), offset
+    ):
+        row_keys.select_channel(inbox.main, notification.channel)
+
+
+def _lemon_at_cursor(inbox: InboxList) -> tuple[db.Notification, str] | None:
+    notification = _notification_at_cursor(inbox)
+    return lemon(inbox, notification) if notification else None
+
+
+def tree_at_cursor(inbox: InboxList) -> None:
+    if found := _lemon_at_cursor(inbox):
+        group_tree(inbox, *found)
+
+
+def add_at_cursor(inbox: InboxList) -> None:
+    if found := _lemon_at_cursor(inbox):
+        group_add(inbox, *found)
+
+
+def remove_at_cursor(inbox: InboxList) -> None:
+    """Take the lemon out of the group it's drawn in; on a header, delete the group."""
+    if group := selected_group(inbox):
+        delete_group(inbox, group)
+        return
+
+    group_id = sections.row_group_id(row_keys.at_cursor(inbox.main) or "")
+    if group_id is not None and (found := _lemon_at_cursor(inbox)):
+        group_remove(inbox, group_id, *found)

@@ -103,6 +103,12 @@ def behind_scratch(pane: str, socket: str | None) -> str | None:
     return None
 
 
+def is_behind_scratch(notification: db.Notification | None, pane: str) -> bool:
+    """Whether *notification* is the session in the terminal this scratch pane covers."""
+    behind = behind_scratch(pane, get_tmux_socket())
+    return bool(notification and behind and notification.metadata.get("tty") == behind)
+
+
 def channels(rows: Iterable[db.Notification], ttys: frozenset[str]) -> frozenset[str]:
     """A terminal's latest notification owns its marker.
 
