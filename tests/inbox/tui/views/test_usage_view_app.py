@@ -12,7 +12,7 @@ from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.views import usage_view
 from lemonaid.usage import samples
 
-from .test_brief_navigation import _until
+from ..briefs.test_brief_navigation import _until
 
 
 def _half_used(monkeypatch) -> None:

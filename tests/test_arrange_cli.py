@@ -6,7 +6,7 @@ import sys
 import pytest
 
 import lemonaid.cli
-from tests.test_arrange_tui import _serve, _sessions
+from tests.inbox.tui.live.test_arrange_tui import _serve, _sessions
 
 
 def _check(monkeypatch, command: str) -> int:

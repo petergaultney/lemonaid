@@ -6,7 +6,7 @@ from lemonaid.inbox.tui import app as app_mod
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.watchers import focus
 
-from .test_brief_navigation import _lemons, _until
+from ..briefs.test_brief_navigation import _lemons, _until
 
 
 def test_the_wake_key_asks_tmux_which_pane_is_focused(monkeypatch, tmp_path):
