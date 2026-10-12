@@ -33,7 +33,7 @@ def _wait(stem, snapshots, *, head=_HEAD, ci=True, comments=False, deliver=None,
 def test_ci_completion_and_rearm_without_repeats(tmp_path, outcome):
     stem = tmp_path / "pr"
     done = _snap([outcome, "passed"])
-    sent = _wait(stem, [_snap([outcome, "pending"]), done])
+    sent = _wait(stem, [_snap([outcome, "pending"]), done, done])
     assert len(sent) == 1
     assert sent[0].startswith(f"PR #90 CI {outcome} at {_HEAD[:10]}")
     assert "conflicts" not in sent[0]
@@ -43,9 +43,8 @@ def test_ci_completion_and_rearm_without_repeats(tmp_path, outcome):
 
 
 def test_no_checks_is_not_a_ci_completion(tmp_path):
-    assert _wait(tmp_path / "pr", [_snap(), _snap(["pending"]), _snap(["passed"])]) == [
-        f"PR #90 CI passed at {_HEAD[:10]}"
-    ]
+    snaps = [_snap(), _snap(["pending"]), _snap(["passed"]), _snap(["passed"])]
+    assert _wait(tmp_path / "pr", snaps) == [f"PR #90 CI passed at {_HEAD[:10]}"]
 
 
 def test_new_push_mid_run_uses_only_the_new_heads_checks(tmp_path):
@@ -53,7 +52,7 @@ def test_new_push_mid_run_uses_only_the_new_heads_checks(tmp_path):
     assert _wait(stem, [_snap(["pending"]), _snap(["pending"], head=_NEXT)]) == [
         f"PR #90 head moved {_HEAD[:10]} -> {_NEXT[:10]}"
     ]
-    assert _wait(stem, [_snap(["passed"], head=_NEXT)], head=_NEXT) == [
+    assert _wait(stem, [_snap(["passed"], head=_NEXT)] * 2, head=_NEXT) == [
         f"PR #90 CI passed at {_NEXT[:10]}"
     ]
 
@@ -63,7 +62,7 @@ def test_enabling_ci_after_a_comment_reports_completion(tmp_path):
     comment = pr_comments.Comment("c1", "PR", "peter", "fix this")
     done = _snap(["passed"], comments=[comment])._replace(mergeable="MERGEABLE")
     assert "new comment" in _wait(stem, [done], ci=False, comments=True)[0]
-    assert _wait(stem, [done], comments=True) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+    assert _wait(stem, [done, done], comments=True) == [f"PR #90 CI passed at {_HEAD[:10]}"]
 
 
 def test_ci_and_comments_report_failure_once_together(tmp_path):
@@ -87,8 +86,8 @@ def test_failed_delivery_leaves_ci_completion_for_rearm(tmp_path):
 
     stem = tmp_path / "pr"
     with pytest.raises(delivery.Failed):
-        _wait(stem, [_snap(["passed"])], deliver=fail)
-    assert _wait(stem, [_snap(["passed"])]) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+        _wait(stem, [_snap(["passed"])] * 2, deliver=fail)
+    assert _wait(stem, [_snap(["passed"])] * 2) == [f"PR #90 CI passed at {_HEAD[:10]}"]
 
 
 def test_continuous_ci_watch_reports_each_head_once(tmp_path):
@@ -127,4 +126,19 @@ def test_ci_follows_required_check_results_after_all_checks_finish(tmp_path):
             pr_activity.Check("optional", False, "failed"),
         ]
     )
-    assert _wait(tmp_path / "pr", [done]) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+    assert _wait(tmp_path / "pr", [done, done]) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+
+
+def test_pass_waits_for_a_stable_set_of_checks(tmp_path):
+    """The first jobs of a workflow pass before its other jobs have been queued."""
+    sent = _wait(
+        tmp_path / "pr", [_snap(["passed"] * 2), _snap(["passed"] * 3), _snap(["passed"] * 3)]
+    )
+    assert sent == [f"PR #90 CI passed at {_HEAD[:10]}"]
+
+
+def test_early_pass_does_not_hide_the_real_one_after_rearm(tmp_path):
+    stem = tmp_path / "pr"
+    assert len(_wait(stem, [_snap(["passed"] * 2)] * 2)) == 1
+    rearmed = [_snap(["passed"] * 2 + ["pending"]), _snap(["passed"] * 3), _snap(["passed"] * 3)]
+    assert _wait(stem, rearmed) == [f"PR #90 CI passed at {_HEAD[:10]}"]

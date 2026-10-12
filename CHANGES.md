@@ -1,3 +1,9 @@
+# 0.102.2 (2026-10-12)
+
+#### Fixed
+
+- **`watch pr --ci` reports a pass only when the same checks had all passed on two polls in a row,** so jobs a workflow had not yet queued no longer produce a false "CI passed"; a rearmed waiter now reports the real pass even if an earlier, premature one was reported for that head.
+
 # 0.102.1 (2026-10-12)
 
 #### Fixed

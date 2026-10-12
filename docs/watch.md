@@ -147,7 +147,10 @@ Add `--ci` when you want a completion event whether CI passes or fails. It works
 with or without `--comments`, and with `--once` or `--codex-thread`. Completion waits
 for every check on the current head to finish; required checks determine the result
 when any exist, otherwise every check counts. No checks is not a completion.
-The event names the result and head. Results are remembered once per head and watcher
+A pass is reported only when the same set of checks had passed on the previous poll too,
+so it can arrive one `--interval` after the checks finish; if the set of checks changes
+afterward on the same head (a workflow queues more jobs), the new pass is reported again.
+The event names the result and head. Results are remembered per head and watcher
 identity, including failures already reported by `--comments`, so rearming with
 `--head` does not repeat a handled completion. A new push is reported normally; rearm
 with `--ci` to wait for that head's checks. Remove `--ci` after handling the result.

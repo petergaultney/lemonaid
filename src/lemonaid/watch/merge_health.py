@@ -5,7 +5,10 @@ CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN 
 still computing) changes nothing. CI is reported once no check on the head is still
 running and a check that counts has failed. Required checks count when there are any;
 otherwise (a PR stacked on another branch, a repo without branch protection) every check
-does. With `--ci`, passing CI is also reported once per head; no checks is not completion.
+does. With `--ci`, passing CI is also reported, only when every check has passed and the
+same set of checks passed on the previous poll too (a workflow's jobs may not be queued
+yet when the first ones finish); no checks is not completion. A pass is reported again if
+the set of checks it covered later changes, so a premature one never hides the real one.
 A repo whose one required check gates on all the others gets one event naming
 just that check.
 """
@@ -19,13 +22,20 @@ from . import pr_activity
 
 class Seen(ty.NamedTuple):
     conflict_head: str  # head last seen CONFLICTING; "" once seen MERGEABLE
-    ci_head: str  # head whose CI result was last reported
+    ci_head: str  # head whose CI failure was last reported
+    stable: str = ""  # head and checks of the previous poll if all had passed, else ""
+    passed: str = ""  # head and checks of the last reported pass
 
 
 def load(path: pathlib.Path) -> Seen:
     try:
         saved = json.loads(path.read_text())
-        return Seen(str(saved["conflict_head"]), str(saved["ci_head"]))
+        return Seen(
+            str(saved["conflict_head"]),
+            str(saved["ci_head"]),
+            str(saved.get("stable", "")),
+            str(saved.get("passed", "")),
+        )
     except (OSError, ValueError, KeyError, TypeError):
         return Seen("", "")
 
@@ -42,6 +52,19 @@ def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[str]:
     return [c.name for c in ([c for c in checks if c.required] or checks) if c.outcome == "failed"]
 
 
+def _all_passed(snap: pr_activity.Snapshot) -> str:
+    """Identifies the head and its set of checks once all are finished and none that count failed, else ""."""
+    counted = [c for c in snap.checks if c.required] or snap.checks
+    if (
+        not snap.checks
+        or any(c.outcome == "pending" for c in snap.checks)
+        or any(c.outcome == "failed" for c in counted)
+    ):
+        return ""
+
+    return snap.head + ":" + ",".join(sorted(c.name for c in snap.checks))
+
+
 def events(
     pr: int,
     snap: pr_activity.Snapshot,
@@ -56,13 +79,8 @@ def events(
 
     conflict = comments and snap.mergeable == "CONFLICTING" and seen.conflict_head != snap.head
     failed = _failed(snap.checks) if seen.ci_head != snap.head else []
-    passed = (
-        ci
-        and seen.ci_head != snap.head
-        and bool(snap.checks)
-        and not any(c.outcome == "pending" for c in snap.checks)
-        and not failed
-    )
+    now = _all_passed(snap)
+    passed = ci and bool(now) and now == seen.stable and now != seen.passed
     return [
         *(
             [
@@ -87,5 +105,7 @@ def events(
         {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head)
         if comments
         else seen.conflict_head,
-        snap.head if failed or passed else seen.ci_head,
+        snap.head if failed else seen.ci_head,
+        now,
+        now if passed else seen.passed,
     )

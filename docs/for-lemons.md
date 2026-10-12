@@ -958,8 +958,10 @@ Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, 
 signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. Rearm with `--head` set to the head you just handled.
 
 Add `--ci` to report CI completion on the current head, passing or failing, with or
-without `--comments`. It waits for all checks to finish and reports once per head;
-no checks is not a completion. Keep `--ci` across rearms until the head is validated,
+without `--comments`. It waits for all checks to finish and reports a failure once per head.
+A pass is reported once the same set of checks has passed on two polls in a row (one
+`--interval` after they finish), and again if the set later changes on that head.
+No checks is not a completion. Keep `--ci` across rearms until the head is validated,
 then remove it. Required checks determine the result when present, otherwise all checks count.
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
