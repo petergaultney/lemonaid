@@ -1,6 +1,8 @@
 """What a new lemon is handed: its brief, its parent, its groups, and its session's name.
 
 A lemon with a parent and no `--group` goes into its parent's groups.
+`--parent parent` names the caller's own parent, or no one if it has none.
+A parent other than the caller is told, in its inbox, that it has a new child.
 
 Everything is checked before a window is touched, and the live channels are
 taken then too, so a lemon that starts quickly still counts as new.
@@ -13,6 +15,7 @@ from pathlib import Path
 from .. import brief, groups, lineage
 from ..inbox import db
 from ..log import get_logger
+from ..messages import store as inbox_store
 
 _log = get_logger("launch.handoff")
 
@@ -25,6 +28,7 @@ class Handoff:
     name: str = ""
     lemon_id: str = ""  # the --brief lemon's, when a parent or a group needs it
     groups: tuple[str, ...] = ()
+    announce: str = ""  # the caller's Lemon-ID, when the parent is someone else
 
 
 _TRAILING_BRIEF = re.compile(r"[\s:\-]*\bbrief\W*$", re.IGNORECASE)
@@ -97,17 +101,42 @@ def prepare(
             return Handoff(path, live_before, None, name, child, found), ""
 
         try:
-            parent_id = (
-                brief.lemon.own_id(conn) if parent == "self" else brief.lemon.lemon_id(conn, parent)
-            )
-            lineage.links.check(conn, child, parent_id)
+            caller = brief.lemon.own_id(conn)
+        except (LookupError, ValueError, brief.store.ChangedUnderneath):
+            caller = ""
+
+        try:
+            if parent == "parent":
+                parent_id = lineage.links.parent_of(conn, caller) if caller else ""
+            elif parent == "self":
+                parent_id = brief.lemon.own_id(conn)
+            else:
+                parent_id = brief.lemon.lemon_id(conn, parent)
+            if parent_id:
+                lineage.links.check(conn, child, parent_id)
         except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
             return Handoff(), f"--parent {parent}: {error}"
+
+        if not parent_id:  # `--parent parent` from a lemon with no parent
+            return Handoff(path, live_before, None, name, child, found), ""
 
         # A child joins its parent's groups unless it was given its own.
         found = found or groups.store.names_of(conn, parent_id)
 
-    return Handoff(path, live_before, (child, parent_id), name, child, found), ""
+    announce = "" if parent_id == caller else (caller or "someone")
+    return Handoff(path, live_before, (child, parent_id), name, child, found, announce), ""
+
+
+def _announce(handoff: Handoff) -> None:
+    child, parent = handoff.link or ("", "")
+    try:
+        inbox_store.send(
+            inbox_store.inbox_for_id(parent),
+            f"{handoff.announce} started {handoff.name or child} as your child ({handoff.brief})",
+            handoff.announce,
+        )
+    except (ValueError, OSError) as error:
+        _log.warning("Could not tell %s about its new child %s: %s", parent, child, error)
 
 
 def complete(handoff: Handoff, session: str, index: str, window_id: str) -> None:
@@ -121,6 +150,8 @@ def complete(handoff: Handoff, session: str, index: str, window_id: str) -> None
         )
         if handoff.link:
             lineage.links.set_parent(conn, *handoff.link)
+            if handoff.announce:
+                _announce(handoff)
         for group in handoff.groups:
             try:
                 groups.store.add(conn, groups.store.find(conn, group), [handoff.lemon_id])

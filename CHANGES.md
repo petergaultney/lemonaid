@@ -1,3 +1,14 @@
+# 0.106.0 (2026-10-12)
+
+#### Added
+
+- **`--parent parent` on `place open` and `lemon start` makes the new lemon a child of the caller's own parent,** so an author can start its reviewer as a sibling. A caller with no parent gets a new lemon with none.
+- **Starting a lemon under a parent other than yourself queues one line in that parent's inbox** naming you, the new lemon and its brief.
+
+#### Changed
+
+- **The packaged `brief` skill starts reviewers with `--parent parent`.**
+
 # 0.105.0 (2026-10-12)
 
 #### Changed

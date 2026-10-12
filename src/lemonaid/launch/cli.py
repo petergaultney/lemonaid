@@ -119,7 +119,7 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         "--parent",
         default="",
         metavar="LEMON",
-        help="Record LEMON (`self`, a Lemon-ID, channel, or brief) as the --brief lemon's parent",
+        help="Record LEMON (`self`, `parent` for your own parent, a Lemon-ID, channel, or brief) as the --brief lemon's parent",
     )
     start.add_argument(
         "--group",

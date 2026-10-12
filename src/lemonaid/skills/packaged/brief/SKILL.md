@@ -117,9 +117,9 @@ Use your user's policy for when to review, which harness, window, and review-doc
 
 ```sh
 lemonaid brief new --child --template review --pr <PR-URL> --output-doc <absolute-doc-path> "Review repo#12: topic"
-lemonaid lemon start <your-session>:<review-window> --harness <claude-or-codex> --brief <printed-brief-path> --parent self --name "Review repo#12 topic" --prompt "Review repo#12 topic. Instructions are in <printed-brief-path>; follow them."
+lemonaid lemon start <your-session>:<review-window> --harness <claude-or-codex> --brief <printed-brief-path> --parent parent --name "Review repo#12 topic" --prompt "Review repo#12 topic. Instructions are in <printed-brief-path>; follow them."
 ```
 
-The first command prints an unattached child brief with you as parent. Add the context the template cannot know: what changed and what needs the hardest check. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session <session>:<window> <file>`.
+The first command prints an unattached child brief with you as parent; `--parent parent` then starts the reviewer as your sibling, a child of your own parent, and tells that parent in its inbox. With no parent of your own, the reviewer has none either. Use `--parent self` only for a reviewer that should report to you. Add the context the template cannot know: what changed and what needs the hardest check. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session <session>:<window> <file>`.
 
 The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer watching, with no status, until the PR closes. Fill its head and harness flags before arming those waiters. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.

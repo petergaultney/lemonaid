@@ -17,6 +17,7 @@ from lemonaid.brief import attached, identity, store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
 from lemonaid.inbox import db
 from lemonaid.lineage import links
+from lemonaid.messages import store as messages_store
 from lemonaid.places import cli, lifecycle
 
 
@@ -293,6 +294,129 @@ def test_parent_self_links_the_briefs_lemon_to_the_caller(monkeypatch, tmp_path,
     assert opened["lemon_id"] == identity.from_path(child_brief)
     with db.connect() as conn:
         assert links.parent_of(conn, opened["lemon_id"]) == parent
+
+
+def _lead_and_author(monkeypatch) -> tuple[str, str]:
+    """(lead, author) Lemon-IDs: the caller is the author, a child of the lead."""
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:author")
+    lead_path = store.briefs_dir() / "lead.md"
+    lead_path.parent.mkdir(parents=True, exist_ok=True)
+    lead_path.write_text("# lead\n\nStatus: working\n")
+    with db.connect() as conn:
+        lead = identity.ensure(conn, lead_path)
+    author = _parent_brief("claude:author")
+    with db.connect() as conn:
+        links.set_parent(conn, author, lead)
+    return lead, author
+
+
+def test_parent_parent_makes_the_reviewer_a_sibling_and_tells_the_parent(
+    monkeypatch, tmp_path, capsys
+):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    lead, author = _lead_and_author(monkeypatch)
+    review = store.briefs_dir() / "review.md"
+    review.write_text("# review\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="review", parent="parent", name="Review x", json=True))
+
+    opened = json.loads(capsys.readouterr().out)
+    assert opened["parent"] == lead
+    with db.connect() as conn:
+        assert links.parent_of(conn, opened["lemon_id"]) == lead
+    sent = [path.read_text() for path in messages_store.inbox_for_id(lead).iterdir()]
+    assert len(sent) == 1
+    assert author in sent[0] and "Review x" in sent[0] and str(review) in sent[0]
+
+
+def _inbox_lines(lemon: str) -> list[str]:
+    inbox = messages_store.inbox_for_id(lemon)
+    return [path.read_text() for path in inbox.iterdir()] if inbox.exists() else []
+
+
+def test_parent_self_tells_no_one(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    lead, _ = _lead_and_author(monkeypatch)
+    (store.briefs_dir() / "task.md").write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="self", json=True))
+
+    assert _inbox_lines(lead) == []
+
+
+def test_a_named_parent_is_told_who_started_its_child(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    lead, author = _lead_and_author(monkeypatch)
+    (store.briefs_dir() / "task.md").write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", parent=lead, json=True))
+
+    assert [author in line for line in _inbox_lines(lead)] == [True]
+
+
+def test_a_caller_without_a_brief_gets_no_link_for_parent_parent(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:nobrief")
+    store.briefs_dir().mkdir(parents=True, exist_ok=True)
+    (store.briefs_dir() / "task.md").write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="parent", json=True))
+
+    assert json.loads(capsys.readouterr().out)["parent"] is None
+
+
+def test_a_caller_without_a_brief_is_announced_as_someone(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:nobrief")
+    store.briefs_dir().mkdir(parents=True, exist_ok=True)
+    lead_path = store.briefs_dir() / "lead.md"
+    lead_path.write_text("# lead\n\nStatus: working\n")
+    (store.briefs_dir() / "task.md").write_text("# task\n\nStatus: working\n")
+    with db.connect() as conn:
+        lead = identity.ensure(conn, lead_path)
+
+    cli.cmd_open(_args(key="notes", brief="task", parent=lead, json=True))
+
+    assert [line.count("someone started") for line in _inbox_lines(lead)] == [1]
+
+
+def test_a_failed_announcement_leaves_the_link_and_groups(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    lead, _ = _lead_and_author(monkeypatch)
+    (store.briefs_dir() / "task.md").write_text("# task\n\nStatus: working\n")
+
+    def refuse(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(messages_store, "send", refuse)
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="parent", json=True))
+
+    opened = json.loads(capsys.readouterr().out)
+    with db.connect() as conn:
+        assert links.parent_of(conn, opened["lemon_id"]) == lead
+
+
+def test_parent_parent_without_a_parent_records_no_link(monkeypatch, tmp_path, capsys):
+    _records(monkeypatch, _config(), tmp_path)
+    monkeypatch.setattr(lifecycle, "harness_window", lambda cfg, name: "2")
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:parent")
+    _parent_brief("claude:parent")
+    child_brief = store.briefs_dir() / "task.md"
+    child_brief.write_text("# task\n\nStatus: working\n")
+
+    cli.cmd_open(_args(key="notes", brief="task", parent="parent", json=True))
+
+    opened = json.loads(capsys.readouterr().out)
+    assert opened["parent"] is None
+    with db.connect() as conn:
+        assert links.parent_of(conn, identity.from_path(child_brief)) == ""
 
 
 def test_a_parent_that_cannot_be_resolved_is_refused_before_opening(monkeypatch, tmp_path):

@@ -307,7 +307,7 @@ lemon whose window died), use `lemon start` rather than typing a launch line int
 
 ```bash
 lemonaid lemon start <session>:4 --harness codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
-    --brief <file> --parent self --name 'REVIEW #12 thing' --json
+    --brief <file> --parent parent --name 'REVIEW #12 thing' --json
 ```
 
 It runs the same template line `place open` runs in its harness window, in the session's
@@ -689,7 +689,7 @@ lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12
 
 The file has the title, its own `Lemon-ID:`, and `Parent: <your Lemon-ID>
 (<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
-writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief).
+writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief), or `parent` for your own parent.
 `--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is
 in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A worker
 without one can add the line itself, anywhere above its brief's first `##` heading.

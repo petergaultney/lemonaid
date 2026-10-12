@@ -11,10 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import store
+from lemonaid.brief import attached, identity, store
 from lemonaid.config import Config, TmuxSessionConfig
 from lemonaid.inbox import db
 from lemonaid.launch import cli
+from lemonaid.lineage import links
+from lemonaid.messages import store as messages_store
 
 
 @pytest.fixture
@@ -112,6 +114,24 @@ def test_a_brief_without_a_prompt_starts_the_lemon_on_the_default_prompt(capsys,
     assert "read it all and do the work." in _screen(tmux, "work:4", "do the work.").replace(
         "\n", ""
     )
+
+
+def test_parent_parent_starts_a_sibling_and_tells_the_parent(capsys, tmux, monkeypatch):
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:author")
+    lead_path, author_path = _brief("lead"), _brief("author")
+    with db.connect() as conn:
+        db.add(conn, "claude:author", "", metadata={})
+        attached.attach(conn, "claude:author", author_path)
+        lead, author = identity.ensure(conn, lead_path), identity.ensure(conn, author_path)
+        links.set_parent(conn, author, lead)
+    _brief("review")
+
+    started = _start(capsys, "work:4", "--brief", "review", "--parent", "parent")
+
+    assert started["error"] is None
+    assert started["parent"] == lead
+    [line] = [path.read_text() for path in messages_store.inbox_for_id(lead).iterdir()]
+    assert author in line
 
 
 def test_a_live_window_is_refused(capsys, tmux):
