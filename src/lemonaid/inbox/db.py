@@ -85,9 +85,17 @@ class Notification:
 
     @property
     def asks(self) -> bool:
-        """Whether it is unread because its lemon is waiting on your answer, not a finished turn."""
+        """Whether its lemon is stuck on a permission prompt or question for you.
+
+        Reading the row doesn't answer the prompt, so a read row still asks while
+        its turn is open and its transcript hasn't moved past the prompt; the next
+        hook replaces the type. A snoozed or archived row doesn't ask.
+        """
         kind = str(self.metadata.get("notification_type", "")).lower()
-        return self.is_unread and any(word in kind for word in _ASKING)
+        return any(word in kind for word in _ASKING) and (
+            self.is_unread
+            or (self.is_read and self.turn_at is not None and self.turn_at <= self.created_at)
+        )
 
     @property
     def is_archived(self) -> bool:

@@ -92,19 +92,20 @@ def test_quiet_reviewers_hide_even_when_unread_and_a_renamed_reviewer_stays_iden
 
 
 @pytest.mark.parametrize(
-    ("kind", "unread", "shown"),
+    ("kind", "unread", "moved_on", "shown"),
     [
-        ("permission_prompt", True, True),
-        ("PermissionRequest", True, True),
-        ("permission_prompt", False, False),
-        ("Stop", True, False),
+        ("permission_prompt", True, False, True),
+        ("PermissionRequest", True, False, True),
+        ("permission_prompt", False, False, True),  # read, but nobody answered it
+        ("permission_prompt", False, True, False),
+        ("Stop", True, False, False),
     ],
 )
-def test_a_reviewer_asking_you_something_stays_visible(kind, unread, shown):
+def test_a_reviewer_stuck_on_a_prompt_stays_visible(kind, unread, moved_on, shown):
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer", unread=unread)
         row = db.get_by_channel(conn, reviewer, unread_only=False)
-        db.add(
+        row = db.add(
             conn,
             reviewer,
             "Running kubectl",
@@ -113,6 +114,7 @@ def test_a_reviewer_asking_you_something_stays_visible(kind, unread, shown):
             status="unread" if unread else "read",
             switch_source="tmux",
         )
+        db.record_turn(conn, reviewer, row.created_at + (5 if moved_on else -1))
         _brief(conn, reviewer, "", reviewer=True)
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()

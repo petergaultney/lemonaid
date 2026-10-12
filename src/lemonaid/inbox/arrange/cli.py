@@ -32,7 +32,7 @@ def _snapshot(
         emojis = emoji.by_channel(conn)
     shown, folded = order.fold(
         view.inbox_rows(active, pinned, frozenset()),
-        view.statuses(active.cards),
+        view.statuses(active.cards, active.rows),
         pinned,
         config.tui.fold_statuses,
         frozenset(),

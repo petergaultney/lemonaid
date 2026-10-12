@@ -1023,7 +1023,7 @@ class LemonaidApp(App):
             }
             shown, folded = order.fold(
                 view.inbox_rows(active, pinned, in_view),
-                view.statuses(card_briefs),
+                view.statuses(card_briefs, active.rows),
                 pinned,
                 self.config.tui.fold_statuses,
                 {
@@ -1089,7 +1089,7 @@ class LemonaidApp(App):
                 pinned,
                 active.memberships,
                 group_list,
-                view.statuses(card_briefs),
+                view.statuses(card_briefs, active.rows),
                 self._kept,
                 self._fold_open,
                 active.deaf,

@@ -46,6 +46,7 @@ def _cards(
 ) -> dict[str, brief_cards.CardBrief]:
     """The card of each attached brief by channel, with its lemon's turn and presence."""
     working = turns.briefs(rows, attached, now)
+    asking = {n.channel for n in rows if n.asks}
     found = {
         channel: (path, card) for channel, path in attached.items() if (card := cache.get(path))
     }
@@ -65,6 +66,7 @@ def _cards(
             mid_turn=path in working,
             held_mid_turn=mid_turn_working,
             mark=marks.get(channel, ""),
+            asking=channel in asking,
         )
         for channel, (path, card) in found.items()
     }
@@ -96,16 +98,24 @@ def _memberships(conn: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
     return found
 
 
-def statuses(cards: abc.Mapping[str, brief_cards.CardBrief]) -> dict[str, str]:
-    """The status that places each card in the list and the fold, by channel."""
-    return {channel: card.placed for channel, card in cards.items()}
+def statuses(
+    cards: abc.Mapping[str, brief_cards.CardBrief], rows: abc.Iterable[db.Notification]
+) -> dict[str, str]:
+    """The status that places each lemon in the list and the fold, by channel.
+
+    A lemon stuck on a permission prompt is `blocked`, with or without a brief.
+    """
+    return {
+        **{n.channel: "blocked" for n in rows if n.asks},
+        **{channel: card.placed for channel, card in cards.items()},
+    }
 
 
 def inbox_rows(
     active: Active, pinned: abc.Container[str], in_view: abc.Container[str]
 ) -> list[db.Notification]:
-    """Omit quiet reviewers unless the user chose them, they are deaf or asking, or their brief needs a band."""
-    brief_statuses = statuses(active.cards)
+    """Omit quiet reviewers unless the user chose them, they are deaf, or their status needs a band."""
+    brief_statuses = statuses(active.cards, active.rows)
     return [
         row
         for row in active.rows
@@ -113,7 +123,6 @@ def inbox_rows(
         or row.channel in pinned
         or row.channel in in_view
         or row.channel in active.deaf
-        or row.asks
         or order.special_status(brief_statuses.get(row.channel, ""))
     ]
 
@@ -140,7 +149,7 @@ def ordered_active(
         if channel in attached and brief.identity.brief_description(brief_id).startswith("review-")
     )
     return Active(
-        order.by_status(rows, statuses(cards), pins.pinned_positions(conn)),
+        order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),
         cards,
         attached,
         reviewers,
@@ -176,6 +185,7 @@ def _row(
     now: float,
 ) -> dict[str, Any]:
     card = active.cards.get(n.channel)
+    placed = card.placed if card else "blocked" if n.asks else ""
     return {
         "id": n.id,
         "channel": n.channel,
@@ -195,7 +205,7 @@ def _row(
         "groups": list(active.memberships.get(n.channel, ())),
         "default": {
             "position": position,
-            "band": order.band(card.placed if card else "", n.is_unread, n.channel in pinned),
+            "band": order.band(placed, n.is_unread, n.channel in pinned),
             "folded": folded,
         },
     }

@@ -23,6 +23,11 @@ briefs start without a `Status:` line.
 
 ## What lemonaid derives
 
+A lemon stuck on a permission prompt or a question for you is placed and drawn
+`blocked`, whatever its brief says and with no brief at all. It stops counting
+once its transcript moves past the prompt or its next notification arrives;
+reading its row doesn't answer the prompt, so that alone doesn't.
+
 A brief without a manual status is shown as one of:
 
 | Shown | When |

@@ -375,5 +375,23 @@ def test_update_message_leaves_a_pending_question_alone(tmp_path):
 
         assert db.update_message(conn, "claude:ask", "Running kubectl") == 0
         assert db.update_message(conn, "claude:done", "Running kubectl") == 1
-        db.mark_read(conn, db.get_by_channel(conn, "claude:ask").id)
+        asked = db.get_by_channel(conn, "claude:ask")
+        db.record_turn(conn, "claude:ask", asked.created_at - 1)
+        db.mark_read(conn, asked.id)
+        assert db.update_message(conn, "claude:ask", "Running kubectl") == 0
+        db.record_turn(conn, "claude:ask", asked.created_at + 5)
         assert db.update_message(conn, "claude:ask", "Running kubectl") == 1
+
+
+def test_a_prompt_asks_only_while_it_can_still_be_answered(tmp_path):
+    with db.connect(tmp_path / "test.db") as conn:
+        row = db.add(
+            conn, "claude:ask", "Run it?", metadata={"notification_type": "permission_prompt"}
+        )
+        assert db.get(conn, row.id).asks
+        db.mark_read(conn, row.id)
+        assert not db.get(conn, row.id).asks  # no open turn on record
+        db.record_turn(conn, "claude:ask", row.created_at - 1)
+        assert db.get(conn, row.id).asks
+        db.snooze(conn, row.id, row.created_at + 3600)
+        assert not db.get(conn, row.id).asks

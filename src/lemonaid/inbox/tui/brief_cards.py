@@ -85,9 +85,15 @@ class CardBrief:
     held_mid_turn: bool = False  # `mid_turn_working`: a set status is drawn `active` mid-turn
     mark: str = ""  # `deaf` or `dead`, from `presence`
     since: float = 0.0  # when it entered its status, or without one, its lemon's last report
+    asking: bool = (
+        False  # its lemon is stuck on a permission prompt: `blocked`, whatever the brief says
+    )
 
     @property
     def placed(self) -> str:
+        if self.asking:
+            return "blocked"
+
         if self.status:
             return self.status
 
@@ -98,7 +104,7 @@ class CardBrief:
 
     @property
     def shown(self) -> str:
-        if not self.status:
+        if not self.status or self.asking:
             return self.placed
 
         return turns.shown(self.status) if self.mid_turn and self.held_mid_turn else self.status
