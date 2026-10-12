@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid import groups
-from lemonaid.brief import attached, child, identity, links, status, write_cli
+from lemonaid import groups, obsidian
+from lemonaid.brief import attached, child, identity, status, write_cli
 from lemonaid.inbox import db
 
 _PARENT = "hq.BlessBar"
@@ -172,7 +172,7 @@ def test_a_review_doc_outside_every_vault_is_a_code_span(tmp_path):
 
 
 def test_obsidian_url_names_the_vault_by_its_folder(tmp_path):
-    assert links.obsidian_url(tmp_path / "trove" / "a b" / "c.md", [tmp_path / "trove"]) == (
+    assert obsidian.obsidian_url(tmp_path / "trove" / "a b" / "c.md", [tmp_path / "trove"]) == (
         "obsidian://open?vault=trove&file=a%20b%2Fc"
     )
 

@@ -14,6 +14,8 @@ import urllib.parse
 from collections import abc
 from pathlib import Path
 
+from .. import obsidian
+
 _MAX_LABEL = 40
 _TRAILING = ".,;:!?'\""
 
@@ -27,17 +29,8 @@ _URL = r"(?P<url>(?<![\w/])(?:https?|obsidian)://[^\s<>`\[\]]+)"
 _FLAGS = re.MULTILINE | re.DOTALL | re.IGNORECASE
 
 
-def _spellings(root: Path) -> list[str]:
-    """How a brief may write *root*: from `~` when it is under home, and in full."""
-    home = Path.home()
-    return [
-        *([f"~/{root.relative_to(home).as_posix()}"] if root.is_relative_to(home) else []),
-        root.as_posix(),
-    ]
-
-
 def _tokens(roots: abc.Iterable[Path]) -> re.Pattern[str]:
-    spelled = sorted({s for root in roots for s in _spellings(root)}, key=len, reverse=True)
+    spelled = sorted({s for root in roots for s in obsidian.spellings(root)}, key=len, reverse=True)
     if not spelled:
         return re.compile(f"{_PROTECTED}|{_URL}", _FLAGS)
 
@@ -67,9 +60,7 @@ def _short(label: str) -> str:
 
 
 def _obsidian(vault: str, rest: str) -> tuple[str, str]:
-    file = rest.removesuffix(".md")
-    query = urllib.parse.urlencode({"vault": vault, "file": file}, quote_via=urllib.parse.quote)
-    return f"obsidian://open?{query}", _short(file.rsplit("/", 1)[-1])
+    return obsidian.url(vault, rest), _short(rest.removesuffix(".md").rsplit("/", 1)[-1])
 
 
 def _label(url: str) -> str:
@@ -90,17 +81,6 @@ def _link(label: str, url: str) -> str:
     return f"[{escaped}](<{url}>)"
 
 
-def vault_link(path: Path, vaults: abc.Collection[Path]) -> str | None:
-    """The `obsidian://` URL of a `.md` file under one of the expanded vault roots, or None."""
-    resolved = path.expanduser().resolve()
-    roots = [root.expanduser().resolve() for root in vaults]
-    root = next((root for root in roots if resolved.is_relative_to(root)), None)
-    if root is None or resolved.suffix != ".md":
-        return None
-
-    return _obsidian(root.name, resolved.relative_to(root).as_posix())[0]
-
-
 def _replace(match: re.Match[str], vaults: abc.Mapping[str, str]) -> str:
     if match.groupdict().get("vault"):
         url, label = _obsidian(vaults[match["root"].lower()], match["rest"])
@@ -118,14 +98,5 @@ def linkify(markdown: str, vaults: abc.Collection[Path]) -> str:
 
     Obsidian names a vault after its folder, so a root's basename is its vault name.
     """
-    names = {s.lower(): root.name for root in vaults for s in _spellings(root)}
+    names = {s.lower(): root.name for root in vaults for s in obsidian.spellings(root)}
     return _tokens(vaults).sub(lambda match: _replace(match, names), markdown)
-
-
-def obsidian_url(path: Path, vaults: abc.Iterable[Path]) -> str:
-    """The `obsidian://` URL opening *path*, or "" when it is under none of *vaults*."""
-    for root in vaults:
-        if path.is_relative_to(root):
-            return _obsidian(root.name, path.relative_to(root).as_posix())[0]
-
-    return ""

@@ -15,8 +15,7 @@ import string
 from collections import abc
 from pathlib import Path
 
-from .. import home
-from . import links
+from .. import home, obsidian
 
 PACKAGED_DIR = Path(__file__).parent / "templates"
 
@@ -73,7 +72,7 @@ def pr_values(pr: str, repo: str) -> dict[str, str]:
 
 def review_doc_values(review_doc: str, vaults: abc.Iterable[Path]) -> dict[str, str]:
     path = Path(review_doc).expanduser().absolute()
-    url = links.obsidian_url(path, vaults)
+    url = obsidian.obsidian_url(path, vaults)
     return {
         "review_doc": str(path),
         "review_doc_arg": shlex.quote(str(path)),

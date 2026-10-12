@@ -13,6 +13,7 @@ import sys
 from collections import abc
 from pathlib import Path
 
+from .. import obsidian
 from ..config import load_config
 from ..inbox import db
 from . import check, command, layout, links, now_edit, pr, pr_table, store, waiters
@@ -92,7 +93,7 @@ def _review(review: str, vaults: abc.Collection[Path]) -> tuple[str, str]:
     if "://" in review:
         return f"[review doc]({review})", ""
 
-    url = links.vault_link(Path(review), vaults)
+    url = obsidian.vault_link(Path(review), vaults)
     if url is None:
         return "", f"{review} is not a .md file under a `[brief] vaults` root"
 
