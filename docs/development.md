@@ -52,3 +52,24 @@ Code outside `src/lemonaid/tmux/` should not run `tmux` or import `lemonaid.tmux
 `tests/test_tmux_ratchet.py` fails when a file outside `tmux/` does either unless the file is in its `_ALLOWED` set, which holds the files that still do.
 A change that removes the last such use from a file deletes the file from `_ALLOWED` (the test also fails on stale entries), and a new file may not be added.
 Code that needs a tmux command calls a function in `src/lemonaid/tmux/`, and those functions run it through `tmux.run`.
+
+## Where the inbox TUI's code lives
+
+`inbox/tui/app.py` routes input: key bindings, `action_*` methods, mouse and
+message handlers, and refresh events. It decides what to do and calls into
+modules that draw. Rendering means anything that builds a `Text`, a card, a row,
+a header, a label, a style or a CSS string, or computes layout (widths,
+columns, heights). Rendering modules are plain functions that take explicit
+arguments; the app passes its state in and keeps what comes back.
+
+- `layout.py`: column indices, width breakpoints and card-size constants.
+- `table_layout.py`: cards or columns for a pane size, the column plan, card shape.
+- `styles.py`: the Textual stylesheet and the theme variables it reads.
+- `row_cells.py`, `inbox_rows.py`: the cells of one row (time, name, model, directory).
+- `cards.py`: folds a row's cells into one card cell.
+- `table_rows.py`: brings a `DataTable` in line with a list of rows.
+- `table_columns.py`: hides columns and distributes width among them.
+
+Rendering still inside `app.py`: `_refresh_notifications`, `_refresh_history`
+and `_refresh_snoozed` build their tables in the method bodies, and the mode
+switches (`_set_history_mode` and friends) set up widgets.
