@@ -11,7 +11,7 @@ from lemonaid import groups
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, pins
-from lemonaid.inbox.tui import watcher_hooks
+from lemonaid.inbox.tui import row_keys, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 
 _ids = itertools.count(900)
@@ -203,7 +203,7 @@ def test_jump_digits_count_lemons_not_headers(monkeypatch):
 
 
 def _cursor_key(app) -> str:
-    return app._raw_row_key(app.query_one("#main_table", DataTable))
+    return row_keys.at_cursor(app.query_one("#main_table", DataTable))
 
 
 def _add_row_above(app):

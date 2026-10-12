@@ -1,17 +1,12 @@
 """Main Lemonaid TUI application."""
 
-import contextlib
-import dataclasses
 import os
 import shlex
-import sqlite3
 import subprocess
 import threading
 import time
-from collections import abc
 from pathlib import Path
 
-from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container
@@ -21,15 +16,13 @@ from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, groups, palette
+from ... import brief, groups
 from ... import resume as resume_mod
-from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
-from ...config import PlaceRoot, load_config
+from ...config import load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
-    ModelInfo,
     detect_terminal_switch_source,
     get_tmux_socket,
     stop_unified_watcher,
@@ -50,36 +43,27 @@ from ...tmux.scratch import (
 from .. import (
     db,
     emoji,
-    order,
     pins,
-    presence,
     resume_archived,
-    search,
     sections,
     unarchive,
     undo,
-    view,
 )
-from ..arrange import answer, child
 from . import (
     bindings,
     brief_cards,
-    card_context,
-    cursor_target,
     focus,
-    group_headers,
-    group_picker,
     history_rows,
-    inbox_rows,
+    inbox_groups,
+    inbox_list,
     layout,
-    pr_numbers,
-    project_names,
+    row_keys,
+    row_parts,
     snoozed_rows,
     status_line,
     styles,
     table_columns,
     table_layout,
-    table_rows,
     usage_view,
     utils,
     view_modes,
@@ -88,13 +72,13 @@ from . import (
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
 from .help_screen import HelpScreen
+from .inbox_list import InboxList
 from .notes import NotesPanel
 from .resume_error import ResumeErrorScreen
 from .screens import RenameScreen, SnoozeScreen, format_wake_time
 from .table import ClickToActTable
 from .usage_view import UsageHeader
 from .utils import (
-    GUTTER_WIDTH,
     JUMP_DIGITS,
     set_terminal_title,
     update_static,
@@ -135,11 +119,6 @@ def _tmux_pane_receives_keys(pane: str) -> bool | None:
     return parts[0] == "1" and parts[1] == "1" and int(parts[2]) > 0
 
 
-def _key_id(key: RowKey | None) -> int | None:
-    """The notification a table row's key names, or None for none or a group header."""
-    return sections.notification_id(str(key.value)) if key is not None and key.value else None
-
-
 class LemonaidApp(App):
     """Lemonaid TUI - attention inbox for your lemons."""
 
@@ -153,52 +132,28 @@ class LemonaidApp(App):
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
-        self._history_mode = False
+        self._mode: view_modes.Mode | None = None  # an alternate view, while one is shown
         self._search_mode = False
-        self._snoozed_mode = False
-        self._usage_mode = False
-        self._fold_open = False
-        self._unfolded_ids: frozenset[str] = (
-            frozenset()
-        )  # rows the last refresh kept out of the fold
         self._history_filter = ""
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
         self._name_scan_mtimes: dict[str, float] = {}
         self._focused: frozenset[str] = frozenset()
         self._focused_asked_at = 0.0
-        self._restore_checked: frozenset[str] = frozenset()
         self._input_focus_asked_at = 0.0
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
         self._hint_timer: Timer | None = None
         self._card_layout = False
         self._notes_open = True  # the notes key's choice; shown only in card layout too
-        self._models_by_channel: dict[str, ModelInfo] = {}
         self._brief_cache = brief_cards.BriefCache()
-        self._presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
-        self._pr_numbers = pr_numbers.Cache()
-        self._arranger = (
-            child.Arranger(child.parse_command(self.config.inbox.arrange))
-            if self.config.inbox.arrange
-            else None
+        self._parts = row_parts.RowParts(
+            self.config,
+            lambda drain: self.run_worker(drain, group="project-names"),
+            self._project_names_changed,
         )
-        self._arrange_error = ""
-        self._arrange_logged: set[str] = set()
-        self._fold_name = ""  # the arranger's name for the folded group
-        self._drawn: list[db.Notification | None] = []  # the main table's rows; None for a header
-        self._group_bands: dict[int, str] = {}  # each drawn group's band, by group id
-        self._headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
-        self._marked_header = ""  # the header drawn with the cursor's marker
-        self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
-        # The row a group was collapsed from, drawn until the cursor leaves it.
-        self._kept: frozenset[str] = frozenset()
         self._detached_channels: frozenset[str] = frozenset()
         self._resume_footer_shown = True
-        # Each row's project, by (cwd, branch, area): finding one resolves paths,
-        # which a refresh tick shouldn't repeat for rows that haven't changed.
-        self._projects: dict[tuple[str, str, str], card_context.Part] = {}
-        self._project_names = project_names.Cache()
         self._brief_target: brief.target.Target | None = None
         # Browsing briefs redraws at once and switches the main pane behind it;
         # only the newest selection is switched to once a switch finishes.
@@ -282,10 +237,14 @@ class LemonaidApp(App):
                 yield Input(
                     placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
                 )
-                yield ClickToActTable(id="main_table")
-                yield Static("", id="fold_label")
-                yield Static("", id="other_sources_label")
-                yield DataTable(id="other_sources_table", show_header=False)
+                yield InboxList(
+                    self.config,
+                    self._parts,
+                    self._brief_cache,
+                    self._undo_stack,
+                    self._refresh_notifications,
+                    id="inbox_list",
+                )
                 yield Static("", id="search_archive_label")
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
@@ -313,7 +272,7 @@ class LemonaidApp(App):
             self._update_active_row_background()
 
     def _refresh_usage(self) -> None:
-        if not (self.config.usage.overall_pace or self._usage_mode):
+        if not (self.config.usage.overall_pace or self._mode is view_modes.USAGE):
             return
 
         def load() -> None:
@@ -324,7 +283,7 @@ class LemonaidApp(App):
     def _show_usage(self, current: dict) -> None:
         usage_view.show(
             self.query_one(UsageHeader),
-            self.query_one("#usage_table", DataTable) if self._usage_mode else None,
+            self.query_one("#usage_table", DataTable) if self._mode is view_modes.USAGE else None,
             current,
             self.config.usage,
         )
@@ -380,8 +339,6 @@ class LemonaidApp(App):
     def on_unmount(self) -> None:
         """Stop the DB-mutating watcher before this app's resources disappear."""
         stop_unified_watcher()
-        if self._arranger is not None:
-            self._arranger.close()
 
     def _refresh_skills(self) -> None:
         """Bring installed skills up to date after an upgrade, saying so only when it did something."""
@@ -574,40 +531,11 @@ class LemonaidApp(App):
         table.add_column("Wakes" if wake_column else "TTY", width=9 if wake_column else 7)
 
     def _active_table_id(self) -> str:
-        if self._history_mode:
-            return "#history_table"
-        if self._snoozed_mode:
-            return "#snoozed_table"
-        if self._usage_mode:
-            return "#usage_table"
-
-        return "#main_table"
-
-    @staticmethod
-    def _raw_row_key(table: DataTable) -> str | None:
-        """The key of the row at a table's cursor: a notification's, or a group header's."""
-        if table.row_count == 0:
-            return None
-        try:
-            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-            return row_key.value if row_key else None
-        except Exception:
-            return None
-
-    @classmethod
-    def _row_key(cls, table: DataTable) -> str | None:
-        """The notification ID at a table's cursor, or None on a group header.
-
-        A lemon in two groups is drawn twice, under keys `<id>@<group>`; both
-        name the same notification.
-        """
-        raw = cls._raw_row_key(table)
-        found = sections.notification_id(raw) if raw else None
-        return str(found) if found is not None else None
+        return self._mode.table_id if self._mode else "#main_table"
 
     def _get_current_row_key(self) -> str | None:
         """Get the row key (notification ID) at current cursor."""
-        return self._row_key(self.query_one(self._active_table_id(), DataTable))
+        return row_keys.notification_at_cursor(self.query_one(self._active_table_id(), DataTable))
 
     def _get_current_row_index(self) -> int:
         """Get the current cursor row index."""
@@ -628,157 +556,11 @@ class LemonaidApp(App):
 
         return self._focused
 
-    def _backend_value(self, n: db.Notification, is_unread: bool, *, history: bool = False) -> Text:
-        return inbox_rows.backend_value(
-            n, is_unread, self.config.tui, self._models_by_channel, history=history
-        )
-
     def _project_names_changed(self) -> None:
-        self._projects.clear()
-        if self._history_mode:
+        if self._mode is view_modes.HISTORY:
             self._refresh_history()
         else:
             self._refresh_notifications()
-
-    def _project(self, n: db.Notification, area: str) -> card_context.Part:
-        key = (n.metadata.get("cwd", ""), n.metadata.get("git_branch", ""), area)
-        if key not in self._projects:
-            if self._project_names.request(
-                key[0], self.config.places.root_for(key[0]) if key[0] else None
-            ):
-                self.run_worker(
-                    self._project_names.drain(self._project_names_changed), group="project-names"
-                )
-            self._projects[key] = card_context.project_part(
-                self.config.places, *key, project_name=self._project_names.names.get(key[0], "")
-            )
-
-        return self._projects[key]
-
-    def _where_cell(self, n: db.Notification, is_unread: bool, area: str) -> Text:
-        return inbox_rows.where_cell(n, is_unread, self.config.tui, lambda: self._project(n, area))
-
-    def _context_parts(
-        self,
-        n: db.Notification,
-        is_unread: bool,
-        area: str,
-        card_brief: brief_cards.CardBrief | None = None,
-        now: float = 0.0,
-    ) -> list[card_context.Part]:
-        return inbox_rows.context_parts(
-            n, is_unread, self.config.tui, self._project(n, area), card_brief, now
-        )
-
-    def _active_row(
-        self,
-        n: db.Notification,
-        row_index: int,
-        focused_channels: frozenset[str],
-        pinned: frozenset[str],
-        emojis: abc.Mapping[str, str],
-        area: str = "",
-        wordybin: str = "",
-        pr_number: pr_numbers.PR | None = None,
-    ) -> tuple[str, list[Text]]:
-        """`focused_channels` names the lemons a user is looking at, and `pinned` the set of
-        pinned channels. Both are passed in rather than looked up here, since
-        every row in one refresh shares the answer.
-        """
-        return inbox_rows.active_row(
-            n,
-            row_index,
-            n.channel in focused_channels,
-            n.channel in pinned,
-            emojis,
-            self._backend_value(n, n.is_unread),
-            self._where_cell(n, n.is_unread, area),
-            self._detached_marker(n),
-            self.config.tui,
-            wordybin,
-            pr_number,
-        )
-
-    def _other_row(
-        self,
-        n: db.Notification,
-        emojis: abc.Mapping[str, str],
-        area: str = "",
-        wordybin: str = "",
-        pr_number: pr_numbers.PR | None = None,
-    ) -> tuple[str, list[Text]]:
-        return inbox_rows.other_row(
-            n,
-            emojis,
-            self._backend_value(n, False),
-            self._where_cell(n, False, area),
-            self.config.tui,
-            wordybin,
-            pr_number,
-        )
-
-    def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> "view.Active":
-        return view.ordered_active(
-            conn,
-            switch_source,
-            self._brief_cache,
-            self._presence,
-            self.config.tui.mid_turn_working,
-            time.time(),
-        )
-
-    def _arranged(
-        self,
-        active: "view.Active",
-        shown: list[db.Notification],
-        folded: list[db.Notification],
-        pinned: frozenset[str],
-        emojis: abc.Mapping[str, str],
-    ) -> tuple[list[db.Notification], list[db.Notification], str]:
-        """*shown* and *folded* as the arranger has them, and its fold label.
-
-        While it has no usable answer they come back as they are, and
-        `_arrange_error` says why for the status line.
-        """
-        if self._arranger is None:
-            return shown, folded, ""
-
-        now = time.time()
-        layout = "sidebar" if self._card_layout else "table"
-        reply = self._arranger.answer(
-            view.snapshot(active, shown, folded, pinned, emojis, layout, self.size.width, now), now
-        )
-        self._arrange_error = self._arranger.error
-        if reply is None:
-            return shown, folded, ""
-
-        try:
-            arranged = answer.apply(
-                reply, shown, folded, self.config.inbox.arrange_may_fold_unread, active.deaf
-            )
-        except answer.AnswerError as e:
-            if str(e) not in self._arrange_logged:
-                _log.warning("arrange: %s", e)
-                self._arrange_logged.add(str(e))
-            self._arrange_error = str(e)
-            return shown, folded, ""
-
-        if len(self._arrange_logged) > 1000:
-            self._arrange_logged.clear()  # problems name row ids, which keep changing
-        for problem in set(arranged.problems) - self._arrange_logged:
-            _log.info("arrange: %s", problem)
-        self._arrange_logged.update(arranged.problems)
-        return arranged.shown, arranged.folded, arranged.fold_label
-
-    def _refresh_pr_numbers(self) -> None:
-        for root in self._pr_numbers.due(self.config.places.roots, time.monotonic()):
-
-            def load(root: PlaceRoot = root) -> None:
-                numbers = pr_numbers.refresh(root)
-                self.call_from_thread(self._pr_numbers.store, root, numbers, time.monotonic())
-                self.call_from_thread(self._refresh_notifications)
-
-            self.run_worker(load, thread=True, group="pr-numbers")
 
     def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
         if not self.is_running:
@@ -793,330 +575,29 @@ class LemonaidApp(App):
 
         # Alternate views own the screen; the periodic tick still needs to wake
         # expired snoozes so they're waiting when the inbox comes back.
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
+        if self._mode is not None:
             self._wake_expired_snoozes()
-            if self._snoozed_mode:
+            if self._mode is view_modes.SNOOZED:
                 self._refresh_snoozed()
             return
 
         self._wake_expired_snoozes()
         self._refresh_session_names()
-        self._refresh_pr_numbers()
 
-        main_table = self.query_one("#main_table", DataTable)
-        fold_label = self.query_one("#fold_label", Static)
-        other_table = self.query_one("#other_sources_table", DataTable)
-        other_label = self.query_one("#other_sources_label", Static)
-
-        # Remember current selection (both key and index) for both tables
-        current_key = self._get_current_row_key()
-        current_row = self._raw_row_key(main_table)  # a header's, or a lemon's under its group
-        self._kept = self._kept if current_row in self._kept else frozenset()
-        current_index = self._get_current_row_index()
-        other_index = other_table.cursor_coordinate.row if other_table.row_count > 0 else 0
-        focused_on_other = self.focused is other_table
-        other_key = self._row_key(other_table) if focused_on_other else None
-
-        focused = self._focused_ttys()
-        with db.connect() as conn:
-            if focused != self._restore_checked:
-                self._restore_checked = focused  # asked once per change of focus: it can cost a ps
-                unarchive.restore_focused(conn, focused)
-            env_filter = self.current_env if self.current_env != "unknown" else None
-            pinned = frozenset(pins.pinned_positions(conn))
-            # Main table: only sessions switchable from the current environment
-            active = self._ordered_active(conn, env_filter)
-            focused_channels = focus.channels(active.rows, focused)
-            matching_ids = (
-                {result.notification.id for result in search.find(conn, self._history_filter)}
-                | {n.id for n in active.rows if n.channel in active.deaf}
-                if self._search_mode
-                else None
-            )
-            card_briefs = active.cards
-            in_view = {
-                n.channel
-                for n in active.rows
-                if n.channel in focused_channels or str(n.id) == current_key
-            }
-            shown, folded = order.fold(
-                view.inbox_rows(active, pinned, in_view),
-                view.statuses(card_briefs, active.rows),
-                pinned,
-                self.config.tui.fold_statuses,
-                {
-                    n.channel
-                    for n in active.rows
-                    if n.channel in focused_channels
-                    or (str(n.id) == current_key and current_key in self._unfolded_ids)
-                },
-                active.deaf,
-            )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
-            emojis = emoji.by_channel(conn)
-            group_list = groups.store.all_groups(conn)
-            colours = palette.assign_groups(
-                (g.name for g in group_list), self.config.tui.group_colors
-            )
-            group_list = [dataclasses.replace(g, colour=colours[g.name]) for g in group_list]
-            wordybins = (
-                {
-                    c: brief.identity.brief_name(i)
-                    for c, i in brief.identity.by_channel(conn).items()
-                }
-                if self.config.tui.brief_names_in_inbox
-                else {}
-            )
-            # Lower pane: live sessions from other switchable terminals.
-            # Headless sessions (switch_source IS NULL) are excluded — they can't be
-            # switched to from anywhere, so they belong in history instead.
-            if env_filter:
-                other_active = self._ordered_active(conn, None)
-                if matching_ids is not None:
-                    matching_ids |= {
-                        n.id for n in other_active.rows if n.channel in other_active.deaf
-                    }
-                other_in_view = {
-                    n.channel
-                    for n in other_active.rows
-                    if n.metadata.get("tty", "") in focused or str(n.id) in {current_key, other_key}
-                }
-                other_notifications = [
-                    n
-                    for n in view.inbox_rows(other_active, pinned, other_in_view)
-                    if n.switch_source is not None and n.switch_source != env_filter
-                ]
-            else:
-                other_notifications = []
-            numbers = pr_numbers.rows(
-                conn, [*active.rows, *other_notifications], self.config.places, self._pr_numbers
-            )
-
-        shown, folded, self._fold_name = self._arranged(active, shown, folded, pinned, emojis)
-        self._unfolded_ids = frozenset(str(n.id) for n in shown)
-        all_folded = folded  # grouped ones too, which hide in place rather than in the fold
-        entries: list[sections.Header | sections.Row]
-        if matching_ids is not None:
-            entries = [
-                sections.Row(str(n.id), n) for n in [*shown, *folded] if n.id in matching_ids
-            ]
-            other_notifications = [n for n in other_notifications if n.id in matching_ids]
-        else:
-            entries, folded = sections.layout(
-                shown,
-                folded,
-                pinned,
-                active.memberships,
-                group_list,
-                view.statuses(card_briefs, active.rows),
-                self._kept,
-                self._fold_open,
-                active.deaf,
-            )
-            if self._fold_open:
-                entries = [*entries, *(sections.Row(str(n.id), n) for n in folded)]
-        drawn = [e for e in entries if isinstance(e, sections.Row)]
-        numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
-        current_notifications = [e.notification for e in drawn]
-        briefs = (
-            {
-                e.key: card_briefs[e.notification.channel]
-                for e in drawn
-                if e.notification.channel in card_briefs
-            }
-            if self.config.tui.brief_status
-            else {}
+        inbox = self.query_one(InboxList)
+        drawn = inbox.refresh_list(
+            focused=self._focused_ttys(),
+            env_filter=self.current_env if self.current_env != "unknown" else None,
+            search_text=self._history_filter if self._search_mode else None,
+            detached=self._detached_channels,
+            cards=self._card_layout,
+            width=self.size.width,
+            height=self.size.height,
+            card_width=self._card_width(),
+            card_shape=self._card_shape,
+            stay_on_unread=stay_on_unread,
         )
-        age_inline = "age" in self.config.tui.card_fields
-        extra_lines = max(
-            (
-                card.extra_lines(age_inline)
-                for card in briefs.values()
-                if card and self._card_width()
-            ),
-            default=0,
-        )
-        now = time.time()
-
-        self._drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
-        self._group_bands = {
-            e.group.group_id: e.band for e in entries if isinstance(e, sections.Header)
-        }
-        areas = {channel: card.area for channel, card in card_briefs.items() if card.area}
-        unread_count = len({n.id for n in current_notifications if n.is_unread})
-        self._headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
-        self._marked_header = current_row if current_row in self._headers else ""
-        headers = {
-            e.key: (
-                group_headers.cells(
-                    e,
-                    self._card_width(),
-                    len(main_table.columns),
-                    layout.NAME_CELL,
-                    e.key == self._marked_header,
-                ),
-                group_headers.background(e),
-            )
-            for e in entries
-            if isinstance(e, sections.Header)
-        }
-        self.set_class(bool(unread_count), "-unread")
-        rebuilt = table_rows.sync_rows(
-            main_table,
-            [
-                (e.key, headers[e.key][0])
-                if isinstance(e, sections.Header)
-                else (
-                    e.key,
-                    self._active_row(
-                        e.notification,
-                        numbers_by_key[e.key],
-                        focused_channels,
-                        pinned,
-                        emojis,
-                        areas.get(e.notification.channel, ""),
-                        wordybins.get(e.notification.channel, ""),
-                        numbers.get(e.notification.channel),
-                    )[1],
-                )
-                for e in entries
-            ],
-            self._card_width(),
-            self._card_shape(extra_lines),
-            GUTTER_WIDTH,
-            self.config.tui.card_unread_style,
-            {e.key: emojis.get(e.notification.channel, "") for e in drawn},
-            briefs,
-            now,
-            {
-                e.key: self._context_parts(
-                    e.notification,
-                    e.notification.is_unread,
-                    areas.get(e.notification.channel, ""),
-                    briefs.get(e.key),
-                    now,
-                )
-                for e in drawn
-            },
-            age_inline,
-            self.config.tui.project_name_colors,
-            headers,
-            {
-                e.key: self._headers[f"group:{group}"].group.colour
-                for e in drawn
-                if (group := sections.row_group_id(e.key)) is not None
-                and f"group:{group}" in self._headers
-            },
-        )
-
-        fold_label.display = bool(all_folded) and not self._search_mode
-        update_static(
-            fold_label,
-            self._fold_label(
-                len(all_folded),
-                len(
-                    {
-                        name
-                        for n in [*shown, *all_folded]
-                        for name in active.memberships.get(n.channel, ())
-                    }
-                )
-                - len(self._headers),
-            ),
-        )
-
-        # Populate non-switchable table (always dim, not interactive).
-        # Hide it if the terminal is too short — main table gets priority.
-        _MIN_MAIN_ROWS = 5
-        chrome = 3 + bool(folded)  # header, other_label, the status/footer row, the fold line
-        other_height = min(len(other_notifications), 8)
-        room_for_main = self.size.height - chrome - other_height
-        show_other = other_notifications and room_for_main >= _MIN_MAIN_ROWS
-
-        if show_other:
-            other_label.update("── non-switchable ──")
-            other_label.display = True
-            other_table.display = True
-            table_rows.sync_rows(
-                other_table,
-                [
-                    self._other_row(
-                        n,
-                        emojis,
-                        areas.get(n.channel, ""),
-                        wordybins.get(n.channel, ""),
-                        numbers.get(n.channel),
-                    )
-                    for n in other_notifications
-                ],
-                self._card_width(),
-                self._card_shape(),
-                contexts_by_row={
-                    str(n.id): self._context_parts(n, False, areas.get(n.channel, ""))
-                    for n in other_notifications
-                },
-            )
-        else:
-            if other_table.row_count:
-                other_table.clear()
-            other_label.display = False
-            other_table.display = False
-            if focused_on_other:
-                self.query_one("#main_table", DataTable).focus()
-
-        # Restore other table cursor
-        if other_table.row_count > 0:
-            other_target = None
-            if other_key:
-                with contextlib.suppress(Exception):
-                    other_target = other_table.get_row_index(other_key)
-            other_table.move_cursor(
-                row=(
-                    other_target
-                    if other_target is not None
-                    else min(other_index, other_table.row_count - 1)
-                )
-            )
-
-        # Restore cursor position. An in-place update leaves the cursor where it
-        # was, so only a rebuild (or an explicit jump) needs to move it — moving
-        # it every tick is what made the list flash back to the top.
-        # When the focused lemon changes, by whatever route, the cursor goes to its
-        # row, unless the cursor is already on one of its rows.
-        follow = None
-        if focused_channels != self._followed_focus:
-            self._followed_focus = focused_channels
-            if not any(
-                str(n.id) == current_key and n.channel in focused_channels for n in active.rows
-            ):
-                follow = focus.first_row(entries, focused_channels)
-        if main_table.row_count > 0 and follow is not None:
-            main_table.move_cursor(row=follow)
-        elif main_table.row_count > 0 and (rebuilt or stay_on_unread):
-            target_index = None
-            unread_rows = [i for i, n in enumerate(self._drawn) if n and n.is_unread]
-            if stay_on_unread:
-                target_index = cursor_target.after_unread_action(unread_rows, current_index)
-            else:
-                # The same row, else the same lemon wherever it went, else the same place
-                for key in (current_row, current_key):
-                    if key and target_index is None:
-                        with contextlib.suppress(Exception):
-                            target_index = main_table.get_row_index(key)
-                if target_index is None and current_key:
-                    # Into or out of a group, or between groups, its key changed.
-                    target_index = next(
-                        (
-                            i
-                            for i, key in enumerate(main_table.rows)
-                            if str(sections.notification_id(str(key.value))) == current_key
-                        ),
-                        None,
-                    )
-                # Fall back to same position (clamped to valid range)
-                if target_index is None:
-                    target_index = min(current_index, main_table.row_count - 1)
-            main_table.move_cursor(row=target_index)
-
+        self.set_class(bool(drawn.unread), "-unread")
         self._refresh_resume_binding()
 
         archive_count = 0
@@ -1128,18 +609,18 @@ class LemonaidApp(App):
                 archive_label,
                 f"━ ARCHIVE · {archive_count} MATCH{'ES' if archive_count != 1 else ''} ━",
             )
-            inbox_height = int(main_table.show_header) + sum(
-                row.height for row in main_table.rows.values()
+            inbox_height = int(inbox.main.show_header) + sum(
+                row.height for row in inbox.main.rows.values()
             )
-            if show_other:
-                inbox_height += 1 + min(8, sum(row.height for row in other_table.rows.values()))
+            if drawn.other_shown:
+                inbox_height += 1 + min(8, sum(row.height for row in inbox.other.rows.values()))
             available_height = (
                 self.query_one("#inbox_content", Container).size.height
                 - self.query_one("#history_filter", Input).outer_size.height
                 - self.query_one("#status", Static).outer_size.height
                 - self._notes_height()
             )
-            show_archive = bool(archive_count) and (not other_notifications or bool(show_other))
+            show_archive = bool(archive_count) and (not drawn.other or drawn.other_shown)
             if show_archive:
                 first_archive_row = next(iter(history_table.rows.values())).height
                 show_archive = table_layout.archive_fits(
@@ -1152,7 +633,7 @@ class LemonaidApp(App):
             history_table.display = show_archive
             archive_label.display = show_archive
             if not show_archive and self.focused is history_table:
-                main_table.focus()
+                inbox.main.focus()
         else:
             self.set_class(False, "-search-archive")
             history_table.display = False
@@ -1162,12 +643,10 @@ class LemonaidApp(App):
         dimension = "width" if position == "left" else "height"
         self._set_status(
             status_line.inbox_status(
-                unread_count,
-                len(active.rows) - unread_count,
+                drawn.unread,
+                drawn.read,
                 self.current_env,
-                (len(current_notifications) + len(other_notifications), archive_count)
-                if self._search_mode
-                else None,
+                (drawn.matches, archive_count) if self._search_mode else None,
                 self._claude_patch_status == "unpatched",
                 dimension
                 if self._scratch_mode
@@ -1175,35 +654,16 @@ class LemonaidApp(App):
                 and size_has_drifted(position, getattr(self.size, dimension))
                 else "",
                 self.config.tui.keybindings.save_size,
-                self._arrange_error,
+                inbox.arrange_error,
             )
         )
 
-    def _fold_label(self, count: int, hidden_groups: int = 0) -> str:
-        """The fold's one line: which statuses, how many, any groups it hides, and its key.
-
-        *count* includes folded rows in groups, which hide in place under
-        their headers, and *hidden_groups* the groups with every row folded.
-        """
-        key = self.config.tui.keybindings.fold[:1]
-        group = (
-            f"{self._fold_name or ', '.join(self.config.tui.fold_statuses) or 'folded'} ({count})"
-        )
-        if self._fold_open:
-            return f"▴ {group} above" + (f" · {key} to fold" if key else "")
-
-        hidden = f" · {hidden_groups} group{'s' if hidden_groups != 1 else ''} hidden"
-        return (
-            f"▸ {group}"
-            + (hidden if hidden_groups > 0 else "")
-            + (f" · {key} to show" if key else "")
-        )
-
     def action_toggle_fold(self) -> None:
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
+        if self._mode is not None:
             return
 
-        self._fold_open = not self._fold_open
+        inbox = self.query_one(InboxList)
+        inbox.fold_open = not inbox.fold_open
         self._refresh_notifications()
 
     def action_quit(self) -> None:
@@ -1220,12 +680,8 @@ class LemonaidApp(App):
             self._set_brief_view(None)
             return
 
-        if self._snoozed_mode:
-            self._set_snoozed_mode(False)
-            return
-
-        if self._usage_mode:
-            self._set_usage_mode(False)
+        if self._mode in (view_modes.SNOOZED, view_modes.USAGE):
+            self._set_mode(self._mode, False)
             return
 
         if self._search_mode:
@@ -1237,26 +693,21 @@ class LemonaidApp(App):
         else:
             self.exit()
 
+    def _toggle_mode(self, mode: view_modes.Mode) -> None:
+        leaving = self._mode
+        if leaving is not None:
+            self._set_mode(leaving, False)
+        if leaving is not mode:
+            self._set_mode(mode, True)
+
     def action_toggle_history(self) -> None:
-        if self._usage_mode:
-            self._set_usage_mode(False)
-        if self._snoozed_mode:
-            self._set_snoozed_mode(False)
-        self._set_history_mode(not self._history_mode)
+        self._toggle_mode(view_modes.HISTORY)
 
     def action_toggle_usage(self) -> None:
-        if self._history_mode:
-            self._set_history_mode(False)
-        if self._snoozed_mode:
-            self._set_snoozed_mode(False)
-        self._set_usage_mode(not self._usage_mode)
+        self._toggle_mode(view_modes.USAGE)
 
     def action_toggle_snoozed(self) -> None:
-        if self._usage_mode:
-            self._set_usage_mode(False)
-        if self._history_mode:
-            self._set_history_mode(False)
-        self._set_snoozed_mode(not self._snoozed_mode)
+        self._toggle_mode(view_modes.SNOOZED)
 
     def action_help(self) -> None:
         """Show the key reference.
@@ -1326,23 +777,6 @@ class LemonaidApp(App):
             self._resume_footer_shown = resume_footer_shown
             self._set_binding_footer("resume_detached", show=resume_footer_shown)
             self.refresh_bindings()
-
-    def _detached_marker(self, notification: db.Notification) -> Text:
-        if notification.channel not in self._detached_channels:
-            return Text()
-
-        marker = Text(" · detached", style="dim")
-        if not self._can_resume_detached(notification):
-            marker.append(" · resume unavailable", style="dim red")
-
-        return marker
-
-    def _can_resume_detached(self, notification: db.Notification) -> bool:
-        return notification.switch_source in {"tmux", "cmux"} and bool(
-            resume_mod.build_resume_command(
-                self.config, notification.channel, notification.metadata
-            )
-        )
 
     def _refresh_session_names(self) -> None:
         """Pull newly-available backend titles into the inbox.
@@ -1424,220 +858,90 @@ class LemonaidApp(App):
     ) -> None:
         bindings.set_footer(self._bindings.key_to_bindings, action, show=show, label=label)
 
-    def _set_history_mode(self, enabled: bool) -> None:
+    def _set_mode(self, mode: view_modes.Mode, enabled: bool) -> None:
         if enabled and self._search_mode:
             self._stop_search(refresh=False)
-        self._history_mode = enabled
-        self._history_filter = ""
+        self._mode = mode if enabled else None
+        if mode is view_modes.HISTORY:
+            self._history_filter = ""
 
-        main_table = self.query_one("#main_table", DataTable)
-        other_label = self.query_one("#other_sources_label", Static)
-        other_table = self.query_one("#other_sources_table", DataTable)
-        history_table = self.query_one("#history_table", DataTable)
-        history_filter = self.query_one("#history_filter", Input)
-
-        # Inbox-only actions
-        for action in (*view_modes.INBOX_ONLY_ACTIONS, "archive"):
+        for action in mode.hidden_actions:
             self._set_binding_footer(action, show=not enabled)
-
-        # History-only actions
-        for action in view_modes.HISTORY_ONLY_ACTIONS:
+        for action in mode.shown_actions:
             self._set_binding_footer(action, show=enabled)
-
-        # Relabel contextual actions
         self._set_binding_footer(
-            "toggle_history",
-            label="Exit History" if enabled else "History",
+            mode.toggle_action,
+            label=f"Exit {mode.toggle_label}" if enabled else mode.toggle_label,
         )
-        self._set_binding_footer(
-            "select",
-            label="Resume" if enabled else "Switch",
-        )
-        if enabled and self._resume_footer_shown:
-            self._resume_footer_shown = False
-            self._set_binding_footer("resume_detached", show=False)
+        if mode.select_label:
+            self._set_binding_footer("select", label=mode.select_label if enabled else "Switch")
+            if enabled and self._resume_footer_shown:
+                self._resume_footer_shown = False
+                self._set_binding_footer("resume_detached", show=False)
         self.refresh_bindings()
+        if mode is view_modes.HISTORY:
+            self.set_class(enabled, "-history")
 
-        self.set_class(enabled, "-history")
+        inbox = self.query_one(InboxList)
+        table = self.query_one(mode.table_id, DataTable)
+        history_filter = self.query_one("#history_filter", Input)
+        if not enabled:
+            self.sub_title = "attention inbox"
+            table.display = False
+            if mode is view_modes.HISTORY:
+                history_filter.display = False
+            inbox.display = True
+            self._refresh_notifications()
+            inbox.main.focus()
+            return
 
-        if enabled:
-            self.sub_title = "session history"
-            view_modes.hide_inbox_panes(
-                main_table,
-                self.query_one("#fold_label", Static),
-                other_label,
-                other_table,
-                self.query_one("#search_archive_label", Static),
-            )
-            history_table.display = True
+        self.sub_title = mode.sub_title
+        inbox.display = False
+        self.query_one("#search_archive_label", Static).display = False
+        table.display = True
+        if mode is view_modes.HISTORY:
             history_filter.display = False
             history_filter.value = ""
             self._refresh_history()
-            history_table.focus()
+        elif mode is view_modes.SNOOZED:
+            self._refresh_snoozed()
         else:
-            self.sub_title = "attention inbox"
-            main_table.display = True
-            history_table.display = False
-            history_filter.display = False
-            self._refresh_notifications()
-            main_table.focus()
+            self._refresh_usage()
+        table.focus()
+
+    def _set_history_mode(self, enabled: bool) -> None:
+        self._set_mode(view_modes.HISTORY, enabled)
 
     def _refresh_history(self) -> int:
         history_table = self.query_one("#history_table", DataTable)
-        current_row = history_table.cursor_coordinate.row if history_table.row_count > 0 else 0
-
-        history_table.clear()
-
-        with db.connect() as conn:
-            if self._search_mode:
-                source = self.current_env if self.current_env != "unknown" else None
-                results = search.find(
-                    conn,
-                    self._history_filter,
-                    include_history=True,
-                    switch_source=source,
-                )
-                notifications = [
-                    result.notification for result in results if result.source == "archive"
-                ]
-            else:
-                notifications = db.get_history(conn, search=self._history_filter)
-            brief_paths = brief_attached.by_channel(conn, [n.channel for n in notifications])
-
-        for n in notifications:
-            if not resume_mod.has_resume_command(self.config, n.channel):
-                continue
-
-            card = (path := brief_paths.get(n.channel)) and self._brief_cache.get(path)
-            area = card.area if card else ""
-            cells, height = history_rows.history_row(
-                n,
-                card or None,
-                self._backend_value(n, False, history=True),
-                self._where_cell(n, False, area),
-                lambda n=n, area=area: self._context_parts(n, False, area),
-                self.config.tui.project_name_colors,
-                self._card_width(),
-                self._card_shape(),
-            )
-            history_table.add_row(*cells, key=str(n.id), height=height)
-
-        if history_table.row_count > 0:
-            history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
-
+        history_rows.fill(
+            history_table,
+            history_rows.load(
+                self._history_filter,
+                self.current_env if self.current_env != "unknown" else None,
+                self._search_mode,
+            ),
+            self.config,
+            self._parts,
+            self._brief_cache,
+            self._card_width(),
+            self._card_shape(),
+        )
         count = history_table.row_count
         if not self._search_mode:
             self._set_status(f"{count} archived session{'s' if count != 1 else ''}")
         return count
 
-    def _set_snoozed_mode(self, enabled: bool) -> None:
-        if enabled and self._search_mode:
-            self._stop_search(refresh=False)
-        self._snoozed_mode = enabled
-
-        main_table = self.query_one("#main_table", DataTable)
-        snoozed_table = self.query_one("#snoozed_table", DataTable)
-        other_label = self.query_one("#other_sources_label", Static)
-        other_table = self.query_one("#other_sources_table", DataTable)
-
-        # Inbox-only actions don't apply to the snoozed list
-        for action in view_modes.INBOX_ONLY_ACTIONS:
-            self._set_binding_footer(action, show=not enabled)
-
-        self._set_binding_footer(
-            "toggle_snoozed",
-            label="Exit Snoozed" if enabled else "Snoozed",
-        )
-        self._set_binding_footer("select", label="Wake" if enabled else "Switch")
-        if enabled and self._resume_footer_shown:
-            self._resume_footer_shown = False
-            self._set_binding_footer("resume_detached", show=False)
-        self.refresh_bindings()
-
-        if enabled:
-            self.sub_title = "snoozed"
-            view_modes.hide_inbox_panes(
-                main_table, self.query_one("#fold_label", Static), other_label, other_table
-            )
-            snoozed_table.display = True
-            self._refresh_snoozed()
-            snoozed_table.focus()
-        else:
-            self.sub_title = "attention inbox"
-            snoozed_table.display = False
-            main_table.display = True
-            self._refresh_notifications()
-            main_table.focus()
-
-    def _set_usage_mode(self, enabled: bool) -> None:
-        if enabled and self._search_mode:
-            self._stop_search(refresh=False)
-        self._usage_mode = enabled
-
-        main_table = self.query_one("#main_table", DataTable)
-        usage_table = self.query_one("#usage_table", DataTable)
-        for action in view_modes.INBOX_ONLY_ACTIONS:
-            self._set_binding_footer(action, show=not enabled)
-
-        self._set_binding_footer("toggle_usage", label="Exit Usage" if enabled else "Usage")
-        self.refresh_bindings()
-
-        if enabled:
-            self.sub_title = "usage"
-            view_modes.hide_inbox_panes(
-                main_table,
-                self.query_one("#fold_label", Static),
-                self.query_one("#other_sources_label", Static),
-                self.query_one("#other_sources_table", DataTable),
-            )
-            usage_table.display = True
-            self._refresh_usage()
-            usage_table.focus()
-        else:
-            self.sub_title = "attention inbox"
-            usage_table.display = False
-            main_table.display = True
-            self._refresh_notifications()
-            main_table.focus()
-
     def _refresh_snoozed(self) -> None:
         snoozed_table = self.query_one("#snoozed_table", DataTable)
-        current_row = snoozed_table.cursor_coordinate.row if snoozed_table.row_count > 0 else 0
-
-        with db.connect() as conn:
-            notifications = db.get_snoozed(conn)
-            brief_paths = brief_attached.by_channel(conn, [n.channel for n in notifications])
-        areas = {
-            channel: card.area
-            for channel, path in brief_paths.items()
-            if (card := self._brief_cache.get(path))
-        }
-
-        rebuilt = table_rows.sync_rows(
+        snoozed_rows.fill(
             snoozed_table,
-            [
-                (
-                    str(n.id),
-                    snoozed_rows.snoozed_cells(
-                        n,
-                        self._backend_value(n, False),
-                        self._where_cell(n, False, areas.get(n.channel, "")),
-                        self.config.tui.project_name_colors,
-                    ),
-                )
-                for n in notifications
-            ],
+            self.config,
+            self._parts,
+            self._brief_cache,
             self._card_width(),
             self._card_shape(),
-            contexts_by_row={
-                str(n.id): self._context_parts(n, False, areas.get(n.channel, ""))
-                for n in notifications
-            },
         )
-
-        if rebuilt and snoozed_table.row_count > 0:
-            snoozed_table.move_cursor(row=min(current_row, snoozed_table.row_count - 1))
-
         count = snoozed_table.row_count
         self._set_status(
             f"{count} snoozed session{'s' if count != 1 else ''}  |  Enter to wake now"
@@ -1665,7 +969,7 @@ class LemonaidApp(App):
         self._undo_stack.push(entry)
         _log.info("unsnooze: %s", notification.channel)
         self._refresh_snoozed()
-        self.notify(f"{entry.description} — press {self._undo_key()} to undo")
+        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
 
     def _show_error(self, title: str, message: str) -> None:
         _log.warning("%s: %s", title, message)
@@ -1756,7 +1060,7 @@ class LemonaidApp(App):
 
         table = self.query_one("#main_table", DataTable)
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := _key_id(row_key)) is None:
+        if (notification_id := row_keys.key_id(row_key)) is None:
             return
 
         with db.connect() as conn:
@@ -1766,7 +1070,7 @@ class LemonaidApp(App):
             self._show_error("That session is gone", "Its row was removed from the inbox.")
             return
 
-        if not self._can_resume_detached(notification):
+        if not inbox_list.can_resume_detached(notification, self.config):
             self.push_screen(
                 ResumeErrorScreen(
                     "Resume unavailable",
@@ -1889,13 +1193,13 @@ class LemonaidApp(App):
 
     def action_copy_resume(self) -> None:
         """Copy the resume command for the selected history session."""
-        if not (self._history_mode or self._search_mode):
+        if not (self._mode is view_modes.HISTORY or self._search_mode):
             return
         self._resume_session(copy_only=True)
 
     def action_tmux_resume(self) -> None:
         """Spawn a new tmux session around the selected history entry."""
-        if not (self._history_mode or self._search_mode):
+        if not (self._mode is view_modes.HISTORY or self._search_mode):
             return
 
         history_table = self.query_one("#history_table", DataTable)
@@ -1937,7 +1241,7 @@ class LemonaidApp(App):
 
     def action_filter_history(self) -> None:
         """Search inbox rows, or focus the existing history filter."""
-        if not self._history_mode and not self._search_mode:
+        if self._mode is not view_modes.HISTORY and not self._search_mode:
             self._search_mode = True
             self._history_filter = ""
             self.sub_title = "search"
@@ -1966,7 +1270,7 @@ class LemonaidApp(App):
             self._history_filter = event.value
             if self._search_mode:
                 self._refresh_notifications()
-            elif self._history_mode:
+            elif self._mode is view_modes.HISTORY:
                 self._refresh_history()
 
     def on_key(self, event: events.Key) -> None:
@@ -2100,14 +1404,14 @@ class LemonaidApp(App):
 
         while (
             0 <= next_row < table.row_count
-            and _key_id(table.coordinate_to_cell_key(Coordinate(next_row, 0))[0]) is None
+            and row_keys.key_id(table.coordinate_to_cell_key(Coordinate(next_row, 0))[0]) is None
         ):
             next_row += direction  # past a group header
         if not 0 <= next_row < table.row_count:
             return
 
         key, _ = table.coordinate_to_cell_key(Coordinate(next_row, 0))
-        if (notification_id := _key_id(key)) is None:
+        if (notification_id := row_keys.key_id(key)) is None:
             return
         with db.connect() as conn:
             notification = db.get(conn, notification_id)
@@ -2149,7 +1453,7 @@ class LemonaidApp(App):
             rows = [
                 notification
                 for key in keys
-                if (found := _key_id(key)) is not None
+                if (found := row_keys.key_id(key)) is not None
                 and found not in self._brief_targets
                 and (notification := db.get(conn, found))
             ]
@@ -2230,9 +1534,9 @@ class LemonaidApp(App):
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
         table = self._focused_table()
-        if (self._history_mode or self._search_mode) and table.id == "history_table":
+        if (self._mode is view_modes.HISTORY or self._search_mode) and table.id == "history_table":
             self._resume_session()
-        elif self._snoozed_mode and table.id == "snoozed_table":
+        elif self._mode is view_modes.SNOOZED and table.id == "snoozed_table":
             self._wake_selected()
         elif table.id == "main_table":
             table.action_select_cursor()
@@ -2247,17 +1551,13 @@ class LemonaidApp(App):
 
         self._refresh_notifications()
 
-    def _undo_key(self) -> str:
-        keys = self.config.tui.keybindings.undo
-        return keys[0] if keys else "z"
-
     def action_mark_read(self) -> None:
         table = self._focused_table()
         if table.row_count == 0:
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := _key_id(row_key)) is not None:
+        if (notification_id := row_keys.key_id(row_key)) is not None:
             with db.connect() as conn:
                 n = db.get(conn, notification_id)
                 if not n:
@@ -2282,7 +1582,7 @@ class LemonaidApp(App):
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := _key_id(row_key)) is None:
+        if (notification_id := row_keys.key_id(row_key)) is None:
             return
 
         with db.connect() as conn:
@@ -2309,7 +1609,7 @@ class LemonaidApp(App):
             return
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
-        if (notification_id := _key_id(row_key)) is None:
+        if (notification_id := row_keys.key_id(row_key)) is None:
             return
 
         self._archive_notification(notification_id)
@@ -2332,7 +1632,7 @@ class LemonaidApp(App):
         self._undo_stack.push(entry)
         _log.info("archive: %s", n.channel)
         self._refresh_notifications()
-        self.notify(f"{entry.description} — press {self._undo_key()} to undo")
+        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
 
     def _row_channels(self) -> list[str]:
         """The channel of every row on screen, in the order they are drawn.
@@ -2346,7 +1646,7 @@ class LemonaidApp(App):
         with db.connect() as conn:
             for row in range(table.row_count):
                 key, _ = table.coordinate_to_cell_key(Coordinate(row, 0))
-                found = _key_id(key)
+                found = row_keys.key_id(key)
                 notification = db.get(conn, found) if found is not None else None
                 channels.append(notification.channel if notification else "")
 
@@ -2354,7 +1654,7 @@ class LemonaidApp(App):
 
     def _selected_channel(self) -> str | None:
         """The channel of the row under the cursor, in the main list only."""
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
+        if self._mode is not None:
             return None
 
         row_key = self._get_current_row_key()
@@ -2380,127 +1680,33 @@ class LemonaidApp(App):
         self.notify(f"{'Pinned' if now_pinned else 'Unpinned'} {channel}")
 
     def _move_pin(self, offset: int) -> None:
-        """Trade places with the nearest pinned session `offset` away on screen.
-
-        The neighbour is taken from the rendered list rather than from the pins
-        table, so a pinned session that is currently snoozed keeps its position
-        and returns between the same two rows it sat between before.
-        """
         channel = self._selected_channel()
-        if not channel:
-            return
-
-        with db.connect() as conn:
-            if not pins.is_pinned(conn, channel):
-                return
-
-            pinned_now = pins.pinned_positions(conn)
-            on_screen = [c for c in self._row_channels() if c in pinned_now]
-            if channel not in on_screen:
-                return
-
-            neighbour = on_screen.index(channel) + offset
-            if not 0 <= neighbour < len(on_screen):
-                return
-
-            pins.swap(conn, channel, on_screen[neighbour])
-
-        self._refresh_notifications()
-        self._select_channel(channel)
+        if channel and inbox_groups.move_pin(
+            self.query_one(InboxList), channel, self._row_channels(), offset
+        ):
+            self._select_channel(channel)
 
     def _selected_group(self) -> "groups.store.Group | None":
         """The group whose header is under the cursor, in the main list only."""
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
-            return None
-
-        raw = self._raw_row_key(self.query_one("#main_table", DataTable))
-        found = sections.group_id(raw) if raw else None
-        if found is None:
-            return None
-
-        with db.connect() as conn:
-            return next((g for g in groups.store.all_groups(conn) if g.group_id == found), None)
-
-    def _select_key(self, key: str) -> None:
-        table = self.query_one("#main_table", DataTable)
-        with contextlib.suppress(Exception):
-            table.move_cursor(row=table.get_row_index(key))
-
-    def _toggle_group(self, group_id: int, from_row: str = "") -> None:
-        """Collapse an open group to its header, or open a collapsed one.
-
-        Collapsing from one of its lemons keeps that lemon drawn, under the
-        cursor, until the cursor moves off it.
-        """
-        with db.connect() as conn:
-            group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
-            if group is None:
-                return
-
-            groups.arrangement.set_collapsed(conn, group, not group.collapsed)
-
-        self._kept = frozenset({from_row} if from_row and not group.collapsed else ())
-        self._refresh_notifications()
-        self._select_key(from_row or f"group:{group_id}")
+        return None if self._mode is not None else self.query_one(InboxList).selected_group()
 
     def action_toggle_group(self) -> None:
         """Open or collapse the group whose header or lemon is under the cursor."""
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
-            return
+        if self._mode is None:
+            self.query_one(InboxList).toggle_group_at_cursor()
 
-        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
-        if (found := sections.group_id(raw)) is not None:
-            self._toggle_group(found)
-            return
-
-        if (found := sections.row_group_id(raw)) is not None:
-            self._toggle_group(found, from_row=raw)
-
-    def _move_group(self, group: "groups.store.Group", offset: int) -> None:
-        """Trade places with the group header *offset* away on screen.
-
-        Groups sort by their most pressing row first, so only the order among
-        groups drawn next to each other is the user's to change.
-        """
-        table = self.query_one("#main_table", DataTable)
-        on_screen = [
-            found
-            for row in range(table.row_count)
-            if (key := table.coordinate_to_cell_key(Coordinate(row, 0))[0]) is not None
-            and (found := sections.group_id(str(key.value))) is not None
-        ]
-        neighbour = on_screen.index(group.group_id) + offset
-        if not 0 <= neighbour < len(on_screen):
-            return
-
-        if self._group_bands.get(on_screen[neighbour]) != self._group_bands.get(group.group_id):
-            self.notify("Groups sort by their most pressing lemon; this one can't pass that group")
-            return
-
-        with db.connect() as conn:
-            other = next(
-                (g for g in groups.store.all_groups(conn) if g.group_id == on_screen[neighbour]),
-                None,
-            )
-            if other is None:
-                return
-
-            groups.arrangement.swap(conn, group, other)
-
-        self._refresh_notifications()
-        self._select_key(f"group:{group.group_id}")
+    def _move_pin_or_group(self, offset: int) -> None:
+        if group := self._selected_group():
+            if refused := self.query_one(InboxList).move_group(group, offset):
+                self.notify(refused)
+        else:
+            self._move_pin(offset)
 
     def action_move_pin_up(self) -> None:
-        if group := self._selected_group():
-            self._move_group(group, -1)
-        else:
-            self._move_pin(-1)
+        self._move_pin_or_group(-1)
 
     def action_move_pin_down(self) -> None:
-        if group := self._selected_group():
-            self._move_group(group, 1)
-        else:
-            self._move_pin(1)
+        self._move_pin_or_group(1)
 
     def _selected_lemon(self) -> "tuple[db.Notification, str] | None":
         """The row under the cursor in the main list and its Lemon-ID, when it has a brief."""
@@ -2518,132 +1724,25 @@ class LemonaidApp(App):
 
         return (notification, lemon_id) if notification else None
 
-    def _group_edited(self, edit: "groups.editing.Edit", select: abc.Sequence[str] = ()) -> None:
-        """Make *edit* undoable, redraw, and put the cursor on the first of *select* drawn.
-
-        A lemon key in *select* stays drawn even in a collapsed group, as one
-        collapsed from does, until the cursor leaves it. Otherwise the redraw
-        follows the lemon under the cursor wherever it went.
-        """
-        self._undo_stack.push(undo.Entry("group", edit.description, (), edit.change))
-        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
-        self._kept = frozenset({raw, *(key for key in select if "@" in key)})
-        self._refresh_notifications()
-        table = self.query_one("#main_table", DataTable)
-        drawn = [key for key in select if key in table.rows]
-        if drawn:
-            self._select_key(drawn[0])
-        self.notify(f"{edit.description} — press {self._undo_key()} to undo")
-        for path in edit.unwritten:
-            self.notify(f"Couldn't update the Groups: line in {path}", severity="warning")
-
-    def _rename_group(self, group: "groups.store.Group", title: str) -> None:
-        def renamed(name: str | None) -> None:
-            if name is None or name.strip() == group.name:
-                return
-
-            try:
-                with db.connect() as conn:
-                    edit = groups.editing.rename(conn, group, name)
-            except groups.store.GroupError as error:
-                self.notify(str(error), severity="warning")
-                return
-
-            self._group_edited(edit, [f"group:{group.group_id}"])
-
-        self.push_screen(RenameScreen(group.name, title=title, placeholder="Group name"), renamed)
-
     def action_group_tree(self) -> None:
-        """Ask for a name, then make a group of the selected lemon, its children and theirs."""
-        found = self._selected_lemon()
-        if found is None:
-            return
-
-        notification, lemon_id = found
-        lemon_name = notification.name or brief.identity.brief_description(lemon_id)
-
-        def named(name: str | None) -> None:
-            if not name or not name.strip():
-                return
-
-            try:
-                with db.connect() as conn:
-                    edit = groups.editing.group_tree(conn, lemon_id, name, lemon_name)
-            except groups.store.GroupError as error:
-                self.notify(str(error), severity="warning")
-                return
-
-            assert edit.group
-            self._group_edited(edit, [f"{notification.id}@{edit.group.group_id}"])
-
-        self.push_screen(
-            RenameScreen(
-                groups.editing.valid_name(lemon_name),
-                title="Group this lemon and its children",
-                placeholder="Group name, new or existing",
-            ),
-            named,
-        )
+        if found := self._selected_lemon():
+            inbox_groups.group_tree(self.query_one(InboxList), *found)
 
     def action_group_add(self) -> None:
-        """Put the selected lemon in a group picked from a list, or a new one."""
-        found = self._selected_lemon()
-        if found is None:
-            return
-
-        notification, lemon_id = found
-        name = notification.name or notification.channel
-        with db.connect() as conn:
-            names = [
-                g.name
-                for g in groups.store.all_groups(conn)
-                if g.members and lemon_id not in g.members
-            ]
-
-        def picked(group_name: str | None) -> None:
-            if not group_name:
-                return
-
-            try:
-                with db.connect() as conn:
-                    edit = groups.editing.add(conn, group_name, lemon_id, name)
-            except groups.store.GroupError as error:
-                self.notify(str(error), severity="warning")
-                return
-
-            assert edit.group
-            self._group_edited(
-                edit,
-                [f"{notification.id}@{edit.group.group_id}", f"group:{edit.group.group_id}"],
-            )
-
-        self.push_screen(group_picker.GroupPickerScreen(f"Add {name} to a group", names), picked)
+        if found := self._selected_lemon():
+            inbox_groups.group_add(self.query_one(InboxList), *found)
 
     def action_group_remove(self) -> None:
         """Take the lemon out of the group it's drawn in; on a header, delete the group."""
+        inbox = self.query_one(InboxList)
         if group := self._selected_group():
-            with db.connect() as conn:
-                edit = groups.editing.delete(conn, group)
-            self._group_edited(edit)
+            inbox_groups.delete_group(inbox, group)
             return
 
-        raw = self._raw_row_key(self.query_one("#main_table", DataTable)) or ""
-        group_id = sections.row_group_id(raw)
+        group_id = sections.row_group_id(row_keys.at_cursor(inbox.main) or "")
         found = self._selected_lemon() if group_id is not None else None
-        if found is None:
-            return
-
-        notification, lemon_id = found
-        with db.connect() as conn:
-            group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
-            if group is None:
-                return
-
-            edit = groups.editing.remove(
-                conn, group, lemon_id, notification.name or notification.channel
-            )
-
-        self._group_edited(edit)
+        if group_id is not None and found is not None:
+            inbox_groups.group_remove(inbox, group_id, *found)
 
     def _select_channel(self, channel: str) -> None:
         """Put the cursor back on a channel after the list around it moved."""
@@ -2655,7 +1754,7 @@ class LemonaidApp(App):
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""
-        if self._history_mode or self._snoozed_mode or self._usage_mode:
+        if self._mode is not None:
             return
 
         row_key = self._get_current_row_key()
@@ -2686,7 +1785,7 @@ class LemonaidApp(App):
             self._undo_stack.push(entry)
             _log.info("snooze: %s until %.0f", notification.channel, until)
             self._refresh_notifications()
-            self.notify(f"{entry.description} — press {self._undo_key()} to undo")
+            self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
 
         self.push_screen(
             SnoozeScreen(
@@ -2723,9 +1822,9 @@ class LemonaidApp(App):
 
         _log.info("undo: %s (%d rows)", entry.action, restored)
         self._retarget_brief()
-        if self._history_mode:
+        if self._mode is view_modes.HISTORY:
             self._refresh_history()
-        elif self._snoozed_mode:
+        elif self._mode is view_modes.SNOOZED:
             self._refresh_snoozed()
         else:
             self._refresh_notifications()
@@ -2735,7 +1834,7 @@ class LemonaidApp(App):
     def action_rename(self) -> None:
         """Rename the selected session, or the group whose header is under the cursor."""
         if self._brief_target is None and (group := self._selected_group()):
-            self._rename_group(group, "Rename Group")
+            inbox_groups.rename(self.query_one(InboxList), group, "Rename Group")
             return
 
         row_key = self._get_current_row_key()
@@ -2764,7 +1863,7 @@ class LemonaidApp(App):
                 db.update_name(conn, notification_id, name_to_set)
 
             self._undo_stack.push(entry)
-            if self._history_mode:
+            if self._mode is view_modes.HISTORY:
                 self._refresh_history()
             else:
                 self._retarget_brief()
@@ -2890,9 +1989,7 @@ class LemonaidApp(App):
         if (
             self._scratch_mode
             and is_follow_enabled()
-            and not self._history_mode
-            and not self._snoozed_mode
-            and not self._usage_mode
+            and self._mode is None
             and current_position(self.config.tmux_session.scratch_position) == "left"
         ):
             pane = os.environ.get("TMUX_PANE", "")
@@ -2906,16 +2003,14 @@ class LemonaidApp(App):
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
-        unread = [(n.created_at, row) for row, n in enumerate(self._drawn) if n and n.is_unread]
-        if not unread:
+        inbox = self.query_one(InboxList)
+        row = inbox.earliest_unread_row()
+        if row is None:
             self.notify("No unread notifications", severity="information")
             return
 
-        # Pins and status bands spread unread rows through the list, so the
-        # earliest is found by age rather than by position.
-        table = self.query_one("#main_table", DataTable)
-        table.move_cursor(row=min(unread)[1])
-        table.action_select_cursor()
+        inbox.main.move_cursor(row=row)
+        inbox.main.action_select_cursor()
 
     def action_jump_to_number(self, digit: str) -> None:
         """Switch to the numbered session, as though it had been selected by hand.
@@ -2925,22 +2020,14 @@ class LemonaidApp(App):
         is unnumbered for the same reason in reverse: nothing there can be
         switched to at all.
         """
-        if self._history_mode:
+        inbox = self.query_one(InboxList)
+        if self._mode is view_modes.HISTORY or not inbox.display:
             return
 
-        table = self.query_one("#main_table", DataTable)
-        if not table.display:
-            return
-
-        lemons = [
-            row for row, n in enumerate(self._drawn) if n is not None
-        ]  # headers are unnumbered
-        nth = JUMP_DIGITS.find(digit)
-        if nth < 0 or nth >= len(lemons):
-            return
-
-        table.move_cursor(row=lemons[nth])
-        self.action_select()
+        row = inbox.lemon_row(JUMP_DIGITS.find(digit))
+        if row is not None:
+            inbox.main.move_cursor(row=row)
+            self.action_select()
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""
@@ -3001,32 +2088,10 @@ class LemonaidApp(App):
             return  # queued highlights can arrive after shutdown removes the tables
 
         if event.data_table.id == "main_table":
-            self._mark_header(str(event.row_key.value) if event.row_key else "")
-        self._refresh_resume_binding()
-
-    def _mark_header(self, key: str) -> None:
-        """Move the cursor's marker to the header at *key*, or off every header."""
-        wanted = key if key in self._headers else ""
-        if wanted == self._marked_header:
-            return
-
-        table = self.query_one("#main_table", DataTable)
-        for changed in (self._marked_header, wanted):
-            if not changed:
-                continue
-
-            cells = group_headers.cells(
-                self._headers[changed],
-                self._card_width(),
-                len(table.columns),
-                layout.NAME_CELL,
-                changed == wanted,
+            self.query_one(InboxList).mark_header(
+                str(event.row_key.value) if event.row_key else "", self._card_width()
             )
-            with contextlib.suppress(Exception):  # the row may be gone before a refresh
-                row = table.get_row_index(changed)
-                for column, value in enumerate(cells):
-                    table.update_cell_at((row, column), value, update_width=False)
-        self._marked_header = wanted
+        self._refresh_resume_binding()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self._activate_row(event.data_table.id, event.row_key)
@@ -3038,7 +2103,7 @@ class LemonaidApp(App):
         # pane behind it. An external jump can leave the cursor on another lemon.
         if event.data_table.id == "main_table" and self.has_class("-input-active"):
             with db.connect() as conn:
-                found = _key_id(event.row_key)
+                found = row_keys.key_id(event.row_key)
                 notification = db.get(conn, found) if found is not None else None
             behind = focus.behind_scratch(os.environ.get("TMUX_PANE", ""), get_tmux_socket())
             if notification and behind and notification.metadata.get("tty") == behind:
@@ -3060,10 +2125,10 @@ class LemonaidApp(App):
             return
 
         if row_key is not None and (group_id := sections.group_id(str(row_key.value))) is not None:
-            self._toggle_group(group_id)
+            self.query_one(InboxList).toggle_group(group_id)
             return
 
-        if (notification_id := _key_id(row_key)) is None:
+        if (notification_id := row_keys.key_id(row_key)) is None:
             return
 
         with db.connect() as conn:

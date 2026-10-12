@@ -17,8 +17,9 @@ from lemonaid import claude, codex
 from lemonaid.brief import attached, render, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, turns
-from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view, watcher_hooks
+from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view, inbox_frame, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.inbox_list import InboxList
 from lemonaid.lemon_watchers import watcher
 
 
@@ -203,7 +204,14 @@ def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
         async with app.run_test(size=(60, 40)) as pilot:
             await pilot.pause()
             with db.connect() as conn:
-                active = app._ordered_active(conn, None)
+                active = inbox_frame.ordered_active(
+                    conn,
+                    None,
+                    app.config,
+                    app._brief_cache,
+                    app.query_one(InboxList).presence,
+                    time.time(),
+                )
             return {
                 n.channel: (i, active.cards[n.channel].shown, active.cards[n.channel].needs_line)
                 for i, n in enumerate(active.rows)

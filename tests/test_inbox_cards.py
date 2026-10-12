@@ -537,8 +537,8 @@ def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
         message="working",
     )
 
-    assert tui._backend_value(known, False).plain == "Opus 5.5"
-    assert tui._backend_value(temporarily_missing, False).plain == "Opus 5.5"
+    assert tui._parts.backend_value(known, False).plain == "Opus 5.5"
+    assert tui._parts.backend_value(temporarily_missing, False).plain == "Opus 5.5"
 
 
 def test_building_a_card_does_not_mutate_column_layout_justification():

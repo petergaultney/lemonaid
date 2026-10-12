@@ -49,9 +49,9 @@ def test_u_opens_the_usage_table_and_back(monkeypatch):
             await pilot.press("U")
             table = app.query_one("#usage_table", DataTable)
             await _until(pilot, lambda: table.row_count == 2)
-            assert table.display and not app.query_one("#main_table").display
+            assert table.display and not app.query_one("#inbox_list").display
 
             await pilot.press("q")
-            await _until(pilot, lambda: not table.display and app.query_one("#main_table").display)
+            await _until(pilot, lambda: not table.display and app.query_one("#inbox_list").display)
 
     asyncio.run(check())

@@ -35,12 +35,12 @@ def test_app_invalidates_cached_labels_after_background_lookup(tmp_path, monkeyp
     monkeypatch.setattr(inbox, "_refresh_notifications", lambda: None)
     monkeypatch.setattr(inbox, "_refresh_history", lambda: None)
     monkeypatch.setattr(inbox, "_refresh_snoozed", lambda: None)
-    assert inbox._project(n, "inbox").text.plain == "repo: inbox"
-    assert inbox._project(n, "other").text.plain == "repo: other"
+    assert inbox._parts.project(n, "inbox").text.plain == "repo: inbox"
+    assert inbox._parts.project(n, "other").text.plain == "repo: other"
     assert len(workers) == 1
     asyncio.run(workers.pop())
-    assert inbox._project(n, "inbox").text.plain == "tools/relay: inbox"
-    assert inbox._project(n, "other").text.plain == "tools/relay: other"
+    assert inbox._parts.project(n, "inbox").text.plain == "tools/relay: inbox"
+    assert inbox._parts.project(n, "other").text.plain == "tools/relay: other"
     assert workers == []
 
 
@@ -54,8 +54,8 @@ def test_innermost_root_selects_its_own_hook(tmp_path, monkeypatch):
     inbox = app.LemonaidApp()
     with db.connect() as conn:
         n = db.add(conn, "test", "hello", metadata={"cwd": str(inner.path)})
-    assert inbox._project(n, "").text.plain == "inner"
-    assert inbox._project_names.names == {}
+    assert inbox._parts.project(n, "").text.plain == "inner"
+    assert inbox._parts.project_names.names == {}
 
 
 def test_hook_names_render_in_both_layouts_and_alternate_views(tmp_path, monkeypatch):

@@ -5,6 +5,7 @@ from textual.widgets import DataTable
 
 from lemonaid import groups, lineage
 from lemonaid.inbox import db
+from lemonaid.inbox.tui import row_keys
 from tests.test_inbox_groups_tui import _channels, _keep_sessions, _run, _session  # noqa: F401
 
 
@@ -187,7 +188,7 @@ def test_the_cursor_follows_a_lemon_into_a_collapsed_group_and_out_to_another(in
         await pilot.pause()
         await pilot.press(*"Work", "enter")
         await pilot.pause()
-        into = _under_cursor(app), app._raw_row_key(app.query_one("#main_table", DataTable))
+        into = _under_cursor(app), row_keys.at_cursor(app.query_one("#main_table", DataTable))
         await pilot.press("minus")
         await pilot.pause()
         return into, _under_cursor(app)

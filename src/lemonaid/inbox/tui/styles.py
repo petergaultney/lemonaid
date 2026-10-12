@@ -15,7 +15,7 @@ CSS = (
     height: 1fr;
 }
 
-#main_table {
+#inbox_list, #main_table {
     height: 1fr;
 }
 
@@ -116,7 +116,7 @@ App.-history DataTable > .datatable--header {
     text-style: bold;
 }
 
-App.-search-archive #main_table {
+App.-search-archive #inbox_list, App.-search-archive #main_table {
     height: auto;
 }
 

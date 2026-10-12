@@ -13,6 +13,7 @@ from textual.widgets import Static
 from lemonaid.inbox import db
 from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.inbox_list import InboxList
 
 _REVERSE = """
 from lemonaid.inbox.arrange import answer
@@ -65,14 +66,16 @@ def _drawn(*, fold_name: str = "", error: str = "") -> tuple[list[int], str, str
             while time.monotonic() < deadline:
                 await pilot.pause()
                 status = str(app.query_one("#status", Static).render())
-                if (fold_name and app._fold_name == fold_name) or (error and error in status):
+                if (fold_name and app.query_one(InboxList).fold_name == fold_name) or (
+                    error and error in status
+                ):
                     break
             else:
                 raise AssertionError(
                     f"arranger did not reach fold={fold_name!r} or error={error!r}; {status=}"
                 )
             return (
-                [n.id for n in app._drawn],
+                [n.id for n in app.query_one(InboxList).drawn],
                 str(app.query_one("#fold_label", Static).render()),
                 status,
             )
