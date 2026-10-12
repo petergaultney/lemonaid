@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, backend_indicators, cards, layout
+from lemonaid.inbox.tui import app, backend_indicators, cards, layout, table_rows
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
@@ -137,7 +137,7 @@ def test_the_row_is_tall_enough_for_the_separator():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m " * 40)]
     card = cards.as_card(cells, 30, message_lines=3)
 
-    assert app._row_height(card) == len(card[layout.CARD_BODY_COLUMN].plain.split("\n"))
+    assert table_rows.row_height(card) == len(card[layout.CARD_BODY_COLUMN].plain.split("\n"))
 
 
 def test_a_short_card_does_not_pad_to_the_budget():

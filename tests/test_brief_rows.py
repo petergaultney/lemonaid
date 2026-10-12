@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, layout
+from lemonaid.inbox.tui import app, brief_rows, layout
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import ATTENTION_COLOR, here_bar_style, jump_gutter
 from lemonaid.tmux import scratch
@@ -27,7 +27,7 @@ def _row(
         Text("message"),
         Text("ttys001"),
     ]
-    return app.brief_rows.styled(
+    return brief_rows.styled(
         cells,
         CardBrief(brief_status, "", 0, mid_turn=mid_turn),
         layout.UNREAD_CELL,
@@ -45,7 +45,7 @@ def test_a_blocked_row_is_amber_with_black_text_and_a_provider_badge():
     """Deeper than the unread header's yellow, which it sits right under."""
     cells = _row("blocked", unread=True)
 
-    assert app.brief_rows.background(CardBrief("blocked", "", 0)).bgcolor.name == "#c9a93a"
+    assert brief_rows.background(CardBrief("blocked", "", 0)).bgcolor.name == "#c9a93a"
     for index in (0, 3, 4, 5, 6, 7):
         assert _style(cells[index]).color.name == "#000000"
     assert _style(cells[1]).color.name == "#000000"  # the dot, visible on yellow
@@ -56,7 +56,7 @@ def test_a_blocked_row_is_amber_with_black_text_and_a_provider_badge():
 def test_a_done_row_is_blue_with_white_text_and_keeps_its_dot():
     cells = _row("done", unread=True)
 
-    assert app.brief_rows.background(CardBrief("done", "", 0)).bgcolor.name == "#285995"
+    assert brief_rows.background(CardBrief("done", "", 0)).bgcolor.name == "#285995"
     assert _style(cells[6]).color.name == "#ffffff"
     assert _style(cells[1]).color.name == ATTENTION_COLOR
 
@@ -71,7 +71,7 @@ def test_the_current_session_keeps_its_green_bar():
 def test_idle_dims_only_once_read_and_active_is_unchanged():
     assert _style(_row("")[6]).dim
     assert not _style(_row("", unread=True)[6]).dim
-    assert app.brief_rows.background(CardBrief("", "", 0)) is None
+    assert brief_rows.background(CardBrief("", "", 0)) is None
     assert not _style(_row("", mid_turn=True)[6]).dim
     assert _style(_row("", mid_turn=True)[4]).color.name == "#ff0066"
 
@@ -122,10 +122,10 @@ def test_a_merge_row_is_green_and_an_alert_row_red():
     merge = _row("merge", unread=True)
     alert = _row("alert", unread=True)
 
-    assert app.brief_rows.background(CardBrief("merge", "", 0)).bgcolor.name == "#4fb35a"
+    assert brief_rows.background(CardBrief("merge", "", 0)).bgcolor.name == "#4fb35a"
     assert _style(merge[6]).color.name == "#000000"
     assert _style(merge[1]).color.name == "#000000"
-    assert app.brief_rows.background(CardBrief("alert", "", 0)).bgcolor.name == "#c62828"
+    assert brief_rows.background(CardBrief("alert", "", 0)).bgcolor.name == "#c62828"
     assert _style(alert[6]).color.name == "#ffffff"
     assert _style(alert[1]).color.name == "#ffffff"
 
@@ -133,7 +133,7 @@ def test_a_merge_row_is_green_and_an_alert_row_red():
 def test_a_review_row_is_brown():
     review = _row("review", unread=True)
 
-    assert app.brief_rows.background(CardBrief("review", "", 0)).bgcolor.name == "#8a5a2b"
+    assert brief_rows.background(CardBrief("review", "", 0)).bgcolor.name == "#8a5a2b"
     assert _style(review[6]).color.name == "#ffffff"
     assert _style(review[1]).color.name == "#ffffff"
 
@@ -141,7 +141,7 @@ def test_a_review_row_is_brown():
 def test_an_approve_row_is_purple():
     approve = _row("approve", unread=True)
 
-    assert app.brief_rows.background(CardBrief("approve", "", 0)).bgcolor.name == "#7e57c2"
+    assert brief_rows.background(CardBrief("approve", "", 0)).bgcolor.name == "#7e57c2"
     assert _style(approve[6]).color.name == "#ffffff"
     assert _style(approve[1]).color.name == "#ffffff"
 
@@ -149,7 +149,7 @@ def test_an_approve_row_is_purple():
 def test_a_running_row_is_teal():
     running = _row("running", unread=True)
 
-    assert app.brief_rows.background(CardBrief("running", "", 0)).bgcolor.name == "#00838f"
+    assert brief_rows.background(CardBrief("running", "", 0)).bgcolor.name == "#00838f"
     assert _style(running[6]).color.name == "#ffffff"
     assert _style(running[1]).color.name == "#ffffff"
 
@@ -161,7 +161,7 @@ def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
     cells[2] = backend_indicators.backend_text(
         "claude:s", {}, False, model="claude-opus-5-5", context_percent=100
     )
-    backend = app.brief_rows.styled(
+    backend = brief_rows.styled(
         cells, CardBrief("review", "", 0), layout.UNREAD_CELL, layout.BACKEND_CELL, 3, 2
     )[2]
 

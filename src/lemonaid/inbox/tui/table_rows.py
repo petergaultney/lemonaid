@@ -1,0 +1,130 @@
+"""Bring an inbox DataTable in line with its rows, as columns or cards."""
+
+from collections import abc
+
+from rich.style import Style
+from rich.text import Text
+from textual.coordinate import Coordinate
+from textual.widgets import DataTable
+
+from . import brief_cards, brief_rows, card_context, cards, layout
+from .table import ClickToActTable
+from .utils import same_cell
+
+
+def without_marker(cells: list[Text]) -> list[Text]:
+    """Cells minus the unread marker, for a table built without that column."""
+    return [cell for index, cell in enumerate(cells) if index != layout.UNREAD_CELL]
+
+
+def row_height(cells: list[Text]) -> int:
+    """A card is as tall as it needs to be - a padded one is mostly blank lines.
+
+    The trailing separator counts: a row allocated shorter than its card clips
+    that blank line, which made the gap between cards come and go depending on
+    how far the message happened to wrap.
+    """
+    return len(cells[layout.CARD_BODY_COLUMN].plain.split("\n"))
+
+
+def sync_rows(
+    table: DataTable,
+    rows: list[tuple[str, list[Text]]],
+    card_width: int = 0,
+    shape: tuple[int, int] = (1, 1),
+    gutter_width: int = 0,
+    unread_style: str = "dot",
+    emojis_by_row: abc.Mapping[str, str] | None = None,
+    briefs_by_row: abc.Mapping[str, brief_cards.CardBrief | None] | None = None,
+    now: float = 0.0,
+    contexts_by_row: abc.Mapping[str, abc.Sequence[card_context.Part]] | None = None,
+    age_inline: bool = False,
+    neutral_timing: bool = False,
+    headers: abc.Mapping[str, tuple[list[Text], Style | None]] | None = None,
+    rails_by_row: abc.Mapping[str, str] | None = None,
+) -> bool:
+    """Bring a DataTable in line with `rows`, in place where possible.
+
+    `headers` are group header rows by key, already drawn, with their fill.
+
+    `table.clear()` plus re-adding resets the cursor and scroll offset, which
+    reads as the list flashing to the top on every refresh tick. When the row set
+    and its order are unchanged — the common case, where only a message or status
+    moved — cells are updated in place and the cursor never moves.
+
+    Returns True if the table was rebuilt, meaning the caller has to restore the
+    cursor itself. Textual has no public row-reorder API, so a genuine order
+    change still costs a rebuild.
+    """
+    carded = card_width > 0
+    headers = headers or {}
+    shapes = iter(
+        [
+            (
+                key,
+                cards.as_card(
+                    cells,
+                    card_width,
+                    *shape,
+                    gutter_width,
+                    unread_style,
+                    (emojis_by_row or {}).get(key, ""),
+                    (briefs_by_row or {}).get(key),
+                    now,
+                    (contexts_by_row or {}).get(key),
+                    age_inline,
+                    neutral_timing,
+                    (rails_by_row or {}).get(key, ""),
+                )
+                if carded
+                else brief_rows.styled(
+                    cells,
+                    (briefs_by_row or {}).get(key),
+                    layout.UNREAD_CELL,
+                    layout.BACKEND_CELL,
+                    layout.NAME_CELL,
+                    gutter_width,
+                ),
+            )
+            for key, cells in rows
+            if key not in headers
+        ]
+    )
+    shaped = [(key, headers[key][0]) if key in headers else next(shapes) for key, _ in rows]
+
+    if isinstance(table, ClickToActTable):
+        table.row_backgrounds = {
+            key: fill
+            for key, _ in rows
+            if not carded
+            and (
+                fill := headers[key][1]
+                if key in headers
+                else brief_rows.background((briefs_by_row or {}).get(key))
+            )
+        }
+
+    if [str(key.value) for key in table.rows] == [key for key, _ in shaped]:
+        resized = False
+        for key, cells in shaped:
+            row_index = table.get_row_index(key)
+            for column, value in enumerate(cells):
+                if not same_cell(table.get_cell_at(Coordinate(row_index, column)), value):
+                    table.update_cell_at((row_index, column), value, update_width=False)
+            # A row keeps the height it was added with, so a card whose message
+            # shortened would otherwise hold its old size and pad with blanks.
+            if carded:
+                row = table.rows[table.ordered_rows[row_index].key]
+                height = row_height(cells)
+                if row.height != height:
+                    row.height = height
+                    resized = True
+        if resized:
+            table._update_dimensions(table.rows.keys())
+        return False
+
+    table.clear()
+    for key, cells in shaped:
+        table.add_row(*cells, key=key, height=row_height(cells) if carded else 1)
+
+    return True
