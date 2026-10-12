@@ -235,6 +235,65 @@ def test_a_permission_prompt_does_overwrite(tmp_path, monkeypatch):
         )
 
 
+def test_a_question_keeps_its_text_through_the_permission_prompt_after_it(tmp_path, monkeypatch):
+    """Claude sends a generic permission_prompt just after an AskUserQuestion request."""
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    from lemonaid.inbox import db as real_db
+
+    with (
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("a-session", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys004"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+    ):
+        notify.handle_notification(
+            stdin_data='{"session_id":"ask1","cwd":"/tmp/project",'
+            '"hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion",'
+            '"tool_input":{"questions":[{"question":"How should the smoke test run?"}]}}'
+        )
+        notify.handle_notification(
+            stdin_data='{"session_id":"ask1","cwd":"/tmp/project",'
+            '"hook_event_name":"Notification","notification_type":"permission_prompt"}'
+        )
+
+    with real_db.connect() as conn:
+        row = real_db.get_by_channel(conn, "claude:ask1", unread_only=False)
+    assert row.message == "How should the smoke test run?"
+    assert row.asks
+
+
+def test_a_tool_permission_request_does_not_hold_its_message(tmp_path, monkeypatch):
+    monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
+    from lemonaid.inbox import db as real_db
+
+    with (
+        patch(
+            "lemonaid.claude.notify.resolve_session_name",
+            return_value=notify.SessionName("a-session", notify.TITLE_SOURCE),
+        ),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value="/dev/ttys005"),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value="main"),
+    ):
+        notify.handle_notification(
+            stdin_data='{"session_id":"tool1","cwd":"/tmp/project",'
+            '"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{}}'
+        )
+        notify.handle_notification(
+            stdin_data='{"session_id":"tool1","cwd":"/tmp/project",'
+            '"hook_event_name":"Notification","notification_type":"permission_prompt"}'
+        )
+
+    with real_db.connect() as conn:
+        row = real_db.get_by_channel(conn, "claude:tool1", unread_only=False)
+    assert row.message == "Permission needed in tmp/project"
+
+
 def test_the_hook_names_a_session_from_the_transcript_it_reports():
     payload = (
         '{"session_id":"abc123","cwd":"/tmp/project/notes",'

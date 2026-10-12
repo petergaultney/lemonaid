@@ -364,3 +364,16 @@ def test_record_context_keeps_a_known_window_when_a_reading_lacks_one():
 
     assert updated.metadata["context_tokens"] == 2_000
     assert updated.metadata["context_window"] == 200_000
+
+
+def test_update_message_leaves_a_pending_question_alone(tmp_path):
+    with db.connect(tmp_path / "test.db") as conn:
+        db.add(
+            conn, "claude:ask", "Smoke test?", metadata={"notification_type": "PermissionRequest"}
+        )
+        db.add(conn, "claude:done", "Waiting", metadata={"notification_type": "Stop"})
+
+        assert db.update_message(conn, "claude:ask", "Running kubectl") == 0
+        assert db.update_message(conn, "claude:done", "Running kubectl") == 1
+        db.mark_read(conn, db.get_by_channel(conn, "claude:ask").id)
+        assert db.update_message(conn, "claude:ask", "Running kubectl") == 1

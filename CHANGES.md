@@ -3,6 +3,7 @@
 #### Fixed
 
 - **A reviewer lemon waiting on a permission prompt or a question for you shows in the inbox.** Quiet reviewers are still hidden after an ordinary turn ends.
+- **A pending Claude question shows its own text in the inbox, and keeps it until you answer.** The permission prompt Claude sends right after it, and the transcript watcher's newest tool call, no longer replace it.
 
 # 0.102.0 (2026-10-12)
 

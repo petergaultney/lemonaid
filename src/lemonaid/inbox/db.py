@@ -852,9 +852,14 @@ def record_turn(conn: sqlite3.Connection, channel: str, at: float | None) -> int
 def update_message(conn: sqlite3.Connection, channel: str, message: str) -> int:
     """Update the message for a channel without changing read/unread status.
 
-    Used for real-time activity updates while Claude is working.
-    Returns count of notifications updated.
+    Used for real-time activity updates while Claude is working. A row that `asks`
+    keeps its message: the transcript doesn't show the pending question, so its
+    newest entry is older news. Returns count of notifications updated.
     """
+    existing = get_by_channel(conn, channel, unread_only=False)
+    if existing and existing.asks:
+        return 0
+
     cursor = conn.execute(
         """
         UPDATE notifications

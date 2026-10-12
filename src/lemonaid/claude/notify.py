@@ -445,6 +445,22 @@ def _describe(notification_type: str, short_path: str) -> tuple[str, bool]:
     return f"{notification_type} in {short_path}", True
 
 
+def _question(data: dict) -> str:
+    """The first question an AskUserQuestion permission request puts to you, or ""."""
+    questions = (data.get("tool_input") or {}).get("questions") or [{}]
+    return str(questions[0].get("question", "")) if isinstance(questions[0], dict) else ""
+
+
+def _repeats_a_question(notification_type: str, existing: db.Notification | None) -> bool:
+    """Claude follows a question's PermissionRequest with a generic permission_prompt."""
+    return (
+        notification_type == "permission_prompt"
+        and existing is not None
+        and existing.is_unread
+        and bool(existing.metadata.get("question"))
+    )
+
+
 def _final_message(data: dict) -> str:
     """What Claude ended the turn with, from the hook payload or the transcript."""
     if isinstance(said := data.get("last_assistant_message"), str) and said:
@@ -505,6 +521,9 @@ def handle_notification(stdin_data: str | None = None) -> None:
         _log.warning("dropped a %s notification with no session id", notification_type)
         return
 
+    if question := _question(data):
+        message = metadata["question"] = question
+
     # Check existing state before upsert for logging
     with db.connect() as conn:
         existing = db.get_by_channel(conn, channel, unread_only=False)
@@ -528,7 +547,8 @@ def handle_notification(stdin_data: str | None = None) -> None:
             name=name,
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
-            keep_existing_message=not tells_us_what_was_said,
+            keep_existing_message=not tells_us_what_was_said
+            or _repeats_a_question(notification_type, existing),
             status=_status_after(notification_type, channel, data),
             ends_turn=notification_type in _TURN_ENDED,
         )
