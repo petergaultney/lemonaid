@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..config import Config
 from ..inbox import db
-from . import autoresume_cmux, autoresume_tmux, resume_log
+from . import autoresume_cmux, autoresume_tmux, resume_log, wake
 
 STARTED = "started"
 STARTING = "starting"  # a start in the last minute may still be coming up
@@ -33,7 +33,7 @@ def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> 
     if terminal == "cmux" and start:
         return autoresume_cmux.start(row, config, text)
 
-    by_hand = autoresume_tmux.resume_line(row, config)
+    by_hand = wake.resume_line(row, config)
     return (
         f"lemonaid can't {'start' if start else 'prompt'} a lemon in "
         f"{terminal or 'this terminal'}"

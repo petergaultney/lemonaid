@@ -12,10 +12,10 @@ from ..config import Config
 from ..inbox import db
 from ..launch import command
 from ..resume import build_resume_command
-from . import autoresume_tmux
+from . import wake
 
 
-def start(row: db.Notification, config: Config, text: str = autoresume_tmux.PROMPT) -> str:
+def start(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
     """Resume *row*'s session on *text* in a new, unfocused workspace. Returns why not, or ""."""
     resumable = build_resume_command(config, row.channel, row.metadata)
     if resumable is None:

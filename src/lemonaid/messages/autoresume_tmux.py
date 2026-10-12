@@ -5,42 +5,24 @@ per server, so `%3` on the sender's server is some other pane.
 """
 
 import re
-import shlex
 import subprocess
 import time
 
+from .. import tmux
 from ..config import BackendConfig, Config
 from ..inbox import db
 from ..launch import window
 from ..restore import launch
-from ..resume import build_resume_command
 from ..tmux import navigation, submit
+from . import wake
 
-PROMPT = (
-    "You were resumed to read a message: run `lemonaid inbox next --self`. Then rearm "
-    "the waiters your brief lists under ## Waiters, and carry on."
-)
 _SUBMIT_PAUSE_SECONDS = 1.0  # lets the composer take the typed text before Enter
 # Claude Code's composer marker, U+276F; a dialog marks its chosen option with it too, then text.
 _EMPTY_COMPOSER = re.compile("\\s*\u276f\\s*")
 
 
-def resume_line(row: db.Notification, config: Config) -> str:
-    """The shell line that resumes *row*'s session by hand, or ""."""
-    resumable = build_resume_command(config, row.channel, row.metadata)
-    if resumable is None:
-        return ""
-
-    cwd, argv = resumable
-    return f"cd {shlex.quote(cwd)} && {shlex.join(argv)}"
-
-
 def _tmux(row: db.Notification, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [*navigation.server_args(row.metadata.get("tmux_socket")), *args],
-        capture_output=True,
-        text=True,
-    )
+    return tmux.run(args, row.metadata.get("tmux_socket"))
 
 
 def _pane(row: db.Notification) -> str:
@@ -73,7 +55,7 @@ def ready_for_input(screen: str) -> bool:
     )
 
 
-def start(row: db.Notification, config: Config, text: str = PROMPT) -> str:
+def start(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
     """Resume *row*'s exited harness on *text* in a new window of its tmux session. Returns why not, or ""."""
     session = str(row.metadata.get("tmux_session") or "")
     if not session:
@@ -104,7 +86,7 @@ def start(row: db.Notification, config: Config, text: str = PROMPT) -> str:
     return "" if typed.returncode == 0 else f"could not type the resume into pane {pane}"
 
 
-def prompt(row: db.Notification, config: Config, text: str = PROMPT) -> str:
+def prompt(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
     """Type *text* into *row*'s idle harness and submit it. Returns why not, or ""."""
     pane = _pane(row)
     if not pane:

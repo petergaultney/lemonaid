@@ -11,7 +11,7 @@ from pathlib import Path
 from ..brief import status
 from ..config import Config
 from ..inbox import db
-from . import autoresume_tmux, recipient, revive
+from . import recipient, revive, wake
 
 START = "start"  # its harness exited: resume it in a new window
 PROMPT = "prompt"  # its harness is idle with no waiter: type the wake prompt into it
@@ -61,7 +61,7 @@ def finished(found: Recipient, state: recipient.State, config: Config) -> str:
     parts = status.split(found.brief_text)
     marked = "archived" if found.row.is_archived else f"marked {parts.status or 'done'}"
     running = "is not running and " if state.state == recipient.DEAD else ""
-    command = autoresume_tmux.resume_line(found.row, config)
+    command = wake.resume_line(found.row, config)
     return " ".join(
         [
             f"{found.lemon_id} {running}was {marked}",
@@ -141,7 +141,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
             "will read it after it is answered. Don't send it again; tell your user."
         ), False
 
-    outcome = revive.revive(found.row, found.inbox, action == START, config, autoresume_tmux.PROMPT)
+    outcome = revive.revive(found.row, found.inbox, action == START, config, wake.PROMPT)
     if outcome.kind == revive.STARTING:
         return (
             f"{found.lemon_id} is already being started, and reads the message once it is up.",

@@ -8,7 +8,7 @@ import pytest
 from lemonaid import messages_config
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume_tmux
+from lemonaid.messages import autoresume_tmux, wake
 
 _IDLE = "✻ Worked for 8s\n\n────────\n\u276f \n────────\n  status line\n"
 _DIALOG = "Do you want to proceed?\n\u276f 1. Yes\n  2. No\n"
@@ -64,7 +64,7 @@ def test_prompt_types_and_submits_in_the_recorded_pane_on_its_server(tmux):
     assert all(
         call[:6] == ["tmux", "-S", "/tmp/other.sock", "send-keys", "-t", "%3"] for call in sent
     )
-    assert sent[0][6:] == ["-l", autoresume_tmux.PROMPT]
+    assert sent[0][6:] == ["-l", wake.PROMPT]
     assert sent[1][6:] == ["Enter"]
 
 

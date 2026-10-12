@@ -5,7 +5,7 @@ import pytest
 from lemonaid import handlers
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume_cmux, autoresume_tmux, recipient, revive
+from lemonaid.messages import autoresume_cmux, recipient, revive, wake
 
 
 def _row(**metadata) -> db.Notification:
@@ -40,7 +40,7 @@ def test_start_opens_an_unfocused_workspace_on_the_wake_prompt(monkeypatch):
     assert opened == [
         (
             "/tmp",
-            ["lemonaid", "claude", "resume", "abc12345-full", autoresume_tmux.PROMPT],
+            ["lemonaid", "claude", "resume", "abc12345-full", wake.PROMPT],
             "fixing",
             False,
         )
@@ -48,7 +48,7 @@ def test_start_opens_an_unfocused_workspace_on_the_wake_prompt(monkeypatch):
 
 
 def test_an_idle_cmux_lemon_cannot_be_prompted():
-    why = revive.bring_back(_row(), False, Config(), autoresume_tmux.PROMPT)
+    why = revive.bring_back(_row(), False, Config(), wake.PROMPT)
 
     assert why == "lemonaid can't prompt a lemon in cmux"
 
@@ -62,7 +62,7 @@ def test_another_terminal_gets_the_command_to_resume_by_hand():
         switch_source="wezterm",
     )
 
-    why = revive.bring_back(row, True, Config(), autoresume_tmux.PROMPT)
+    why = revive.bring_back(row, True, Config(), wake.PROMPT)
 
     assert why == (
         "lemonaid can't start a lemon in wezterm; it resumes with: "
@@ -88,4 +88,4 @@ def test_a_codex_resumed_in_cmux_gets_the_flags_that_skip_its_startup_dialogs(mo
     assert autoresume_cmux.start(row, Config()) == ""
     assert opened[0][:2] == ["codex", "-c"]
     assert "check_for_update_on_startup=false" in opened[0]
-    assert opened[0][-1] == autoresume_tmux.PROMPT
+    assert opened[0][-1] == wake.PROMPT
