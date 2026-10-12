@@ -78,7 +78,7 @@ reports only threads that are new or changed since.
   and exits. A bare `--codex-thread` means the lemon's own thread (`$CODEX_THREAD_ID`).
   Write it bare rather than `--codex-thread "$CODEX_THREAD_ID"`: Codex matches its allow
   rules only against commands with no shell expansions in them, so the `$` form goes to the
-  approval reviewer instead ([Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer)). The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
+  approval reviewer instead ([Codex setup](codex.md#3-allow-brief-and-message-commands-under-the-automatic-approval-reviewer)). The waiter needs to write `~/.codex`, so it runs outside the workspace sandbox;
   it refuses to start if it cannot.
 - **OpenClaw:** `lemonaid watch openclaw start <doc> --session-key <key> --me <name>` adds
   the doc to that session's watch list and starts one `systemd-run --user` unit per session

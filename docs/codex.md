@@ -18,7 +18,25 @@ notify = ["lemonaid", "codex", "notify"]
 
 **Important**: In TOML, anything after a `[table]` header belongs to that table. The `notify` setting must appear before any tables to be recognized as a root-level setting.
 
-### 2. Allow brief and message commands under the automatic approval reviewer
+### 2. Report permission prompts (optional)
+
+Codex's `notify` reports only finished turns. To have the inbox show a Codex lemon as
+`blocked` while it waits on an approval, add a `PermissionRequest` hook to
+`~/.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "lemonaid codex notify" }] }
+    ]
+  }
+}
+```
+
+Codex asks you to trust a new hook the first time it loads it.
+
+### 3. Allow brief and message commands under the automatic approval reviewer
 
 With `approvals_reviewer = "auto_review"` in `~/.codex/config.toml`, Codex can reject these commands because they write outside the project workspace. Add these rules to `~/.codex/rules/default.rules` if Codex lemons use briefs and lemon-to-lemon messages:
 

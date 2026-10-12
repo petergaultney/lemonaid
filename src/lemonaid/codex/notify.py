@@ -169,12 +169,13 @@ def handle_notification(
         or data.get("notification_type")
         or data.get("event")
         or data.get("type")
+        or data.get("hook_event_name")
         or "agent-turn-complete"
     )
 
     if not message:
         short_path = shorten_path(cwd or "")
-        if "approval" in notification_type or "permission" in notification_type:
+        if "approval" in notification_type.lower() or "permission" in notification_type.lower():
             message = f"Permission needed in {short_path}"
         elif notification_type in _TURN_ENDED:
             message = f"Waiting in {short_path}"

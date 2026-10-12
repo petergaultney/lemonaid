@@ -3,7 +3,7 @@
 #### Fixed
 
 - **A reviewer lemon waiting on a permission prompt or a question for you shows in the inbox.** Quiet reviewers are still hidden after an ordinary turn ends.
-- **A lemon stuck on a permission prompt or a question for you is `blocked` in the inbox, whatever its brief says.** It sorts and is drawn as `blocked`, with or without a brief, until its transcript moves past the prompt; reading its row doesn't clear it.
+- **A lemon stuck on a permission prompt or a question for you is `blocked` in the inbox, whatever its brief says.** It sorts and is drawn as `blocked`, with or without a brief, until its transcript moves past the prompt; reading its row doesn't clear it. Codex reports its approvals once you add the `PermissionRequest` hook in [Codex setup](docs/codex.md#2-report-permission-prompts-optional).
 - **A pending Claude question shows its own text in the inbox, and keeps it until you answer.** The permission prompt Claude sends right after it, and the transcript watcher's newest tool call, no longer replace it.
 
 # 0.102.0 (2026-10-12)

@@ -906,7 +906,7 @@ restart a task that already had the maximum timeout. The same goes for
 
 When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
 `lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
-described in [Codex setup](codex.md#2-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
+described in [Codex setup](codex.md#3-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
 
 ### Stopping your waiters
 
