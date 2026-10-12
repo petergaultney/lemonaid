@@ -10,7 +10,7 @@ from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.edits.screens import SnoozeScreen
 from lemonaid.inbox.tui.watchers import watcher_hooks
 
-from .test_brief_navigation import _lemons, _until
+from ..shared import lemons, until
 
 
 def _tab_for_briefs(monkeypatch) -> None:
@@ -21,17 +21,17 @@ def _tab_for_briefs(monkeypatch) -> None:
 
 
 def test_tab_opens_the_brief_and_goes_back_to_the_inbox(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 2)
+    rows, state = lemons(monkeypatch, tmp_path, 2)
     _tab_for_briefs(monkeypatch)
 
     async def check() -> None:
         app = LemonaidApp(scratch_mode=True)
         async with app.run_test(size=(50, 30)) as pilot:
             await pilot.press("tab")
-            await _until(pilot, lambda: app._brief_target == state["targets"][0])
+            await until(pilot, lambda: app._brief_target == state["targets"][0])
 
             await pilot.press("tab")
-            await _until(pilot, lambda: app._brief_target is None)
+            await until(pilot, lambda: app._brief_target is None)
 
     asyncio.run(check())
 

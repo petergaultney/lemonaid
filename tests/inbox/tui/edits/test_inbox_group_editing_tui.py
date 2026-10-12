@@ -7,14 +7,14 @@ from lemonaid import groups, lineage
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.tables import row_keys
 
-from .test_inbox_groups_tui import _channels, _keep_sessions, _run, _session  # noqa: F401
+from .shared import channels, keep_sessions, run, session  # noqa: F401
 
 
 @pytest.fixture
 def inbox() -> dict[str, str]:
     with db.connect() as conn:
         ids = {
-            name: _session(conn, name, status)
+            name: session(conn, name, status)
             for name, status in (("lead", "working"), ("child", "working"), ("loose", "done"))
         }
         lineage.links.set_parent(conn, ids["child"], ids["lead"])
@@ -23,11 +23,11 @@ def inbox() -> dict[str, str]:
 
 
 def _cursor_on(app, channel: str) -> None:
-    app.query_one("#main_table", DataTable).move_cursor(row=_channels(app).index(channel))
+    app.query_one("#main_table", DataTable).move_cursor(row=channels(app).index(channel))
 
 
 def _under_cursor(app) -> str:
-    return _channels(app)[app.query_one("#main_table", DataTable).cursor_coordinate.row]
+    return channels(app)[app.query_one("#main_table", DataTable).cursor_coordinate.row]
 
 
 def _group_id(name: str) -> int:
@@ -49,9 +49,9 @@ def test_g_asks_for_a_name_then_groups_a_lemon_with_its_children(inbox):
         asked = _groups()
         await pilot.press("ctrl+u", *"Inbox", "enter")
         await pilot.pause()
-        return asked, _channels(app)[-3:], _under_cursor(app)
+        return asked, channels(app)[-3:], _under_cursor(app)
 
-    asked, drawn, cursor = _run(steps)
+    asked, drawn, cursor = run(steps)
 
     assert asked == {"Work": (inbox["loose"],)}
     assert _groups()["Inbox"] == (inbox["lead"], inbox["child"])
@@ -68,7 +68,7 @@ def test_escape_at_gs_name_makes_no_group(inbox):
         await pilot.press("escape")
         await pilot.pause()
 
-    _run(steps)
+    run(steps)
 
     assert _groups() == {"Work": (inbox["loose"],)}
 
@@ -86,7 +86,7 @@ def test_plus_puts_a_lemon_in_a_picked_group_and_z_takes_it_out(inbox):
         await pilot.pause()
         return added
 
-    added, cursor = _run(steps)
+    added, cursor = run(steps)
 
     assert added["Work"] == (inbox["loose"], inbox["lead"])
     assert cursor == "claude:lead"
@@ -102,7 +102,7 @@ def test_plus_with_a_new_name_makes_the_group(inbox):
         await pilot.press(*"Review", "down", "enter")
         await pilot.pause()
 
-    _run(steps)
+    run(steps)
 
     assert _groups()["Review"] == (inbox["child"],)
 
@@ -113,19 +113,19 @@ def test_minus_takes_a_lemon_out_and_its_emptied_group_goes_from_the_list(inbox)
         _cursor_on(app, "claude:loose")
         await pilot.press("minus")
         await pilot.pause()
-        return _channels(app), _under_cursor(app)
+        return channels(app), _under_cursor(app)
 
-    channels, cursor = _run(steps)
+    drawn, cursor = run(steps)
 
     assert _groups() == {"Work": ()}
-    assert "" not in channels
+    assert "" not in drawn
     assert cursor == "claude:loose"
 
 
 def test_minus_on_a_header_deletes_the_group_and_z_brings_it_back(inbox):
     async def steps(app, pilot):
         await pilot.pause()
-        app.query_one("#main_table", DataTable).move_cursor(row=_channels(app).index(""))
+        app.query_one("#main_table", DataTable).move_cursor(row=channels(app).index(""))
         await pilot.press("minus")
         await pilot.pause()
         deleted = _groups()
@@ -133,20 +133,20 @@ def test_minus_on_a_header_deletes_the_group_and_z_brings_it_back(inbox):
         await pilot.pause()
         return deleted
 
-    assert _run(steps) == {}
+    assert run(steps) == {}
     assert _groups() == {"Work": (inbox["loose"],)}
 
 
 def test_r_on_a_header_renames_the_group(inbox):
     async def steps(app, pilot):
         await pilot.pause()
-        app.query_one("#main_table", DataTable).move_cursor(row=_channels(app).index(""))
+        app.query_one("#main_table", DataTable).move_cursor(row=channels(app).index(""))
         await pilot.press("r")
         await pilot.pause()
         await pilot.press("ctrl+u", *"Done work", "enter")
         await pilot.pause()
 
-    _run(steps)
+    run(steps)
 
     assert _groups() == {"Done work": (inbox["loose"],)}
 
@@ -157,7 +157,7 @@ def test_an_undo_refused_for_a_taken_name_can_be_tried_again(inbox):
             groups.store.create(conn, "Other")  # so a new group can't reuse Work's ID
         app._refresh_notifications()
         await pilot.pause()
-        app.query_one("#main_table", DataTable).move_cursor(row=_channels(app).index(""))
+        app.query_one("#main_table", DataTable).move_cursor(row=channels(app).index(""))
         await pilot.press("minus")
         await pilot.pause()
         with db.connect() as conn:
@@ -171,7 +171,7 @@ def test_an_undo_refused_for_a_taken_name_can_be_tried_again(inbox):
         await pilot.pause()
         return refused
 
-    refused = _run(steps)
+    refused = run(steps)
 
     assert refused == {"Other": (), "Work": ()}
     assert _groups() == {"Other": (), "Work": (inbox["loose"],)}
@@ -194,7 +194,7 @@ def test_the_cursor_follows_a_lemon_into_a_collapsed_group_and_out_to_another(in
         await pilot.pause()
         return into, _under_cursor(app)
 
-    (into, key), out = _run(steps)
+    (into, key), out = run(steps)
 
     assert into == "claude:lead" and key.endswith(f"@{_group_id('Work')}")
     assert out == "claude:lead"
@@ -210,6 +210,6 @@ def test_g_with_an_existing_groups_name_adds_the_tree_to_it(inbox):
         await pilot.press("ctrl+u", *"Work", "enter")
         await pilot.pause()
 
-    _run(steps)
+    run(steps)
 
     assert _groups() == {"Work": (inbox["loose"], inbox["lead"], inbox["child"])}

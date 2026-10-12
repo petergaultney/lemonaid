@@ -16,7 +16,7 @@ from lemonaid.inbox.tui.briefs.brief_questions import AnswerScreen
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.messages import store
 
-from .test_brief_navigation import _lemons, _until
+from ..shared import lemons, until
 
 _BRIEF = """\
 # Ship it
@@ -252,7 +252,7 @@ def test_yes_key_conflicts_with_another_brief_action():
 
 
 def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
-    _lemons(monkeypatch, tmp_path, 1)
+    lemons(monkeypatch, tmp_path, 1)
     path, inbox = _attached_brief()
     monkeypatch.setattr(
         target, "for_notification", lambda *args: target.Target([path], [], None, [], "Ship it")
@@ -262,7 +262,7 @@ def test_the_scratch_pane_brief_takes_the_same_keys(monkeypatch, tmp_path):
         app = LemonaidApp(scratch_mode=True)
         async with app.run_test(size=(80, 40)) as pilot:
             await pilot.press("b")
-            await _until(pilot, lambda: app._brief_target is not None)
+            await until(pilot, lambda: app._brief_target is not None)
             await pilot.pause()
             await pilot.press("]", "a")
             assert isinstance(app.screen, AnswerScreen)

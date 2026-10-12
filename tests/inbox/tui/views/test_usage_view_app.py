@@ -12,7 +12,7 @@ from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.views import usage_view
 from lemonaid.usage import samples
 
-from ..briefs.test_brief_navigation import _until
+from ..shared import until
 
 
 def _half_used(monkeypatch) -> None:
@@ -34,7 +34,7 @@ def test_header_shows_pace_after_the_subtitle(monkeypatch):
     async def check() -> None:
         app = LemonaidApp()
         async with app.run_test(size=(120, 30)) as pilot:
-            await _until(pilot, lambda: "usage" in str(app.query_one(HeaderTitle).render()))
+            await until(pilot, lambda: "usage" in str(app.query_one(HeaderTitle).render()))
             assert str(app.query_one(HeaderTitle).render()).rstrip().endswith("usage 0.70x")
 
     asyncio.run(check())
@@ -48,10 +48,10 @@ def test_u_opens_the_usage_table_and_back(monkeypatch):
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.press("U")
             table = app.query_one("#usage_table", DataTable)
-            await _until(pilot, lambda: table.row_count == 2)
+            await until(pilot, lambda: table.row_count == 2)
             assert table.display and not app.query_one("#inbox_list").display
 
             await pilot.press("q")
-            await _until(pilot, lambda: not table.display and app.query_one("#inbox_list").display)
+            await until(pilot, lambda: not table.display and app.query_one("#inbox_list").display)
 
     asyncio.run(check())

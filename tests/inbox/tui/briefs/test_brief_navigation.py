@@ -1,104 +1,19 @@
 """Arrows in the sidebar brief redraw at once and move the main pane behind them."""
 
 import asyncio
-import dataclasses
-import threading
-from pathlib import Path
 
 from textual.widgets import ContentSwitcher, DataTable, Input
 
-from lemonaid.brief import sidebar, target
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.inbox.tui.tables.table import ClickToActTable
-from lemonaid.inbox.tui.watchers import watcher_hooks
 
-
-def _lemons(monkeypatch, tmp_path: Path, count: int) -> tuple[list[db.Notification], dict]:
-    """Rows in list order, each with its own brief, and the sidebar state they share."""
-    with db.connect() as conn:
-        rows = [
-            db.add(
-                conn,
-                f"claude:lemon-{index}",
-                "working",
-                f"lemon-{index}",
-                {"cwd": str(tmp_path), "tty": f"/dev/test-{index}"},
-                switch_source="tmux",
-                status="read",
-                created_at=1000.0 - index,
-            )
-            for index in range(count)
-        ]
-    targets = {}
-    for index, row in enumerate(rows):
-        place = tmp_path / f"lemon-{index}"
-        place.mkdir()
-        path = place / "task.md"
-        path.write_text(f"# Lemon {index}\n\nStatus: working\n\n## Now\n- Step {index}.\n")
-        targets[row.channel] = target.Target([path], [place], place, ["work"], f"Lemon {index}")
-
-    state: dict = {"shown": None, "switched": [], "cleared": 0, "result": True}
-    state["gate"] = threading.Event()
-    state["gate"].set()
-
-    def switch_beside(metadata, switch_source, config, found):
-        state["switched"].append(metadata["channel"])
-        state["gate"].wait(5)
-        if state["result"]:
-            state["shown"] = found
-        return state["result"]
-
-    def clear(pane):
-        state["cleared"] += 1
-        state["shown"] = None
-
-    def toggle(found, window):
-        state["shown"] = found
-        return True
-
-    def show(found, window):
-        state["shown"] = found
-        return True
-
-    monkeypatch.setenv("TMUX_PANE", "%9")
-    # The watcher reports detached channels on its own poll, which would race the
-    # ones a test sets by hand.
-    monkeypatch.setattr(watcher_hooks, "start", lambda *args: None)
-    monkeypatch.setattr("lemonaid.inbox.tui.app.is_follow_enabled", lambda: True)
-    monkeypatch.setattr("lemonaid.inbox.tui.app.current_position", lambda _: "left")
-    monkeypatch.setattr("lemonaid.inbox.tui.app.brief.attached.for_rows", lambda *args: {})
-    real_for_notification = target.for_notification
-    monkeypatch.setattr(
-        target,
-        "for_notification",
-        lambda row, *args: dataclasses.replace(
-            targets[row.channel], lemon=real_for_notification(row, {}).lemon
-        ),
-    )
-    monkeypatch.setattr(sidebar, "window_id", lambda _: "@target")
-    monkeypatch.setattr(sidebar, "toggle", toggle)
-    monkeypatch.setattr(sidebar, "clear", clear)
-    monkeypatch.setattr(sidebar, "switch_beside", switch_beside)
-    monkeypatch.setattr(sidebar, "show", show)
-    monkeypatch.setattr(
-        sidebar, "read", lambda pane: (state["shown"], "@target") if state["shown"] else None
-    )
-    state["targets"] = [target.for_notification(row, {}) for row in rows]
-    return rows, state
-
-
-async def _until(pilot, condition) -> None:
-    for _ in range(200):
-        if condition():
-            return
-        await pilot.pause(0.01)
-    raise AssertionError("condition never held")
+from ..shared import lemons, until
 
 
 def test_the_brief_is_drawn_before_the_main_pane_switches(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 2)
+    rows, state = lemons(monkeypatch, tmp_path, 2)
     state["gate"].clear()
 
     async def check() -> None:
@@ -106,7 +21,7 @@ def test_the_brief_is_drawn_before_the_main_pane_switches(monkeypatch, tmp_path)
         async with app.run_test(size=(50, 30)) as pilot:
             app.action_brief()
             await pilot.press("down")
-            await _until(pilot, lambda: state["switched"])
+            await until(pilot, lambda: state["switched"])
             assert app._brief_target == state["targets"][1]
             assert "Step 1." in app.query_one(BriefView)._rendered_markdown
             assert app._get_current_row_key() == str(rows[1].id)
@@ -122,7 +37,7 @@ def test_the_brief_is_drawn_before_the_main_pane_switches(monkeypatch, tmp_path)
 
 
 def test_repeated_arrows_switch_only_to_the_newest_row(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 4)
+    rows, state = lemons(monkeypatch, tmp_path, 4)
     state["gate"].clear()
 
     async def check() -> None:
@@ -130,7 +45,7 @@ def test_repeated_arrows_switch_only_to_the_newest_row(monkeypatch, tmp_path):
         async with app.run_test(size=(50, 30)) as pilot:
             app.action_brief()
             await pilot.press("down")
-            await _until(pilot, lambda: state["switched"])
+            await until(pilot, lambda: state["switched"])
             await pilot.press("down", "down")
             await pilot.pause()
             assert app._brief_target == state["targets"][3]
@@ -147,7 +62,7 @@ def test_repeated_arrows_switch_only_to_the_newest_row(monkeypatch, tmp_path):
 
 def test_a_wake_during_a_switch_keeps_the_new_brief(monkeypatch, tmp_path):
     """The follow hook clears the sidebar brief and wakes the pane mid-switch."""
-    _, state = _lemons(monkeypatch, tmp_path, 2)
+    _, state = lemons(monkeypatch, tmp_path, 2)
     state["gate"].clear()
 
     async def check() -> None:
@@ -155,7 +70,7 @@ def test_a_wake_during_a_switch_keeps_the_new_brief(monkeypatch, tmp_path):
         async with app.run_test(size=(50, 30)) as pilot:
             app.action_brief()
             await pilot.press("down")
-            await _until(pilot, lambda: state["switched"])
+            await until(pilot, lambda: state["switched"])
             state["shown"] = None
             await pilot.press("f12")
             await pilot.pause()
@@ -171,7 +86,7 @@ def test_a_wake_during_a_switch_keeps_the_new_brief(monkeypatch, tmp_path):
 
 
 def test_a_failed_switch_keeps_the_selected_brief_visible(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 2)
+    rows, state = lemons(monkeypatch, tmp_path, 2)
     state["result"] = False
 
     async def check() -> None:
@@ -194,7 +109,7 @@ def test_a_failed_switch_keeps_the_selected_brief_visible(monkeypatch, tmp_path)
 
 
 def test_closing_during_a_switch_leaves_no_brief_beside_the_lemon(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 2)
+    rows, state = lemons(monkeypatch, tmp_path, 2)
     state["gate"].clear()
 
     async def check() -> None:
@@ -202,7 +117,7 @@ def test_closing_during_a_switch_leaves_no_brief_beside_the_lemon(monkeypatch, t
         async with app.run_test(size=(50, 30)) as pilot:
             app.action_brief()
             await pilot.press("down")
-            await _until(pilot, lambda: state["switched"])
+            await until(pilot, lambda: state["switched"])
             await pilot.press("escape")
             await pilot.pause()
             assert app.query_one(ContentSwitcher).current == "inbox_content"
@@ -218,7 +133,7 @@ def test_closing_during_a_switch_leaves_no_brief_beside_the_lemon(monkeypatch, t
 
 
 def test_m_and_M_mark_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
-    rows, _ = _lemons(monkeypatch, tmp_path, 2)
+    rows, _ = lemons(monkeypatch, tmp_path, 2)
 
     def dots(app) -> list[bool]:
         return ["●" in card.render().plain for card in app.query_one(BriefView).query("_Card")]
@@ -255,7 +170,7 @@ def test_m_and_M_mark_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
 
 
 def test_r_renames_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 2)
+    rows, state = lemons(monkeypatch, tmp_path, 2)
 
     def headlines(app) -> list[str]:
         return [
@@ -289,7 +204,7 @@ def test_r_renames_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
 
 
 def test_clicking_the_selected_row_in_a_focused_scratch_pane_stays_put(monkeypatch, tmp_path):
-    rows, _ = _lemons(monkeypatch, tmp_path, 2)
+    rows, _ = lemons(monkeypatch, tmp_path, 2)
     monkeypatch.setattr(
         "lemonaid.inbox.tui.app.focus.behind_scratch", lambda *args: rows[0].metadata["tty"]
     )
@@ -324,7 +239,7 @@ def test_clicking_the_selected_row_in_a_focused_scratch_pane_stays_put(monkeypat
 
 
 def test_detached_briefs_are_reachable_in_both_directions(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 3)
+    rows, state = lemons(monkeypatch, tmp_path, 3)
 
     async def check():
         app = LemonaidApp(scratch_mode=True)
@@ -350,7 +265,7 @@ def test_detached_briefs_are_reachable_in_both_directions(monkeypatch, tmp_path)
 
 
 def test_clicking_a_detached_row_attempts_resume(monkeypatch, tmp_path):
-    rows, _ = _lemons(monkeypatch, tmp_path, 2)
+    rows, _ = lemons(monkeypatch, tmp_path, 2)
     switched = []
     monkeypatch.setattr(
         LemonaidApp, "_switch_to_notification", lambda self, row: switched.append(row.id) or True
@@ -373,7 +288,7 @@ def test_clicking_a_detached_row_attempts_resume(monkeypatch, tmp_path):
 
 
 def test_enter_resumes_the_detached_row_whose_brief_has_focus(monkeypatch, tmp_path):
-    rows, state = _lemons(monkeypatch, tmp_path, 3)
+    rows, state = lemons(monkeypatch, tmp_path, 3)
     resumed = []
     monkeypatch.setattr(
         LemonaidApp, "_switch_to_notification", lambda self, row: resumed.append(row.id) or True
