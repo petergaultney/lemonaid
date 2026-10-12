@@ -87,9 +87,8 @@ def _spawn_reaper(
     )
 
     try:
-        subprocess.run(
+        tmux.run(
             [
-                "tmux",
                 "new-session",
                 "-d",
                 "-s",
@@ -104,7 +103,6 @@ def _spawn_reaper(
                 script,
             ],
             check=True,
-            capture_output=True,
         )
     except (OSError, subprocess.CalledProcessError) as e:
         _log.warning("could not spawn a reaper for %r: %s", what, e)

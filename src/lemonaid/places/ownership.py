@@ -15,6 +15,7 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
+from .. import tmux
 from ..config import Config, PlaceRoot
 from ..log import get_logger
 from . import hooks
@@ -49,17 +50,14 @@ def pane_snapshot() -> list[Pane] | None:
     decided from where they are.
     """
     try:
-        result = subprocess.run(
+        result = tmux.run(
             [
-                "tmux",
                 "list-panes",
                 "-a",
                 "-F",
                 "#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_current_path}"
                 "\t#{@lemonaid_scratch}\t#{pane_start_command}",
             ],
-            capture_output=True,
-            text=True,
             check=True,
             timeout=_TIMEOUT_SECONDS,
         )

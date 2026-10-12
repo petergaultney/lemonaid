@@ -22,11 +22,8 @@ _QUERY_TIMEOUT_SECONDS = 2
 def _live_sessions_by_recency(doomed_session: str) -> list[str]:
     """Other sessions, most recently active first, excluding lemonaid's own."""
     try:
-        result = subprocess.run(
-            ["tmux", "list-sessions", "-F", "#{session_activity} #{session_name}"],
-            capture_output=True,
-            text=True,
-            check=True,
+        result = tmux.run(
+            ["list-sessions", "-F", "#{session_activity} #{session_name}"], check=True
         )
     except (OSError, subprocess.CalledProcessError) as e:
         _log.warning("could not list sessions to find an escape target: %s", e)
@@ -86,17 +83,8 @@ class ClientsUnknown(Exception):
 def _attached_clients(session: str) -> list[tuple[str, str]]:
     """(client name, the client's last session) for each client attached to *session*."""
     try:
-        result = subprocess.run(
-            [
-                "tmux",
-                "list-clients",
-                "-t",
-                f"={session}",
-                "-F",
-                "#{client_name}\t#{client_last_session}",
-            ],
-            capture_output=True,
-            text=True,
+        result = tmux.run(
+            ["list-clients", "-t", f"={session}", "-F", "#{client_name}\t#{client_last_session}"],
             check=True,
             timeout=_QUERY_TIMEOUT_SECONDS,
         )
@@ -113,11 +101,7 @@ def _attached_clients(session: str) -> list[tuple[str, str]]:
 def _switch_client(client: str, session: str) -> bool:
     """Move *client* to *session*; tmux picks the session's active pane."""
     try:
-        subprocess.run(
-            ["tmux", "switch-client", "-c", client, "-t", f"={session}"],
-            check=True,
-            capture_output=True,
-        )
+        tmux.run(["switch-client", "-c", client, "-t", f"={session}"], check=True)
         return True
     except (OSError, subprocess.CalledProcessError) as e:
         _log.warning("could not switch %s to %s: %s", client, session, e)

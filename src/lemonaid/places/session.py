@@ -2,12 +2,12 @@
 
 import subprocess
 
+from .. import tmux
+
 
 def exists(name: str) -> bool:
     try:
-        found = subprocess.run(
-            ["tmux", "has-session", "-t", f"={name}"], capture_output=True, timeout=5
-        )
+        found = tmux.run(["has-session", "-t", f"={name}"], timeout=5)
     except (OSError, subprocess.SubprocessError):
         return False
 
