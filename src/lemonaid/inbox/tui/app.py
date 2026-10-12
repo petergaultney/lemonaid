@@ -10,7 +10,6 @@ import threading
 import time
 from collections import abc
 from pathlib import Path
-from typing import Literal, cast
 
 from rich.text import Text
 from textual import events
@@ -22,7 +21,7 @@ from textual.timer import Timer
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, claude, codex, groups, handlers, openclaw, opencode, palette
+from ... import brief, groups, palette
 from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
@@ -33,7 +32,6 @@ from ...lemon_watchers import (
     ModelInfo,
     detect_terminal_switch_source,
     get_tmux_socket,
-    start_unified_watcher,
     stop_unified_watcher,
 )
 from ...log import get_logger
@@ -58,7 +56,6 @@ from .. import (
     resume_archived,
     search,
     sections,
-    teardown_evidence,
     unarchive,
     undo,
     view,
@@ -86,6 +83,7 @@ from . import (
     usage_view,
     utils,
     view_modes,
+    watcher_hooks,
 )
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
@@ -369,30 +367,8 @@ class LemonaidApp(App):
         self._refresh_notifications()
         self.query_one("#main_table", DataTable).focus()
         self.set_interval(self.config.tui.refresh_interval, self._refresh_notifications)
-        # Start transcript watchers for auto-dismiss, message updates, and exit detection
-        start_unified_watcher(
-            backends=cast(
-                list,
-                [claude.watcher, codex.watcher, openclaw.watcher, opencode.watcher],
-            ),
-            get_active=self._get_active_for_watcher,
-            mark_read=self._mark_channel_read,
-            update_message=self._update_channel_message,
-            archive_channel=self._archive_channel,
-            mark_unread=self._mark_channel_unread,
-            record_location=self._record_channel_location,
-            record_model=self._record_channel_model,
-            record_context=self._record_channel_context,
-            models=self._recorded_models,
-            sockets=self._recorded_sockets,
-            session_orders=self._recorded_tmux_session_orders,
-            locate_sessions=self._locate_sessions,
-            auto_read_patterns=self.config.inbox.auto_read,
-            mark_read_after_turn=self._mark_channel_read_after_turn,
-            record_turn=self._record_channel_turn,
-            protected_channels=self._protected_brief_channels,
-            detached_channels=self._set_detached_channels,
-        )
+        # Transcript watchers: auto-dismiss, message updates, and exit detection
+        watcher_hooks.start(self.config, self._brief_cache, self._set_detached_channels)
         self.call_later(self._check_claude_patch)
         self.call_later(self._refresh_skills)
         self.call_later(self._stretch_all_tables)
@@ -3017,162 +2993,8 @@ class LemonaidApp(App):
             _clear_state()
             _hide(pane_id)
 
-    def _get_active_for_watcher(
-        self,
-    ) -> list[tuple[str, str, str, float, bool, str | None, str, str | None]]:
-        """Get active notifications for the transcript watcher.
-
-        Returns all sessions (not just switchable) so stale cleanup can
-        archive dead sessions regardless of switch_source.
-
-        Returns list of (channel, session_id, cwd, created_at, is_unread, tty, message, switch_source).
-        """
-        with db.connect() as conn:
-            notifications = db.get_active(conn, switch_source=None)
-
-        result = []
-        for n in notifications:
-            session_id = n.metadata.get("session_id")
-            cwd = n.metadata.get("cwd")
-            tty = n.metadata.get("tty")
-            if session_id and cwd:
-                result.append(
-                    (
-                        n.channel,
-                        session_id,
-                        cwd,
-                        n.created_at,
-                        n.is_unread,
-                        tty,
-                        n.message,
-                        n.switch_source,
-                    )
-                )
-        return result
-
-    def _mark_channel_read(self, channel: str) -> int:
-        """Mark all notifications for a channel as read."""
-        with db.connect() as conn:
-            return db.mark_all_read_for_channel(conn, channel)
-
-    def _mark_channel_unread(self, channel: str) -> int:
-        """Mark all notifications for a channel as unread (needs attention)."""
-        with db.connect() as conn:
-            return db.mark_unread_for_channel(conn, channel)
-
-    def _mark_channel_read_after_turn(self, channel: str) -> int:
-        with db.connect() as conn:
-            return db.mark_read_after_turn(conn, channel)
-
-    def _record_channel_turn(self, channel: str, at: float | None) -> None:
-        with db.connect() as conn:
-            db.record_turn(conn, channel, at)
-
-    def _update_channel_message(self, channel: str, message: str) -> int:
-        """Update the message for a channel."""
-        with db.connect() as conn:
-            return db.update_message(conn, channel, message)
-
-    def _recorded_sockets(self) -> dict[str, str]:
-        """Which tmux server each active session was last seen on.
-
-        The watcher asks tmux whether a pane is still there, and a pane on
-        another server is absent from this one's listing for reasons that have
-        nothing to do with the session being alive.
-        """
-        with db.connect() as conn:
-            return {
-                n.channel: socket
-                for n in db.get_active(conn, switch_source="tmux")
-                if (socket := n.metadata.get("tmux_socket"))
-            }
-
-    def _recorded_tmux_session_orders(self) -> dict[str, navigation.SessionOrder]:
-        """Each active channel's tmux identity, if recorded by its own hook."""
-        with db.connect() as conn:
-            orders: dict[str, navigation.SessionOrder] = {}
-            for notification in db.get_active(conn, switch_source="tmux"):
-                value = notification.metadata.get("tmux_session_order")
-                if (
-                    isinstance(value, list)
-                    and len(value) == 3
-                    and all(isinstance(part, int) for part in value)
-                ):
-                    orders[notification.channel] = (value[0], value[1], value[2])
-            return orders
-
-    def _protected_brief_channels(self) -> set[str]:
-        """Channels whose attached brief is waiting for a person to act."""
-        with db.connect() as conn:
-            channels = [
-                n.channel
-                for n in db.get_active(conn, switch_source=None)
-                if not teardown_evidence.applies(n)
-            ]
-            paths = brief_attached.by_channel(conn, channels)
-        return {
-            channel
-            for channel, path in paths.items()
-            if (card := self._brief_cache.get(path)) is not None
-            and card.status in {"merge", "approve", "blocked", "alert"}
-        }
-
-    def _locate_sessions(self, active: list[tuple]) -> dict[str, str | Literal[False] | None]:
-        """Where each active session that can outlive its tty runs now (see handlers)."""
-        channels = {row[0] for row in active if row[7] in handlers.PER_SESSION_SOURCES}
-        if not channels:
-            return {}
-
-        with db.connect() as conn:
-            sessions = [
-                (n.switch_source, {**n.metadata, "channel": n.channel})
-                for n in db.get_active(conn, switch_source=None)
-                if n.channel in channels
-            ]
-        return handlers.where_sessions_are(sessions)
-
     def _set_detached_channels(self, channels: set[str]) -> None:
         self._detached_channels = frozenset(channels)
-
-    def _recorded_models(self) -> dict[str, ModelInfo]:
-        with db.connect() as conn:
-            return {
-                n.channel: ModelInfo(provider, model)
-                for n in db.get_active(conn, switch_source=None)
-                if isinstance((provider := n.metadata.get("model_provider")), str)
-                and isinstance((model := n.metadata.get("model")), str)
-                and model
-            }
-
-    def _record_channel_location(
-        self,
-        channel: str,
-        session: str,
-        window: str,
-        socket: str | None = None,
-        session_order: navigation.SessionOrder | None = None,
-    ) -> None:
-        """Note where a session is sitting, so `tmux restore` can rebuild it.
-
-        Done on the watcher's poll rather than only when a session notifies:
-        an idle session would otherwise never record one, and those are the
-        ones whose position is hardest to remember after a crash.
-        """
-        with db.connect() as conn:
-            db.record_location(conn, channel, session, window, socket, session_order)
-
-    def _record_channel_model(self, channel: str, provider: str, model: str) -> None:
-        with db.connect() as conn:
-            db.record_model(conn, channel, provider, model)
-
-    def _record_channel_context(self, channel: str, used: int, window: int) -> None:
-        with db.connect() as conn:
-            db.record_context(conn, channel, used, window)
-
-    def _archive_channel(self, channel: str) -> None:
-        """Archive all notifications for a channel (session exited)."""
-        with db.connect() as conn:
-            db.archive_channel(conn, channel, "watcher-stale-session")
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self.is_running:

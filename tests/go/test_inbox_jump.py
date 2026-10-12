@@ -6,6 +6,7 @@ import pytest
 
 from lemonaid.inbox import db
 from lemonaid.inbox.tui import app as app_mod
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.table import ClickToActTable
 from lemonaid.inbox.tui.utils import HERE_BLOCK
 from lemonaid.tmux import navigation
@@ -51,7 +52,7 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
     clients("source")
     monkeypatch.setenv("TMUX", f"{server[2]},0,0")
     monkeypatch.setenv("TMUX_PANE", scratch)
-    monkeypatch.setattr(app_mod, "start_unified_watcher", lambda *args, **kwargs: None)
+    monkeypatch.setattr(watcher_hooks, "start_unified_watcher", lambda *args, **kwargs: None)
     monkeypatch.setattr(app_mod, "is_follow_enabled", lambda: True)
     monkeypatch.setattr(app_mod, "current_position", lambda _: "top")
 

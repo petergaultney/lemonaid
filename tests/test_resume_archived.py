@@ -11,6 +11,7 @@ import pytest
 
 from lemonaid.config import Config
 from lemonaid.inbox import db, resume_archived
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
 from lemonaid.lemon_watchers import watcher
@@ -132,7 +133,7 @@ def test_scratch_pane_enter_starts_the_session(monkeypatch, tmp_path):
     copied: list = []
     monkeypatch.setattr(LemonaidApp, "_copy_resume_command", lambda self, c: copied.append(c))
     monkeypatch.setattr(LemonaidApp, "_hide_scratch_pane", lambda self: None)
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
     async def run():
         app = LemonaidApp()
@@ -153,7 +154,7 @@ def test_scratch_pane_failure_is_shown(monkeypatch, tmp_path):
     _archived(tmp_path)
     monkeypatch.setattr(resume_archived.tmux.recreate, "resume", lambda *a: None)
     monkeypatch.setattr(resume_archived.tmux.session, "spawn_resumed", lambda *a: ("no tmux", None))
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
     async def run():
         app = LemonaidApp()
@@ -175,7 +176,7 @@ def test_resuming_in_this_terminal_records_it(monkeypatch, tmp_path):
     monkeypatch.setattr("lemonaid.inbox.tui.app.navigation.locations_by_tty", lambda *a: _NEW_PANE)
     monkeypatch.setattr("lemonaid.inbox.tui.app.os.isatty", lambda fd: True)
     monkeypatch.setattr("lemonaid.inbox.tui.app.os.ttyname", lambda fd: "/dev/ttys977")
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
     async def run():
         app = LemonaidApp()

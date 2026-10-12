@@ -14,6 +14,7 @@ from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, order, pins
 from lemonaid.inbox.tui import app as app_mod
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.help_screen import help_lines
 
@@ -47,7 +48,7 @@ def _brief(conn, channel: str, status: str) -> None:
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
     """The test tmux has none of these ttys, so the watcher would archive every row."""
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
 
 @pytest.fixture

@@ -10,6 +10,7 @@ import asyncio
 import itertools
 
 from lemonaid.inbox import db
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.utils import jump_digit, jump_gutter
 
@@ -33,7 +34,7 @@ def _active(name: str) -> int:
 
 def _run(steps, size=(120, 40), monkeypatch=None):
     if monkeypatch is not None:
-        monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
     async def run():
         app = LemonaidApp()

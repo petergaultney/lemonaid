@@ -15,7 +15,7 @@ import pytest
 from lemonaid.brief import attached
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
-from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.places import ownership, teardown
 
@@ -321,12 +321,9 @@ def _watcher_tick(monkeypatch, locations, protected_status=""):
             "by_channel",
             lambda conn, channels: {channel: channel for channel in channels},
         )
-        app = SimpleNamespace(
-            _brief_cache={
-                channel: SimpleNamespace(status=protected_status) for channel in _active_channels()
-            }
+        protected = watcher_hooks.protected_brief_channels(
+            {channel: SimpleNamespace(status=protected_status) for channel in _active_channels()}
         )
-        protected = LemonaidApp._protected_brief_channels(app)
     monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name: True)
     with db.connect() as conn:
         rows = db.get_active(conn)

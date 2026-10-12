@@ -6,6 +6,7 @@ from textual.widgets import Input
 
 from lemonaid import config as config_mod
 from lemonaid.inbox.tui import app as app_mod
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.screens import SnoozeScreen
 
@@ -37,7 +38,7 @@ def test_tab_opens_the_brief_and_goes_back_to_the_inbox(monkeypatch, tmp_path):
 
 def _briefs_opened(monkeypatch) -> list[str]:
     called: list[str] = []
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
     monkeypatch.setattr(LemonaidApp, "action_brief", lambda self: called.append("brief"))
     return called
 

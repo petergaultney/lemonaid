@@ -17,7 +17,7 @@ from lemonaid import claude, codex
 from lemonaid.brief import attached, render, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, turns
-from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view
+from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.lemon_watchers import watcher
 
@@ -174,7 +174,7 @@ def test_the_watch_loop_records_a_turn_and_its_end(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
     """The test tmux has none of these ttys, so the watcher would archive every row."""
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
 
 def _session(conn, name: str, status: str, created_at: float) -> str:

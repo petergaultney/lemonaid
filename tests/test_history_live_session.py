@@ -10,6 +10,7 @@ import asyncio
 import itertools
 
 from lemonaid.inbox import db
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.error_screen import ErrorScreen
 from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
@@ -47,7 +48,7 @@ def _run(steps, size=(120, 20), monkeypatch=None):
     tty has no pane - which is every row here, since the ttys are invented.
     """
     if monkeypatch is not None:
-        monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
     async def run():
         app = LemonaidApp()

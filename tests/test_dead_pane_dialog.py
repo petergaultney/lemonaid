@@ -6,6 +6,7 @@ from textual.containers import Vertical
 from textual.widgets import Label
 
 from lemonaid.inbox import db
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
 
@@ -24,7 +25,7 @@ def _dead_row() -> db.Notification:
 
 def _select_then_press(monkeypatch, key: str) -> tuple[type, str]:
     notification = _dead_row()
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
     monkeypatch.setattr("lemonaid.inbox.tui.app.handle_notification", lambda *a, **k: False)
 
     async def run():

@@ -15,6 +15,7 @@ from lemonaid.config import load_config
 from lemonaid.inbox import db, pins, presence, view
 from lemonaid.inbox.arrange.cli import _snapshot
 from lemonaid.inbox.tui import app as app_mod
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.brief_cards import BriefCache
 from lemonaid.inbox.tui.utils import HERE_BLOCK
@@ -52,7 +53,7 @@ def _brief(conn, channel: str, status: str, *, reviewer: bool = False) -> Path:
 
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
 
 
 def _run(steps, size=(120, 40)):

@@ -6,7 +6,7 @@ import time
 from rich.text import Span, Text
 
 from lemonaid.inbox import db, pins
-from lemonaid.inbox.tui import cards
+from lemonaid.inbox.tui import cards, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.utils import (
     FIELD_STYLES,
@@ -289,7 +289,7 @@ def test_an_unpinned_card_keeps_a_bare_label():
 def test_the_keys_are_bound(monkeypatch):
     """`p` and the shift arrows reach their actions."""
     called: list[str] = []
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
     monkeypatch.setattr(LemonaidApp, "action_pin", lambda self: called.append("pin"))
     monkeypatch.setattr(LemonaidApp, "action_move_pin_up", lambda self: called.append("up"))
     monkeypatch.setattr(LemonaidApp, "action_move_pin_down", lambda self: called.append("down"))
@@ -317,7 +317,7 @@ def test_an_unbound_move_key_is_not_registered(monkeypatch):
     monkeypatch.setattr(app_mod, "load_config", lambda: cfg)
 
     called: list[str] = []
-    monkeypatch.setattr(LemonaidApp, "_archive_channel", lambda self, channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
     monkeypatch.setattr(LemonaidApp, "action_move_pin_up", lambda self: called.append("up"))
 
     async def run():
