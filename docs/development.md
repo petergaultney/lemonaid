@@ -77,6 +77,11 @@ arguments; the app passes its state in and keeps what comes back.
 - `table_rows.py`: brings a `DataTable` in line with a list of rows.
 - `table_columns.py`: hides columns and distributes width among them.
 
-Rendering still inside `app.py`: `_refresh_notifications`, `_refresh_history`
-and `_refresh_snoozed` build their tables in the method bodies, and the mode
-switches (`_set_history_mode` and friends) set up widgets.
+- `history_rows.py`, `snoozed_rows.py`: the cells of one row in those lists.
+- `status_line.py`: the inbox status line's text.
+- `cursor_target.py`: where the cursor goes after a rebuild.
+- `view_modes.py`: the footer actions and panes that change in the alternate views.
+
+Rendering still inside `app.py`: `_refresh_notifications` builds the main table's
+rows, group headers and other-sources table in its body, and the `_set_*_mode`
+switches still set up widgets.
