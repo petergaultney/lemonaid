@@ -12,7 +12,6 @@ from collections import abc
 from pathlib import Path
 from typing import Literal, cast
 
-from rich.markup import escape
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
@@ -78,6 +77,7 @@ from . import (
     pr_numbers,
     project_names,
     snoozed_rows,
+    status_line,
     styles,
     table_columns,
     table_layout,
@@ -1342,35 +1342,26 @@ class LemonaidApp(App):
             history_table.display = False
             archive_label.display = False
 
-        read_count = len(active.rows) - unread_count
-        env_label = f" [{self.current_env}]" if self.current_env != "unknown" else ""
-        status_text = f"{unread_count} unread, {read_count} read{env_label}"
-        if self._search_mode:
-            inbox_count = len(current_notifications) + len(other_notifications)
-            status_text = (
-                f"{inbox_count} inbox match{'es' if inbox_count != 1 else ''} and "
-                f"{archive_count} archive match{'es' if archive_count != 1 else ''}"
-            )
-
-        # Add patch warning if Claude is unpatched
-        if self._claude_patch_status == "unpatched":
-            status_text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
-
         position = current_position(self.config.tmux_session.scratch_position)
         dimension = "width" if position == "left" else "height"
-        if (
-            self._scratch_mode
-            and is_follow_enabled()
-            and size_has_drifted(position, getattr(self.size, dimension))
-        ):
-            status_text += (
-                f"  |  [bold cyan]{self.config.tui.keybindings.save_size}[/] save pane {dimension}"
+        self._set_status(
+            status_line.inbox_status(
+                unread_count,
+                len(active.rows) - unread_count,
+                self.current_env,
+                (len(current_notifications) + len(other_notifications), archive_count)
+                if self._search_mode
+                else None,
+                self._claude_patch_status == "unpatched",
+                dimension
+                if self._scratch_mode
+                and is_follow_enabled()
+                and size_has_drifted(position, getattr(self.size, dimension))
+                else "",
+                self.config.tui.keybindings.save_size,
+                self._arrange_error,
             )
-
-        if self._arrange_error:
-            status_text += f"  |  [bold red]arrange:[/] {escape(self._arrange_error)}"
-
-        self._set_status(status_text)
+        )
 
     def _fold_label(self, count: int, hidden_groups: int = 0) -> str:
         """The fold's one line: which statuses, how many, any groups it hides, and its key.
