@@ -59,6 +59,7 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "group_tree": kb.group_tree,
         "group_add": kb.group_add,
         "group_remove": kb.group_remove,
+        "group_color": kb.group_color,
         "move_pin_up": [kb.move_pin_up],
         "move_pin_down": [kb.move_pin_down],
         "first": [kb.first, "home"],

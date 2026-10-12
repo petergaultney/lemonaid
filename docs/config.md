@@ -133,7 +133,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `mid_turn_working` | `false` | Draw a session that is mid-turn as `active` even when its brief sets a status, in the place its brief gives it (see below). |
 | `brief_names_in_inbox` | `false` | Show each attached brief's name after its session name (`lemonaid HQ · BlessBar`), in both layouts. Sessions without an attached brief have none. |
 | `project_name_colors` | `false` | Give project labels stable colors in both inbox layouts, chosen like tmux window labels from the generated whole-hue-wheel palette (see [Name colors](tmux.md#name-colors)) with directory overrides. Timing labels become neutral grey. |
-| `group_colors` | `{}` | A table of group name to `#rrggbb`, used instead of the group's automatic colour. See [Group colors](#group-colors). |
+| `group_colors` | `{}` | A table of group name to `#rrggbb`, used instead of the group's automatic color. A color saved with `lemonaid group color` or the inbox's `C` wins over it. See [Group colors](#group-colors). |
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `inactive_row_color` | *(unset)* | The selected inbox row background while the scratch pane is not receiving keys. By default, the selected row's colour blended 70% toward the background. Has no effect outside scratch mode, where the pane cannot be asked. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
@@ -241,16 +241,21 @@ it fits on its own.
 
 ### Group colors
 
-A group's header, arrow and rail take a colour from the same generated palette as project labels (see [Name colors](tmux.md#name-colors)). Each group starts from the slot its name hashes to. Groups are taken in name order, and one whose slot is within a perceptual distance of 0.08 (OKLab) of a colour already given out moves to the nearest slot that isn't, so no two groups share a look. Nothing is stored: the colours depend only on the current set of group names.
+A group's header, arrow and rail take a color from the same generated palette as project labels (see [Name colors](tmux.md#name-colors)). Each group starts from the slot its name hashes to. Groups are taken in name order, and one whose slot is within a perceptual distance of 0.08 (OKLab) of a color already given out moves to the nearest slot that isn't, so no two groups share a look. Unless you choose one, nothing is stored: the colors depend only on the current set of group names.
 
-To choose one, set it by name. A group set this way keeps that colour, and the others keep clear of it:
+There are two ways to choose one. A group chosen either way keeps that color, and the others keep clear of it.
 
-```toml
-[tui.group_colors]
-oria = "#e0a227"
-```
+- **Save it from lemonaid:** `lemonaid group color oria "#e0a227"` (or a CSS name such as `teal`), or `C` on the group in the inbox. It's stored in the database, drawn at once without a restart, and follows the group when it's renamed. `lemonaid group color oria --clear` forgets it.
+- **Set it in the config** by name:
 
-A value that isn't `#rrggbb` is reported at start-up and ignored.
+  ```toml
+  [tui.group_colors]
+  oria = "#e0a227"
+  ```
+
+  A value that isn't `#rrggbb` is reported at start-up and ignored.
+
+A saved color wins over the config's for the same group, and the config's over the automatic one. Clearing a saved color brings back the config's.
 
 Set `project_name_colors = true` to color each project label with the same
 selection used by tmux window labels: a stable hash into the generated palette,

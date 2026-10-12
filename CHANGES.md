@@ -1,3 +1,9 @@
+# 0.107.0 (2026-10-12)
+
+#### Added
+
+- **`lemonaid group color <group> <color>` and `C` in the inbox save a group's color, drawn at once without a restart.** A saved color wins over `[tui.group_colors]`, and `--clear` (or an empty box) goes back to it; see [Group colors](docs/config.md#group-colors).
+
 # 0.106.0 (2026-10-12)
 
 #### Added

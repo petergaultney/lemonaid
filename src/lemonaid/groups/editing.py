@@ -10,7 +10,7 @@ import sqlite3
 import unicodedata
 
 from .. import lineage
-from . import snapshot, store, sync
+from . import color, snapshot, store, sync
 
 
 def _changed(conn: sqlite3.Connection, before: tuple[snapshot.Snapshot, ...]) -> snapshot.Change:
@@ -115,6 +115,20 @@ def rename(conn: sqlite3.Connection, group: store.Group, name: str) -> Edit:
         _changed(conn, before),
         sync.write_lines(conn, renamed.members),
         renamed,
+    )
+
+
+def recolor(conn: sqlite3.Connection, group: store.Group, wanted: str) -> Edit:
+    """Save *wanted* as the group's color; empty clears it. Raises GroupError if it isn't one."""
+    before = snapshot.capture(conn, [group.group_id])
+    recolored = color.save(conn, group, color.parsed(wanted))
+    return Edit(
+        f'Set group "{group.name}" to {recolored.saved_color}'
+        if recolored.saved_color
+        else f'Cleared the saved color of group "{group.name}"',
+        _changed(conn, before),
+        [],
+        recolored,
     )
 
 

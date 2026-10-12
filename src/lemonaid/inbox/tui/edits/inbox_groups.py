@@ -1,5 +1,7 @@
 """Group edits on the inbox list, and the group and pin keys at its cursor."""
 
+import sqlite3
+
 from .... import brief, groups
 from ....log import get_logger
 from ... import db, sections
@@ -10,6 +12,10 @@ from . import group_dialogs, inbox_pins
 _log = get_logger("tui")
 
 
+def _by_id(conn: sqlite3.Connection, group_id: int) -> groups.store.Group | None:
+    return next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+
+
 def selected_group(inbox: InboxList) -> groups.store.Group | None:
     """The group whose header is under the cursor."""
     raw = row_keys.at_cursor(inbox.main)
@@ -18,7 +24,7 @@ def selected_group(inbox: InboxList) -> groups.store.Group | None:
         return None
 
     with db.connect() as conn:
-        return next((g for g in groups.store.all_groups(conn) if g.group_id == found), None)
+        return _by_id(conn, found)
 
 
 def toggle_group(inbox: InboxList, group_id: int, from_row: str = "") -> None:
@@ -28,7 +34,7 @@ def toggle_group(inbox: InboxList, group_id: int, from_row: str = "") -> None:
     cursor, until the cursor moves off it.
     """
     with db.connect() as conn:
-        group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+        group = _by_id(conn, group_id)
         if group is None:
             return
 
@@ -71,10 +77,7 @@ def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
         return "Groups sort by their most pressing lemon; this one can't pass that group"
 
     with db.connect() as conn:
-        other = next(
-            (g for g in groups.store.all_groups(conn) if g.group_id == on_screen[neighbour]),
-            None,
-        )
+        other = _by_id(conn, on_screen[neighbour])
         if other is None:
             return ""
 
@@ -96,7 +99,7 @@ def group_remove(
 ) -> None:
     """Take the lemon out of the group it's drawn in."""
     with db.connect() as conn:
-        group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+        group = _by_id(conn, group_id)
         if group is None:
             return
 
@@ -155,6 +158,22 @@ def tree_at_cursor(inbox: InboxList) -> None:
 def add_at_cursor(inbox: InboxList) -> None:
     if found := _lemon_at_cursor(inbox):
         group_dialogs.group_add(inbox, *found)
+
+
+def recolor_at_cursor(inbox: InboxList) -> None:
+    """Ask for a color for the group whose header, or one of whose lemons, is under the cursor."""
+    if group := selected_group(inbox):
+        group_dialogs.recolor(inbox, group)
+        return
+
+    group_id = sections.row_group_id(row_keys.at_cursor(inbox.main) or "")
+    if group_id is None:
+        return
+
+    with db.connect() as conn:
+        group = _by_id(conn, group_id)
+    if group:
+        group_dialogs.recolor(inbox, group)
 
 
 def remove_at_cursor(inbox: InboxList) -> None:

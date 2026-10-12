@@ -772,6 +772,9 @@ class LemonaidApp(App):
     def action_group_remove(self) -> None:
         self._groups_at_cursor(inbox_groups.remove_at_cursor)
 
+    def action_group_color(self) -> None:
+        self._groups_at_cursor(inbox_groups.recolor_at_cursor)
+
     def _select_channel(self, channel: str) -> None:
         row_keys.select_channel(self._content.active_table(), channel)
 

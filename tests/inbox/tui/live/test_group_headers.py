@@ -8,7 +8,7 @@ from lemonaid.inbox.tui.live import group_headers
 
 
 def _header(band: str, unread: bool, collapsed: bool = True) -> sections.Header:
-    group = groups.store.Group(1, "Watchers", 0, (), collapsed, "#c8a0f0")
+    group = groups.store.Group(1, "Watchers", 0, (), collapsed, colour="#c8a0f0")
     return sections.Header(group, 2, band, unread)
 
 

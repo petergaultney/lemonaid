@@ -70,6 +70,7 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.group_tree, "group_tree", "Group", show=False)
     yield from build_bindings(kb.group_add, "group_add", "Group", show=False)
     yield from build_bindings(kb.group_remove, "group_remove", "Group", show=False)
+    yield from build_bindings(kb.group_color, "group_color", "Color", show=False)
 
     if config.tui.fold_statuses or config.inbox.arrange:
         yield from build_bindings(kb.fold, "toggle_fold", "Folded")

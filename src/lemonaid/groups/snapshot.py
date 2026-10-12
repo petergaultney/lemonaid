@@ -1,6 +1,6 @@
 """A group's whole state at one moment, so an inbox edit to it can be undone.
 
-Restoring puts back the name, place, collapse and members, with their join
+Restoring puts back the name, place, collapse, saved color and members, with their join
 times, so the group sorts and draws as it did. A group that didn't exist is
 restored by deleting it. A change is undone only while its groups are as it
 left them: SQLite reuses a deleted group's ID, and the CLI may have edited it.
@@ -16,7 +16,7 @@ from . import store
 @dataclasses.dataclass(frozen=True)
 class Snapshot:
     group_id: int
-    row: tuple[str, float, int] | None  # name, position, collapsed; None when it didn't exist
+    row: tuple[str, float, int, str] | None  # name, position, collapsed, color; None if absent
     members: tuple[tuple[str, float], ...] = ()  # Lemon-ID and when it joined
 
 
@@ -38,11 +38,12 @@ def absent(group_id: int) -> Snapshot:
 def capture(conn: sqlite3.Connection, group_ids: abc.Iterable[int]) -> tuple[Snapshot, ...]:
     def one(group_id: int) -> Snapshot:
         row = conn.execute(
-            "SELECT name, position, collapsed FROM lemon_groups WHERE group_id = ?", (group_id,)
+            "SELECT name, position, collapsed, color FROM lemon_groups WHERE group_id = ?",
+            (group_id,),
         ).fetchone()
         return Snapshot(
             group_id,
-            (row["name"], row["position"], row["collapsed"]) if row else None,
+            (row["name"], row["position"], row["collapsed"], row["color"]) if row else None,
             tuple(
                 (member["lemon_id"], member["added_at"])
                 for member in conn.execute(
@@ -84,10 +85,10 @@ def restore(conn: sqlite3.Connection, change: Change) -> list[str]:
                 continue
 
             conn.execute(
-                "INSERT INTO lemon_groups (group_id, name, position, collapsed)"
-                " VALUES (?, ?, ?, ?) ON CONFLICT (group_id) DO UPDATE SET"
+                "INSERT INTO lemon_groups (group_id, name, position, collapsed, color)"
+                " VALUES (?, ?, ?, ?, ?) ON CONFLICT (group_id) DO UPDATE SET"
                 " name = excluded.name, position = excluded.position,"
-                " collapsed = excluded.collapsed",
+                " collapsed = excluded.collapsed, color = excluded.color",
                 (snapshot.group_id, *snapshot.row),
             )
             conn.executemany(

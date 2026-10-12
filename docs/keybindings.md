@@ -240,6 +240,7 @@ pin = "p"
 group_tree = "G"  # make a group of the session's tree
 group_add = "+"  # put the session in a group
 group_remove = "-"  # take it out of its group; on a header, delete the group
+group_color = "C"  # save a color for the group under the cursor
 move_pin_up = "shift+up"
 move_pin_down = "shift+down"
 first = "ctrl+a"  # the top row; Home always works too

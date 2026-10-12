@@ -129,6 +129,7 @@ class KeybindingsConfig:
     group_tree: str = "G"  # Make a group of the selected lemon, its children and theirs
     group_add: str = "+"  # Put the selected lemon in a group, picked or new
     group_remove: str = "-"  # Take a lemon out of its group; on a header, delete the group
+    group_color: str = "C"  # Save a color for the group under the cursor
     # Unlike the fields above, these name one key each rather than a set of
     # single-character alternatives, so that they can be a named key or carry a modifier.
     brief_key: str = ""  # A second key for brief
@@ -171,7 +172,8 @@ class TuiConfig:
     # Show each attached brief's short name after its session name.
     brief_names_in_inbox: bool = False
     project_name_colors: bool = False
-    # Group name -> `#rrggbb`, used instead of the group's automatic colour.
+    # Group name -> `#rrggbb`, used instead of the group's automatic color
+    # unless `lemonaid group color` or the inbox saved one.
     group_colors: dict[str, str] = field(default_factory=dict)
     # Override the selected inbox row background. Otherwise dark themes use a deeper blue.
     active_row_color: str | None = None

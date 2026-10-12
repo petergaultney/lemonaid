@@ -513,7 +513,7 @@ Colors are 24-bit hex. tmux and the inbox quantize them to the nearest 256-color
 
 `python scripts/palette_swatches.py` prints the slots beside the status colors, and checks that no two groups' colors are close (`--db PATH` checks a real inbox database, read-only).
 
-Groups hash too, then move off any look-alike among the current groups, and `[tui.group_colors]` can set one by name; see [Group colors](config.md#group-colors). `DIR_COLORS` doesn't apply to groups.
+Groups hash too, then move off any look-alike among the current groups, and `lemonaid group color` or `[tui.group_colors]` can set one; see [Group colors](config.md#group-colors). `DIR_COLORS` doesn't apply to groups.
 
 ## Surviving a crash
 

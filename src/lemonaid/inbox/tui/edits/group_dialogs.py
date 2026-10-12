@@ -47,6 +47,33 @@ def rename(inbox: InboxList, group: groups.store.Group, title: str) -> None:
     inbox.app.push_screen(RenameScreen(group.name, title=title, placeholder="Group name"), renamed)
 
 
+def recolor(inbox: InboxList, group: groups.store.Group) -> None:
+    def chosen(wanted: str | None) -> None:
+        if wanted is None:
+            return
+
+        try:
+            if groups.color.parsed(wanted) == group.saved_color:
+                return
+
+            with db.connect() as conn:
+                edit = groups.editing.recolor(conn, group, wanted)
+        except groups.store.GroupError as error:
+            inbox.notify(str(error), severity="warning")
+            return
+
+        edited(inbox, edit, [f"group:{group.group_id}"])
+
+    inbox.app.push_screen(
+        RenameScreen(
+            group.saved_color,
+            title=f'Color of "{group.name}"',
+            placeholder="#rrggbb or a name like teal; empty clears",
+        ),
+        chosen,
+    )
+
+
 def group_tree(inbox: InboxList, notification: db.Notification, lemon_id: str) -> None:
     """Ask for a name, then make a group of the lemon, its children and theirs."""
     lemon_name = notification.name or brief.identity.brief_description(lemon_id)

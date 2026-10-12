@@ -185,3 +185,25 @@ def test_joining_a_group_its_lemon_is_already_in_counts_only_the_children():
         edit = groups.editing.group_tree(conn, lead, "Work", "lead")
 
     assert edit.description == 'Added 2 of lead\'s children to "Work"'
+
+
+def test_a_recolor_undoes_to_the_color_before():
+    with db.connect() as conn:
+        group = groups.color.save(conn, groups.store.create(conn, "Work"), "#112233")
+
+        edit = groups.editing.recolor(conn, group, "teal")
+
+        assert edit.description == 'Set group "Work" to #008080'
+        assert groups.store.find(conn, "Work").saved_color == "#008080"
+        groups.editing.undo(conn, edit.change)
+        assert groups.store.find(conn, "Work").saved_color == "#112233"
+
+
+def test_undoing_a_delete_brings_the_saved_color_back():
+    with db.connect() as conn:
+        group = groups.color.save(conn, groups.store.create(conn, "Work"), "#112233")
+        groups.store.add(conn, group, [lemon("one")])
+
+        groups.editing.undo(conn, groups.editing.delete(conn, group).change)
+
+        assert groups.store.find(conn, "Work").saved_color == "#112233"

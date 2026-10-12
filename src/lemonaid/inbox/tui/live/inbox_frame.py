@@ -4,7 +4,7 @@ import dataclasses
 import sqlite3
 from collections import abc
 
-from .... import brief, groups, palette
+from .... import brief, groups
 from ....config import Config
 from ... import db, emoji, order, pins, presence, search, view
 from ..rows import brief_cards, pr_numbers
@@ -84,7 +84,7 @@ def load(
         active.deaf,
     )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
     group_list = groups.store.all_groups(conn)
-    colours = palette.assign_groups((g.name for g in group_list), config.tui.group_colors)
+    colours = groups.color.drawn(group_list, config.tui.group_colors)
     # Lower pane: live sessions from other switchable terminals.
     # Headless sessions (switch_source IS NULL) are excluded — they can't be
     # switched to from anywhere, so they belong in history instead.

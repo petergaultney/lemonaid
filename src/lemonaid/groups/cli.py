@@ -8,7 +8,7 @@ import sys
 
 from .. import brief, lineage
 from ..inbox import db
-from . import store, sync
+from . import color, store, sync
 
 
 def _fail(args: argparse.Namespace, error: str) -> None:
@@ -58,6 +58,7 @@ def _as_json(conn: sqlite3.Connection, group: store.Group) -> dict:
     return {
         "name": group.name,
         "position": group.position,
+        "color": group.saved_color,
         "members": [
             dataclasses.asdict(lineage.describe.describe(conn, lemon_id))
             for lemon_id in group.members
@@ -155,6 +156,21 @@ def _cmd_rename(args: argparse.Namespace) -> None:
         _report(conn, args, group, sync.write_lines(conn, group.members))
 
 
+def _cmd_color(args: argparse.Namespace) -> None:
+    with db.connect() as conn:
+        try:
+            group = color.save(conn, _group(conn, args, args.name), color.parsed(args.color or ""))
+        except store.GroupError as error:
+            _fail(args, str(error))
+            raise
+
+        if args.json:
+            print(json.dumps({"group": _as_json(conn, group), "error": None}))
+            return
+
+    print(f"{group.name}\t{group.saved_color or 'no saved color'}")
+
+
 def _cmd_delete(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         group = _group(conn, args, args.name)
@@ -243,6 +259,28 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     rename.add_argument("name")
     rename.add_argument("new_name")
     rename.set_defaults(func=_cmd_rename)
+
+    recolor = _common(
+        group_subparsers.add_parser(
+            "color",
+            help="Save the color a group is drawn in, shown at once",
+            description="Saves the group's color in the database. It outranks "
+            "[tui.group_colors] in the config, which outranks the automatic one.",
+        )
+    )
+    recolor.add_argument("name")
+    choice = recolor.add_mutually_exclusive_group(required=True)
+    choice.add_argument(
+        "color", nargs="?", help="#rrggbb, #rgb, rgb(r, g, b) or a CSS name like teal"
+    )
+    choice.add_argument(
+        "--clear",
+        action="store_const",
+        const="",
+        dest="color",
+        help="Forget the saved color",
+    )
+    recolor.set_defaults(func=_cmd_color)
 
     delete = _common(
         group_subparsers.add_parser("delete", help="Remove a group; its lemons are untouched")

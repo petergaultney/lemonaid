@@ -56,6 +56,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("group_tree", "Make a group of the session, its children and theirs"),
             ("group_add", "Put the session in a group, picked or new"),
             ("group_remove", "Take the session out of its group; on a header, delete it"),
+            ("group_color", "Save a color for the group under the cursor"),
             ("rename", "On a group's header: rename the group"),
         ],
     ),

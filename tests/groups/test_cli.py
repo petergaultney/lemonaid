@@ -1,3 +1,5 @@
+import pytest
+
 from tests.lineage.shared import lemon
 
 from .shared import members, run
@@ -137,3 +139,22 @@ def test_text_output_lists_each_member_under_its_group(capsys):
 
 def test_a_name_with_a_comma_is_refused(capsys):
     assert "comma" in run(capsys, "group", "create", "a, b", "--json")["error"]
+
+
+def test_a_group_color_is_saved_and_cleared(capsys):
+    run(capsys, "group", "create", "Work", "--json")
+
+    saved = run(capsys, "group", "color", "Work", "tomato", "--json")
+    cleared = run(capsys, "group", "color", "Work", "--clear", "--json")
+    refused = run(capsys, "group", "color", "Work", "nope", "--json")
+
+    assert saved["group"]["color"] == "#ff6347"
+    assert cleared["group"]["color"] == ""
+    assert "isn't a color" in refused["error"]
+
+
+def test_a_group_color_needs_a_color_or_clear(capsys):
+    run(capsys, "group", "create", "Work", "--json")
+
+    with pytest.raises(SystemExit):
+        run(capsys, "group", "color", "Work")

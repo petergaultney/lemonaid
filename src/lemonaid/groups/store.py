@@ -30,7 +30,8 @@ class Group:
     position: float
     members: tuple[str, ...]  # Lemon-IDs, in the order they joined
     collapsed: bool = False
-    # `#rrggbb` as drawn: set by the inbox from `palette.assign_groups`, never stored.
+    saved_color: str = ""  # `#rrggbb` set with `lemonaid group color` or the inbox
+    # `#rrggbb` as drawn: set by the inbox from `palette.assign_groups`.
     colour: str = ""
 
 
@@ -67,6 +68,7 @@ def _group(conn: sqlite3.Connection, row: sqlite3.Row) -> Group:
         row["position"],
         _members(conn, row["group_id"]),
         bool(row["collapsed"]),
+        row["color"],
     )
 
 
