@@ -1,3 +1,9 @@
+# 0.105.0 (2026-10-12)
+
+#### Changed
+
+- **`brief new --child --output-doc <path>` replaces `--review-doc`, and records the path as an `Output-Doc:` header line.** It works with every template and fills `$output_doc`, `$output_doc_arg` and `$output_doc_link`, which replace the `$review_doc*` placeholders (rename them in your own templates). `--review-doc` still works and prints a warning.
+
 # 0.104.1 (2026-10-12)
 
 #### Changed

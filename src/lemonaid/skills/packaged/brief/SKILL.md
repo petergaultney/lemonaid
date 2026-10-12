@@ -116,7 +116,7 @@ When your own work is accepted and nothing remains, stop your waiters with `lemo
 Use your user's policy for when to review, which harness, window, and review-doc location. The mechanics are:
 
 ```sh
-lemonaid brief new --child --template review --pr <PR-URL> --review-doc <absolute-doc-path> "Review repo#12: topic"
+lemonaid brief new --child --template review --pr <PR-URL> --output-doc <absolute-doc-path> "Review repo#12: topic"
 lemonaid lemon start <your-session>:<review-window> --harness <claude-or-codex> --brief <printed-brief-path> --parent self --name "Review repo#12 topic" --prompt "Review repo#12 topic. Instructions are in <printed-brief-path>; follow them."
 ```
 

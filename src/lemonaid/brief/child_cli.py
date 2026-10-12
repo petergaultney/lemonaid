@@ -34,11 +34,12 @@ def _parent(target: str) -> tuple[str, str]:
 
 def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, str]:
     """(path, Lemon-ID, parent Lemon-ID) of the new brief."""
+    output_doc = args.output_doc or args.review_doc
     body = child.template(child.PACKAGED_DIR, child.user_dir(), args.template)
     vaults = load_config().brief.vaults
     values = {
         **(child.pr_values(args.pr, args.repo) if args.pr else {}),
-        **(child.review_doc_values(args.review_doc, vaults) if args.review_doc else {}),
+        **(child.output_doc_values(output_doc, vaults) if output_doc else {}),
         **({"author": args.author} if args.author else {}),
     }
     try:
@@ -53,7 +54,9 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
     except ValueError as e:
         raise child.Problem(str(e)) from None
     area = args.area.strip()
-    text = child.render(body, title, planned, parent, today, values, area)  # fails before any file
+    text = child.render(
+        body, title, planned, parent, today, values, area, values.get("output_doc", "")
+    )  # fails before any file
     try:
         path = store.create_named(name, today, lambda _: text)
     except FileExistsError as e:
@@ -64,7 +67,10 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             lemon_id = identity.ensure(conn, path, regenerate_on_collision=True)
         if lemon_id != planned:
             store.edit(
-                path, lambda _: child.render(body, title, lemon_id, parent, today, values, area)
+                path,
+                lambda _: child.render(
+                    body, title, lemon_id, parent, today, values, area, values.get("output_doc", "")
+                ),
             )
         with db.connect() as conn:
             groups.sync.join_parents(conn, lemon_id, parent[0])
@@ -80,7 +86,17 @@ def given(args: argparse.Namespace) -> list[str]:
     defaults = {"template": "child", "parent": "self"}
     return [
         f"--{name.replace('_', '-')}"
-        for name in ("template", "slug", "parent", "area", "pr", "repo", "review_doc", "author")
+        for name in (
+            "template",
+            "slug",
+            "parent",
+            "area",
+            "pr",
+            "repo",
+            "output_doc",
+            "review_doc",
+            "author",
+        )
         if getattr(args, name) != defaults.get(name, "")
     ]
 
@@ -89,6 +105,9 @@ def cmd(args: argparse.Namespace) -> None:
     try:
         if paused := home.layout.paused():
             raise child.Problem(paused)
+
+        if args.review_doc:
+            print("--review-doc is deprecated; use --output-doc", file=sys.stderr)
 
         path, lemon_id, parent_id = _create(args, datetime.date.today())
     except (child.Problem, ValueError, store.ChangedUnderneath) as problem:
@@ -133,7 +152,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     )
     group.add_argument("--pr", default="", help="A PR URL, or a number with --repo ($pr_*)")
     group.add_argument("--repo", default="", help="owner/name, for a --pr number")
-    group.add_argument("--review-doc", default="", help="The review doc's path ($review_doc*)")
+    group.add_argument(
+        "--output-doc",
+        default="",
+        help="The document the work produces: recorded as `Output-Doc:` ($output_doc*)",
+    )
+    group.add_argument("--review-doc", default="", help=argparse.SUPPRESS)
     group.add_argument(
         "--author",
         default="",

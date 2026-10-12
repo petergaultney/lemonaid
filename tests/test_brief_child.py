@@ -10,21 +10,25 @@ from pathlib import Path
 import pytest
 
 from lemonaid import groups, obsidian
-from lemonaid.brief import attached, child, identity, status, write_cli
+from lemonaid.brief import attached, child, identity, output_doc, status, write_cli
 from lemonaid.inbox import db
 
 _PARENT = "hq.BlessBar"
 _PR = "https://github.com/acme/widgets/pull/12"
 
 
-def _run(capsys, *argv: str) -> dict:
+def _run(capsys, *argv: str, err: list[str] | None = None) -> dict:
     parser = argparse.ArgumentParser()
     write_cli.add_parsers(parser.add_subparsers())
     args = parser.parse_args(["new", *argv, "--json"])
     with contextlib.suppress(SystemExit):
         args.func(args)
 
-    return json.loads(capsys.readouterr().out)
+    out, stderr = capsys.readouterr()
+    if err is not None:
+        err.append(stderr)
+
+    return json.loads(out)
 
 
 @pytest.fixture
@@ -94,7 +98,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
         _PARENT,
         "--pr",
         _PR,
-        "--review-doc",
+        "--output-doc",
         str(doc),
         "--author",
         "widget.QuickOdd",
@@ -164,10 +168,10 @@ def test_a_pr_number_needs_a_repo():
     assert child.pr_values("12", "acme/widgets")["pr_url"] == _PR
 
 
-def test_a_review_doc_outside_every_vault_is_a_code_span(tmp_path):
+def test_an_output_doc_outside_every_vault_is_a_code_span(tmp_path):
     doc = tmp_path / "review.md"
 
-    assert child.review_doc_values(str(doc), [tmp_path / "vault"])["review_doc_link"] == (
+    assert child.output_doc_values(str(doc), [tmp_path / "vault"])["output_doc_link"] == (
         f"`{doc}`"
     )
 
@@ -178,7 +182,29 @@ def test_obsidian_url_names_the_vault_by_its_folder(tmp_path):
     )
 
 
-def test_the_review_doc_argument_survives_an_apostrophe(tmp_path):
+def test_the_output_doc_argument_survives_an_apostrophe(tmp_path):
     doc = tmp_path / "Sam's review.md"
 
-    assert shlex.split(child.review_doc_values(str(doc), [])["review_doc_arg"]) == [str(doc)]
+    assert shlex.split(child.output_doc_values(str(doc), [])["output_doc_arg"]) == [str(doc)]
+
+
+def test_an_output_doc_is_recorded_beside_the_parent_line(capsys, parent):
+    result = _run(capsys, "--child", "--parent", _PARENT, "--output-doc", "/tmp/doc.md", "Write it")
+
+    text = Path(result["path"]).read_text()
+    assert "\nOutput-Doc: /tmp/doc.md\n" in text
+    assert output_doc.of_brief(Path(result["path"])) == Path("/tmp/doc.md")
+
+
+def test_review_doc_still_works_but_warns(capsys, parent):
+    err: list[str] = []
+    result = _run(
+        capsys, "--child", "--parent", _PARENT, "--review-doc", "/tmp/doc.md", "Write it", err=err
+    )
+
+    assert output_doc.of_brief(Path(result["path"])) == Path("/tmp/doc.md")
+    assert "--review-doc is deprecated; use --output-doc" in err[0]
+
+
+def test_a_brief_without_an_output_doc_reads_as_none():
+    assert output_doc.read("# T\n\nParent: x\n\n## Goal\n\nOutput-Doc: /ignored\n") is None

@@ -106,7 +106,7 @@ def split(text: str) -> Parts:
             title = line[2:].strip()
         elif in_header and not status and (match := _STATUS.fullmatch(line.strip())):
             status = match["status"]
-        elif line.startswith("Parent:"):
+        elif line.startswith(("Parent:", "Output-Doc:")):
             rest.append(line)  # template metadata, whether it sits above Now or below
         elif in_header and not area and (match := _AREA.fullmatch(line.rstrip())):
             area = match["area"]  # the card shows it, so the body doesn't

@@ -2,7 +2,8 @@
 
 A template is the body of a brief, from `## Goal` down, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
-above it: the title, `Brief-ID:`, `Parent:`, and `Area:` when `--area` gives one.
+above it: the title, `Brief-ID:`, `Parent:`, `Output-Doc:` when `--output-doc` gives one,
+and `Area:` when `--area` gives one.
 The child writes `## Now` itself, after that header.
 
 `<lemons dir>/brief-templates/<name>.md` replaces the packaged template of that name.
@@ -21,7 +22,7 @@ PACKAGED_DIR = Path(__file__).parent / "templates"
 
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 _PR_URL = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)/?")
-_FLAG_OF = {"pr": "--pr", "review_doc": "--review-doc"}
+_FLAG_OF = {"pr": "--pr", "output_doc": "--output-doc"}
 
 
 class Problem(Exception):
@@ -70,13 +71,13 @@ def pr_values(pr: str, repo: str) -> dict[str, str]:
     }
 
 
-def review_doc_values(review_doc: str, vaults: abc.Iterable[Path]) -> dict[str, str]:
-    path = Path(review_doc).expanduser().absolute()
+def output_doc_values(output_doc: str, vaults: abc.Iterable[Path]) -> dict[str, str]:
+    path = Path(output_doc).expanduser().absolute()
     url = obsidian.obsidian_url(path, vaults)
     return {
-        "review_doc": str(path),
-        "review_doc_arg": shlex.quote(str(path)),
-        "review_doc_link": f"[{path.stem}]({url})" if url else f"`{path}`",
+        "output_doc": str(path),
+        "output_doc_arg": shlex.quote(str(path)),
+        "output_doc_link": f"[{path.stem}]({url})" if url else f"`{path}`",
     }
 
 
@@ -92,6 +93,7 @@ def render(
     today: datetime.date,
     values: abc.Mapping[str, str],
     area: str = "",
+    output_doc: str = "",
 ) -> str:
     """The whole brief: lemonaid's header, then *body* filled in. *parent* is (Lemon-ID, tmux session)."""
     parent_id, parent_session = parent
@@ -126,6 +128,7 @@ def render(
             "",
             f"Parent: {parent_id}{where}, {today.isoformat()}",
             "",
+            *([f"Output-Doc: {output_doc}", ""] if output_doc else []),
             *([f"Area: {area}", ""] if area else []),
             text.strip(),
             "",

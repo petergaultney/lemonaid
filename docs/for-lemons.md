@@ -684,7 +684,7 @@ prints the path to pass as `--brief`:
 f=$(lemonaid brief new --child "Fix the thing")   # ~/.lemons/brief/<today>-fix-the-thing.md
 lemonaid place open feat/thing --brief "$f" --parent self --prompt "Fix the thing. Instructions are in $f; follow them."
 lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12 \
-    --review-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
+    --output-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
 ```
 
 The file has the title, its own `Lemon-ID:`, and `Parent: <your Lemon-ID>
@@ -693,6 +693,10 @@ writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel,
 `--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is
 in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A worker
 without one can add the line itself, anywhere above its brief's first `##` heading.
+`--output-doc <path>` (any template) names the document the work produces. It fills the
+`$output_doc*` placeholders and is recorded as an `Output-Doc: <absolute path>` header line, beside
+`Parent:`, that `lemonaid.brief.output_doc.of_brief` reads back. `--review-doc` is the old name: it
+still works and warns; templates must use `$output_doc*` now.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 
 A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a
@@ -700,7 +704,7 @@ literal `$`). Lemonaid packages two:
 
 - `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Output` and `## Waiters`.
 - `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
-  findings only in the `--review-doc` (linked into Obsidian when it is under a `[brief] vaults`
+  findings only in the `--output-doc` (linked into Obsidian when it is under a `[brief] vaults`
   root), the rule to keep watching, with no status, until the PR merges or closes, the `git range-diff`
   rule for re-reviews, a `lemonaid tell` to the parent and `--author` when it is someone else, and the
   `watch pr` and `watch doc` waiters signed with the child's WordyBin. Fill in `## Context` yourself.
@@ -708,7 +712,7 @@ literal `$`). Lemonaid packages two:
 A file in `~/.lemons/brief-templates/<name>.md` replaces the packaged template of that name, or
 adds a new one. Placeholders: `$title`, `$date`, `$lemon_id`, `$wordybin` (the child's),
 `$parent_id`, `$tell`; with `--pr`, `$pr_url`, `$pr_number`, `$pr_repo`, `$pr_label` and
-`$pr_link`; with `--review-doc`, `$review_doc` (absolute), `$review_doc_arg` (shell-quoted) and `$review_doc_link`. A template
+`$pr_link`; with `--output-doc`, `$output_doc` (absolute), `$output_doc_arg` (shell-quoted) and `$output_doc_link`. A template
 that uses a value whose flag is missing is refused before any file is written.
 
 `--self` is the calling lemon, resolved the same way as `inbox emoji --self`.

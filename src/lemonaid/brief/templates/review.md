@@ -1,6 +1,6 @@
 ## Goal
 
-A cross-harness review of $pr_link, with a verdict, in the review doc at $review_doc_link.
+A cross-harness review of $pr_link, with a verdict, in the review doc at $output_doc_link.
 
 ## Context
 
@@ -10,7 +10,7 @@ Don't post to GitHub, push, merge, or edit the author's worktree. Findings go on
 
 ## Output
 
-Write the review doc at `$review_doc`. When it's written, $tell a one-line pointer to it.
+Write the review doc at `$output_doc`. When it's written, $tell a one-line pointer to it.
 
 On a re-review after the author pushes, run `git range-diff origin/<base> <reviewed sha> HEAD`, where `<base>` is the PR's base branch (`gh pr view <n> --json baseRefName`) and `<reviewed sha>` is the `Reviewed head` in the review doc. Attribute a finding only to a commit in `origin/<base>..HEAD`. `<reviewed sha>..HEAD` is wrong after a rebase: it includes base-branch commits the PR didn't write.
 
@@ -21,4 +21,4 @@ Set no status for as long as the PR is open, whatever your verdict, and say unde
 Arm both once your review is written. Make each one-shot for your harness: add `--once` for Claude, or a bare `--codex-thread` for Codex (no `$$CODEX_THREAD_ID`: a shell variable keeps the command from matching Codex's allow rule). Pass the PR head you reviewed as `--head`, and on every rearm the head you just handled, so a push or merge in between is still reported.
 
 - `lemonaid watch pr --wait $pr_number --repo $pr_repo --head <head SHA> --me 'Reviewer ($wordybin)'`
-- `lemonaid watch doc --wait $review_doc_arg --me 'Reviewer ($wordybin)'`
+- `lemonaid watch doc --wait $output_doc_arg --me 'Reviewer ($wordybin)'`
