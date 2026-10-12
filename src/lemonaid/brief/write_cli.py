@@ -10,6 +10,7 @@ from pathlib import Path
 from .. import home
 from ..inbox import db
 from . import (
+    attach_guard,
     attached,
     check_cli,
     child_cli,
@@ -37,6 +38,11 @@ def _attach(
         return {}, str(cause), ""
 
     if chosen.channel:
+        if not getattr(args, "force", False) and (
+            refused := attach_guard.refusal(conn, chosen.channel, path, lemon_id)
+        ):
+            return {}, refused, ""
+
         moved_from = attached.attach(conn, chosen.channel, path)
         return (
             {
@@ -154,6 +160,11 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
 
     attach = command.parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")
     attach.add_argument("file", help="A path, or a name inside ~/.lemons/brief/ (.md optional)")
+    attach.add_argument(
+        "--force",
+        action="store_true",
+        help="Take the brief even if another running session holds it",
+    )
     attach.set_defaults(func=_cmd_attach)
 
     new = command.parser(

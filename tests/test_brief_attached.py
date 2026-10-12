@@ -72,7 +72,7 @@ def test_attaching_a_brief_elsewhere_moves_it(capsys):
     _brief("task")
 
     _run(capsys, "attach", "--channel", "claude:a", "task")
-    moved = _run(capsys, "attach", "--channel", "claude:b", "task")
+    moved = _run(capsys, "attach", "--force", "--channel", "claude:b", "task")
 
     assert moved["moved_from"] == "claude:a"
     assert _attached_to("claude:a") is None

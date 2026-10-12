@@ -486,6 +486,7 @@ lemonaid brief new --self "Fix the thing"      # create ~/.lemons/brief/<today>-
 lemonaid brief new --child "Fix the thing"     # create it for a lemon not started yet; see Child briefs
 lemonaid brief attach --self <file>            # attach an existing one (relative names are in ~/.lemons/brief/)
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
+lemonaid brief attach --force --self <file>    # take a brief another running session holds (refused otherwise)
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
 lemonaid brief status --self blocked            # Status: blocked  (running | blocked | merge | approve | review | alert | done | clear)

@@ -182,6 +182,8 @@ lemonaid brief detach --channel <wrong>
 lemonaid brief attach --channel <right> <HQ brief>
 ```
 
+If the wrong thread is still running, `attach` refuses to take the brief from it; add `--force`, or detach it first as above.
+
 Pin the new channel.
 
 ### An archived HQ

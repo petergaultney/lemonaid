@@ -1,3 +1,9 @@
+# 0.102.3 (2026-10-12)
+
+#### Fixed
+
+- **`brief attach` refuses a brief that another running session holds.** It names the holder and its state; pass `--force` to take it anyway. A holder whose harness has exited is replaced without the flag, so a resumed lemon can re-attach.
+
 # 0.102.2 (2026-10-12)
 
 #### Fixed
