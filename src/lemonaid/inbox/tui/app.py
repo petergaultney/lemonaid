@@ -185,7 +185,13 @@ class LemonaidApp(App):
                 if self.config.tui.notes is not None:
                     yield NotesPanel(self.config.tui.notes, id="notes")
                 yield Static("", id="status")
-            yield BriefPane(self.config, self._brief_switched, id="brief_view")
+            yield BriefPane(
+                self.config,
+                self._get_current_row_key,
+                self._note_focus,
+                self._brief_closed,
+                id="brief_view",
+            )
         yield Footer()
 
     def watch_theme(self, theme: str) -> None:
@@ -415,7 +421,9 @@ class LemonaidApp(App):
         self._refresh_notes()
         if self._brief_target is not None:
             self._wake_expired_snoozes()
-            self.query_one(BriefPane).update_brief(self._brief_target, self._brief_unread())
+            self.query_one(BriefPane).update_brief(
+                self._brief_target, self.query_one(BriefPane).unread()
+            )
             return
 
         # Alternate views own the screen; the periodic tick still needs to wake
@@ -518,11 +526,7 @@ class LemonaidApp(App):
         The snoozed list is a subview, so q backs out of it instead.
         """
         if self._brief_target is not None:
-            self.query_one(BriefPane).switch_pending = None
-            pane = os.environ.get("TMUX_PANE")
-            if pane:
-                brief.sidebar.clear(pane)
-            self._set_brief_view(None)
+            self.query_one(BriefPane).dismiss()
             return
 
         if self._mode in (view_modes.SNOOZED, view_modes.USAGE):
@@ -907,7 +911,7 @@ class LemonaidApp(App):
             event.prevent_default()
             event.stop()
             if not self.query_one(BriefPane).switching:  # a switch in flight wakes it twice
-                self._sync_brief_view()
+                self.query_one(BriefPane).sync()
             # The follow hook sends it after moving this pane, so the focused pane has changed.
             self._focused_asked_at = 0.0
             self._refresh_notifications()
@@ -950,14 +954,14 @@ class LemonaidApp(App):
 
     def action_cursor_up(self) -> None:
         if self._brief_target is not None:
-            self._navigate_brief(-1)
+            self.query_one(BriefPane).navigate(-1, self._detached_channels)
         else:
             main, other, _ = self._stacked_tables()
             table_nav.up(self._focused_table(), main, other, self._search_mode)
 
     def action_cursor_down(self) -> None:
         if self._brief_target is not None:
-            self._navigate_brief(1)
+            self.query_one(BriefPane).navigate(1, self._detached_channels)
         else:
             table_nav.down(self._focused_table(), *self._stacked_tables(), self._search_mode)
 
@@ -969,57 +973,14 @@ class LemonaidApp(App):
         """Move to the bottom row of the focused table; in the inbox, a folded group stays folded."""
         table_nav.to_end(self._focused_table(), self.query_one(InboxList).main, last=True)
 
-    def _navigate_brief(self, direction: int) -> None:
-        """Show the adjacent row's brief now, and move the main pane to its lemon after."""
-        main = self.query_one(InboxList).main
-        pane = self.query_one(BriefPane)
-        if not (step := pane.adjacent(main, direction)):
-            return
+    def _note_focus(self, tty: str) -> None:
+        """The pane we just switched to has the user's attention, ahead of tmux's next answer."""
+        self._focused = frozenset({tty})
+        self._focused_asked_at = time.time()
 
-        row, notification = step
-        found = pane.target_for(notification)
-        main.move_cursor(row=row)
-        self._set_brief_view(found)
-        pane.prefetch(main)
-        if notification.channel in self._detached_channels or notification.switch_source != "tmux":
-            pane.stay_local(
-                f"Its terminal is unavailable here. Press {self.config.tui.keybindings.resume_detached} "
-                "to resume; up/down keeps browsing."
-            )
-            return
-
-        pane.request_switch(notification, found)
-
-    def _brief_switched(self, notification: db.Notification, switched: bool) -> None:
-        pane = os.environ.get("TMUX_PANE", "")
-        if self._brief_target is None:
-            # Closed while the switch ran, which set the sidebar brief again.
-            if pane:
-                brief.sidebar.clear(pane)
-            return
-
-        if self._get_current_row_key() != str(notification.id):
-            return
-
-        view = self.query_one(BriefPane)
-        if switched:
-            view.local = False
-            tty = notification.metadata.get("tty")
-            if isinstance(tty, str) and tty:
-                self._focused = frozenset({tty})
-                self._focused_asked_at = time.time()
-        if view.switch_pending is not None:
-            return
-
-        if not switched:
-            view.local = True
-            view.notice(
-                f"Its terminal could not be opened. Press {self.config.tui.keybindings.resume_detached} "
-                "to try resuming; up/down keeps browsing."
-            )
-            return
-
-        self._sync_brief_view()
+    def _brief_closed(self) -> None:
+        self._show_keys(self._keys_shown)
+        self._refresh_notifications()
 
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
@@ -1036,7 +997,7 @@ class LemonaidApp(App):
 
     def action_refresh(self) -> None:
         if self._brief_target is not None:
-            self.query_one(BriefPane).show(self._brief_target, self._brief_unread())
+            self.query_one(BriefPane).show(self._brief_target, self.query_one(BriefPane).unread())
             return
 
         self._refresh_notifications()
@@ -1268,18 +1229,8 @@ class LemonaidApp(App):
         self.push_screen(RenameScreen(current_name=notification.name or ""), renamed)
 
     def _retarget_brief(self) -> None:
-        """Resolve the shown brief's target again, after a change to the row it is for.
-
-        The target carries the row's name, and so does the sidebar option a wake
-        restores it from, so both are replaced.
-        """
-        if self._brief_target is None or not (notification := self._selected_notification()):
-            return
-
-        found = self.query_one(BriefPane).target_for(notification, fresh=True)
-        if pane := os.environ.get("TMUX_PANE", ""):
-            brief.sidebar.show(found, brief.sidebar.window_id(pane))
-        self._set_brief_view(found)
+        if self._brief_target is not None and (notification := self._selected_notification()):
+            self.query_one(BriefPane).retarget(notification)
 
     @property
     def _brief_target(self) -> brief.target.Target | None:
@@ -1288,34 +1239,7 @@ class LemonaidApp(App):
         return panes.first().target if panes else None
 
     def _set_brief_view(self, found: brief.target.Target | None) -> None:
-        view = self.query_one(BriefPane)
-        if found is not None:
-            view.open(found, self._brief_unread)
-        elif view.close():
-            self._show_keys(self._keys_shown)
-            self._refresh_notifications()
-
-    def _brief_unread(self) -> bool:
-        """Whether the row under the cursor, whose brief is shown, is unread."""
-        row_key = self._get_current_row_key()
-        if not row_key:
-            return False
-
-        with db.connect() as conn:
-            notification = db.get(conn, int(row_key))
-
-        return bool(notification and notification.is_unread)
-
-    def _sync_brief_view(self) -> None:
-        if self._brief_target is not None and self.query_one(BriefPane).local:
-            return
-
-        pane = os.environ.get("TMUX_PANE")
-        shown = brief.sidebar.read(pane) if pane else None
-        if shown and brief.sidebar.window_id(pane) == shown[1]:
-            self._set_brief_view(shown[0])
-        else:
-            self._set_brief_view(None)
+        self.query_one(BriefPane).set_view(found)
 
     def action_brief(self) -> None:
         """Show a brief in the sidebar, or use a popup if it is unavailable."""
@@ -1336,20 +1260,14 @@ class LemonaidApp(App):
             )
             return
 
-        if (
+        if not (
             self._scratch_mode
             and is_follow_enabled()
             and self._mode is None
             and current_position(self.config.tmux_session.scratch_position) == "left"
+            and self.query_one(BriefPane).toggle(target)
         ):
-            pane = os.environ.get("TMUX_PANE", "")
-            if brief.sidebar.toggle(target, brief.sidebar.window_id(pane)):
-                self._sync_brief_view()
-                if self._brief_target is not None:
-                    self.query_one(BriefPane).prefetch(self.query_one(InboxList).main)
-                return
-
-        brief.popup.open_popup(target)
+            brief.popup.open_popup(target)
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""

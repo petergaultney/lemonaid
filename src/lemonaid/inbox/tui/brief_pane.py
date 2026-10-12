@@ -4,6 +4,7 @@ Browsing redraws at once and switches the main pane behind it; only the
 newest selection is switched to once a switch finishes.
 """
 
+import os
 from collections import abc
 
 from textual.widgets import ContentSwitcher, DataTable
@@ -24,10 +25,15 @@ class BriefPane(BriefView):
     def __init__(
         self,
         config: Config,
-        switched: abc.Callable[[db.Notification, bool], None],
+        row_key: abc.Callable[[], str | None],
+        focused: abc.Callable[[str], None],
+        closed: abc.Callable[[], None],
         **kwargs: object,
     ) -> None:
-        """`switched` hears, on the UI thread, whether the main pane reached a row's lemon."""
+        """`row_key` names the row under the inbox cursor, whose brief is shown;
+        `focused` hears the tty the main pane switched to; `closed` redraws the
+        inbox once it is back.
+        """
         super().__init__(
             brief.pr.configured(config.brief.pr_state),
             config.brief.vaults,
@@ -38,7 +44,9 @@ class BriefPane(BriefView):
             **kwargs,
         )
         self._config = config
-        self._switched = switched
+        self._cursor_key = row_key
+        self._note_focus = focused
+        self._inbox_back = closed
         self.target: brief.target.Target | None = None  # the brief shown, while one is
         self.local = False  # shown here only: its lemon's terminal can't be switched to
         # Resolving a target asks tmux twice, which is most of an arrow's cost.
@@ -187,3 +195,108 @@ class BriefPane(BriefView):
                 _log.exception("brief switch to %s failed", notification.channel)
                 switched = False
             self.app.call_from_thread(self._switched, notification, switched)
+
+    def _main(self) -> DataTable:
+        return self.screen.query_one("#main_table", DataTable)
+
+    def unread(self) -> bool:
+        """Whether the row under the cursor, whose brief is shown, is unread."""
+        if not (row_key := self._cursor_key()):
+            return False
+
+        with db.connect() as conn:
+            notification = db.get(conn, int(row_key))
+
+        return bool(notification and notification.is_unread)
+
+    def set_view(self, found: brief.target.Target | None) -> None:
+        """Show *found* in place of the inbox, or with None put the inbox back."""
+        if found is not None:
+            self.open(found, self.unread)
+        elif self.close():
+            self._inbox_back()
+
+    def sync(self) -> None:
+        """Show what the sidebar says this window's brief is, unless one is kept here."""
+        if self.target is not None and self.local:
+            return
+
+        pane = os.environ.get("TMUX_PANE")
+        shown = brief.sidebar.read(pane) if pane else None
+        self.set_view(shown[0] if shown and brief.sidebar.window_id(pane) == shown[1] else None)
+
+    def toggle(self, found: brief.target.Target) -> bool:
+        """Open *found* in the sidebar, or close it there; False if the sidebar can't."""
+        if not brief.sidebar.toggle(
+            found, brief.sidebar.window_id(os.environ.get("TMUX_PANE", ""))
+        ):
+            return False
+
+        self.sync()
+        if self.target is not None:
+            self.prefetch(self._main())
+        return True
+
+    def retarget(self, notification: db.Notification) -> None:
+        """Resolve the shown brief's target again, after a change to the row it is for.
+
+        The target carries the row's name, and so does the sidebar option a wake
+        restores it from, so both are replaced.
+        """
+        found = self.target_for(notification, fresh=True)
+        if pane := os.environ.get("TMUX_PANE", ""):
+            brief.sidebar.show(found, brief.sidebar.window_id(pane))
+        self.set_view(found)
+
+    def dismiss(self) -> None:
+        self.switch_pending = None
+        if pane := os.environ.get("TMUX_PANE"):
+            brief.sidebar.clear(pane)
+        self.set_view(None)
+
+    def navigate(self, direction: int, detached: abc.Set[str]) -> None:
+        """Show the adjacent row's brief now, and move the main pane to its lemon after."""
+        main = self._main()
+        if not (step := self.adjacent(main, direction)):
+            return
+
+        row, notification = step
+        found = self.target_for(notification)
+        main.move_cursor(row=row)
+        self.set_view(found)
+        self.prefetch(main)
+        if notification.channel in detached or notification.switch_source != "tmux":
+            self.stay_local(
+                f"Its terminal is unavailable here. Press {self._config.tui.keybindings.resume_detached} "
+                "to resume; up/down keeps browsing."
+            )
+            return
+
+        self.request_switch(notification, found)
+
+    def _switched(self, notification: db.Notification, switched: bool) -> None:
+        if self.target is None:
+            # Closed while the switch ran, which set the sidebar brief again.
+            if pane := os.environ.get("TMUX_PANE", ""):
+                brief.sidebar.clear(pane)
+            return
+
+        if self._cursor_key() != str(notification.id):
+            return
+
+        if switched:
+            self.local = False
+            tty = notification.metadata.get("tty")
+            if isinstance(tty, str) and tty:
+                self._note_focus(tty)
+        if self.switch_pending is not None:
+            return
+
+        if not switched:
+            self.stay_local(
+                f"Its terminal could not be opened. Press {self._config.tui.keybindings.resume_detached} "
+                "to try resuming; up/down keeps browsing."
+            )
+            return
+
+        self.sync()
