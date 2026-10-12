@@ -7,12 +7,12 @@ to find out.
 """
 
 import json
-import subprocess
 import typing as ty
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import tmux
 from ..claude import install_hooks
 from ..inbox import db
 
@@ -30,16 +30,13 @@ class Pane:
 
 def live_panes() -> list[Pane]:
     """Every pane on the current tmux server."""
-    result = subprocess.run(
+    result = tmux.run(
         [
-            "tmux",
             "list-panes",
             "-a",
             "-F",
             "#{session_name}|#{window_index}|#{pane_tty}|#{pane_current_command}",
-        ],
-        capture_output=True,
-        text=True,
+        ]
     )
     if result.returncode != 0:
         return []
@@ -181,17 +178,8 @@ def unknown_panes() -> list[Pane]:
 
 
 def _pane_cwd(pane: Pane) -> str | None:
-    result = subprocess.run(
-        [
-            "tmux",
-            "display-message",
-            "-t",
-            f"{pane.session}:{pane.window}",
-            "-p",
-            "#{pane_current_path}",
-        ],
-        capture_output=True,
-        text=True,
+    result = tmux.run(
+        ["display-message", "-t", f"{pane.session}:{pane.window}", "-p", "#{pane_current_path}"]
     )
     return result.stdout.strip() or None if result.returncode == 0 else None
 

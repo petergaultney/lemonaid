@@ -4,6 +4,7 @@ import subprocess
 import sys
 from collections import abc
 
+from .. import tmux
 from . import dismiss, target
 
 _MAX_POPUP_WIDTH = 140
@@ -32,10 +33,8 @@ def popup_command(found: target.Target, quit_keys: abc.Iterable[str] = ()) -> li
 def _client_width() -> int | None:
     """Width of the client that invoked the popup, when tmux can answer."""
     try:
-        result = subprocess.run(
-            ["tmux", "display-message", "-p", "#{client_width}"],
-            capture_output=True,
-            text=True,
+        result = tmux.run(
+            ["display-message", "-p", "#{client_width}"],
             check=True,
             timeout=_TMUX_QUERY_TIMEOUT_SECONDS,
         )

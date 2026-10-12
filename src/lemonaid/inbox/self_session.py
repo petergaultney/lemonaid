@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 import typing as ty
 
+from .. import tmux
 from ..log import get_logger
 from . import db
 
@@ -28,17 +29,14 @@ class PaneLocation(ty.NamedTuple):
 def pane_location(pane_id: str) -> PaneLocation | None:
     """Where *pane_id* is, or None if tmux can't say."""
     try:
-        result = subprocess.run(
+        result = tmux.run(
             [
-                "tmux",
                 "display-message",
                 "-t",
                 pane_id,
                 "-p",
                 "#{pane_tty}\t#{session_name}\t#{window_index}",
             ],
-            capture_output=True,
-            text=True,
             check=True,
             timeout=5,
         )
