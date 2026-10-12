@@ -1328,9 +1328,11 @@ class LemonaidApp(App):
             show_archive = bool(archive_count) and (not other_notifications or bool(show_other))
             if show_archive:
                 first_archive_row = next(iter(history_table.rows.values())).height
-                show_archive = (
-                    available_height - inbox_height
-                    >= 1 + int(history_table.show_header) + first_archive_row
+                show_archive = table_layout.archive_fits(
+                    available_height,
+                    inbox_height,
+                    int(history_table.show_header),
+                    first_archive_row,
                 )
             self.set_class(show_archive, "-search-archive")
             history_table.display = show_archive

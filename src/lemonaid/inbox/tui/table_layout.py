@@ -108,3 +108,13 @@ def column_labels(table_id: str, card_fields: abc.Collection[str]) -> dict[int, 
         6: "Message",
         layout.TTY_COLUMN: "Wakes" if table_id == "#snoozed_table" else "TTY",
     }
+
+
+def archive_fits(
+    available_height: int,
+    inbox_height: int,
+    archive_header_height: int,
+    first_archive_row_height: int,
+) -> bool:
+    """Room under a search's inbox matches for the archive's label, header and first row."""
+    return available_height - inbox_height >= 1 + archive_header_height + first_archive_row_height
