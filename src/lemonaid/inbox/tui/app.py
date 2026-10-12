@@ -1825,7 +1825,9 @@ class LemonaidApp(App):
             return shown, folded, ""
 
         try:
-            arranged = answer.apply(reply, shown, folded, self.config.inbox.arrange_may_fold_unread)
+            arranged = answer.apply(
+                reply, shown, folded, self.config.inbox.arrange_may_fold_unread, active.deaf
+            )
         except answer.AnswerError as e:
             if str(e) not in self._arrange_logged:
                 _log.warning("arrange: %s", e)
@@ -1899,6 +1901,7 @@ class LemonaidApp(App):
             focused_channels = focus.channels(active.rows, focused)
             matching_ids = (
                 {result.notification.id for result in search.find(conn, self._history_filter)}
+                | {n.id for n in active.rows if n.channel in active.deaf}
                 if self._search_mode
                 else None
             )
@@ -1919,6 +1922,7 @@ class LemonaidApp(App):
                     if n.channel in focused_channels
                     or (str(n.id) == current_key and current_key in self._unfolded_ids)
                 },
+                active.deaf,
             )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
             emojis = emoji.by_channel(conn)
             group_list = groups.store.all_groups(conn)
@@ -1939,6 +1943,10 @@ class LemonaidApp(App):
             # switched to from anywhere, so they belong in history instead.
             if env_filter:
                 other_active = self._ordered_active(conn, None)
+                if matching_ids is not None:
+                    matching_ids |= {
+                        n.id for n in other_active.rows if n.channel in other_active.deaf
+                    }
                 other_in_view = {
                     n.channel
                     for n in other_active.rows
@@ -1974,6 +1982,7 @@ class LemonaidApp(App):
                 view.statuses(cards),
                 self._kept,
                 self._fold_open,
+                active.deaf,
             )
             if self._fold_open:
                 entries = [*entries, *(sections.Row(str(n.id), n) for n in folded)]

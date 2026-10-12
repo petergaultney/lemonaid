@@ -1,3 +1,9 @@
+# 0.101.1 (2026-10-12)
+
+#### Fixed
+
+- **A deaf lemon is never hidden in the inbox.** It stays out of `fold_statuses` whatever its status, in a collapsed group, in a search, and in the fold an arranger builds, and a reviewer that is deaf is listed.
+
 # 0.101.0 (2026-10-12)
 
 #### Changed

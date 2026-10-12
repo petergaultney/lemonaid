@@ -233,3 +233,24 @@ def test_selected_reviewer_in_lower_table_stays_selected_when_status_turns_quiet
     assert set(held) == {reviewer, ordinary}
     assert selected == reviewer
     assert after == [ordinary]
+
+
+def test_search_keeps_a_deaf_lemon_in_the_lower_table(monkeypatch):
+    monkeypatch.setattr(
+        presence.Probe, "marks", lambda self, rows, lemon_ids, now: {"claude:deaf": "deaf"}
+    )
+    with db.connect() as conn:
+        _session(conn, "main")
+        deaf = _session(conn, "deaf", source="wezterm")
+        other = _session(conn, "other", source="wezterm")
+        _brief(conn, deaf, "waiting")
+
+    async def steps(app, pilot):
+        app._search_mode = True
+        app._history_filter = "no-such-text"
+        app._refresh_notifications()
+        await pilot.pause()
+        return _channels(app.query_one("#other_sources_table", DataTable))
+
+    assert other not in (rows := _run(steps))
+    assert rows == [deaf]

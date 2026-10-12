@@ -86,7 +86,7 @@ def _split(
         for i, (channel, _status, unread) in enumerate(rows)
     ]
     statuses = {channel: status for channel, status, _unread in rows}
-    shown, folded = order.fold(notifications, statuses, pinned, {"idle"}, in_view)
+    shown, folded = order.fold(notifications, statuses, pinned, {"idle"}, in_view, frozenset())
     return [n.channel for n in shown], [n.channel for n in folded]
 
 

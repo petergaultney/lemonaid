@@ -36,6 +36,7 @@ def _snapshot(
         pinned,
         config.tui.fold_statuses,
         frozenset(),
+        active.deaf,
     )
     return (
         view.snapshot(active, shown, folded, pinned, emojis, layout, width, now),

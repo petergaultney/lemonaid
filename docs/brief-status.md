@@ -43,6 +43,12 @@ on` part of `## Now`, which an `idle` card shows. Harnesses lemonaid can't probe
 A Claude lemon is briefly deaf each time its inbox waiter hands it a message,
 until it rearms one, so the inbox marks `deaf` only after 15 seconds of it.
 
+A lemon marked `deaf` (never a `done` one, see below) is never hidden in the inbox: not by `fold_statuses`, a collapsed
+group, a search, a quiet reviewer's filter, or an arranger's fold. The 15 seconds
+before it is marked are not covered. Snoozed and archived lemons are out of the
+inbox by the user's own choice and stay so. A collapsed group's header is still
+coloured by its most pressing status, which for a deaf lemon is an ordinary one.
+
 `dead` and `deaf` are also marked on a card with a manual status other than `done`,
 since a `blocked` lemon that has exited will not see the answer.
 

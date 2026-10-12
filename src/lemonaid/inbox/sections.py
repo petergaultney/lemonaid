@@ -6,7 +6,7 @@ band is no more pressing than the group's own: its most pressing row's. So a
 group holding a `blocked` lemon sits at the top of the `blocked` rows, and
 groups in the same band keep their own order.
 
-A group is its header, its pinned rows, which stay when it's collapsed, and
+A group is its header, its pinned and deaf rows, which stay when it's collapsed, and
 unless it's collapsed the rest of its rows, bar any the caller keeps drawn. A
 lemon in two groups is drawn in both. A folded row in a group is hidden in
 place rather than moved to the fold, and drawn there again when the fold is open.
@@ -83,13 +83,15 @@ def layout(
     statuses: abc.Mapping[str, str],
     kept: abc.Container[str] = (),
     fold_open: bool = False,
+    deaf: abc.Container[str] = (),
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
     *memberships* names each channel's groups; *all_groups* is every group, in order.
     A group with no rows here isn't drawn, nor is one whose rows are all
     folded while the fold is closed: its header would have nothing to open.
-    *kept* holds row keys drawn even inside a collapsed group or folded.
+    *kept* holds row keys drawn even inside a collapsed group or folded; a *deaf* lemon's
+    rows are always drawn.
     """
     every = [*shown, *folded]
     grouped = {
@@ -112,11 +114,12 @@ def layout(
             *(
                 Row(f"{n.id}@{group.group_id}", n)
                 for n in [
-                    *(n for n in rows if n.channel in pinned),
+                    *(n for n in rows if n.channel in pinned or n.channel in deaf),
                     *(
                         n
                         for n in rows
                         if n.channel not in pinned
+                        and n.channel not in deaf
                         and (
                             f"{n.id}@{group.group_id}" in kept
                             or (not group.collapsed and (fold_open or n.id not in folded_ids))
@@ -132,6 +135,7 @@ def layout(
             fold_open
             or n.id not in folded_ids
             or n.channel in pinned
+            or n.channel in deaf
             or f"{n.id}@{group.group_id}" in kept
             for n in grouped[group.name]
         )

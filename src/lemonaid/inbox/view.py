@@ -27,6 +27,13 @@ class Active:
         default_factory=dict
     )  # each channel's group names, in group order
 
+    @property
+    def deaf(self) -> frozenset[str]:
+        """Channels of lemons marked `deaf`: never folded, filtered or collapsed away."""
+        return frozenset(
+            channel for channel, card in self.cards.items() if card.mark == presence.DEAF
+        )
+
 
 def _cards(
     conn: sqlite3.Connection,
@@ -97,7 +104,7 @@ def statuses(cards: abc.Mapping[str, brief_cards.CardBrief]) -> dict[str, str]:
 def inbox_rows(
     active: Active, pinned: abc.Container[str], in_view: abc.Container[str]
 ) -> list[db.Notification]:
-    """Omit quiet reviewers unless the user chose them or their brief needs a band."""
+    """Omit quiet reviewers unless the user chose them, they are deaf, or their brief needs a band."""
     brief_statuses = statuses(active.cards)
     return [
         row
@@ -105,6 +112,7 @@ def inbox_rows(
         if row.channel not in active.reviewers
         or row.channel in pinned
         or row.channel in in_view
+        or row.channel in active.deaf
         or order.special_status(brief_statuses.get(row.channel, ""))
     ]
 

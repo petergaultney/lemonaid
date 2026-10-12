@@ -10,7 +10,7 @@ says the arranger failed, and the inbox draws its own order meanwhile.
 
 The answer decides display only, and nothing it does loses a row: a row it
 leaves out goes where the inbox's own order puts it, and an unread row stays
-out of the fold unless the user allows otherwise.
+out of the fold unless the user allows otherwise; a deaf lemon's row never folds.
 """
 
 import dataclasses
@@ -58,6 +58,7 @@ def apply(
     shown: abc.Sequence[db.Notification],
     folded: abc.Sequence[db.Notification],
     may_fold_unread: bool,
+    deaf: abc.Container[str] = (),
 ) -> Arranged:
     """*answer* applied to the inbox's own *shown* and *folded* rows."""
     if not isinstance(answer, dict):
@@ -82,6 +83,10 @@ def apply(
                 problems.append(f"{field}: no row {i}, ignored")
             elif i in placed:
                 problems.append(f"{field}: row {i} placed twice, first kept")
+            elif out is out_folded and by_id[i].channel in deaf:
+                problems.append(f"folded: row {i} is deaf, kept in the list")
+                kept_out.append(by_id[i])
+                placed.add(i)
             elif out is out_folded and by_id[i].is_unread and not may_fold_unread:
                 problems.append(f"folded: row {i} is unread, kept in the list")
                 kept_out.append(by_id[i])

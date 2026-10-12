@@ -193,9 +193,11 @@ brief_status = true
 `fold_statuses = ["idle"]` takes read sessions whose attached brief sets no
 status out of the list, between turns, and shows one line at its bottom in their
 place: `▸ idle (4) · w to show`. A lemon comes out while it is `active`, as it
-used to when it set `working`, and while it is `deaf` or `dead` unless those are
-listed too. `waiting` and `working`, from before lemonaid derived them, mean
-`idle` and `active`. `w` (the `fold` key) opens the group, listing those
+used to when it set `working`, and while it is `dead` unless that is listed too.
+A lemon marked `deaf` never folds, even when `deaf` or its manual status is listed.
+A `done` lemon is never marked `deaf`, so it folds as listed.
+`waiting` and `working`, from before lemonaid derived them, mean `idle` and
+`active`. `w` (the `fold` key) opens the group, listing those
 sessions at the bottom of the list, and closes it again. A folded session in a
 group stays hidden in its group instead, and still counts on the line; see
 [groups.md](groups.md#in-the-inbox). It works the same in the

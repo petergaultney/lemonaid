@@ -91,11 +91,12 @@ def fold(
     pinned: abc.Container[str],
     folded_statuses: abc.Container[str],
     in_view: abc.Container[str],
+    deaf: abc.Container[str],
 ) -> tuple[list[db.Notification], list[db.Notification]]:
     """`rows` split into the main list and the group folded at its bottom, order kept.
 
     A row folds when its brief status is in `folded_statuses`, unless it is
-    pinned, unread, or its channel is `in_view`: those stay where they would
+    pinned, unread, deaf, or its channel is `in_view`: those stay where they would
     be without folding.
     """
     shown: list[db.Notification] = []
@@ -105,6 +106,7 @@ def fold(
             statuses.get(n.channel, "") in folded_statuses
             and n.channel not in pinned
             and n.channel not in in_view
+            and n.channel not in deaf
             and not n.is_unread
         )
         (folded if folds else shown).append(n)
