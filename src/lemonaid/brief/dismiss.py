@@ -8,6 +8,8 @@ keys it arrives as: each a character, or Textual's name for it (`ctrl+b`).
 import subprocess
 from collections import abc
 
+from .. import tmux
+
 _TMUX_QUERY_TIMEOUT_SECONDS = 0.5
 
 
@@ -58,13 +60,7 @@ def pairs(sequences: abc.Iterable[str]) -> list[tuple[str, str]]:
 
 def _tmux(*args: str) -> str:
     try:
-        result = subprocess.run(
-            ["tmux", *args],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_TMUX_QUERY_TIMEOUT_SECONDS,
-        )
+        result = tmux.run(args, check=True, timeout=_TMUX_QUERY_TIMEOUT_SECONDS)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
 

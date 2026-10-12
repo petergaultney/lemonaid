@@ -6,6 +6,7 @@ import time
 from collections import abc
 from pathlib import Path
 
+from .. import tmux
 from ..log import get_logger
 
 _log = get_logger("launch.window")
@@ -26,7 +27,7 @@ class Pane:
 
 
 def _tmux(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["tmux", *args], capture_output=True, text=True)
+    return tmux.run(args)
 
 
 def _panes(session: str, index: str) -> list[tuple[str, str, bool, str]]:

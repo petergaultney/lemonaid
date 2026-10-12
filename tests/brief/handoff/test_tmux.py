@@ -27,10 +27,10 @@ def test_respawn_targets_exact_pane_with_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(handoff_tmux, "_tmux", lambda *_: "/bin/sh")
 
     def run(args, **kwargs):
-        calls.append(args)
+        calls.append(["tmux", *args])
         return subprocess.CompletedProcess(args, 0, "", "")
 
-    monkeypatch.setattr(handoff_tmux.subprocess, "run", run)
+    monkeypatch.setattr(handoff_tmux.tmux, "run", run)
     assert not handoff_tmux.respawn("%2", tmp_path, "codex --no-daemon", {"TOKEN": "abc"})
     assert calls == [
         [

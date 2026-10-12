@@ -10,6 +10,7 @@ import time
 import typing as ty
 from collections import abc
 
+from .. import tmux
 from ..config import load_config
 from ..inbox import db
 from ..log import get_logger
@@ -23,9 +24,7 @@ _TIMEOUT_SECONDS = 5
 
 def _tmux_lines(*argv: str) -> list[str] | None:
     try:
-        result = subprocess.run(
-            ["tmux", *argv], capture_output=True, text=True, check=True, timeout=_TIMEOUT_SECONDS
-        )
+        result = tmux.run(argv, check=True, timeout=_TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError) as e:
         _log.warning("tmux %s failed: %s", argv[0], e)
         return None

@@ -1,15 +1,16 @@
 """What tmux knows about a session that helps find its brief."""
 
 import os
-import subprocess
 from pathlib import Path
+
+from .. import tmux
 
 LEMON_NAME_ENV = "LEMON_NAME"
 
 
 def _tmux(*args: str) -> str:
     """A tmux command's stdout, or "" when it fails (no server, no such session)."""
-    result = subprocess.run(["tmux", *args], capture_output=True, text=True)
+    result = tmux.run(args)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 

@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 
-from .. import handlers
+from .. import handlers, tmux
 from ..config import Config, load_config
 from ..tmux import follow, scratch
 from . import target
@@ -12,9 +12,7 @@ from . import target
 
 def _tmux(*args: str) -> str | None:
     try:
-        result = subprocess.run(
-            ["tmux", *args], capture_output=True, text=True, check=True, timeout=0.5
-        )
+        result = tmux.run(args, check=True, timeout=0.5)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
 

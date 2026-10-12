@@ -10,6 +10,7 @@ import os
 import subprocess
 from collections import abc
 
+from .. import tmux
 from ..log import get_logger
 from . import ownership
 
@@ -23,13 +24,7 @@ Planned = abc.Mapping[str, abc.Sequence[ownership.Pane]]  # window ID -> its pan
 def query(*args: str) -> list[str] | None:
     """Non-empty lines from a tmux query, or None when tmux did not answer."""
     try:
-        result = subprocess.run(
-            ["tmux", *args],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_TIMEOUT_SECONDS,
-        )
+        result = tmux.run(args, check=True, timeout=_TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError) as e:
         _log.warning("tmux %s failed: %s", args[0], e)
         return None
@@ -63,11 +58,8 @@ def move_clients_off(doomed: abc.Collection[str]) -> str:
             return f"Nowhere in '{session}' to move {client} to; nothing was closed."
 
         try:
-            subprocess.run(
-                ["tmux", "switch-client", "-c", client, "-t", target],
-                check=True,
-                capture_output=True,
-                timeout=_TIMEOUT_SECONDS,
+            tmux.run(
+                ["switch-client", "-c", client, "-t", target], check=True, timeout=_TIMEOUT_SECONDS
             )
         except (OSError, subprocess.SubprocessError) as e:
             return f"Could not move {client} off {window}: {e}; nothing was closed."
@@ -101,12 +93,7 @@ def close(windows: abc.Iterable[str]) -> list[str]:
     failed = []
     for window in windows:
         try:
-            subprocess.run(
-                ["tmux", "kill-window", "-t", window],
-                check=True,
-                capture_output=True,
-                timeout=_TIMEOUT_SECONDS,
-            )
+            tmux.run(["kill-window", "-t", window], check=True, timeout=_TIMEOUT_SECONDS)
         except (OSError, subprocess.SubprocessError) as e:
             _log.warning("could not close window %s: %s", window, e)
             failed.append(window)

@@ -1,10 +1,10 @@
 """Inspect and replace only the recorded tmux pane for a handoff."""
 
 import shlex
-import subprocess
 import time
 from pathlib import Path
 
+from .. import tmux
 from ..config import BackendConfig, load_config
 from ..inbox import db
 from ..launch import command
@@ -13,7 +13,7 @@ from ..tmux import submit
 
 
 def _tmux(*args: str) -> str:
-    result = subprocess.run(["tmux", *args], capture_output=True, text=True)
+    result = tmux.run(args)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
@@ -71,22 +71,16 @@ def remain_on_exit(pane_id: str) -> str:
 
 
 def set_remain_on_exit(pane_id: str, value: str) -> bool:
-    return (
-        subprocess.run(
-            ["tmux", "set-option", "-p", "-t", pane_id, "remain-on-exit", value],
-            capture_output=True,
-        ).returncode
-        == 0
-    )
+    return tmux.run(["set-option", "-p", "-t", pane_id, "remain-on-exit", value]).returncode == 0
 
 
 def respawn(pane_id: str, directory: Path, line: str, environment: dict[str, str]) -> str:
     """Replace the process in a pane with a command run by tmux's default shell."""
     shell = _tmux("show-options", "-gv", "default-shell") or "/bin/sh"
-    args = ["tmux", "respawn-pane", "-k", "-t", pane_id, "-c", str(directory)]
+    args = ["respawn-pane", "-k", "-t", pane_id, "-c", str(directory)]
     for name, value in environment.items():
         args.extend(("-e", f"{name}={value}"))
-    result = subprocess.run([*args, shell, "-c", line], capture_output=True, text=True)
+    result = tmux.run([*args, shell, "-c", line])
     return "" if result.returncode == 0 else result.stderr.strip() or "tmux respawn failed"
 
 
@@ -128,12 +122,7 @@ def _prompt_source_to_rearm(row, reason: str, submit_key: str) -> bool:
         "Rearm `lemonaid inbox watch --self` as a background task, then check "
         "`lemonaid brief handoff status " + row["token"] + "` before retrying."
     )
-    if (
-        subprocess.run(
-            ["tmux", "send-keys", "-t", row["source_pane_id"], "-l", prompt], capture_output=True
-        ).returncode
-        != 0
-    ):
+    if tmux.run(["send-keys", "-t", row["source_pane_id"], "-l", prompt]).returncode != 0:
         return False
 
     time.sleep(1)
