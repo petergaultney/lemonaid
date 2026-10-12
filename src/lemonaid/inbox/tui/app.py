@@ -34,7 +34,6 @@ from ...handlers import handle_notification
 from ...lemon_watchers import (
     ModelInfo,
     detect_terminal_switch_source,
-    fish_path,
     get_tmux_socket,
     start_unified_watcher,
     stop_unified_watcher,
@@ -53,7 +52,6 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import (
-    context_use,
     db,
     emoji,
     order,
@@ -69,13 +67,13 @@ from .. import (
 )
 from ..arrange import answer, child
 from . import (
-    backend_indicators,
     brief_cards,
     card_context,
     cards,
     focus,
     group_headers,
     group_picker,
+    inbox_rows,
     layout,
     pr_numbers,
     project_names,
@@ -98,8 +96,6 @@ from .usage_view import UsageHeader
 from .utils import (
     GUTTER_WIDTH,
     JUMP_DIGITS,
-    backend_cell,
-    jump_gutter,
     set_terminal_title,
     styled_cell,
     update_static,
@@ -815,40 +811,9 @@ class LemonaidApp(App):
         return self._focused
 
     def _backend_value(self, n: db.Notification, is_unread: bool, *, history: bool = False) -> Text:
-        remembered = self._models_by_channel.get(n.channel)
-        model = n.metadata.get("model")
-        if isinstance(model, str) and model:
-            provider = n.metadata.get("model_provider")
-            if not isinstance(provider, str):
-                provider = remembered.provider if remembered else ""
-            remembered = ModelInfo(provider, model)
-            self._models_by_channel[n.channel] = remembered
-
-        return backend_indicators.backend_text(
-            n.channel,
-            self.config.tui.backend_labels,
-            is_unread,
-            model=remembered.model if remembered else "",
-            model_provider=remembered.provider if remembered else "",
-            history=history,
-            context_percent=None if history else self._context_percent(n, remembered),
+        return inbox_rows.backend_value(
+            n, is_unread, self.config.tui, self._models_by_channel, history=history
         )
-
-    def _context_percent(self, n: db.Notification, model: ModelInfo | None) -> int | None:
-        used = n.metadata.get("context_tokens")
-        window = n.metadata.get("context_window")
-        if not isinstance(used, int):
-            return None
-
-        threshold = context_use.threshold_for(
-            self.config.tui.context_threshold,
-            n.channel.split(":")[0],
-            model.model if model else "",
-        )
-        if threshold is None:
-            return None
-
-        return context_use.percent(used, window if isinstance(window, int) else 0, threshold)
 
     def _project_names_changed(self) -> None:
         self._projects.clear()
@@ -873,14 +838,7 @@ class LemonaidApp(App):
         return self._projects[key]
 
     def _where_cell(self, n: db.Notification, is_unread: bool, area: str) -> Text:
-        """The directory column: the project, unless `card_fields` asks for the cwd instead."""
-        if "project" not in self.config.tui.card_fields:
-            return styled_cell(fish_path(n.metadata.get("cwd", "")), is_unread, "cwd")
-
-        where = self._project(n, area)
-        if self.config.tui.project_name_colors and where.field == "project" and where.project_name:
-            return utils.styled_project_cell(where.text.plain, where.project_name, is_unread)
-        return styled_cell(where.text.plain, is_unread, where.field)
+        return inbox_rows.where_cell(n, is_unread, self.config.tui, lambda: self._project(n, area))
 
     def _context_parts(
         self,
@@ -890,18 +848,8 @@ class LemonaidApp(App):
         card_brief: brief_cards.CardBrief | None = None,
         now: float = 0.0,
     ) -> list[card_context.Part]:
-        return card_context.parts(
-            self.config.tui.card_fields,
-            row_cells.time_cell(
-                n.created_at, is_unread, neutral_timing=self.config.tui.project_name_colors
-            ),
-            self._project(n, area),
-            n.metadata.get("git_branch", ""),
-            n.metadata.get("cwd", ""),
-            is_unread,
-            card_brief.age_text(now) if card_brief else "",
-            self.config.tui.project_name_colors,
-            neutral_timing=self.config.tui.project_name_colors,
+        return inbox_rows.context_parts(
+            n, is_unread, self.config.tui, self._project(n, area), card_brief, now
         )
 
     def _active_row(
@@ -915,34 +863,23 @@ class LemonaidApp(App):
         wordybin: str = "",
         pr_number: pr_numbers.PR | None = None,
     ) -> tuple[str, list[Text]]:
-        """Build the main-table row for a session, keyed by notification id.
-
-        `row_index` is the session's position in the list, which is what its jump
-        digit names - so a row's number changes when the list reorders.
-
-        `focused_channels` names the lemons a user is looking at, and `pinned` the set of
+        """`focused_channels` names the lemons a user is looking at, and `pinned` the set of
         pinned channels. Both are passed in rather than looked up here, since
         every row in one refresh shares the answer.
         """
-        is_unread = n.is_unread
-        is_here = n.channel in focused_channels
-        return str(n.id), [
-            row_cells.time_cell(
-                n.created_at, is_unread, neutral_timing=self.config.tui.project_name_colors
-            ),
-            Text("●", style=utils.unread_marker_style()) if is_unread else Text(""),
-            backend_cell(
-                self._backend_value(n, is_unread),
-                n.channel in pinned,
-            ),
-            jump_gutter(row_index, is_here)
-            + row_cells.name_cell(n, emojis, wordybin, is_unread, pr_number)
-            + self._detached_marker(n),
-            styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
-            self._where_cell(n, is_unread, area),
-            styled_cell(n.message, is_unread, "message"),
-            styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), is_unread, "tty"),
-        ]
+        return inbox_rows.active_row(
+            n,
+            row_index,
+            n.channel in focused_channels,
+            n.channel in pinned,
+            emojis,
+            self._backend_value(n, n.is_unread),
+            self._where_cell(n, n.is_unread, area),
+            self._detached_marker(n),
+            self.config.tui,
+            wordybin,
+            pr_number,
+        )
 
     def _other_row(
         self,
@@ -952,19 +889,15 @@ class LemonaidApp(App):
         wordybin: str = "",
         pr_number: pr_numbers.PR | None = None,
     ) -> tuple[str, list[Text]]:
-        """Build the non-switchable-table row for a session. Always dimmed."""
-        return str(n.id), [
-            row_cells.time_cell(
-                n.created_at, False, neutral_timing=self.config.tui.project_name_colors
-            ),
-            Text("○", style="dim") if n.is_unread else Text(""),
+        return inbox_rows.other_row(
+            n,
+            emojis,
             self._backend_value(n, False),
-            row_cells.name_cell(n, emojis, wordybin, False, pr_number),
-            styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
             self._where_cell(n, False, area),
-            styled_cell(n.message, False, "message"),
-            styled_cell(n.metadata.get("tty", "").replace("/dev/", ""), False, "tty"),
-        ]
+            self.config.tui,
+            wordybin,
+            pr_number,
+        )
 
     def _ordered_active(self, conn: sqlite3.Connection, switch_source: str | None) -> "view.Active":
         return view.ordered_active(
