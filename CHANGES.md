@@ -1,3 +1,9 @@
+# 0.102.0 (2026-10-12)
+
+#### Added
+
+- **`lemonaid terminal vault-links iterm2` (or `wezterm`) makes a printed `.md` path under a `[brief] vaults` root open in Obsidian when clicked.** It matches paths written from `~` or in full, spaces included, and replaces only lemonaid's own rule when run again; In iTerm2 it also turns on the advanced setting that runs Smart Selection actions before Semantic History on Cmd-click, which otherwise opens an existing file in your editor. `--dry-run`, `--print` and `--remove` are available. See [vault-links](docs/vault-links.md).
+
 # 0.101.3 (2026-10-12)
 
 #### Fixed

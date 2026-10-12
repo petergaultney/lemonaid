@@ -82,6 +82,10 @@ end) },
 
 Change `'p'` and `'LEADER'` to match your preferred keybinding.
 
+### 3. Clickable vault paths (optional)
+
+To open a printed vault path in Obsidian on click, see [vault-links.md](vault-links.md).
+
 ## How it works
 
 ### Switching to notifications

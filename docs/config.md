@@ -410,6 +410,8 @@ name = "shuf -n1 ~/.config/lemonaid/names.txt"
 written from `~` or in full, becomes an `obsidian://open` link to that note, using
 the directory's name as the vault name, as Obsidian does. With none configured,
 such paths stay plain text; bare URLs are shortened either way.
+[`lemonaid terminal vault-links`](vault-links.md) makes the same paths
+clickable in a terminal.
 
 ```toml
 [brief]

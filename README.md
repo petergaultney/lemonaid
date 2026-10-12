@@ -69,6 +69,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[Context use in the inbox](docs/config.md#tuicontext_threshold)**: Opt in to see how much context each Claude and Codex lemon has used, as a percentage of a threshold you set per backend or model, coloured from blue to red at the threshold
 - **[Subscription usage](docs/usage.md)**: `lemonaid usage` shows how much of each Claude and Codex limit window is used against its pace, and `--watch` blocks until usage crosses a step or is on track to run out before the reset. Thresholds are configurable.
 
+- **[Vault paths in the terminal](docs/vault-links.md)**: `lemonaid terminal vault-links iterm2` (or `wezterm`) installs a rule that opens a printed `.md` path under a `[brief] vaults` root in Obsidian when clicked, spaces in folder names included
 - **Notification inbox**: Track which [Claude Code](docs/claude.md), [Codex CLI](docs/codex.md), [OpenClaw](docs/openclaw.md), and [OpenCode](docs/opencode.md) sessions need your attention, and what they're doing as they do it
 - **Project names within a root**: An optional [per-root hook](docs/config.md#project-names-within-a-root) maps working directories to project labels in the inbox
 - **Quiet reviewer sessions**: Reviewer lemons stay out of the default inbox until you switch to them, select or pin them, or their brief enters a specially ranked status
@@ -289,6 +290,7 @@ Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/conf
 - [docs/keybindings.md](docs/keybindings.md) - Customize TUI keybindings
 - [docs/tmux.md](docs/tmux.md) - tmux integration and session templates
 - [docs/wezterm.md](docs/wezterm.md) - WezTerm integration
+- [docs/vault-links.md](docs/vault-links.md) - Clickable vault paths in iTerm2 and WezTerm
 - [docs/cmux.md](docs/cmux.md) - cmux integration
 
 ## Architecture
