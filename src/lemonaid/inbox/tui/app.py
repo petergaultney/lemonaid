@@ -80,9 +80,6 @@ from .utils import (
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
-_FOCUS_CACHE_SECONDS = 1.0
-_INPUT_FOCUS_CACHE_SECONDS = 0.5
-
 _log = get_logger("tui")
 
 _W = ty.TypeVar("_W", bound=Widget)
@@ -104,9 +101,7 @@ class LemonaidApp(App):
         self._undo_stack = undo.Stack()
         self._last_name_refresh = 0.0
         self._name_scan_mtimes: dict[str, float] = {}
-        self._focused: frozenset[str] = frozenset()
-        self._focused_asked_at = 0.0
-        self._input_focus_asked_at = 0.0
+        self._attention = focus.Probe()
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
         self._hint_timer: Timer | None = None
@@ -203,7 +198,7 @@ class LemonaidApp(App):
             yield BriefPane(
                 self.config,
                 self._get_current_row_key,
-                self._note_focus,
+                self._attention.note,
                 self._brief_closed,
                 id="brief_view",
             )
@@ -293,19 +288,12 @@ class LemonaidApp(App):
 
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""
-        self._input_focus_asked_at = 0.0
+        self._attention.input_at = 0.0
         self._refresh_notifications()
 
     def _update_input_indicator(self) -> None:
         pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
-        if not pane:
-            return
-        now = time.monotonic()
-        if now - self._input_focus_asked_at < _INPUT_FOCUS_CACHE_SECONDS:
-            return
-        self._input_focus_asked_at = now
-        active = focus.pane_receives_keys(pane)
-        if active is not None:
+        if pane and (active := self._attention.has_keys(pane)) is not None:
             self.set_class(active, "-input-active")
             self.set_class(not active, "-input-inactive")
 
@@ -381,20 +369,6 @@ class LemonaidApp(App):
         table = self.query_one("#main_table", DataTable)
         return table.cursor_coordinate.row
 
-    def _focused_ttys(self) -> frozenset[str]:
-        """Which pane the user is looking at, asked of tmux at most once a second.
-
-        A refresh runs on the poll interval and again on every action that
-        changes the list - far more often than a pane can be switched by hand,
-        and the answer costs a subprocess each time.
-        """
-        now = time.time()
-        if now - self._focused_asked_at >= _FOCUS_CACHE_SECONDS:
-            self._focused = frozenset(navigation.focused_ttys(get_tmux_socket()))
-            self._focused_asked_at = now
-
-        return self._focused
-
     def _project_names_changed(self) -> None:
         if self._mode is view_modes.HISTORY:
             self._refresh_history()
@@ -427,7 +401,7 @@ class LemonaidApp(App):
 
         inbox = self._content.inbox
         drawn = inbox.refresh_list(
-            focused=self._focused_ttys(),
+            focused=self._attention.ttys(),
             env_filter=self.current_env if self.current_env != "unknown" else None,
             search_text=self._history_filter if self._search_mode else None,
             detached=self._detached_channels,
@@ -659,8 +633,7 @@ class LemonaidApp(App):
         # lookup remains authoritative for switches made outside lemonaid.
         tty = notification.metadata.get("tty")
         if isinstance(tty, str) and tty:
-            self._focused = frozenset({tty})
-            self._focused_asked_at = time.time()
+            self._attention.note(tty)
             self._refresh_notifications()
 
         # In scratch mode the pane hides after navigation, unless follow
@@ -757,7 +730,7 @@ class LemonaidApp(App):
             if not self.query_one(BriefPane).switching:  # a switch in flight wakes it twice
                 self.query_one(BriefPane).sync()
             # The follow hook sends it after moving this pane, so the focused pane has changed.
-            self._focused_asked_at = 0.0
+            self._attention.focused_at = 0.0
             self._refresh_notifications()
             return
 
@@ -812,11 +785,6 @@ class LemonaidApp(App):
     def action_cursor_last(self) -> None:
         """Move to the bottom row of the focused table; in the inbox, a folded group stays folded."""
         table_nav.to_end(self._focused_table(), self.query_one(InboxList).main, last=True)
-
-    def _note_focus(self, tty: str) -> None:
-        """The pane we just switched to has the user's attention, ahead of tmux's next answer."""
-        self._focused = frozenset({tty})
-        self._focused_asked_at = time.time()
 
     def _brief_closed(self) -> None:
         self._show_keys(self._keys_shown)

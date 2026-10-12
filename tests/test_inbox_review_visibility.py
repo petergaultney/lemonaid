@@ -15,7 +15,7 @@ from lemonaid.config import load_config
 from lemonaid.inbox import db, pins, presence, view
 from lemonaid.inbox.arrange.cli import _snapshot
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import watcher_hooks
+from lemonaid.inbox.tui import focus, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.brief_cards import BriefCache
 from lemonaid.inbox.tui.utils import HERE_BLOCK
@@ -169,7 +169,7 @@ def test_arranger_snapshot_uses_the_same_default_visibility():
 def test_switching_to_a_reviewer_shows_it_in_both_inbox_layouts(monkeypatch, size):
     focused = set()
     monkeypatch.setattr(app_mod.navigation, "focused_ttys", lambda socket=None: focused)
-    monkeypatch.setattr(app_mod, "_FOCUS_CACHE_SECONDS", 0.0)
+    monkeypatch.setattr(focus, "FOCUS_CACHE_SECONDS", 0.0)
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer", tty="/dev/ttys-reviewer")
         ordinary = _session(conn, "worker")
@@ -220,7 +220,7 @@ def test_reviewer_stays_visible_with_here_bar_when_inbox_cursor_moves(monkeypatc
     monkeypatch.setattr(
         app_mod.navigation, "focused_ttys", lambda socket=None: {"/dev/ttys-reviewer"}
     )
-    monkeypatch.setattr(app_mod, "_FOCUS_CACHE_SECONDS", 0.0)
+    monkeypatch.setattr(focus, "FOCUS_CACHE_SECONDS", 0.0)
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer", tty="/dev/ttys-reviewer")
         ordinary = _session(conn, "worker")

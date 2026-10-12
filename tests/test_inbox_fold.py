@@ -243,7 +243,7 @@ def focus(monkeypatch) -> dict[str, set[str]]:
     """The ttys tmux reports as focused, asked afresh on every refresh."""
     focused: dict[str, set[str]] = {"ttys": set()}
     monkeypatch.setattr(app_mod.navigation, "focused_ttys", lambda socket=None: focused["ttys"])
-    monkeypatch.setattr(app_mod, "_FOCUS_CACHE_SECONDS", 0.0)
+    monkeypatch.setattr("lemonaid.inbox.tui.focus.FOCUS_CACHE_SECONDS", 0.0)
     return focused
 
 

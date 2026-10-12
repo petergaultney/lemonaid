@@ -43,7 +43,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
             assert not app.has_class("-input-active")
 
             active = True
-            app._input_focus_asked_at = 0
+            app._attention.input_at = 0
             app._refresh_notifications()
             await pilot.pause()
             assert app.has_class("-input-active")
@@ -51,7 +51,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
             assert app.screen.styles.border_bottom[1] == Color.parse("#2bd9cf")
 
             active = False
-            app._input_focus_asked_at = 0
+            app._attention.input_at = 0
             app._refresh_notifications()
             await pilot.pause()
             assert not app.has_class("-input-active")
@@ -102,7 +102,7 @@ def test_the_cursor_row_dims_only_while_tmux_says_the_pane_is_inactive(monkeypat
             assert not app.has_class("-input-inactive")
 
             receives = False
-            app._input_focus_asked_at = 0
+            app._attention.input_at = 0
             app._refresh_notifications()
             await pilot.pause()
             assert app.has_class("-input-inactive")

@@ -1,8 +1,10 @@
 """Choose the inbox row representing each focused terminal."""
 
 import subprocess
+import time
 from collections.abc import Iterable, Sequence
 
+from ...lemon_watchers import get_tmux_socket
 from ...tmux import navigation
 from .. import db, sections
 
@@ -31,6 +33,47 @@ def pane_receives_keys(pane: str) -> bool | None:
     if len(parts) != 3 or any(not part.isdecimal() for part in parts):
         return None
     return parts[0] == "1" and parts[1] == "1" and int(parts[2]) > 0
+
+
+FOCUS_CACHE_SECONDS = 1.0
+INPUT_CACHE_SECONDS = 0.5
+
+
+class Probe:
+    """What tmux says has the user's attention, asked no more often than it can change.
+
+    A refresh runs on the poll interval and again on every action that
+    changes the list - far more often than a pane can be switched by hand,
+    and each answer costs a subprocess.
+    """
+
+    def __init__(self) -> None:
+        self.focused: frozenset[str] = frozenset()
+        self.focused_at = 0.0
+        self.input_at = 0.0
+
+    def ttys(self) -> frozenset[str]:
+        """The ttys of the panes the user is looking at."""
+        now = time.time()
+        if now - self.focused_at >= FOCUS_CACHE_SECONDS:
+            self.focused = frozenset(navigation.focused_ttys(get_tmux_socket()))
+            self.focused_at = now
+
+        return self.focused
+
+    def note(self, tty: str) -> None:
+        """We just switched to *tty*, ahead of tmux's next answer."""
+        self.focused = frozenset({tty})
+        self.focused_at = time.time()
+
+    def has_keys(self, pane: str) -> bool | None:
+        """Whether *pane* has the keyboard, or None when not asked again yet or unknown."""
+        now = time.monotonic()
+        if now - self.input_at < INPUT_CACHE_SECONDS:
+            return None
+
+        self.input_at = now
+        return pane_receives_keys(pane)
 
 
 def behind_scratch(pane: str, socket: str | None) -> str | None:

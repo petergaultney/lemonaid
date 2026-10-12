@@ -65,7 +65,7 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
             _query(server, "select-pane", "-t", sender.metadata["tmux_pane_identity"][0])
             run("codex:real")
             assert _query(server, "list-clients", "-F", "#{pane_tty}") == target.metadata["tty"]
-            app._focused_asked_at = 0
+            app._attention.focused_at = 0
             app._refresh_notifications()
             if action == "marker":
                 assert table.get_row(str(target.id))[3].plain.startswith(HERE_BLOCK)
@@ -75,7 +75,7 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
             row = table.get_row_index(str(sender.id))
             table.move_cursor(row=row)
             _query(server, "select-pane", "-t", scratch)
-            app._input_focus_asked_at = 0
+            app._attention.input_at = 0
             app._update_input_indicator()
             assert app.has_class("-input-active")
             if action == "click":
@@ -86,7 +86,7 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
             assert _query(server, "list-clients", "-F", "#{pane_tty}") == sender.metadata["tty"]
             # Reclicking the current lemon keeps focus in scratch; Enter still returns.
             _query(server, "select-pane", "-t", scratch)
-            app._input_focus_asked_at = 0
+            app._attention.input_at = 0
             app._update_input_indicator()
             await pilot.click("#main_table", offset=(10, 1 + row))
             await pilot.pause()

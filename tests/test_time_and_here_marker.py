@@ -421,6 +421,6 @@ def test_a_successful_inbox_switch_marks_its_tty_immediately(monkeypatch):
 
     pane._switch_to_notification(notification)
 
-    assert pane._focused == frozenset({"/dev/ttys123"})
-    assert pane._focused_asked_at > 0
+    assert pane._attention.focused == frozenset({"/dev/ttys123"})
+    assert pane._attention.focused_at > 0
     assert refreshed == [True]
