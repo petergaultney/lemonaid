@@ -69,15 +69,15 @@ from ..arrange import answer, child
 from . import (
     brief_cards,
     card_context,
-    cards,
     focus,
     group_headers,
     group_picker,
+    history_rows,
     inbox_rows,
     layout,
     pr_numbers,
     project_names,
-    row_cells,
+    snoozed_rows,
     styles,
     table_columns,
     table_layout,
@@ -97,7 +97,6 @@ from .utils import (
     GUTTER_WIDTH,
     JUMP_DIGITS,
     set_terminal_title,
-    styled_cell,
     update_static,
 )
 
@@ -1736,48 +1735,19 @@ class LemonaidApp(App):
             if not resume_mod.has_resume_command(self.config, n.channel):
                 continue
 
-            created = row_cells.format_timestamp(n.created_at)
-            branch = n.metadata.get("git_branch", "")
-
-            name_cell = styled_cell(n.name or "", False, "name", history=True)
             card = (path := brief_paths.get(n.channel)) and self._brief_cache.get(path)
             area = card.area if card else ""
-            if card and card.status:
-                name_cell.append(
-                    f" · {card.status}",
-                    style=brief_cards.STATUS_STYLES.get(card.status, "dim"),
-                )
-
-            cells = [
-                styled_cell(
-                    created,
-                    False,
-                    "time",
-                    history=True,
-                    neutral_timing=self.config.tui.project_name_colors,
-                ),
-                Text(""),  # archived: never a marker, but cards index by position
+            cells, height = history_rows.history_row(
+                n,
+                card or None,
                 self._backend_value(n, False, history=True),
-                name_cell,
-                styled_cell(branch, False, "branch", history=True),
                 self._where_cell(n, False, area),
-                styled_cell(n.message, False, "message", history=True),
-                Text(""),  # No TTY for archived
-            ]
-            card_width = self._card_width()
-            shape = self._card_shape()
-            # Columns drop the marker; cards have no columns to drop, and index
-            # their fields by position.
-            card = (
-                cards.as_card(
-                    cells, card_width, *shape, context_parts=self._context_parts(n, False, area)
-                )
-                if card_width
-                else table_rows.without_marker(cells)
+                lambda n=n, area=area: self._context_parts(n, False, area),
+                self.config.tui.project_name_colors,
+                self._card_width(),
+                self._card_shape(),
             )
-            history_table.add_row(
-                *card, key=str(n.id), height=table_rows.row_height(card) if card_width else 1
-            )
+            history_table.add_row(*cells, key=str(n.id), height=height)
 
         if history_table.row_count > 0:
             history_table.move_cursor(row=min(current_row, history_table.row_count - 1))
@@ -1874,24 +1844,12 @@ class LemonaidApp(App):
             [
                 (
                     str(n.id),
-                    [
-                        row_cells.time_cell(
-                            n.created_at,
-                            False,
-                            history=True,
-                            neutral_timing=self.config.tui.project_name_colors,
-                        ),
-                        Text("○", style="dim") if n.snooze_prev_status == "unread" else Text(""),
+                    snoozed_rows.snoozed_cells(
+                        n,
                         self._backend_value(n, False),
-                        styled_cell(n.name or "", False, "name"),
-                        styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
                         self._where_cell(n, False, areas.get(n.channel, "")),
-                        styled_cell(n.message, False, "message"),
-                        Text(
-                            format_wake_time(n.snooze_until) if n.snooze_until else "",
-                            style="bold yellow",
-                        ),
-                    ],
+                        self.config.tui.project_name_colors,
+                    ),
                 )
                 for n in notifications
             ],
