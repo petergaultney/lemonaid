@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.config import PlaceRoot, PlacesConfig, load_config
-from lemonaid.inbox.tui import app, brief_cards, card_context, utils
+from lemonaid.inbox.tui import brief_cards, card_context, cards, utils
 from lemonaid.inbox.tui.utils import project_color
 from lemonaid.tmux import window_status
 
@@ -124,7 +124,7 @@ def test_a_narrow_card_keeps_a_project_name_that_fits_alone(tmp_path):
     )
     cells = [_TIME, Text(""), Text(""), Text("n"), Text("x"), Text(cwd), Text("m")]
 
-    (body,) = app._as_card(cells, 21, context_parts=line)
+    (body,) = cards.as_card(cells, 21, context_parts=line)
 
     assert body.plain.split("\n")[1].strip() == "engineering-backend"
 

@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, backend_indicators, layout
+from lemonaid.inbox.tui import app, backend_indicators, cards, layout
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
@@ -37,7 +37,7 @@ def test_the_context_line_never_wraps():
         Text("~/w/d/t/live-observability"),
         Text("m"),
     ]
-    (body,) = app._as_card(cells, 38, context_lines=3, message_lines=1)
+    (body,) = cards.as_card(cells, 38, context_lines=3, message_lines=1)
 
     assert len(body.plain.split("\n")[1]) <= 38
     assert len(body.plain.split("\n")) == 4  # name, context, message, separator
@@ -59,7 +59,7 @@ def test_selected_and_hovered_card_keep_blocked_headline_background(monkeypatch)
         Text(""),
         Text("message"),
     ]
-    (card,) = app._as_card(cells, 48, card_brief=CardBrief("blocked", "", 0))
+    (card,) = cards.as_card(cells, 48, card_brief=CardBrief("blocked", "", 0))
 
     async def render_card(hover_other_row: bool):
         class CardApp(App):
@@ -109,7 +109,7 @@ def test_a_card_stays_within_its_budget():
         Text("a message that also runs well past the available width"),
         Text("ttys001"),
     ]
-    (body,) = app._as_card(cells, 30, message_lines=3)
+    (body,) = cards.as_card(cells, 30, message_lines=3)
 
     # headline + one context line + message + the separator
     assert len(body.plain.split("\n")) <= 1 + 1 + 3 + 1
@@ -119,7 +119,7 @@ def test_a_card_stays_within_its_budget():
 def test_a_card_ends_in_exactly_one_blank_line():
     """Two would read as a gap, none as a run-on into the next card."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert body.plain.endswith("\n")
     assert not body.plain.endswith("\n\n")
@@ -128,14 +128,14 @@ def test_a_card_ends_in_exactly_one_blank_line():
 def test_a_wrap_landing_near_the_boundary_adds_no_second_blank():
     """rich pads a wrap to full width; that blank would read as a gap."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("a bc def")]
-    (body,) = app._as_card(cells, 12, message_lines=3)
+    (body,) = cards.as_card(cells, 12, message_lines=3)
 
     assert not body.plain.endswith("\n\n")
 
 
 def test_the_row_is_tall_enough_for_the_separator():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m " * 40)]
-    card = app._as_card(cells, 30, message_lines=3)
+    card = cards.as_card(cells, 30, message_lines=3)
 
     assert app._row_height(card) == len(card[layout.CARD_BODY_COLUMN].plain.split("\n"))
 
@@ -143,7 +143,7 @@ def test_the_row_is_tall_enough_for_the_separator():
 def test_a_short_card_does_not_pad_to_the_budget():
     """Padding is what made a tall pane mostly blank rows."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
-    (body,) = app._as_card(cells, 40, message_lines=3)
+    (body,) = cards.as_card(cells, 40, message_lines=3)
 
     lines = body.plain.split("\n")
     assert lines[0] == "   n" + " " * 33 + "CC"  # the last column is the current session's
@@ -152,14 +152,14 @@ def test_a_short_card_does_not_pad_to_the_budget():
 
 def test_every_line_fits_the_width():
     cells = [Text("15:24:18"), Text(""), Text("CC")] + [Text("x" * 90)] * 5
-    (body,) = app._as_card(cells, 24, message_lines=2)
+    (body,) = cards.as_card(cells, 24, message_lines=2)
 
     assert all(len(line) <= 24 for line in body.plain.split("\n"))
 
 
 def test_an_unread_card_leads_with_its_marker():
     cells = [Text("15:24:18"), Text("●"), Text("CC"), Text("thing"), Text(""), Text(""), Text("")]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert body.plain.split("\n")[0].startswith("  ● thing")
 
@@ -167,7 +167,7 @@ def test_an_unread_card_leads_with_its_marker():
 def test_a_read_card_keeps_the_name_aligned():
     """The marker column is a space when read, so names line up down the list."""
     cells = [Text("15:24:18"), Text(""), Text("CC"), Text("thing"), Text(""), Text(""), Text("")]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert body.plain.split("\n")[0].startswith("   thing")
     assert body.plain.split("\n")[0].endswith("CC")
@@ -184,7 +184,7 @@ def test_empty_context_fields_are_dropped():
         Text("~/w/repo"),
         Text("msg"),
     ]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert body.plain.split("\n")[1].strip() == "15:24:18 · ~/w/repo"
 
@@ -200,7 +200,7 @@ def test_a_card_keeps_the_colours_its_cells_arrived_with():
         styled_cell("~/w/repo", True, "cwd"),
         styled_cell("a message", True, "message"),
     ]
-    (body,) = app._as_card(cells, 60)
+    (body,) = cards.as_card(cells, 60)
 
     spans = {body.plain[s.start : s.end]: s.style for s in body.spans}
     # Against the palette rather than a copy of it: the claim is that a card
@@ -215,7 +215,7 @@ def test_a_card_spends_one_column_on_its_gutter():
     """A sidebar is mostly gutter otherwise: the table adds no padding of its
     own, so what the card writes is the whole left margin."""
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert layout.CARD_CELL_PADDING == 0
     assert body.plain.split("\n")[1].startswith(" 15:24")
@@ -225,7 +225,7 @@ def test_a_card_spends_one_column_on_its_gutter():
 def test_the_backend_label_sits_against_the_right_edge():
     """Labels differ in width ("CC", "cx"), and it is the edge they share."""
     cells = [Text("15:24"), Text(""), Text("cx"), Text("n"), Text(""), Text(""), Text("m")]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
 
     assert body.plain.split("\n")[0].endswith("cx")
     assert len(body.plain.split("\n")[0]) == 39  # the last column is the current session's
@@ -241,7 +241,7 @@ def test_the_message_uses_width_that_only_the_header_label_needs():
         Text(""),
         Text("x" * 38),
     ]
-    (body,) = app._as_card(cells, 40, message_lines=2)
+    (body,) = cards.as_card(cells, 40, message_lines=2)
 
     lines = body.plain.split("\n")
     assert lines[0].endswith("Opus 5.5")
@@ -260,7 +260,7 @@ def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
         Text(""),
         Text("message"),
     ]
-    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar")
+    (body,) = cards.as_card(cells, 40, gutter_width=2, unread_style="bar")
     headline = body.plain.split("\n")[0]
     console = Console(color_system="truecolor")
 
@@ -286,7 +286,7 @@ def test_bar_mode_does_not_paint_over_the_selected_green_edge():
         Text(""),
         Text("message"),
     ]
-    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar")
+    (body,) = cards.as_card(cells, 40, gutter_width=2, unread_style="bar")
     console = Console(color_system="truecolor")
 
     bar = body.plain.index("\n") - 1
@@ -308,7 +308,7 @@ def _brief_cells(unread: bool = False, here: bool = False) -> list[Text]:
 
 
 def test_blocked_unread_dot_contrasts_with_its_headline():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(unread=True),
         40,
         gutter_width=2,
@@ -326,14 +326,14 @@ def test_blocked_unread_dot_contrasts_with_its_headline():
 def test_a_blocked_headline_keeps_the_model_in_its_provider_colour():
     cells = _brief_cells()
     cells[2] = Text("Opus 5.5", style="#d88760")
-    (body,) = app._as_card(cells, 40, gutter_width=2, card_brief=CardBrief("blocked", "", 0))
+    (body,) = cards.as_card(cells, 40, gutter_width=2, card_brief=CardBrief("blocked", "", 0))
     style = body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index("Opus"))
 
     assert (style.color.name, style.bgcolor.name) == ("#000000", "#d88760")
 
 
 def test_idle_brief_lines_keep_the_current_session_edge_and_age():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(unread=True, here=True),
         40,
         gutter_width=2,
@@ -350,7 +350,7 @@ def test_idle_brief_lines_keep_the_current_session_edge_and_age():
 
 
 def test_mid_turn_age_line_keeps_the_held_status_color():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(unread=False),
         40,
         gutter_width=2,
@@ -369,7 +369,7 @@ def test_mid_turn_age_line_keeps_the_held_status_color():
 
 
 def test_project_colors_make_a_separate_brief_age_line_neutral():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(),
         40,
         gutter_width=2,
@@ -387,7 +387,7 @@ def test_project_colors_make_a_separate_brief_age_line_neutral():
 
 
 def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(),
         50,
         gutter_width=2,
@@ -404,7 +404,7 @@ def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour()
 
 
 def test_done_headline_is_blue_with_white_text():
-    (body,) = app._as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("done", "", 0))
+    (body,) = cards.as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("done", "", 0))
     style = body.get_style_at_offset(Console(color_system="truecolor"), 0)
 
     assert style.bgcolor.name == "#285995"
@@ -412,7 +412,7 @@ def test_done_headline_is_blue_with_white_text():
 
 
 def test_read_idle_card_dims_its_model_badge():
-    (body,) = app._as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("", "", 0))
+    (body,) = cards.as_card(_brief_cells(), 40, gutter_width=2, card_brief=CardBrief("", "", 0))
 
     assert body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index("CC")).dim
 
@@ -428,7 +428,7 @@ def test_brief_lines_reduce_the_message_budget():
     assert app.LemonaidApp._card_shape(pane) == (1, 4)
     shape = app.LemonaidApp._card_shape(pane, extra_lines=2)
     assert shape == (1, 1)
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(), 40, *shape, gutter_width=2, card_brief=CardBrief("", "review", 0)
     )
     assert len(body.plain.split("\n")) == 30 // 4 - 1
@@ -448,7 +448,7 @@ def test_card_emoji_sits_on_the_second_line_before_the_pin():
         Text(""),
         Text("message"),
     ]
-    (body,) = app._as_card(cells, 40, gutter_width=2, unread_style="bar", emoji=emoji)
+    (body,) = cards.as_card(cells, 40, gutter_width=2, unread_style="bar", emoji=emoji)
     console = Console(color_system="truecolor")
     headline, context = body.plain.split("\n")[:2]
 
@@ -472,7 +472,7 @@ def test_card_emoji_uses_the_right_edge_when_there_is_no_pin():
         Text("~/w/repo"),
         Text("message"),
     ]
-    (body,) = app._as_card(cells, 40, emoji=emoji)
+    (body,) = cards.as_card(cells, 40, emoji=emoji)
     headline, context = body.plain.split("\n")[:2]
 
     assert emoji not in headline
@@ -544,7 +544,7 @@ def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
 def test_building_a_card_does_not_mutate_column_layout_justification():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
     cells[layout.BACKEND_CELL].justify = "right"
-    app._as_card(cells, 40)
+    cards.as_card(cells, 40)
 
     assert cells[layout.BACKEND_CELL].justify == "right"
 
@@ -566,8 +566,8 @@ def test_a_long_message_uses_every_line_it_is_given():
         Text(" ".join(f"word{i}" for i in range(200))),
     ]
 
-    (short,) = app._as_card(list(cells), 40, message_lines=3)
-    (tall,) = app._as_card(list(cells), 40, message_lines=12)
+    (short,) = cards.as_card(list(cells), 40, message_lines=3)
+    (tall,) = cards.as_card(list(cells), 40, message_lines=12)
 
     assert len(short.plain.split("\n")) == 3 + 3  # name, context, budget, separator-ish
     assert len(tall.plain.split("\n")) == 3 + 12
@@ -679,7 +679,7 @@ def test_a_read_card_emits_no_bold_at_all():
         styled_cell("~/w/repo", False, "cwd"),
         styled_cell("a message", False, "message"),
     ]
-    (body,) = app._as_card(cells, 60)
+    (body,) = cards.as_card(cells, 60)
 
     assert not any("bold" in str(span.style) for span in body.spans)
 
@@ -694,7 +694,7 @@ def test_an_unread_card_bolds_the_dot_but_not_the_message():
         styled_cell("~/w/repo", True, "cwd"),
         styled_cell("a message", True, "message"),
     ]
-    (body,) = app._as_card(cells, 60)
+    (body,) = cards.as_card(cells, 60)
     styles = {body.plain[s.start : s.end]: str(s.style) for s in body.spans}
 
     assert "bold" in styles["a-name"], "an unread name is bold"
@@ -702,7 +702,7 @@ def test_an_unread_card_bolds_the_dot_but_not_the_message():
 
 
 def test_an_inline_age_leaves_the_card_without_an_age_line():
-    (body,) = app._as_card(
+    (body,) = cards.as_card(
         _brief_cells(),
         40,
         gutter_width=2,
@@ -720,8 +720,8 @@ def test_a_card_keeps_context_use_beside_the_model_badge_on_a_status_fill():
         "claude:s", {}, False, model="claude-opus-5-5", context_percent=100
     )
     cells = [Text("09:00"), Text(""), backend, Text("task"), Text(""), Text(""), Text("m")]
-    (plain,) = app._as_card(cells, 40)
-    (filled,) = app._as_card(cells, 40, card_brief=CardBrief("review", "", 0))
+    (plain,) = cards.as_card(cells, 40)
+    (filled,) = cards.as_card(cells, 40, card_brief=CardBrief("review", "", 0))
 
     headline = filled.plain.split("\n")[0]
     reading = headline.index("100%")

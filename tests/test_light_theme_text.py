@@ -17,7 +17,7 @@ from textual.widgets import Markdown
 
 from lemonaid.brief import colors
 from lemonaid.config import Config
-from lemonaid.inbox.tui import app, brief_cards, brief_detail, brief_popup, utils
+from lemonaid.inbox.tui import app, brief_cards, brief_detail, brief_popup, cards, utils
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.brief_view import BriefView
 from lemonaid.inbox.tui.utils import jump_gutter
@@ -81,9 +81,9 @@ def test_every_light_text_colour_reads_on_white(colour):
 def test_a_cards_needs_line_and_dot_follow_the_theme():
     brief = CardBrief("", "", 0, needs="answer")
 
-    (dark,) = app._as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
+    (dark,) = cards.as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
     utils.use_light_theme(True)
-    (light,) = app._as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
+    (light,) = cards.as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
 
     assert _colour_of(dark, "Needs: answer") == utils.ATTENTION_COLOR
     assert _colour_of(light, "Needs: answer") == utils.ATTENTION_TEXT_LIGHT
@@ -94,7 +94,7 @@ def test_a_cards_running_line_follows_the_theme():
     utils.use_light_theme(True)
     brief = CardBrief("running", "", 0, running="deploy in ops:2")
 
-    (body,) = app._as_card(_cells(unread=False), 40, gutter_width=2, card_brief=brief, now=60)
+    (body,) = cards.as_card(_cells(unread=False), 40, gutter_width=2, card_brief=brief, now=60)
 
     assert _colour_of(body, "deploy") == brief_cards.RUNNING_TEXT_COLOR_LIGHT
 

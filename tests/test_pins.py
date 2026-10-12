@@ -6,7 +6,7 @@ import time
 from rich.text import Span, Text
 
 from lemonaid.inbox import db, pins
-from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui import cards
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.utils import (
     FIELD_STYLES,
@@ -254,7 +254,7 @@ def test_a_card_moves_an_inline_mark_onto_its_own_line():
         Text("~/w/x"),
         Text("a message"),
     ]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
     headline, context = body.plain.split("\n")[:2]
 
     assert headline.endswith("CC")
@@ -271,7 +271,7 @@ def test_an_unpinned_card_keeps_a_bare_label():
         Text("~/w/x"),
         Text("a message"),
     ]
-    (body,) = app._as_card(cells, 40)
+    (body,) = cards.as_card(cells, 40)
     headline, context = body.plain.split("\n")[:2]
 
     assert headline.endswith("CC")
