@@ -16,7 +16,7 @@ from textual.widgets.data_table import RowKey
 
 from ... import brief, groups
 from ...claude import patch_status
-from ...claude.patcher import apply_patch, find_binary
+from ...claude.patcher import find_binary
 from ...config import load_config
 from ...lemon_watchers import (
     detect_terminal_switch_source,
@@ -44,6 +44,7 @@ from .. import (
 from . import (
     bindings,
     brief_cards,
+    claude_patch,
     edit_dialogs,
     focus,
     history_resume,
@@ -150,6 +151,7 @@ class LemonaidApp(App):
         )
 
     def compose(self) -> ComposeResult:
+        lists = row_parts.Lists(self.config, self._parts, self._brief_cache, self._undo_stack)
         yield UsageHeader()
         with ContentSwitcher(initial="inbox_content", id="content_switcher"):
             yield InboxContent(
@@ -158,34 +160,18 @@ class LemonaidApp(App):
                 Input(
                     placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
                 ),
-                InboxList(
-                    self.config,
-                    self._parts,
-                    self._brief_cache,
-                    self._undo_stack,
-                    self._refresh_notifications,
-                    id="inbox_list",
-                ),
+                InboxList(lists, self._refresh_notifications, id="inbox_list"),
                 Static("", id="search_archive_label"),
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
                 HistoryTable(
-                    self.config,
-                    self._parts,
-                    self._brief_cache,
+                    lists,
                     self._back_to_inbox,
                     self._exec_here,
                     self._refresh_notifications,
                     id="history_table",
                 ),
-                SnoozedTable(
-                    self.config,
-                    self._parts,
-                    self._brief_cache,
-                    self._undo_stack,
-                    self._refresh_snoozed,
-                    id="snoozed_table",
-                ),
+                SnoozedTable(lists, self._refresh_snoozed, id="snoozed_table"),
                 DataTable(id="usage_table"),
                 *(
                     []
@@ -1013,14 +999,8 @@ class LemonaidApp(App):
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""
-        inbox = self.query_one(InboxList)
-        row = inbox.earliest_unread_row()
-        if row is None:
+        if not self._content.inbox.jump_unread():
             self.notify("No unread notifications", severity="information")
-            return
-
-        inbox.main.move_cursor(row=row)
-        inbox.main.action_select_cursor()
 
     def action_jump_to_number(self, digit: str) -> None:
         """Switch to the numbered session, as though it had been selected by hand.
@@ -1030,31 +1010,19 @@ class LemonaidApp(App):
         is unnumbered for the same reason in reverse: nothing there can be
         switched to at all.
         """
-        inbox = self.query_one(InboxList)
-        if self._mode is view_modes.HISTORY or not inbox.display:
-            return
-
-        row = inbox.lemon_row(JUMP_DIGITS.find(digit))
-        if row is not None:
-            inbox.main.move_cursor(row=row)
+        inbox = self._content.inbox
+        if (
+            self._mode is not view_modes.HISTORY
+            and inbox.display
+            and inbox.move_to_lemon(JUMP_DIGITS.find(digit))
+        ):
             self.action_select()
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""
-        if not self._claude_binary or self._claude_patch_status != "unpatched":
-            return
-
-        try:
-            count = apply_patch(self._claude_binary)
-            if count > 0:
-                self._claude_patch_status = "patched"
-                self.notify(f"Patched Claude Code ({count} locations). Restart Claude for effect.")
-            else:
-                self._show_error("Nothing to patch", "No patterns were found in the Claude binary.")
-        except Exception as e:
-            self._show_error("Patch failed", str(e))
-
-        self._refresh_notifications()
+        if self._claude_binary and self._claude_patch_status == "unpatched":
+            self._claude_patch_status = claude_patch.apply(self, self._claude_binary)
+            self._refresh_notifications()
 
     def action_flip_position(self) -> None:
         if not self._scratch_mode:

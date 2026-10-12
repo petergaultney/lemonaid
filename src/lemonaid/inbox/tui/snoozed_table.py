@@ -4,28 +4,23 @@ from collections import abc
 
 from textual.widgets import DataTable
 
-from ...config import Config
-from .. import undo
-from . import bindings, brief_cards, inbox_edits, row_keys, row_parts, snoozed_rows
+from . import bindings, inbox_edits, row_keys, row_parts, snoozed_rows
 
 
 class SnoozedTable(DataTable):
     def __init__(
         self,
-        config: Config,
-        parts: row_parts.RowParts,
-        brief_cache: brief_cards.BriefCache,
-        undo_stack: undo.Stack,
+        lists: row_parts.Lists,
         redraw: abc.Callable[[], None],
         *,
         id: str,
     ) -> None:
         """`redraw` refills this table and says how many are snoozed."""
         super().__init__(id=id)
-        self._config = config
-        self._parts = parts
-        self._brief_cache = brief_cache
-        self._undo_stack = undo_stack
+        self._config = lists.config
+        self._parts = lists.parts
+        self._brief_cache = lists.brief_cache
+        self._undo_stack = lists.undo_stack
         self._redraw = redraw
 
     def refill(self, card_width: int, card_shape: tuple[int, int]) -> int:

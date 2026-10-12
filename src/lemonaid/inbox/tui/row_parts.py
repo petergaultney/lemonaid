@@ -4,13 +4,14 @@ They share caches across lists and refreshes: the model each channel last
 reported, and each row's project, whose name may take a hook run to learn.
 """
 
+import dataclasses
 from collections import abc
 
 from rich.text import Text
 
 from ...config import Config
 from ...lemon_watchers import ModelInfo
-from .. import db
+from .. import db, undo
 from . import brief_cards, card_context, inbox_rows, project_names
 
 
@@ -69,3 +70,13 @@ class RowParts:
         return inbox_rows.context_parts(
             n, is_unread, self._config.tui, self.project(n, area), card_brief, now
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class Lists:
+    """What every list of sessions draws and edits with."""
+
+    config: Config
+    parts: RowParts
+    brief_cache: brief_cards.BriefCache
+    undo_stack: undo.Stack

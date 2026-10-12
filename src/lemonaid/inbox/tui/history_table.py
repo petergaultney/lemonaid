@@ -4,10 +4,8 @@ from collections import abc
 
 from textual.widgets import DataTable
 
-from ...config import Config
 from .. import db
 from . import (
-    brief_cards,
     error_screen,
     history_resume,
     history_rows,
@@ -20,9 +18,7 @@ from . import (
 class HistoryTable(DataTable):
     def __init__(
         self,
-        config: Config,
-        parts: row_parts.RowParts,
-        brief_cache: brief_cards.BriefCache,
+        lists: row_parts.Lists,
         back_to_inbox: abc.Callable[[db.Notification], None],
         exec_here: abc.Callable[[str, list[str]], None],
         redraw: abc.Callable[[], None],
@@ -33,9 +29,9 @@ class HistoryTable(DataTable):
         `exec_here` replaces this program with a resumed session.
         """
         super().__init__(id=id)
-        self._config = config
-        self._parts = parts
-        self._brief_cache = brief_cache
+        self._config = lists.config
+        self._parts = lists.parts
+        self._brief_cache = lists.brief_cache
         self._back_to_inbox = back_to_inbox
         self._exec_here = exec_here
         self._redraw = redraw

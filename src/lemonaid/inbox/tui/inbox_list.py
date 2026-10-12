@@ -13,11 +13,10 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Static
 
-from ...config import Config, PlaceRoot
+from ...config import PlaceRoot
 from ...log import get_logger
-from .. import db, presence, sections, unarchive, undo, view
+from .. import db, presence, sections, unarchive, view
 from . import (
-    brief_cards,
     cursor_target,
     focus,
     group_headers,
@@ -41,10 +40,7 @@ _MIN_MAIN_ROWS = 5  # the other-terminals table hides rather than squeeze the ma
 class InboxList(Vertical):
     def __init__(
         self,
-        config: Config,
-        parts: row_parts.RowParts,
-        brief_cache: brief_cards.BriefCache,
-        undo_stack: undo.Stack,
+        lists: row_parts.Lists,
         redraw: abc.Callable[[], None],
         *,
         id: str,
@@ -53,14 +49,14 @@ class InboxList(Vertical):
         something fetched in the background has arrived.
         """
         super().__init__(id=id)
-        self.config = config
-        self._parts = parts
-        self._brief_cache = brief_cache
-        self.undo_stack = undo_stack
+        self.config = lists.config
+        self._parts = lists.parts
+        self._brief_cache = lists.brief_cache
+        self.undo_stack = lists.undo_stack
         self.redraw = redraw
         self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
         self.pr_numbers = pr_numbers.Cache()
-        self.arrangement = inbox_arrange.Arrangement(config)
+        self.arrangement = inbox_arrange.Arrangement(lists.config)
         self.fold_open = False
         self.fold_name = ""  # the arranger's name for the folded group
         self._unfolded_ids: frozenset[str] = (
@@ -392,14 +388,25 @@ class InboxList(Vertical):
         with contextlib.suppress(Exception):
             self.main.move_cursor(row=self.main.get_row_index(key))
 
-    def earliest_unread_row(self) -> int | None:
-        """Pins and status bands spread unread rows through the list, so the earliest
-        is found by age rather than by position.
+    def jump_unread(self) -> bool:
+        """Switch to the earliest unread session; False when there is none.
+
+        Pins and status bands spread unread rows through the list, so the
+        earliest is found by age rather than by position.
         """
         unread = [(n.created_at, row) for row, n in enumerate(self.drawn) if n and n.is_unread]
-        return min(unread)[1] if unread else None
+        if not unread:
+            return False
 
-    def lemon_row(self, nth: int) -> int | None:
-        """The row of the *nth* lemon drawn; headers are unnumbered."""
+        self.main.move_cursor(row=min(unread)[1])
+        self.main.action_select_cursor()
+        return True
+
+    def move_to_lemon(self, nth: int) -> bool:
+        """Put the cursor on the *nth* lemon drawn; headers are unnumbered."""
         lemons = [row for row, n in enumerate(self.drawn) if n is not None]
-        return lemons[nth] if 0 <= nth < len(lemons) else None
+        if not 0 <= nth < len(lemons):
+            return False
+
+        self.main.move_cursor(row=lemons[nth])
+        return True
