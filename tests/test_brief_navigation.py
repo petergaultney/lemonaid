@@ -9,6 +9,7 @@ from textual.widgets import ContentSwitcher, DataTable, Input
 
 from lemonaid.brief import sidebar, target
 from lemonaid.inbox import db
+from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.brief_view import BriefView
 from lemonaid.inbox.tui.table import ClickToActTable
@@ -62,6 +63,9 @@ def _lemons(monkeypatch, tmp_path: Path, count: int) -> tuple[list[db.Notificati
         return True
 
     monkeypatch.setenv("TMUX_PANE", "%9")
+    # The watcher reports detached channels on its own poll, which would race the
+    # ones a test sets by hand.
+    monkeypatch.setattr(watcher_hooks, "start", lambda *args: None)
     monkeypatch.setattr("lemonaid.inbox.tui.app.is_follow_enabled", lambda: True)
     monkeypatch.setattr("lemonaid.inbox.tui.app.current_position", lambda _: "left")
     monkeypatch.setattr("lemonaid.inbox.tui.app.brief.attached.for_rows", lambda *args: {})

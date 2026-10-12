@@ -42,3 +42,12 @@ def after_rebuild(
             return moved
 
     return min(current_index, table.row_count - 1)
+
+
+def kept(table: DataTable, key: str | None, index: int) -> int:
+    """The row *key* is on now, else the same place, kept in range."""
+    if key:
+        with contextlib.suppress(Exception):
+            return table.get_row_index(key)
+
+    return min(index, table.row_count - 1)

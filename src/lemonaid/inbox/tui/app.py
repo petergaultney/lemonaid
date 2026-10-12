@@ -42,6 +42,7 @@ from . import (
     edit_dialogs,
     error_screen,
     focus,
+    group_dialogs,
     history_resume,
     inbox_draw,
     inbox_edits,
@@ -834,7 +835,7 @@ class LemonaidApp(App):
             and self._mode is None
             and (group := inbox_groups.selected_group(self._content.inbox))
         ):
-            inbox_groups.rename(self._content.inbox, group, "Rename Group")
+            group_dialogs.rename(self._content.inbox, group, "Rename Group")
             return
 
         if notification := self._selected_notification():

@@ -1,13 +1,10 @@
-"""Group and pin edits on the inbox list: the dialogs they ask through, and the redraw after."""
-
-from collections import abc
+"""Group edits on the inbox list, and the group and pin keys at its cursor."""
 
 from ... import brief, groups
 from ...log import get_logger
-from .. import db, pins, sections, undo
-from . import bindings, group_picker, row_keys
+from .. import db, sections
+from . import group_dialogs, inbox_pins, row_keys
 from .inbox_list import InboxList
-from .screens import RenameScreen
 
 _log = get_logger("tui")
 
@@ -87,103 +84,10 @@ def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
     return ""
 
 
-def edited(inbox: InboxList, edit: groups.editing.Edit, select: abc.Sequence[str] = ()) -> None:
-    """Make *edit* undoable, redraw, and put the cursor on the first of *select* drawn.
-
-    A lemon key in *select* stays drawn even in a collapsed group, as one
-    collapsed from does, until the cursor leaves it. Otherwise the redraw
-    follows the lemon under the cursor wherever it went.
-    """
-    inbox.undo_stack.push(undo.Entry("group", edit.description, (), edit.change))
-    raw = row_keys.at_cursor(inbox.main) or ""
-    inbox.kept = frozenset({raw, *(key for key in select if "@" in key)})
-    inbox.redraw()
-    drawn = [key for key in select if key in inbox.main.rows]
-    if drawn:
-        inbox.select_key(drawn[0])
-    inbox.notify(f"{edit.description} — press {bindings.undo_key(inbox.config)} to undo")
-    for path in edit.unwritten:
-        inbox.notify(f"Couldn't update the Groups: line in {path}", severity="warning")
-
-
-def rename(inbox: InboxList, group: groups.store.Group, title: str) -> None:
-    def renamed(name: str | None) -> None:
-        if name is None or name.strip() == group.name:
-            return
-
-        try:
-            with db.connect() as conn:
-                edit = groups.editing.rename(conn, group, name)
-        except groups.store.GroupError as error:
-            inbox.notify(str(error), severity="warning")
-            return
-
-        edited(inbox, edit, [f"group:{group.group_id}"])
-
-    inbox.app.push_screen(RenameScreen(group.name, title=title, placeholder="Group name"), renamed)
-
-
-def group_tree(inbox: InboxList, notification: db.Notification, lemon_id: str) -> None:
-    """Ask for a name, then make a group of the lemon, its children and theirs."""
-    lemon_name = notification.name or brief.identity.brief_description(lemon_id)
-
-    def named(name: str | None) -> None:
-        if not name or not name.strip():
-            return
-
-        try:
-            with db.connect() as conn:
-                edit = groups.editing.group_tree(conn, lemon_id, name, lemon_name)
-        except groups.store.GroupError as error:
-            inbox.notify(str(error), severity="warning")
-            return
-
-        assert edit.group
-        edited(inbox, edit, [f"{notification.id}@{edit.group.group_id}"])
-
-    inbox.app.push_screen(
-        RenameScreen(
-            groups.editing.valid_name(lemon_name),
-            title="Group this lemon and its children",
-            placeholder="Group name, new or existing",
-        ),
-        named,
-    )
-
-
-def group_add(inbox: InboxList, notification: db.Notification, lemon_id: str) -> None:
-    """Put the lemon in a group picked from a list, or a new one."""
-    name = notification.name or notification.channel
-    with db.connect() as conn:
-        names = [
-            g.name for g in groups.store.all_groups(conn) if g.members and lemon_id not in g.members
-        ]
-
-    def picked(group_name: str | None) -> None:
-        if not group_name:
-            return
-
-        try:
-            with db.connect() as conn:
-                edit = groups.editing.add(conn, group_name, lemon_id, name)
-        except groups.store.GroupError as error:
-            inbox.notify(str(error), severity="warning")
-            return
-
-        assert edit.group
-        edited(
-            inbox,
-            edit,
-            [f"{notification.id}@{edit.group.group_id}", f"group:{edit.group.group_id}"],
-        )
-
-    inbox.app.push_screen(group_picker.GroupPickerScreen(f"Add {name} to a group", names), picked)
-
-
 def delete_group(inbox: InboxList, group: groups.store.Group) -> None:
     with db.connect() as conn:
         edit = groups.editing.delete(conn, group)
-    edited(inbox, edit)
+    group_dialogs.edited(inbox, edit)
 
 
 def group_remove(
@@ -199,17 +103,7 @@ def group_remove(
             conn, group, lemon_id, notification.name or notification.channel
         )
 
-    edited(inbox, edit)
-
-
-def toggle_pin(inbox: InboxList, channel: str) -> None:
-    """Hold the session at its place in the list, or release it."""
-    with db.connect() as conn:
-        now_pinned = pins.toggle(conn, channel)
-
-    _log.info("pin: %s -> %s", channel, now_pinned)
-    inbox.redraw()
-    inbox.notify(f"{'Pinned' if now_pinned else 'Unpinned'} {channel}")
+    group_dialogs.edited(inbox, edit)
 
 
 def lemon(inbox: InboxList, notification: db.Notification) -> tuple[db.Notification, str] | None:
@@ -224,39 +118,13 @@ def lemon(inbox: InboxList, notification: db.Notification) -> tuple[db.Notificat
     return notification, lemon_id
 
 
-def move_pin(inbox: InboxList, channel: str, row_channels: abc.Sequence[str], offset: int) -> bool:
-    """Trade places with the nearest pinned session `offset` away on screen.
-
-    The neighbour is taken from the rendered list rather than from the pins
-    table, so a pinned session that is currently snoozed keeps its position
-    and returns between the same two rows it sat between before.
-    """
-    with db.connect() as conn:
-        if not pins.is_pinned(conn, channel):
-            return False
-
-        pinned_now = pins.pinned_positions(conn)
-        on_screen = [c for c in row_channels if c in pinned_now]
-        if channel not in on_screen:
-            return False
-
-        neighbour = on_screen.index(channel) + offset
-        if not 0 <= neighbour < len(on_screen):
-            return False
-
-        pins.swap(conn, channel, on_screen[neighbour])
-
-    inbox.redraw()
-    return True
-
-
 def _notification_at_cursor(inbox: InboxList) -> db.Notification | None:
     return row_keys.notification(row_keys.notification_at_cursor(inbox.main))
 
 
 def pin_at_cursor(inbox: InboxList) -> None:
     if notification := _notification_at_cursor(inbox):
-        toggle_pin(inbox, notification.channel)
+        inbox_pins.toggle_pin(inbox, notification.channel)
 
 
 def move_at_cursor(inbox: InboxList, offset: int) -> None:
@@ -267,7 +135,7 @@ def move_at_cursor(inbox: InboxList, offset: int) -> None:
         return
 
     notification = _notification_at_cursor(inbox)
-    if notification and move_pin(
+    if notification and inbox_pins.move_pin(
         inbox, notification.channel, row_keys.channels(inbox.main), offset
     ):
         row_keys.select_channel(inbox.main, notification.channel)
@@ -280,12 +148,12 @@ def _lemon_at_cursor(inbox: InboxList) -> tuple[db.Notification, str] | None:
 
 def tree_at_cursor(inbox: InboxList) -> None:
     if found := _lemon_at_cursor(inbox):
-        group_tree(inbox, *found)
+        group_dialogs.group_tree(inbox, *found)
 
 
 def add_at_cursor(inbox: InboxList) -> None:
     if found := _lemon_at_cursor(inbox):
-        group_add(inbox, *found)
+        group_dialogs.group_add(inbox, *found)
 
 
 def remove_at_cursor(inbox: InboxList) -> None:

@@ -63,25 +63,37 @@ Code that needs a tmux command calls a function in `src/lemonaid/tmux/`, and tho
 ## Where the inbox TUI's code lives
 
 `inbox/tui/app.py` routes input: key bindings, `action_*` methods, mouse and
-message handlers, and refresh events. It decides what to do and calls into
-modules that draw. Rendering means anything that builds a `Text`, a card, a row,
-a header, a label, a style or a CSS string, or computes layout (widths,
-columns, heights). Rendering modules are plain functions that take explicit
-arguments; the app passes its state in and keeps what comes back.
+message handlers, refresh ticks and the brief overlay. Each action decides what
+should happen and hands the work to the widget or module that owns it. The
+widgets keep their own state; plain modules take explicit arguments.
 
-- `layout.py`: column indices, width breakpoints and card-size constants.
-- `table_layout.py`: cards or columns for a pane size, the column plan, card shape.
-- `styles.py`: the Textual stylesheet and the theme variables it reads.
-- `row_cells.py`, `inbox_rows.py`: the cells of one row (time, name, model, directory).
-- `cards.py`: folds a row's cells into one card cell.
-- `table_rows.py`: brings a `DataTable` in line with a list of rows.
-- `table_columns.py`: hides columns and distributes width among them.
+Widgets:
 
-- `history_rows.py`, `snoozed_rows.py`: the cells of one row in those lists.
-- `status_line.py`: the inbox status line's text.
-- `cursor_target.py`: where the cursor goes after a rebuild.
-- `view_modes.py`: the footer actions and panes that change in the alternate views.
+- `inbox_content.py` (`InboxContent`): the panes under the header. It knows which view is
+  up, the search state, cards or columns, the notes and the status line.
+- `inbox_list.py` (`InboxList`): the main and other-terminals tables and the fold line. It
+  owns the fold, the arranger, drawn group headers and where the cursor follows.
+- `history_table.py`, `snoozed_table.py`: the history and snoozed lists, with resume and wake.
+- `brief_pane.py` (`BriefPane`): the brief shown in place of the inbox, browsing from row to
+  row, and switching the main pane behind it.
 
-Rendering still inside `app.py`: `_refresh_notifications` builds the main table's
-rows, group headers and other-sources table in its body, and the `_set_*_mode`
-switches still set up widgets.
+What a refresh reads and draws:
+
+- `inbox_frame.py`: the database read; `inbox_arrange.py`: the arranger process;
+  `inbox_entries.py`: rows and group headers in drawing order.
+- `inbox_main_table.py`, `inbox_draw.py`: the main table, the other-terminals table, the fold line.
+- `history_rows.py`, `snoozed_rows.py`, `row_cells.py`, `inbox_rows.py`, `row_parts.py`:
+  the cells of one row; `cards.py` folds them into a card.
+- `table_rows.py`, `table_columns.py`, `table_setup.py`, `table_layout.py`, `layout.py`:
+  bringing a `DataTable` in line with its rows, and its columns and widths.
+- `styles.py`, `status_line.py`, `search_archive.py`, `view_modes.py`.
+
+What the keys do:
+
+- `bindings.py`: the key table built from config, and which actions are allowed when.
+- `inbox_edits.py`, `edit_dialogs.py`: undoable row changes and the dialogs that ask for them.
+- `inbox_groups.py`, `group_dialogs.py`, `inbox_pins.py`: groups and pins.
+- `inbox_switch.py`, `history_resume.py`: switching to a session, and resuming one from history.
+- `table_nav.py`, `cursor_target.py`, `row_keys.py`: moving the cursor and reading what it is on.
+- `focus.py`, `session_names.py`, `watcher_hooks.py`, `claude_patch.py`: tmux focus, session
+  titles, the transcript watcher's database callbacks, and the Claude patch.

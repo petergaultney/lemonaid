@@ -15,22 +15,23 @@ from textual.widgets import DataTable, Static
 
 from ...config import PlaceRoot
 from ...log import get_logger
-from .. import db, presence, sections, unarchive, view
+from .. import db, presence, sections, unarchive
 from . import (
     cursor_target,
     focus,
     group_headers,
     inbox_arrange,
     inbox_draw,
+    inbox_entries,
     inbox_frame,
+    inbox_main_table,
     layout,
     pr_numbers,
     row_keys,
     row_parts,
-    table_rows,
 )
 from .table import ClickToActTable
-from .utils import GUTTER_WIDTH, update_static
+from .utils import update_static
 
 _log = get_logger("tui")
 
@@ -172,114 +173,33 @@ class InboxList(Vertical):
             )
 
         active = frame.active
-        card_briefs = active.cards
         shown, folded, self.fold_name = self.arrangement.arranged(
             active, frame.shown, frame.folded, frame.pinned, frame.emojis, cards, width
         )
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
         all_folded = folded  # grouped ones too, which hide in place rather than in the fold
-        other_notifications = frame.other
-        entries: list[sections.Header | sections.Row]
-        if frame.matching_ids is not None:
-            entries = [
-                sections.Row(str(n.id), n) for n in [*shown, *folded] if n.id in frame.matching_ids
-            ]
-            other_notifications = [n for n in other_notifications if n.id in frame.matching_ids]
-        else:
-            entries, folded = sections.layout(
-                shown,
-                folded,
-                frame.pinned,
-                active.memberships,
-                frame.groups,
-                view.statuses(card_briefs, active.rows),
-                self.kept,
-                self.fold_open,
-                active.deaf,
-            )
-            if self.fold_open:
-                entries = [*entries, *(sections.Row(str(n.id), n) for n in folded)]
+        entries, folded, other_notifications = inbox_entries.entries(
+            frame, shown, folded, self.kept, self.fold_open
+        )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
-        numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
-        briefs = (
-            {
-                e.key: card_briefs[e.notification.channel]
-                for e in drawn
-                if e.notification.channel in card_briefs
-            }
-            if self.config.tui.brief_status
-            else {}
-        )
-        age_inline = "age" in self.config.tui.card_fields
-        extra_lines = max(
-            (card.extra_lines(age_inline) for card in briefs.values() if card and card_width),
-            default=0,
-        )
-        now = time.time()
-
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
         self.group_bands = {
             e.group.group_id: e.band for e in entries if isinstance(e, sections.Header)
         }
-        areas = {channel: card.area for channel, card in card_briefs.items() if card.area}
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
         self._marked_header = current_row if current_row in self.headers else ""
-        headers = {
-            e.key: (
-                group_headers.cells(
-                    e, card_width, len(main.columns), layout.NAME_CELL, e.key == self._marked_header
-                ),
-                group_headers.background(e),
-            )
-            for e in entries
-            if isinstance(e, sections.Header)
-        }
-        rebuilt = table_rows.sync_rows(
+        rebuilt = inbox_main_table.draw(
             main,
-            [
-                (e.key, headers[e.key][0])
-                if isinstance(e, sections.Header)
-                else (
-                    e.key,
-                    inbox_draw.active_row(
-                        e.notification,
-                        numbers_by_key[e.key],
-                        frame,
-                        detached,
-                        areas.get(e.notification.channel, ""),
-                        self._parts,
-                        self.config,
-                    ),
-                )
-                for e in entries
-            ],
+            entries,
+            self.headers,
+            self._marked_header,
+            frame,
+            detached,
+            self._parts,
+            self.config,
             card_width,
-            card_shape(extra_lines),
-            GUTTER_WIDTH,
-            self.config.tui.card_unread_style,
-            {e.key: frame.emojis.get(e.notification.channel, "") for e in drawn},
-            briefs,
-            now,
-            {
-                e.key: self._parts.context_parts(
-                    e.notification,
-                    e.notification.is_unread,
-                    areas.get(e.notification.channel, ""),
-                    briefs.get(e.key),
-                    now,
-                )
-                for e in drawn
-            },
-            age_inline,
-            self.config.tui.project_name_colors,
-            headers,
-            {
-                e.key: self.headers[f"group:{group}"].group.colour
-                for e in drawn
-                if (group := sections.row_group_id(e.key)) is not None
-                and f"group:{group}" in self.headers
-            },
+            card_shape,
         )
 
         fold_label.display = bool(all_folded) and search_text is None
@@ -312,7 +232,7 @@ class InboxList(Vertical):
                 other,
                 other_notifications,
                 frame,
-                areas,
+                {channel: card.area for channel, card in active.cards.items() if card.area},
                 self._parts,
                 self.config,
                 card_width,
@@ -327,15 +247,7 @@ class InboxList(Vertical):
                 main.focus()
 
         if other.row_count > 0:
-            other_target = None
-            if other_key:
-                with contextlib.suppress(Exception):
-                    other_target = other.get_row_index(other_key)
-            other.move_cursor(
-                row=other_target
-                if other_target is not None
-                else min(other_index, other.row_count - 1)
-            )
+            other.move_cursor(row=cursor_target.kept(other, other_key, other_index))
 
         # An in-place update leaves the cursor where it was, so only a rebuild (or an
         # explicit jump) moves it; moving it every tick made the list flash to the top.
