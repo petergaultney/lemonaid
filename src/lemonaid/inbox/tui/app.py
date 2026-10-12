@@ -82,6 +82,7 @@ from . import (
     row_cells,
     styles,
     table_columns,
+    table_layout,
     table_rows,
     usage_view,
     utils,
@@ -645,59 +646,24 @@ class LemonaidApp(App):
             self._refresh_notifications()
 
     def _cards(self, width: int | None = None, height: int | None = None) -> bool:
-        """Whether to draw cards rather than columns.
-
-        The scratch pane is a sidebar or a strip by declaration - its position -
-        never by measurement. It takes its height from whichever window it is in
-        and can be any width for a moment while tmux rearranges a layout, and a
-        layout that follows those is a sidebar rendering as a top pane.
-
-        A plain `lma` in a terminal decides from its shape: a pane narrow enough
-        to be a sidebar gets cards whatever its height.
-        """
-        if self._scratch_mode:
-            return current_position(self.config.tmux_session.scratch_position) == "left"
-
-        w = self.size.width if width is None else width
-        h = self.size.height if height is None else height
-        if w <= 0:
-            return False
-
-        if w < layout.SIDEBAR_COLS:
-            return True
-
-        return h >= w * layout.CARD_ASPECT
+        return table_layout.wants_cards(
+            self.size.width if width is None else width,
+            self.size.height if height is None else height,
+            current_position(self.config.tmux_session.scratch_position) == "left"
+            if self._scratch_mode
+            else None,
+        )
 
     def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
-        """How many lines the context and message get inside one card.
-
-        A card grows only while the sessions on screen still fit: vertical space
-        is what a tall pane has spare, but not at the cost of scrolling a list
-        that used to fit. Everything past what the pane can hold stays at the
-        minimum, since a taller card can't help a list that already overflows.
-        """
         if not self._card_layout:
             return 1, 1
 
-        rows = self.size.height - layout.CARD_CHROME_ROWS - self._notes_height()
-        sessions = max(1, self.query_one("#main_table", DataTable).row_count)
-        # layout.CARD_HEIGHT includes the first message line, but not the blank separator.
-        # Account for it on brief cards without changing the existing card sizing.
-        card_height = layout.CARD_HEIGHT + extra_lines + int(extra_lines > 0)
-        spare = rows // sessions - card_height
-        if spare <= 0:
-            return 1, 1
-
-        # A card only ever renders the lines its message actually fills, so this
-        # is a ceiling rather than padding - a short message stays short. The
-        # share cap keeps one long message from owning a mostly-empty pane.
-        ceiling = min(
-            layout.CARD_MAX_HEIGHT, max(layout.CARD_HEIGHT, int(rows * layout.CARD_MAX_SHARE))
+        return table_layout.card_shape(
+            self.size.height,
+            self._notes_height(),
+            self.query_one("#main_table", DataTable).row_count,
+            extra_lines,
         )
-
-        # All of it goes to the message: context is one truncated line by
-        # design, so lines handed to it would be discarded.
-        return 1, 1 + min(spare, max(0, ceiling - card_height))
 
     def _card_width(self) -> int:
         """Width the card's body column was stretched to, or 0 outside card mode.
@@ -709,11 +675,9 @@ class LemonaidApp(App):
         if not self._card_layout:
             return 0
 
-        columns = list(self.query_one("#main_table", DataTable).columns.values())
-        if len(columns) <= layout.CARD_BODY_COLUMN:
-            return layout.CARD_MIN_TEXT
-
-        return max(layout.CARD_MIN_TEXT, columns[layout.CARD_BODY_COLUMN].width)
+        return table_layout.card_width(
+            [c.width for c in self.query_one("#main_table", DataTable).columns.values()]
+        )
 
     def _stretch_all_tables(self, width: int | None = None) -> None:
         w = self.size.width if width is None else width
@@ -733,21 +697,7 @@ class LemonaidApp(App):
                 )
             return
 
-        # Name carries Claude's conversation title, which is what actually
-        # distinguishes one session from another, so it gets the largest share of
-        # flex space. Narrower terminals can't fit every column, and starving
-        # Name to keep the others is the wrong trade: TTY is diagnostic, Branch is
-        # usually inferable from CWD, and Message is mostly "Waiting in <path>",
-        # which CWD already says. They come back as the terminal widens.
-        if w >= layout.WIDE_LAYOUT_COLS:
-            hidden: set[int] = set()
-            flex = [(3, 40, 0.46, 48), (4, 10, 0.11, 32), (5, 12, 0.13, 30), (6, 16, 0.30, 0)]
-        elif w >= layout.MEDIUM_LAYOUT_COLS:
-            hidden = {layout.TTY_COLUMN}
-            flex = [(3, 36, 0.48, 44), (4, 9, 0.10, 28), (5, 11, 0.12, 28), (6, 14, 0.30, 0)]
-        else:
-            hidden = {layout.TTY_COLUMN, layout.BRANCH_COLUMN, layout.MESSAGE_COLUMN}
-            flex = [(3, 30, 0.72, 0), (5, 10, 0.28, 0)]
+        hidden, flex = table_layout.column_plan(w)
 
         for table_id in ("#main_table", "#other_sources_table", "#history_table", "#snoozed_table"):
             table = self.query_one(table_id, DataTable)
@@ -762,20 +712,8 @@ class LemonaidApp(App):
                 table, flex, w - table_columns.vertical_scrollbar_width(table)
             )
 
-    def _where_label(self, table_id: str) -> str:
-        """History and the snoozed list keep the cwd: they are records, searched by path."""
-        inbox = table_id in {"#main_table", "#other_sources_table"}
-        return "Project" if inbox and "project" in self.config.tui.card_fields else "CWD"
-
     def _column_labels(self, table_id: str) -> dict[int, str]:
-        return {
-            0: "Time",
-            3: "Name",
-            layout.BRANCH_COLUMN: "Branch",
-            5: self._where_label(table_id),
-            6: "Message",
-            layout.TTY_COLUMN: "Wakes" if table_id == "#snoozed_table" else "TTY",
-        }
+        return table_layout.column_labels(table_id, self.config.tui.card_fields)
 
     def _setup_table(
         self,
@@ -814,7 +752,9 @@ class LemonaidApp(App):
         )
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
-        table.add_column(self._where_label(f"#{table.id}"), width=16)
+        table.add_column(
+            table_layout.where_label(f"#{table.id}", self.config.tui.card_fields), width=16
+        )
         table.add_column("Message", width=30)  # Stretched on resize
         # TTY holds "ttysNNN"; the snoozed view's wake label is "Fri 09:00".
         table.add_column("Wakes" if wake_column else "TTY", width=9 if wake_column else 7)
