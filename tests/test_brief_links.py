@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.widgets._markdown import MarkdownH2, MarkdownParagraph, MarkdownTableCellContents
 
 from lemonaid.brief import links
-from lemonaid.inbox.tui import brief_view
+from lemonaid.inbox.tui.briefs import brief_view
 
 _VAULTS = (Path.home() / "work/vault", Path.home() / "trove")
 _LONG = "https://example.com/" + "/".join(f"segment-{i}" for i in range(12)) + "/end?x=1&y=2"

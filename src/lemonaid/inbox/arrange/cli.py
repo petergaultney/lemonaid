@@ -10,7 +10,7 @@ from typing import Any
 
 from ...config import Config, load_config
 from .. import db, emoji, order, pins, presence, view
-from ..tui import brief_cards
+from ..tui.rows import brief_cards
 from . import answer, child, serve
 
 

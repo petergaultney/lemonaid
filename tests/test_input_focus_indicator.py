@@ -9,8 +9,8 @@ import pytest
 from textual.color import Color
 from textual.widgets import Header
 
-from lemonaid.inbox.tui import focus
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.watchers import focus
 
 
 def test_tmux_focus_needs_selected_pane_window_and_attached_session(monkeypatch):

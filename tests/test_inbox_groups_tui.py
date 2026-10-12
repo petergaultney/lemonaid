@@ -11,8 +11,9 @@ from lemonaid import groups
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, pins
-from lemonaid.inbox.tui import row_keys, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.tables import row_keys
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 _ids = itertools.count(900)
 

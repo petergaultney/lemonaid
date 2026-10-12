@@ -6,9 +6,9 @@ import pytest
 
 from lemonaid.inbox import db
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import watcher_hooks
-from lemonaid.inbox.tui.table import ClickToActTable
+from lemonaid.inbox.tui.tables.table import ClickToActTable
 from lemonaid.inbox.tui.utils import HERE_BLOCK
+from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.tmux import navigation
 
 from .shared import run

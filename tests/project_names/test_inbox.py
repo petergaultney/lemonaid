@@ -6,7 +6,9 @@ from lemonaid import resume
 from lemonaid.brief import attached
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, _parse_config
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, card_context, utils, watcher_hooks
+from lemonaid.inbox.tui import app, utils
+from lemonaid.inbox.tui.rows import card_context
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 
 def test_config_and_hook_label_area_color(tmp_path):

@@ -6,8 +6,8 @@ import time
 from rich.text import Span, Text
 
 from lemonaid.inbox import db, pins
-from lemonaid.inbox.tui import cards, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.rows import cards
 from lemonaid.inbox.tui.utils import (
     FIELD_STYLES,
     PIN_MARK,
@@ -15,6 +15,7 @@ from lemonaid.inbox.tui.utils import (
     backend_cell,
     styled_cell,
 )
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 
 def _session(conn, channel: str, name: str = ""):

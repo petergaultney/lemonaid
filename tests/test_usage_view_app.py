@@ -8,8 +8,8 @@ from textual.widgets._header import HeaderTitle
 
 from lemonaid import config as config_mod
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import usage_view
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.views import usage_view
 from lemonaid.usage import samples
 
 from .test_brief_navigation import _until

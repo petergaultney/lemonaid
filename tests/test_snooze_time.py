@@ -11,7 +11,7 @@ from textual.widgets import OptionList
 
 from lemonaid import config
 from lemonaid.inbox.snooze_time import describe, parse_wake
-from lemonaid.inbox.tui.screens import SnoozeScreen
+from lemonaid.inbox.tui.edits.screens import SnoozeScreen
 
 NINE = clock(9, 0)
 FRIDAY = (2026, 10, 2)

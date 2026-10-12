@@ -9,10 +9,10 @@ from textual.widgets import ContentSwitcher, DataTable, Input
 
 from lemonaid.brief import sidebar, target
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.brief_view import BriefView
-from lemonaid.inbox.tui.table import ClickToActTable
+from lemonaid.inbox.tui.briefs.brief_view import BriefView
+from lemonaid.inbox.tui.tables.table import ClickToActTable
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 
 def _lemons(monkeypatch, tmp_path: Path, count: int) -> tuple[list[db.Notification], dict]:

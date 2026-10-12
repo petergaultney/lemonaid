@@ -11,9 +11,9 @@ import pytest
 from textual.widgets import Static
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.inbox_list import InboxList
+from lemonaid.inbox.tui.live.inbox_list import InboxList
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 _REVERSE = """
 from lemonaid.inbox.arrange import answer

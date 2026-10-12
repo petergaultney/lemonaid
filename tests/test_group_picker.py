@@ -1,4 +1,4 @@
-from lemonaid.inbox.tui import group_picker
+from lemonaid.inbox.tui.edits import group_picker
 
 
 def test_typing_narrows_the_groups_and_offers_a_new_one_unless_named_exactly():

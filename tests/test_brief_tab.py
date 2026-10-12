@@ -6,9 +6,9 @@ from textual.widgets import Input
 
 from lemonaid import config as config_mod
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.screens import SnoozeScreen
+from lemonaid.inbox.tui.edits.screens import SnoozeScreen
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 from .test_brief_navigation import _lemons, _until
 

@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from ...brief import colors
+from ...config import Config
 from ...tmux import window_status
 
 
@@ -222,3 +223,8 @@ def jump_gutter(row_index: int, is_here: bool = False) -> Text:
     gutter = Text(text)
     gutter.stylize(JUMP_GUTTER_STYLE, 0, len(text))
     return gutter
+
+
+def undo_key(config: Config) -> str:
+    keys = config.tui.keybindings.undo
+    return keys[0] if keys else "z"

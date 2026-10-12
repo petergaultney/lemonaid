@@ -12,13 +12,15 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 
 from ...config import Config
-from . import search_archive, table_layout, table_setup, view_modes
-from .history_table import HistoryTable
-from .inbox_draw import Drawn
-from .inbox_list import InboxList
+from .live import search_archive
+from .live.inbox_draw import Drawn
+from .live.inbox_list import InboxList
 from .notes import NotesPanel
-from .snoozed_table import SnoozedTable
+from .tables import table_layout, table_setup
 from .utils import update_static
+from .views import view_modes
+from .views.history_table import HistoryTable
+from .views.snoozed_table import SnoozedTable
 
 
 class InboxContent(Container):

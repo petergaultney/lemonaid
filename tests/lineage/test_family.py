@@ -5,8 +5,8 @@ from textual.app import App
 
 from lemonaid.brief import family, identity, pr, render, status, store, target
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import brief_view
-from lemonaid.inbox.tui.brief_view import BriefView
+from lemonaid.inbox.tui.briefs import brief_view
+from lemonaid.inbox.tui.briefs.brief_view import BriefView
 
 from .shared import lemon, run
 

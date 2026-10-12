@@ -1,4 +1,4 @@
-from lemonaid.inbox.tui import usage_view
+from lemonaid.inbox.tui.views import usage_view
 from lemonaid.usage import samples
 
 

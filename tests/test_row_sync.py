@@ -10,7 +10,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import DataTable
 
-from lemonaid.inbox.tui.table_rows import sync_rows
+from lemonaid.inbox.tui.rows.table_rows import sync_rows
 
 
 class _TableApp(App):

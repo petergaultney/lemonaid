@@ -3,7 +3,7 @@ import subprocess
 import pytest
 
 from lemonaid.config import PlaceRoot
-from lemonaid.inbox.tui import project_names
+from lemonaid.inbox.tui.rows import project_names
 
 
 @pytest.mark.parametrize(

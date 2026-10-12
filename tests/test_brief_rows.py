@@ -6,8 +6,10 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, brief_rows, layout
-from lemonaid.inbox.tui.brief_cards import CardBrief
+from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui.rows import brief_rows
+from lemonaid.inbox.tui.rows.brief_cards import CardBrief
+from lemonaid.inbox.tui.tables import layout
 from lemonaid.inbox.tui.utils import ATTENTION_COLOR, here_bar_style, jump_gutter
 from lemonaid.tmux import scratch
 
@@ -155,7 +157,7 @@ def test_a_running_row_is_teal():
 
 
 def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
-    from lemonaid.inbox.tui import backend_indicators
+    from lemonaid.inbox.tui.rows import backend_indicators
 
     cells = _row("review")
     cells[2] = backend_indicators.backend_text(
@@ -175,7 +177,7 @@ def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
 
 
 def test_a_reading_badge_at_the_purple_end_takes_white_text():
-    from lemonaid.inbox.tui import context_reading
+    from lemonaid.inbox.tui.rows import context_reading
 
     def text_colour(percent: int) -> str:
         badge = context_reading.filled(context_reading.text(percent))

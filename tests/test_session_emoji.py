@@ -1,7 +1,7 @@
 """Where a session's emoji shows in single-line inbox rows."""
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui.row_cells import _decorated_name
+from lemonaid.inbox.tui.rows.row_cells import _decorated_name
 
 
 def test_a_single_line_name_starts_with_its_sessions_emoji():

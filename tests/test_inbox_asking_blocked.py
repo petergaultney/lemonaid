@@ -5,7 +5,7 @@ import time
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, presence, view
-from lemonaid.inbox.tui.brief_cards import BriefCache
+from lemonaid.inbox.tui.rows.brief_cards import BriefCache
 
 
 def _session(conn, name: str, kind: str) -> str:

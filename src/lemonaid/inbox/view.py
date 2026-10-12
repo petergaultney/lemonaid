@@ -12,7 +12,7 @@ from typing import Any
 
 from .. import brief
 from . import db, order, pins, presence, status_since, turns
-from .tui import brief_cards
+from .tui.rows import brief_cards
 
 SNAPSHOT_VERSION = 1
 

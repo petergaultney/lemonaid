@@ -12,8 +12,8 @@ from textual.widgets import DataTable
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, order, pins
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 _ids = itertools.count(900)
 

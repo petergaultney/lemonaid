@@ -6,9 +6,9 @@ from textual.containers import Vertical
 from textual.widgets import Label
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.switching.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 
 def _dead_row() -> db.Notification:
@@ -27,7 +27,7 @@ def _select_then_press(monkeypatch, key: str) -> tuple[type, str]:
     notification = _dead_row()
     monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: False
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )
 
     async def run():
@@ -57,7 +57,7 @@ def test_escape_closes_without_archiving(monkeypatch):
 def test_arrow_keys_do_not_dismiss_resume_failure(monkeypatch):
     row = _dead_row()
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: False
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )
 
     async def run():
@@ -85,7 +85,7 @@ def test_missing_directory_without_tmux_destination_shows_fallback_command(monke
             switch_source="tmux",
         )
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: False
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )
 
     async def run():

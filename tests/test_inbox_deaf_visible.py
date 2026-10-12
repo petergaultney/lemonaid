@@ -5,7 +5,7 @@ import pytest
 from lemonaid.groups.store import Group
 from lemonaid.inbox import db, order, sections, view
 from lemonaid.inbox.arrange import answer
-from lemonaid.inbox.tui.brief_cards import CardBrief
+from lemonaid.inbox.tui.rows.brief_cards import CardBrief
 
 
 def _n(i: int, channel: str, unread: bool = False) -> db.Notification:

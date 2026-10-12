@@ -1,6 +1,6 @@
 from lemonaid import groups
 from lemonaid.inbox import db, sections
-from lemonaid.inbox.tui import focus
+from lemonaid.inbox.tui.watchers import focus
 
 
 def _row(i: int, channel: str) -> sections.Row:

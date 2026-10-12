@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lemonaid.inbox.tui.brief_cards import BriefCache, CardBrief
+from lemonaid.inbox.tui.rows.brief_cards import BriefCache, CardBrief
 
 
 def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> None:

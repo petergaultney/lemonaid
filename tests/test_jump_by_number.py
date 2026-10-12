@@ -10,9 +10,9 @@ import asyncio
 import itertools
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.utils import jump_digit, jump_gutter
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 _ids = itertools.count(700)
 

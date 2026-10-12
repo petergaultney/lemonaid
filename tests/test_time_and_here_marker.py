@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from lemonaid.inbox.tui.row_cells import format_timestamp, time_cell
+from lemonaid.inbox.tui.rows.row_cells import format_timestamp, time_cell
 from lemonaid.inbox.tui.utils import HERE_BAR, HERE_BLOCK, here_bar_style, jump_gutter
 
 
@@ -99,7 +99,7 @@ def test_the_cursor_does_not_repaint_the_row_it_marks():
     Colour is the field's identity here, so a selected row that adopts one
     foreground loses the distinction the list is read for.
     """
-    from lemonaid.inbox.tui.table import ClickToActTable
+    from lemonaid.inbox.tui.tables.table import ClickToActTable
 
     assert ClickToActTable().cursor_foreground_priority == "renderable"
 
@@ -188,7 +188,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
     """The two layouts give the same mark different room, so it takes two forms."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     cells = [
@@ -215,7 +215,7 @@ def test_a_focused_card_carries_the_bar_down_every_line():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def card_for(is_here: bool) -> list[str]:
@@ -246,7 +246,7 @@ def test_a_marked_card_keeps_its_name_on_the_same_column():
     """The bar replaces the digit's ink, not the space the digit occupied."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool) -> str:
@@ -269,7 +269,7 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
     """The separator only grows a bar when there is a bar to carry."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     cells = [
@@ -294,7 +294,7 @@ def test_marking_a_card_does_not_move_anything_in_it():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def lines(is_here: bool, row: int) -> list[str]:
@@ -326,7 +326,7 @@ def test_an_unmarked_card_keeps_its_jump_digit():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool, row: int) -> str:
@@ -353,7 +353,7 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     width = 44
@@ -378,7 +378,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
     """The number gives way to a blank; the dot and title remain where they were."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.cards import as_card
+    from lemonaid.inbox.tui.rows.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool, row: int) -> str:
@@ -405,7 +405,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
 def test_a_successful_inbox_switch_marks_its_tty_immediately(monkeypatch):
     from lemonaid.inbox import db
     from lemonaid.inbox.tui import app as app_mod
-    from lemonaid.inbox.tui import inbox_switch
+    from lemonaid.inbox.tui.switching import inbox_switch
 
     pane = app_mod.LemonaidApp()
     refreshed: list[bool] = []

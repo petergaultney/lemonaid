@@ -15,7 +15,7 @@ import pytest
 from lemonaid.brief import attached
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
+from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.places import ownership, teardown
 

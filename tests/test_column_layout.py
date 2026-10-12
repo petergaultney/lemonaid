@@ -4,8 +4,8 @@ import asyncio
 
 from rich.text import Text
 
-from lemonaid.inbox.tui import layout
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.tables import layout
 
 
 def _widths(width: int) -> dict[str, int]:

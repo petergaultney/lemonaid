@@ -11,7 +11,7 @@ import asyncio
 from textual.app import App, ComposeResult
 from textual.widgets import DataTable
 
-from lemonaid.inbox.tui.table import ClickToActTable
+from lemonaid.inbox.tui.tables.table import ClickToActTable
 
 
 class _Harness(App):

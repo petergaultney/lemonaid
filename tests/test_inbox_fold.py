@@ -14,9 +14,9 @@ from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, order, pins, unarchive
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.help_screen import help_lines
+from lemonaid.inbox.tui.watchers import watcher_hooks
 
 _ids = itertools.count(700)
 
@@ -243,7 +243,7 @@ def focus(monkeypatch) -> dict[str, set[str]]:
     """The ttys tmux reports as focused, asked afresh on every refresh."""
     focused: dict[str, set[str]] = {"ttys": set()}
     monkeypatch.setattr(app_mod.navigation, "focused_ttys", lambda socket=None: focused["ttys"])
-    monkeypatch.setattr("lemonaid.inbox.tui.focus.FOCUS_CACHE_SECONDS", 0.0)
+    monkeypatch.setattr("lemonaid.inbox.tui.watchers.focus.FOCUS_CACHE_SECONDS", 0.0)
     return focused
 
 

@@ -10,10 +10,10 @@ import asyncio
 import itertools
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.error_screen import ErrorScreen
-from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.switching.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 
 _ttys = itertools.count(900)
@@ -76,7 +76,9 @@ def test_a_live_session_goes_back_to_the_inbox(monkeypatch):
     """A still-running archived session is returned to the active inbox."""
     nid = _archived()
     _pane_and_process(monkeypatch, True)
-    monkeypatch.setattr("lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: True
+    )
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -95,7 +97,7 @@ def test_a_live_session_is_switched_to_not_resumed(monkeypatch):
     resumed: list = []
     _pane_and_process(monkeypatch, True)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification",
         lambda *a, **k: switched.append(a) or True,
     )
     monkeypatch.setattr(
@@ -144,7 +146,9 @@ def test_the_recorded_server_is_the_one_asked(monkeypatch):
         "lemonaid.inbox.unarchive.check_pane_exists_by_tty",
         lambda tty, src, socket=None, not_after=None: asked.append(socket) or True,
     )
-    monkeypatch.setattr("lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: True
+    )
 
     async def steps(app, pilot):
         app._set_history_mode(True)
@@ -162,7 +166,7 @@ def test_copying_a_command_never_switches(monkeypatch):
     switched: list = []
     _pane_and_process(monkeypatch, True)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification",
         lambda *a, **k: switched.append(a) or True,
     )
     monkeypatch.setattr("lemonaid.resume.build_resume_command", lambda *a: None)
@@ -184,7 +188,7 @@ def test_a_pane_left_at_a_shell_prompt_resumes(monkeypatch):
     resumed: list = []
     _pane_and_process(monkeypatch, True, process=False)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification",
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification",
         lambda *a, **k: switched.append(a) or True,
     )
     monkeypatch.setattr(
@@ -223,7 +227,7 @@ def test_a_failed_switch_says_so_until_dismissed(monkeypatch):
     _archived()
     _pane_and_process(monkeypatch, True)
     monkeypatch.setattr(
-        "lemonaid.inbox.tui.inbox_switch.handle_notification", lambda *a, **k: False
+        "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )
 
     async def steps(app, pilot):

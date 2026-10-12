@@ -1,4 +1,4 @@
-from lemonaid.inbox.tui import pr_numbers
+from lemonaid.inbox.tui.rows import pr_numbers
 
 from .shared import table
 

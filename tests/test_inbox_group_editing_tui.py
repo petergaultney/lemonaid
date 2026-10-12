@@ -5,7 +5,7 @@ from textual.widgets import DataTable
 
 from lemonaid import groups, lineage
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import row_keys
+from lemonaid.inbox.tui.tables import row_keys
 from tests.test_inbox_groups_tui import _channels, _keep_sessions, _run, _session  # noqa: F401
 
 

@@ -17,9 +17,11 @@ from textual.widgets import Markdown
 
 from lemonaid.brief import colors
 from lemonaid.config import Config
-from lemonaid.inbox.tui import app, brief_cards, brief_detail, brief_popup, cards, utils
-from lemonaid.inbox.tui.brief_cards import CardBrief
-from lemonaid.inbox.tui.brief_view import BriefView
+from lemonaid.inbox.tui import app, utils
+from lemonaid.inbox.tui.briefs import brief_detail, brief_popup
+from lemonaid.inbox.tui.briefs.brief_view import BriefView
+from lemonaid.inbox.tui.rows import brief_cards, cards
+from lemonaid.inbox.tui.rows.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import jump_gutter
 
 

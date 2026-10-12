@@ -2,7 +2,7 @@ import asyncio
 import threading
 
 from lemonaid.config import PlaceRoot
-from lemonaid.inbox.tui import project_names
+from lemonaid.inbox.tui.rows import project_names
 
 
 def test_pending_success_and_failures_are_looked_up_once_off_thread(tmp_path, monkeypatch):

@@ -67,33 +67,30 @@ message handlers, refresh ticks and the brief overlay. Each action decides what
 should happen and hands the work to the widget or module that owns it. The
 widgets keep their own state; plain modules take explicit arguments.
 
-Widgets:
+Beside `app.py` sit the pieces the whole app uses: `inbox_content.py` (`InboxContent`, the
+panes under the header: which view is up, the search, cards or columns, the notes and the
+status line), `bindings.py` (the key table and which actions are allowed when), `styles.py`,
+`utils.py`, `notes.py`, the help and error screens, and `claude_patch.py`.
 
-- `inbox_content.py` (`InboxContent`): the panes under the header. It knows which view is
-  up, the search state, cards or columns, the notes and the status line.
-- `inbox_list.py` (`InboxList`): the main and other-terminals tables and the fold line. It
-  owns the fold, the arranger, drawn group headers and where the cursor follows.
-- `history_table.py`, `snoozed_table.py`: the history and snoozed lists, with resume and wake.
-- `brief_pane.py` (`BriefPane`): the brief shown in place of the inbox, browsing from row to
-  row, and switching the main pane behind it.
+The subpackages, each named for what it owns:
 
-What a refresh reads and draws:
+- `live/`: the inbox list. `inbox_list.py` (`InboxList`) owns the main and other-terminals
+  tables, the fold, the arranger and where the cursor follows. A refresh reads the database
+  (`inbox_frame.py`), asks the arranger (`inbox_arrange.py`), orders rows and group headers
+  (`inbox_entries.py`) and draws them (`inbox_main_table.py`, `inbox_draw.py`).
+- `watchers/`: background work the app polls: tmux focus (`focus.py`), session titles
+  (`session_names.py`), and the transcript watcher's database callbacks (`watcher_hooks.py`).
+- `rows/`: one session's row: its cells (`row_cells.py`, `inbox_rows.py`, `row_parts.py`),
+  its card (`cards.py`), the cached brief details both draw from (`brief_cards.py`,
+  `brief_rows.py`), and bringing a table in line with its rows (`table_rows.py`).
+- `tables/`: the `DataTable`s: columns and widths, row keys, and moving the cursor across tables.
+- `briefs/`: the brief opened up: the scratch pane's brief view, its questions,
+  `brief_pane.py` (`BriefPane`, the brief shown in place of the inbox), and the popup.
+- `edits/`: undoable changes to a row, groups and pins, and the dialogs that ask for them.
+- `views/`: the history, snoozed and usage views, and `view_modes.py`, which says how each
+  changes the footer.
+- `switching/`: putting the terminal on a session, resuming one from history, and what to
+  show when either fails.
 
-- `inbox_frame.py`: the database read; `inbox_arrange.py`: the arranger process;
-  `inbox_entries.py`: rows and group headers in drawing order.
-- `inbox_main_table.py`, `inbox_draw.py`: the main table, the other-terminals table, the fold line.
-- `history_rows.py`, `snoozed_rows.py`, `row_cells.py`, `inbox_rows.py`, `row_parts.py`:
-  the cells of one row; `cards.py` folds them into a card.
-- `table_rows.py`, `table_columns.py`, `table_setup.py`, `table_layout.py`, `layout.py`:
-  bringing a `DataTable` in line with its rows, and its columns and widths.
-- `styles.py`, `status_line.py`, `search_archive.py`, `view_modes.py`.
-
-What the keys do:
-
-- `bindings.py`: the key table built from config, and which actions are allowed when.
-- `inbox_edits.py`, `edit_dialogs.py`: undoable row changes and the dialogs that ask for them.
-- `inbox_groups.py`, `group_dialogs.py`, `inbox_pins.py`: groups and pins.
-- `inbox_switch.py`, `history_resume.py`: switching to a session, and resuming one from history.
-- `table_nav.py`, `cursor_target.py`, `row_keys.py`: moving the cursor and reading what it is on.
-- `focus.py`, `session_names.py`, `watcher_hooks.py`, `claude_patch.py`: tmux focus, session
-  titles, the transcript watcher's database callbacks, and the Claude patch.
+The subpackages import one way: `rows` and `tables` sit at the bottom, and nothing below
+`app.py` imports `bindings`.

@@ -17,9 +17,12 @@ from lemonaid import claude, codex
 from lemonaid.brief import attached, render, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, turns
-from lemonaid.inbox.tui import brief_cards, brief_questions, brief_view, inbox_frame, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.inbox_list import InboxList
+from lemonaid.inbox.tui.briefs import brief_questions, brief_view
+from lemonaid.inbox.tui.live import inbox_frame
+from lemonaid.inbox.tui.live.inbox_list import InboxList
+from lemonaid.inbox.tui.rows import brief_cards
+from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 
 

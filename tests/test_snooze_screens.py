@@ -7,7 +7,8 @@ from datetime import datetime
 from textual.app import App
 
 from lemonaid.inbox.snooze_time import next_morning, parse_duration, parse_wake
-from lemonaid.inbox.tui.screens import SnoozeScreen, format_wake_time
+from lemonaid.inbox.tui.edits.screens import SnoozeScreen
+from lemonaid.inbox.tui.rows.row_cells import format_wake_time
 
 NINE = datetime(2026, 1, 1, 9).time()
 

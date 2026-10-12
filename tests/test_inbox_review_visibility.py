@@ -15,10 +15,10 @@ from lemonaid.config import load_config
 from lemonaid.inbox import db, pins, presence, view
 from lemonaid.inbox.arrange.cli import _snapshot
 from lemonaid.inbox.tui import app as app_mod
-from lemonaid.inbox.tui import focus, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.brief_cards import BriefCache
+from lemonaid.inbox.tui.rows.brief_cards import BriefCache
 from lemonaid.inbox.tui.utils import HERE_BLOCK
+from lemonaid.inbox.tui.watchers import focus, watcher_hooks
 
 _ids = itertools.count(1)
 

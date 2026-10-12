@@ -35,40 +35,24 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import db, sections, undo
-from . import (
-    bindings,
-    brief_cards,
-    claude_patch,
-    edit_dialogs,
-    error_screen,
-    focus,
-    group_dialogs,
-    history_resume,
-    inbox_draw,
-    inbox_edits,
-    inbox_groups,
-    inbox_switch,
-    row_keys,
-    row_parts,
-    session_names,
-    status_line,
-    styles,
-    table_nav,
-    usage_view,
-    utils,
-    view_modes,
-    watcher_hooks,
-)
-from .brief_pane import BriefPane
+from . import bindings, claude_patch, error_screen, styles, utils
+from .briefs.brief_pane import BriefPane
+from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups
 from .help_screen import HelpScreen
-from .history_table import HistoryTable
 from .inbox_content import InboxContent
-from .inbox_list import InboxList
+from .live import inbox_draw, status_line
+from .live.inbox_list import InboxList
 from .notes import NotesPanel
-from .snoozed_table import SnoozedTable
-from .table import ClickToActTable
-from .usage_view import UsageHeader
+from .rows import brief_cards, row_parts
+from .switching import history_resume, inbox_switch
+from .tables import row_keys, table_nav
+from .tables.table import ClickToActTable
 from .utils import JUMP_DIGITS, set_terminal_title
+from .views import usage_view, view_modes
+from .views.history_table import HistoryTable
+from .views.snoozed_table import SnoozedTable
+from .views.usage_view import UsageHeader
+from .watchers import focus, session_names, watcher_hooks
 
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
@@ -546,7 +530,7 @@ class LemonaidApp(App):
 
     def _undoable(self, entry: undo.Entry) -> None:
         self._undo_stack.push(entry)
-        self.notify(f"{entry.description} — press {bindings.undo_key(self.config)} to undo")
+        self.notify(f"{entry.description} — press {utils.undo_key(self.config)} to undo")
 
     def _switch_to_notification(self, notification: db.Notification) -> bool:
         if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):

@@ -4,7 +4,7 @@ from rich.console import Console
 
 from lemonaid import groups
 from lemonaid.inbox import sections
-from lemonaid.inbox.tui import group_headers
+from lemonaid.inbox.tui.live import group_headers
 
 
 def _header(band: str, unread: bool, collapsed: bool = True) -> sections.Header:

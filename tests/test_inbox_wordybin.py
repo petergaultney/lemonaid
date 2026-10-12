@@ -6,8 +6,8 @@ from textual.widgets import DataTable
 
 from lemonaid.brief import attached, identity, store
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import layout
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.tables import layout
 
 
 def _lemon_with_a_brief() -> str:

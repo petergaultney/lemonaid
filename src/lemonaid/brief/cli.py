@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db, emoji
-from ..inbox.tui import brief_popup
+from ..inbox.tui.briefs import brief_popup
 from . import (
     attached,
     dismiss,

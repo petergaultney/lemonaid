@@ -11,9 +11,10 @@ import pytest
 
 from lemonaid.config import Config
 from lemonaid.inbox import db, resume_archived
-from lemonaid.inbox.tui import inbox_switch, watcher_hooks
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.switching import inbox_switch
+from lemonaid.inbox.tui.switching.resume_error import ResumeErrorScreen
+from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 
 

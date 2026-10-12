@@ -10,10 +10,10 @@ from lemonaid import keys
 from lemonaid.brief import attached, identity, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import brief_popup
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.brief_questions import AnswerScreen
-from lemonaid.inbox.tui.brief_view import BriefView
+from lemonaid.inbox.tui.briefs import brief_popup
+from lemonaid.inbox.tui.briefs.brief_questions import AnswerScreen
+from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.messages import store
 
 from .test_brief_navigation import _lemons, _until

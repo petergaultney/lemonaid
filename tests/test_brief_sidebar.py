@@ -9,7 +9,7 @@ from textual.widgets import ContentSwitcher, DataTable
 from lemonaid.brief import cli, sidebar, target
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
-from lemonaid.inbox.tui.brief_view import BriefView
+from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.tmux import follow
 
 

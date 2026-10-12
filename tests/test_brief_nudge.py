@@ -1,7 +1,7 @@
 """The reminder of what a brief's Status waits on, and the answers that carry it."""
 
 from lemonaid.brief import nudge, store
-from lemonaid.inbox.tui import brief_questions
+from lemonaid.inbox.tui.briefs import brief_questions
 
 _BLOCKED = """\
 # Ship it

@@ -1,6 +1,6 @@
 from rich.console import Console
 
-from lemonaid.inbox.tui import backend_indicators, context_reading
+from lemonaid.inbox.tui.rows import backend_indicators, context_reading
 
 _CONSOLE = Console(color_system="truecolor")
 

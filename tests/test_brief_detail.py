@@ -4,7 +4,9 @@ import dataclasses
 from pathlib import Path
 
 from lemonaid.brief import render, target
-from lemonaid.inbox.tui import brief_cards, brief_detail, utils
+from lemonaid.inbox.tui import utils
+from lemonaid.inbox.tui.briefs import brief_detail
+from lemonaid.inbox.tui.rows import brief_cards
 
 _LEMON = target.Identity(
     name="author",

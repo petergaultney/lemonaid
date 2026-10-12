@@ -5,7 +5,8 @@ import pytest
 
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, pr_numbers, row_cells
+from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui.rows import pr_numbers, row_cells
 from lemonaid.tmux import scratch
 
 

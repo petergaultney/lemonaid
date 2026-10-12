@@ -1,5 +1,5 @@
 from lemonaid.config import PlaceRoot
-from lemonaid.inbox.tui import pr_numbers
+from lemonaid.inbox.tui.rows import pr_numbers
 
 
 def test_maps_are_per_root_cached_and_single_flight(tmp_path):

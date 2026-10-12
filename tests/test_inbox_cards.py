@@ -11,8 +11,10 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, backend_indicators, cards, layout, table_layout, table_rows
-from lemonaid.inbox.tui.brief_cards import CardBrief
+from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui.rows import backend_indicators, cards, table_rows
+from lemonaid.inbox.tui.rows.brief_cards import CardBrief
+from lemonaid.inbox.tui.tables import layout, table_layout
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
     FIELD_STYLES,
@@ -46,7 +48,7 @@ def test_selected_and_hovered_card_keep_blocked_headline_background(monkeypatch)
     """Cursor and hover highlights must not cover a status fill in the rendered card."""
     from textual.app import App, ComposeResult
 
-    from lemonaid.inbox.tui.table import ClickToActTable
+    from lemonaid.inbox.tui.tables.table import ClickToActTable
 
     monkeypatch.delenv("NO_COLOR", raising=False)
     cells = [

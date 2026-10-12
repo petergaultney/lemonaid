@@ -124,11 +124,6 @@ def app_bindings(config: Config) -> list[Binding]:
     return list(_bindings(config))
 
 
-def undo_key(config: Config) -> str:
-    keys = config.tui.keybindings.undo
-    return keys[0] if keys else "z"
-
-
 def help_keys(config: Config) -> KeybindingsConfig:
     """The keybindings the reference lists: the fold and notes keys only when bound."""
     kb = config.tui.keybindings
