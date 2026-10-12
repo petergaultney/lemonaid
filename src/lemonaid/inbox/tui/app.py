@@ -43,6 +43,7 @@ from .. import (
 from . import (
     bindings,
     brief_cards,
+    edit_dialogs,
     focus,
     history_resume,
     inbox_draw,
@@ -69,7 +70,6 @@ from .help_screen import HelpScreen
 from .history_table import HistoryTable
 from .inbox_list import InboxList
 from .notes import NotesPanel
-from .screens import RenameScreen, SnoozeScreen
 from .snoozed_table import SnoozedTable
 from .table import ClickToActTable
 from .usage_view import UsageHeader
@@ -1044,23 +1044,12 @@ class LemonaidApp(App):
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""
-        if self._mode is not None or not (notification := self._selected_notification()):
-            return
+        if self._mode is None and (notification := self._selected_notification()):
+            edit_dialogs.snooze(self, notification, self.config, self._snoozed)
 
-        def snoozed(until: float | None) -> None:
-            if until is not None:
-                entry = inbox_edits.snooze(notification, until)
-                self._refresh_notifications()
-                self._undoable(entry)
-
-        self.push_screen(
-            SnoozeScreen(
-                session_name=notification.name or "",
-                presets=self.config.inbox.snooze_presets,
-                day_start=self.config.inbox.snooze_day_starts,
-            ),
-            snoozed,
-        )
+    def _snoozed(self, entry: undo.Entry) -> None:
+        self._refresh_notifications()
+        self._undoable(entry)
 
     def action_undo(self) -> None:
         """Reverse the most recent undoable inbox change."""
@@ -1093,21 +1082,16 @@ class LemonaidApp(App):
             inbox_groups.rename(self.query_one(InboxList), group, "Rename Group")
             return
 
-        if not (notification := self._selected_notification()):
-            return
+        if notification := self._selected_notification():
+            edit_dialogs.rename(self, notification, self._renamed)
 
-        def renamed(new_name: str | None) -> None:
-            if new_name is None:
-                return
-
-            self._undo_stack.push(inbox_edits.rename(notification, new_name))
-            if self._mode is view_modes.HISTORY:
-                self._refresh_history()
-            else:
-                self._retarget_brief()
-                self._refresh_notifications()
-
-        self.push_screen(RenameScreen(current_name=notification.name or ""), renamed)
+    def _renamed(self, entry: undo.Entry) -> None:
+        self._undo_stack.push(entry)
+        if self._mode is view_modes.HISTORY:
+            self._refresh_history()
+        else:
+            self._retarget_brief()
+            self._refresh_notifications()
 
     def _retarget_brief(self) -> None:
         if self._brief_target is not None and (notification := self._selected_notification()):
