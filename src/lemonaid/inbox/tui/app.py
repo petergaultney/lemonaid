@@ -85,6 +85,7 @@ from . import (
     table_rows,
     usage_view,
     utils,
+    view_modes,
 )
 from .brief_view import BriefView
 from .error_screen import ErrorScreen
@@ -1648,18 +1649,11 @@ class LemonaidApp(App):
         history_filter = self.query_one("#history_filter", Input)
 
         # Inbox-only actions
-        for action in (
-            "jump_unread",
-            "mark_read",
-            "mark_unread",
-            "archive",
-            "snooze",
-            "toggle_fold",
-        ):
+        for action in (*view_modes.INBOX_ONLY_ACTIONS, "archive"):
             self._set_binding_footer(action, show=not enabled)
 
         # History-only actions
-        for action in ("copy_resume", "filter_history", "tmux_resume"):
+        for action in view_modes.HISTORY_ONLY_ACTIONS:
             self._set_binding_footer(action, show=enabled)
 
         # Relabel contextual actions
@@ -1680,11 +1674,13 @@ class LemonaidApp(App):
 
         if enabled:
             self.sub_title = "session history"
-            main_table.display = False
-            self.query_one("#fold_label", Static).display = False
-            other_label.display = False
-            other_table.display = False
-            self.query_one("#search_archive_label", Static).display = False
+            view_modes.hide_inbox_panes(
+                main_table,
+                self.query_one("#fold_label", Static),
+                other_label,
+                other_table,
+                self.query_one("#search_archive_label", Static),
+            )
             history_table.display = True
             history_filter.display = False
             history_filter.value = ""
@@ -1757,7 +1753,7 @@ class LemonaidApp(App):
         other_table = self.query_one("#other_sources_table", DataTable)
 
         # Inbox-only actions don't apply to the snoozed list
-        for action in ("jump_unread", "mark_read", "mark_unread", "snooze", "toggle_fold"):
+        for action in view_modes.INBOX_ONLY_ACTIONS:
             self._set_binding_footer(action, show=not enabled)
 
         self._set_binding_footer(
@@ -1772,10 +1768,9 @@ class LemonaidApp(App):
 
         if enabled:
             self.sub_title = "snoozed"
-            main_table.display = False
-            self.query_one("#fold_label", Static).display = False
-            other_label.display = False
-            other_table.display = False
+            view_modes.hide_inbox_panes(
+                main_table, self.query_one("#fold_label", Static), other_label, other_table
+            )
             snoozed_table.display = True
             self._refresh_snoozed()
             snoozed_table.focus()
@@ -1793,7 +1788,7 @@ class LemonaidApp(App):
 
         main_table = self.query_one("#main_table", DataTable)
         usage_table = self.query_one("#usage_table", DataTable)
-        for action in ("jump_unread", "mark_read", "mark_unread", "snooze", "toggle_fold"):
+        for action in view_modes.INBOX_ONLY_ACTIONS:
             self._set_binding_footer(action, show=not enabled)
 
         self._set_binding_footer("toggle_usage", label="Exit Usage" if enabled else "Usage")
@@ -1801,10 +1796,12 @@ class LemonaidApp(App):
 
         if enabled:
             self.sub_title = "usage"
-            main_table.display = False
-            self.query_one("#fold_label", Static).display = False
-            self.query_one("#other_sources_label", Static).display = False
-            self.query_one("#other_sources_table", DataTable).display = False
+            view_modes.hide_inbox_panes(
+                main_table,
+                self.query_one("#fold_label", Static),
+                self.query_one("#other_sources_label", Static),
+                self.query_one("#other_sources_table", DataTable),
+            )
             usage_table.display = True
             self._refresh_usage()
             usage_table.focus()
