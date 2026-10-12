@@ -46,6 +46,13 @@ The tool environment named `lemonaid` from before the rename has to be
 removed once (`uv tool uninstall lemonaid`) before installing
 `lemonaid-inbox`, from a checkout or from PyPI.
 
+## Nothing is specific to one person
+
+Lemonaid's code, help text, docs and defaults name no particular user.
+The Needs heading is `### Needs` with an optional one-word name after it (`### Needs Sam`), and code refers to "the user", never a name.
+A person's name belongs only in test data, as an example, and a new test that depends on the Needs heading should not use the maintainer's name for it.
+Opinions about how one person works go in that person's own overlays and instructions, not here.
+
 ## Keeping tmux replaceable
 
 Code outside `src/lemonaid/tmux/` should not run `tmux` or import `lemonaid.tmux`, so another terminal UI can take its place.

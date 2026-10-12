@@ -22,7 +22,7 @@ def own_thread(channel: str) -> str:
 
 
 def _with_status_note(inbox: Path, message: str) -> str:
-    """*message*, and a reminder when the recipient's brief waits on Peter."""
+    """*message*, and a reminder when the recipient's brief waits on its user."""
     if brief.nudge.carries_note(message):
         return message
 

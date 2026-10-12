@@ -1,10 +1,11 @@
 """A brief's `## Questions` entries, matched to the Needs bullets that ask them.
 
 Each entry is a `###` heading under `## Questions`, named with the label of the
-`### Needs Peter` bullet it explains. A bullet's label is its text before a
-colon, or the whole bullet, so `- render timeouts owner: who fixes it?` is
-explained by `### render timeouts owner` or by the full text. Bold or italic
-markers and case are ignored; code spans are kept as written.
+bullet it explains under the Needs heading (`### Needs`, or `### Needs <name>`).
+A bullet's label is its text before a colon, or the whole bullet, so
+`- render timeouts owner: who fixes it?` is explained by `### render timeouts owner`
+or by the full text. Bold or italic markers and case are ignored; code spans are
+kept as written.
 """
 
 import dataclasses

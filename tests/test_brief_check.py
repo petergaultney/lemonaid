@@ -158,7 +158,7 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
     assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")["error"] is None
     assert "Status: running" in path.read_text()
     assert check.structure(path.read_text()) == [
-        "`### old decision` in ## Questions has no matching bullet under ### Needs Peter"
+        "`### old decision` in ## Questions has no matching bullet under ### Needs"
     ]
 
 

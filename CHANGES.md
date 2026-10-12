@@ -1,3 +1,9 @@
+# 0.101.3 (2026-10-12)
+
+#### Fixed
+
+- **Lemonaid no longer names a particular user in its code, help text or docs.** The `brief check` message about an unmatched `## Questions` entry now names the heading the brief itself uses (`### Needs`, `### Needs Sam`), and the Needs heading's name is documented as free.
+
 # 0.101.2 (2026-10-12)
 
 #### Fixed

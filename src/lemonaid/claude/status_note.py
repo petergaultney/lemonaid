@@ -1,4 +1,4 @@
-"""PostToolUse hook: once per turn, remind a lemon whose brief waits on Peter what it waits on.
+"""PostToolUse hook: once per turn, remind a lemon whose brief waits on its user what it waits on.
 
 The reminder rides as `additionalContext` on a tool call the lemon was making
 anyway, so it costs no extra turn. Claude Code gives every turn, a wake from a

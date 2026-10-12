@@ -301,7 +301,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     # claude status-note
     status_note_parser = claude_subparsers.add_parser(
         "status-note",
-        help="Once a turn, remind a lemon whose brief waits on Peter to keep its Status true "
+        help="Once a turn, remind a lemon whose brief waits on its user to keep its Status true "
         "(PostToolUse hook; reads JSON from stdin)",
     )
     status_note_parser.set_defaults(func=cmd_status_note)

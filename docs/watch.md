@@ -195,8 +195,8 @@ stays in a selected status. All ignored changes advance the saved state, so the 
 wake reports the latest previous status.
 
 Values must be known brief statuses. A newly linked child wakes only if its current
-status is selected. The ask reported with a status event is the first `### Needs Peter`
-section (also `Needs` or `Needs you`), or an older `- Needs Peter:` bullet and its
+status is selected. The ask reported with a status event is the first `### Needs <name>`
+section (also a bare `### Needs`), or an older `- Needs <name>:` bullet and its
 continuation lines. Whitespace and bullet marks are normalized.
 
 A Claude lemon with children cannot end its turn until some `watch briefs --children`

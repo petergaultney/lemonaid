@@ -81,7 +81,7 @@ def test_every_verb_keeps_the_parent_line(brief, verb):
     assert out.count(_PARENT) == 1
     assert ("Area: lemonaid" in out) == ("Area: lemonaid" in _BRIEFS[brief])
     assert check.structure(out) == (
-        ["`### merge #12` in ## Questions has no matching bullet under ### Needs Peter"]
+        ["`### merge #12` in ## Questions has no matching bullet under ### Needs"]
         if brief == "rules template" and verb == "now"
         else []
     )

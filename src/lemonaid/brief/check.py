@@ -99,11 +99,10 @@ def _now(now: layout.Now) -> list[str]:
 
 def question_problems(text: str) -> list[str]:
     parts = status.split(text)
+    found = now.parse(parts.now)
     return [
-        f"`### {label}` in ## Questions has no matching bullet under ### Needs Peter"
-        for label in questions.unmatched(
-            now.parse(parts.now).needs, questions.entries(parts.questions)
-        )
+        f"`### {label}` in ## Questions has no matching bullet under ### {found.needs_label}"
+        for label in questions.unmatched(found.needs, questions.entries(parts.questions))
     ]
 
 

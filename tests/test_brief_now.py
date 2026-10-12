@@ -43,6 +43,11 @@ def test_labels_ignore_case_emphasis_and_a_trailing_colon():
     assert (parsed.needs, parsed.waiting_on) == ("answer", "CI")
 
 
+def test_the_needs_heading_takes_any_name_or_none():
+    for heading in ("Needs Sam", "Needs", "Needs you"):
+        assert now.parse(f"### {heading}\nanswer\n").needs == "answer"
+
+
 def test_a_lead_line_keeps_its_sub_bullets():
     parsed = now.parse("- Needs Peter: pick a colour\n  - yellow\n  - bold\n- Next: tests\n")
 

@@ -135,6 +135,17 @@ def test_check_names_unmatched_questions_but_accepts_matched_ones():
     ]
 
 
+def test_check_names_the_briefs_own_needs_heading():
+    brief = (
+        "# T\n\nStatus: blocked\n\n## Now\n\n### Needs Sam\n\n- pick one\n\n"
+        "## Questions\n\n### something else\n\n- Context\n"
+    )
+
+    assert check.structure(brief) == [
+        "`### something else` in ## Questions has no matching bullet under ### Needs Sam"
+    ]
+
+
 def test_multiline_needs_bullet_expands_without_a_warning(tmp_path, capsys):
     brief = tmp_path / "multiline.md"
     brief.write_text(
