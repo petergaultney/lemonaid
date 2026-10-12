@@ -45,3 +45,10 @@ as a draft is finished rather than created again.
 The tool environment named `lemonaid` from before the rename has to be
 removed once (`uv tool uninstall lemonaid`) before installing
 `lemonaid-inbox`, from a checkout or from PyPI.
+
+## Keeping tmux replaceable
+
+Code outside `src/lemonaid/tmux/` should not run `tmux` or import `lemonaid.tmux`, so another terminal UI can take its place.
+`tests/test_tmux_ratchet.py` fails when a file outside `tmux/` does either unless the file is in its `_ALLOWED` set, which holds the files that still do.
+A change that removes the last such use from a file deletes the file from `_ALLOWED` (the test also fails on stale entries), and a new file may not be added.
+Code that needs a tmux command calls a function in `src/lemonaid/tmux/`, and those functions run it through `tmux.run`.
