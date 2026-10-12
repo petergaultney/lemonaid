@@ -7,6 +7,7 @@ taken then too, so a lemon that starts quickly still counts as new.
 """
 
 import dataclasses
+import re
 from pathlib import Path
 
 from .. import brief, groups, lineage
@@ -26,12 +27,32 @@ class Handoff:
     groups: tuple[str, ...] = ()
 
 
+_TRAILING_BRIEF = re.compile(r"[\s:\-]*\bbrief\W*$", re.IGNORECASE)
+
+
+def session_title(given: Handoff) -> str:
+    """The title for the lemon's harness session: its --name, else its brief's
+    first heading without a trailing "brief"."""
+    if given.name or not given.brief:
+        return given.name
+
+    for line in given.brief.read_text().splitlines():
+        if line.startswith("# "):
+            return _TRAILING_BRIEF.sub("", line[2:].strip())
+
+    return ""
+
+
 def first_prompt(given: Handoff, prompt: str) -> str:
-    """*prompt*, or the default that sends a new lemon to its brief."""
+    """*prompt*, or the default that sends a new lemon to its task file.
+
+    It leads with the title because Codex titles a session from its first prompt.
+    """
     if prompt or not given.brief:
         return prompt
 
-    return f"Your brief is {given.brief}; read it all and do the work."
+    task = f"Your task file is {given.brief}; read it all and do the work."
+    return f"{title}. {task}" if (title := session_title(given)) else task
 
 
 def prepare(

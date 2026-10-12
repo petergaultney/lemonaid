@@ -45,6 +45,7 @@ def cmd_open(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     prompt = launch.handoff.first_prompt(given, args.prompt)
+    title = launch.handoff.session_title(given)
 
     # Naming a root asks for its vocabulary explicitly, so an unusable one is an
     # error rather than something to read another way.
@@ -63,6 +64,7 @@ def cmd_open(args: argparse.Namespace) -> None:
             attach=not args.detach,
             harness=args.harness,
             prompt=prompt,
+            title=title,
         )
     else:
         directory, opened = lifecycle.open_key(
@@ -72,6 +74,7 @@ def cmd_open(args: argparse.Namespace) -> None:
             attach=not args.detach,
             harness=args.harness,
             prompt=prompt,
+            title=title,
         )
 
     session, error = opened.session, opened.error

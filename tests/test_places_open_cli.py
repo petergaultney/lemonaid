@@ -54,7 +54,7 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
     monkeypatch.setattr(
         lifecycle,
         "open_key",
-        lambda key, cfg, root, attach=True, harness="default", prompt="": (
+        lambda key, cfg, root, attach=True, harness="default", prompt="", title="": (
             keyed.append((key, root.path, attach, harness, prompt)),
             (cwd, lifecycle.Opened(key, created=True)),
         )[1],
@@ -64,7 +64,7 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
     monkeypatch.setattr(
         lifecycle,
         "open_session",
-        lambda name, directory, cfg, attach=True, harness="default", prompt="": (
+        lambda name, directory, cfg, attach=True, harness="default", prompt="", title="": (
             sessions.append((name, directory, attach, harness, prompt)),
             lifecycle.Opened(name, created=True),
         )[1],
@@ -228,7 +228,10 @@ def test_a_brief_without_a_prompt_sends_the_default_first_prompt(monkeypatch, tm
 
     cli.cmd_open(_args(key="notes", brief="task"))
 
-    assert sessions[0][-1] == f"Your brief is {brief_file.resolve()}; read it all and do the work."
+    assert (
+        sessions[0][-1]
+        == f"task. Your task file is {brief_file.resolve()}; read it all and do the work."
+    )
 
 
 def test_the_default_prompt_gets_the_startup_dialog_check(monkeypatch, tmp_path, capsys):
@@ -369,9 +372,13 @@ def _dialog_checks(monkeypatch, created: bool) -> list[str]:
     monkeypatch.setattr(
         lifecycle,
         "open_session",
-        lambda name, directory, cfg, attach=True, harness="default", prompt="": lifecycle.Opened(
-            name, created=created
-        ),
+        lambda name,
+        directory,
+        cfg,
+        attach=True,
+        harness="default",
+        prompt="",
+        title="": lifecycle.Opened(name, created=created),
     )
     monkeypatch.setattr(cli.brief.session, "window", lambda session, index: (index, "@9"))
     checked: list[str] = []

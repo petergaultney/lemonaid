@@ -206,6 +206,7 @@ def _spawn(
     attach: bool,
     template_name: str,
     initial_prompt: str,
+    title: str,
 ) -> tuple[str | None, str]:
     """`spawn_session`, plus the tmux target of the window running *resume_argv*."""
     windows = config.get_template(template_name)
@@ -235,7 +236,7 @@ def _spawn(
     environments: list[dict[str, str]] = [{} for _ in windows]
     if windows[idx].strip():
         windows[idx], environments[idx] = launch.command.harness_line(
-            windows[idx], Path(cwd), initial_prompt, writable
+            windows[idx], Path(cwd), initial_prompt, writable, title
         )
 
     if resume_argv:
@@ -287,6 +288,7 @@ def spawn_session(
     attach: bool = True,
     template_name: str = "default",
     initial_prompt: str = "",
+    title: str = "",
 ) -> str | None:
     """Create a tmux session from a configured template, rooted at *cwd*.
 
@@ -309,6 +311,7 @@ def spawn_session(
         attach,
         template_name,
         initial_prompt,
+        title,
     )
     return error
 
@@ -326,7 +329,7 @@ def spawn_resumed(
     The tty is None when tmux could not say, which leaves the session running.
     """
     error, target = _spawn(
-        cwd, config, resume_argv, channel, session_metadata, session_name, True, "default", ""
+        cwd, config, resume_argv, channel, session_metadata, session_name, True, "default", "", ""
     )
     if error:
         return error, None

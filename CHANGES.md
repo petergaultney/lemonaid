@@ -1,3 +1,9 @@
+# 0.103.0 (2026-10-12)
+
+#### Changed
+
+- **A lemon started with `--brief` gets its title (`--name`, else the brief's first heading without a trailing "brief") as its Claude session name, and as the start of its default first prompt, which Codex titles its session from.** The default prompt now reads "<title>. Your task file is <path>; read it all and do the work."
+
 # 0.102.3 (2026-10-12)
 
 #### Fixed

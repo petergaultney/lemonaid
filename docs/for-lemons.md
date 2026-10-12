@@ -270,8 +270,15 @@ in any shell. Both options matter only
 when `open` creates the session. If a session already exists, `open` switches to
 it without starting another harness or sending the prompt.
 
-With `--brief` and no `--prompt`, a new lemon's first prompt is `Your brief is <path>; read
-it all and do the work.` An explicit `--prompt` replaces it. `lemon start --brief` does the same.
+With `--brief` and no `--prompt`, a new lemon's first prompt is `<title>. Your task file is
+<path>; read it all and do the work.` An explicit `--prompt` replaces it. `lemon start --brief`
+does the same.
+
+The title is `--name`, or else the brief's first heading without a trailing "brief". A template
+line whose program is `claude` gets it as `--name`, so it is the session's title in Claude's
+session list, unless the line already has `--name` or `-n`. Codex has no flag for a session name
+at start; it titles the session from its first prompt, which is why the default prompt leads
+with the title. An explicit `--prompt` leaves a Codex lemon's title to Codex.
 
 A template line whose program is `codex` also gets `-c` overrides that trust the
 directory and skip the update check, so Codex reads its prompt instead of stopping

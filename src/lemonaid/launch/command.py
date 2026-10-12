@@ -53,6 +53,14 @@ def _is_codex(words: list[str]) -> bool:
     return bool(words) and Path(words[0]).name == "codex"
 
 
+def _is_claude(words: list[str]) -> bool:
+    return bool(words) and Path(words[0]).name == "claude"
+
+
+def _names_session(words: list[str]) -> bool:
+    return any(w in ("-n", "--name") or w.startswith("--name=") for w in words)
+
+
 def unclaimable(line: str) -> str:
     """Why a brief waiting on a window can't reach the lemon *line* starts, or "".
 
@@ -73,7 +81,11 @@ def _is_simple(line: str) -> bool:
 
 
 def harness_line(
-    line: str, directory: Path, prompt: str = "", writable: abc.Iterable[Path] = ()
+    line: str,
+    directory: Path,
+    prompt: str = "",
+    writable: abc.Iterable[Path] = (),
+    title: str = "",
 ) -> tuple[str, dict[str, str]]:
     """*line* with the flags its harness needs to start in *directory*, and the
     environment the line's shell must be started with.
@@ -84,8 +96,14 @@ def harness_line(
 
     A Codex line also gets *writable* as extra workspace-write sandbox roots; they
     have no effect under another sandbox mode.
+
+    A Claude line gets *title* as `--name`, unless the line already names the
+    session. Codex has no flag for it, so it takes its title from the prompt.
     """
     program, _, rest = line.strip().partition(" ")
+    if title and _is_claude(shlex.split(program)) and not _names_session(shlex.split(rest)):
+        line = f"{program} --name {shlex.quote(title)} {rest}".strip()
+
     if _is_codex(shlex.split(program)):
         line = " ".join(
             [program, *(shlex.quote(f) for f in _codex_flags(directory, writable)), rest]

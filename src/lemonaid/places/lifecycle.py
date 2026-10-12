@@ -34,7 +34,13 @@ def _switch(session: str, pane_id: str, attach: bool) -> Opened:
 
 
 def _spawn(
-    directory: Path, config: Config, session_name: str, attach: bool, harness: str, prompt: str
+    directory: Path,
+    config: Config,
+    session_name: str,
+    attach: bool,
+    harness: str,
+    prompt: str,
+    title: str,
 ) -> Opened:
     """A new session from the *harness* template.
 
@@ -49,6 +55,7 @@ def _spawn(
         attach=attach,
         template_name=harness,
         initial_prompt=prompt,
+        title=title,
     )
     return Opened(tmux.session.spawned_name(session_name, str(directory)), True, error)
 
@@ -60,6 +67,7 @@ def open_place(
     attach: bool = True,
     harness: str = "default",
     prompt: str = "",
+    title: str = "",
 ) -> Opened:
     """Switch to a session rooted at *directory*, creating one if none exists."""
     session, pane_id = tmux.navigation.get_pane_for_cwd(str(directory))
@@ -74,7 +82,7 @@ def open_place(
     if session and pane_id:
         return _switch(session, pane_id, attach)
 
-    return _spawn(directory, config, session_name, attach, harness, prompt)
+    return _spawn(directory, config, session_name, attach, harness, prompt, title)
 
 
 def open_session(
@@ -84,6 +92,7 @@ def open_session(
     attach: bool = True,
     harness: str = "default",
     prompt: str = "",
+    title: str = "",
 ) -> Opened:
     """Get a session called *name* sitting in *directory*, acquiring nothing.
 
@@ -98,7 +107,7 @@ def open_session(
     if session and pane_id:
         return _switch(session, pane_id, attach)
 
-    return _spawn(directory, config, name, attach, harness, prompt)
+    return _spawn(directory, config, name, attach, harness, prompt, title)
 
 
 def harness_window(config: Config, template_name: str) -> str:
@@ -143,6 +152,7 @@ def open_key(
     attach: bool = True,
     harness: str = "default",
     prompt: str = "",
+    title: str = "",
 ) -> tuple[Path | None, Opened]:
     """Get a session for *key* under *root*, acquiring its directory if needed.
 
@@ -164,4 +174,5 @@ def open_key(
         attach=attach,
         harness=harness,
         prompt=prompt,
+        title=title,
     )

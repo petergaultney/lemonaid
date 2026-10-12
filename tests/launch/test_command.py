@@ -102,3 +102,25 @@ def test_configured_roots_expand_the_home_directory():
     config = _parse_config({"tmux-session": {"codex_writable_roots": ["~/reviews", 3]}})
 
     assert config.tmux_session.codex_writable_roots == (Path("~/reviews").expanduser(),)
+
+
+def test_a_claude_line_gets_the_title_as_its_session_name():
+    line, _ = command.harness_line("claude --model opus", Path("/w"), title="Fix the cache")
+
+    assert line == "claude --name 'Fix the cache' --model opus"
+
+
+def test_a_claude_line_that_names_its_session_keeps_its_name():
+    assert command.harness_line("claude -n mine", Path("/w"), title="x")[0] == "claude -n mine"
+
+
+def test_a_claude_line_with_name_equals_keeps_its_name():
+    assert (
+        command.harness_line("claude --name=mine", Path("/w"), title="x")[0] == "claude --name=mine"
+    )
+
+
+def test_a_codex_line_has_no_name_flag():
+    line, _ = command.harness_line("codex --no-daemon", Path("/w"), title="x")
+
+    assert "--name" not in line

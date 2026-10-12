@@ -40,6 +40,7 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         directory,
         handoff.first_prompt(given, args.prompt),
         command.codex_writable_roots(config.tmux_session),
+        handoff.session_title(given),
     )
     pane, error = window.open_window(session, index, directory, environment)
     if pane is None:
