@@ -5,7 +5,7 @@ import pytest
 
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, pr_numbers
+from lemonaid.inbox.tui import app, pr_numbers, row_cells
 from lemonaid.tmux import scratch
 
 
@@ -78,7 +78,7 @@ def test_number_precedes_long_name_and_keeps_emoji_prefix():
         status="read",
         created_at=0,
     )
-    text = app._name_cell(
+    text = row_cells.name_cell(
         notification,
         {"codex:task": "X"},
         "Name",
@@ -93,7 +93,7 @@ def test_pr_label_emits_a_terminal_hyperlink_without_linking_the_name():
 
     n = db.Notification(1, "codex:task", "", "task", {}, "read", 0)
     url = "https://example.com/pr/123"
-    text = app._name_cell(n, {}, "", False, pr_numbers.PR("123", url))
+    text = row_cells.name_cell(n, {}, "", False, pr_numbers.PR("123", url))
     console = Console(force_terminal=True, color_system="truecolor")
     with console.capture() as capture:
         console.print(text)

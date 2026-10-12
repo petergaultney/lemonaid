@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from lemonaid.inbox.tui.app import _format_timestamp, _time_cell
+from lemonaid.inbox.tui.row_cells import format_timestamp, time_cell
 from lemonaid.inbox.tui.utils import HERE_BAR, HERE_BLOCK, here_bar_style, jump_gutter
 
 
@@ -14,38 +14,38 @@ def _at(dt: datetime) -> float:
 
 
 def test_today_shows_a_clock_time():
-    assert _format_timestamp(time.time()).count(":") == 2
+    assert format_timestamp(time.time()).count(":") == 2
 
 
 def test_yesterday_keeps_its_time_behind_a_day_marker():
     """The hour is the useful part this recently; the marker says which day."""
     late_yesterday = (datetime.now() - timedelta(days=1)).replace(hour=23, minute=59)
-    assert _format_timestamp(_at(late_yesterday)) == "y 23:59"
+    assert format_timestamp(_at(late_yesterday)) == "y 23:59"
 
 
 def test_older_than_yesterday_becomes_a_date():
     three_days = datetime.now() - timedelta(days=3)
-    assert _format_timestamp(_at(three_days)) == three_days.strftime("%Y-%m-%d")
+    assert format_timestamp(_at(three_days)) == three_days.strftime("%Y-%m-%d")
 
 
 def test_a_moment_ago_is_still_today_across_the_hour():
     midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    assert _format_timestamp(max(time.time() - 3600, _at(midnight) + 1)).count(":") == 2
+    assert format_timestamp(max(time.time() - 3600, _at(midnight) + 1)).count(":") == 2
 
 
 def test_a_recent_date_keeps_the_live_colour():
     """Yesterday at 23:59 is a date by morning, but has not gone cold."""
-    cell = _time_cell(time.time() - 8 * 3600, False)
+    cell = time_cell(time.time() - 8 * 3600, False)
     assert cell.style == "green"
 
 
 def test_project_colours_make_recent_timing_neutral():
-    cell = _time_cell(time.time() - 8 * 3600, False, neutral_timing=True)
+    cell = time_cell(time.time() - 8 * 3600, False, neutral_timing=True)
     assert cell.style == "bright_black"
 
 
 def test_an_old_date_goes_grey():
-    cell = _time_cell(time.time() - 40 * 86400, False)
+    cell = time_cell(time.time() - 40 * 86400, False)
     assert cell.style == "bright_black"
 
 
@@ -188,7 +188,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
     """The two layouts give the same mark different room, so it takes two forms."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     cells = [
@@ -201,7 +201,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
         Text("a message"),
         Text(""),
     ]
-    context = _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[1]
+    context = as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[1]
 
     assert context.endswith(HERE_BAR)
     assert HERE_BLOCK not in context
@@ -215,7 +215,7 @@ def test_a_focused_card_carries_the_bar_down_every_line():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def card_for(is_here: bool) -> list[str]:
@@ -229,7 +229,7 @@ def test_a_focused_card_carries_the_bar_down_every_line():
             Text("a message"),
             Text(""),
         ]
-        return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")
+        return as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")
 
     focused = card_for(True)
     assert all(line.endswith(HERE_BAR) and len(line) == 44 for line in focused)
@@ -246,7 +246,7 @@ def test_a_marked_card_keeps_its_name_on_the_same_column():
     """The bar replaces the digit's ink, not the space the digit occupied."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool) -> str:
@@ -260,7 +260,7 @@ def test_a_marked_card_keeps_its_name_on_the_same_column():
             Text("a message"),
             Text(""),
         ]
-        return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[0]
+        return as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[0]
 
     assert headline(True).index("a-session") == headline(False).index("a-session")
 
@@ -269,7 +269,7 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
     """The separator only grows a bar when there is a bar to carry."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     cells = [
@@ -283,7 +283,7 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
         Text(""),
     ]
 
-    assert _as_card(cells, 44, 1, 1, 2)[0].plain.endswith("\n")
+    assert as_card(cells, 44, 1, 1, 2)[0].plain.endswith("\n")
 
 
 def test_marking_a_card_does_not_move_anything_in_it():
@@ -294,7 +294,7 @@ def test_marking_a_card_does_not_move_anything_in_it():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def lines(is_here: bool, row: int) -> list[str]:
@@ -307,7 +307,7 @@ def test_marking_a_card_does_not_move_anything_in_it():
             Text("~/w"),
             Text("msg"),
         ]
-        return _as_card(cells, 40, 1, 1, 2)[0].plain.split("\n")
+        return as_card(cells, 40, 1, 1, 2)[0].plain.split("\n")
 
     marked, plain = lines(True, 0), lines(False, 2)
 
@@ -326,7 +326,7 @@ def test_an_unmarked_card_keeps_its_jump_digit():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool, row: int) -> str:
@@ -339,7 +339,7 @@ def test_an_unmarked_card_keeps_its_jump_digit():
             Text("~/w"),
             Text("msg"),
         ]
-        return _as_card(cells, 40, 1, 1, 2)[0].plain.split("\n")[0]
+        return as_card(cells, 40, 1, 1, 2)[0].plain.split("\n")[0]
 
     assert "2" in headline(False, 1)
     assert "1" not in headline(True, 0)
@@ -353,7 +353,7 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
     """
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     width = 44
@@ -368,7 +368,7 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
             Text("~/w/d/main"),
             Text("a message"),
         ]
-        return _as_card(cells, width, 1, 1, 2)[0].plain.split("\n")
+        return as_card(cells, width, 1, 1, 2)[0].plain.split("\n")
 
     for line in lines(True, 0):
         assert len(line) <= width
@@ -378,7 +378,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
     """The number gives way to a blank; the dot and title remain where they were."""
     from rich.text import Text
 
-    from lemonaid.inbox.tui.app import _as_card
+    from lemonaid.inbox.tui.cards import as_card
     from lemonaid.inbox.tui.utils import styled_cell
 
     def headline(is_here: bool, row: int) -> str:
@@ -391,7 +391,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
             Text("~/w/x"),
             Text("a msg"),
         ]
-        return _as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[0]
+        return as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[0]
 
     marked, plain = headline(True, 0), headline(False, 1)
 
