@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app, backend_indicators
+from lemonaid.inbox.tui import app, backend_indicators, layout
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
@@ -137,7 +137,7 @@ def test_the_row_is_tall_enough_for_the_separator():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m " * 40)]
     card = app._as_card(cells, 30, message_lines=3)
 
-    assert app._row_height(card) == len(card[app._CARD_BODY_COLUMN].plain.split("\n"))
+    assert app._row_height(card) == len(card[layout.CARD_BODY_COLUMN].plain.split("\n"))
 
 
 def test_a_short_card_does_not_pad_to_the_budget():
@@ -217,7 +217,7 @@ def test_a_card_spends_one_column_on_its_gutter():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text("~/w"), Text("m")]
     (body,) = app._as_card(cells, 40)
 
-    assert app._CARD_CELL_PADDING == 0
+    assert layout.CARD_CELL_PADDING == 0
     assert body.plain.split("\n")[1].startswith(" 15:24")
     assert not body.plain.split("\n")[1].startswith("  ")
 
@@ -543,10 +543,10 @@ def test_a_known_model_does_not_flicker_back_to_the_backend_fallback():
 
 def test_building_a_card_does_not_mutate_column_layout_justification():
     cells = [Text("15:24"), Text(""), Text("CC"), Text("n"), Text(""), Text(""), Text("m")]
-    cells[app._BACKEND_CELL].justify = "right"
+    cells[layout.BACKEND_CELL].justify = "right"
     app._as_card(cells, 40)
 
-    assert cells[app._BACKEND_CELL].justify == "right"
+    assert cells[layout.BACKEND_CELL].justify == "right"
 
 
 def test_the_marker_does_not_share_the_name_colour():
@@ -596,7 +596,7 @@ def test_a_card_row_reaches_the_edge_of_the_pane():
     widths, rendered, hbar = _card_columns(58, 30)
 
     assert len(widths) == 1
-    assert widths[app._CARD_BODY_COLUMN] == rendered
+    assert widths[layout.CARD_BODY_COLUMN] == rendered
     # Everything but the scrollbar's one reserved column.
     assert rendered == 58 - 1
     assert not hbar
@@ -613,10 +613,10 @@ def test_a_card_row_still_fits_when_the_pane_is_tiny():
 
 def _layout(width: int, height: int) -> str:
     """Which layout a pane of this size gets, without building an app."""
-    if width < app._SIDEBAR_COLS:
+    if width < layout.SIDEBAR_COLS:
         return "cards"
 
-    return "cards" if height >= width * app._CARD_ASPECT else "columns"
+    return "cards" if height >= width * layout.CARD_ASPECT else "columns"
 
 
 def test_a_narrow_pane_gets_cards_at_any_height():

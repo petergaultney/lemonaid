@@ -6,7 +6,8 @@ from textual.widgets import DataTable
 
 from lemonaid.brief import attached, identity, store
 from lemonaid.inbox import db
-from lemonaid.inbox.tui.app import _SIDEBAR_COLS, LemonaidApp
+from lemonaid.inbox.tui import layout
+from lemonaid.inbox.tui.app import LemonaidApp
 
 
 def _lemon_with_a_brief() -> str:
@@ -44,4 +45,4 @@ def test_the_wide_table_shows_the_wordybin_after_the_name_only_when_asked():
 def test_a_sidebar_card_shows_the_wordybin_after_the_name():
     _lemon_with_a_brief()
 
-    assert "lemonaid HQ · BlessBar" in _first_row(_SIDEBAR_COLS - 4, True)
+    assert "lemonaid HQ · BlessBar" in _first_row(layout.SIDEBAR_COLS - 4, True)

@@ -4,12 +4,8 @@ import asyncio
 
 from rich.text import Text
 
-from lemonaid.inbox.tui.app import (
-    _MEDIUM_LAYOUT_COLS,
-    _SIDEBAR_COLS,
-    _WIDE_LAYOUT_COLS,
-    LemonaidApp,
-)
+from lemonaid.inbox.tui import layout
+from lemonaid.inbox.tui.app import LemonaidApp
 
 
 def _widths(width: int) -> dict[str, int]:
@@ -82,14 +78,14 @@ def test_narrow_layout_drops_weakest_columns_for_name():
 
 
 def test_medium_layout_keeps_message_but_not_tty():
-    widths = _widths(_MEDIUM_LAYOUT_COLS)
+    widths = _widths(layout.MEDIUM_LAYOUT_COLS)
     assert "TTY" not in widths
     assert "Message" in widths
     assert "Branch" in widths
 
 
 def test_wide_layout_shows_every_column():
-    widths = _widths(_WIDE_LAYOUT_COLS)
+    widths = _widths(layout.WIDE_LAYOUT_COLS)
     assert {"Time", "Name", "Branch", "Project", "Message", "TTY"} <= set(widths)
 
 
@@ -101,12 +97,12 @@ def test_name_grows_with_width_within_a_layout():
     Name. That trade is deliberate, so growth is only asserted within a layout.
     """
     assert (
-        _widths(_SIDEBAR_COLS)["Name"]
+        _widths(layout.SIDEBAR_COLS)["Name"]
         < _widths(88)["Name"]
-        < _widths(_MEDIUM_LAYOUT_COLS - 1)["Name"]
+        < _widths(layout.MEDIUM_LAYOUT_COLS - 1)["Name"]
     )
-    assert _widths(_MEDIUM_LAYOUT_COLS)["Name"] < _widths(_WIDE_LAYOUT_COLS - 1)["Name"]
-    assert _widths(_WIDE_LAYOUT_COLS)["Name"] < _widths(200)["Name"]
+    assert _widths(layout.MEDIUM_LAYOUT_COLS)["Name"] < _widths(layout.WIDE_LAYOUT_COLS - 1)["Name"]
+    assert _widths(layout.WIDE_LAYOUT_COLS)["Name"] < _widths(200)["Name"]
 
 
 def test_name_beats_original_fixed_width_everywhere():
@@ -115,7 +111,16 @@ def test_name_beats_original_fixed_width_everywhere():
     23 rather than 24 at the narrow end: two of those columns belong to the
     vertical scrollbar, which the layout now reserves instead of overflowing into.
     """
-    for width in (_SIDEBAR_COLS, 80, 100, _MEDIUM_LAYOUT_COLS, 120, _WIDE_LAYOUT_COLS, 160, 200):
+    for width in (
+        layout.SIDEBAR_COLS,
+        80,
+        100,
+        layout.MEDIUM_LAYOUT_COLS,
+        120,
+        layout.WIDE_LAYOUT_COLS,
+        160,
+        200,
+    ):
         assert _widths(width)["Name"] >= 23, width
 
 

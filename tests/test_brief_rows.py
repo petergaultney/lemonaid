@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.text import Text
 
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui import app, layout
 from lemonaid.inbox.tui.brief_cards import CardBrief
 from lemonaid.inbox.tui.utils import ATTENTION_COLOR, here_bar_style, jump_gutter
 from lemonaid.tmux import scratch
@@ -30,9 +30,9 @@ def _row(
     return app.brief_rows.styled(
         cells,
         CardBrief(brief_status, "", 0, mid_turn=mid_turn),
-        app._UNREAD_CELL,
-        app._BACKEND_CELL,
-        app._NAME_CELL,
+        layout.UNREAD_CELL,
+        layout.BACKEND_CELL,
+        layout.NAME_CELL,
         2,
     )
 
@@ -162,7 +162,7 @@ def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
         "claude:s", {}, False, model="claude-opus-5-5", context_percent=100
     )
     backend = app.brief_rows.styled(
-        cells, CardBrief("review", "", 0), app._UNREAD_CELL, app._BACKEND_CELL, 3, 2
+        cells, CardBrief("review", "", 0), layout.UNREAD_CELL, layout.BACKEND_CELL, 3, 2
     )[2]
 
     assert backend.plain == " 100%  Opus 5.5"

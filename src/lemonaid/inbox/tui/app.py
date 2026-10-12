@@ -81,6 +81,7 @@ from . import (
     focus,
     group_headers,
     group_picker,
+    layout,
     pr_numbers,
     project_names,
     usage_view,
@@ -112,58 +113,9 @@ from .utils import (
 _NAME_REFRESH_SECONDS = 20  # transcript re-scan cadence for session-name upgrades
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
-_NAME_COLUMN = 3
-_BRANCH_COLUMN = 4
-_MESSAGE_COLUMN = 6
-_TTY_COLUMN = 7
-# Terminal widths at which the weakest columns stop earning their space.
-# Crossing a threshold takes some width back from Name to pay for the column it
-# re-introduces; that trade is intended, and Name stays far above the fixed
-# 14 chars it had before these breakpoints existed.
-_WIDE_LAYOUT_COLS = 132
-_MEDIUM_LAYOUT_COLS = 104
-# Cards are for panes shaped tall and narrow. Two ways to qualify: too narrow for
-# the columns to fit at all, or enough taller than wide that the rows are the
-# abundant resource and the columns are the scarce one. The second case matters
-# because a pane can be wide enough to draw every column and still only have room
-# to show four characters of each - which is what a side pane usually is.
-_CARD_LAYOUT_COLS = 54
-# A pane this narrow is a sidebar however short the window makes it. Above it,
-# height decides - but only for panes narrow enough for the question to matter,
-# so a sidebar does not change layout with the window it is joined to.
-_SIDEBAR_COLS = 72
-_CARD_ASPECT = 1.2  # rows per column, above which a pane counts as tall and narrow
-_CARD_HEIGHT = 3  # headline + one context line + one message line
-_CARD_MAX_HEIGHT = 14  # a card long enough to hold most messages whole
-_CARD_MAX_SHARE = 0.4  # most of a tall pane one card may claim
-_CARD_BODY_COLUMN = 0
-# Ten cells hold the longest current model label (`Sonnet 4.6`); one more holds
-# the pin in a single-line row. The fixed width prevents a row from reflowing
-# when its model becomes known, and the labels share their right edge.
-_BACKEND_WIDTH = 11
-_CONTEXT_WIDTH = 7  # ` 999% ` and the model's padding, when readings are configured
-_CARD_MIN_TEXT = 16
-_CARD_CHROME_ROWS = 3  # title, status row, and a little slack
-_INDENT = " "  # one column, so a card's body clears the marker but little else
-GROUP_RAIL = HERE_BAR  # one kind of edge, in the group's colour
-# Cards draw their own gutter - a single space, with the marker in the column
-# before it - so the table adds none. Every column a narrow pane spends on
-# padding is one the message doesn't get.
-_CARD_CELL_PADDING = 0
-_COLUMN_CELL_PADDING = 1  # DataTable's own default, restored on the way back
-
 _DAY_SECONDS = 86400
 _FOCUS_CACHE_SECONDS = 1.0
 _INPUT_FOCUS_CACHE_SECONDS = 0.5
-
-_TIME_CELL = 0
-_UNREAD_CELL = 1
-_BACKEND_CELL = 2
-_NAME_CELL = 3
-_BRANCH_CELL = 4
-_CWD_CELL = 5
-_MSG_CELL = 6
-
 
 _CONSOLE = Console()  # for measuring wraps only; nothing is printed through it
 
@@ -337,23 +289,23 @@ def _as_card(
     # Styled only when there is a dot to style. The marker style is bold, and a
     # bold empty placeholder still emits the attribute - which the name that
     # follows then inherits, since a colour change does not clear it.
-    marker = cells[_UNREAD_CELL]
+    marker = cells[layout.UNREAD_CELL]
     dot = Text("●", style=utils.unread_marker_style()) if marker.plain else Text(" ")
 
     # The first cell is one stable navigation slot: a jump digit, or blank for
     # the current session, which has no reason to be jumped to. Read titles
     # start in the fourth cell; an unread dot, with breathing room on both
     # sides, nudges the title one cell right as part of the attention signal.
-    name = cells[_NAME_CELL]
+    name = cells[layout.NAME_CELL]
     is_here = name.plain.startswith(HERE_BLOCK)
-    selector = Text(_INDENT)
+    selector = Text(layout.INDENT)
     if gutter_width:
-        selector = Text(_INDENT) if is_here else name[: len(_INDENT)]
+        selector = Text(layout.INDENT) if is_here else name[: len(layout.INDENT)]
         name = name[gutter_width:]
     if emoji and name.plain.startswith(f"{emoji} "):
         name = name[len(emoji) + 1 :]
 
-    edge = Text(_INDENT)
+    edge = Text(layout.INDENT)
 
     # The current session's bar runs down the card's right edge, which every
     # card keeps free for it, so a card doesn't shift as it gains or loses the
@@ -376,7 +328,7 @@ def _as_card(
             else selector + Text("  ") + name
         )
 
-    message = cells[_MSG_CELL]
+    message = cells[layout.MSG_CELL]
     dimmed = bool(card_brief and card_brief.shown == "idle" and not marker.plain)
     if dimmed:
         headline.stylize("dim")
@@ -387,8 +339,8 @@ def _as_card(
     # every line's budget shrinks by it. Without that the context line overflows
     # the pane and wraps - and a wrapped line starts at column 0, breaking the
     # edge the bar is there to draw.
-    body = width - len(_INDENT)
-    backend = cells[_BACKEND_CELL].copy()
+    body = width - len(layout.INDENT)
+    backend = cells[layout.BACKEND_CELL].copy()
     pin = Text("")
     if backend.plain.endswith(PIN_MARK):
         pin = backend[-len(PIN_MARK) :]
@@ -408,9 +360,9 @@ def _as_card(
         context_parts
         if context_parts is not None
         else [
-            card_context.Part("time", cells[_TIME_CELL], cells[_TIME_CELL].cell_len),
-            card_context.Part("cwd", cells[_CWD_CELL]),
-            card_context.Part("branch", cells[_BRANCH_CELL]),
+            card_context.Part("time", cells[layout.TIME_CELL], cells[layout.TIME_CELL].cell_len),
+            card_context.Part("cwd", cells[layout.CWD_CELL]),
+            card_context.Part("branch", cells[layout.BRANCH_CELL]),
         ],
         body - (markers.cell_len + 1 if markers.plain else 0),
     )
@@ -516,7 +468,7 @@ def _as_card(
         ]
     if rail:
         # Added last, as a span, so no status fill, dimming or base style reaches it.
-        lines = [Text.assemble((GROUP_RAIL, rail)) + line for line in lines]
+        lines = [Text.assemble((layout.GROUP_RAIL, rail)) + line for line in lines]
     # Model and pin live in the first two lines rather than a second table
     # column. That gives the message every column below them instead of making
     # a short label reserve a blank strip down the entire card.
@@ -525,7 +477,7 @@ def _as_card(
 
 def _without_marker(cells: list[Text]) -> list[Text]:
     """Cells minus the unread marker, for a table built without that column."""
-    return [cell for index, cell in enumerate(cells) if index != _UNREAD_CELL]
+    return [cell for index, cell in enumerate(cells) if index != layout.UNREAD_CELL]
 
 
 def _key_id(key: RowKey | None) -> int | None:
@@ -540,7 +492,7 @@ def _row_height(cells: list[Text]) -> int:
     that blank line, which made the gap between cards come and go depending on
     how far the message happened to wrap.
     """
-    return len(cells[_CARD_BODY_COLUMN].plain.split("\n"))
+    return len(cells[layout.CARD_BODY_COLUMN].plain.split("\n"))
 
 
 def _truncated(line: Text, width: int) -> Text:
@@ -627,9 +579,9 @@ def _sync_rows(
                 else brief_rows.styled(
                     cells,
                     (briefs_by_row or {}).get(key),
-                    _UNREAD_CELL,
-                    _BACKEND_CELL,
-                    _NAME_CELL,
+                    layout.UNREAD_CELL,
+                    layout.BACKEND_CELL,
+                    layout.NAME_CELL,
                     gutter_width,
                 ),
             )
@@ -720,7 +672,7 @@ def _fill_card_columns(table: DataTable, total_width: int) -> None:
 
     for column in columns:
         column.auto_width = False
-    columns[_CARD_BODY_COLUMN].width = max(_CARD_MIN_TEXT, total_width)
+    columns[layout.CARD_BODY_COLUMN].width = max(layout.CARD_MIN_TEXT, total_width)
 
 
 def _stretch_columns(
@@ -789,7 +741,7 @@ def _stretch_columns(
             break
 
         # Name only gives up cells once nothing else has any left to give.
-        candidates = [idx for idx in trimmable if idx != _NAME_COLUMN] or trimmable
+        candidates = [idx for idx in trimmable if idx != layout.NAME_COLUMN] or trimmable
         widest = max(candidates, key=lambda idx: columns[idx].width)
         columns[widest].width -= 1
         overflow -= 1
@@ -1439,10 +1391,10 @@ class LemonaidApp(App):
         if w <= 0:
             return False
 
-        if w < _SIDEBAR_COLS:
+        if w < layout.SIDEBAR_COLS:
             return True
 
-        return h >= w * _CARD_ASPECT
+        return h >= w * layout.CARD_ASPECT
 
     def _card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
         """How many lines the context and message get inside one card.
@@ -1455,11 +1407,11 @@ class LemonaidApp(App):
         if not self._card_layout:
             return 1, 1
 
-        rows = self.size.height - _CARD_CHROME_ROWS - self._notes_height()
+        rows = self.size.height - layout.CARD_CHROME_ROWS - self._notes_height()
         sessions = max(1, self.query_one("#main_table", DataTable).row_count)
-        # _CARD_HEIGHT includes the first message line, but not the blank separator.
+        # layout.CARD_HEIGHT includes the first message line, but not the blank separator.
         # Account for it on brief cards without changing the existing card sizing.
-        card_height = _CARD_HEIGHT + extra_lines + int(extra_lines > 0)
+        card_height = layout.CARD_HEIGHT + extra_lines + int(extra_lines > 0)
         spare = rows // sessions - card_height
         if spare <= 0:
             return 1, 1
@@ -1467,7 +1419,9 @@ class LemonaidApp(App):
         # A card only ever renders the lines its message actually fills, so this
         # is a ceiling rather than padding - a short message stays short. The
         # share cap keeps one long message from owning a mostly-empty pane.
-        ceiling = min(_CARD_MAX_HEIGHT, max(_CARD_HEIGHT, int(rows * _CARD_MAX_SHARE)))
+        ceiling = min(
+            layout.CARD_MAX_HEIGHT, max(layout.CARD_HEIGHT, int(rows * layout.CARD_MAX_SHARE))
+        )
 
         # All of it goes to the message: context is one truncated line by
         # design, so lines handed to it would be discarded.
@@ -1484,10 +1438,10 @@ class LemonaidApp(App):
             return 0
 
         columns = list(self.query_one("#main_table", DataTable).columns.values())
-        if len(columns) <= _CARD_BODY_COLUMN:
-            return _CARD_MIN_TEXT
+        if len(columns) <= layout.CARD_BODY_COLUMN:
+            return layout.CARD_MIN_TEXT
 
-        return max(_CARD_MIN_TEXT, columns[_CARD_BODY_COLUMN].width)
+        return max(layout.CARD_MIN_TEXT, columns[layout.CARD_BODY_COLUMN].width)
 
     def _stretch_all_tables(self, width: int | None = None) -> None:
         w = self.size.width if width is None else width
@@ -1511,21 +1465,21 @@ class LemonaidApp(App):
         # Name to keep the others is the wrong trade: TTY is diagnostic, Branch is
         # usually inferable from CWD, and Message is mostly "Waiting in <path>",
         # which CWD already says. They come back as the terminal widens.
-        if w >= _WIDE_LAYOUT_COLS:
+        if w >= layout.WIDE_LAYOUT_COLS:
             hidden: set[int] = set()
             flex = [(3, 40, 0.46, 48), (4, 10, 0.11, 32), (5, 12, 0.13, 30), (6, 16, 0.30, 0)]
-        elif w >= _MEDIUM_LAYOUT_COLS:
-            hidden = {_TTY_COLUMN}
+        elif w >= layout.MEDIUM_LAYOUT_COLS:
+            hidden = {layout.TTY_COLUMN}
             flex = [(3, 36, 0.48, 44), (4, 9, 0.10, 28), (5, 11, 0.12, 28), (6, 14, 0.30, 0)]
         else:
-            hidden = {_TTY_COLUMN, _BRANCH_COLUMN, _MESSAGE_COLUMN}
+            hidden = {layout.TTY_COLUMN, layout.BRANCH_COLUMN, layout.MESSAGE_COLUMN}
             flex = [(3, 30, 0.72, 0), (5, 10, 0.28, 0)]
 
         for table_id in ("#main_table", "#other_sources_table", "#history_table", "#snoozed_table"):
             table = self.query_one(table_id, DataTable)
             # The snoozed view's last column is a wake time, not a TTY, and is
             # the whole point of that view — never hide it.
-            table_hidden = hidden - {_TTY_COLUMN} if table_id == "#snoozed_table" else hidden
+            table_hidden = hidden - {layout.TTY_COLUMN} if table_id == "#snoozed_table" else hidden
             _hide_columns(table, table_hidden, self._column_labels(table_id))
             # Which columns to show keys off the terminal width, so the layout doesn't
             # reshuffle when a scrollbar appears; how wide to draw them keys off what
@@ -1541,10 +1495,10 @@ class LemonaidApp(App):
         return {
             0: "Time",
             3: "Name",
-            _BRANCH_COLUMN: "Branch",
+            layout.BRANCH_COLUMN: "Branch",
             5: self._where_label(table_id),
             6: "Message",
-            _TTY_COLUMN: "Wakes" if table_id == "#snoozed_table" else "TTY",
+            layout.TTY_COLUMN: "Wakes" if table_id == "#snoozed_table" else "TTY",
         }
 
     def _setup_table(
@@ -1562,12 +1516,12 @@ class LemonaidApp(App):
             table.clear(columns=True)
 
         if self._cards(width, height):
-            table.cell_padding = _CARD_CELL_PADDING
+            table.cell_padding = layout.CARD_CELL_PADDING
             table.show_header = False  # The card column has no label
             table.add_column("", width=20)  # The card body, stretched on resize
             return
 
-        table.cell_padding = _COLUMN_CELL_PADDING
+        table.cell_padding = layout.COLUMN_CELL_PADDING
         if table.id != "other_sources_table":
             table.show_header = True
         # Time holds "HH:MM:SS", "y HH:MM" for yesterday, or "YYYY-MM-DD".
@@ -1579,7 +1533,8 @@ class LemonaidApp(App):
             table.add_column("", width=1)  # Unread indicator
         table.add_column(  # Model, right-aligned
             "",
-            width=_BACKEND_WIDTH + (_CONTEXT_WIDTH if self.config.tui.context_threshold else 0),
+            width=layout.BACKEND_WIDTH
+            + (layout.CONTEXT_WIDTH if self.config.tui.context_threshold else 0),
         )
         table.add_column("Name", width=24)
         table.add_column("Branch", width=12)
@@ -2010,7 +1965,7 @@ class LemonaidApp(App):
                     e,
                     self._card_width(),
                     len(main_table.columns),
-                    _NAME_CELL,
+                    layout.NAME_CELL,
                     e.key == self._marked_header,
                 ),
                 group_headers.background(e),
@@ -4318,7 +4273,7 @@ class LemonaidApp(App):
                 self._headers[changed],
                 self._card_width(),
                 len(table.columns),
-                _NAME_CELL,
+                layout.NAME_CELL,
                 changed == wanted,
             )
             with contextlib.suppress(Exception):  # the row may be gone before a refresh
