@@ -154,6 +154,8 @@ The event names the result and head. Results are remembered per head and watcher
 identity, including failures already reported by `--comments`, so rearming with
 `--head` does not repeat a handled completion. A new push is reported normally; rearm
 with `--ci` to wait for that head's checks. Remove `--ci` after handling the result.
+A waiter armed without `--ci` while checks on the head are still pending prints a
+one-line hint to stderr, and repeats it at the start of its first event.
 
 ## Watching files and directories
 

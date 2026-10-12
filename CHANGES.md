@@ -1,3 +1,9 @@
+# 0.104.1 (2026-10-12)
+
+#### Changed
+
+- **`watch pr` warns when armed without `--ci` while the head's checks are still pending.** It says so on stderr at arm time and at the start of its first event, because a passing run never wakes a waiter without `--ci`.
+
 # 0.104.0 (2026-10-12)
 
 #### Added

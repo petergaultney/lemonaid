@@ -28,7 +28,7 @@ Keep the entry across one-shot events while you handle them and rearm. When the 
 
 Use local tests during active development when their feedback helps you make the next change. After a small tweak whose behavior you understand, you may choose to push and let CI validate it instead of running the suite locally and then waiting for the same checks again. Use your judgment about the change and the CI coverage.
 
-When relying on CI, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch.
+When relying on CI, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch. If the waiter prints `has checks pending; add --ci` at startup or in its first event, you armed without `--ci` while CI is running: stop it and rearm with `--ci`, since a passing run never wakes a waiter without it.
 
 CI completion waits for every check on the current head to finish. Required checks determine the result when any are present; otherwise all checks count. No checks is not a completion. A completion is remembered once per head and watcher identity, so rearming with `--head` does not repeat it, even when switching between `--comments` and `--ci`.
 

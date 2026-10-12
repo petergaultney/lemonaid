@@ -142,3 +142,22 @@ def test_early_pass_does_not_hide_the_real_one_after_rearm(tmp_path):
     assert len(_wait(stem, [_snap(["passed"] * 2)] * 2)) == 1
     rearmed = [_snap(["passed"] * 2 + ["pending"]), _snap(["passed"] * 3), _snap(["passed"] * 3)]
     assert _wait(stem, rearmed) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+
+
+def test_pending_checks_without_ci_warn_at_arm_time_and_in_the_first_event(tmp_path, capsys):
+    sent = _wait(tmp_path / "pr", [_snap(["pending"]), _snap(["pending"], head=_NEXT)], ci=False)
+    assert "add --ci" in capsys.readouterr().err
+    assert sent[0].startswith("PR #90 has checks pending; add --ci")
+    assert f"head moved {_HEAD[:10]}" in sent[0]
+
+
+def test_pending_checks_with_ci_do_not_warn(tmp_path, capsys):
+    _wait(tmp_path / "pr", [_snap(["pending"]), _snap(["passed"]), _snap(["passed"])])
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("outcomes", [[], ["passed"], ["failed", "passed"]])
+def test_finished_or_absent_checks_do_not_warn(tmp_path, capsys, outcomes):
+    sent = _wait(tmp_path / "pr", [_snap(outcomes, head=_NEXT)], ci=False)
+    assert capsys.readouterr().err == ""
+    assert "add --ci" not in sent[0]

@@ -8,6 +8,7 @@ directory, by default $TMPDIR/watch-pr.
 import hashlib
 import json
 import pathlib
+import sys
 import tempfile
 import time
 import typing as ty
@@ -40,6 +41,14 @@ def _load_review(path: pathlib.Path) -> tuple[bool, str] | None:
         return bool(saved["draft"]), str(saved["decision"])
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def _ci_hint(pr: int, snap: pr_activity.Snapshot) -> str:
+    """Said once at arm time when checks are pending but a passing run would not wake us."""
+    if snap.state != "OPEN" or not any(c.outcome == "pending" for c in snap.checks):
+        return ""
+
+    return f"PR #{pr} has checks pending; add --ci to be woken when CI passes"
 
 
 def _events(
@@ -107,6 +116,8 @@ def wait(
     seen = merge_health.load(merge_path)
     sha, state = head, "OPEN" if head else ""
     first = True
+    hint = ""
+    armed = False
     while True:
         if not first:
             time.sleep(interval)
@@ -115,6 +126,11 @@ def wait(
         if snap is None:
             continue
 
+        if not armed:
+            armed = True
+            hint = "" if ci else _ci_hint(pr, snap)
+            if hint:
+                print(hint, file=sys.stderr, flush=True)
         if not sha:
             sha, state = snap.head, snap.state
         review = review or (snap.draft, snap.decision)
@@ -136,7 +152,8 @@ def wait(
             *blockers,
         ]
         if events:
-            deliver("; ".join(events))
+            deliver("; ".join([*([hint] if hint else []), *events]))
+            hint = ""
         if now_seen != seen:
             seen = now_seen
             merge_health.save(merge_path, seen)

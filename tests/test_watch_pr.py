@@ -156,10 +156,11 @@ def test_ci_is_reported_once_every_check_has_finished(stem):
 
     sent = _run_once(stem, [_snap(checks=running), _snap(checks=done)], head="")
 
-    assert sent == [
+    assert len(sent) == 1
+    assert sent[0].endswith(
         f"PR #90 CI failed at {'a' * 10}: lint: read `gh pr checks 90`,"
         " fix it and push (or rerun a flaky job), then tell your reviewer"
-    ]
+    )
     assert (
         merge_health.events(
             90, _snap(checks=done), merge_health.load(stem.with_suffix(".merge.json"))
