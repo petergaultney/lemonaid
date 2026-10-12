@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from lemonaid.config import KeybindingsConfig, _parse_config
-from lemonaid.inbox.tui.app import _build_bindings
+from lemonaid.inbox.tui.bindings import build_bindings
 
 
 def test_keybindings_defaults():
@@ -135,7 +135,7 @@ def test_invalid_backend_submit_key_keeps_enter(capsys):
 
 def test_build_bindings_single_key():
     """Single key creates one visible binding."""
-    bindings = _build_bindings("q", "quit", "Quit")
+    bindings = build_bindings("q", "quit", "Quit")
     assert len(bindings) == 1
     assert bindings[0].key == "q"
     assert bindings[0].action == "quit"
@@ -145,7 +145,7 @@ def test_build_bindings_single_key():
 
 def test_build_bindings_multiple_keys():
     """Multiple keys create one visible + hidden bindings."""
-    bindings = _build_bindings("qQe", "quit", "Quit")
+    bindings = build_bindings("qQe", "quit", "Quit")
     assert len(bindings) == 3
 
     # First is visible
@@ -161,13 +161,13 @@ def test_build_bindings_multiple_keys():
 
 def test_build_bindings_empty():
     """Empty keys string returns no bindings."""
-    bindings = _build_bindings("", "quit", "Quit")
+    bindings = build_bindings("", "quit", "Quit")
     assert bindings == []
 
 
 def test_build_bindings_hidden():
     """show=False makes all bindings hidden."""
-    bindings = _build_bindings("qQ", "refresh", "Refresh", show=False)
+    bindings = build_bindings("qQ", "refresh", "Refresh", show=False)
     assert len(bindings) == 2
     assert bindings[0].show is False
     assert bindings[1].show is False

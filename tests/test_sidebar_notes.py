@@ -9,7 +9,7 @@ from textual.widgets import Markdown
 from lemonaid import keys
 from lemonaid.config import KeybindingsConfig, _parse_config
 from lemonaid.inbox import db
-from lemonaid.inbox.tui import app
+from lemonaid.inbox.tui import app, bindings
 from lemonaid.inbox.tui.notes import NotesPanel
 
 _SIDEBAR = (45, 40)  # narrow enough for cards
@@ -195,4 +195,4 @@ def test_the_notes_key_is_bound_and_listed_only_with_notes(tmp_path, configured,
     tui = app.LemonaidApp()
 
     assert ("N" in tui._bindings.key_to_bindings) is bound
-    assert (tui._help_keys().notes == "N") is bound
+    assert (bindings.help_keys(tui.config).notes == "N") is bound

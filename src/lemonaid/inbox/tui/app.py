@@ -15,7 +15,6 @@ from typing import Literal, cast
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.containers import Container
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
@@ -28,7 +27,7 @@ from ... import resume as resume_mod
 from ...brief import attached as brief_attached
 from ...claude import notify, patch_status
 from ...claude.patcher import apply_patch, find_binary
-from ...config import KeybindingsConfig, PlaceRoot, load_config
+from ...config import PlaceRoot, load_config
 from ...handlers import handle_notification
 from ...lemon_watchers import (
     ModelInfo,
@@ -66,6 +65,7 @@ from .. import (
 )
 from ..arrange import answer, child
 from . import (
+    bindings,
     brief_cards,
     card_context,
     cursor_target,
@@ -135,34 +135,6 @@ def _tmux_pane_receives_keys(pane: str) -> bool | None:
     if len(parts) != 3 or any(not part.isdecimal() for part in parts):
         return None
     return parts[0] == "1" and parts[1] == "1" and int(parts[2]) > 0
-
-
-def _build_bindings(keys: str, action: str, label: str, show: bool = True) -> list[Binding]:
-    """Build Binding objects for all keys mapped to an action.
-
-    Args:
-        keys: String of characters, each is a key binding
-        action: The action name (without 'action_' prefix)
-        label: Human-readable label for the action
-        show: Whether to show in footer (only first key will be shown)
-
-    Returns:
-        List of Binding objects
-    """
-    if not keys:
-        return []
-
-    # make_bindings turns a character into Textual's key name, `+` into `plus`,
-    # but takes a comma for a separator.
-    names = ["comma" if key == "," else key for key in keys]
-    return list(
-        Binding.make_bindings(
-            [
-                Binding(names[0], action, label, show=show),  # only the first is shown
-                *(Binding(key, action, label, show=False) for key in names[1:]),
-            ]
-        )
-    )
 
 
 def _key_id(key: RowKey | None) -> int | None:
@@ -245,139 +217,8 @@ class LemonaidApp(App):
             self.dark = True  # Use dark theme as base
 
     def _setup_keybindings(self) -> None:
-        """Build keybindings from config."""
-        kb = self.config.tui.keybindings
-
-        # Main commands
-        for b in _build_bindings(kb.quit, "quit", "Quit"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-        self.bind("escape", "quit", description="Quit", show=False)
-
-        # Select row (Enter always works via DataTable, these are additional keys)
-        for b in _build_bindings(kb.select, "select", "Switch"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-        self._bindings.bind("enter", "select_brief", "Switch", show=False, priority=True)
-
-        for b in _build_bindings(kb.refresh, "refresh", "Refresh", show=False):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.jump_unread, "jump_unread", "Jump Unread"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.mark_read, "mark_read", "Mark Read"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.mark_unread, "mark_unread", "Mark Unread"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.archive, "archive", "Archive"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.rename, "rename", "Rename"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.snooze, "snooze", "Snooze"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.snoozed_list, "toggle_snoozed", "Snoozed"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.usage_view, "toggle_usage", "Usage"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.undo, "undo", "Undo"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.history, "toggle_history", "History"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.copy_resume, "copy_resume", "Copy"):
-            self.bind(b.key, b.action, description=b.description, show=False)
-
-        for b in _build_bindings(kb.resume_detached, "resume_detached", "Resume"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.brief, "brief", "Brief"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-        if kb.brief_key:
-            # Textual gives Tab to focus-next, so this has to come first; check_action
-            # hands the key back where something else wants it. App.bind can't set priority.
-            self._bindings.bind(kb.brief_key, "brief", "Brief", show=False, priority=True)
-        if kb.group_key:
-            # Priority for the same reason as brief_key's.
-            self._bindings.bind(kb.group_key, "toggle_group", "Group", show=False, priority=True)
-
-        for b in _build_bindings(kb.pin, "pin", "Pin"):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for field, action in (
-            ("group_tree", "group_tree"),
-            ("group_add", "group_add"),
-            ("group_remove", "group_remove"),
-        ):
-            for b in _build_bindings(getattr(kb, field), action, "Group", show=False):
-                self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        if self.config.tui.fold_statuses or self.config.inbox.arrange:
-            for b in _build_bindings(kb.fold, "toggle_fold", "Folded"):
-                self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        if self.config.tui.notes is not None:
-            for b in _build_bindings(kb.notes, "toggle_notes", "Notes"):
-                self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        # Named keys rather than a string of alternatives: these carry a modifier.
-        if kb.move_pin_up:
-            self.bind(kb.move_pin_up, "move_pin_up", description="Move Up", show=False)
-        if kb.move_pin_down:
-            self.bind(kb.move_pin_down, "move_pin_down", description="Move Down", show=False)
-
-        # Priority, so that a table's own Home/End, a sideways scroll, loses to these.
-        # check_action hands them back to an Input, a dialog and the brief view.
-        for key in dict.fromkeys((kb.first, "home")):
-            if key:
-                self._bindings.bind(key, "cursor_first", "Top", show=False, priority=True)
-        for key in dict.fromkeys((kb.last, "end")):
-            if key:
-                self._bindings.bind(key, "cursor_last", "Bottom", show=False, priority=True)
-
-        for b in _build_bindings(kb.tmux_resume, "tmux_resume", "Tmux"):
-            self.bind(b.key, b.action, description=b.description, show=False)
-
-        if kb.search:
-            self.bind(
-                "slash" if kb.search == "/" else kb.search,
-                "filter_history",
-                description="Search",
-                show=False,
-            )
-
-        # Patch Claude (always hidden, always 'P')
-        self.bind("P", "patch_claude", description="Patch Claude", show=False)
-
-        # Key hints share the bottom row with the status text, so they're a toggle
-        # rather than a permanent fixture. Hidden from the footer it controls.
-        self.bind("question_mark", "help", description="Keys", show=False)
-
-        for b in _build_bindings(kb.flip_position, "flip_position", "Flip", show=False):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        for b in _build_bindings(kb.save_size, "save_scratch_size", "Save Size", show=False):
-            self.bind(b.key, b.action, description=b.description, show=b.show)
-
-        if self.config.tui.keybindings.jump_by_number:
-            for digit in JUMP_DIGITS:
-                self.bind(digit, f"jump_to_number('{digit}')", description="Jump", show=False)
-
-        # Cross-table arrow navigation (always active)
-        self._bindings.bind("up", "cursor_up", "Up", show=False, priority=True)
-        self._bindings.bind("down", "cursor_down", "Down", show=False, priority=True)
-
-        # Additional up/down keys (vim-style, if configured)
-        if len(kb.up_down) == 2:
-            up, down = kb.up_down
-            self.bind(up, "cursor_up", description="Up", show=False)
-            self.bind(down, "cursor_down", description="Down", show=False)
+        for b in bindings.app_bindings(self.config):
+            self._bindings.bind(b.key, b.action, b.description, show=b.show, priority=b.priority)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "select_brief":
@@ -1453,20 +1294,7 @@ class LemonaidApp(App):
             self._hint_timer = None
 
         self._show_keys(False)
-        self.push_screen(HelpScreen(self._help_keys(), wide=not self._card_layout))
-
-    def _help_keys(self) -> KeybindingsConfig:
-        """The keybindings the reference lists: only the ones that are bound.
-
-        The fold and notes keys are bound only when something folds or there
-        are notes.
-        """
-        kb = self.config.tui.keybindings
-        if not (self.config.tui.fold_statuses or self.config.inbox.arrange):
-            kb = dataclasses.replace(kb, fold="")
-        if self.config.tui.notes is None:
-            kb = dataclasses.replace(kb, notes="")
-        return kb
+        self.push_screen(HelpScreen(bindings.help_keys(self.config), wide=not self._card_layout))
 
     def action_toggle_notes(self) -> None:
         self._notes_open = not self._notes_open
@@ -1618,23 +1446,7 @@ class LemonaidApp(App):
     def _set_binding_footer(
         self, action: str, *, show: bool | None = None, label: str | None = None
     ) -> None:
-        """Toggle visibility or label of the primary binding for an action."""
-        found = False
-        for key, bindings in self._bindings.key_to_bindings.items():
-            for i, binding in enumerate(bindings):
-                if binding.action != action:
-                    continue
-
-                replacements: dict = {}
-                if not found and show is not None:
-                    replacements["show"] = show
-                if label is not None:
-                    replacements["description"] = label
-                if replacements:
-                    self._bindings.key_to_bindings[key][i] = dataclasses.replace(
-                        binding, **replacements
-                    )
-                found = True
+        bindings.set_footer(self._bindings.key_to_bindings, action, show=show, label=label)
 
     def _set_history_mode(self, enabled: bool) -> None:
         if enabled and self._search_mode:
