@@ -49,9 +49,9 @@ from . import (
     focus,
     history_resume,
     history_rows,
+    inbox_draw,
     inbox_edits,
     inbox_groups,
-    inbox_list,
     inbox_switch,
     row_keys,
     row_parts,
@@ -125,9 +125,6 @@ class LemonaidApp(App):
         )
         self._detached_channels: frozenset[str] = frozenset()
         self._resume_footer_shown = True
-        self._brief_target: brief.target.Target | None = None
-        self._brief_saved_focus = "main_table"
-        self._brief_saved_subtitle = "attention inbox"
         # Enable ANSI colors for terminal transparency support
         if self.config.tui.transparent:
             self.ansi_color = True
@@ -138,46 +135,16 @@ class LemonaidApp(App):
             self._bindings.bind(b.key, b.action, b.description, show=b.show, priority=b.priority)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "select_brief":
-            return (
-                self._brief_target is not None
-                and not isinstance(self.screen, ModalScreen)
-                and not isinstance(self.focused, Input)
-            )
-
-        if action in {"cursor_up", "cursor_down"} and (
-            isinstance(self.focused, Input) or isinstance(self.screen, ModalScreen)
-        ):
-            return False
-
-        if action in {"copy_resume", "tmux_resume"} and self._search_mode:
-            return self.focused is self.query_one("#history_table", DataTable)
-
-        if action == "resume_detached":
-            return self._selected_channel() in self._detached_channels or self._brief_local()
-
-        if action in ("brief", "toggle_group", "cursor_first", "cursor_last") and (
-            isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input)
-        ):
-            return False
-
-        if self._brief_target is not None:
-            # Only what acts on the row whose brief is shown and leaves it in the list.
-            return action in {
-                "quit",
-                "brief",
-                "refresh",
-                "help",
-                "flip_position",
-                "cursor_up",
-                "cursor_down",
-                "select",
-                "mark_read",
-                "mark_unread",
-                "undo",
-                "rename",
-            }
-        return True
+        return bindings.permitted(
+            action,
+            brief_shown=self._brief_target is not None,
+            overlaid=isinstance(self.screen, ModalScreen) or isinstance(self.focused, Input),
+            searching=self._search_mode,
+            history_focused=lambda: self.focused is self.query_one("#history_table", DataTable),
+            resume_available=lambda: (
+                self._selected_channel() in self._detached_channels or self._brief_local()
+            ),
+        )
 
     def get_css_variables(self) -> dict[str, str]:
         return styles.css_variables(
@@ -532,7 +499,7 @@ class LemonaidApp(App):
                 and size_has_drifted(position, getattr(self.size, dimension))
                 else "",
                 self.config.tui.keybindings.save_size,
-                inbox.arrange_error,
+                inbox.arrangement.error,
             )
         )
 
@@ -821,7 +788,7 @@ class LemonaidApp(App):
             notification = db.get(conn, notification_id)
         if notification is None:
             self._show_error("That session is gone", "Its row was removed from the inbox.")
-        elif not inbox_list.can_resume_detached(notification, self.config):
+        elif not inbox_draw.can_resume_detached(notification, self.config):
             inbox_switch.resume_unavailable(self)
         else:
             self._switch_to_notification(notification)
@@ -1158,16 +1125,20 @@ class LemonaidApp(App):
 
     def _selected_group(self) -> "groups.store.Group | None":
         """The group whose header is under the cursor, in the main list only."""
-        return None if self._mode is not None else self.query_one(InboxList).selected_group()
+        return (
+            None
+            if self._mode is not None
+            else inbox_groups.selected_group(self.query_one(InboxList))
+        )
 
     def action_toggle_group(self) -> None:
         """Open or collapse the group whose header or lemon is under the cursor."""
         if self._mode is None:
-            self.query_one(InboxList).toggle_group_at_cursor()
+            inbox_groups.toggle_group_at_cursor(self.query_one(InboxList))
 
     def _move_pin_or_group(self, offset: int) -> None:
         if group := self._selected_group():
-            if refused := self.query_one(InboxList).move_group(group, offset):
+            if refused := inbox_groups.move_group(self.query_one(InboxList), group, offset):
                 self.notify(refused)
         else:
             self._move_pin(offset)
@@ -1310,40 +1281,19 @@ class LemonaidApp(App):
             brief.sidebar.show(found, brief.sidebar.window_id(pane))
         self._set_brief_view(found)
 
+    @property
+    def _brief_target(self) -> brief.target.Target | None:
+        """The brief shown in place of the inbox, if one is."""
+        panes = self.query(BriefPane)
+        return panes.first().target if panes else None
+
     def _set_brief_view(self, found: brief.target.Target | None) -> None:
         view = self.query_one(BriefPane)
-        switcher = self.query_one(ContentSwitcher)
-        if found is None:
-            if self._brief_target is None:
-                return
-
-            self._brief_target = None
-            view.local = False
-            view.targets.clear()
-            switcher.current = "inbox_content"
-            self.sub_title = self._brief_saved_subtitle
-            self.query_one(f"#{self._brief_saved_focus}").focus()
-            self.refresh_bindings()
+        if found is not None:
+            view.open(found, self._brief_unread)
+        elif view.close():
             self._show_keys(self._keys_shown)
             self._refresh_notifications()
-            return
-
-        if found == self._brief_target:
-            return
-
-        if self._brief_target is None:
-            self._brief_saved_focus = (
-                self.focused.id if self.focused and self.focused.id else "main_table"
-            )
-            self._brief_saved_subtitle = self.sub_title
-
-        view.local = False
-        self._brief_target = found
-        switcher.current = "brief_view"
-        self.sub_title = "brief"
-        view.show(found, self._brief_unread())
-        view.focus()
-        self.refresh_bindings()
 
     def _brief_unread(self) -> bool:
         """Whether the row under the cursor, whose brief is shown, is unread."""
@@ -1530,7 +1480,7 @@ class LemonaidApp(App):
             return
 
         if row_key is not None and (group_id := sections.group_id(str(row_key.value))) is not None:
-            self.query_one(InboxList).toggle_group(group_id)
+            inbox_groups.toggle_group(self.query_one(InboxList), group_id)
             return
 
         if (notification_id := row_keys.key_id(row_key)) is None:

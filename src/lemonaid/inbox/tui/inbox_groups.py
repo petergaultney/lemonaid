@@ -4,12 +4,87 @@ from collections import abc
 
 from ... import brief, groups
 from ...log import get_logger
-from .. import db, pins, undo
+from .. import db, pins, sections, undo
 from . import bindings, group_picker, row_keys
 from .inbox_list import InboxList
 from .screens import RenameScreen
 
 _log = get_logger("tui")
+
+
+def selected_group(inbox: InboxList) -> groups.store.Group | None:
+    """The group whose header is under the cursor."""
+    raw = row_keys.at_cursor(inbox.main)
+    found = sections.group_id(raw) if raw else None
+    if found is None:
+        return None
+
+    with db.connect() as conn:
+        return next((g for g in groups.store.all_groups(conn) if g.group_id == found), None)
+
+
+def toggle_group(inbox: InboxList, group_id: int, from_row: str = "") -> None:
+    """Collapse an open group to its header, or open a collapsed one.
+
+    Collapsing from one of its lemons keeps that lemon drawn, under the
+    cursor, until the cursor moves off it.
+    """
+    with db.connect() as conn:
+        group = next((g for g in groups.store.all_groups(conn) if g.group_id == group_id), None)
+        if group is None:
+            return
+
+        groups.arrangement.set_collapsed(conn, group, not group.collapsed)
+
+    inbox.kept = frozenset({from_row} if from_row and not group.collapsed else ())
+    inbox.redraw()
+    inbox.select_key(from_row or f"group:{group_id}")
+
+
+def toggle_group_at_cursor(inbox: InboxList) -> None:
+    """Open or collapse the group whose header or lemon is under the cursor."""
+    raw = row_keys.at_cursor(inbox.main) or ""
+    if (found := sections.group_id(raw)) is not None:
+        toggle_group(inbox, found)
+        return
+
+    if (found := sections.row_group_id(raw)) is not None:
+        toggle_group(inbox, found, from_row=raw)
+
+
+def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
+    """Trade places with the group header *offset* away on screen; a refusal's reason.
+
+    Groups sort by their most pressing row first, so only the order among
+    groups drawn next to each other is the user's to change.
+    """
+    table = inbox.main
+    on_screen = [
+        found
+        for row in range(table.row_count)
+        if (key := row_keys.at_row(table, row)) is not None
+        and (found := sections.group_id(str(key.value))) is not None
+    ]
+    neighbour = on_screen.index(group.group_id) + offset
+    if not 0 <= neighbour < len(on_screen):
+        return ""
+
+    if inbox.group_bands.get(on_screen[neighbour]) != inbox.group_bands.get(group.group_id):
+        return "Groups sort by their most pressing lemon; this one can't pass that group"
+
+    with db.connect() as conn:
+        other = next(
+            (g for g in groups.store.all_groups(conn) if g.group_id == on_screen[neighbour]),
+            None,
+        )
+        if other is None:
+            return ""
+
+        groups.arrangement.swap(conn, group, other)
+
+    inbox.redraw()
+    inbox.select_key(f"group:{group.group_id}")
+    return ""
 
 
 def edited(inbox: InboxList, edit: groups.editing.Edit, select: abc.Sequence[str] = ()) -> None:

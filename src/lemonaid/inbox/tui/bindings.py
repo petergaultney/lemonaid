@@ -161,3 +161,51 @@ def set_footer(
             if replacements:
                 key_to_bindings[key][i] = dataclasses.replace(binding, **replacements)
             found = True
+
+
+# Only what acts on the row whose brief is shown and leaves it in the list.
+_WHILE_BRIEF_SHOWN = frozenset(
+    {
+        "quit",
+        "brief",
+        "refresh",
+        "help",
+        "flip_position",
+        "cursor_up",
+        "cursor_down",
+        "select",
+        "mark_read",
+        "mark_unread",
+        "undo",
+        "rename",
+    }
+)
+# Keys bound with priority, handed back to a dialog or a text box that wants them.
+_YIELDING = frozenset(
+    {"cursor_up", "cursor_down", "brief", "toggle_group", "cursor_first", "cursor_last"}
+)
+
+
+def permitted(
+    action: str,
+    *,
+    brief_shown: bool,
+    overlaid: bool,
+    searching: bool,
+    history_focused: abc.Callable[[], bool],
+    resume_available: abc.Callable[[], bool],
+) -> bool:
+    """Whether *action* runs now. `overlaid` means a dialog is up or a text box has the keys."""
+    if action == "select_brief":
+        return brief_shown and not overlaid
+
+    if action in _YIELDING and overlaid:
+        return False
+
+    if action in {"copy_resume", "tmux_resume"} and searching:
+        return history_focused()
+
+    if action == "resume_detached":
+        return resume_available()
+
+    return action in _WHILE_BRIEF_SHOWN if brief_shown else True

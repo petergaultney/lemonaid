@@ -6,7 +6,7 @@ newest selection is switched to once a switch finishes.
 
 from collections import abc
 
-from textual.widgets import DataTable
+from textual.widgets import ContentSwitcher, DataTable
 
 from ... import brief
 from ...config import Config
@@ -45,10 +45,44 @@ class BriefPane(BriefView):
         self.targets: dict[int, brief.target.Target] = {}
         self.switch_pending: _Switch | None = None
         self._switching = False
+        self._saved_focus = "main_table"
+        self._saved_subtitle = "attention inbox"
 
     @property
     def switching(self) -> bool:
         return self._switching
+
+    def open(self, found: brief.target.Target, unread: abc.Callable[[], bool]) -> None:
+        """Show *found* in place of the inbox; `unread` says whether its row is."""
+        if found == self.target:
+            return
+
+        if self.target is None:
+            focused = self.app.focused
+            self._saved_focus = focused.id if focused and focused.id else "main_table"
+            self._saved_subtitle = self.app.sub_title
+
+        self.local = False
+        self.target = found
+        self.screen.query_one(ContentSwitcher).current = "brief_view"
+        self.app.sub_title = "brief"
+        self.show(found, unread())
+        self.focus()
+        self.app.refresh_bindings()
+
+    def close(self) -> bool:
+        """Put the inbox back as it was before the brief opened; False if none was open."""
+        if self.target is None:
+            return False
+
+        self.target = None
+        self.local = False
+        self.targets.clear()
+        self.screen.query_one(ContentSwitcher).current = "inbox_content"
+        self.app.sub_title = self._saved_subtitle
+        self.screen.query_one(f"#{self._saved_focus}").focus()
+        self.app.refresh_bindings()
+        return True
 
     def target_for(
         self, notification: db.Notification, *, fresh: bool = False
