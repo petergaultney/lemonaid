@@ -12,6 +12,8 @@ Don't post to GitHub, push, merge, or edit the author's worktree. Findings go on
 
 Write the review doc at `$review_doc`. When it's written, $tell a one-line pointer to it.
 
+On a re-review after the author pushes, run `git range-diff origin/<base> <reviewed sha> HEAD`, where `<base>` is the PR's base branch (`gh pr view <n> --json baseRefName`) and `<reviewed sha>` is the `Reviewed head` in the review doc. Attribute a finding only to a commit in `origin/<base>..HEAD`. `<reviewed sha>..HEAD` is wrong after a rebase: it includes base-branch commits the PR didn't write.
+
 Set no status for as long as the PR is open, whatever your verdict, and say under `### Waiting on` what comes next: the author while you ask for changes, and the merge once you approve. Keep both waiters below armed until then, and rearm each after handling its event. When the PR merges or closes, stop them and set yourself `done`. Stop them with `lemonaid watch stop --self`; never `pkill -f` a waiter command, which stops every other lemon's matching waiter too.
 
 ## Waiters

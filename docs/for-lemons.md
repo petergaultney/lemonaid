@@ -693,9 +693,9 @@ literal `$`). Lemonaid packages two:
 - `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Output` and `## Waiters`.
 - `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
   findings only in the `--review-doc` (linked into Obsidian when it is under a `[brief] vaults`
-  root), the rule to keep watching, with no status, until the PR merges or closes, a `lemonaid tell` to the parent
-  and `--author` when it is someone else, and the `watch pr` and `watch doc` waiters signed with
-  the child's WordyBin. Fill in `## Context` yourself.
+  root), the rule to keep watching, with no status, until the PR merges or closes, the `git range-diff`
+  rule for re-reviews, a `lemonaid tell` to the parent and `--author` when it is someone else, and the
+  `watch pr` and `watch doc` waiters signed with the child's WordyBin. Fill in `## Context` yourself.
 
 A file in `~/.lemons/brief-templates/<name>.md` replaces the packaged template of that name, or
 adds a new one. Placeholders: `$title`, `$date`, `$lemon_id`, `$wordybin` (the child's),
