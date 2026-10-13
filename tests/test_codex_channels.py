@@ -69,7 +69,7 @@ def test_codex_notification_distinguishes_title_from_cwd_placeholder():
         assert titled.metadata["name_source"] == "codex_title"
 
 
-def test_successful_matching_tool_use_clears_permission_notice():
+def test_matching_post_tool_use_clears_permission_notice():
     payload = {
         "session_id": _THREAD_A,
         "cwd": "/work/hq",
