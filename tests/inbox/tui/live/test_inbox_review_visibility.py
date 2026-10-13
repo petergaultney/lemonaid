@@ -21,6 +21,7 @@ from lemonaid.inbox.tui.utils import HERE_BLOCK
 from lemonaid.inbox.tui.watchers import focus, watcher_hooks
 
 _ids = itertools.count(1)
+_PR_URL = "https://github.com/petergaultney/lemonaid/pull/267"
 
 
 def _session(conn, name: str, *, unread: bool = False, tty: str = "", source: str = "tmux") -> str:
@@ -40,6 +41,20 @@ def _session(conn, name: str, *, unread: bool = False, tty: str = "", source: st
     return channel
 
 
+def _parent_brief(conn, lemon_id: str, pr_url: str | None = None) -> Path:
+    path = brief_store.briefs_dir() / f"2026-10-07-parent-{lemon_id.split('.')[0]}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = f"# Parent work\n\nBrief-ID: {lemon_id}\n"
+    if pr_url:
+        content += (
+            "\n## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n"
+            f"| Work | [PR]({pr_url}) | |\n"
+        )
+    path.write_text(content)
+    identity.ensure(conn, path)
+    return path
+
+
 def _brief(
     conn,
     channel: str,
@@ -54,9 +69,12 @@ def _brief(
     title = "Review a PR" if reviewer else "Work on a PR"
     if not reviewer:
         parent = None
-    parent_line = f"Parent: {parent}\n\n" if parent else ""
+    elif parent == "author.WorkerBin":
+        _parent_brief(conn, parent, _PR_URL)
+    parent_line = f"Parent: {parent}, 2026-10-13\n\n" if parent else ""
     path.write_text(
-        f"# {title}\n\nBrief-ID: {stem}.SampleBin\n\n{parent_line}" f"Status: {status}\n\n## Now\n"
+        f"# {title}\n\nBrief-ID: {stem}.SampleBin\n\n{parent_line}"
+        f"Status: {status}\n\n## Goal\nReview {_PR_URL if reviewer else 'work'}.\n\n## Now\n"
     )
     identity.ensure(conn, path)
     attached.attach(conn, channel, path)
@@ -143,15 +161,40 @@ def test_a_reviewer_stuck_on_a_prompt_stays_visible(kind, unread, moved_on, show
     [
         None,
         "control-center.LemonAce",
+        "control center (`hq`)",
         "lemonaid-plan-manager.BlessBar",
         "hq.BlessBar",
         "peter",
+        "Peter",
     ],
 )
 def test_reviewers_without_an_author_parent_stay_visible(parent):
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
         _brief(conn, reviewer, "waiting", reviewer=True, parent=parent)
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert active.reviewers == set()
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
+
+
+def test_a_reviewer_with_an_unrecognized_parent_stays_visible_without_an_owned_pr():
+    with db.connect() as conn:
+        reviewer = _session(conn, "reviewer")
+        _parent_brief(
+            conn,
+            "operations-coordinator.MimicOld",
+            "https://github.com/example/repo/pull/9",
+        )
+        _brief(
+            conn,
+            reviewer,
+            "waiting",
+            reviewer=True,
+            parent="operations-coordinator.MimicOld",
+        )
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )

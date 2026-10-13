@@ -5,6 +5,7 @@ arranger tested from the CLI sees what `lma` would send it.
 """
 
 import dataclasses
+import re
 import sqlite3
 from collections import abc
 from pathlib import Path
@@ -127,27 +128,45 @@ def inbox_rows(
     ]
 
 
-def _has_author_parent(path: Path) -> bool:
-    """Whether a reviewer brief names an author lemon as its parent."""
-    # Parent is preserved as brief metadata even when edits move it below `## Now`.
-    for line in path.read_text().splitlines():
-        if line.startswith("Parent:"):
-            fields = line.removeprefix("Parent:").strip().split(maxsplit=1)
-            if not fields:
-                return False
-            parent_id = fields[0]
-            description = brief.identity.brief_description(parent_id).lower()
-            return not (
-                description == "peter"
-                or description == "hq"
-                or description.startswith("hq-")
-                or description == "control-center"
-                or description.startswith("control-center-")
-                or description == "lemonaid-plan-manager"
-                or description.startswith("lemonaid-plan-manager-")
-            )
+def _pr_table(text: str) -> str:
+    """The `### PRs` table, where a brief records PRs its lemon owns."""
+    lines: list[str] = []
+    in_prs = False
+    for line in text.splitlines():
+        if line.startswith("### "):
+            if in_prs:
+                break
+            in_prs = line[4:].strip().casefold() == "prs"
+        elif in_prs:
+            lines.append(line)
+    return "\n".join(lines)
 
-    return False
+
+def _has_author_parent(conn: sqlite3.Connection, path: Path) -> bool:
+    """Only hide a reviewer when its parent brief records the same PR as its own."""
+    text = path.read_text()
+    parent_line = next((line for line in text.splitlines() if line.startswith("Parent:")), "")
+    if not parent_line or re.search(
+        r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
+        parent_line,
+        re.IGNORECASE,
+    ):
+        return False
+
+    parent_id = next(
+        (
+            field.strip("`(),;")
+            for field in parent_line.removeprefix("Parent:").split()
+            if "." in field and brief.identity.valid(field.strip("`(),;"))
+        ),
+        "",
+    )
+    parent_path = brief.lemon.brief_of(conn, parent_id) if parent_id else None
+    if parent_path is None or not parent_path.is_file():
+        return False
+
+    parent_refs = set(brief.pr.refs(_pr_table(parent_path.read_text())))
+    return bool(parent_refs.intersection(brief.pr.refs(text)))
 
 
 def ordered_active(
@@ -171,7 +190,7 @@ def ordered_active(
         for channel, brief_id in brief.identity.by_channel(conn).items()
         if channel in attached
         and brief.identity.brief_description(brief_id).startswith("review-")
-        and _has_author_parent(attached[channel])
+        and _has_author_parent(conn, attached[channel])
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),
