@@ -339,6 +339,7 @@ and each failed start, adds a line to the user's inbox.
 
 ```bash
 lemonaid lemon doctor --children --self            # a lead: its children
+lemonaid lemon doctor --children --self --waiters  # which role waiters (watch pr/doc) they lack
 lemonaid lemon doctor --children --orphans --self  # whoever minds lemons nobody leads
 lemonaid lemon doctor <lemon> --json               # one lemon, every fact
 lemonaid lemon doctor --stalls                      # open PRs whose next move is owed by a lemon idle past `[inbox] stall_minutes`; a merged PR left in a `### PRs` table counts, so remove its row
@@ -699,6 +700,7 @@ without one can add the line itself, anywhere above its brief's first `##` headi
 `$output_doc*` placeholders and is recorded as an `Output-Doc: <absolute path>` header line, beside
 `Parent:`, that `lemonaid.brief.output_doc.of_brief` reads back. `--review-doc` is the old name: it
 still works and warns; templates must use `$output_doc*` now.
+The `review` template also records a `Reviews: <PR URL>` header line, which `lemonaid.brief.roles.reviewing` reads back.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 
 A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a

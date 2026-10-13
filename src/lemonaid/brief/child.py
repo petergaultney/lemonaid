@@ -3,7 +3,7 @@
 A template is the body of a brief, from `## Goal` down, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
 above it: the title, `Brief-ID:`, `Parent:`, `Output-Doc:` when `--output-doc` gives one,
-and `Area:` when `--area` gives one.
+`Reviews:` (the PR URL) for the review template, and `Area:` when `--area` gives one.
 The child writes `## Now` itself, after that header.
 
 `<lemons dir>/brief-templates/<name>.md` replaces the packaged template of that name.
@@ -93,6 +93,7 @@ def render(
     values: abc.Mapping[str, str],
     area: str = "",
     output_doc: str = "",
+    reviews: str = "",
 ) -> str:
     """The whole brief: lemonaid's header, then *body* filled in. *parent* is (Lemon-ID, tmux session)."""
     parent_id, parent_session = parent
@@ -128,6 +129,7 @@ def render(
             f"Parent: {parent_id}{where}, {today.isoformat()}",
             "",
             *([f"Output-Doc: {output_doc}", ""] if output_doc else []),
+            *([f"Reviews: {reviews}", ""] if reviews else []),
             *([f"Area: {area}", ""] if area else []),
             text.strip(),
             "",

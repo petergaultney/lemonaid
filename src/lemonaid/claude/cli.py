@@ -2,7 +2,7 @@
 
 import argparse
 
-from . import install_hooks, own_edit, session_end, status_note, waiter_check
+from . import install_hooks, own_edit, role_waiters, session_end, status_note, waiter_check
 from .bootstrap import run_bootstrap
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
@@ -38,6 +38,7 @@ def cmd_hooks(args: argparse.Namespace) -> None:
         (event, command, matcher)
         for picked, event, command, matcher in (
             (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND, ""),
+            (args.role_waiters, "Stop", install_hooks.ROLE_WAITERS_COMMAND, ""),
             (args.session_end, "SessionEnd", install_hooks.SESSION_END_COMMAND, ""),
             (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND, ""),
             *(
@@ -85,6 +86,11 @@ def cmd_own_edit(args: argparse.Namespace) -> None:
 def cmd_waiter_check(args: argparse.Namespace) -> None:
     """Handle the Stop hook that keeps a briefed lemon's inbox waiter armed."""
     waiter_check.handle()
+
+
+def cmd_role_waiters(args: argparse.Namespace) -> None:
+    """Handle the Stop hook that requires the waiters a lemon's roles imply."""
+    role_waiters.handle()
 
 
 def cmd_dismiss(args: argparse.Namespace) -> None:
@@ -264,6 +270,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "without `lemonaid inbox watch --self` running",
     )
     hooks_parser.add_argument(
+        "--role-waiters",
+        action="store_true",
+        help="Act on the Stop hook that blocks a lemon from ending a turn without the "
+        "`watch pr` and `watch doc` waiters its roles (author, reviewer, lead) imply",
+    )
+    hooks_parser.add_argument(
         "--session-end",
         action="store_true",
         help="Act on the SessionEnd hook that records when a session ended and Claude's "
@@ -312,6 +324,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Block a Stop until a briefed lemon's inbox waiter is armed (reads JSON from stdin)",
     )
     waiter_check_parser.set_defaults(func=cmd_waiter_check)
+
+    # claude role-waiters
+    role_waiters_parser = claude_subparsers.add_parser(
+        "role-waiters",
+        help="Block a Stop until the waiters a lemon's roles imply are armed (reads JSON from stdin)",
+    )
+    role_waiters_parser.set_defaults(func=cmd_role_waiters)
 
     # claude dismiss
     dismiss_parser = claude_subparsers.add_parser(

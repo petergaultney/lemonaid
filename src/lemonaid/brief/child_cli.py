@@ -62,8 +62,9 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
     except ValueError as e:
         raise child.Problem(str(e)) from None
     area = args.area.strip()
+    reviews = values.get("pr_url", "") if args.template == "review" else ""
     text = child.render(
-        body, title, planned, parent, today, values, area, values.get("output_doc", "")
+        body, title, planned, parent, today, values, area, values.get("output_doc", ""), reviews
     )  # fails before any file
     try:
         path = store.create_named(name, today, lambda _: text)
@@ -77,7 +78,15 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             store.edit(
                 path,
                 lambda _: child.render(
-                    body, title, lemon_id, parent, today, values, area, values.get("output_doc", "")
+                    body,
+                    title,
+                    lemon_id,
+                    parent,
+                    today,
+                    values,
+                    area,
+                    values.get("output_doc", ""),
+                    reviews,
                 ),
             )
         with db.connect() as conn:

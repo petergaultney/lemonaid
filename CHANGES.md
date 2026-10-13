@@ -1,3 +1,14 @@
+# 0.110.0 (2026-10-12)
+
+#### Added
+
+- **An optional Stop hook, `lemonaid claude hooks --role-waiters`, requires the waiters a lemon's roles imply.** The author of an open PR needs `watch pr` on it, and `watch doc` on its review doc once a reviewer exists; a reviewer needs `watch pr` and `watch doc` on its own doc; a lead needs `watch doc` on each unfinished child's output doc. It is separate from `waiter-check` and never blocks when `gh` fails.
+- **`lemonaid lemon doctor --waiters` reports the same missing waiters for any lemon,** so Codex lemons and leads can check them.
+
+#### Changed
+
+- **`brief new --child --template review --pr N` records a `Reviews: <PR URL>` header line,** which is how a lemon is recognized as that PR's reviewer.
+
 # 0.109.0 (2026-10-12)
 
 #### Added

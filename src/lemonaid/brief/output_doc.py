@@ -1,24 +1,15 @@
 """A brief's `Output-Doc:` line: the document its lemon's work produces, if one was named."""
 
-import re
 from pathlib import Path
 
-_LINE = re.compile(r"Output-Doc:\s*(?P<path>.+?)\s*")
-_FENCE = re.compile(r"(```|~~~)")
+from . import header_line
 
 
 def read(text: str) -> Path | None:
     """The path on *text*'s header `Output-Doc:` line, or None without one."""
-    in_fence = False
-    for line in text.splitlines():
-        if _FENCE.match(line):
-            in_fence = not in_fence
-        elif line.startswith("## "):
-            return None
-        elif not in_fence and (match := _LINE.fullmatch(line)):
-            return Path(match["path"]).expanduser()
+    value = header_line.read(text, "Output-Doc")
 
-    return None
+    return Path(value).expanduser() if value else None
 
 
 def of_brief(brief: Path) -> Path | None:

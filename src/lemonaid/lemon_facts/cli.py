@@ -20,7 +20,7 @@ from ..log import get_logger
 from ..messages import recipient
 from ..stalls import cli as stalls_cli
 from ..watch import briefs_orphans
-from . import facts
+from . import facts, role_waiters
 
 _log = get_logger("lemon_facts.cli")
 
@@ -128,6 +128,11 @@ def cmd_doctor(args: argparse.Namespace) -> None:
             ids = _scope(conn, args)
         except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
             _fail(args, str(error))
+        if args.waiters:
+            if role_waiters.run(conn, ids, args.json):
+                raise SystemExit(1)
+            return
+
         gathered, skipped = [], []
         for lemon_id in ids:
             try:
@@ -191,6 +196,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Instead, list the open PRs whose next move belongs to a lemon idle past "
         "`[inbox] stall_minutes`, as the inbox cards show them; exits 1 when there are any",
+    )
+    parser.add_argument(
+        "--waiters",
+        action="store_true",
+        help="Instead, list the `watch pr` and `watch doc` waiters each lemon's roles "
+        "(author or reviewer of an open PR, lead of children with output docs) imply and "
+        "it isn't running; exits 1 when any is missing",
     )
     parser.add_argument("--verbose", action="store_true", help="List every lemon in scope")
     parser.add_argument("--json", action="store_true", help="Every fact, as JSON")

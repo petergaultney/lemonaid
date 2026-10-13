@@ -132,6 +132,14 @@ three seconds for a watch that is still starting, and lets the second
 consecutive stop through, so a lemon that cannot arm one is never stuck.
 Install it with `lemonaid claude hooks --waiter-check` (`--uninstall` removes it).
 
+A second optional Stop hook, `lemonaid claude role-waiters` (`hooks --role-waiters`), is independent of the first. It blocks a lemon from ending its turn without the waiters its roles imply, and names the command to arm each. Roles are derived from briefs, never declared:
+
+- **Author of an open PR** (its `### PRs` table lists the PR): `watch pr` on it, and `watch doc` on the review doc once a reviewer brief for it exists among the lemon's children or siblings.
+- **Reviewer of an open PR** (its brief has a `Reviews:` line, which `brief new --child --template review --pr` writes): `watch pr` on it and `watch doc` on its own `Output-Doc:`.
+- **Lead:** `watch doc` on the `Output-Doc:` of each child whose brief isn't `done`. The children-status waiter stays with `waiter-check`.
+
+Only open PRs count, asked of `gh` at most once a minute per PR; when `gh` fails the hook lets the turn end. `lemonaid lemon doctor --waiters` prints the same report for lemons in scope, including Codex lemons.
+
 The optional PostToolUse hook `lemonaid claude status-note` reminds a lemon whose
 brief is `blocked`, `alert`, `merge` or `approve` what its `Needs` bullets ask, so it updates
 Status once an answer moves the work on. It speaks on the first tool call of a
