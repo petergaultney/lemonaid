@@ -4,7 +4,6 @@ import pytest
 
 from lemonaid import groups
 from lemonaid.inbox import db
-from lemonaid.inbox.migrations import m025_saved_group_color
 
 
 def test_a_color_is_saved_as_lowercase_rrggbb_from_any_css_form():
@@ -43,15 +42,15 @@ def test_a_saved_color_follows_a_rename_and_clears():
         assert groups.color.save(conn, renamed, "").saved_color == ""
 
 
-def _at_version_24(path, *statements: str) -> None:
-    """*path* as a database from before migration 25, changed by *statements*."""
+def _before(path, version: int, *statements: str) -> None:
+    """*path* as a database at *version*, with no color column, changed by *statements*."""
     with db.connect(path) as conn:
         groups.store.create(conn, "lemonaid")
     conn = sqlite3.connect(path)
     conn.execute("ALTER TABLE lemon_groups DROP COLUMN color")
     for statement in statements:
         conn.execute(statement)
-    conn.execute(f"PRAGMA user_version = {m025_saved_group_color.VERSION - 1}")
+    conn.execute(f"PRAGMA user_version = {version}")
     conn.commit()
     conn.close()
     db._initialized_dbs.discard(path)
@@ -61,22 +60,44 @@ def _columns(conn) -> set[str]:
     return {row[1] for row in conn.execute("PRAGMA table_info(lemon_groups)")}
 
 
-def test_the_migration_drops_the_old_colour_column_and_its_stale_values(tmp_path):
+_ADD_COLOUR = "ALTER TABLE lemon_groups ADD COLUMN colour TEXT NOT NULL DEFAULT ''"
+
+
+def test_upgrading_clears_the_colors_the_old_colour_column_held(tmp_path):
     path = tmp_path / "upgrade.db"
-    _at_version_24(
-        path,
-        "ALTER TABLE lemon_groups ADD COLUMN colour TEXT NOT NULL DEFAULT ''",
-        "UPDATE lemon_groups SET colour = '#eb7676'",
-    )
+    _before(path, 24, _ADD_COLOUR, "UPDATE lemon_groups SET colour = '#eb7676'")
 
     with db.connect(path) as conn:
         assert "colour" not in _columns(conn)
         assert groups.store.find(conn, "lemonaid").saved_color == ""
 
 
-def test_the_migration_adds_the_column_where_there_is_none(tmp_path):
+def test_upgrading_adds_the_column_where_there_is_none(tmp_path):
     path = tmp_path / "upgrade.db"
-    _at_version_24(path)
+    _before(path, 24)
 
     with db.connect(path) as conn:
         assert groups.store.find(conn, "lemonaid").saved_color == ""
+
+
+def test_a_color_saved_in_the_colour_column_survives_the_rename(tmp_path):
+    path = tmp_path / "upgrade.db"
+    _before(path, 25, _ADD_COLOUR, "UPDATE lemon_groups SET colour = '#112233'")
+
+    with db.connect(path) as conn:
+        assert "colour" not in _columns(conn)
+        assert groups.store.find(conn, "lemonaid").saved_color == "#112233"
+
+
+def test_a_color_saved_by_the_merged_migration_25_is_left_alone(tmp_path):
+    path = tmp_path / "upgrade.db"
+    _before(
+        path,
+        25,
+        "ALTER TABLE lemon_groups ADD COLUMN color TEXT NOT NULL DEFAULT ''",
+        "UPDATE lemon_groups SET color = '#112233'",
+    )
+
+    with db.connect(path) as conn:
+        assert "colour" not in _columns(conn)
+        assert groups.store.find(conn, "lemonaid").saved_color == "#112233"

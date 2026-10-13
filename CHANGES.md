@@ -1,3 +1,9 @@
+# 0.108.4 (2026-10-12)
+
+#### Fixed
+
+- **A database that ran an earlier 0.107.0 build keeps its saved group colors and can read them.** Migration 26 renames that build's `colour` column to `color`, and no group-color migration needs SQLite 3.35 or newer any more.
+
 # 0.108.3 (2026-10-12)
 
 #### Changed
