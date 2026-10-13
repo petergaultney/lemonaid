@@ -1,13 +1,14 @@
 """A group's header line in the inbox list.
 
 An open group's header is plain bold. A collapsed one is filled with the
-colour of its most pressing row's band, as that row's card would be, so a
+color of its most pressing row's band, as that row's card would be, so a
 collapsed group still shows what is waiting inside it. Being unread alone
-doesn't fill it: an unread row in the group puts a dot on the header instead. The name takes a
-stable colour from the palette project labels and tmux windows use: as its
-text on an open header, and as a badge inside a collapsed one's fill. Every
-header is underlined across its width, the thinnest rule a terminal draws, so
-stacked collapsed headers of one colour stay apart.
+doesn't fill it: an unread row in the group puts a dot on the header instead.
+Nor does a `done` row, which waits on nobody. The name takes a stable color
+from the palette project labels and tmux windows use: as its text on an open
+header, and as a badge inside a collapsed one's fill. Every header is
+underlined across its width, the thinnest rule a terminal draws, so stacked
+collapsed headers of one color stay apart.
 """
 
 from rich.style import Style
@@ -17,13 +18,13 @@ from ... import sections
 from ..rows.brief_cards import DOT_STYLES, STATUS_STYLES
 from ..utils import unread_marker_style
 
-# White is no status's colour, so the cursor's marker stands out on any fill.
+# White is no status's color, so the cursor's marker stands out on any fill.
 _SELECTED = Style(color="#000000", bgcolor="#ffffff", bold=True, underline=False)
 
 
 def _quiet(band: str) -> str:
-    """The band without its unread half, since being unread alone fills nothing."""
-    return {"unread done": "done", "unread": "read"}.get(band, band)
+    """The band as it fills a header: being unread alone, or `done`, fills nothing."""
+    return {"unread done": "read", "done": "read", "unread": "read"}.get(band, band)
 
 
 def _fill(header: sections.Header) -> Style:
@@ -50,9 +51,9 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
     """Arrow, name and count, padded to *width* so the fill and rule reach the edge.
 
     The arrow, the count and the rule across the rest of the line take the
-    group's colour, above its cards' rail; the count keeps a status fill's text
-    colour. Under the cursor the arrow turns into a block of that colour, in
-    place, and a white block ends the line, since the table's cursor colour is
+    group's color, above its cards' rail; the count keeps a status fill's text
+    color. Under the cursor the arrow turns into a block of that color, in
+    place, and a white block ends the line, since the table's cursor color is
     lost under a status fill.
     """
     color = header.group.color
@@ -80,7 +81,7 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
     if width:
         end = Text(" ◀ ", style=_SELECTED) if selected else Text("")
         text.truncate(width - end.cell_len)
-        # The rule is drawn in each cell's text colour, so coloured spaces colour it.
+        # The rule is drawn in each cell's text color, so colored spaces color it.
         text.append(" " * (width - end.cell_len - text.cell_len), Style(color=color))
         text.append_text(end)
     return text

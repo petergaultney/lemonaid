@@ -52,7 +52,8 @@ A lemon marked `deaf` (never a `done` one, see below) is never hidden in the inb
 group, a search, a quiet reviewer's filter, or an arranger's fold. The 15 seconds
 before it is marked are not covered. Snoozed and archived lemons are out of the
 inbox by the user's own choice and stay so. A collapsed group's header is still
-coloured by its most pressing status, which for a deaf lemon is an ordinary one.
+colored by its most pressing status other than `done`, which for a deaf lemon is an
+ordinary one.
 
 `dead` and `deaf` are also marked on a card with a manual status other than `done`,
 since a `blocked` lemon that has exited will not see the answer.

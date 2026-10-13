@@ -23,6 +23,11 @@ def test_a_blocked_row_still_fills_a_collapsed_header():
     assert group_headers.background(_header("blocked", unread=True)) is not None
 
 
+def test_a_done_row_does_not_fill_a_collapsed_header():
+    assert group_headers.background(_header("done", unread=False)) is None
+    assert group_headers.background(_header("unread done", unread=True)) is None
+
+
 def test_a_header_with_nothing_unread_has_no_dot():
     assert "●" not in group_headers.label(_header("blocked", unread=False), width=30).plain
 

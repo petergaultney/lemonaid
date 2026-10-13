@@ -1,3 +1,9 @@
+# 0.111.2 (2026-10-13)
+
+#### Fixed
+
+- **A `done` lemon no longer fills its collapsed group's header,** which made a pinned lemon drawn under that header look `done` when its brief set no status.
+
 # 0.111.1 (2026-10-13)
 
 #### Fixed
