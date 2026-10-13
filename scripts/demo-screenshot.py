@@ -89,7 +89,7 @@ class _Screen(pyte.Screen):
         pass
 
 
-def _colour(value: str, default: str, palette: terminal_palette.Palette) -> str:
+def _color(value: str, default: str, palette: terminal_palette.Palette) -> str:
     if value == "default":
         return default
 
@@ -107,7 +107,7 @@ def _foreground(char: _Char, palette: terminal_palette.Palette) -> str:
     if char.bold and palette.bright_bold and char.fg in terminal_palette.ANSI_NAMES[:8]:
         return palette.ansi[terminal_palette.ANSI_NAMES.index(char.fg) + 8]
 
-    return _colour(char.fg, palette.foreground, palette)
+    return _color(char.fg, palette.foreground, palette)
 
 
 def _capture(columns: int, rows: int, settle: float) -> pyte.Screen:
@@ -142,7 +142,7 @@ def _capture(columns: int, rows: int, settle: float) -> pyte.Screen:
 
 def _cell_html(char: _Char, wide: bool, palette: terminal_palette.Palette) -> str:
     foreground = _foreground(char, palette)
-    background = _colour(char.bg, palette.background, palette)
+    background = _color(char.bg, palette.background, palette)
     if char.reverse:
         foreground, background = background, foreground
     foreground = terminal_palette.with_contrast(foreground, background, palette.minimum_contrast)

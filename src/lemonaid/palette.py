@@ -24,7 +24,7 @@ def _luminance(r: float, g: float, b: float) -> float:
     return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
 
 
-def _slot_colour(hue: int, luminance: float) -> str:
+def _slot_color(hue: int, luminance: float) -> str:
     low, high = 0.0, 1.0
     for _ in range(24):
         mid = (low + high) / 2
@@ -43,8 +43,8 @@ def _linear(channel: int) -> float:
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def _oklab(colour: str) -> tuple[float, float, float]:
-    r, g, b = (_linear(int(colour[i : i + 2], 16)) for i in (1, 3, 5))
+def _oklab(color: str) -> tuple[float, float, float]:
+    r, g, b = (_linear(int(color[i : i + 2], 16)) for i in (1, 3, 5))
     l_ = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
     m_ = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
     s_ = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
@@ -74,11 +74,11 @@ def _thinned(candidates: abc.Iterable[str]) -> tuple[str, ...]:
 
 
 SLOTS = _thinned(
-    _slot_colour(hue, luminance) for luminance in _TIERS for hue in range(0, 360, _HUE_STEP)
+    _slot_color(hue, luminance) for luminance in _TIERS for hue in range(0, 360, _HUE_STEP)
 )
 
 
-def is_colour(text: str) -> bool:
+def is_color(text: str) -> bool:
     return re.fullmatch(r"#[0-9a-fA-F]{6}", text) is not None
 
 
@@ -91,7 +91,7 @@ def djb2(s: str) -> int:
     return h
 
 
-def colour_for(name: str) -> str:
+def color_for(name: str) -> str:
     return SLOTS[djb2(name) % len(SLOTS)]
 
 
@@ -107,10 +107,10 @@ def assign_groups(names: abc.Iterable[str], pinned: abc.Mapping[str, str]) -> di
     with none left, it keeps its hash slot.
     """
     wanted = set(names)
-    given = {name: colour for name, colour in pinned.items() if name in wanted}
+    given = {name: color for name, color in pinned.items() if name in wanted}
     for name in sorted(wanted - given.keys()):
         taken = list(given.values())
-        slot = colour_for(name)
+        slot = color_for(name)
         free = [
             s for s in SLOTS if all(distance(s, other) >= GROUP_MIN_DISTANCE for other in taken)
         ]

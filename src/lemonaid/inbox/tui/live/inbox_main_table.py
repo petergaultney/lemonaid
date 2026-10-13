@@ -99,7 +99,7 @@ def draw(
         config.tui.project_name_colors,
         header_cells,
         {
-            e.key: headers[f"group:{group}"].group.colour
+            e.key: headers[f"group:{group}"].group.color
             for e in drawn
             if (group := sections.row_group_id(e.key)) is not None and f"group:{group}" in headers
         },

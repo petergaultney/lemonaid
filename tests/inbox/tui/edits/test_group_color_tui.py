@@ -19,7 +19,7 @@ def work() -> str:
 
 def _drawn(app) -> str:
     [header] = app._content.inbox.headers.values()
-    return header.group.colour
+    return header.group.color
 
 
 def _saved() -> str:

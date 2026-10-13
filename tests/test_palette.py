@@ -29,34 +29,34 @@ def test_no_two_slots_look_alike() -> None:
     )
 
 
-def test_colour_for_is_stable() -> None:
-    assert palette.colour_for("lemonaid") == palette.colour_for("lemonaid")
-    assert palette.colour_for("lemonaid") in palette.SLOTS
+def test_color_for_is_stable() -> None:
+    assert palette.color_for("lemonaid") == palette.color_for("lemonaid")
+    assert palette.color_for("lemonaid") in palette.SLOTS
 
 
-def test_groups_with_the_same_hash_slot_neighbourhood_get_apart_colours() -> None:
+def test_groups_with_the_same_hash_slot_neighbourhood_get_apart_colors() -> None:
     names = [f"group-{i}" for i in range(14)]
 
     given = palette.assign_groups(names, {})
 
-    colours = list(given.values())
-    assert min(palette.distance(a, b) for i, a in enumerate(colours) for b in colours[:i]) >= (
+    colors = list(given.values())
+    assert min(palette.distance(a, b) for i, a in enumerate(colors) for b in colors[:i]) >= (
         palette.GROUP_MIN_DISTANCE
     )
 
 
-def test_a_groups_colour_depends_on_the_set_of_groups_not_their_order() -> None:
+def test_a_groups_color_depends_on_the_set_of_groups_not_their_order() -> None:
     names = ["oria", "mops", "relay", "watchers", "lemonaid"]
 
     assert palette.assign_groups(names, {}) == palette.assign_groups(reversed(names), {})
 
 
 def test_a_group_alone_keeps_its_hash_slot() -> None:
-    assert palette.assign_groups(["oria"], {}) == {"oria": palette.colour_for("oria")}
+    assert palette.assign_groups(["oria"], {}) == {"oria": palette.color_for("oria")}
 
 
-def test_a_pinned_colour_wins_and_others_keep_clear_of_it() -> None:
-    pinned = palette.colour_for("mops")
+def test_a_pinned_color_wins_and_others_keep_clear_of_it() -> None:
+    pinned = palette.color_for("mops")
 
     given = palette.assign_groups(["oria", "mops"], {"mops": pinned, "gone": "#ffffff"})
 

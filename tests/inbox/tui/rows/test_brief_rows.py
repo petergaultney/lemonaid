@@ -156,7 +156,7 @@ def test_a_running_row_is_teal():
     assert _style(running[1]).color.name == "#ffffff"
 
 
-def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
+def test_a_filled_row_badges_context_use_in_its_color_like_the_model():
     from lemonaid.inbox.tui.rows import backend_indicators
 
     cells = _row("review")
@@ -179,9 +179,9 @@ def test_a_filled_row_badges_context_use_in_its_colour_like_the_model():
 def test_a_reading_badge_at_the_purple_end_takes_white_text():
     from lemonaid.inbox.tui.rows import context_reading
 
-    def text_colour(percent: int) -> str:
+    def text_color(percent: int) -> str:
         badge = context_reading.filled(context_reading.text(percent))
         return _style(badge, 1).color.name
 
-    assert text_colour(0) == "#ffffff"
-    assert text_colour(50) == "#000000"
+    assert text_color(0) == "#ffffff"
+    assert text_color(50) == "#000000"

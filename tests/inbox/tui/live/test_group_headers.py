@@ -8,7 +8,7 @@ from lemonaid.inbox.tui.live import group_headers
 
 
 def _header(band: str, unread: bool, collapsed: bool = True) -> sections.Header:
-    group = groups.store.Group(1, "Watchers", 0, (), collapsed, colour="#c8a0f0")
+    group = groups.store.Group(1, "Watchers", 0, (), collapsed, color="#c8a0f0")
     return sections.Header(group, 2, band, unread)
 
 
@@ -27,21 +27,21 @@ def test_a_header_with_nothing_unread_has_no_dot():
     assert "●" not in group_headers.label(_header("blocked", unread=False), width=30).plain
 
 
-def _colour_at(text, offset: int) -> str | None:
+def _color_at(text, offset: int) -> str | None:
     style = text.get_style_at_offset(Console(), offset)
 
     return style.color.get_truecolor().hex if style.color else None
 
 
-def test_the_rule_and_count_of_an_open_header_take_the_groups_colour():
+def test_the_rule_and_count_of_an_open_header_take_the_groups_color():
     text = group_headers.label(_header("read", unread=False, collapsed=False), width=30)
 
-    assert _colour_at(text, text.plain.index("(")) == "#c8a0f0"
-    assert _colour_at(text, 28) == "#c8a0f0"
+    assert _color_at(text, text.plain.index("(")) == "#c8a0f0"
+    assert _color_at(text, 28) == "#c8a0f0"
 
 
-def test_the_rule_takes_the_groups_colour_under_a_status_fill_but_the_count_keeps_the_fills():
+def test_the_rule_takes_the_groups_color_under_a_status_fill_but_the_count_keeps_the_fills():
     text = group_headers.label(_header("blocked", unread=False), width=30)
 
-    assert _colour_at(text, 28) == "#c8a0f0"
-    assert _colour_at(text, text.plain.index("(")) != "#c8a0f0"
+    assert _color_at(text, 28) == "#c8a0f0"
+    assert _color_at(text, text.plain.index("(")) != "#c8a0f0"

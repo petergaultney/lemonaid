@@ -357,14 +357,14 @@ def _group_colors(raw: object) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
 
-    colours = {str(k): v for k, v in raw.items() if isinstance(v, str) and palette.is_colour(v)}
-    for name in raw.keys() - colours.keys():
+    colors = {str(k): v for k, v in raw.items() if isinstance(v, str) and palette.is_color(v)}
+    for name in raw.keys() - colors.keys():
         print(
             f"Warning: [tui.group_colors] {name!r} is not a #rrggbb colour; ignored",
             file=sys.stderr,
         )
 
-    return colours
+    return colors
 
 
 def load_config(config_path: Path | None = None) -> Config:

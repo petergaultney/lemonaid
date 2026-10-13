@@ -55,12 +55,12 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
     place, and a white block ends the line, since the table's cursor colour is
     lost under a status fill.
     """
-    colour = header.group.colour
+    color = header.group.color
     filled = _fill(header).bgcolor is not None
     name = (
-        Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=colour, dim=False))
+        Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=color, dim=False))
         if header.group.collapsed
-        else Text(header.group.name, style=Style(color=colour))
+        else Text(header.group.name, style=Style(color=color))
     )
     arrow = "▸" if header.group.collapsed else "▾"
     text = Text.assemble(
@@ -68,12 +68,12 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
         # header's badge rather than leaving a sliver of fill between them.
         (
             f"{arrow} ",
-            Style(color="#000000", bgcolor=colour, bold=True, underline=False, dim=False)
+            Style(color="#000000", bgcolor=color, bold=True, underline=False, dim=False)
             if selected
-            else Style(color=colour, dim=False),
+            else Style(color=color, dim=False),
         ),
         name,
-        (f" ({header.tally})", Style(color=None if filled else colour, dim=False)),
+        (f" ({header.tally})", Style(color=None if filled else color, dim=False)),
         _dot(header),
         style=style(header),
     )
@@ -81,7 +81,7 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
         end = Text(" ◀ ", style=_SELECTED) if selected else Text("")
         text.truncate(width - end.cell_len)
         # The rule is drawn in each cell's text colour, so coloured spaces colour it.
-        text.append(" " * (width - end.cell_len - text.cell_len), Style(color=colour))
+        text.append(" " * (width - end.cell_len - text.cell_len), Style(color=color))
         text.append_text(end)
     return text
 
@@ -96,7 +96,7 @@ def cells(
     return [
         label(header, selected=selected)
         if i == name_cell
-        else Text("", style=Style(color=header.group.colour, underline=True))
+        else Text("", style=Style(color=header.group.color, underline=True))
         for i in range(columns)
     ]
 

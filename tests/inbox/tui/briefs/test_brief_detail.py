@@ -29,7 +29,7 @@ def _styles(text, fragment: str) -> set[str]:
     return {str(span.style) for span in text.spans if span.start <= start < span.end and span.style}
 
 
-def test_header_has_the_cards_fields_in_the_cards_colours():
+def test_header_has_the_cards_fields_in_the_cards_colors():
     text = brief_detail.header(_section("working", (("#74", "merged"),)), False, 0, 60)
     lines = text.plain.split("\n")
 
@@ -44,7 +44,7 @@ def test_header_has_the_cards_fields_in_the_cards_colours():
     assert "magenta" in _styles(text, "#74 merged")
 
 
-def test_project_colours_make_brief_age_neutral_but_keep_held_status_color():
+def test_project_colors_make_brief_age_neutral_but_keep_held_status_color():
     section = dataclasses.replace(_section("working"), held="blocked")
     text = brief_detail.header(section, False, 3600, 60, neutral_timing=True)
     assert utils.ATTENTION_COLOR in " ".join(_styles(text, "blocked"))

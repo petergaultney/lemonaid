@@ -39,8 +39,8 @@ class Palette(ty.NamedTuple):
     minimum_contrast: float
 
 
-def _rgb(colour: str) -> tuple[float, float, float]:
-    value = colour.removeprefix("#")
+def _rgb(color: str) -> tuple[float, float, float]:
+    value = color.removeprefix("#")
     r, g, b = (int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))
     return r, g, b
 
@@ -128,17 +128,17 @@ def from_iterm(profile: dict, dark: bool) -> Palette:
     def setting(key: str, default: object = None) -> ty.Any:
         return profile.get(key + suffix, profile.get(key, default))
 
-    def colour(key: str) -> str:
+    def color(key: str) -> str:
         c = setting(key)
         return _hex(*(float(c[f"{n} Component"]) for n in ("Red", "Green", "Blue")))
 
     # "Use Bright Bold" is iTerm2's old name for its "use a custom color for
     # bold text" setting; "Brighten Bold Text" is the bright-variant one.
     return Palette(
-        foreground=colour("Foreground Color"),
-        background=colour("Background Color"),
-        bold=colour("Bold Color") if setting("Use Bright Bold", False) else None,
-        ansi=[colour(f"Ansi {i} Color") for i in range(16)],
+        foreground=color("Foreground Color"),
+        background=color("Background Color"),
+        bold=color("Bold Color") if setting("Use Bright Bold", False) else None,
+        ansi=[color(f"Ansi {i} Color") for i in range(16)],
         bright_bold=bool(setting("Brighten Bold Text", True)),
         minimum_contrast=round(float(setting("Minimum Contrast", 0.0)), 3),
     )

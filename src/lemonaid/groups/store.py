@@ -32,7 +32,7 @@ class Group:
     collapsed: bool = False
     saved_color: str = ""  # `#rrggbb` set with `lemonaid group color` or the inbox
     # `#rrggbb` as drawn: set by the inbox from `palette.assign_groups`.
-    colour: str = ""
+    color: str = ""
 
 
 def checked_name(name: str) -> str:
