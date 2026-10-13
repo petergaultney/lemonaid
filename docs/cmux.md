@@ -62,6 +62,21 @@ cmux runs a Dock command in a non-interactive login shell, which does not read `
 
 Run in cmux, `lma` shows only the notifications from cmux, plus headless ones, as it does for tmux and WezTerm.
 
+### 4. Get to the inbox and to a lemon
+
+By default `⌘⇧E` focuses the right sidebar, where `lma` runs, and `⌘⌥B` shows or hides it. Remap either in `~/.config/cmux/cmux.json`. Inside `lma`, Enter on a row runs `cmux focus-panel` on that session's surface, which also brings its workspace forward.
+
+cmux's terms against tmux's:
+
+| cmux | Nearest tmux equivalent |
+|---|---|
+| Window (a macOS window, with its own sidebar and workspaces) | client or server |
+| Workspace (a sidebar entry; `⌘1` to `⌘8` jump to them) | session |
+| Pane (a split) | pane |
+| Surface (a tab inside a pane) | roughly a window, but each pane has its own tab bar |
+
+`⌘<n>` jumps between workspaces, not between the tabs inside one, so it replaces a tmux window-number binding only if each lemon has a workspace of its own instead of a window in a shared session.
+
 ## Limitations
 
 - **No back navigation.** There is no `lemonaid cmux back` yet.
