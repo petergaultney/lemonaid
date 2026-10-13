@@ -91,7 +91,7 @@ def load(
         active.deaf,
     )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
     group_list = groups.store.all_groups(conn)
-    colours = groups.color.drawn(group_list, config.tui.group_colors)
+    colors = groups.color.drawn(group_list, config.tui.group_colors)
     # Lower pane: live sessions from other switchable terminals.
     # Headless sessions (switch_source IS NULL) are excluded — they can't be
     # switched to from anywhere, so they belong in history instead.
@@ -119,7 +119,7 @@ def load(
         shown,
         folded,
         emoji.by_channel(conn),
-        [dataclasses.replace(g, colour=colours[g.name]) for g in group_list],
+        [dataclasses.replace(g, color=colors[g.name]) for g in group_list],
         _brief_names(conn, shared_names) if config.tui.brief_names_in_inbox else {},
         other,
         pr_numbers.rows(conn, [*active.rows, *other], config.places, pr_cache),

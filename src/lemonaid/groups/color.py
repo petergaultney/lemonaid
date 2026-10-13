@@ -24,7 +24,7 @@ def parsed(text: str) -> str:
         color = Color.parse(text.strip()).hex.lower()
     except ColorParseError:
         color = ""
-    if not palette.is_colour(color):
+    if not palette.is_color(color):
         raise store.GroupError(f"{text.strip()!r} isn't a color; give #rrggbb or a name like teal")
 
     return color

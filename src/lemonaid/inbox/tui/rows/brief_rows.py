@@ -55,7 +55,7 @@ def styled(
     if not brief or not style:
         return cells
 
-    def recoloured(index: int, cell: Text) -> Text:
+    def recolored(index: int, cell: Text) -> Text:
         if index == unread_cell:
             dot = DOT_STYLES.get(brief.shown)
             return _restyled(cell, dot) if dot else cell
@@ -70,4 +70,4 @@ def styled(
 
         return _restyled(cell, Style(color=style.color), gutter_width if index == name_cell else 0)
 
-    return [recoloured(index, cell) for index, cell in enumerate(cells)]
+    return [recolored(index, cell) for index, cell in enumerate(cells)]

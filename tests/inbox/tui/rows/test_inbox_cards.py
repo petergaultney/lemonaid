@@ -190,7 +190,7 @@ def test_empty_context_fields_are_dropped():
     assert body.plain.split("\n")[1].strip() == "15:24:18 · ~/w/repo"
 
 
-def test_a_card_keeps_the_colours_its_cells_arrived_with():
+def test_a_card_keeps_the_colors_its_cells_arrived_with():
     """Both layouts read one palette, so a colour means the same thing in each."""
     cells = [
         styled_cell("15:24", True, "time"),
@@ -250,7 +250,7 @@ def test_the_message_uses_width_that_only_the_header_label_needs():
     assert lines[3] == ""
 
 
-def test_bar_mode_uses_yellow_for_the_title_and_provider_colour_for_the_model():
+def test_bar_mode_uses_yellow_for_the_title_and_provider_color_for_the_model():
     backend = backend_indicators.backend_text("claude:session", {}, True, model="claude-opus-5-5")
     cells = [
         Text("15:24"),
@@ -324,7 +324,7 @@ def test_blocked_unread_dot_contrasts_with_its_headline():
     assert style.bold
 
 
-def test_a_blocked_headline_keeps_the_model_in_its_provider_colour():
+def test_a_blocked_headline_keeps_the_model_in_its_provider_color():
     cells = _brief_cells()
     cells[2] = Text("Opus 5.5", style="#d88760")
     (body,) = cards.as_card(cells, 40, gutter_width=2, card_brief=CardBrief("blocked", "", 0))
@@ -387,7 +387,7 @@ def test_project_colors_make_a_separate_brief_age_line_neutral():
     assert not age_style.dim
 
 
-def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_colour():
+def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_color():
     (body,) = cards.as_card(
         _brief_cells(),
         50,
@@ -543,7 +543,7 @@ def test_building_a_card_does_not_mutate_column_layout_justification():
     assert cells[layout.BACKEND_CELL].justify == "right"
 
 
-def test_the_marker_does_not_share_the_name_colour():
+def test_the_marker_does_not_share_the_name_color():
     """Sharing it made the dot read as the first glyph of the name."""
     assert f"bold {FIELD_STYLES['name']}" != app.utils.unread_marker_style()
 

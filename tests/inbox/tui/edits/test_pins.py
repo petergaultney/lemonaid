@@ -218,7 +218,7 @@ def test_a_pinned_row_is_marked_in_the_backend_column():
     assert backend_cell(label, False).plain == "CC"
 
 
-def test_the_mark_colours_only_itself():
+def test_the_mark_colors_only_itself():
     """The mark is a span over its own cell, so the label keeps its own colour."""
     marked = backend_cell(styled_cell("CC", False, "backend"), True)
 
@@ -233,7 +233,7 @@ def test_a_card_puts_the_mark_under_the_label():
     assert backend_cell(label, True, stacked=True).plain == f"CC\n{PIN_MARK}"
 
 
-def test_the_stacked_mark_keeps_its_own_colour():
+def test_the_stacked_mark_keeps_its_own_color():
     marked = backend_cell(styled_cell("CC", False, "backend"), True, stacked=True)
 
     assert marked.spans == [Span(2, 4, PIN_MARK_STYLE)]

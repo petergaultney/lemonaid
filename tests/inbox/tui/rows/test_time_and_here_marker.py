@@ -33,13 +33,13 @@ def test_a_moment_ago_is_still_today_across_the_hour():
     assert format_timestamp(max(time.time() - 3600, _at(midnight) + 1)).count(":") == 2
 
 
-def test_a_recent_date_keeps_the_live_colour():
+def test_a_recent_date_keeps_the_live_color():
     """Yesterday at 23:59 is a date by morning, but has not gone cold."""
     cell = time_cell(time.time() - 8 * 3600, False)
     assert cell.style == "green"
 
 
-def test_project_colours_make_recent_timing_neutral():
+def test_project_colors_make_recent_timing_neutral():
     cell = time_cell(time.time() - 8 * 3600, False, neutral_timing=True)
     assert cell.style == "bright_black"
 
@@ -61,7 +61,7 @@ def test_the_focused_row_is_marked_instead_of_numbered():
     assert gutter.spans[0].style == here_bar_style()
 
 
-def test_the_here_mark_takes_the_themes_text_colour_rather_than_a_hue(monkeypatch):
+def test_the_here_mark_takes_the_themes_text_color_rather_than_a_hue(monkeypatch):
     """A hue could be some group's colour; near white or black is none's."""
     from lemonaid.inbox.tui import utils
 
@@ -112,7 +112,7 @@ def test_the_cursor_does_not_repaint_the_row_it_marks():
         ("textual-light", "#123456", "#123456"),
     ],
 )
-def test_the_selected_row_keeps_each_field_its_own_colour(monkeypatch, theme, override, expected):
+def test_the_selected_row_keeps_each_field_its_own_color(monkeypatch, theme, override, expected):
     """The regression this guards is invisible in the cell styles.
 
     The flattening happens when Textual composites the cursor over the row, so
@@ -175,8 +175,8 @@ def test_the_selected_row_keeps_each_field_its_own_colour(monkeypatch, theme, ov
                 table.has_class("-custom-active-row"),
             )
 
-    colours, backgrounds, has_custom = asyncio.run(run())
-    assert len(colours) > 1, f"the cursor flattened the selected row to {colours}"
+    colors, backgrounds, has_custom = asyncio.run(run())
+    assert len(colors) > 1, f"the cursor flattened the selected row to {colors}"
     assert has_custom is (expected is not None)
     if expected is not None:
         assert expected in backgrounds

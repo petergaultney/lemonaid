@@ -68,7 +68,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
         ("not a colour", "#2bd9cf", "#000000"),
     ],
 )
-def test_the_focus_colour_comes_from_config(monkeypatch, configured, background, text):
+def test_the_focus_color_comes_from_config(monkeypatch, configured, background, text):
     Path(os.environ["LEMONAID_CONFIG"]).write_text(f'[tui]\nfocus_color = "{configured}"\n')
     monkeypatch.setenv("TMUX_PANE", "%9")
     monkeypatch.setattr(focus, "pane_receives_keys", lambda pane: True)
@@ -110,7 +110,7 @@ def test_the_cursor_row_dims_only_while_tmux_says_the_pane_is_inactive(monkeypat
     asyncio.run(check())
 
 
-def test_the_dimmed_cursor_colour_can_be_configured(monkeypatch):
+def test_the_dimmed_cursor_color_can_be_configured(monkeypatch):
     Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\ninactive_row_color = "#123456"\n')
     app = LemonaidApp()
     assert app.get_css_variables()["inactive-row-color"] == "#123456"
@@ -128,7 +128,7 @@ def test_the_cursor_row_is_not_dimmed_outside_scratch_mode(monkeypatch):
     asyncio.run(check())
 
 
-def test_an_invalid_inactive_row_colour_falls_back_to_the_blend():
+def test_an_invalid_inactive_row_color_falls_back_to_the_blend():
     Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\ninactive_row_color = "nope"\n')
-    colour = LemonaidApp().get_css_variables()["inactive-row-color"]
-    assert Color.parse(colour) and colour != "nope"
+    color = LemonaidApp().get_css_variables()["inactive-row-color"]
+    assert Color.parse(color) and color != "nope"

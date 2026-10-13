@@ -133,7 +133,7 @@ def _detect_named_app(pane_pid: str, names: Collection[str]) -> str | None:
 
 def get_color(name: str) -> str:
     """Get a deterministic color for a directory/file name."""
-    return DIR_COLORS.get(name, palette.colour_for(name))
+    return DIR_COLORS.get(name, palette.color_for(name))
 
 
 def format_path(path: str) -> str:

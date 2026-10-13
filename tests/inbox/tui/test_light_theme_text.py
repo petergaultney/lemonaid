@@ -42,18 +42,18 @@ def _cells(unread: bool = True) -> list[Text]:
     ]
 
 
-def _colour_of(body: Text, text: str) -> str:
+def _color_of(body: Text, text: str) -> str:
     style = body.get_style_at_offset(Console(color_system="truecolor"), body.plain.index(text))
     return style.color.name
 
 
-def _contrast_on_white(colour: str) -> float:
-    rgb = [int(colour.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+def _contrast_on_white(color: str) -> float:
+    rgb = [int(color.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4)]
     r, g, b = (c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb)
     return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05)
 
 
-def test_a_dark_theme_keeps_the_original_colours():
+def test_a_dark_theme_keeps_the_original_colors():
     assert utils.unread_marker_style() == f"bold {utils.ATTENTION_COLOR}"
     assert brief_cards.running_text() == brief_cards.RUNNING_TEXT_COLOR
 
@@ -67,7 +67,7 @@ def test_a_light_theme_darkens_text_but_not_fills():
 
 
 @pytest.mark.parametrize(
-    "colour",
+    "color",
     [
         utils.ATTENTION_TEXT_LIGHT,
         utils.LINK_COLOR_LIGHT,
@@ -75,9 +75,9 @@ def test_a_light_theme_darkens_text_but_not_fills():
         *(style.split()[-1] for style in colors._STATE_STYLES_LIGHT.values() if "#" in style),
     ],
 )
-def test_every_light_text_colour_reads_on_white(colour):
+def test_every_light_text_color_reads_on_white(color):
     """4.5:1 is the usual floor for body text."""
-    assert _contrast_on_white(colour) >= 4.5
+    assert _contrast_on_white(color) >= 4.5
 
 
 def test_a_cards_needs_line_and_dot_follow_the_theme():
@@ -87,9 +87,9 @@ def test_a_cards_needs_line_and_dot_follow_the_theme():
     utils.use_light_theme(True)
     (light,) = cards.as_card(_cells(), 40, gutter_width=2, card_brief=brief, now=60)
 
-    assert _colour_of(dark, "Needs: answer") == utils.ATTENTION_COLOR
-    assert _colour_of(light, "Needs: answer") == utils.ATTENTION_TEXT_LIGHT
-    assert _colour_of(light, "●") == utils.ATTENTION_TEXT_LIGHT
+    assert _color_of(dark, "Needs: answer") == utils.ATTENTION_COLOR
+    assert _color_of(light, "Needs: answer") == utils.ATTENTION_TEXT_LIGHT
+    assert _color_of(light, "●") == utils.ATTENTION_TEXT_LIGHT
 
 
 def test_a_cards_running_line_follows_the_theme():
@@ -98,7 +98,7 @@ def test_a_cards_running_line_follows_the_theme():
 
     (body,) = cards.as_card(_cells(unread=False), 40, gutter_width=2, card_brief=brief, now=60)
 
-    assert _colour_of(body, "deploy") == brief_cards.RUNNING_TEXT_COLOR_LIGHT
+    assert _color_of(body, "deploy") == brief_cards.RUNNING_TEXT_COLOR_LIGHT
 
 
 def test_the_status_word_follows_the_theme():
@@ -108,7 +108,7 @@ def test_the_status_word_follows_the_theme():
     assert brief_detail._state_style("nonsense", "dim") == "dim"
 
 
-def test_a_held_status_age_uses_the_theme_appropriate_text_colour():
+def test_a_held_status_age_uses_the_theme_appropriate_text_color():
     brief = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
     dark = brief.age_text(60)
     utils.use_light_theme(True)
@@ -121,7 +121,7 @@ def test_a_held_status_age_uses_the_theme_appropriate_text_colour():
 
 @pytest.mark.parametrize("app_class", [app.LemonaidApp, brief_popup.BriefPopup])
 @pytest.mark.parametrize("dark", [True, False])
-def test_the_apps_set_text_colours_from_their_theme(app_class, dark):
+def test_the_apps_set_text_colors_from_their_theme(app_class, dark):
     fake = SimpleNamespace(current_theme=SimpleNamespace(dark=dark), is_mounted=False)
 
     app_class.watch_theme(fake, "any")
@@ -129,7 +129,7 @@ def test_the_apps_set_text_colours_from_their_theme(app_class, dark):
     assert utils.light_theme() is (not dark)
 
 
-def _brief_view_colours(theme: str, mid_turn: bool) -> tuple[str, str, str]:
+def _brief_view_colors(theme: str, mid_turn: bool) -> tuple[str, str, str]:
     """(quote text, quote border, link) for a quote and a link in a BriefView under `theme`."""
 
     class Probe(App):
@@ -158,12 +158,12 @@ def _brief_view_colours(theme: str, mid_turn: bool) -> tuple[str, str, str]:
 
 
 def test_the_brief_view_darkens_its_quote_and_links_on_a_light_theme():
-    assert _brief_view_colours("textual-light", mid_turn=False) == (
+    assert _brief_view_colors("textual-light", mid_turn=False) == (
         utils.ATTENTION_TEXT_LIGHT.upper(),
         utils.ATTENTION_TEXT_LIGHT.upper(),
         utils.LINK_COLOR_LIGHT.upper(),
     )
-    assert _brief_view_colours("textual-dark", mid_turn=False) == (
+    assert _brief_view_colors("textual-dark", mid_turn=False) == (
         utils.ATTENTION_COLOR.upper(),
         utils.ATTENTION_COLOR.upper(),
         utils.LINK_COLOR.upper(),
@@ -172,6 +172,6 @@ def test_the_brief_view_darkens_its_quote_and_links_on_a_light_theme():
 
 def test_mid_turn_still_mutes_the_quote_on_a_light_theme():
     """The light rule must not outrank the mid-turn rule, which has the same specificity."""
-    text, _border, _link = _brief_view_colours("textual-light", mid_turn=True)
+    text, _border, _link = _brief_view_colors("textual-light", mid_turn=True)
 
     assert text != utils.ATTENTION_TEXT_LIGHT.upper()

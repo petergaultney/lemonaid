@@ -11,7 +11,7 @@ def test_default_backend_labels_name_the_provider_until_the_model_is_known():
     assert backend_indicators.backend_label("openclaw:session", {}) == "🦞"
 
 
-def test_backend_glyphs_have_backend_specific_colours():
+def test_backend_glyphs_have_backend_specific_colors():
     claude = backend_indicators.backend_text("claude:session", {}, True)
     codex = backend_indicators.backend_text("codex:session", {}, False)
 

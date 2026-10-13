@@ -66,8 +66,8 @@ def slots() -> None:
         print(_strip(palette.SLOTS[start : start + 14]))
 
 
-def _strip(colours: list[str]) -> str:
-    return "  " + "".join(block(c, "")[:-4] + "  \033[0m" for c in colours)
+def _strip(colors: list[str]) -> str:
+    return "  " + "".join(block(c, "")[:-4] + "  \033[0m" for c in colors)
 
 
 def groups(db_path: str) -> None:
@@ -86,9 +86,9 @@ def groups(db_path: str) -> None:
     for name in sorted(names):
         print(f"{_strip([given[name]])} {name:<14} {given[name]}")
     if len(names) > 1:
-        colours = list(given.values())
+        colors = list(given.values())
         gap, a, b = min(
-            (palette.distance(a, b), a, b) for i, a in enumerate(colours) for b in colours[:i]
+            (palette.distance(a, b), a, b) for i, a in enumerate(colors) for b in colors[:i]
         )
         verdict = "ok" if gap >= palette.GROUP_MIN_DISTANCE else "TOO CLOSE"
         print(f"  closest pair {a} {b}: {gap:.3f} (minimum {palette.GROUP_MIN_DISTANCE}) {verdict}")
