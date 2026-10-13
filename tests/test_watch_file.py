@@ -58,6 +58,40 @@ def test_a_directory_reports_added_removed_and_changed_files_only(tmp_path, stat
     assert _poll(w) == [f"{d}: added new.md; removed gone.md; changed keep.md"]
 
 
+def test_ignore_removed_reports_arrivals_but_not_removals_or_moves_into_a_subfolder(
+    tmp_path, state_dir
+):
+    d = tmp_path / "inbox"
+    (d / "done").mkdir(parents=True)
+    (d / "a.md").write_text("a")
+    w = file_events.open_watch(state_dir, [d], "me", quiet=0, ignore_removed=True)
+
+    (d / "a.md").rename(d / "done" / "a.md")
+    assert _poll(w) == []
+
+    (d / "b.md").write_text("b")
+    assert _poll(w) == [f"{d}: added b.md"]
+
+
+def test_ignore_removed_still_reports_a_file_that_is_recreated(tmp_path, state_dir):
+    f = tmp_path / "x.md"
+    f.write_text("x")
+    w = file_events.open_watch(state_dir, [f], "me", quiet=0, ignore_removed=True)
+    f.unlink()
+    assert _poll(w) == []
+    f.write_text("y")
+    assert _poll(w) == [f"{f} was created"]
+
+
+def test_default_still_reports_a_move_into_a_subfolder_as_removed(tmp_path, state_dir):
+    d = tmp_path / "inbox"
+    (d / "done").mkdir(parents=True)
+    (d / "a.md").write_text("a")
+    w = file_events.open_watch(state_dir, [d], "me", quiet=0)
+    (d / "a.md").rename(d / "done" / "a.md")
+    assert _poll(w) == [f"{d}: removed a.md"]
+
+
 def test_a_change_waits_until_it_has_been_quiet(tmp_path, state_dir):
     f = tmp_path / "notes.md"
     f.write_text("one")

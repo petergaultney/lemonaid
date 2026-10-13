@@ -4,7 +4,8 @@ A file's fingerprint is its content hash; a directory's is the size and mtime of
 non-hidden regular file directly in it, so a new, removed, or rewritten file changes it but
 a lock file or a subdirectory does not. What was last reported is kept per (paths, signer)
 in a state directory, so a rearmed waiter reports what changed while none ran; the first
-waiter for a set of paths takes the current state as its baseline.
+waiter for a set of paths takes the current state as its baseline. With `ignore_removed`, a
+removal is never reported, but the state still advances past it.
 """
 
 import dataclasses
@@ -56,9 +57,10 @@ def _names(label: str, names: abc.Sequence[str]) -> list[str]:
     return [f"{label} {', '.join(names[:3])}{more}"]
 
 
-def _describe(path: str, old: Fingerprint, new: Fingerprint) -> str:
+def _describe(path: str, old: Fingerprint, new: Fingerprint, ignore_removed: bool) -> str:
+    """ "" when the only difference is a removal and `ignore_removed` is set."""
     if new is None:
-        return f"{path} was removed"
+        return "" if ignore_removed else f"{path} was removed"
 
     if old is None:
         return f"{path} was created"
@@ -66,10 +68,10 @@ def _describe(path: str, old: Fingerprint, new: Fingerprint) -> str:
     if isinstance(old, dict) and isinstance(new, dict):
         parts = [
             *_names("added", sorted(set(new) - set(old))),
-            *_names("removed", sorted(set(old) - set(new))),
+            *([] if ignore_removed else _names("removed", sorted(set(old) - set(new)))),
             *_names("changed", sorted(n for n in set(old) & set(new) if old[n] != new[n])),
         ]
-        return f"{path}: {'; '.join(parts)}"
+        return f"{path}: {'; '.join(parts)}" if parts else ""
 
     return f"{path} changed"
 
@@ -82,6 +84,7 @@ class FileWatch:
     reported: dict[str, Fingerprint]
     pending: dict[str, Fingerprint]
     pending_since: float
+    ignore_removed: bool = False
 
 
 def _load_reported(path: pathlib.Path) -> dict[str, Fingerprint]:
@@ -93,7 +96,11 @@ def _load_reported(path: pathlib.Path) -> dict[str, Fingerprint]:
 
 
 def open_watch(
-    state_dir: pathlib.Path, paths: abc.Sequence[pathlib.Path], me: str, quiet: float
+    state_dir: pathlib.Path,
+    paths: abc.Sequence[pathlib.Path],
+    me: str,
+    quiet: float,
+    ignore_removed: bool = False,
 ) -> FileWatch:
     """A path with no saved fingerprint takes its current state as its baseline."""
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -104,7 +111,7 @@ def open_watch(
     reported = {k: saved.get(k, fp) for k, fp in current.items()}
     if reported != saved:
         reported_path.write_text(json.dumps(reported))
-    return FileWatch(resolved, quiet, reported_path, reported, current, time.time())
+    return FileWatch(resolved, quiet, reported_path, reported, current, time.time(), ignore_removed)
 
 
 def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
@@ -122,11 +129,14 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
     if current == w.reported or time.time() - w.pending_since < w.quiet:
         return False
 
-    deliver(
-        "; ".join(
-            _describe(p, w.reported[p], new) for p, new in current.items() if new != w.reported[p]
-        )
+    message = "; ".join(
+        d
+        for p, new in current.items()
+        if new != w.reported[p] and (d := _describe(p, w.reported[p], new, w.ignore_removed))
     )
+    if message:
+        deliver(message)
+
     w.reported = current
     w.reported_path.write_text(json.dumps(current))
-    return True
+    return bool(message)

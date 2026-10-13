@@ -2,7 +2,8 @@
 
 Reports when a watched file is created, changed, or removed, or when a regular file directly
 in a watched directory is added, removed, or rewritten, once the change has been quiet for
-`--quiet` seconds. Hidden files and subdirectories are ignored.
+`--quiet` seconds. With `--ignore-removed`, removals are not reported. Hidden files and
+subdirectories are ignored.
 
 By default prints one line per event and never exits on its own. With `--once`, it prints
 the first event and exits, so a Claude background Bash task wakes its session once on
@@ -77,7 +78,7 @@ def run(a: argparse.Namespace) -> int:
     try:
         with registry.watching(a, "file", (str(p.resolve()) for p in paths), a.codex_thread):
             _wait(
-                file_events.open_watch(a.state_dir, paths, a.me, a.quiet),
+                file_events.open_watch(a.state_dir, paths, a.me, a.quiet, a.ignore_removed),
                 deliver,
                 a.once or bool(a.codex_thread),
                 a.interval,
@@ -123,6 +124,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         type=float,
         default=2.0,
         help="seconds of no further change before a change is reported",
+    )
+    ap.add_argument(
+        "--ignore-removed",
+        action="store_true",
+        help="report only arrivals and changes: a file removed or moved away (for example into "
+        "a done/ subfolder once handled) does not wake the waiter",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
     delivery.add_codex_thread_argument(ap)

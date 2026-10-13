@@ -1005,6 +1005,9 @@ then remove it. Required checks determine the result when present, otherwise all
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.
+Add `--ignore-removed` to wake only on arrivals and changes: a lemon that handles a
+message by moving it into a subfolder (as `inbox watch` does into `done/`) is then not woken
+again by that removal.
 
 ## Watching children
 

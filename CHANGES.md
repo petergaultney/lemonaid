@@ -1,3 +1,9 @@
+# 0.108.5 (2026-10-12)
+
+#### Added
+
+- **`lemonaid watch file --ignore-removed` wakes only on arrivals and changes,** so a lemon that handles a message by moving it into a subfolder is not woken again by the removal.
+
 # 0.108.4 (2026-10-12)
 
 #### Fixed

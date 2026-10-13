@@ -174,6 +174,9 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 - A directory is reported when a regular file directly in it is added, removed, or
   rewritten. Hidden files and subdirectories are ignored, so a lock file or a `done/`
   folder does not wake anyone.
+- `--ignore-removed` reports only arrivals and changes. A file that is removed or moved
+  away (for example into `done/` once handled) does not wake the waiter, but the saved state
+  still advances past it, so a later arrival is reported normally.
 - A change is reported once it has been quiet for `--quiet` seconds (2 by default); paths
   are read every `--interval` seconds (5 by default).
 - What was last reported is kept per set of paths and `--me` in
