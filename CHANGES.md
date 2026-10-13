@@ -1,3 +1,9 @@
+# 0.108.3 (2026-10-12)
+
+#### Changed
+
+- **`lemonaid brief status --help` says what each status means and how to choose one,** so a lemon can pick a status without reading a separate guide.
+
 # 0.108.2 (2026-10-12)
 
 #### Changed

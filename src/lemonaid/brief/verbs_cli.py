@@ -16,7 +16,7 @@ from pathlib import Path
 from .. import obsidian
 from ..config import load_config
 from ..inbox import db
-from . import check, command, layout, links, now_edit, pr, pr_table, store, waiters
+from . import check, command, layout, links, now_edit, pr, pr_table, status_guide, store, waiters
 
 
 def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: bool = False) -> str:
@@ -154,6 +154,8 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         "Set the Status line of a lemon's brief; `clear` removes it, so the inbox shows the "
         "lemon's own state",
     )
+    status.epilog = status_guide.GUIDE
+    status.formatter_class = argparse.RawDescriptionHelpFormatter
     status.add_argument("state", choices=(*store.STATES, store.CLEAR, *store.RETIRED))
     status.set_defaults(func=_cmd_status)
 
