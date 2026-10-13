@@ -19,6 +19,7 @@ from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.rows.brief_cards import BriefCache
 from lemonaid.inbox.tui.utils import HERE_BLOCK
 from lemonaid.inbox.tui.watchers import focus, watcher_hooks
+from lemonaid.lineage import links as lineage_links
 
 _ids = itertools.count(1)
 _PR_URL = "https://github.com/petergaultney/lemonaid/pull/267"
@@ -78,6 +79,8 @@ def _brief(
     )
     identity.ensure(conn, path)
     attached.attach(conn, channel, path)
+    if parent and identity.valid(parent):
+        lineage_links.set_parent(conn, identity.read(path.read_text()), parent)
     return path
 
 
@@ -195,6 +198,26 @@ def test_a_reviewer_with_an_unrecognized_parent_stays_visible_without_an_owned_p
             reviewer=True,
             parent="operations-coordinator.MimicOld",
         )
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert active.reviewers == set()
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
+
+
+def test_a_reviewer_started_as_a_lead_sibling_stays_visible():
+    with db.connect() as conn:
+        lead = "lead.LeadBin"
+        author = "author.WorkerBin"
+        _parent_brief(conn, lead, _PR_URL)
+        _parent_brief(conn, author, _PR_URL)
+        lineage_links.set_parent(conn, author, lead)
+
+        reviewer = _session(conn, "reviewer")
+        reviewer_path = _brief(conn, reviewer, "waiting", reviewer=True, parent=author)
+        # The generated brief still says author, but --parent parent records the lead.
+        lineage_links.set_parent(conn, identity.read(reviewer_path.read_text()), lead)
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import brief
+from ..lineage import links as lineage_links
 from . import db, order, pins, presence, status_since, turns
 from .tui.rows import brief_cards
 
@@ -142,31 +143,47 @@ def _pr_table(text: str) -> str:
     return "\n".join(lines)
 
 
-def _has_author_parent(conn: sqlite3.Connection, path: Path) -> bool:
-    """Only hide a reviewer when its parent brief records the same PR as its own."""
+def _has_author_parent(conn: sqlite3.Connection, brief_id: str, path: Path) -> bool:
+    """Only hide a reviewer parented by the brief that owns its PR."""
     text = path.read_text()
-    parent_line = next((line for line in text.splitlines() if line.startswith("Parent:")), "")
-    if not parent_line or re.search(
-        r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
-        parent_line,
-        re.IGNORECASE,
+    reviewer_refs = set(brief.pr.refs(text))
+    parent_id = lineage_links.parent_of(conn, brief_id)
+    if (
+        not reviewer_refs
+        or not parent_id
+        or re.search(
+            r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
+            parent_id,
+            re.IGNORECASE,
+        )
     ):
         return False
 
-    parent_id = next(
-        (
-            field.strip("`(),;")
-            for field in parent_line.removeprefix("Parent:").split()
-            if "." in field and brief.identity.valid(field.strip("`(),;"))
-        ),
-        "",
-    )
     parent_path = brief.lemon.brief_of(conn, parent_id) if parent_id else None
     if parent_path is None or not parent_path.is_file():
         return False
 
     parent_refs = set(brief.pr.refs(_pr_table(parent_path.read_text())))
-    return bool(parent_refs.intersection(brief.pr.refs(text)))
+    shared_refs = parent_refs.intersection(reviewer_refs)
+    if not shared_refs:
+        return False
+
+    # A reviewer started with `--parent parent` is a sibling of the author under
+    # the lead. The lead may list its child's PR, so a matching PR alone does not
+    # make the lead an author parent.
+    for sibling_id in lineage_links.children_of(conn, parent_id):
+        if sibling_id == brief_id or brief.identity.brief_description(sibling_id).startswith(
+            "review-"
+        ):
+            continue
+        sibling_path = brief.lemon.brief_of(conn, sibling_id)
+        if sibling_path is None or not sibling_path.is_file():
+            continue
+        sibling_refs = set(brief.pr.refs(_pr_table(sibling_path.read_text())))
+        if shared_refs.intersection(sibling_refs):
+            return False
+
+    return True
 
 
 def ordered_active(
@@ -185,12 +202,13 @@ def ordered_active(
     rows = db.get_active(conn, switch_source=switch_source)
     attached = brief.attached.for_rows(conn, rows)
     cards = _cards(conn, rows, attached, cache, probe, mid_turn_working, now)
+    brief_ids = brief.identity.by_channel(conn)
     reviewers = frozenset(
         channel
-        for channel, brief_id in brief.identity.by_channel(conn).items()
+        for channel, brief_id in brief_ids.items()
         if channel in attached
         and brief.identity.brief_description(brief_id).startswith("review-")
-        and _has_author_parent(conn, attached[channel])
+        and _has_author_parent(conn, brief_id, attached[channel])
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),
