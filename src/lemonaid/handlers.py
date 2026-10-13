@@ -60,7 +60,10 @@ def handle_notification(
     """
     Handle a notification by switching to its source.
 
-    The switch_source determines which built-in handler to use:
+    An `open_uri` in the metadata wins: the row names a document rather than a
+    session, so it is handed to `open` instead of a switch-handler.
+
+    Otherwise the switch_source determines which built-in handler to use:
     - "tmux" -> use tmux switch-handler
     - "wezterm" -> use wezterm switch-handler
     - "cmux" -> use cmux switch-handler
@@ -69,6 +72,14 @@ def handle_notification(
     """
     if config is None:
         config = load_config()
+
+    # A row naming a document opens it in whichever app owns its URI scheme.
+    # Nothing is running behind such a row, so there is no pane to switch to,
+    # and the switch_source still decides where the row is *listed*.
+    uri = (metadata or {}).get("open_uri")
+    if uri:
+        _log.info("opening %s", uri)
+        return subprocess.run(["open", uri], check=False).returncode == 0
 
     if switch_source == "tmux":
         return _handle_tmux(metadata, config)
