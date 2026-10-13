@@ -1,3 +1,9 @@
+# 0.109.1 (2026-10-13)
+
+#### Fixed
+
+- **The inbox hides only author-parented reviewers by default, keeping parentless and coordination-parent reviewers visible, and it imports safely on Python 3.11.**
+
 # 0.109.0 (2026-10-12)
 
 #### Added

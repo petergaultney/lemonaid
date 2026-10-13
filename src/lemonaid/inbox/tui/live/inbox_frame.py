@@ -14,7 +14,7 @@ from ..watchers import focus
 
 @dataclasses.dataclass(frozen=True)
 class Frame:
-    active: view.Active
+    active: "view.Active"
     pinned: frozenset[str]
     focused_channels: frozenset[str]
     shown: list[db.Notification]
@@ -41,7 +41,7 @@ def ordered_active(
     probe: presence.Probe,
     stalls: stalls_inbox.Tracker,
     now: float,
-) -> view.Active:
+) -> "view.Active":
     return stalls.mark(
         conn,
         view.ordered_active(

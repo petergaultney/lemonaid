@@ -28,7 +28,7 @@ class Arrangement:
 
     def arranged(
         self,
-        active: view.Active,
+        active: "view.Active",
         shown: list[db.Notification],
         folded: list[db.Notification],
         pinned: frozenset[str],

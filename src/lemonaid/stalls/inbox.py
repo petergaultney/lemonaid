@@ -11,7 +11,7 @@ from . import cache, pulls, report
 _RECOMPUTE_SECONDS = 30.0
 
 
-def lemons(conn: sqlite3.Connection, active: view.Active) -> list[pulls.Lemon]:
+def lemons(conn: sqlite3.Connection, active: "view.Active") -> list[pulls.Lemon]:
     names = brief.identity.by_channel(conn)
     return [
         pulls.Lemon(
@@ -39,10 +39,10 @@ class Tracker:
     def mark(
         self,
         conn: sqlite3.Connection,
-        active: view.Active,
+        active: "view.Active",
         config: Config,
         now: float,
-    ) -> view.Active:
+    ) -> "view.Active":
         """*active* with each stuck lemon's card carrying its stuck line."""
         if now - self._at >= _RECOMPUTE_SECONDS:
             self._at = now

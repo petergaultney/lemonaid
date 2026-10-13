@@ -127,6 +127,29 @@ def inbox_rows(
     ]
 
 
+def _has_author_parent(path: Path) -> bool:
+    """Whether a reviewer brief names an author lemon as its parent."""
+    # Parent is preserved as brief metadata even when edits move it below `## Now`.
+    for line in path.read_text().splitlines():
+        if line.startswith("Parent:"):
+            fields = line.removeprefix("Parent:").strip().split(maxsplit=1)
+            if not fields:
+                return False
+            parent_id = fields[0]
+            description = brief.identity.brief_description(parent_id).lower()
+            return not (
+                description == "peter"
+                or description == "hq"
+                or description.startswith("hq-")
+                or description == "control-center"
+                or description.startswith("control-center-")
+                or description == "lemonaid-plan-manager"
+                or description.startswith("lemonaid-plan-manager-")
+            )
+
+    return False
+
+
 def ordered_active(
     conn: sqlite3.Connection,
     switch_source: str | None,
@@ -146,7 +169,9 @@ def ordered_active(
     reviewers = frozenset(
         channel
         for channel, brief_id in brief.identity.by_channel(conn).items()
-        if channel in attached and brief.identity.brief_description(brief_id).startswith("review-")
+        if channel in attached
+        and brief.identity.brief_description(brief_id).startswith("review-")
+        and _has_author_parent(attached[channel])
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),

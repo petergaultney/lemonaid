@@ -40,12 +40,24 @@ def _session(conn, name: str, *, unread: bool = False, tty: str = "", source: st
     return channel
 
 
-def _brief(conn, channel: str, status: str, *, reviewer: bool = False) -> Path:
+def _brief(
+    conn,
+    channel: str,
+    status: str,
+    *,
+    reviewer: bool = False,
+    parent: str | None = "author.WorkerBin",
+) -> Path:
     stem = f"review-{channel.split(':')[1]}" if reviewer else f"work-{channel.split(':')[1]}"
     path = brief_store.briefs_dir() / f"2026-10-07-{stem}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     title = "Review a PR" if reviewer else "Work on a PR"
-    path.write_text(f"# {title}\n\nBrief-ID: {stem}.SampleBin\n\nStatus: {status}\n\n## Now\n")
+    if not reviewer:
+        parent = None
+    parent_line = f"Parent: {parent}\n\n" if parent else ""
+    path.write_text(
+        f"# {title}\n\nBrief-ID: {stem}.SampleBin\n\n{parent_line}" f"Status: {status}\n\n## Now\n"
+    )
     identity.ensure(conn, path)
     attached.attach(conn, channel, path)
     return path
@@ -124,6 +136,28 @@ def test_a_reviewer_stuck_on_a_prompt_stays_visible(kind, unread, moved_on, show
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == (
         [reviewer] if shown else []
     )
+
+
+@pytest.mark.parametrize(
+    "parent",
+    [
+        None,
+        "control-center.LemonAce",
+        "lemonaid-plan-manager.BlessBar",
+        "hq.BlessBar",
+        "peter",
+    ],
+)
+def test_reviewers_without_an_author_parent_stay_visible(parent):
+    with db.connect() as conn:
+        reviewer = _session(conn, "reviewer")
+        _brief(conn, reviewer, "waiting", reviewer=True, parent=parent)
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert active.reviewers == set()
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
 @pytest.mark.parametrize(
