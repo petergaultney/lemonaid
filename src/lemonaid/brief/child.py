@@ -16,12 +16,11 @@ import string
 from collections import abc
 from pathlib import Path
 
-from .. import home, obsidian
+from .. import home, obsidian, pr_url
 
 PACKAGED_DIR = Path(__file__).parent / "templates"
 
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
-_PR_URL = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)/?")
 _FLAG_OF = {"pr": "--pr", "output_doc": "--output-doc"}
 
 
@@ -53,8 +52,8 @@ def template(packaged_dir: Path, users: Path, name: str) -> str:
 
 def pr_values(pr: str, repo: str) -> dict[str, str]:
     """The `$pr_*` values for a PR URL, or a number in *repo* (owner/name)."""
-    if match := _PR_URL.fullmatch(pr):
-        repo, number = match.groups()
+    if parsed := pr_url.parse(pr):
+        repo, number = parsed
     elif pr.isdigit() and repo:
         number = pr
     else:

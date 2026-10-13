@@ -54,7 +54,9 @@ def _identity(
             return None  # preserve an old --self command when its owner is unknown
         target = (parent,)
     elif kind == "pr":
-        target = (str(a.wait),)
+        url_repo, number = a.wait
+        target = (str(number),)
+        a.repo = url_repo or a.repo
         if not a.repo and not repo:
             return None
     else:

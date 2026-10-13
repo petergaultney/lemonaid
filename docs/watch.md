@@ -125,7 +125,9 @@ own from before you signed them. Comments already
 reported, and the last reported draft flag and decision, are kept per PR and `--me` in
 `$TMPDIR/watch-pr/`, so a rearm reports what changed in between and nothing it already
 reported. Pass the head you just handled as `--head` when rearming, in full or abbreviated to
-at least 7 digits; without it the first fetch is the baseline. `--repo owner/name` defaults
+at least 7 digits; without it the first fetch is the baseline. `--wait` and `--status` take a
+PR number or a `github.com` pull request URL. A URL names the repo itself, so `--repo` is
+unneeded, and an error if it names a different repo. For a number, `--repo owner/name` defaults
 to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
 
 To skip outdated or resolved review threads, use `--skip-outdated` or `--skip-resolved`.

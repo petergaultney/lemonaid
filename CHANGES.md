@@ -1,3 +1,9 @@
+# 0.108.1 (2026-10-12)
+
+#### Changed
+
+- **`watch pr --wait` and `--status` accept a PR URL as well as a number.** A URL (with or without a trailing `/files` or `#issuecomment-...`) supplies the repo, so `--repo` is unnecessary; a `--repo` that contradicts the URL is an error.
+
 # 0.108.0 (2026-10-12)
 
 #### Added

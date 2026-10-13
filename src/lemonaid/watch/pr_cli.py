@@ -18,10 +18,10 @@ with `--head <new sha>`, so a push between the event and the rearm is still repo
 
 One waiter per (PR, --me) may run; a second exits at once, naming the first.
 
-    lemonaid watch pr --wait <number> [--repo owner/name] [--interval 60]
+    lemonaid watch pr --wait <number|url> [--repo owner/name] [--interval 60]
     lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
     lemonaid watch pr --wait <number> --comments --me "Reviewer (SaltyEbb)" --head <sha> --codex-thread
-    lemonaid watch pr --status <number> [--me "Author (MotorHoe)"]
+    lemonaid watch pr --status <number|url> [--me "Author (MotorHoe)"]
 """
 
 import argparse
@@ -30,7 +30,7 @@ import re
 import subprocess
 import sys
 
-from .. import config
+from .. import config, pr_url
 from . import brief_record, delivery, pr_activity, pr_wait, registry, waiter_lock
 
 
@@ -61,6 +61,17 @@ def _sha(value: str) -> str:
     if value and not re.fullmatch(r"[0-9a-fA-F]{7,40}", value):
         raise argparse.ArgumentTypeError(f"not a commit SHA of 7 to 40 hex digits: {value!r}")
     return value.lower()
+
+
+def _pr_ref(value: str) -> tuple[str, int]:
+    """(owner/name, number) of a PR number or URL; the repo is "" for a bare number."""
+    if value.isdigit():
+        return "", int(value)
+
+    if parsed := pr_url.parse(value):
+        return parsed[0], int(parsed[1])
+
+    raise argparse.ArgumentTypeError(f"not a PR number or a github.com pull request URL: {value!r}")
 
 
 def run(a: argparse.Namespace, repo: str) -> int:
@@ -143,6 +154,12 @@ def _cmd(a: argparse.Namespace) -> None:
     if a.comments and not a.me:
         a.parser.error("--comments needs --me")
 
+    url_repo, number = a.wait or a.status
+    if url_repo and a.repo and url_repo.lower() != a.repo.lower():
+        a.parser.error(f"--repo {a.repo} contradicts the PR URL's repo {url_repo}")
+
+    a.repo = url_repo or a.repo
+    a.wait, a.status = (number, None) if a.wait else (None, number)
     repo = _repo_name(a.repo)
     if not repo:
         a.parser.error("cannot tell which repo; pass --repo owner/name")
@@ -158,8 +175,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     mode = ap.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--wait", type=int, metavar="PR", help="PR number to watch")
-    mode.add_argument("--status", type=int, metavar="PR", help="report whether a waiter is running")
+    mode.add_argument("--wait", type=_pr_ref, metavar="PR", help="PR number or URL to watch")
+    mode.add_argument(
+        "--status",
+        type=_pr_ref,
+        metavar="PR",
+        help="PR number or URL; report whether a waiter is running",
+    )
     ap.add_argument(
         "--repo", default="", help="owner/name; default is the repo of the current directory"
     )
