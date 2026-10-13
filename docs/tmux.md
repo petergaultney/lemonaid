@@ -527,7 +527,7 @@ lemonaid restore tmux --dry-run      # the layout that would be rebuilt
 lemonaid restore tmux                # rebuild it, and wait for the lemons to start working
 ```
 
-`lemonaid tmux restore` is the same command.
+`lemonaid tmux restore` is the same command. For a mass kill that leaves tmux running, see [recovery](recovery.md).
 
 ### Bringing lemons back to work
 
