@@ -111,6 +111,27 @@ def test_unrelated_tool_use_keeps_permission_notice_visible():
         assert row.message == "Permission needed in work/hq"
 
 
+def test_hook_event_name_takes_precedence_over_type():
+    notify.handle_notification(
+        json.dumps(
+            {
+                "session_id": _THREAD_A,
+                "cwd": "/work/hq",
+                "hook_event_name": "PermissionRequest",
+                "type": "agent-turn-complete",
+                "tool_name": "Bash",
+                "turn_id": "turn-1",
+            }
+        )
+    )
+
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
+        assert row is not None
+        assert row.metadata["notification_type"] == "PermissionRequest"
+        assert row.message == "Permission needed in work/hq"
+
+
 def _database_before_full_channels(path: Path) -> None:
     """Rows as the release before full Codex channels wrote them."""
     with db.connect(path):

@@ -171,7 +171,6 @@ def handle_notification(
         or data.get("event")
         or data.get("hook_event_name")
         or data.get("type")
-        or data.get("hook_event_name")
         or "agent-turn-complete"
     )
 
