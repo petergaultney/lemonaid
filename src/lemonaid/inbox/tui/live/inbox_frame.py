@@ -6,6 +6,7 @@ from collections import abc
 
 from .... import brief, groups
 from ....config import Config
+from ....stalls import inbox as stalls_inbox
 from ... import db, emoji, order, pins, presence, search, view
 from ..rows import brief_cards, pr_numbers
 from ..watchers import focus
@@ -38,10 +39,16 @@ def ordered_active(
     config: Config,
     brief_cache: brief_cards.BriefCache,
     probe: presence.Probe,
+    stalls: stalls_inbox.Tracker,
     now: float,
 ) -> view.Active:
-    return view.ordered_active(
-        conn, switch_source, brief_cache, probe, config.tui.mid_turn_working, now
+    return stalls.mark(
+        conn,
+        view.ordered_active(
+            conn, switch_source, brief_cache, probe, config.tui.mid_turn_working, now
+        ),
+        config,
+        now,
     )
 
 
@@ -51,6 +58,7 @@ def load(
     brief_cache: brief_cards.BriefCache,
     probe: presence.Probe,
     pr_cache: pr_numbers.Cache,
+    stalls: stalls_inbox.Tracker,
     *,
     env_filter: str | None,
     focused: frozenset[str],
@@ -66,7 +74,7 @@ def load(
     """
     pinned = frozenset(pins.pinned_positions(conn))
     # Main table: only sessions switchable from the current environment
-    active = ordered_active(conn, env_filter, config, brief_cache, probe, now)
+    active = ordered_active(conn, env_filter, config, brief_cache, probe, stalls, now)
     focused_channels = focus.channels(active.rows, focused)
     matching_ids = (
         {result.notification.id for result in search.find(conn, search_text)}
@@ -96,7 +104,7 @@ def load(
     # Headless sessions (switch_source IS NULL) are excluded — they can't be
     # switched to from anywhere, so they belong in history instead.
     if env_filter:
-        other_active = ordered_active(conn, None, config, brief_cache, probe, now)
+        other_active = ordered_active(conn, None, config, brief_cache, probe, stalls, now)
         if matching_ids is not None:
             matching_ids |= {n.id for n in other_active.rows if n.channel in other_active.deaf}
         other_in_view = {

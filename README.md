@@ -67,6 +67,9 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
 - **[Context use in the inbox](docs/config.md#tuicontext_threshold)**: Opt in to see how much context each Claude and Codex lemon has used, as a percentage of a threshold you set per backend or model, coloured from blue to red at the threshold
+
+- **[Stall check](docs/config.md#inbox)**: A card says "stuck 45m: reviewer's move on #238" when the lemon that owes the next move on a PR has sat idle past `stall_minutes`; `lemon doctor --stalls` lists the same.
+
 - **[Subscription usage](docs/usage.md)**: `lemonaid usage` shows how much of each Claude and Codex limit window is used against its pace, and `--watch` blocks until usage crosses a step or is on track to run out before the reset. Thresholds are configurable.
 
 - **[Vault paths in the terminal](docs/vault-links.md)**: `lemonaid terminal vault-links iterm2` (or `wezterm`) installs a rule that opens a printed `.md` path under a `[brief] vaults` root in Obsidian when clicked, spaces in folder names included

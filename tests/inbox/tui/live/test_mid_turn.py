@@ -213,6 +213,7 @@ def _cards(mid_turn_working: bool = True) -> dict[str, tuple[int, str, str]]:
                     app.config,
                     app._brief_cache,
                     app.query_one(InboxList).presence,
+                    app.query_one(InboxList).stalls,
                     time.time(),
                 )
             return {

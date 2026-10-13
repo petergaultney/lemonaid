@@ -18,6 +18,7 @@ from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
 from ..messages import recipient
+from ..stalls import cli as stalls_cli
 from ..watch import briefs_orphans
 from . import facts
 
@@ -112,6 +113,9 @@ def _line(found: facts.Facts, now: float) -> str:
 
 
 def cmd_doctor(args: argparse.Namespace) -> None:
+    if args.stalls:
+        raise SystemExit(stalls_cli.run(args.json))
+
     if not (args.lemons or args.children or args.orphans or args.all):
         _fail(args, "Name lemons, or pass --children --self, --orphans --self, or --all")
 
@@ -181,6 +185,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument(
         "--all", action="store_true", help="Every attached lemon (a ps and a pane capture each)"
+    )
+    parser.add_argument(
+        "--stalls",
+        action="store_true",
+        help="Instead, list the open PRs whose next move belongs to a lemon idle past "
+        "`[inbox] stall_minutes`, as the inbox cards show them; exits 1 when there are any",
     )
     parser.add_argument("--verbose", action="store_true", help="List every lemon in scope")
     parser.add_argument("--json", action="store_true", help="Every fact, as JSON")

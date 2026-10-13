@@ -85,6 +85,7 @@ class CardBrief:
     held_mid_turn: bool = False  # `mid_turn_working`: a set status is drawn `active` mid-turn
     mark: str = ""  # `deaf` or `dead`, from `presence`
     since: float = 0.0  # when it entered its status, or without one, its lemon's last report
+    stuck: str = ""  # "stuck 45m: reviewer's move on #238", from the stall check
     asking: bool = (
         False  # its lemon is stuck on a permission prompt: `blocked`, whatever the brief says
     )
@@ -131,6 +132,10 @@ class CardBrief:
     def running_line(self) -> str:
         return self.running if self.shown == "running" else ""
 
+    @property
+    def stuck_line(self) -> str:
+        return self.stuck if self.status != "done" else ""
+
     def extra_lines(self, age_inline: bool) -> int:
         """Lines the brief adds to its card: the age, unless it is *age_inline* on the
         context line, and each of the three above it has.
@@ -140,6 +145,7 @@ class CardBrief:
             + bool(self.needs_line)
             + bool(self.waiting_line)
             + bool(self.running_line)
+            + bool(self.stuck_line)
         )
 
     def _word(self) -> str:

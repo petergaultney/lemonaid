@@ -15,6 +15,8 @@ from textual.widgets import DataTable, Static
 
 from ....config import PlaceRoot
 from ....log import get_logger
+from ....stalls import inbox as stalls_inbox
+from ....stalls import pulls as stalls_pulls
 from ... import db, presence, sections, unarchive
 from ..rows import pr_numbers, row_parts
 from ..tables import cursor_target, layout, row_keys
@@ -55,6 +57,7 @@ class InboxList(Vertical):
         self.redraw = redraw
         self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
         self.pr_numbers = pr_numbers.Cache()
+        self.stalls = stalls_inbox.Tracker()
         self.shared_names = shared_names.Cache()
         self.arrangement = inbox_arrange.Arrangement(lists.config)
         self.fold_open = False
@@ -98,6 +101,16 @@ class InboxList(Vertical):
 
             self.run_worker(load, thread=True, group="pr-numbers")
 
+    def _refresh_stalls(self) -> None:
+        for key in self.stalls.due(time.monotonic()):
+
+            def load(key: stalls_pulls.Key = key) -> None:
+                snap = stalls_inbox.fetch(key)
+                self.app.call_from_thread(self.stalls.store, key, snap, time.monotonic())
+                self.app.call_from_thread(self.redraw)
+
+            self.run_worker(load, thread=True, group="stalls")
+
     def _follow_focus(
         self,
         entries: list[sections.Header | sections.Row],
@@ -139,6 +152,7 @@ class InboxList(Vertical):
         given number of extra brief lines, and `width` and `height` are the pane's.
         """
         self._refresh_pr_numbers()
+        self._refresh_stalls()
         main = self.main
         other = self.other
         fold_label = self.query_one("#fold_label", Static)
@@ -162,6 +176,7 @@ class InboxList(Vertical):
                 self._brief_cache,
                 self.presence,
                 self.pr_numbers,
+                self.stalls,
                 env_filter=env_filter,
                 focused=focused,
                 search_text=search_text,

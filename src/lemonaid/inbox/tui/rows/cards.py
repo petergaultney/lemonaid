@@ -241,6 +241,11 @@ def as_card(
                 else []
             ),
             *([Text(card_brief.waiting_line, style="dim")] if card_brief.waiting_line else []),
+            *(
+                [Text(card_brief.stuck_line, style=utils.unread_marker_style())]
+                if card_brief.stuck_line
+                else []
+            ),
         ]
         if card_brief
         else []

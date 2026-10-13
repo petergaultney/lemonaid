@@ -1,3 +1,9 @@
+# 0.109.0 (2026-10-12)
+
+#### Added
+
+- **Inbox cards say "stuck 45m: reviewer's move on #238" when a lemon owes the next move on a PR and has been idle for more than `[inbox] stall_minutes` (default 15).** `lemonaid lemon doctor --stalls` lists the same lines and exits 1 when there are any. The move comes from the PR, the review doc's last writer in each thread and the reviewer's last reviewed head; a brief saying `blocked`, `merge`, `review` or `running` silences an open PR. GitHub facts are cached for 5 minutes.
+
 # 0.108.5 (2026-10-12)
 
 #### Added

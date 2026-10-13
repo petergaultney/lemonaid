@@ -144,3 +144,11 @@ def test_a_deaf_or_dead_mark_prefixes_the_age() -> None:
     assert CardBrief("blocked", "", 0, mark="dead").age(3600) == "dead · blocked 1h ago"
     held = CardBrief("blocked", "", 0, mid_turn=True, held_mid_turn=True)
     assert held.age(3600) == "blocked 1h ago"
+
+
+def test_a_stuck_line_adds_a_card_line_unless_the_brief_is_done() -> None:
+    line = "stuck 45m: reviewer's move on #238"
+    plain = CardBrief("", "", 0.0)
+    assert CardBrief("", "", 0.0, stuck=line).stuck_line == line
+    assert CardBrief("", "", 0.0, stuck=line).extra_lines(True) == plain.extra_lines(True) + 1
+    assert CardBrief("done", "", 0.0, stuck=line).stuck_line == ""

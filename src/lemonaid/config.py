@@ -234,6 +234,8 @@ class InboxConfig:
     arrange: str = ""
     # Let the arranger fold an unread row, which otherwise stays in the list.
     arrange_may_fold_unread: bool = False
+    # Minutes a lemon may sit idle on a PR it owns the next move on before its card says "stuck".
+    stall_minutes: float = 15.0
 
 
 @dataclass
@@ -610,6 +612,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         snooze_presets=_snooze_presets(inbox_data.get("snooze_presets")),
         arrange=inbox_data.get("arrange", ""),
         arrange_may_fold_unread=inbox_data.get("arrange_may_fold_unread", False),
+        stall_minutes=float(inbox_data.get("stall_minutes", InboxConfig.stall_minutes)),
     )
 
     openclaw_data = data.get("openclaw", {})

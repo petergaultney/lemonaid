@@ -28,6 +28,11 @@ def unanswered_threads(text: str, mine: abc.Set[str]) -> list[str]:
     return [m.group(0) for m in _THREAD.finditer(text) if _last_block(m.group(0))[0] not in mine]
 
 
+def last_authors(text: str) -> list[str]:
+    """Who wrote last in each thread, in document order."""
+    return [_last_block(m.group(0))[0] for m in _THREAD.finditer(text)]
+
+
 def thread_gist(thread: str) -> str:
     author, text = _last_block(thread)
     return f"{author}: {text.strip().replace(chr(10), ' ')[:100]}"

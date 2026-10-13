@@ -341,6 +341,7 @@ and each failed start, adds a line to the user's inbox.
 lemonaid lemon doctor --children --self            # a lead: its children
 lemonaid lemon doctor --children --orphans --self  # whoever minds lemons nobody leads
 lemonaid lemon doctor <lemon> --json               # one lemon, every fact
+lemonaid lemon doctor --stalls                      # open PRs whose next move is owed by a lemon idle past `[inbox] stall_minutes`; a merged PR left in a `### PRs` table counts, so remove its row
 ```
 
 `doctor` reports what lemonaid can see and leaves the judging to you. An orphan is a lemon with
