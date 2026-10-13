@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 from .. import auto_read, messages
@@ -168,6 +169,7 @@ def handle_notification(
         notification_type
         or data.get("notification_type")
         or data.get("event")
+        or data.get("hook_event_name")
         or data.get("type")
         or data.get("hook_event_name")
         or "agent-turn-complete"
@@ -198,6 +200,10 @@ def handle_notification(
         metadata["session_id"] = session_id
     if notification_type:
         metadata["notification_type"] = notification_type
+    for key in ("tool_name", "turn_id"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            metadata[key] = value
     metadata["name_source"] = name_source
     if session_path_obj:
         metadata["session_path"] = str(session_path_obj)
@@ -292,3 +298,58 @@ def handle_dismiss(debug: bool = False) -> None:
     count = dismiss_session(session_id or "", debug=debug)
 
     _log.info("dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count)
+
+
+def handle_tool_used(stdin_data: str | None = None) -> None:
+    """Clear a matching permission notice after Codex reports successful tool use."""
+    if stdin_data is None:
+        stdin_data = sys.stdin.read()
+
+    try:
+        data = json.loads(stdin_data) if stdin_data else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    session_id = _extract_session_id(data, None)
+    tool_name = data.get("tool_name")
+    turn_id = data.get("turn_id")
+    if (
+        not session_id
+        or not isinstance(tool_name, str)
+        or not tool_name
+        or not isinstance(turn_id, str)
+        or not turn_id
+    ):
+        return
+
+    channel = full_channel_id("codex", session_id)
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT id, metadata FROM notifications WHERE channel = ?", (channel,)
+        ).fetchone()
+        if not row:
+            return
+
+        try:
+            metadata = json.loads(row["metadata"] or "{}")
+        except json.JSONDecodeError:
+            return
+
+        if (
+            metadata.get("notification_type") != "PermissionRequest"
+            or metadata.get("tool_name") != tool_name
+            or metadata.get("turn_id") != turn_id
+        ):
+            return
+
+        cursor = conn.execute(
+            "UPDATE notifications SET status = 'read', read_at = ?, message = ?"
+            " WHERE id = ? AND metadata = ? AND status IN ('unread', 'read')",
+            (time.time(), f"Using {tool_name}", row["id"], row["metadata"]),
+        )
+        conn.commit()
+
+    if cursor.rowcount:
+        _log.info(
+            "cleared permission notice after tool use: channel=%s tool=%s", channel, tool_name
+        )

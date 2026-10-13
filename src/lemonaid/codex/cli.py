@@ -2,7 +2,7 @@
 
 import argparse
 
-from .notify import dismiss_session, handle_dismiss, handle_notification
+from .notify import dismiss_session, handle_dismiss, handle_notification, handle_tool_used
 
 
 def cmd_notify(args: argparse.Namespace) -> None:
@@ -24,6 +24,11 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
         dismiss_session(args.session_id)
     else:
         handle_dismiss()
+
+
+def cmd_tool_used(_args: argparse.Namespace) -> None:
+    """Clear a matching permission notice after a successful Codex tool use."""
+    handle_tool_used()
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -80,5 +85,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Session ID to dismiss (if not provided, reads from stdin)",
     )
     dismiss_parser.set_defaults(func=cmd_dismiss)
+
+    tool_used_parser = codex_subparsers.add_parser(
+        "tool-used",
+        help="Clear a matching permission notice after successful tool use (reads hook JSON)",
+    )
+    tool_used_parser.set_defaults(func=cmd_tool_used)
 
     codex_parser.set_defaults(func=lambda a: codex_parser.print_help())

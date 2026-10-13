@@ -69,6 +69,48 @@ def test_codex_notification_distinguishes_title_from_cwd_placeholder():
         assert titled.metadata["name_source"] == "codex_title"
 
 
+def test_successful_matching_tool_use_clears_permission_notice():
+    payload = {
+        "session_id": _THREAD_A,
+        "cwd": "/work/hq",
+        "hook_event_name": "PermissionRequest",
+        "tool_name": "Bash",
+        "turn_id": "turn-1",
+    }
+    notify.handle_notification(json.dumps(payload))
+
+    notify.handle_tool_used(
+        json.dumps({"session_id": _THREAD_A, "tool_name": "Bash", "turn_id": "turn-1"})
+    )
+
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
+        assert row is not None
+        assert row.status == "read"
+        assert row.message == "Using Bash"
+
+
+def test_unrelated_tool_use_keeps_permission_notice_visible():
+    payload = {
+        "session_id": _THREAD_A,
+        "cwd": "/work/hq",
+        "hook_event_name": "PermissionRequest",
+        "tool_name": "Bash",
+        "turn_id": "turn-1",
+    }
+    notify.handle_notification(json.dumps(payload))
+
+    notify.handle_tool_used(
+        json.dumps({"session_id": _THREAD_A, "tool_name": "Read", "turn_id": "turn-1"})
+    )
+
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
+        assert row is not None
+        assert row.status == "unread"
+        assert row.message == "Permission needed in work/hq"
+
+
 def _database_before_full_channels(path: Path) -> None:
     """Rows as the release before full Codex channels wrote them."""
     with db.connect(path):

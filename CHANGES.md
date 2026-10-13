@@ -1,3 +1,9 @@
+# 0.109.2 (2026-10-13)
+
+#### Fixed
+
+- **Codex permission notices clear immediately after the requested tool succeeds, while unanswered prompts stay visible.**
+
 # 0.109.1 (2026-10-13)
 
 #### Fixed

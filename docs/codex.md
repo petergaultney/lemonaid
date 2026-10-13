@@ -50,6 +50,29 @@ prefix_rule(pattern=["lemonaid", "watch"], decision="allow")
 
 These commands write under `~/.lemons/` (`~/.brief-lemons/` before `lemonaid home migrate`) and `~/.local/share/lemonaid/`, outside the project workspace. An `allow` rule lets a matching command run outside the sandbox without prompting. Codex matches rules only against commands it can split into plain words, so a command with a shell expansion in it (`--codex-thread "$CODEX_THREAD_ID"`) goes to the approval reviewer instead; write `--codex-thread` bare. Restart running Codex sessions after changing `default.rules`, since they read the rules at session start.
 
+### 3. Clear permission notices after a tool succeeds
+
+Add a `PostToolUse` handler to `~/.codex/hooks.json` so a permission notice ends as soon as its requested tool returns successfully:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid codex tool-used"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Merge this entry into the existing `hooks` object; keep any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool, after Codex reports successful tool output. A request that remains unanswered stays unread and visible.
+
 ## How it works
 
 ### Notification flow
@@ -61,7 +84,7 @@ These commands write under `~/.lemons/` (`~/.brief-lemons/` before `lemonaid hom
 
 ### Auto-dismiss
 
-The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read.
+The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read. The `PostToolUse` hook above also clears a matching permission notice as soon as that tool returns successfully.
 
 ### Live activity updates
 
@@ -81,6 +104,8 @@ lemonaid codex notify '{"type": "agent-turn-complete", "thread-id": "abc123", "c
 # Dismiss a session's notification
 lemonaid codex dismiss --session-id abc123
 ```
+
+`lemonaid codex tool-used` is called by the `PostToolUse` hook with Codex's event JSON on stdin.
 
 ## JSON payload format
 
