@@ -226,6 +226,23 @@ def test_a_reviewer_started_as_a_lead_sibling_stays_visible():
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
+def test_a_reviewer_parented_by_an_author_stays_hidden_if_author_has_a_same_pr_child():
+    with db.connect() as conn:
+        author = "author.WorkerBin"
+        _parent_brief(conn, author, _PR_URL)
+        reviewer = _session(conn, "reviewer")
+        _brief(conn, reviewer, "waiting", reviewer=True, parent=author)
+        work_child = "author-child.WorkerBin"
+        _parent_brief(conn, work_child, _PR_URL)
+        lineage_links.set_parent(conn, work_child, author)
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert active.reviewers == {reviewer}
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == []
+
+
 @pytest.mark.parametrize(
     "status", ["alert", "blocked", "running", "merge", "approve", "review", "done"]
 )

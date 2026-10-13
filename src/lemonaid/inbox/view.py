@@ -143,6 +143,12 @@ def _pr_table(text: str) -> str:
     return "\n".join(lines)
 
 
+def _parent_line_names(text: str, lemon_id: str) -> bool:
+    """Whether a brief's generated Parent line names *lemon_id*."""
+    pattern = re.compile(rf"(?<![\w.-]){re.escape(lemon_id)}(?![\w.-])")
+    return any(pattern.search(line) for line in text.splitlines() if line.startswith("Parent:"))
+
+
 def _has_author_parent(conn: sqlite3.Connection, brief_id: str, path: Path) -> bool:
     """Only hide a reviewer parented by the brief that owns its PR."""
     text = path.read_text()
@@ -180,7 +186,7 @@ def _has_author_parent(conn: sqlite3.Connection, brief_id: str, path: Path) -> b
         if sibling_path is None or not sibling_path.is_file():
             continue
         sibling_refs = set(brief.pr.refs(_pr_table(sibling_path.read_text())))
-        if shared_refs.intersection(sibling_refs):
+        if shared_refs.intersection(sibling_refs) and _parent_line_names(text, sibling_id):
             return False
 
     return True
