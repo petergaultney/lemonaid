@@ -21,7 +21,15 @@ from ..tables import cursor_target, layout, row_keys
 from ..tables.table import ClickToActTable
 from ..utils import update_static
 from ..watchers import focus
-from . import group_headers, inbox_arrange, inbox_draw, inbox_entries, inbox_frame, inbox_main_table
+from . import (
+    group_headers,
+    inbox_arrange,
+    inbox_draw,
+    inbox_entries,
+    inbox_frame,
+    inbox_main_table,
+    shared_names,
+)
 
 _log = get_logger("tui")
 
@@ -47,6 +55,7 @@ class InboxList(Vertical):
         self.redraw = redraw
         self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
         self.pr_numbers = pr_numbers.Cache()
+        self.shared_names = shared_names.Cache()
         self.arrangement = inbox_arrange.Arrangement(lists.config)
         self.fold_open = False
         self.fold_name = ""  # the arranger's name for the folded group
@@ -159,6 +168,11 @@ class InboxList(Vertical):
                 current_key=current_key,
                 other_key=other_key,
                 unfolded_ids=self._unfolded_ids,
+                shared_names=(
+                    self.shared_names.names(conn, self.config.brief.name_idle_days, time.time())
+                    if self.config.tui.brief_names_in_inbox
+                    else frozenset()
+                ),
                 now=time.time(),
             )
 

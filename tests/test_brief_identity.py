@@ -133,6 +133,10 @@ def test_v8_attachment_can_be_backfilled_after_schema_migration(tmp_path):
             "INSERT INTO session_briefs (channel, path, attached_at) VALUES (?, ?, ?)",
             ("claude:old", str(path), 1),
         )
+        conn.execute(
+            "CREATE TABLE notifications (channel TEXT, status TEXT, created_at REAL,"
+            " read_at REAL, turn_at REAL)"
+        )
         m009_add_lemon_identities.migrate(conn)
         m014_add_lemon_aliases.migrate(conn)
         conn.commit()

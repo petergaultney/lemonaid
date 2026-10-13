@@ -1,4 +1,4 @@
-"""Give a lemon a new WordyBin, carrying over everything recorded against its old Lemon-ID.
+"""Give a lemon a new name, carrying over everything recorded against its old Lemon-ID.
 
 The old ID stays an alias of the new one, and its inbox folder is left holding
 only a forward, so a message addressed to it still reaches the lemon.
@@ -10,7 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from .. import home, messages
-from . import identity, names, store
+from . import active_names, identity, name_words, names, store
 
 _ATTEMPTS = 20
 _LINE = re.compile(r"^(?:Brief-ID|Lemon-ID): .*$", re.MULTILINE)
@@ -31,24 +31,32 @@ def _taken(conn: sqlite3.Connection, lemon_id: str) -> bool:
     return row is not None or messages.store.inbox_for_id(lemon_id).exists()
 
 
-def _new_id(conn: sqlite3.Connection, path: Path, old_id: str, chosen: str) -> str:
+def _new_id(
+    conn: sqlite3.Connection, path: Path, old_id: str, chosen: str, words: name_words.Words
+) -> str:
     slug = old_id.rsplit(".", 1)[0] if "." in old_id else store.lemon_id_slug(path)
+    held = active_names.held(conn, path) | {identity.brief_name(old_id).lower()}
     if chosen:
         new_id = f"{slug}.{names.chosen(chosen)}"
         if new_id == old_id:
-            raise ValueError(f"{old_id} already has that WordyBin")
+            raise ValueError(f"{old_id} already has that name")
 
         if _taken(conn, new_id):
             raise ValueError(f"{new_id} is, or was, another lemon's Lemon-ID")
 
+        if identity.brief_name(new_id).lower() in held:
+            raise ValueError(f"{identity.brief_name(new_id)} is an active lemon's name")
+
         return new_id
 
     for _ in range(_ATTEMPTS):
-        new_id = f"{slug}.{names.new()}"
-        if new_id != old_id and not _taken(conn, new_id):
+        new_id = f"{slug}.{names.new(held, words)}"
+        if not _taken(conn, new_id):
             return new_id
 
-    raise ValueError(f"No free WordyBin for {slug} after {_ATTEMPTS} tries")
+        held.add(identity.brief_name(new_id).lower())
+
+    raise ValueError(f"No free name for {slug} after {_ATTEMPTS} tries")
 
 
 def _with_id(text: str, old_id: str, new_id: str) -> str:
@@ -90,8 +98,13 @@ def _unmove_inbox(old_id: str, new_id: str) -> None:
     new.rename(old)
 
 
-def reroll(conn: sqlite3.Connection, path: Path, chosen: str = "") -> Rerolled:
-    """Give the brief at *path* a new WordyBin: *chosen*, or a random unused one.
+def reroll(
+    conn: sqlite3.Connection,
+    path: Path,
+    chosen: str = "",
+    words: name_words.Words = name_words.NONE,
+) -> Rerolled:
+    """Give the brief at *path* a new name: *chosen*, or the best free one *words* make, or a random one.
 
     Every brief and message write waits for this, so a message sent while it
     runs lands either before the move or behind the forward.
@@ -102,7 +115,7 @@ def reroll(conn: sqlite3.Connection, path: Path, chosen: str = "") -> Rerolled:
         conn.execute("BEGIN IMMEDIATE")
         moved = rewritten = False
         try:
-            new_id = _new_id(conn, path, old_id, chosen)
+            new_id = _new_id(conn, path, old_id, chosen, words)
             _relabel(conn, path, old_id, new_id)
             moved = True
             _move_inbox(old_id, new_id)

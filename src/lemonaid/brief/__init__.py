@@ -1,9 +1,11 @@
 from . import (
+    active_names,
     attached,
     check,
     family,
     identity,
     lemon,
+    name_clash,
     nudge,
     popup,
     pr,
@@ -16,11 +18,13 @@ from . import (
 )
 
 __all__ = [
+    "active_names",
     "attached",
     "check",
     "family",
     "identity",
     "lemon",
+    "name_clash",
     "nudge",
     "popup",
     "pr",

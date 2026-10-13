@@ -60,6 +60,8 @@ def cmd_resume(args: argparse.Namespace) -> None:
 
     who = _caller(args.channel or "")
     dead = state.state == recipient.DEAD
+    with db.connect() as conn:
+        warning = brief.name_clash.warn(conn, lemon_id)
     outcome = revive.revive(row, inbox, dead, load_config(), args.prompt or _PROMPT.format(who=who))
     if outcome.kind == revive.STARTING:
         print(f"{lemon_id} is already being started.")
@@ -80,6 +82,8 @@ def cmd_resume(args: argparse.Namespace) -> None:
         )
         autoresume.post(conn, line)
     print(line)
+    if warning:
+        print(f"Warning: {warning}", file=sys.stderr)
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> None:

@@ -6,7 +6,7 @@ import json
 import pytest
 
 from lemonaid import lineage
-from lemonaid.brief import attached, identity, lemon, reroll, store, write_cli
+from lemonaid.brief import attached, identity, lemon, name_words, reroll, store, write_cli
 from lemonaid.inbox import db
 from lemonaid.messages import cli, waiter
 from lemonaid.messages import store as message_store
@@ -103,9 +103,9 @@ def test_a_second_reroll_keeps_every_earlier_id_one_hop_away():
 @pytest.mark.parametrize(
     ("chosen", "error"),
     [
-        ("Nope", "not a valid WordyBin word"),
-        ("Quick", "not a two-word WordyBin"),
-        ("BloodKeg", "already has that WordyBin"),
+        ("Nope", "five-letter word and a three-letter word"),
+        ("Quick", "five-letter word and a three-letter word"),
+        ("BloodKeg", "already has that name"),
         ("SkullHen", "is, or was, another lemon's"),
     ],
 )
@@ -197,3 +197,29 @@ def test_a_new_brief_cannot_take_an_old_id(monkeypatch):
         conn.execute("INSERT INTO lemon_aliases VALUES ('center-again.SkullHen', 'x.Y')")
         conn.commit()
         assert identity.ensure(conn, other) != "center-again.SkullHen"
+
+
+def test_set_refuses_a_name_another_active_lemon_holds_under_any_slug():
+    _lemon("center", "claude:center")
+    other = store.briefs_dir() / "other.md"
+    other.write_text("# other\n\nLemon-ID: other.AuditInk\n")
+    with db.connect() as conn:
+        identity.ensure(conn, other)
+
+    with pytest.raises(ValueError, match="AuditInk is an active lemon's name"):
+        _reroll("center", "auditink")
+
+
+def test_reroll_takes_the_first_free_pair_of_name_words():
+    _lemon("center", "claude:center")
+    taken = store.briefs_dir() / "taken.md"
+    taken.write_text("# taken\n\nLemon-ID: taken.AuditInk\n")
+    with db.connect() as conn:
+        identity.ensure(conn, taken)
+        rerolled = reroll.reroll(
+            conn,
+            store.briefs_dir() / "center.md",
+            words=name_words.parse("audit,ink,web"),
+        )
+
+    assert rerolled.new_id == "center.AuditWeb"

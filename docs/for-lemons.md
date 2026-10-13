@@ -495,7 +495,8 @@ lemonaid brief attach --self <file>            # attach an existing one (relativ
 lemonaid brief attach --session work:4 <file>  # on another lemon's behalf; the window picks one of several
 lemonaid brief attach --force --self <file>    # take a brief another running session holds (refused otherwise)
 lemonaid brief id --channel <channel>          # print the stable ID stored in its brief
-lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set QuickOdd picks one)
+lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set AuditInk picks one)
+lemonaid brief new --child --name-words audit,check,ink,web "Review it"  # name it from these words; see Names
 lemonaid brief status --self blocked            # Status: blocked  (running | blocked | merge | approve | review | alert | done | clear)
 lemonaid brief bullet add --self "Next" "open the PR"       # under ### Next; Done adds at the top
 lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
@@ -737,15 +738,41 @@ your user's Approve on GitHub; name the PR under `Needs`. It sorts and reminds l
 Use `running` when nothing waits on your user but you are minding a pipeline run or another long
 process; name it and its tmux `session:window` under `Running`, whose first line its card shows.
 
-New briefs include a readable slug and WordyBin suffix, such as
+New briefs include a readable slug and a name, such as
 `Lemon-ID: mc-tars-no-mops-leases.SkullHen`, generated from the brief filename
 and two random bytes. The slug omits the leading date and is trimmed to about
 40 characters at a hyphen boundary. `[brief] name` in the config replaces the
 WordyBin with whatever a command prints; see `docs/config.md`.
+
+### Names
+
+The name half is how a lemon signs, so a new one never matches the name of an
+active lemon, whatever its slug. A lemon is active while a session attached to its
+brief is not archived, or for `[brief] name_idle_days` (default 14) after its brief
+or its sessions last changed. An alias holds its name for as long as its lemon does.
+
+A lead can name its children from words that fit its work. List them, best first,
+on a `Name words:` line in the lead's brief header (`Name words: audit check ink web`);
+`brief new --child` reads the parent's line. `--name-words audit,check,ink` on
+`brief new` or `brief id --reroll` gives words for that one brief instead. Any
+five-letter word and three-letter word make a name (`AuditInk`); they need not be
+WordyBin's. Pairs go in order of the sum of the words' places, and a pair an active
+lemon holds is skipped. With words of only one length, the other half is a random
+WordyBin word. When every pair is held, the name is random. The command says on
+stderr which it did. A word that is not five or three letters is an error on
+`--name-words`; on a `Name words:` line, `brief new --child` skips it and
+`brief check` reports it.
+
+A lemon idle past the window can come back to find a newer lemon holding its name.
+It keeps the name. `brief attach`, `place open --brief`, `lemon start --brief`,
+`resume` and the inbox's resume put a warning in its inbox and print it; `brief check`
+warns on both briefs, `watch doc` warns when its `--me` is shared, and the inbox
+marks the name `(shared)`. `brief id --self --reroll` on either lemon clears them.
+
 Attaching or messaging an existing brief adds the line if it is missing. The ID names its
 message inbox and stays with the brief when its filename or attached channel changes.
 `brief id` also backfills an existing attached brief.
-`brief id --reroll` (or `--set <WordyBin>`) replaces the WordyBin and moves the inbox, parent
+`brief id --reroll` (or `--set <name>`) replaces the name and moves the inbox, parent
 links, and brief line to the new ID; the old ID stays an alias, so messages sent to it still
 arrive. It prints `old -> new`; with `--json`, `lemon_id`, `old_lemon_id`, `signing_name`, and
 `old_signing_name`. Pass the old signing name to doc waiters as `--legacy`, and rearm your inbox

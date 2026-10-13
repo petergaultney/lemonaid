@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .. import groups
 from ..lineage import links
-from . import identity, layout, now, now_edit, pr_table, questions, status, store
+from . import identity, layout, name_words, now, now_edit, pr_table, questions, status, store
 
 _HEADING = re.compile(r"(?P<level>#{1,2})\s+(?P<text>.*?)\s*#*\s*")
 _FENCE = re.compile(r"(```|~~~)")
@@ -221,4 +221,5 @@ def problems(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
         *recorded(conn, path, text),
         *parent_line(conn, text),
         *groups_line(conn, text),
+        *name_words.problems(text),
     ]

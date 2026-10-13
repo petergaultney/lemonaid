@@ -64,7 +64,9 @@ def test_set_takes_any_safe_name_as_written_when_a_command_is_configured():
             reroll.reroll(conn, path, "hal.9000")
 
 
-def test_without_a_command_set_still_wants_a_wordybin():
+def test_without_a_command_set_wants_a_five_and_a_three_letter_word():
     assert names.chosen("quickodd") == "QuickOdd"
-    with pytest.raises(ValueError, match="two-word WordyBin"):
-        names.chosen("Quick")
+    assert names.chosen("auditINK") == "AuditInk"
+    for bad in ("Quick", "QuickOdds", "Quick0dd", "Quick-Od"):
+        with pytest.raises(ValueError, match="five-letter word and a three-letter word"):
+            names.chosen(bad)

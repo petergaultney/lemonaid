@@ -17,7 +17,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home
-from . import names
+from . import name_words, names
 
 # The statuses a lemon sets. Without one, the inbox shows the lemon's own state
 # (active, idle, deaf or dead); see docs/brief-status.md.
@@ -91,9 +91,13 @@ def lemon_id_slug(path: Path) -> str:
     return (prefix.rsplit("-", 1)[0] if "-" in prefix else prefix).rstrip("-") or "brief"
 
 
-def new_lemon_id(path: Path) -> str:
-    """Give a brief a short name plus a new name from `names`: by default a random WordyBin."""
-    return f"{lemon_id_slug(path)}.{names.new()}"
+def new_lemon_id(
+    path: Path,
+    held: abc.Container[str] = frozenset(),
+    words: name_words.Words = name_words.NONE,
+) -> str:
+    """Give a brief a short name plus a new name from `names`, none of those in *held*."""
+    return f"{lemon_id_slug(path)}.{names.new(held, words)}"
 
 
 def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str]) -> Path:
@@ -109,12 +113,14 @@ def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str
     return path.resolve()
 
 
-def create(title: str, today: datetime.date) -> Path:
+def create(title: str, today: datetime.date, words: name_words.Words = name_words.NONE) -> Path:
     """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
     return create_named(
         slug(title),
         today,
-        lambda path: _TEMPLATE.format(title=title.strip(), lemon_id=new_lemon_id(path)),
+        lambda path: _TEMPLATE.format(
+            title=title.strip(), lemon_id=new_lemon_id(path, words=words)
+        ),
     )
 
 

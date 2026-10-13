@@ -199,6 +199,15 @@ def test_brief_vaults_that_is_not_a_list_is_reported(capsys):
     assert "[brief] vaults must be a list of directories, not dict" in capsys.readouterr().err
 
 
+def test_brief_name_idle_days_defaults_to_14_and_rejects_a_non_number(capsys):
+    assert _parse_config({}).brief.name_idle_days == 14
+    assert _parse_config({"brief": {"name_idle_days": 0}}).brief.name_idle_days == 0
+    assert _parse_config({"brief": {"name_idle_days": "7"}}).brief.name_idle_days == 14
+    assert (
+        "[brief] name_idle_days must be a whole number of days, not '7'" in capsys.readouterr().err
+    )
+
+
 def test_default_template_can_name_another_template():
     claude = ["emacsclient -nw .", "claude", ""]
     config = _parse_config({"tmux-session": {"templates": {"claude": claude, "default": "claude"}}})

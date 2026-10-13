@@ -5,7 +5,7 @@ import json
 import sys
 
 from ..inbox import db
-from . import attached, identity, reroll, selector, store
+from . import attached, identity, name_words_cli, reroll, selector, store
 
 
 def _fail(args: argparse.Namespace, error: str) -> None:
@@ -54,9 +54,12 @@ def cmd_id(args: argparse.Namespace) -> None:
         if path is None:
             _fail(args, f"No brief attached to {chosen.channel!r}")
 
+        if args.name_words and (args.set or not args.reroll):
+            _fail(args, "--name-words goes with --reroll, not --set")
+
         try:
             if args.reroll or args.set:
-                rerolled = reroll.reroll(conn, path, args.set)
+                rerolled = reroll.reroll(conn, path, args.set, name_words_cli.given(args))
                 lemon_id = rerolled.new_id
             else:
                 rerolled = None

@@ -4,6 +4,7 @@ from collections import abc
 
 from textual.widgets import DataTable
 
+from .... import brief
 from ... import db
 from .. import error_screen
 from ..rows import row_parts
@@ -67,6 +68,14 @@ class HistoryTable(DataTable):
             )
         return notification
 
+    def _warn_shared_name(self, channel: str) -> None:
+        """Before a session comes back, tell its lemon (and the user) if its name is another's."""
+        with db.connect() as conn:
+            lemon_id = brief.identity.by_channel(conn).get(channel)
+            warning = brief.name_clash.warn(conn, lemon_id) if lemon_id else ""
+        if warning:
+            self.app.notify(warning, severity="warning", timeout=15)
+
     def _act_on(self, notification: db.Notification, done: history_resume.Outcome) -> None:
         if done.kind == "running":
             self._back_to_inbox(notification)
@@ -90,6 +99,8 @@ class HistoryTable(DataTable):
         if not (notification := self._selected()):
             return None
 
+        if mode != "copy":
+            self._warn_shared_name(notification.channel)
         done = history_resume.run(notification, self._config, mode, here_tty)
         self._act_on(notification, done)
         return done
@@ -97,4 +108,5 @@ class HistoryTable(DataTable):
     def resume_in_new_session(self) -> None:
         """Spawn a new tmux session around the session under the cursor."""
         if notification := self._selected():
+            self._warn_shared_name(notification.channel)
             self._act_on(notification, history_resume.in_new_session(notification, self._config))

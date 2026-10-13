@@ -26,6 +26,12 @@ class Frame:
     matching_ids: set[int] | None  # None outside a search
 
 
+def _brief_names(conn: sqlite3.Connection, shared: abc.Set[str]) -> dict[str, str]:
+    """Each session's brief name, marked when another active lemon holds it too."""
+    names = {c: brief.identity.brief_name(i) for c, i in brief.identity.by_channel(conn).items()}
+    return {c: f"{n} (shared)" if n.lower() in shared else n for c, n in names.items()}
+
+
 def ordered_active(
     conn: sqlite3.Connection,
     switch_source: str | None,
@@ -52,6 +58,7 @@ def load(
     current_key: str | None,
     other_key: str | None,
     unfolded_ids: abc.Set[str],
+    shared_names: abc.Set[str],
     now: float,
 ) -> Frame:
     """`env_filter` names the terminal this inbox switches in, if known; `search_text` is
@@ -113,9 +120,7 @@ def load(
         folded,
         emoji.by_channel(conn),
         [dataclasses.replace(g, colour=colours[g.name]) for g in group_list],
-        {c: brief.identity.brief_name(i) for c, i in brief.identity.by_channel(conn).items()}
-        if config.tui.brief_names_in_inbox
-        else {},
+        _brief_names(conn, shared_names) if config.tui.brief_names_in_inbox else {},
         other,
         pr_numbers.rows(conn, [*active.rows, *other], config.places, pr_cache),
         matching_ids,

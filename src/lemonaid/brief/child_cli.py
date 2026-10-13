@@ -13,7 +13,7 @@ from .. import groups, home
 from ..config import load_config
 from ..inbox import db
 from ..watch import children_waiter
-from . import child, identity, lemon, store
+from . import child, identity, lemon, name_words_cli, store
 
 
 def _parent(target: str) -> tuple[str, str]:
@@ -47,10 +47,18 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
     except (LookupError, ValueError, store.ChangedUnderneath) as cause:
         raise child.Problem(f"--parent {args.parent}: {cause}") from None
 
+    with db.connect() as conn:
+        words = (
+            name_words_cli.given(args)
+            if args.name_words
+            else name_words_cli.of_parent(conn, parent[0])
+        )
     title = args.title.strip()
     name = store.slug(args.slug or title)
     try:
-        planned = store.new_lemon_id(store.briefs_dir() / f"{today.isoformat()}-{name}.md")
+        planned = store.new_lemon_id(
+            store.briefs_dir() / f"{today.isoformat()}-{name}.md", words=words
+        )
     except ValueError as e:
         raise child.Problem(str(e)) from None
     area = args.area.strip()
@@ -64,7 +72,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
 
     try:
         with db.connect() as conn:
-            lemon_id = identity.ensure(conn, path, regenerate_on_collision=True)
+            lemon_id = identity.ensure(conn, path, regenerate_on_collision=True, words=words)
         if lemon_id != planned:
             store.edit(
                 path,
@@ -78,6 +86,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         path.unlink(missing_ok=True)
         raise
 
+    name_words_cli.report(words, lemon_id)
     return path, lemon_id, parent[0]
 
 

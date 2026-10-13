@@ -5,6 +5,7 @@ The edits to a brief's contents are in `verbs_cli`."""
 import argparse
 import datetime
 import sqlite3
+import sys
 from pathlib import Path
 
 from .. import home
@@ -17,6 +18,8 @@ from . import (
     children_cli,
     command,
     identity,
+    name_clash,
+    name_words_cli,
     query_cli,
     selector,
     store,
@@ -36,6 +39,9 @@ def _attach(
         lemon_id = identity.ensure(conn, path)
     except (ValueError, store.ChangedUnderneath) as cause:
         return {}, str(cause), ""
+
+    if warning := name_clash.warn(conn, lemon_id):
+        print(f"Warning: {warning}", file=sys.stderr)
 
     if chosen.channel:
         if not getattr(args, "force", False) and (
@@ -109,7 +115,8 @@ def _cmd_new(args: argparse.Namespace) -> None:
         command.finish(args, {}, paused)
 
     try:
-        path = store.create(args.title, datetime.date.today())
+        words = name_words_cli.given(args)
+        path = store.create(args.title, datetime.date.today(), words)
     except FileExistsError as e:
         command.finish(args, {}, f"{e.filename} already exists; attach it instead")
         return
@@ -119,10 +126,12 @@ def _cmd_new(args: argparse.Namespace) -> None:
 
     try:
         with db.connect() as conn:
-            identity.ensure(conn, path, regenerate_on_collision=True)
+            lemon_id = identity.ensure(conn, path, regenerate_on_collision=True, words=words)
     except BaseException:
         path.unlink(missing_ok=True)
         raise
+
+    name_words_cli.report(words, lemon_id)
 
     with db.connect() as conn:
         result, error, message = _attach(conn, args, path)
@@ -148,14 +157,15 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     own_id.add_argument(
         "--reroll",
         action="store_true",
-        help="Replace the ID's WordyBin with a random unused one; the old ID keeps working",
+        help="Replace the ID's name with a random unused one; the old ID keeps working",
     )
     own_id.add_argument(
         "--set",
         default="",
-        metavar="WORDYBIN",
-        help="Reroll to this two-word WordyBin (e.g. QuickOdd) instead of a random one",
+        metavar="NAME",
+        help="Reroll to this name, a five- and a three-letter word (e.g. AuditInk)",
     )
+    name_words_cli.add_argument(own_id)
     own_id.set_defaults(func=query_cli.cmd_id)
 
     attach = command.parser(brief_subparsers, "attach", "Attach a brief file to one lemon session")
@@ -174,6 +184,7 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         target_required=False,
     )
     new.add_argument("title", help="The task; the file is named <date>-<slug of title>.md")
+    name_words_cli.add_argument(new)
     child_cli.add_arguments(new)
     new.set_defaults(func=_cmd_new)
 

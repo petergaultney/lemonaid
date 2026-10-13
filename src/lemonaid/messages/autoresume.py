@@ -8,7 +8,7 @@ import sqlite3
 import typing as ty
 from pathlib import Path
 
-from ..brief import status
+from ..brief import name_clash, status
 from ..config import Config
 from ..inbox import db
 from . import recipient, revive, wake
@@ -141,6 +141,8 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
             "will read it after it is answered. Don't send it again; tell your user."
         ), False
 
+    with db.connect() as conn:
+        name_clash.warn(conn, found.lemon_id)
     outcome = revive.revive(found.row, found.inbox, action == START, config, wake.PROMPT)
     if outcome.kind == revive.STARTING:
         return (

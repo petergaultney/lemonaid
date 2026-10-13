@@ -1,3 +1,14 @@
+# 0.108.0 (2026-10-12)
+
+#### Added
+
+- **A lead can name its children from words that fit their work.** A `Name words:` line in its brief, or `--name-words` on `brief new` and `brief id --reroll`, makes names like `AuditInk` from any five-letter and three-letter words, best first.
+
+#### Changed
+
+- **A new lemon's name never matches an active lemon's, whatever the slug,** so no two current lemons sign the same way; a lemon idle for `[brief] name_idle_days` (default 14) frees its name. A lemon that comes back to find its name taken keeps it and is warned, as is whoever brought it back; `brief check`, `watch doc` and the inbox warn too.
+- **`brief id --set` takes any five-letter word then three-letter word,** not only WordyBin's.
+
 # 0.107.0 (2026-10-12)
 
 #### Added

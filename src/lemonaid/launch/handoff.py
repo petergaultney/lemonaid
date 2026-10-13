@@ -139,10 +139,13 @@ def _announce(handoff: Handoff) -> None:
         _log.warning("Could not tell %s about its new child %s: %s", parent, child, error)
 
 
-def complete(handoff: Handoff, session: str, index: str, window_id: str) -> None:
-    """Wait on the window for its lemon, and record the parent link and groups now."""
+def complete(handoff: Handoff, session: str, index: str, window_id: str) -> str:
+    """Wait on the window for its lemon, and record the parent link and groups now.
+
+    Returns a warning for the caller to show when the lemon's name is another's too.
+    """
     if handoff.brief is None:
-        return
+        return ""
 
     with db.connect() as conn:
         brief.attached.attach_pending(
@@ -159,3 +162,10 @@ def complete(handoff: Handoff, session: str, index: str, window_id: str) -> None
                 _log.warning("Not adding %s to a group: %s", handoff.lemon_id, error)
         if handoff.groups:
             groups.sync.write_lines(conn, [handoff.lemon_id])
+        try:
+            lemon_id = handoff.lemon_id or brief.identity.ensure(conn, handoff.brief)
+        except (ValueError, brief.store.ChangedUnderneath) as error:
+            _log.warning("Not checking %s for a shared name: %s", handoff.brief, error)
+            return ""
+
+        return brief.name_clash.warn(conn, lemon_id)

@@ -58,7 +58,8 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         "groups": list(given.groups),
         "name": given.name or None,
     }
-    handoff.complete(given, session, index, pane.window_id)
+    if warning := handoff.complete(given, session, index, pane.window_id):
+        print(f"Warning: {warning}", file=sys.stderr)
     if given.link:
         print(children_waiter.reminder(), file=sys.stderr)
     if error := window.run(pane, typed):

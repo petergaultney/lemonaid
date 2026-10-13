@@ -372,6 +372,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `pr_state` | `""` | Shell command that prints a PR's state for `{ref}`; unset shows PR numbers without a state. |
 | `pr_url` | `""` | Shell command that prints a PR's URL for `{ref}`, so `brief pr add` takes a number; unset, it needs the URL. |
 | `name` | `""` | Shell command that prints a new lemon's name; unset uses a random two-word WordyBin. |
+| `name_idle_days` | `14` | Days a lemon's brief can sit idle, with no live session, before a new lemon may take its name; `0` never frees one. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 
 The brief popup and sidebar run `pr_state` for each `PR #N` or pull-request URL
@@ -404,7 +405,9 @@ name, including again when the one printed belongs to another lemon, so it
 should print a different name each run. The first word printed is the name; it
 must be letters, digits, `_` and `-` only. A non-zero exit, nothing printed,
 another character, or more than 5 seconds stops the brief from being created.
-With `name` set, `brief id --set` takes any such name as written.
+With `name` set, `brief id --set` takes any such name as written. Name words
+(`--name-words`, or a parent's `Name words:` line) come before `name`; it runs when
+they give no free name.
 
 ```toml
 [brief]

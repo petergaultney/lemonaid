@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 
 from .. import groups
-from . import store
+from . import active_names, name_words, store
 
 _LINE = re.compile(r"(?:Brief-ID|Lemon-ID): (.+)")
 
@@ -114,8 +114,18 @@ def from_path(path: Path) -> str:
     return read(_path(path).read_text())
 
 
-def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: bool = False) -> str:
-    """Backfill a legacy brief once, serializing concurrent assignments in SQLite."""
+def ensure(
+    conn: sqlite3.Connection,
+    path: Path,
+    *,
+    regenerate_on_collision: bool = False,
+    words: name_words.Words = name_words.NONE,
+) -> str:
+    """Backfill a legacy brief once, serializing concurrent assignments in SQLite.
+
+    A Lemon-ID made here, or one *regenerate_on_collision* lets it replace, never
+    takes a name an active lemon holds; *words* are the names to try first.
+    """
     path = _path(path)
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -132,13 +142,18 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
             raise ValueError(f"Lemon-ID in {path} disagrees with the database")
 
         generated = (not in_file and not recorded) or regenerate_on_collision
-        lemon_id = in_file or recorded or store.new_lemon_id(path)
+        held = active_names.held(conn, path) if generated else set()
+        lemon_id = in_file or recorded or store.new_lemon_id(path, held, words)
         while True:
+            if generated and brief_name(lemon_id).lower() in held:
+                lemon_id = store.new_lemon_id(path, held, words)
+                continue
+
             alias = conn.execute(
                 "SELECT lemon_id FROM lemon_aliases WHERE old_id = ?", (lemon_id,)
             ).fetchone()
             if alias and generated:
-                lemon_id = store.new_lemon_id(path)
+                held.add(brief_name(lemon_id).lower())
                 continue
 
             if alias:
@@ -151,7 +166,7 @@ def ensure(conn: sqlite3.Connection, path: Path, *, regenerate_on_collision: boo
                 break
 
             if generated:
-                lemon_id = store.new_lemon_id(path)
+                held.add(brief_name(lemon_id).lower())
                 continue
 
             if Path(holder["path"]).exists():

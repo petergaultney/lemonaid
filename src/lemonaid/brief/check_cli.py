@@ -2,11 +2,12 @@
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
 from ..inbox import db
-from . import attached, check, command, selector, store
+from . import active_names, attached, check, command, identity, selector, store
 
 
 def _live_briefs() -> list[tuple[Path, str]]:
@@ -19,6 +20,17 @@ def _live_briefs() -> list[tuple[Path, str]]:
             if not (a.notification and a.notification.is_archived)
         }
     return list(found.items())
+
+
+def _warnings(conn: sqlite3.Connection, path: Path) -> list[str]:
+    """What is worth knowing about the brief at *path* but isn't wrong with it."""
+    try:
+        lemon_id = identity.read(path.read_text())
+    except (OSError, ValueError):
+        return []  # problems() reports it
+
+    warning = active_names.warning(lemon_id, active_names.sharing(conn, lemon_id))
+    return [warning] if warning else []
 
 
 def _cmd_check(args: argparse.Namespace) -> None:
@@ -42,6 +54,7 @@ def _cmd_check(args: argparse.Namespace) -> None:
                     if path.is_file()
                     else ["The attached brief does not exist"]
                 ),
+                "warnings": _warnings(conn, path),
             }
             for path, channel in targets
         ]
@@ -49,6 +62,9 @@ def _cmd_check(args: argparse.Namespace) -> None:
     failing = [r for r in results if r["problems"]]
     if args.json:
         print(json.dumps(results if args.all else {**results[0], "error": None}))
+    for result in [] if args.json else results:
+        for warning in result["warnings"]:
+            print(f"{Path(result['path']).name}: warning: {warning}", file=sys.stderr)
     for result in [] if args.json else failing:
         name = Path(result["path"]).name
         print("\n".join(f"{name}: {p}" for p in result["problems"]), file=sys.stderr)

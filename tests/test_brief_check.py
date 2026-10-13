@@ -289,3 +289,28 @@ def test_structure_flags_a_heading_line_with_an_unpaired_backtick():
     text = _BRIEF.replace("## Goal", "## Waiters` is where they go", 1)
     assert any("unpaired backtick" in p for p in check.structure(text))
     assert not any("unpaired backtick" in p for p in check.structure(_BRIEF))
+
+
+def test_a_name_another_active_lemon_holds_is_a_warning_not_a_problem(capsys):
+    path = _attached()
+    other = store.briefs_dir() / "other.md"
+    other.write_text("# other\n\nLemon-ID: other.QuickOdd\n")
+    with db.connect() as conn:
+        identity.ensure(conn, other)
+
+    result = _run(capsys, "check", str(path))
+
+    assert result["problems"] == []
+    assert "QuickOdd is also the name of other.QuickOdd" in result["warnings"][0]
+
+
+def test_a_malformed_name_word_is_a_problem():
+    text = _BRIEF.replace(
+        "Lemon-ID: task.QuickOdd", "Lemon-ID: task.QuickOdd\nName words: audit ok"
+    )
+    path = _registered(text)
+
+    with db.connect() as conn:
+        problems = check.problems(conn, path, text)
+
+    assert problems == ["`Name words:` ok is not five or three letters"]

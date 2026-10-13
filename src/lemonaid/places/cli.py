@@ -80,7 +80,8 @@ def cmd_open(args: argparse.Namespace) -> None:
     session, error = opened.session, opened.error
     if session and not error and (given.brief or prompt):
         index, window_id = _harness_window(config, args.harness, session)
-        launch.handoff.complete(given, session, index, window_id)
+        if warning := launch.handoff.complete(given, session, index, window_id):
+            print(f"Warning: {warning}", file=sys.stderr)
         if given.link:
             print(children_waiter.reminder(), file=sys.stderr)
         if (

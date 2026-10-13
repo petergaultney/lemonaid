@@ -49,6 +49,7 @@ from . import (
     doc_wait,
     own_edits,
     registry,
+    shared_signer,
     waiter_lock,
     watch_list,
 )
@@ -118,6 +119,9 @@ def run(a: argparse.Namespace) -> int:
             f"not started: a waiter for {a.wait or a.watch_list} as {a.me} is already running ({waiter_lock.lock_holder(lock_path)})"
         )
         return 3
+
+    if warning := shared_signer.warning(a.me):
+        print(warning, file=sys.stderr)
 
     if a.codex_thread:
         problem, deliver, once = (
