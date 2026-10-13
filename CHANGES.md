@@ -1,3 +1,9 @@
+# 0.108.2 (2026-10-12)
+
+#### Changed
+
+- **`lemonaid tmux doctor` warns when Codex's `features.daemon_auto_start` is not `false`, and the docs recommend setting it.** Unlike `--no-daemon`, the setting also covers Codex launches that don't go through lemonaid's templates.
+
 # 0.108.1 (2026-10-12)
 
 #### Changed

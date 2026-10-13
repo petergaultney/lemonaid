@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from ..codex import daemon_setup
 from ..config import BackendConfig, load_config
 from ..inbox import doctor
 from ..restore import cli as restore_cli
@@ -110,6 +111,10 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     """Report what restore knows, before you need it to know it."""
     for line in doctor.report():
         print(line)
+
+    if warning := daemon_setup.daemon_auto_start_warning(daemon_setup.codex_home()):
+        print()
+        print(*warning, sep="\n")
 
     if args.unknown:
         panes = doctor.unknown_panes()

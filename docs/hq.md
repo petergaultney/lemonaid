@@ -30,7 +30,7 @@ A background task stops after 30 minutes unless you raise `BASH_MAX_TIMEOUT_MS`.
 
 Add the `notify` line at the very top of `~/.codex/config.toml`, and allow the `lemonaid` commands under the automatic approval reviewer if you use it. Both are in [Codex setup](codex.md#setup).
 
-Start Codex lemons with `codex --no-daemon`. See [the shared-daemon problem](#codex-through-the-shared-daemon).
+Set `daemon_auto_start = false` under `[features]` in `~/.codex/config.toml`, and start Codex lemons with `codex --no-daemon`. See [the shared-daemon problem](#codex-through-the-shared-daemon).
 
 ### Templates
 

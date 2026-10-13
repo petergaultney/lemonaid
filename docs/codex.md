@@ -148,4 +148,11 @@ Each line is a JSON entry with `type` and `payload` fields. The watcher reads th
 
    A session run by Codex's shared `codex app-server` daemon records no `tty`: the daemon holds the tty of the TUI that started it, not this session's. Switching then finds the pane by the session's `cwd`, and the watcher archives the row once no `codex` process other than the daemon is working in that directory.
 
-   That can't tell two Codex sessions in one directory apart: when one ends, its row stays until the other does too. To avoid the daemon altogether, start Codex with `codex --no-daemon`. Its hooks then run in its own pane and record that pane's `tty`, like Claude's.
+   That can't tell two Codex sessions in one directory apart: when one ends, its row stays until the other does too. To avoid the daemon altogether, set `daemon_auto_start = false` under `[features]` in `~/.codex/config.toml`:
+
+   ```toml
+   [features]
+   daemon_auto_start = false
+   ```
+
+   That stops every Codex launch from starting or joining the daemon, including a bare `codex` in a window, a respawn, and a resume. `codex --no-daemon` does the same for one launch, so it only helps for launches through lemonaid's templates. Its hooks then run in its own pane and record that pane's `tty`, like Claude's. `lemonaid tmux doctor` warns when the setting is missing.
