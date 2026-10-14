@@ -1,3 +1,9 @@
+# 0.115.2 (2026-10-14)
+
+#### Fixed
+
+- **Bare `lemonaid inbox` and `lma` print their help instead of starting the TUI when stdin or stdout is not a terminal.** Piped, the TUI used to spin at full CPU until killed.
+
 # 0.115.1 (2026-10-14)
 
 #### Fixed

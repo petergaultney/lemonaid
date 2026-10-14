@@ -1,6 +1,7 @@
 """CLI commands for the inbox."""
 
 import argparse
+import functools
 import json
 import sys
 from dataclasses import asdict
@@ -124,8 +125,18 @@ def cmd_purge(args: argparse.Namespace) -> None:
         print("Nothing to purge")
 
 
-def cmd_tui(args: argparse.Namespace) -> None:
-    """Launch the inbox TUI."""
+def has_terminal() -> bool:
+    """The TUI spins at full CPU without a terminal on both stdin and stdout."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def cmd_tui(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Launch the inbox TUI, or print help when there is no terminal."""
+    if not has_terminal():
+        parser.print_help()
+
+        return
+
     from .tui import LemonaidApp
 
     app = LemonaidApp()
@@ -189,4 +200,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     purge_parser.set_defaults(func=cmd_purge)
 
     # Default for bare "lemonaid inbox" is TUI
-    inbox_parser.set_defaults(func=cmd_tui, inbox_command=None)
+    inbox_parser.set_defaults(
+        func=functools.partial(cmd_tui, parser=inbox_parser), inbox_command=None
+    )

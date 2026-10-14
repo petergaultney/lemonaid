@@ -202,6 +202,11 @@ def inbox_main() -> None:
     )
     args = parser.parse_args()
 
+    if not lemonaid.inbox.cli.has_terminal():
+        parser.print_help()
+
+        return
+
     set_terminal_title("lma")
     app = LemonaidApp(scratch_mode=args.scratch)
     app.run()
