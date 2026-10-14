@@ -370,28 +370,22 @@ for a lemon that has since started.
 Acting on what you find is up to you: `lemon resume` brings a lemon back, `tell` reaches one
 that is listening, and its parent or the user decides about the rest.
 
-### A session where there is no place
+### When no configured root covers cwd
 
-Run from a directory no configured root manages the names of, there is no key to resolve,
-so the name is simply a session opened in the current directory. Nothing is acquired, and
-the JSON reports `"root": null`.
+`place open` requires a configured root with a key vocabulary to cover the current working
+directory. If none does — including when there are no roots, or the innermost root has no
+`list` or `path_of` hook — the command exits nonzero without opening a session. Its error
+lists the configured roots. It does not return the success JSON object with `"root": null`.
+
+Pass `--root <path>` to select a configured root explicitly when running outside it:
 
 ```bash
-cd ~/somewhere-unmanaged && lemonaid place open notes --json
-# {"key": "notes", "dir": "/home/me/somewhere-unmanaged", "root": null, "error": null}
+lemonaid place open notes --root ~/work/somerepo --json
 ```
 
-There is no directory to acquire here, so this command is only ever worth running when a
-session is the point.
-
-This is not a fallback for a key that failed to resolve. Inside a root with a key
-vocabulary the name is always a key, and a name that doesn't resolve is acquired — so a
-mistyped key creates a directory rather than a bare session. Check `place hooks --json` if
-you need to know which roots have one: a root with no `list` and no `path_of` claims no
-names.
-
-Identity here is the name, not the directory, so several differently-named sessions in one
-directory are fine. `place list` does not report these — they are sessions, not places.
+Inside a root with a key vocabulary, the name is always a key, and a name that doesn't
+resolve is acquired — so a mistyped key does not silently turn into a session in the current
+directory. Check `place hooks --json` to see which roots have a key vocabulary.
 
 ### Listing places
 
