@@ -66,7 +66,6 @@ class InboxList(Vertical):
             frozenset()
         )  # rows the last refresh kept out of the fold
         self.drawn: list[db.Notification | None] = []  # the main table's rows; None for a header
-        self.group_bands: dict[int, str] = {}  # each drawn group's band, by group id
         self.headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
         self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
@@ -202,9 +201,6 @@ class InboxList(Vertical):
         )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
-        self.group_bands = {
-            e.group.group_id: e.band for e in entries if isinstance(e, sections.Header)
-        }
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
         self._marked_header = current_row if current_row in self.headers else ""
