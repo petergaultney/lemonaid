@@ -7,16 +7,14 @@ waiter ran.
 """
 
 import dataclasses
-import difflib
 import enum
 import hashlib
 import json
 import pathlib
-import time
 import typing as ty
 from collections import abc
 
-from . import body_norm, cursors, own_edits, own_edits_replay, relay_comments
+from . import body_norm, cursors, doc_body, own_edits, own_edits_replay, relay_comments
 
 
 class Outcome(enum.Enum):
@@ -41,6 +39,8 @@ class DocWatch:
     settled_body: str
     pending_body: str
     pending_since: float
+    all_threads: bool = False
+    settled_quiet: float = 0  # quiet period enforced outside this detector
 
 
 def state_stem(state_dir: pathlib.Path, doc: pathlib.Path, me: str) -> pathlib.Path:
@@ -90,16 +90,6 @@ def _load_consumed(
     seq = own_edits_replay.last_seq(own_root, writer, doc)
     cursors.write_text(path, f"{writer} {seq}")
     return int(seq)
-
-
-def _line_delta(old: str, new: str) -> str:
-    added = removed = 0
-    for line in difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="", n=0):
-        if line.startswith("+") and not line.startswith("+++"):
-            added += 1
-        elif line.startswith("-") and not line.startswith("---"):
-            removed += 1
-    return f"+{added}/-{removed} lines"
 
 
 def open_watch(
@@ -167,50 +157,31 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
 
     threads = {_thread_key(t): t for t in relay_comments.unanswered_threads(text, w.mine)}
     new = [t for k, t in threads.items() if k not in w.reported]
-    if new and not deliver(
-        f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all); "
-        + "; ".join(relay_comments.thread_gist(t) for t in new[:3])
-    ):
+    messages = (
+        [
+            f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all); "
+            + "; ".join(
+                relay_comments.thread_gist(t)
+                for t in (threads.values() if w.all_threads else new[:3])
+            )
+        ]
+        if new
+        else []
+    )
+    body = relay_comments.body_without_threads(text)
+    edit, consumed = (
+        doc_body.changed(w, body, lambda consumed: _settle(w, body, consumed))
+        if w.edits
+        else ("", w.consumed)
+    )
+    if edit:
+        messages.append(edit)
+    if messages and not deliver("; ".join(messages)):
         return Outcome.FAILED
 
     if set(threads) != w.reported:
         w.reported = set(threads)
         cursors.write_json(w.reported_path, sorted(w.reported))
-    if new:
-        return Outcome.DELIVERED
-
-    if not w.edits:
-        return Outcome.NOTHING
-
-    body = relay_comments.body_without_threads(text)
-    own = (
-        own_edits_replay.settles(w.own_root, w.writer, w.doc, w.consumed, w.settled_body, body)
-        if w.writer
-        else None
-    )
-    if own is not None:
-        _settle(w, body, own)
-        return Outcome.NOTHING
-
-    if body_norm.normalized(body) == body_norm.normalized(w.settled_body):
-        if body != w.settled_body:
-            _settle(w, body, w.consumed)  # reformatted only
-        w.pending_body = body
-        return Outcome.NOTHING
-
-    if body_norm.normalized(body) != body_norm.normalized(w.pending_body):
-        w.pending_body, w.pending_since = body, time.time()
-        return Outcome.NOTHING
-
-    if time.time() - w.pending_since < w.quiet:
-        return Outcome.NOTHING
-
-    if not deliver(
-        f"{w.doc} was created ({_line_delta(w.settled_body, body)}), quiet for {int(w.quiet)}s"
-        if not w.settled_body
-        else f"body of {w.doc} changed ({_line_delta(w.settled_body, body)}), quiet for {int(w.quiet)}s"
-    ):
-        return Outcome.FAILED
-
-    _settle(w, body, own_edits_replay.last_seq(w.own_root, w.writer, w.doc) if w.writer else 0)
-    return Outcome.DELIVERED
+    if edit:
+        _settle(w, body, consumed)
+    return Outcome.DELIVERED if messages else Outcome.NOTHING

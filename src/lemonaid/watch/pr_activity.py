@@ -121,6 +121,7 @@ def _repository(repo: str, number: int, query: str, after: str, oid: str) -> dic
         ],
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if r.returncode != 0:
         return None

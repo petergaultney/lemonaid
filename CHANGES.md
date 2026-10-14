@@ -2,6 +2,8 @@
 
 #### Added
 
+- `lemonaid wait --self` watches a brief’s subscriptions, PRs, documents, children and inbox in one process, gathers a burst into one wake, and saves delivered cursors only after delivery succeeds. Add `--codex-thread` to queue the batch into Codex.
+
 - Briefs list document subscriptions in `### Docs`, with `brief doc add|rm` and a Watch enum: `Relay comments` or `All edits`. `Output-Doc:` supplies the first row, and starting `watch doc` records its document. Document cells use short clickable filename labels in the inbox viewer, including backticked paths: vault documents use Obsidian and other paths use file URLs. The viewer reserves width for Watch modes and preserves links across wrapped lines; document edits refuse to rewrite invalid tables.
 
 #### Changed

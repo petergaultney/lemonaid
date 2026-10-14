@@ -18,6 +18,7 @@ from pathlib import Path
 from .. import brief
 from ..inbox import db
 from ..log import get_logger
+from ..watch import wait_state
 from . import codex_delivery, store
 
 _log = get_logger("messages.service")
@@ -30,7 +31,7 @@ def _lock_path() -> Path:
 
 
 def _try_lock() -> ty.IO | None:
-    lock = open(_lock_path(), "a")
+    lock = open(_lock_path(), "a")  # noqa: SIM115
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -107,6 +108,9 @@ def _deliver_all(inbox: Path, thread: str) -> None:
     session gets it as well as the old one.
     """
     while _current_thread(inbox) == thread:
+        if wait_state.is_armed(inbox.name):
+            return
+
         delivered = codex_delivery.deliver_next(
             inbox, thread, lambda: _while_current(inbox, thread)
         )

@@ -44,8 +44,11 @@ still wakes it, with a line delta that includes the lemon's own change.
   change in between as the lemon's own. A change during any other call, such as a long
   test run, is taken as someone else's, so a script that edits the doc without naming it
   wakes the lemon once. A human edit saved during a call that names the doc is
-  misattributed. The hooks start Python only in a session that has run a doc or PR
-  waiter, and `lemonaid watch stop --self doc <doc>` ends that for the doc.
+  misattributed. The hooks also read an attached brief’s document subscriptions,
+  so own edits are recorded between one-shot waits. SessionStart marks attached
+  sessions for the shell gate; unbriefed sessions without doc watches or pushes
+  skip Python. Starting the unified watcher also creates the marker. Removing a doc subscription
+  ends that recording once its standalone waiter is stopped.
 - **Without the hooks,** record an edit with `lemonaid watch doc --editing <doc>` just
   before it and `lemonaid watch doc --mine <doc>` right after it. `--mine` without a
   preceding `--editing` records nothing and exits 2, so the edit wakes the waiter as before.
@@ -296,12 +299,211 @@ A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter i
 
 ## A brief's subscriptions
 
-New briefs use `## Watching`; older `## Waiters` sections still work. Add or remove
-subscription commands with `lemonaid brief watching add|rm --self` (`brief waiter`
-remains an alias).
+`lemonaid watch --self` runs one watcher for the lemon's attached brief. The brief
+is the source of subscriptions; the watcher reads it again while running, gathers
+pending changes into one message, delivers that message and exits. Handle the whole
+message, then rearm. `lemonaid wait --self` remains a compatibility alias, sharing
+the same lock, inbox and cursors.
 
-Documents written for someone to read belong under `### Docs` in `## Now`, beside
-`### PRs`. `lemonaid brief doc add --self /path/to/doc.md "Design discussion"`
-adds a row; `--edits` also subscribes to body edits. `brief doc rm --self <path>`
-removes it. An `Output-Doc:` header supplies the first row. Starting `watch doc`
-records the doc too. `brief check` warns about linked vault documents without a row.
+### Declare what to watch
+
+Here is a complete example. Replace the PR URL, paths and reply signature with yours.
+`## Watching` goes last; `### PRs` and `### Docs` belong inside `## Now`.
+
+```markdown
+# Improve lemon notifications
+
+Brief-ID: notifications.NoteBee
+
+## Now
+
+### Waiting on
+
+- Review of the notification changes and replies to the design.
+
+### PRs
+
+| Work | PR | Review |
+|---|---|---|
+| Notification changes | [lemonaid#274](https://github.com/petergaultney/lemonaid/pull/274) | [review](~/notes/pr-reviews/notifications.md) |
+
+### Docs
+
+| Document | Purpose | Watch |
+|---|---|---|
+| `~/notes/design/notifications.md` | Discuss notification behavior | All edits |
+| `~/notes/reports/notification-results.md` | Questions about the results | Relay comments |
+
+## Goal
+
+Implement and review the notification changes.
+
+## Watching
+
+- `lemonaid watch file --wait /tmp/notification-run.log --interval 1 --quiet 2`
+- `lemonaid watch doc --wait ~/notes/pr-reviews/related.md --me 'Author (NoteBee)' --no-edits`
+```
+
+The rows and commands declare these sources:
+
+| Source | What the unified watcher watches |
+|---|---|
+| `## Watching` | Supported `watch pr`, `doc`, `file` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
+| `### PRs` | Each PR with both comments and CI enabled, regardless of whether an explicit watch line omitted those flags. |
+| A PR's Review cell | A local review document's unanswered comments. An explicit doc command or Docs row can also enable body edits. Obsidian links resolve through configured vault roots. |
+| `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
+| Inbox | Every pending message for this lemon, included in the same batch as source changes. |
+| Children | Direct children entering `merge` or `done`, using the existing child cursor. Needs-only changes advance the baseline without waking. An explicit `watch briefs` line selects other statuses or orphan behavior. |
+
+A repeated source is watched once. Explicit options are retained; a PR row forces
+comments and CI on, and a Docs row with `All edits` enables edits. A closed or merged PR
+is silent on first subscription; an existing subscription reports its closure once
+and stops polling it.
+
+The **Watch** column is an enum, not a boolean. Its current values are:
+
+- **Relay comments:** unanswered Relay comment threads only.
+- **All edits:** Relay comments and body edits, after the document’s quiet period.
+
+The inbox viewer makes document paths clickable, even in backticks. Vault
+documents open through Obsidian links; other paths use file URLs and the system
+opener (for example, HTML files open in the configured browser). Generated rows
+contain explicit links, and manually written path cells are linked in the viewer.
+The viewer displays a short filename label, keeps the full target in its tooltip,
+and reserves enough table width for both Watch modes. Wrapped labels remain
+clickable on every line.
+
+New modes can be added to this enum. `Edits` columns and boolean values are not
+accepted. An add/remove operation refuses to rewrite an invalid Docs table,
+preserving every existing row until the table is corrected. The command defaults
+to `Relay comments`; select the other mode with
+`--watch "All edits"`.
+
+### Maintain the brief
+
+```bash
+lemonaid brief watching add --self "lemonaid watch file --wait /tmp/notification-run.log --quiet 2"
+lemonaid brief watching rm --self "notification-run.log"
+lemonaid brief doc add --self /path/to/design.md "Discuss the design" --watch "All edits"
+lemonaid brief doc add --self /path/to/results.md "Questions about the results"
+lemonaid brief doc rm --self /path/to/results.md
+lemonaid brief pr add --self https://github.com/owner/repo/pull/274 "Notification changes" --review /path/to/review.md
+lemonaid brief check --self
+```
+
+New briefs and templates use `## Watching`. Legacy `## Waiters` headings and
+`brief waiter` edit verbs still work. A backticked watch command can have a note
+after its closing backtick. Starting a standalone watch records its subscription;
+starting `watch doc` also records its Docs row. `Output-Doc:` supplies a document
+subscription when the document is not already in the table. `brief check` warns
+about linked vault documents without Docs rows.
+
+### Arm, handle a batch, rearm
+
+Read the current PR, documents and work before your first arm: watching reports
+changes, rather than replacing that initial inspection.
+
+```bash
+lemonaid watch --self --status
+lemonaid watch --self                        # Claude: run as a background Bash task
+lemonaid watch --self --codex-thread         # Codex: escalated exec_command session
+```
+
+For Claude, use `run_in_background` and `timeout: 2147483647`; task completion wakes
+the turn. For Codex, use bare `--codex-thread` in an escalated session so `codex queue`
+can write to the thread. The command refuses to start if Codex delivery is unavailable.
+Do not start another watcher while `--status` says one is running.
+
+The unified command accepts:
+
+| Flag | Meaning |
+|---|---|
+| `--self` | Select the attached brief and unified watcher. |
+| `--channel CHANNEL` | Override caller identity outside normal harness detection. |
+| `--status` | Check the shared lock: exit 0 when running, 1 when absent. |
+| `--codex-thread [THREAD_ID]` | Deliver into Codex; bare means the current thread. |
+| `--interval SECONDS` | Brief/inbox read interval, default 0.5. |
+| `--quiet SECONDS` | Batch gathering quiet period, default 2. |
+
+A normal run exits 0 after successful delivery or detachment; exit 2 means startup
+or identity setup failed, 3 means another watcher already holds a required lock,
+and 1 means a delivery/read failure left changes for the next arm. A forced stop
+still follows the registered-watcher stop behavior described above.
+
+A batch can look like this:
+
+```text
+[pr: petergaultney/lemonaid, 274] PR #274 head moved aaaaaaaa -> bbbbbbbb; PR #274 CI passed at bbbbbbbb
+
+[doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all); Peter: clarify the defaults; Reviewer: check the migration
+
+[inbox] From: another-lemon.MovieLay
+Sent: 2026-10-14T13:00:00+00:00
+
+The review is ready.
+```
+
+Read every changed source, answer all pending document threads and act on the
+inbox messages, then run the same unified command again. An unchanged unanswered
+thread does not create a fresh wake on every rearm. The session may remain idle
+with the watcher armed; it does not need repeated model turns to poll.
+
+`--interval` controls brief and inbox reads (default 0.5 seconds). `--quiet` controls
+batch gathering after the last event (default 2 seconds). Individual watch commands
+keep their source polling and quiet options. Documents wait for their own quiet
+period, normally 20 seconds, and report all unanswered threads together. A document
+still being edited holds back only its own event; other ready sources can deliver.
+
+### Cursors, delivery and recovery
+
+- **First arm:** take the source's current state as seen, including already completed CI. Unanswered document comments are the exception: they are reported on first arm.
+- **Between arms:** per-lemon cursors remember delivered changes, including edits and pushes while no watcher ran. An explicit PR `--head` seeds a missing cursor; it does not override a saved head on each rearm.
+- **Successful delivery:** advance event cursors and move delivered inbox messages to `done/` only after delivery succeeds. Source detector threads wait for that acknowledgement.
+- **Failed delivery:** keep inbox messages and event cursors pending so the next arm can deliver them. No event is acknowledged merely because it was detected.
+- **Brief edits:** add or remove subscriptions without restarting. Each invalid line or table error is reported once while valid sources keep running; an incomplete brief write retains the previous readable list. Custom shell commands are not executed.
+- **Source failures:** persist the reported failure across rearms and clear it when the source recovers. GitHub failures are reported after repeated attempts, rather than every failed fetch.
+- **Document changes during batching:** discard a stale pending doc event and reread it. Missing or deleted documents do not kill the whole watcher.
+- **Own changes:** installed own-change hooks suppress recorded edits and pushes by this lemon. Attached Docs and Watching documents are considered between arms too. Tool input must name the edited file. SessionStart and the unified command maintain the cheap per-session shell gate; unbriefed sessions without doc registrations or pushes skip Python.
+
+Cursors live under `~/.local/state/lemonaid/cursors/<Lemon-ID>/`. The unified command
+uses the existing detector cursors where their source and options match, including
+the default direct-child cursor. Deleting cursors loses that history. Own-change
+records live separately under `~/.local/state/lemonaid/own-edits/`.
+
+There is one unified lock per lemon. Codex's inbox delivery service yields while
+it is held so it cannot deliver the same inbox batch independently. A Codex rearm
+waits briefly for a holder that has already delivered to finish saving its cursors;
+all post-delivery joins share one deadline.
+
+### Migrate and stop
+
+Stop separately running watchers before switching, while preserving their declarations:
+
+```bash
+lemonaid watch stop --self --keep-subscriptions
+lemonaid watch --self --codex-thread          # or background watch --self for Claude
+lemonaid watch --self --status
+```
+
+The SessionStart hook tells attached lemons to read current work and arm the unified
+watcher. The Stop hook, for Claude and Codex, requires it when the brief has subscriptions;
+a separate inbox-only watcher is insufficient. Legacy inbox-only Claude waiting remains
+accepted for a brief without other sources.
+
+After upgrading the installed tool, run `lemonaid hooks install` to replace older
+hook commands; trust changed Codex hooks again in `/hooks`. This PR does not install
+or edit the maintainer's live hook settings. `lemonaid skills install` updates the
+packaged guidance (see [Skills](skills.md)).
+
+To end watching:
+
+```bash
+lemonaid watch stop --self
+```
+
+Stopping running watchers and removing a subscription are different operations.
+Remove Docs rows and Watching lines explicitly when their conversations have ended;
+stopping a process alone does not erase a Docs or PR table subscription. Keep document
+subscriptions while the session exists, even after its work is done. Standalone
+`watch doc|pr|file|briefs` commands remain available; OpenClaw's persistent session
+watch lists remain a separate workflow.

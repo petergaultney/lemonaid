@@ -25,7 +25,7 @@ from . import stop_sender, waiter_lock
 
 _log = get_logger("watch.registry")
 
-KINDS = ("inbox", "pr", "doc", "file", "briefs")
+KINDS = ("wait", "inbox", "pr", "doc", "file", "briefs")
 
 
 @dataclasses.dataclass(frozen=True)

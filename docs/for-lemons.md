@@ -1043,16 +1043,55 @@ user adds their conventions in:
 
 Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane. `lemonaid go <target> --link` prints an OSC 8 hyperlink to `lemonaid://go/<target>` without jumping. In Markdown, use `[go to the lemon](lemonaid://go/<Lemon-ID>)`. A registered URL handler is required for clicks; see [Jump to a lemon](go.md) for macOS setup and the client-selection rule. `--client NAME` chooses an exact attached tmux client when several are available.
 
-### Document subscriptions
+## Watch everything in your attached brief
 
-List each document you wrote for someone to read in `### Docs` under `## Now`:
+Read the current state first, then run one watcher:
 
-```sh
-lemonaid brief doc add --self /path/to/document.md "Purpose" [--edits]
-lemonaid brief doc rm --self /path/to/document.md
-lemonaid brief watching add --self "lemonaid watch doc --wait /path/to/document.md --me 'Author (Name)'"
+```bash
+lemonaid watch --self --status
+lemonaid watch --self                         # Claude background Bash task
+lemonaid watch --self --codex-thread          # escalated Codex exec_command session
 ```
 
-The table has Document, Purpose and Edits columns; Edits is yes or no. `Output-Doc:`
-supplies the first row. New briefs use `## Watching` for subscriptions; the old
-`## Waiters` heading and `brief waiter` verbs still work.
+The watcher rereads Watching commands, PRs (comments and CI), local PR Review documents,
+Docs rows, inbox and direct children. It delivers one batch and exits; handle every source,
+then rearm. First subscriptions take current state as seen except unanswered document
+threads. Saved cursors bridge rearms and advance only after delivery succeeds.
+`lemonaid wait --self` remains an alias sharing the same lock and cursors.
+
+Declare optional sources under the final `## Watching`, and documents under `### Docs`
+in `## Now`:
+
+```markdown
+### Docs
+
+| Document | Purpose | Watch |
+|---|---|---|
+| `/path/to/design.md` | Discuss the design | All edits |
+| `/path/to/results.md` | Questions about results | Relay comments |
+
+## Watching
+
+- `lemonaid watch file --wait /tmp/run.log --quiet 2`
+- `lemonaid watch doc --wait /path/to/related-review.md --me 'Author (IndexElf)' --no-edits`
+```
+
+```bash
+lemonaid brief doc add --self /path/to/design.md "Discuss the design" --watch "All edits"
+lemonaid brief doc rm --self /path/to/design.md
+lemonaid brief watching add --self "lemonaid watch file --wait /tmp/run.log --quiet 2"
+lemonaid brief watching rm --self "run.log"
+lemonaid brief check --self
+```
+
+Watch is an enum: `Relay comments` watches unanswered comments; `All edits`
+also watches body edits. No boolean Edits column is accepted. Docs remain subscribed
+at Status done. `Output-Doc:` supplies a document subscription; starting `watch doc`
+records a row. Legacy `## Waiters` and `brief waiter` remain readable.
+
+Before migration, stop separate processes with `lemonaid watch stop --self --keep-subscriptions`.
+SessionStart and Stop guide both harnesses to the unified watcher. Upgrade installed hooks
+with `lemonaid hooks install`, then trust changed Codex hooks in `/hooks`.
+
+The complete brief example, source rules, delivery example, failure handling, own-change
+behavior and lifecycle are in [Watch a brief's subscriptions](watch.md#a-briefs-subscriptions).
