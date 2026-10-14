@@ -72,3 +72,32 @@ def test_a_body_event_names_the_quiet_period_enforced_by_its_scout(tmp_path):
     )
     poll()
     assert len(sent) == 1 and "quiet for 20s" in sent[0]
+
+
+def test_a_comment_is_reported_at_the_settle_and_the_body_edit_after_the_quiet_period(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(scout_pollers, "_THREAD_SETTLE", 0.05)
+    doc = tmp_path / "review.md"
+    doc.write_text("Body\n")
+    os.utime(doc, (time.time() - 60, time.time() - 60))
+    spec = subscriptions.Subscription(
+        "doc", (str(doc),), "Author (IndexElf)", edits=True, quiet=0.3
+    )
+    sent = []
+    poll = scout_pollers.open_poller(
+        spec, tmp_path / "cursors", "", lambda message: sent.append(message) or True, ()
+    )
+    poll()
+    doc.write_text('Body\n{{authorId="human" author="Human">>question<<}}\nmore body\n')
+    poll()
+    assert sent == []  # the file just changed
+
+    time.sleep(0.1)
+    poll()
+    assert len(sent) == 1 and "question" in sent[0] and "body of" not in sent[0]
+
+    time.sleep(0.3)
+    poll()
+    poll()
+    assert len(sent) == 2 and "body of" in sent[1]

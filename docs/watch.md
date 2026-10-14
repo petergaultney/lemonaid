@@ -451,7 +451,9 @@ with the watcher armed; it does not need repeated model turns to poll.
 `--interval` controls brief and inbox reads (default 0.5 seconds). `--quiet` controls
 batch gathering after the last event (default 2 seconds). Individual watch commands
 keep their source polling and quiet options. Documents wait for their own quiet
-period, normally 20 seconds, and report all unanswered threads together. A document
+period, normally 20 seconds, before reporting a body edit. A new comment waits only
+until the file has been unchanged for 3 seconds, and the event lists all unanswered
+threads together. A document
 still being edited holds back only its own event; other ready sources can deliver.
 
 ### Cursors, delivery and recovery

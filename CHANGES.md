@@ -1,3 +1,9 @@
+# 0.113.3 (2026-10-14)
+
+#### Fixed
+
+- **`watch --self` reports a new document comment within seconds.** It held comments back until the whole file had been unchanged for the document's quiet period (20 seconds), and every write restarted that wait. Comments now wait only until the file has been still for 3 seconds; body edits still wait the full quiet period.
+
 # 0.113.2 (2026-10-14)
 
 #### Fixed

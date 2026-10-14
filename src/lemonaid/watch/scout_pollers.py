@@ -19,6 +19,10 @@ from . import (
     subscriptions,
 )
 
+# A new comment is reported once the file has held still this long, so a burst of
+# writes from one comment arrives as one event; body edits wait the doc's full quiet period.
+_THREAD_SETTLE = 3.0
+
 _log = get_logger("watch.scouts")
 
 
@@ -61,9 +65,12 @@ def open_poller(
                 return
             if current != fingerprint:
                 fingerprint, since = current, time.monotonic()
-            quieting = time.monotonic() - since < spec.quiet
-            if not quieting:
-                doc_events.poll(watch, deliver)
+            still_for = time.monotonic() - since
+            if still_for < _THREAD_SETTLE:
+                return
+
+            watch.edits = spec.edits and still_for >= spec.quiet
+            doc_events.poll(watch, deliver)
 
         return doc
     if spec.kind == "file":
