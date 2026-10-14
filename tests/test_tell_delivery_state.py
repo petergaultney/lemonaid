@@ -1,6 +1,7 @@
 """`tell` says whether its recipient will read the message, and fails when it won't."""
 
 import argparse
+import contextlib
 import subprocess
 import time
 
@@ -152,3 +153,21 @@ def test_claude_stopped_at_a_question_is_asking():
     row = db.Notification(id=1, channel="claude:x", message="", turn_at=time.time())
 
     assert recipient.classify("claude:x", row, True, False, time.time()).state == recipient.ASKING
+
+
+def test_an_idle_claude_whose_scout_starts_is_listening(capsys, monkeypatch):
+    lemon_id = _attach("claude:pushed", {})
+    started: list[tuple[str, str]] = []
+    scout = contextlib.ExitStack()
+
+    def ensure(session_id: str, recipient_id: str) -> bool:
+        started.append((session_id, recipient_id))
+        scout.enter_context(waiter.armed(store.inbox_for_id(recipient_id)))
+        return True
+
+    monkeypatch.setattr(cli.push_scout, "ensure", ensure)
+
+    with scout:
+        assert _tell("claude:pushed") == 0
+    assert started == [("pushed", lemon_id)]
+    assert "listening" in capsys.readouterr().err

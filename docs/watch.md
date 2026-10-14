@@ -467,7 +467,8 @@ and exits when the session ends or its brief is detached. It holds the same lock
 `watch --self`, so a second one for the same lemon refuses to start, and the Stop check
 counts it as the lemon's watcher.
 
-Lemons don't run it themselves. The SessionStart hook and the Stop check each start one, detached, when the lemon has none and its session would read a pushed
+Lemons don't run it themselves. The SessionStart hook, the Stop check and `lemonaid tell`
+each start one, detached, when the lemon has none and its session would read a pushed
 message; its output goes to `push-scout.log` in the state directory. When the session
 would hold the message (bypass-permissions mode without `"crossSessionInbound": "accept"`,
 see [Claude setup](claude.md#3-let-lemonaid-push-events-into-each-lemon)), nothing starts

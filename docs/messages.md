@@ -119,7 +119,12 @@ lemonaid inbox deliver --idle-exit 0   # forever
 
 Its log lines go to `/tmp/lemonaid.log` (`messages.service`).
 
-A Claude lemon can only be woken by its own background task, so it keeps
+When the recipient is a Claude lemon whose session reads pushed messages, `tell` starts
+its push scout if none is running, and the scout pushes the message into the session
+through its inbox socket; the file moves to `done/` as the record. See
+[the Claude push scout](watch.md#the-claude-push-scout).
+
+Otherwise a Claude lemon can only be woken by its own background task, so it keeps
 `lemonaid inbox watch --self` running, and rearms it whenever the harness
 stops it. Claude Code stops background tasks after 30 minutes unless the
 user raises the limit; see [Claude setup](claude.md#2-keep-background-waiters-running).

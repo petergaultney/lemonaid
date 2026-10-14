@@ -11,7 +11,7 @@ from .. import brief, lineage
 from ..config import load_config
 from ..inbox import db
 from ..log import get_logger
-from ..watch import registry
+from ..watch import push_scout, registry
 from . import autoresume, codex_delivery, dead_letters, recipient, service, store, waiter
 
 _log = get_logger("messages.cli")
@@ -111,6 +111,8 @@ def cmd_tell(args: argparse.Namespace) -> None:
 
     if channel.startswith("codex:"):
         service.ensure_running()
+    elif channel.startswith("claude:") and row is not None:
+        push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
     print(path)
     state = recipient.probe(channel, row, inbox)
     if state.state not in recipient.UNREAD:

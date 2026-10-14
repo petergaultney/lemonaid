@@ -2,7 +2,7 @@
 
 #### Added
 
-- **Claude lemons get watch events and messages pushed into their session.** A detached scout, `lemonaid watch --self --push`, delivers each batch through the session's inbox socket and keeps watching, so the lemon runs no background task. The SessionStart hook and the Stop check start it. A session in bypass-permissions mode needs `"crossSessionInbound": "accept"`; without it, lemons fall back to a background `watch --self`. Each scout logs its start and whether it exited normally.
+- **Claude lemons get watch events and messages pushed into their session.** A detached scout, `lemonaid watch --self --push`, delivers each batch through the session's inbox socket and keeps watching, so the lemon runs no background task. The SessionStart hook, the Stop check and `tell` start it. A session in bypass-permissions mode needs `"crossSessionInbound": "accept"`; without it, lemons fall back to a background `watch --self`. Each scout logs its start and whether it exited normally.
 
 # 0.113.3 (2026-10-14)
 
