@@ -1,9 +1,9 @@
 """Whether a message's recipient will read it, judged at send time from what is running now.
 
-A Codex lemon reads whatever the delivery service queues into its thread; a
-Claude lemon reads only while its inbox waiter holds the lock, or when the turn
-it is in ends and its Stop hook makes it arm one. Neither reads anything once
-its harness has exited.
+A Codex lemon reads queued messages while its inbox waiter holds the lock, or
+from its active turn; a Claude lemon reads while its inbox waiter holds the
+lock, or when its turn ends and its Stop hook makes it arm one. Neither reads
+anything once its harness has exited.
 """
 
 import subprocess
@@ -95,19 +95,26 @@ def classify(
     if row is None or alive is False:
         return State(DEAD, "its harness is not running")
 
-    if channel.startswith("codex:"):
-        return State(LISTENING, "the delivery service queues it into its thread")
-
     if armed:
         return State(LISTENING, "its inbox waiter is armed")
 
     if turns.mid_turn(row, now):
-        return State(MID_TURN, "it will arm its inbox waiter when this turn ends")
+        detail = (
+            "the delivery service queues messages into its thread"
+            if channel.startswith("codex:")
+            else "it will arm its inbox waiter when this turn ends"
+        )
+        return State(MID_TURN, detail)
 
     if row.turn_at is not None:  # however old: it may have sat at a permission prompt for hours
         return State(ASKING, "it stopped mid-turn to ask its user something")
 
-    return State(DEAF, "it is idle with no inbox waiter")
+    detail = (
+        "it is idle with no inbox waiter to start a turn from queued messages"
+        if channel.startswith("codex:")
+        else "it is idle with no inbox waiter"
+    )
+    return State(DEAF, detail)
 
 
 def probe(channel: str, row: db.Notification | None, inbox: Path) -> State:

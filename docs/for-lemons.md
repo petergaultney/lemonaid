@@ -921,14 +921,16 @@ tmux pane and refuses ambiguous matches. Pass `--channel <your-channel>` to
 override receive identity. Both print one message and move it to `done/`;
 watch waits until one exists, or use `--timeout <seconds>` to bound the wait.
 `tell` also prints on stderr whether the recipient will read the message. A
-recipient whose harness exited (`dead`), or an idle Claude lemon with no inbox
+recipient whose harness exited (`dead`), or an idle Claude or Codex lemon with no inbox
 waiter (`deaf`), is started on a prompt to read its inbox, unless its brief
 says `done` or its row is archived. `tell` exits 1 when the recipient still
 won't read it, and its stderr line says what to do instead. The message stays
 queued either way, so don't send it again. Each such message is also logged to
 `dead-letters.jsonl` in the inbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.
-A Codex lemon needs no waiter: lemonaid's delivery service queues each message
-into your thread with `codex queue`, and starts itself when a message is sent.
+A Codex lemon with an armed inbox waiter can receive queued messages while
+idle. Without one, `tell` treats it as deaf and prompts it to read its inbox.
+During an active turn, lemonaid's delivery service queues messages into the
+thread with `codex queue`.
 A lemon with children also keeps `lemonaid watch briefs --children --self --once` running.
 `brief new --child`, `place open --brief` and `lemon start --brief` print a reminder to stderr
 when they link a child. A Claude lemon's `waiter-check` Stop hook refuses to let the turn end

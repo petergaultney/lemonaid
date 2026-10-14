@@ -73,19 +73,19 @@ and ends with an error if the brief moves to another channel or is detached.
 
 | State | Meaning | Exit |
 |---|---|---|
-| `listening` | A Codex lemon whose harness is running (the delivery service queues the message into its thread), or a Claude lemon whose inbox waiter is armed | 0 |
-| `mid-turn` | A Claude lemon working on a turn; its Stop hook makes it arm a waiter when the turn ends | 0 |
+| `listening` | A Codex or Claude lemon whose inbox waiter is armed | 0 |
+| `mid-turn` | A Codex lemon with an active turn (the delivery service queues the message into its thread), or a Claude lemon whose Stop hook will arm its waiter when the turn ends | 0 |
 | `not started` | The brief is attached to a lemon that hasn't started yet; it reads its inbox when it does | 0 |
 | `unknown` | A harness other than Claude or Codex, which lemonaid can't check | 0 |
 | `asking` | A Claude lemon stopped mid-turn at a question for its user, such as a permission prompt | 1 |
-| `deaf` | A Claude lemon that is idle with no inbox waiter | 1 |
+| `deaf` | A Claude or Codex lemon that is idle with no inbox waiter | 1 |
 | `dead` | No harness runs on the terminal the lemon last reported, or its row is archived and the terminal is unknown | 1 |
 
 A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
 
 - **An exited harness** (`dead`) is resumed starting on a prompt to run `lemonaid inbox next --self` and rearm its waiters: in a new window of its recorded tmux session, or in cmux, a new workspace that doesn't take focus. In any other terminal the sender gets the command that resumes it.
-- **An idle Claude with no waiter** (`deaf`) in tmux has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted. lemonaid can't type into cmux, so an idle cmux lemon is only reported.
-- **A Claude stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
+- **An idle Claude or Codex with no waiter** (`deaf`) in tmux has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted. lemonaid can't type into cmux, so an idle cmux lemon is only reported.
+- **A Claude or Codex stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
 - **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
 
 A second `tell` within a minute of a start doesn't start the lemon again. After 3 starts in 20 minutes (`autoresume_max`, `autoresume_window`), `tell` stops starting it, tells the sender it is crash-looping, and posts an alert to the inbox; a lemon dead again within three minutes of a start counts that start twice. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.
@@ -98,12 +98,15 @@ Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the
 
 ## Delivery
 
-A Codex lemon arms nothing. The delivery service queues each pending message
-into the recipient's thread with `codex queue --thread <thread> --message
-"lemonaid message: <message>"`, and moves the file to `done/` only after that
-succeeds. A failed queue leaves the message pending, and the service retries
-that inbox every 30 seconds. An archived Codex session is skipped; its
-messages wait until the lemon is seen again.
+A Codex lemon with an armed inbox waiter receives queued messages as turns. For
+an idle Codex lemon without a waiter, `tell` treats it as deaf and prompts it
+to read its inbox when autoresume is enabled. While a Codex turn is active, the
+delivery service queues each pending message into the recipient's thread with
+`codex queue --thread <thread> --message "lemonaid message: <message>"`, and
+moves the file to `done/` only after that succeeds. A failed queue leaves the
+message pending, and the service retries that inbox every 30 seconds. An
+archived Codex session is skipped; its messages wait until the lemon is seen
+again.
 
 The service starts itself: `tell` starts it when the recipient is a Codex
 lemon, and a Codex turn ending with messages pending starts it too. It runs

@@ -1,3 +1,9 @@
+# 0.115.1 (2026-10-14)
+
+#### Fixed
+
+- **An idle Codex lemon without an inbox waiter is reported as deaf,** so `tell` and `lemon resume` use their recovery paths instead of claiming the delivery service will wake it.
+
 # 0.115.0 (2026-10-14)
 
 #### Added

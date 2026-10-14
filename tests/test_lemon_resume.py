@@ -9,7 +9,7 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, autoresume_tmux, recipient, resume_cli, store
+from lemonaid.messages import autoresume, autoresume_tmux, recipient, resume_cli, store, waiter
 from lemonaid.messages_config import MessagesConfig
 
 
@@ -78,11 +78,21 @@ def test_a_deaf_lemon_is_prompted_with_the_given_text(started, monkeypatch):
 
 def test_a_listening_lemon_is_left_alone(capsys, started, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
-    _attach("codex:live", "# t\n\nStatus: working\n")
+    lemon_id = _attach("codex:live", "# t\n\nStatus: working\n")
 
-    assert _resume("codex:live") == 0
-    assert started == []
-    assert "Nothing to resume" in capsys.readouterr().out
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        assert _resume("codex:live") == 0
+        assert started == []
+        assert "Nothing to resume" in capsys.readouterr().out
+
+
+def test_an_idle_codex_without_a_waiter_is_prompted(capsys, started, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
+    _attach("codex:idle", "# t\n\nStatus: working\n")
+
+    assert _resume("codex:idle") == 0
+    assert len(started) == 1
+    assert "prompted recipient." in capsys.readouterr().out
 
 
 def test_a_lemon_asking_its_user_is_not_typed_into(capsys, started, monkeypatch):

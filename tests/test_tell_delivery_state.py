@@ -79,11 +79,21 @@ def test_no_harness_on_the_recorded_tty_is_dead(capsys, monkeypatch):
     assert "is dead (its harness" in capsys.readouterr().err
 
 
-def test_codex_with_a_live_harness_is_listening(capsys, monkeypatch):
+def test_idle_codex_with_a_live_harness_and_no_waiter_is_deaf(capsys, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
-    _attach("codex:live", {"tty": "/dev/ttys998"})
+    _attach("codex:idle", {"tty": "/dev/ttys998"})
 
-    assert _tell("codex:live") == 0
+    assert _tell("codex:idle") == 1
+    assert "is deaf (it is idle with no inbox waiter" in capsys.readouterr().err
+
+
+def test_codex_with_a_live_harness_and_armed_waiter_is_listening(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
+    lemon_id = _attach("codex:live", {"tty": "/dev/ttys998"})
+
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        assert _tell("codex:live") == 0
+
     assert "listening" in capsys.readouterr().err
 
 
