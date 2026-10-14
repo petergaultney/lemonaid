@@ -103,6 +103,39 @@ def test_groups_list_in_the_order_they_were_made(capsys):
     assert [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]] == ["b", "a", "c"]
 
 
+def test_group_move_sets_a_one_based_position_and_keeps_order_persisted(capsys):
+    one = lemon("one")
+    for name in ("First", "Second", "Third"):
+        run(capsys, "group", "create", name, one, "--json")
+
+    moved = run(capsys, "group", "move", "Third", "--to", "1", "--json")
+
+    assert moved["group"]["position"] == 10.0
+    assert [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]] == [
+        "Third",
+        "First",
+        "Second",
+    ]
+
+
+def test_group_move_up_and_down_and_invalid_positions(capsys):
+    one = lemon("one")
+    for name in ("First", "Second", "Third"):
+        run(capsys, "group", "create", name, one, "--json")
+
+    run(capsys, "group", "move", "Third", "--up", "--json")
+    run(capsys, "group", "move", "First", "--down", "--json")
+    assert [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]] == [
+        "Third",
+        "First",
+        "Second",
+    ]
+    assert (
+        "Position must be between"
+        in run(capsys, "group", "move", "First", "--to", "4", "--json")["error"]
+    )
+
+
 def test_a_group_with_no_members_is_not_listed_and_making_it_again_brings_it_back(capsys):
     lemon("one")
     run(capsys, "group", "create", "First", "--json")

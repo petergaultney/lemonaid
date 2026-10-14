@@ -1,10 +1,7 @@
-"""The inbox list cut into groups: each under a header line, in the groups' own order.
+"""The inbox list cut into groups: each under a header line, in manual order.
 
-Pinned rows in no group come first. The rest of the rows in no group keep the
-order they arrived in, and each group goes just above the first of them whose
-band is no more pressing than the group's own: its most pressing row's. So a
-group holding a `blocked` lemon sits at the top of the `blocked` rows, and
-groups in the same band keep their own order.
+Pinned rows in no group come first, followed by groups in their stored order,
+then the remaining rows in no group in the order they arrived in.
 
 A group is its header, its pinned and deaf rows, which stay when it's collapsed, and
 unless it's collapsed the rest of its rows, bar any the caller keeps drawn. A
@@ -43,6 +40,14 @@ class Row:
     notification: db.Notification
 
 
+def _band(rows: abc.Sequence[db.Notification], statuses: abc.Mapping[str, str]) -> str:
+    return min(
+        (order.band(statuses.get(n.channel, ""), n.is_unread, False) for n in rows),
+        key=order.BAND_NAMES.index,
+        default="",
+    )
+
+
 def notification_id(key: str) -> int | None:
     """The notification a row key names, or None for a group header."""
     head = key.split("@", 1)[0]
@@ -59,19 +64,6 @@ def group_id(key: str) -> int | None:
     """The group a header's key names, or None for any other row."""
     prefix, _, rest = key.partition(":")
     return int(rest) if prefix == "group" and rest.isdigit() else None
-
-
-def _band(rows: abc.Sequence[db.Notification], statuses: abc.Mapping[str, str]) -> str:
-    return min(
-        (order.band(statuses.get(n.channel, ""), n.is_unread, False) for n in rows),
-        key=order.BAND_NAMES.index,
-        default="",
-    )
-
-
-def _rank(band: str) -> int:
-    """Where a band sorts; an empty group's "" sorts after every band."""
-    return order.BAND_NAMES.index(band) if band in order.BAND_NAMES else len(order.BAND_NAMES)
 
 
 def layout(
@@ -140,23 +132,16 @@ def layout(
             for n in grouped[group.name]
         )
 
-    pending = sorted(
-        (group for group in all_groups if shows_a_row(group)),
-        key=lambda g: _rank(_band(grouped[g.name], statuses)),
-    )  # stable, so groups in one band keep their order
     entries: list[Header | Row] = [
         Row(str(n.id), n) for n in shown if n.channel in pinned and n.channel not in in_a_group
     ]
+    for group in all_groups:
+        if shows_a_row(group):
+            entries.extend(drawn(group))
+
     for n in shown:
         if n.channel in in_a_group or n.channel in pinned:
             continue
-
-        rank = _rank(order.band(statuses.get(n.channel, ""), n.is_unread, False))
-        while pending and _rank(_band(grouped[pending[0].name], statuses)) <= rank:
-            entries.extend(drawn(pending.pop(0)))
         entries.append(Row(str(n.id), n))
-
-    for group in pending:
-        entries.extend(drawn(group))
 
     return entries, [n for n in folded if n.channel not in in_a_group]

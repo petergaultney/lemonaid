@@ -10,6 +10,7 @@ lemonaid group rename "Inbox work" "Inbox"
 lemonaid group delete "Inbox"                          # the lemons themselves are untouched
 lemonaid group color "Inbox" teal                     # or #rrggbb; --clear forgets it
 lemonaid group list [--self | --lemon <lemon>]         # every group, or one lemon's
+lemonaid group move "Inbox" --up                       # or --down, or --to 2 (one-based)
 lemonaid group sync <lemon>                            # set its groups from its brief's line
 lemonaid place open feat/x --brief <file> --parent self --group "Inbox work"
 lemonaid lemon start work:4 --brief <file> --group "Inbox work"
@@ -47,11 +48,11 @@ Two machines both working on one brief at once would each rewrite its line from 
 
 `lma` draws each group under a header line naming it and how many of its lemons have rows (`▾ Inbox work (3)`):
 
-- **Order:** pinned lemons in no group come first. Each group then sits among the other rows by its most pressing row's status, above single lemons of the same status: a group holding a `blocked` lemon heads the `blocked` rows. Groups in the same band keep their own order.
+- **Order:** pinned lemons in no group come first, then groups in the order you set, then the remaining lemons in no group in their usual status order. Lemons inside each group keep their usual status order.
 - **A pinned lemon in a group heads that group,** and stays visible when the group is collapsed. Pin a lead to keep it in sight with its group out of the way.
 - **A lemon in two groups appears in both.**
 - **`Enter` on a header collapses the group,** leaving only the header, and opens it again. `Tab` does the same from the header or any of the group's lemons; a lemon you collapse from stays drawn under the cursor until you move off it. A collapsed header (`▸`) is filled with the colour of its most pressing row: `alert` red, `blocked` yellow, and so on in the band order of `docs/arrange.md`. Being unread doesn't fill a header: a group with an unread row shows a dot after its count.
-- **`Shift`+`↑` / `Shift`+`↓` on a header swap the group with the next header up or down,** the keys that move a pin. They only reorder groups in the same band; past a group in another band they say so and do nothing.
+- **`Shift`+`↑` / `Shift`+`↓` on a header move the group up or down** in the persistent group order, across status bands. The same order is used by `lemonaid group list`; `lemonaid group move <name> --up`, `--down` or `--to N` changes it from a script.
 - **Each header is underlined across the list's width,** so stacked collapsed headers of one colour stay apart.
 - **A group's color comes from the palette by name,** moved off any look-alike among the current groups, so two groups don't share a hue. `group color` or `C` in the inbox saves one, drawn at once, and `[tui.group_colors]` in the config sets one by name; a saved color wins over the config. See [Group colors](config.md#group-colors).
 - **The header's arrow, count and underline take the group's colour,** like its name; only the unread dot and a status fill's text keep theirs. Under the cursor the arrow becomes a block of that colour, and in the sidebar a white block marks the right edge, since the table's cursor colour doesn't show through a status fill.
@@ -61,7 +62,7 @@ Two machines both working on one brief at once would each rewrite its line from 
 - **Folding:** a row that `[tui] fold_statuses` or an arranger's `folded` list folds is hidden in place inside its group, and the fold key shows it there again. The header's count then reads `(2/3)`: two rows not folded, three in all. A group whose rows are all folded leaves the list, unless one is pinned, and comes back when the fold opens. The fold line counts folded rows in groups too, and says how many groups it hides: `▸ idle (5) · 2 groups hidden · w to show`.
 - **Search** shows matches as a flat list, without groups.
 
-Collapse, order and saved colors are stored in this machine's database and survive restarts.
+Collapse, order and saved colors are stored in this machine's database and survive restarts. Group order is independent of member status and unread state.
 
 ## Editing in the inbox
 

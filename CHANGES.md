@@ -1,3 +1,7 @@
+# 0.110.0 (2026-10-13)
+
+- **Inbox groups keep a manual order,** regardless of their members' unread or brief status. Move one from its header or with `lemonaid group move`.
+
 # 0.109.3 (2026-10-14)
 
 #### Fixed

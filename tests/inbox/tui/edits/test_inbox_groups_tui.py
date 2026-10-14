@@ -30,7 +30,7 @@ def _keys(app) -> list[str]:
 
 
 @pytest.mark.usefixtures("inbox")
-def test_groups_sit_at_the_top_of_their_most_pressing_rows_band():
+def test_groups_follow_manual_order_before_ungrouped_rows():
     async def steps(app, pilot):
         return channels(app), _keys(app)
 
@@ -38,6 +38,22 @@ def test_groups_sit_at_the_top_of_their_most_pressing_rows_band():
 
     assert drawn == ["", "claude:stuck", "claude:lead", "claude:loose"]
     assert keys[0].startswith("group:")
+
+
+@pytest.mark.usefixtures("inbox")
+def test_groups_stay_in_manual_order_even_when_a_later_group_has_more_urgent_rows():
+    with db.connect() as conn:
+        groups.store.add(conn, groups.store.find(conn, "Later"), [session(conn, "urgent", "alert")])
+
+    async def steps(app, pilot):
+        with db.connect() as conn:
+            names = [group.name for group in groups.store.all_groups(conn)]
+        return names, [key for key in _keys(app) if key.startswith("group:")]
+
+    names, headers = run(steps)
+
+    assert names == ["Work", "Later"]
+    assert len(headers) == 2
 
 
 @pytest.mark.usefixtures("inbox")
@@ -109,7 +125,7 @@ def test_tab_on_a_kept_lemon_opens_its_group_again_and_does_nothing_outside_one(
 @pytest.mark.usefixtures("inbox")
 def test_the_pin_move_keys_reorder_groups_from_a_header():
     with db.connect() as conn:
-        groups.store.add(conn, groups.store.find(conn, "Later"), [session(conn, "also", "blocked")])
+        groups.store.add(conn, groups.store.find(conn, "Later"), [session(conn, "also", "alert")])
 
     async def steps(app, pilot):
         table = app.query_one("#main_table", DataTable)
@@ -205,7 +221,7 @@ def test_staying_on_unread_lands_on_the_unread_lemon_below_a_header():
 
 
 @pytest.mark.usefixtures("inbox")
-def test_a_group_does_not_move_past_a_group_in_another_band():
+def test_moving_the_last_visible_group_down_does_nothing():
     async def steps(app, pilot):
         app.query_one("#main_table", DataTable).move_cursor(row=0)
         await pilot.press(app.config.tui.keybindings.move_pin_down)

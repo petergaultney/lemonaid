@@ -59,8 +59,7 @@ def toggle_group_at_cursor(inbox: InboxList) -> None:
 def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
     """Trade places with the group header *offset* away on screen; a refusal's reason.
 
-    Groups sort by their most pressing row first, so only the order among
-    groups drawn next to each other is the user's to change.
+    Groups are drawn in their saved order, independent of member status.
     """
     table = inbox.main
     on_screen = [
@@ -72,9 +71,6 @@ def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
     neighbour = on_screen.index(group.group_id) + offset
     if not 0 <= neighbour < len(on_screen):
         return ""
-
-    if inbox.group_bands.get(on_screen[neighbour]) != inbox.group_bands.get(group.group_id):
-        return "Groups sort by their most pressing lemon; this one can't pass that group"
 
     with db.connect() as conn:
         other = _by_id(conn, on_screen[neighbour])

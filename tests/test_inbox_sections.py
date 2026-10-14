@@ -106,7 +106,7 @@ def test_header_keys_name_their_group_and_no_notification():
     assert sections.group_id("12@7") is None
 
 
-def test_a_group_floats_to_the_top_of_its_most_pressing_rows_band():
+def test_groups_keep_their_order_before_ungrouped_rows_in_status_order():
     alarm, blocked, chatty, quiet = (
         _n(1, "alarm"),
         _n(2, "blocked"),
@@ -125,7 +125,7 @@ def test_a_group_floats_to_the_top_of_its_most_pressing_rows_band():
         statuses,
     )
 
-    assert _keys(entries) == ["1", "group:2", "5@2", "2", "3", "group:1", "6@1", "4"]
+    assert _keys(entries) == ["group:1", "6@1", "group:2", "5@2", "1", "2", "3", "4"]
 
 
 def test_a_group_with_every_row_folded_is_drawn_only_with_the_fold_open():

@@ -8,7 +8,7 @@ import sys
 
 from .. import brief, lineage
 from ..inbox import db
-from . import color, store, sync
+from . import color, move_cli, store, sync
 
 
 def _fail(args: argparse.Namespace, error: str) -> None:
@@ -287,6 +287,8 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     delete.add_argument("name")
     delete.set_defaults(func=_cmd_delete)
+
+    move_cli.setup_parser(group_subparsers)
 
     sync_parser = _common(
         group_subparsers.add_parser(
