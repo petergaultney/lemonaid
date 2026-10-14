@@ -291,23 +291,23 @@ def test_explicit_sender_channel_overrides_environment(capsys, monkeypatch):
 
 def test_tell_from_a_plain_shell_uses_the_user_label(capsys, monkeypatch):
     _attach("codex:recipient", "recipient")
-    monkeypatch.setenv("USER", "peter")
+    monkeypatch.setenv("USER", "sam")
 
     _run(_parser(), "tell", "recipient", "Hello")
 
-    assert "From: peter" in next(_inbox("recipient").glob("*.md")).read_text()
+    assert "From: sam" in next(_inbox("recipient").glob("*.md")).read_text()
     capsys.readouterr()
 
 
 def test_tell_from_a_tmux_pane_without_a_lemon_uses_the_user_label(capsys, monkeypatch):
     _attach("codex:recipient", "recipient")
-    monkeypatch.setenv("USER", "peter")
+    monkeypatch.setenv("USER", "sam")
     monkeypatch.setenv("TMUX_PANE", "%9")
     monkeypatch.setattr(self_session, "pane_location", lambda pane: None)
 
     _run(_parser(), "tell", "recipient", "Hello")
 
-    assert "From: peter" in next(_inbox("recipient").glob("*.md")).read_text()
+    assert "From: sam" in next(_inbox("recipient").glob("*.md")).read_text()
     capsys.readouterr()
 
 

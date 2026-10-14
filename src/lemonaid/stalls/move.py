@@ -4,7 +4,7 @@ import typing as ty
 
 from ..watch import pr_activity
 
-Mover = ty.Literal["", "holder", "author", "reviewer", "Peter"]
+Mover = ty.Literal["", "holder", "author", "reviewer", "user"]
 
 
 def _ready_to_merge(snap: pr_activity.Snapshot) -> bool:
@@ -35,7 +35,7 @@ def whose(
         return "reviewer"
 
     if _ready_to_merge(snap):
-        return "Peter"
+        return "user"
 
     if snap.decision == "APPROVED" and any(check.outcome == "pending" for check in snap.checks):
         return ""  # cleared, and only CI is left to run

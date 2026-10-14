@@ -1,6 +1,6 @@
 from lemonaid.watch import relay_comments
 
-_ASKED = '{==the claim==}{{authorId="1" author="Peter Gaultney">>is this true?<<}}'
+_ASKED = '{==the claim==}{{authorId="1" author="Sam Rivera">>is this true?<<}}'
 _ANSWERED = _ASKED + '{{authorId="s" author="Author (MotorHoe)">>Yes.<<}}'
 
 
@@ -27,9 +27,9 @@ def test_author_falls_back_to_author_id_and_attributes_may_come_in_any_order():
 
 
 def test_a_gap_between_blocks_splits_the_thread():
-    text = '{{author="Peter">>one<<}} {{author="Claude">>two<<}}'
+    text = '{{author="Sam">>one<<}} {{author="Claude">>two<<}}'
 
-    assert relay_comments.unanswered_threads(text, {"Claude"}) == ['{{author="Peter">>one<<}}']
+    assert relay_comments.unanswered_threads(text, {"Claude"}) == ['{{author="Sam">>one<<}}']
 
 
 def test_the_body_keeps_highlighted_text_and_drops_blocks():
@@ -37,6 +37,6 @@ def test_the_body_keeps_highlighted_text_and_drops_blocks():
 
 
 def test_the_gist_names_the_last_author_and_flattens_newlines():
-    assert relay_comments.thread_gist('{{author="Peter">>line one\nline two<<}}') == (
-        "Peter: line one line two"
+    assert relay_comments.thread_gist('{{author="Sam">>line one\nline two<<}}') == (
+        "Sam: line one line two"
     )

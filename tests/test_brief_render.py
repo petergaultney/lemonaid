@@ -1,4 +1,4 @@
-"""What a brief shows first: who, its status, and what it needs from Peter."""
+"""What a brief shows first: who, its status, and what it needs from Sam."""
 
 import dataclasses
 from pathlib import Path
@@ -20,12 +20,12 @@ def _no_prs(ref: str, cwd: Path | None) -> str:
     return ""
 
 
-def test_needs_peter_comes_right_after_identity_and_status_whatever_the_order(tmp_path):
+def test_needs_you_comes_right_after_identity_and_status_whatever_the_order(tmp_path):
     path = _brief(
         tmp_path,
         "task",
         "# Task\n\nStatus: blocked\n\n## Now\n- Done: a lot\n- Next: more\n"
-        "- Waiting on: nothing\n- Needs Peter: say yes\n",
+        "- Waiting on: nothing\n- Needs you: say yes\n",
     )
 
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
@@ -33,8 +33,8 @@ def test_needs_peter_comes_right_after_identity_and_status_whatever_the_order(tm
     assert out.startswith(
         "### author · Claude / Opus · work:2\n\n**Task**  \n**Status:** blocked\n\n"
     )
-    assert "> **Needs Peter:** say yes" in out
-    assert out.index("**Task**") < out.index("Needs Peter") < out.index("**Next:**")
+    assert "> **Needs you:** say yes" in out
+    assert out.index("**Task**") < out.index("Needs you") < out.index("**Next:**")
     assert out.index("**Next:** more") < out.index("**Done:** a lot")
     assert "Waiting on" not in out
 
@@ -56,12 +56,12 @@ def test_sub_headings_render_like_bullets(tmp_path):
     path = _brief(
         tmp_path,
         "task",
-        "# Task\n\nStatus: blocked\n\n## Now\n### Done\n- a\n\n### Needs Peter\n- one\n- two\n",
+        "# Task\n\nStatus: blocked\n\n## Now\n### Done\n- a\n\n### Needs you\n- one\n- two\n",
     )
 
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
 
-    assert "> **Needs Peter:**\n>\n> - one\n> - two" in out
+    assert "> **Needs you:**\n>\n> - one\n> - two" in out
     assert out.index("> - two") < out.index("**Done:**")
 
 
@@ -85,7 +85,7 @@ def test_a_session_shows_window_two_in_full_and_the_rest_compact(tmp_path):
         tmp_path,
         "r",
         "# Review\n\nStatus: waiting\n\n## Now\n- Done: pass one\n- Next: pass two\n"
-        "- Waiting on:\n  - fixes\n  - CI\n- Needs Peter: a ruling\n",
+        "- Waiting on:\n  - fixes\n  - CI\n- Needs you: a ruling\n",
     )
     found = target.Target(
         [reviewer, author],
@@ -101,7 +101,7 @@ def test_a_session_shows_window_two_in_full_and_the_rest_compact(tmp_path):
 
     assert out.startswith("# work · 2 lemons\n\n---\n\n### w2 · author · Claude / Opus")
     reviewer_part = out[out.index("### w4 · reviewer · Codex") :]
-    assert "> **Needs Peter:** a ruling" in reviewer_part
+    assert "> **Needs you:** a ruling" in reviewer_part
     assert "**Waiting on:** fixes (+1 more)" in reviewer_part
     assert "pass one" not in out and "pass two" not in out
     assert "**Next:** tests" in out

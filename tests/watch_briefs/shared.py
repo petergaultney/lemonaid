@@ -9,7 +9,7 @@ from lemonaid.watch import briefs_events, cli
 def lemon(name, state="working", ask="", channel="", session="", socket=""):
     path = store.briefs_dir() / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# {name}\n\nStatus: {state}\n\n## Now\n\n### Needs Peter\n\n{ask}\n")
+    path.write_text(f"# {name}\n\nStatus: {state}\n\n## Now\n\n### Needs you\n\n{ask}\n")
     with db.connect() as conn:
         if channel:
             db.add(

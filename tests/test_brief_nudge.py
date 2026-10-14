@@ -10,7 +10,7 @@ Status: blocked
 
 ## Now
 
-### Needs Peter
+### Needs you
 
 - **render timeouts owner:** who fixes the rebuild?
   - it runs every 10 minutes
@@ -35,7 +35,7 @@ def test_the_reminder_names_each_needs_label():
     )
 
 
-def test_merge_alert_and_approve_wait_on_peter_too():
+def test_merge_alert_and_approve_wait_on_you_too():
     assert "`merge`" in nudge.note(_BLOCKED.replace("blocked", "merge"))
     assert "`alert`" in nudge.note(_BLOCKED.replace("blocked", "alert"))
     assert "`approve`" in nudge.note(_BLOCKED.replace("blocked", "approve"))
@@ -53,7 +53,7 @@ def test_an_answer_to_the_last_ask_says_nothing_else_is_asked():
 
     assert nudge.after_answer(only, "render timeouts owner") == (
         'This answers "render timeouts owner". Your brief says `blocked` with nothing else '
-        "under Needs Peter. Update Status if that changes."
+        "under Needs you. Update Status if that changes."
     )
 
 

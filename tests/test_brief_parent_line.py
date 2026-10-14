@@ -39,7 +39,7 @@ def _child_brief() -> str:
     )
 
 
-_NOW = "## Now\n\n### Needs Peter\n\n- merge #12\n\n### Next\n\n- write the docs\n\n"
+_NOW = "## Now\n\n### Needs you\n\n- merge #12\n\n### Next\n\n- write the docs\n\n"
 _QUESTIONS = "## Questions\n\n### merge #12\n\n- **Context:** x\n\n"
 
 _BRIEFS = {

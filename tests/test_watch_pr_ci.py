@@ -69,7 +69,7 @@ def test_new_push_mid_run_uses_only_the_new_heads_checks(tmp_path):
 
 def test_enabling_ci_after_a_comment_reports_completion(tmp_path):
     stem = tmp_path / "pr"
-    comment = pr_comments.Comment("c1", "PR", "peter", "fix this")
+    comment = pr_comments.Comment("c1", "PR", "sam", "fix this")
     done = _snap(["passed"], comments=[comment])._replace(mergeable="MERGEABLE")
     assert "new comment" in _wait(stem, [done], ci=False, comments=True)[0]
     assert _wait(stem, [done, done], comments=True) == [f"PR #90 CI passed at {_HEAD[:10]}"]

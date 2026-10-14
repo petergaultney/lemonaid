@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-_ASK = '{{authorId="1" author="Peter">>is this true?<<}}'
+_ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 
 _FAKE_CODEX = """#!/bin/sh
 if [ "$1" = queue ]; then printf '%s\\n' "$@" > "$FAKE_CODEX_ARGS"; fi
@@ -61,7 +61,7 @@ def test_once_prints_the_first_event_and_exits(tmp_path, doc):
 
     assert result.returncode == 0
     assert result.stdout.startswith("1 new or changed unanswered thread(s) in ")
-    assert "Peter: is this true?" in result.stdout
+    assert "Sam: is this true?" in result.stdout
 
 
 def test_status_names_a_running_waiter_and_a_second_one_refuses(tmp_path, doc):

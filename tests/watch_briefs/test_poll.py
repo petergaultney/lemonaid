@@ -32,7 +32,7 @@ def test_needs_and_progress_changes_stay_quiet(family, state):
     w = open_watch(family)
     for ask in ("pick a colour", "try the build", "nothing"):
         path.write_text(
-            f"# child\n\nStatus: {state}\n\n## Now\n\n### Needs Peter\n\n- {ask}\n\n### Next\n\n- progress\n"
+            f"# child\n\nStatus: {state}\n\n## Now\n\n### Needs you\n\n- {ask}\n\n### Next\n\n- progress\n"
         )
         assert poll(w) == []
         assert poll(open_watch(family)) == []

@@ -7,7 +7,7 @@ import pytest
 
 from lemonaid.watch import doc_wait, watch_list
 
-_ASK = '{{authorId="1" author="Peter">>is this true?<<}}'
+_ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 
 
 @pytest.fixture

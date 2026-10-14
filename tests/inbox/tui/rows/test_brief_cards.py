@@ -13,7 +13,7 @@ def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> No
     assert (first.status, first.shown, first.waiting_on) == ("", "idle", "review")
     assert cache.get(path) is first
 
-    path.write_text("# Task\n\nStatus: blocked\n\n## Now\n- Needs Peter: answer\n")
+    path.write_text("# Task\n\nStatus: blocked\n\n## Now\n- Needs you: answer\n")
     second = cache.get(path)
     assert second is not None
     assert (second.status, second.waiting_on) == ("blocked", "")
@@ -64,13 +64,13 @@ def test_an_unknown_or_missing_status_shows_the_lemon_s_own_state(tmp_path: Path
 
 def test_needs_keeps_its_label_in_either_form(tmp_path: Path) -> None:
     path = tmp_path / "brief.md"
-    path.write_text("Status: waiting\n\n## Now\n### Waiting on\nCI\n\n### Needs Peter\n- a\n- b\n")
+    path.write_text("Status: waiting\n\n## Now\n### Waiting on\nCI\n\n### Needs you\n- a\n- b\n")
 
     card = BriefCache().get(path)
 
     assert card is not None
     assert (card.needs_line, card.waiting_line, card.extra_lines(False)) == (
-        "Needs Peter: a (+1 more)",
+        "Needs you: a (+1 more)",
         "CI",
         3,
     )

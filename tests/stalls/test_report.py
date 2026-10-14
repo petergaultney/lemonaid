@@ -51,7 +51,7 @@ def test_ready_pr_flags_an_author_who_did_not_say_merge(tmp_path: Path) -> None:
     [stall] = _find(_pull(tmp_path), snap(decision="APPROVED"))
     assert (stall.channel, stall.line) == (
         "a",
-        "stuck 45m: Peter's move on #238; its brief should say `merge`",
+        "stuck 45m: Your move on #238; its brief should say `merge`",
     )
 
 

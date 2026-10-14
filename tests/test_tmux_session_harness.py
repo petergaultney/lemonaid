@@ -53,7 +53,7 @@ def test_spawn_session_passes_the_prompt_by_environment(monkeypatch, tmp_path):
             config,
             session_name="work",
             template_name="default",
-            initial_prompt="read Peter's brief; then go",
+            initial_prompt="read Sam's brief; then go",
             attach=False,
         )
         is None
@@ -66,7 +66,7 @@ def test_spawn_session_passes_the_prompt_by_environment(monkeypatch, tmp_path):
     ]
     assert created[0]["environments"] == [
         {},
-        {"LEMONAID_PROMPT": "read Peter's brief; then go"},
+        {"LEMONAID_PROMPT": "read Sam's brief; then go"},
         {},
     ]
 

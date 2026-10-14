@@ -12,7 +12,7 @@ Status: blocked
 
 ## Now
 
-### Needs Peter
+### Needs you
 
 - **render timeouts owner:** who fixes the rebuild?
   - it runs every 10 minutes
@@ -130,8 +130,7 @@ def test_check_names_unmatched_questions_but_accepts_matched_ones():
 
     assert check.structure(matched) == []
     assert check.structure(_BRIEF) == [
-        "`### a question no bullet asks` in ## Questions has no matching bullet "
-        "under ### Needs Peter"
+        "`### a question no bullet asks` in ## Questions has no matching bullet under ### Needs you"
     ]
 
 
@@ -149,7 +148,7 @@ def test_check_names_the_briefs_own_needs_heading():
 def test_multiline_needs_bullet_expands_without_a_warning(tmp_path, capsys):
     brief = tmp_path / "multiline.md"
     brief.write_text(
-        "# Merge\n\nStatus: blocked\n\n## Now\n\n### Needs Peter\n\n"
+        "# Merge\n\nStatus: blocked\n\n## Now\n\n### Needs you\n\n"
         "- merge #12\n  - CI is green\n\n## Questions\n\n"
         "### merge #12\n\n- **Context:** merge is ready.\n"
     )
@@ -162,10 +161,8 @@ def test_multiline_needs_bullet_expands_without_a_warning(tmp_path, capsys):
 
 def test_a_brief_without_questions_shows_as_it_did(tmp_path, capsys):
     brief = tmp_path / "old.md"
-    brief.write_text(
-        "# Old\n\nStatus: blocked\n\n## Now\n\n- Needs Peter: pick one\n- Next: build\n"
-    )
+    brief.write_text("# Old\n\nStatus: blocked\n\n## Now\n\n- Needs you: pick one\n- Next: build\n")
 
     assert _show(brief, capsys, "--questions") == _show(brief, capsys)
     assert _show(brief, capsys, "--no-questions") == _show(brief, capsys)
-    assert "> **Needs Peter:** pick one" in _show(brief, capsys)
+    assert "> **Needs you:** pick one" in _show(brief, capsys)

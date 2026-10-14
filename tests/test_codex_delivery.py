@@ -85,7 +85,7 @@ def test_queued_message_moves_to_done(capsys, fake_codex):
 def test_a_message_to_a_blocked_lemon_says_what_its_status_waits_on(capsys, fake_codex):
     _inbox_with_message(
         "Go with option 1.",
-        brief="# recipient\n\nStatus: blocked\n\n## Now\n\n### Needs Peter\n\n- **pick one:** a or b\n",
+        brief="# recipient\n\nStatus: blocked\n\n## Now\n\n### Needs you\n\n- **pick one:** a or b\n",
     )
 
     _watch("--codex-thread", "thread-1")

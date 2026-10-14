@@ -119,7 +119,7 @@ def test_harness_name_in_an_argument_path_is_not_a_process_match(monkeypatch):
     class Result:
         returncode = 0
         stderr = ""
-        stdout = "vim /Users/peter/play/codex-notes/todo.md\n"
+        stdout = "vim /Users/sam/play/codex-notes/todo.md\n"
 
     monkeypatch.setattr(watcher.subprocess, "run", lambda *args, **kwargs: Result())
 

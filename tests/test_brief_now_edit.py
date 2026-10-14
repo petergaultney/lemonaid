@@ -13,7 +13,7 @@ Lemon-ID: task.QuickOdd
 
 ## Now
 
-### Needs Peter
+### Needs you
 
 - merge #12
 
@@ -52,17 +52,17 @@ def _now(text: str) -> str:
 
 def test_a_new_heading_goes_in_its_place_with_blank_lines_around_it():
     out = now_edit.add(
-        _BRIEF.replace("### Needs Peter\n\n- merge #12\n\n", ""), "Needs Peter", "merge #12"
+        _BRIEF.replace("### Needs you\n\n- merge #12\n\n", ""), "Needs you", "merge #12"
     )
 
-    assert _now(out).startswith("\n### Needs Peter\n\n- merge #12\n\n### Waiting on\n")
+    assert _now(out).startswith("\n### Needs you\n\n- merge #12\n\n### Waiting on\n")
     assert check.structure(out) == []
 
 
 def test_running_goes_between_needs_and_waiting_on():
-    out = now_edit.add(now_edit.add(_BRIEF, "Needs Peter", "x"), "running", "the backfill, ua:3")
+    out = now_edit.add(now_edit.add(_BRIEF, "Needs you", "x"), "running", "the backfill, ua:3")
 
-    assert _now(out).index("### Needs Peter") < _now(out).index("### Running")
+    assert _now(out).index("### Needs you") < _now(out).index("### Running")
     assert _now(out).index("### Running") < _now(out).index("### Waiting on")
 
 

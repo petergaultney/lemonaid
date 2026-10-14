@@ -25,7 +25,7 @@ Status: blocked
 
 ## Now
 
-### Needs Peter
+### Needs you
 
 - retry policy: which one?
 - rename the flag
@@ -153,7 +153,7 @@ def test_yes_answers_the_selected_popup_question_without_an_answer_box():
 
 
 def test_without_questions_the_keys_do_nothing_and_no_hint_shows():
-    path, inbox = _attached_brief("# Old\n\nStatus: blocked\n\n## Now\n\n- Needs Peter: pick one\n")
+    path, inbox = _attached_brief("# Old\n\nStatus: blocked\n\n## Now\n\n- Needs you: pick one\n")
 
     async def run() -> None:
         app = _popup(path)

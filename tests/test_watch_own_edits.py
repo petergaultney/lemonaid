@@ -10,7 +10,7 @@ from lemonaid.watch import doc_events, own_edits, own_edits_replay
 
 _ME = "Author (MotorHoe)"
 _SESSION = "11111111-2222-3333-4444-555555555555"
-_ASK = '{{authorId="1" author="Peter">>is this true?<<}}'
+_ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 _WRITER = own_edits.claude_writer(_SESSION)
 _REPLY = '{{authorId="s" author="Author (MotorHoe)">>yes<<}}'
 
@@ -75,7 +75,7 @@ def test_an_own_edit_made_between_waiters_does_not_wake_the_next(doc, state_dir)
 
 def test_an_edit_by_someone_else_before_mine_in_the_same_turn_still_wakes(doc, state_dir):
     w = _watch(state_dir, doc)
-    doc.write_text(doc.read_text() + "Peter's.\n")
+    doc.write_text(doc.read_text() + "Sam's.\n")
     _hook_edit(state_dir, doc, doc.read_text() + "Mine.\n")
 
     sent = _poll_twice(w)
@@ -89,7 +89,7 @@ def test_an_edit_by_someone_else_after_mine_wakes(doc, state_dir):
     _hook_edit(state_dir, doc, doc.read_text() + "Mine.\n")
     assert _poll_twice(w) == []
 
-    doc.write_text(doc.read_text() + "Peter's.\n")
+    doc.write_text(doc.read_text() + "Sam's.\n")
 
     assert len(_poll_twice(w)) == 1
 
@@ -105,7 +105,7 @@ def test_another_lemons_edit_wakes_this_one(doc, state_dir):
 def test_an_own_reply_does_not_wake_and_anothers_new_comment_does(doc, state_dir):
     doc.write_text(doc.read_text() + f"{{==A claim.==}}{_ASK}\n")
     w = _watch(state_dir, doc)
-    assert len(_poll_twice(w)) == 1  # Peter's question
+    assert len(_poll_twice(w)) == 1  # Sam's question
 
     replied = doc.read_text().replace(_ASK, _ASK + _REPLY)
     _hook_edit(state_dir, doc, replied + "Mine.\n")
@@ -135,7 +135,7 @@ def test_an_edit_recorded_with_editing_and_mine_does_not_wake(doc, state_dir):
 
 def test_an_edit_by_someone_else_before_editing_still_wakes(doc, state_dir):
     w = _watch(state_dir, doc, "codex-thread")
-    doc.write_text(doc.read_text() + "Peter's.\n")
+    doc.write_text(doc.read_text() + "Sam's.\n")
     _cli_edit(state_dir, doc, "codex-thread", doc.read_text() + "Mine.\n")
 
     assert len(_poll_twice(w)) == 1
@@ -150,7 +150,7 @@ def test_mine_without_editing_records_nothing(doc, state_dir):
 
 
 def test_an_old_transition_does_not_cover_a_later_outside_edit(doc, state_dir):
-    """A -> B -> C -> B by the lemon, then Peter B -> C and the lemon C -> D: Peter's edit wakes."""
+    """A -> B -> C -> B by the lemon, then Sam B -> C and the lemon C -> D: Sam's edit wakes."""
     a = doc.read_text()
     w = _watch(state_dir, doc)
     _hook_edit(state_dir, doc, a + "B\n", "t1")
@@ -166,7 +166,7 @@ def test_an_old_transition_does_not_cover_a_later_outside_edit(doc, state_dir):
 
 
 def test_an_outside_edit_matching_an_unread_own_transition_wakes(doc, state_dir):
-    """The lemon goes B -> C -> B between two reads; Peter's later edit to C is not the lemon's."""
+    """The lemon goes B -> C -> B between two reads; Sam's later edit to C is not the lemon's."""
     w = _watch(state_dir, doc)
     b = doc.read_text()
     _hook_edit(state_dir, doc, b + "C\n", "t1")
@@ -206,7 +206,7 @@ def test_a_stale_editing_does_not_pair_with_a_later_mine(doc, state_dir):
     own_edits.before_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
     pending = own_edits.writer_dir(state_dir, "codex-thread") / "pending" / own_edits.cli_key(doc)
     os.utime(pending, (time.time() - 3600, time.time() - 3600))
-    doc.write_text(doc.read_text() + "Peter's, much later.\n")
+    doc.write_text(doc.read_text() + "Sam's, much later.\n")
 
     assert not own_edits.after_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
     assert len(_poll_twice(w)) == 1

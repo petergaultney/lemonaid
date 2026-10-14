@@ -392,14 +392,14 @@ def test_a_need_sits_under_the_identity_with_its_label_in_the_attention_color():
         _brief_cells(),
         50,
         gutter_width=2,
-        card_brief=CardBrief("", "CI", 0, "approve the release", "Needs Peter"),
+        card_brief=CardBrief("", "CI", 0, "approve the release", "Needs you"),
         now=60,
     )
     lines = body.plain.splitlines()
-    need = body.plain.index("Needs Peter: approve the release")
+    need = body.plain.index("Needs you: approve the release")
     style = body.get_style_at_offset(Console(color_system="truecolor"), need)
 
-    assert lines[2].strip() == "Needs Peter: approve the release"
+    assert lines[2].strip() == "Needs you: approve the release"
     assert lines[3].strip() == "idle 1m" and lines[4].strip() == "CI"
     assert style.color.name == ATTENTION_COLOR and not style.dim
 

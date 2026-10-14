@@ -292,19 +292,19 @@ def test_has_activity_since(tmp_path):
 def test_fish_path_under_home(monkeypatch):
     monkeypatch.setattr(
         "lemonaid.lemon_watchers.common.Path.home",
-        staticmethod(lambda: __import__("pathlib").Path("/Users/peter")),
+        staticmethod(lambda: __import__("pathlib").Path("/Users/sam")),
     )
-    assert fish_path("/Users/peter/play/lemonaid") == "~/p/lemonaid"
-    assert fish_path("/Users/peter/work/ds-monorepo/libs/gent") == "~/w/d/l/gent"
+    assert fish_path("/Users/sam/play/lemonaid") == "~/p/lemonaid"
+    assert fish_path("/Users/sam/work/ds-monorepo/libs/gent") == "~/w/d/l/gent"
 
 
 def test_fish_path_shallow(monkeypatch):
     monkeypatch.setattr(
         "lemonaid.lemon_watchers.common.Path.home",
-        staticmethod(lambda: __import__("pathlib").Path("/Users/peter")),
+        staticmethod(lambda: __import__("pathlib").Path("/Users/sam")),
     )
-    assert fish_path("/Users/peter/play") == "~/play"
-    assert fish_path("/Users/peter") == "~"
+    assert fish_path("/Users/sam/play") == "~/play"
+    assert fish_path("/Users/sam") == "~"
 
 
 def test_fish_path_absolute():

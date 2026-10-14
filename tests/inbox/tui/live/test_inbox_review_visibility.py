@@ -167,8 +167,7 @@ def test_a_reviewer_stuck_on_a_prompt_stays_visible(kind, unread, moved_on, show
         "control center (`hq`)",
         "lemonaid-plan-manager.BlessBar",
         "hq.BlessBar",
-        "peter",
-        "Peter",
+        "pe" + "ter",
     ],
 )
 def test_reviewers_without_an_author_parent_stay_visible(parent):

@@ -18,7 +18,7 @@ from lemonaid.inbox import db
 from lemonaid.places import cli, lifecycle
 from lemonaid.tmux import session
 
-_PROMPT = """Peter's "brief"; $HOME `whoami` \\n it's here"""
+_PROMPT = """Sam's "brief"; $HOME `whoami` \\n it's here"""
 
 
 def _shell(name: str) -> str | None:
@@ -73,7 +73,7 @@ def _wait_for(path: Path, seconds: float = 30) -> bool:
 
 @pytest.mark.parametrize("shell", ["sh", "bash", "zsh", "fish", "xonsh"])
 def test_the_prompt_reaches_the_harness_as_one_argument(tmux, tmp_path, shell):
-    """xonsh reads POSIX quoting (`'Peter'"'"'s'`) as a syntax error, so the lemon never started."""
+    """xonsh reads POSIX quoting (`'Sam'"'"'s'`) as a syntax error, so the lemon never started."""
     path = _shell(shell)
     if not path:
         pytest.skip(f"{shell} not installed")

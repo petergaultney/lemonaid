@@ -26,4 +26,4 @@ def test_a_name_one_lemon_holds_does_not_warn():
     _brief("one.AuditInk")
 
     assert shared_signer.warning("Reviewer (AuditInk)") == ""
-    assert shared_signer.warning("Peter") == ""
+    assert shared_signer.warning("Sam") == ""

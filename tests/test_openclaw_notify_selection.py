@@ -15,8 +15,8 @@ def test_pick_candidate_prefers_non_excluded_session():
     a_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     b_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     candidates = [
-        (Path("/a.jsonl"), a_id, "agent-a", "/home/peter/clawd"),
-        (Path("/b.jsonl"), b_id, "agent-b", "/home/peter/clawd"),
+        (Path("/a.jsonl"), a_id, "agent-a", "/home/sam/clawd"),
+        (Path("/b.jsonl"), b_id, "agent-b", "/home/sam/clawd"),
     ]
 
     selected = _pick_session_candidate(
@@ -28,8 +28,8 @@ def test_pick_candidate_prefers_non_excluded_session():
 def test_pick_candidate_with_requested_session_id():
     wanted = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     candidates = [
-        (Path("/a.jsonl"), "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "agent-a", "/home/peter/clawd"),
-        (Path("/b.jsonl"), wanted, "agent-b", "/home/peter/clawd"),
+        (Path("/a.jsonl"), "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "agent-a", "/home/sam/clawd"),
+        (Path("/b.jsonl"), wanted, "agent-b", "/home/sam/clawd"),
     ]
 
     selected = _pick_session_candidate(
@@ -40,7 +40,7 @@ def test_pick_candidate_with_requested_session_id():
 
 def test_pick_candidate_falls_back_when_all_excluded():
     only_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    candidates = [(Path("/a.jsonl"), only_id, "agent-a", "/home/peter/clawd")]
+    candidates = [(Path("/a.jsonl"), only_id, "agent-a", "/home/sam/clawd")]
     selected = _pick_session_candidate(
         candidates, requested_session_id=None, excluded_session_ids={only_id}
     )

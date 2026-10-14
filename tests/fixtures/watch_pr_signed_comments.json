@@ -33,7 +33,7 @@
                     "body": "🍋 Author (MotorHoe): fixed in the next push",
                     "state": "SUBMITTED",
                     "author": {
-                      "login": "peter",
+                      "login": "sam",
                       "__typename": "User"
                     }
                   },
@@ -42,7 +42,7 @@
                     "body": "🍋 Claude: done",
                     "state": "SUBMITTED",
                     "author": {
-                      "login": "peter",
+                      "login": "sam",
                       "__typename": "User"
                     }
                   },
@@ -69,7 +69,7 @@
                     "body": "please rename this",
                     "state": "SUBMITTED",
                     "author": {
-                      "login": "peter",
+                      "login": "sam",
                       "__typename": "User"
                     }
                   },
@@ -78,7 +78,7 @@
                     "body": "half-written",
                     "state": "PENDING",
                     "author": {
-                      "login": "peter",
+                      "login": "sam",
                       "__typename": "User"
                     }
                   }
@@ -97,7 +97,7 @@
                     "body": "old point",
                     "state": "SUBMITTED",
                     "author": {
-                      "login": "peter",
+                      "login": "sam",
                       "__typename": "User"
                     }
                   }
@@ -113,7 +113,7 @@
               "body": "\n🍋 Author (MotorHoe): replied inline",
               "state": "COMMENTED",
               "author": {
-                "login": "peter",
+                "login": "sam",
                 "__typename": "User"
               }
             },
@@ -134,7 +134,7 @@
               "id": "IC_prefix",
               "body": "🍋 Author (MotorHoe)-2: a different lemon",
               "author": {
-                "login": "peter",
+                "login": "sam",
                 "__typename": "User"
               }
             }

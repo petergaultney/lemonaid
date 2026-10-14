@@ -191,7 +191,7 @@ def _session(conn, name: str, status: str, created_at: float) -> str:
     conn.commit()
     path = brief_store.briefs_dir() / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# work\n\nStatus: {status}\n\n## Now\n\n### Needs Peter\n\n- an answer\n")
+    path.write_text(f"# work\n\nStatus: {status}\n\n## Now\n\n### Needs you\n\n- an answer\n")
     attached.attach(conn, channel, path)
     return channel
 
@@ -234,7 +234,7 @@ def test_a_mid_turn_blocked_lemon_shows_as_active_in_its_blocked_place():
     cards = _cards()
 
     assert cards[busy] == (0, "active", "")
-    assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
+    assert cards[idle] == (1, "blocked", "Needs you: an answer")
     assert cards[newer][0] == 2
 
 
@@ -274,8 +274,8 @@ def test_by_default_a_mid_turn_lemon_keeps_its_brief_status():
 
     cards = _cards(mid_turn_working=False)
 
-    assert cards[busy] == (0, "blocked", "Needs Peter: an answer")
-    assert cards[idle] == (1, "blocked", "Needs Peter: an answer")
+    assert cards[busy] == (0, "blocked", "Needs you: an answer")
+    assert cards[idle] == (1, "blocked", "Needs you: an answer")
     assert cards[newer][1] == "idle"
 
 
@@ -306,7 +306,7 @@ Status: blocked
 
 ## Now
 
-### Needs Peter
+### Needs you
 
 - Pick a name: which one?
 

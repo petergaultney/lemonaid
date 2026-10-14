@@ -15,7 +15,7 @@ from lemonaid.tmux import follow
 
 def _target(tmp_path: Path) -> target.Target:
     path = tmp_path / "task.md"
-    path.write_text("# Work\n\nStatus: working\n\n## Now\n- Answer Peter.\n")
+    path.write_text("# Work\n\nStatus: working\n\n## Now\n- Answer Sam.\n")
     return target.Target([path], [tmp_path], tmp_path, ["work"], "Work", "**Work**")
 
 

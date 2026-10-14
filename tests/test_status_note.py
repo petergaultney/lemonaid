@@ -1,4 +1,4 @@
-"""The once-a-turn PostToolUse reminder for a Claude lemon whose brief waits on Peter."""
+"""The once-a-turn PostToolUse reminder for a Claude lemon whose brief waits on the user."""
 
 import json
 import os
@@ -13,7 +13,7 @@ from lemonaid.claude import install_hooks, status_note
 from lemonaid.inbox import db
 
 _SESSION = "abcd1234-0000-0000-0000-000000000000"
-_BRIEF = "# lemon\n\nStatus: {status}\n\n## Now\n\n### Needs Peter\n\n- **pick one:** a or b\n"
+_BRIEF = "# lemon\n\nStatus: {status}\n\n## Now\n\n### Needs you\n\n- **pick one:** a or b\n"
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +56,7 @@ def test_the_first_tool_call_of_a_turn_gets_the_reminder_and_the_rest_do_not(cap
     ]
 
 
-def test_a_brief_that_does_not_wait_on_peter_gets_nothing(capsys):
+def test_a_brief_that_does_not_wait_on_you_gets_nothing(capsys):
     _briefed(status="working")
 
     assert _tool_call(capsys) == ""

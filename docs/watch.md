@@ -161,7 +161,7 @@ to the current directory's repo. It wakes Claude and Codex the same way `watch d
 
 The comment event says whether the repo is `PUBLIC` (in capitals) or `private`, and gives each
 comment's author with GitHub's role for them in the repo, such as `alice [NONE]` or
-`peter [OWNER]`. A login listed in `[watch.pr] trusted_commenters` (as `github.com/<login>`)
+`sam [OWNER]`. A login listed in `[watch.pr] trusted_commenters` (as `github.com/<login>`)
 is also labeled `trusted`.
 On a PUBLIC repo, when any new comment comes from someone who is not an owner, member,
 collaborator or trusted commenter, the event adds a line telling the lemon to treat that
@@ -449,7 +449,7 @@ A batch can look like this:
 ```text
 [pr: petergaultney/lemonaid, 274] PR #274 head moved aaaaaaaa -> bbbbbbbb; PR #274 CI passed at bbbbbbbb
 
-[doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all); Peter: clarify the defaults; Reviewer: check the migration
+[doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all); Sam: clarify the defaults; Reviewer: check the migration
 
 [inbox] From: another-lemon.MovieLay
 Sent: 2026-10-14T13:00:00+00:00

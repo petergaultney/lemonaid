@@ -28,15 +28,15 @@ def test_reviewer_comment_after_a_push_is_still_the_reviewers_move() -> None:
     assert _whose(snap(head="bbbbbbb1"), reviewer=True, head="aaaaaaa") == "reviewer"
 
 
-def test_approved_green_mergeable_is_peters_move() -> None:
-    assert _whose(snap(decision="APPROVED")) == "Peter"
+def test_approved_green_mergeable_is_users_move() -> None:
+    assert _whose(snap(decision="APPROVED")) == "user"
     assert _whose(snap(decision="APPROVED", outcome="pending")) == ""
     assert _whose(snap(decision="APPROVED", mergeable="CONFLICTING")) == ""
     assert _whose(snap(decision="APPROVED", draft=True)) == ""
 
 
 def test_merge_outranks_the_reviewers_last_acknowledgement() -> None:
-    assert _whose(snap(decision="APPROVED"), reviewer=True) == "Peter"
+    assert _whose(snap(decision="APPROVED"), reviewer=True) == "user"
 
 
 def test_approved_pr_with_ci_running_is_nobodys_move() -> None:

@@ -6,7 +6,7 @@ import pytest
 
 from lemonaid.watch import doc_events
 
-_ASK = '{{authorId="1" author="Peter">>is this true?<<}}'
+_ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 _ME = "Author (MotorHoe)"
 
 
@@ -46,7 +46,7 @@ def test_a_new_thread_is_delivered_once(doc, state_dir):
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
     assert len(sent) == 1
     assert "1 new or changed unanswered thread(s)" in sent[0]
-    assert "Peter: is this true?" in sent[0]
+    assert "Sam: is this true?" in sent[0]
 
 
 def test_a_restarted_waiter_does_not_report_an_untouched_thread(doc, state_dir):
@@ -64,7 +64,7 @@ def test_a_reported_thread_that_gains_a_block_is_reported_again(doc, state_dir):
     doc.write_text(doc.read_text() + _ASK)
     w = doc_events.open_watch(state_dir, doc, _ME, [], False, 45)
     doc_events.poll(w, _collect([]))
-    doc.write_text(doc.read_text() + '{{author="Peter">>also this<<}}')
+    doc.write_text(doc.read_text() + '{{author="Sam">>also this<<}}')
     sent: list[str] = []
 
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED

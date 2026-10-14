@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How often a Claude lemon keeps a Status that waits on Peter after he has answered it.
+"""How often a Claude lemon keeps a Status that waits on the user after they have answered it.
 
     scripts/stale-status.py                       # every briefed Claude session
     scripts/stale-status.py --since 2026-10-02    # only turns from that day on
@@ -35,7 +35,7 @@ from pathlib import Path
 _DB = Path("~/.local/share/lemonaid/lemonaid.db").expanduser()
 _PROJECTS = Path("~/.claude/projects").expanduser()
 _NOTES = Path("~/.local/state/lemonaid/status-notes.jsonl").expanduser()
-_WAITING_ON_PETER = {"blocked", "alert", "merge"}
+_WAITING_ON_USER = {"blocked", "alert", "merge"}
 _STATES = "working|running|waiting|blocked|alert|merge|review|done"
 _STATUS_LINE = re.compile(rf"^Status:\s*({_STATES})\b", re.IGNORECASE | re.MULTILINE)
 _STATUS_ANYWHERE = re.compile(rf"Status:\s*({_STATES})\b")
@@ -51,7 +51,7 @@ _SENDER = re.compile(r"^From: (\S+)")
 class Turn:
     session: str
     start: datetime.datetime
-    kind: str  # "prompt", "message" (from a lemon), "answer" (a message from Peter), or ""
+    kind: str  # "prompt", "message" (from a lemon), "answer" (a message from the user), or ""
     text: str
     status: str
     end_status: str = ""
@@ -203,7 +203,7 @@ def _noted(log: Path) -> set[tuple[str, str]]:
 
 
 def _answered(turn: Turn) -> bool:
-    return turn.status in _WAITING_ON_PETER and turn.kind != "" and turn.tool_calls >= 2
+    return turn.status in _WAITING_ON_USER and turn.kind != "" and turn.tool_calls >= 2
 
 
 def _stale(turn: Turn) -> bool:

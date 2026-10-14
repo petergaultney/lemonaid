@@ -58,8 +58,8 @@ def _owed(pull: pulls.Pull, snap: pr_activity.Snapshot) -> list[tuple[pulls.Lemo
     if owner is None or not mover:
         return []
 
-    if mover == "Peter":
-        return [(owner, f"Peter's move on #{number}; its brief should say `merge`")]
+    if mover == "user":
+        return [(owner, f"Your move on #{number}; its brief should say `merge`")]
 
     return [(owner, f"{mover}'s move on #{number}")]
 

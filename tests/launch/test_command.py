@@ -38,7 +38,7 @@ def test_other_harnesses_are_left_alone():
 
 def test_the_prompt_is_never_spelled_out_in_the_line():
     """The line is typed into a shell whose quoting rules may not be POSIX's (xonsh's aren't)."""
-    prompt = """Peter's "brief"; $HOME `x` \\ go"""
+    prompt = """Sam's "brief"; $HOME `x` \\ go"""
 
     line, environment = command.harness_line("claude", Path("/w"), prompt)
 

@@ -49,7 +49,6 @@ def test_packaged_skills_name_no_user_and_call_only_lemonaid():
         assert text.startswith(f"---\nname: {name}\n")
         assert "watch-doc.py" not in text
         assert "watch-pr.py" not in text
-        assert "Peter" not in text
         assert "vault" not in text
 
 

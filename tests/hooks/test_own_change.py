@@ -69,7 +69,7 @@ def test_a_human_edit_during_a_call_that_does_not_name_the_doc_wakes(tmp_path, d
     _tool_call(
         tmp_path,
         "claude",
-        lambda: doc.write_text(doc.read_text() + "Peter's, mid test run.\n"),
+        lambda: doc.write_text(doc.read_text() + "Sam's, mid test run.\n"),
         {"command": "uv run pytest"},
     )
 
@@ -78,7 +78,7 @@ def test_a_human_edit_during_a_call_that_does_not_name_the_doc_wakes(tmp_path, d
 
 def test_a_change_between_tool_calls_still_wakes(tmp_path, doc):
     w = _watch(tmp_path, doc, "claude")
-    doc.write_text(doc.read_text() + "Peter's.\n")
+    doc.write_text(doc.read_text() + "Sam's.\n")
     _tool_call(tmp_path, "claude", lambda: None, {"command": "ls"})
 
     assert len(_poll_twice(w)) == 1
@@ -107,7 +107,7 @@ def test_re_padding_a_table_wakes_nobody(tmp_path, doc):
     doc.write_text("# Review\n\n| a   | b   |\n| --- | --- |\n| 1   | 2   |\n")
 
     assert _poll_twice(w) == []
-    doc.write_text(doc.read_text() + "Peter's.\n")
+    doc.write_text(doc.read_text() + "Sam's.\n")
     assert len(_poll_twice(w)) == 1
 
 
@@ -151,7 +151,7 @@ def test_only_a_git_push_subcommand_is_a_push(command, push):
 
 
 def test_reformatting_a_reported_thread_does_not_report_it_again(tmp_path, doc):
-    ask = '{{authorId="1" author="Peter">>is this   right?<<}}'
+    ask = '{{authorId="1" author="Sam">>is this   right?<<}}'
     doc.write_text(doc.read_text() + f"\n{ask}\n")
     w = _watch(tmp_path, doc, "claude")
     assert len(_poll_twice(w)) == 1

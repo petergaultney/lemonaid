@@ -14,7 +14,7 @@ def test_documented_tmux_status_command_keeps_empty_positional_arguments():
         "pane_path": "",
         "pane_current_path": "/work/a folder",
         "pane_current_command": "python3.14",
-        "pane_title": "Unable to read Peter's $context | project",
+        "pane_title": "Unable to read Sam's $context | project",
         "window_active": "1",
         "pane_pid": "123",
     }

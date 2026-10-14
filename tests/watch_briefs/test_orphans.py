@@ -72,9 +72,7 @@ def test_needs_ask_wakes_in_orphans_mode_without_a_status_change(grove):
     w = _watch(grove)
     loner, path = lemon("loner", channel="codex:loner", session="loner")
     assert _poll(w) == []
-    path.write_text(
-        path.read_text().replace("### Needs Peter\n\n", "### Needs Peter\n\n- decide\n")
-    )
+    path.write_text(path.read_text().replace("### Needs you\n\n", "### Needs you\n\n- decide\n"))
     assert _poll(w) == [f"{loner}: Status: none; Needs: decide ({path})"]
 
 

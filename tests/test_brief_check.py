@@ -94,7 +94,7 @@ def test_a_second_lemon_id_run_into_the_first_is_caught():
         ("Status: working\n", "", ""),
         ("Status: working", "Status: waiting", ""),
         ("Status: working", "Status: working\nStatus: done", "2 `Status:` lines"),
-        ("### PRs", "### Needs Peter\n\n- x\n\n### PRs", "out of order"),
+        ("### PRs", "### Needs you\n\n- x\n\n### PRs", "out of order"),
         ("- write the docs\n", "", "`### Next` in ## Now is empty"),
         ("|---|---|---|\n", "", "`|---|---|---|`"),
         ("[lemonaid#125](https://github.com/o/lemonaid/pull/125)", "#125", "no pull-request link"),
@@ -196,7 +196,7 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
 
 
 def test_edit_refuses_a_new_unmatched_question(capsys):
-    text = _BRIEF.replace("### Next", "### Needs Peter\n\n- merge #12\n\n### Next", 1).replace(
+    text = _BRIEF.replace("### Next", "### Needs you\n\n- merge #12\n\n### Next", 1).replace(
         "## Goal", "## Questions\n\n### merge #12\n\n- Context\n\n## Goal"
     )
     path = _attached(text)
@@ -210,7 +210,7 @@ def test_edit_refuses_a_new_unmatched_question(capsys):
 def test_the_verbs_edit_the_attached_brief(capsys):
     path = _attached()
 
-    _run(capsys, "bullet", "add", "--channel", "codex:t1", "Needs Peter", "merge #125")
+    _run(capsys, "bullet", "add", "--channel", "codex:t1", "Needs you", "merge #125")
     _run(capsys, "bullet", "set", "--channel", "codex:t1", "write", "docs written")
     _run(capsys, "pr", "rm", "--channel", "codex:t1", "125")
     result = _run(
@@ -219,7 +219,7 @@ def test_the_verbs_edit_the_attached_brief(capsys):
 
     text = path.read_text()
     assert result["error"] is None
-    assert "### Needs Peter\n\n- merge #125\n" in text
+    assert "### Needs you\n\n- merge #125\n" in text
     assert "- docs written\n" in text
     assert "| Fix | [r#7](https://github.com/o/r/pull/7) | |" in text
     assert "lemonaid#125" not in text

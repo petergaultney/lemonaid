@@ -73,8 +73,7 @@ def test_children_are_listed_one_per_line_before_done(capsys):
     parent = lemon("parent")
     path = store.briefs_dir() / "parent.md"
     path.write_text(
-        path.read_text()
-        + "\n## Now\n\n### Needs Peter\n\n- a decision\n\n### Done\n\n- the start\n"
+        path.read_text() + "\n## Now\n\n### Needs you\n\n- a decision\n\n### Done\n\n- the start\n"
     )
     first, second = (
         lemon(name, status=state) for name, state in (("first", "blocked"), ("second", "done"))

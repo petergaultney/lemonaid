@@ -7,7 +7,7 @@ def test_labelled_bullets_split_into_parts():
     parsed = now.parse(
         "- Done: the parser.\n"
         "- Next: the popup.\n"
-        "- Needs Peter: nothing.\n"
+        "- Needs you: nothing.\n"
         "- Waiting on:\n"
         "  - PR #74 review\n"
         "  - CI\n"
@@ -26,7 +26,7 @@ def test_labelled_bullets_split_into_parts():
 def test_sub_headings_split_into_parts_and_unknown_ones_are_kept():
     parsed = now.parse(
         "### Done\n- a\n- b\n\n"
-        "### Needs Peter\nPick one:\n- A\n- B\n\n"
+        "### Needs you\nPick one:\n- A\n- B\n\n"
         "### Waiting on\nnothing\n\n"
         "### Misc\nfree text\n"
     )
@@ -38,7 +38,7 @@ def test_sub_headings_split_into_parts_and_unknown_ones_are_kept():
 
 
 def test_labels_ignore_case_emphasis_and_a_trailing_colon():
-    parsed = now.parse("### needs peter:\nanswer\n\n- **Waiting On**: CI\n")
+    parsed = now.parse("### needs you:\nanswer\n\n- **Waiting On**: CI\n")
 
     assert (parsed.needs, parsed.waiting_on) == ("answer", "CI")
 
@@ -49,7 +49,7 @@ def test_the_needs_heading_takes_any_name_or_none():
 
 
 def test_a_lead_line_keeps_its_sub_bullets():
-    parsed = now.parse("- Needs Peter: pick a colour\n  - yellow\n  - bold\n- Next: tests\n")
+    parsed = now.parse("- Needs you: pick a colour\n  - yellow\n  - bold\n- Next: tests\n")
 
     assert parsed.needs == "pick a colour\n- yellow\n- bold"
     assert parsed.next == "tests"
