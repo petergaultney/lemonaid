@@ -1,11 +1,11 @@
 ## Goal
 
-## Context
+## Executive Summary of Results
 
-## Limits
+## Context
 
 ## Acceptance Criteria
 
-## Executive Summary of Results
+## Limits
 
 ## Waiters

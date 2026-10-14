@@ -97,6 +97,7 @@ class Section:
     parent: str = ""  # its parent's Lemon-ID
     parent_name: str = ""  # its parent's session name, when lemonaid knows it
     children: tuple[Child, ...] = ()
+    summary: str = ""  # rendered first when populated
 
 
 @dataclasses.dataclass(frozen=True)
@@ -135,7 +136,6 @@ def _section(
         part
         for part in (
             _part("Done", parsed.done) if parsed.done and detail != "compact" else "",
-            _part("Executive Summary of Results", parts.summary) if parts.summary else "",
             *(["---", parts.rest] if detail == "full" and parts.rest else []),
         )
         if part
@@ -159,6 +159,7 @@ def _section(
         project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
         lemon_id=_lemon_id(brief.text),
         compact=detail == "compact",
+        summary=parts.summary,
     )
 
 
@@ -394,6 +395,7 @@ def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str
                     ),
                 ]
             ),
+            _part("Executive Summary of Results", section.summary) if section.summary else "",
             needs(section, expanded),
             section.body,
             _children(section),
