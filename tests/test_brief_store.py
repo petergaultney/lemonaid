@@ -82,11 +82,20 @@ def test_clear_removes_the_status_line_and_its_blank_line():
 
 def test_new_briefs_are_dated_and_named_after_the_work():
     path = store.create("Lemonaid: session briefs!", datetime.date(2026, 9, 24))
+    text = path.read_text()
 
     assert path.name == "2026-09-24-lemonaid-session-briefs.md"
     assert path.parent == store.briefs_dir().resolve()
-    assert path.read_text().startswith("# Lemonaid: session briefs!\n\nBrief-ID: ")
-    assert "Status:" not in path.read_text()
+    assert text.startswith("# Lemonaid: session briefs!\n\nBrief-ID: ")
+    assert "Status:" not in text
+    assert [line for line in text.splitlines() if line.startswith("## ")] == [
+        "## Now",
+        "## Goal",
+        "## Executive Summary of Results",
+        "## Context",
+        "## Acceptance Criteria",
+        "## Limits",
+    ]
 
 
 def test_new_never_overwrites():

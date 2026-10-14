@@ -42,13 +42,14 @@ Brief-ID: {lemon_id}
 
 ## Goal
 
-## Context
+## Executive Summary of Results
 
-## Limits
+## Context
 
 ## Acceptance Criteria
 
-## Executive Summary of Results
+## Limits
+
 """
 
 
