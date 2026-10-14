@@ -11,7 +11,7 @@ where Claude Code and Codex look for skills.
 lemonaid skills install                        # every packaged skill, for every harness found
 lemonaid skills install watch-pr --harness codex
 lemonaid skills install --json
-lemonaid skills install --print brief          # the text only, to install it yourself
+lemonaid skills install --print brief --harness codex   # one harness's text (default claude)
 ```
 
 ## Adding your own conventions
@@ -41,18 +41,27 @@ That refresh only rewrites skills already installed, and never creates or change
 harness entry, so a skill newly packaged by an upgrade needs `lemonaid skills install`. So
 does an overlay edit, which the stamp doesn't cover.
 
+## Text for one harness
+
+A packaged skill, overlay or replacement can address one harness. Lines between
+`<!-- harness: claude -->` and `<!-- /harness -->` (or `codex`) appear only in that
+harness's copy, and the marker lines are removed. Text outside any marker is in both. The
+packaged skills use this for how each harness is watched: a Claude lemon is told about the
+push scout, a Codex lemon about `--codex-thread`.
+
 ## Where it writes
 
-Each skill is rendered once, to `~/.local/state/lemonaid/skills/<name>/SKILL.md`
-(`LEMONAID_STATE_DIR` moves it). Each harness's entry is a symlink to that directory:
+Each skill is rendered once per harness, to
+`~/.local/state/lemonaid/skills/<harness>/<name>/SKILL.md` (`LEMONAID_STATE_DIR` moves
+it). Each harness's entry is a symlink to its own directory:
 
 - Claude: `~/.claude/skills/<name>` (`$CLAUDE_CONFIG_DIR/skills` when that is set).
 - Codex: `~/.codex/skills/<name>` (`$CODEX_HOME/skills` when that is set).
 
 By default install covers each harness whose home directory exists; `--harness` picks
 harnesses and creates their skills directory. An entry counts as lemonaid's when it is a
-symlink resolving to the rendered copy, directly or through another link, such as a Codex
-entry that links to Claude's. Anything else already at an entry (a directory, a file, or a
+symlink resolving anywhere under the rendered directory, directly or through another link, such as a Codex
+entry that links to Claude's; install repoints it to the harness's own copy. Anything else already at an entry (a directory, a file, or a
 link elsewhere) is left alone and reported as refused, and install exits 1. Move it aside
 yourself if you want lemonaid's version. The same goes for the rendered directory: one
 lemonaid didn't create (it has no `.lemonaid-skill` marker) is never written to. After linking, install reads each entry's

@@ -2,12 +2,12 @@
 
 Each skill is the packaged SKILL.md plus an optional user file in
 `~/.lemons/skills/<name>/`: `overlay.md` is appended, `SKILL.md` replaces the packaged
-text. The result is written once to lemonaid's state directory, and each harness's skill
-entry is a symlink to it. An entry lemonaid didn't create is never replaced.
+text. The result is written per harness to lemonaid's state directory, and each harness's
+skill entry is a symlink to its copy. An entry lemonaid didn't create is never replaced.
 
     lemonaid skills install                      # every packaged skill, every harness found
     lemonaid skills install watch-pr --harness codex
-    lemonaid skills install --print watch-doc    # the text, for installing it yourself
+    lemonaid skills install --print watch-doc --harness codex    # the text, for installing it yourself (default claude)
 """
 
 import argparse
@@ -24,10 +24,10 @@ def _harnesses(chosen: list[str]) -> dict[str, pathlib.Path]:
     return {h: d for h, d in dirs.items() if h in chosen or (not chosen and d.parent.is_dir())}
 
 
-def _render_all(names: list[str]) -> list[compose.Rendered]:
+def _render_all(names: list[str], harness: str) -> list[compose.Rendered]:
     try:
         return [
-            compose.render(compose.PACKAGED_DIR, compose.default_user_dir(), name)
+            compose.render(compose.PACKAGED_DIR, compose.default_user_dir(), name, harness)
             for name in names or compose.packaged_names(compose.PACKAGED_DIR)
         ]
     except compose.Problem as e:
@@ -37,9 +37,9 @@ def _render_all(names: list[str]) -> list[compose.Rendered]:
 
 def _cmd_install(args: argparse.Namespace) -> None:
     if args.print:
-        if len(args.names) != 1:
-            args.parser.error("--print takes exactly one skill name")
-        print(_render_all(args.names)[0].text, end="")
+        if len(args.names) != 1 or len(args.harness) > 1:
+            args.parser.error("--print takes exactly one skill name and at most one --harness")
+        print(_render_all(args.names, (args.harness or ["claude"])[0])[0].text, end="")
         return
 
     harnesses = _harnesses(args.harness)
@@ -50,23 +50,27 @@ def _cmd_install(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    rendered_dir = install.default_rendered_dir()
+    names = args.names or compose.packaged_names(compose.PACKAGED_DIR)
     report, unmanaged = [], False
-    for r in _render_all(args.names):
-        try:
-            skill_dir = install.write_rendered(rendered_dir, r.name, r.text)
-        except install.Unmanaged as e:
-            print(f"{r.name}: refused: {e}", file=sys.stderr)
-            unmanaged = True
-            continue
+    for name in names:
+        rendered, results = {}, []
+        for harness, skills_dir in harnesses.items():
+            r = _render_all([name], harness)[0]
+            try:
+                rendered[harness] = install.write_rendered(
+                    install.default_rendered_dir(harness), name, r.text
+                )
+            except install.Unmanaged as e:
+                print(f"{harness} {name}: refused: {e}", file=sys.stderr)
+                unmanaged = True
+                continue
 
-        report.append(
-            (
-                r,
-                skill_dir,
-                [install.link(h, d / r.name, skill_dir, r.text) for h, d in harnesses.items()],
+            results.append(
+                install.link(
+                    harness, skills_dir / name, rendered[harness], r.text, install.rendered_root()
+                )
             )
-        )
+        report.append((r, rendered, results))
 
     if args.json:
         print(
@@ -75,7 +79,7 @@ def _cmd_install(args: argparse.Namespace) -> None:
                     {
                         "skill": r.name,
                         "source": r.source,
-                        "rendered": str(skill_dir),
+                        "rendered": {h: str(d) for h, d in rendered.items()},
                         "harnesses": [
                             {
                                 "harness": x.harness,
@@ -86,14 +90,14 @@ def _cmd_install(args: argparse.Namespace) -> None:
                             for x in results
                         ],
                     }
-                    for r, skill_dir, results in report
+                    for r, rendered, results in report
                 ],
                 indent=2,
             )
         )
     else:
-        for r, skill_dir, results in report:
-            print(f"{r.name}: {r.source} -> {skill_dir}")
+        for r, rendered, results in report:
+            print(f"{r.name}: {r.source} -> {', '.join(map(str, rendered.values()))}")
             for x in results:
                 print(
                     f"  {x.harness}: {x.outcome.value} {x.entry}"

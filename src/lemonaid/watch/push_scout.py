@@ -23,8 +23,8 @@ _log = get_logger("watch.push_scout")
 
 FLAG = "--push"
 _INSTRUCTION = (
-    "Read the changed sources and handle the entire batch. lemonaid keeps watching and "
-    "pushes the next batch into this session; don't start `lemonaid watch --self`."
+    "Read the changed sources and handle the entire batch. lemonaid is watching for you "
+    "and pushes the next batch into this session."
 )
 
 
@@ -58,12 +58,12 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
 
 
 def announce(entry: session_socket.Session) -> None:
-    """Tell the lemon its scout is delivering, so it knows to arm nothing."""
+    """Tell the lemon its scout is delivering."""
     try:
         session_socket.send(
             entry,
             f"lemonaid push scout started: batches and messages now arrive in this session through "
-            f"its socket ({entry.socket}). Don't start `lemonaid watch --self`.",
+            f"its socket ({entry.socket}). lemonaid is watching for you.",
         )
     except session_socket.Refused as error:
         _log.warning("could not announce the scout to %s: %s", entry.session_id, error)

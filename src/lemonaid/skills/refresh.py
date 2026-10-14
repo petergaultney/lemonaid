@@ -1,6 +1,6 @@
 """Re-render installed skills when the packaged ones change, so an upgrade reaches every lemon.
 
-The inbox TUI runs this once at startup. The stamp is each packaged SKILL.md's mtime and
+The inbox TUI runs this once at startup, for each harness's rendered directory. The stamp is each packaged SKILL.md's mtime and
 size: a reinstall or a `git pull` in an editable checkout rewrites those files, which is
 enough without knowing lemonaid's version. Only skills already installed are rewritten;
 linking a harness entry stays `lemonaid skills install`'s job. Overlay edits are not
@@ -9,6 +9,7 @@ watched, and take effect on the next `skills install`.
 
 import os
 import pathlib
+import shutil
 import typing as ty
 
 from .. import log
@@ -34,7 +35,7 @@ def _stamp(packaged_dir: pathlib.Path) -> str:
 
 
 def _rerender(
-    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path
+    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path, harness: str
 ) -> Refreshed:
     rewritten, failed = [], []
     for name in compose.packaged_names(packaged_dir):
@@ -42,7 +43,7 @@ def _rerender(
             continue
 
         try:
-            r = compose.render(packaged_dir, user_dir, name)
+            r = compose.render(packaged_dir, user_dir, name, harness)
             if (rendered_dir / name / "SKILL.md").read_text() != r.text:
                 install.write_rendered(rendered_dir, name, r.text)
                 _logger.info("refreshed %s from %s", name, r.source)
@@ -54,7 +55,7 @@ def _rerender(
 
 
 def refresh_if_stale(
-    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path
+    packaged_dir: pathlib.Path, user_dir: pathlib.Path, rendered_dir: pathlib.Path, harness: str
 ) -> Refreshed:
     """Never raises for a file it can't read or write. The stamp is kept only when every
     skill refreshed, so a failure is reported again at the next check."""
@@ -68,7 +69,7 @@ def refresh_if_stale(
         except (FileNotFoundError, UnicodeError):
             pass  # no stamp, or a damaged one: stale either way, and rewritten below
 
-        result = _rerender(packaged_dir, user_dir, rendered_dir)
+        result = _rerender(packaged_dir, user_dir, rendered_dir, harness)
         if not result.failed:
             rendered_dir.mkdir(parents=True, exist_ok=True)
             tmp = rendered_dir / f".{_STAMP}.{os.getpid()}"
@@ -80,9 +81,44 @@ def refresh_if_stale(
         return Refreshed([], ["skills"])
 
 
+def _migrate_single_copy() -> None:
+    """Move a pre-per-harness install to the per-harness layout: render each harness's copy, repoint its entries, drop the old copy."""
+    root = install.rendered_root()
+    old = [n for n in compose.packaged_names(compose.PACKAGED_DIR) if install.is_rendered(root, n)]
+    for name in old:
+        refused = False
+        for harness, skills_dir in install.harness_skill_dirs().items():
+            try:
+                r = compose.render(compose.PACKAGED_DIR, compose.default_user_dir(), name, harness)
+                skill_dir = install.write_rendered(
+                    install.default_rendered_dir(harness), name, r.text
+                )
+                entry = skills_dir / name
+                if entry.is_symlink():
+                    refused |= (
+                        install.link(harness, entry, skill_dir, r.text, root).outcome
+                        is install.Outcome.REFUSED
+                    )
+            except (OSError, UnicodeError, compose.Problem, install.Unmanaged) as e:
+                _logger.warning("could not migrate skill %s for %s: %s", name, harness, e)
+                refused = True
+
+        if not refused:
+            shutil.rmtree(root / name)
+            (root / _STAMP).unlink(missing_ok=True)
+
+
 def refresh_installed() -> Refreshed:
-    return refresh_if_stale(
-        compose.PACKAGED_DIR, compose.default_user_dir(), install.default_rendered_dir()
+    _migrate_single_copy()
+    results = [
+        refresh_if_stale(
+            compose.PACKAGED_DIR, compose.default_user_dir(), install.default_rendered_dir(h), h
+        )
+        for h in install.harness_skill_dirs()
+    ]
+    return Refreshed(
+        sorted({n for r in results for n in r.rewritten}),
+        sorted({n for r in results for n in r.failed}),
     )
 
 

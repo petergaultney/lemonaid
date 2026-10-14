@@ -932,11 +932,13 @@ A Codex lemon with an armed inbox waiter can receive queued messages while
 idle. Without one, `tell` treats it as deaf and prompts it to read its inbox.
 During an active turn, lemonaid's delivery service queues messages into the
 thread with `codex queue`.
-A lemon with children also keeps `lemonaid watch briefs --children --self --once` running.
-`brief new --child`, `place open --brief` and `lemon start --brief` print a reminder to stderr
-when they link a child. A Claude lemon's `waiter-check` Stop hook refuses to let the turn end
-while it has any child with a brief and the default children waiter (no `--to`, no `--me`) isn't
-running. A Codex lemon has no Stop hook, so the reminder is all it gets; for it the reminder names `lemonaid watch briefs --children --self --codex-thread`, which queues each event into its thread.
+A lemon with children gets their status changes in the same `lemonaid watch --self` batches as
+its other sources. `brief new --child`, `place open --brief` and `lemon start --brief` print a
+reminder to stderr when they link a child. For a Claude lemon it says to check
+`lemonaid watch --self --status`; for a Codex lemon it names
+`lemonaid watch --self --codex-thread`, which queues each event into its thread. A Claude
+lemon's `waiter-check` Stop hook refuses to let the turn end while it has a child with a brief
+and no watcher is running. A Codex lemon has no Stop hook, so the reminder is all it gets.
 A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a
 background task; if the `waiter-check` Stop hook is installed, it refuses to
 let your turn end until that watch is running. Start it with
@@ -1050,19 +1052,18 @@ Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane
 
 ## Watch everything in your attached brief
 
-Read the current state first, then run one watcher:
+Read the current state first, then check `lemonaid watch --self --status`.
+
+In Claude, `push scout running` means lemonaid is watching for you and pushes each batch
+into your session; handle each as it arrives. `no watcher running` means run
+`lemonaid watch --self --push`, which starts a detached scout and returns. If that prints
+`not started` and a reason, run `lemonaid watch --self` as a background Bash task.
+
+In Codex, run it as an escalated exec_command session:
 
 ```bash
-lemonaid watch --self --status
-lemonaid watch --self                         # Claude background Bash task
-lemonaid watch --self --codex-thread          # escalated Codex exec_command session
+lemonaid watch --self --codex-thread
 ```
-
-When `--status` prints `push scout running`, lemonaid is already pushing your batches
-into your Claude session: handle each as it arrives and start nothing. If it prints
-`no watcher running` in Claude, run `lemonaid watch --self --push`: it starts a
-detached scout and returns. If it prints `not started` and a reason, run `lemonaid watch
---self` as a background task instead.
 
 The watcher rereads Watching commands, PRs (comments and CI), local PR Review documents,
 Docs rows, inbox and direct children. It delivers one batch and exits; handle every source,

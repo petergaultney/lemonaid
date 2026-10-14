@@ -83,17 +83,31 @@ lemonaid brief pr rm --self 12
 
 `bullet set` and `rm` match the beginning of exactly one bullet, ignoring case. `Done` additions go at the top of that section. `lemonaid brief now --self "..."` replaces all of `## Now`; pass `-` to read it from stdin.
 
-In Codex, use the verbs to update a brief outside your workspace. Whether they run without a permission prompt depends on your installed allow rules; hand edits outside the workspace require the applicable filesystem permission. Claude may edit directly. After every hand edit, run `lemonaid brief check --self` and fix its reports. When configured, Claude's Stop hook also checks and prevents the turn ending with an invalid brief; nothing automatically checks a Codex hand edit.
+<!-- harness: claude -->
+You may edit a brief directly. After every hand edit, run `lemonaid brief check --self` and fix its reports; the Stop hook also keeps the turn from ending with an invalid brief.
+<!-- /harness -->
 
-## Declare subscriptions and arm one watcher
+<!-- harness: codex -->
+Use the verbs to update a brief outside your workspace. Whether they run without a permission prompt depends on your installed allow rules; hand edits outside the workspace require the applicable filesystem permission. After every hand edit, run `lemonaid brief check --self` and fix its reports; nothing automatically checks a Codex hand edit.
+<!-- /harness -->
+
+## Declare subscriptions and watch them
 
 `## Watching` lists one `lemonaid watch` command per line; legacy `## Waiters` remains readable. Edit it with `brief watching add|set|rm` (`brief waiter` is an alias). These lines describe subscriptions, regardless of whether a separate waiter is running.
 
 List every doc you wrote for someone to read with `lemonaid brief doc add --self <path> "<purpose>"`; `--watch "All edits"` also watches its body. The Watch column accepts `Relay comments` (the default) or `All edits`, not booleans. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
 
-Read your work's current state first, then arm `lemonaid watch --self`. It reads Watching, PRs (with comments and CI), Docs, your inbox and your children's statuses, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
+Read your work's current state first. `lemonaid watch --self` reads Watching, PRs (with comments and CI), Docs, your inbox and your children's statuses, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
-In Claude, if `lemonaid watch --self --status` says `push scout running`, lemonaid pushes each batch into your session: handle it and arm nothing. If it says `no watcher running`, run `lemonaid watch --self --push`: it starts a detached scout and returns. Only if that prints `not started`, run it as a background Bash task (`run_in_background`, `timeout: 2147483647`). In Codex, add bare `--codex-thread` and use an escalated exec_command session. Check `lemonaid watch --self --status` before starting another. Handle the whole batch, then rearm before ending the turn. Stop separate inbox, PR and children waiters before switching. Idle lemons wait on events and never self-poll or schedule repeated wakeups. An idle Codex without an armed inbox waiter may not start a turn for queued messages; `tell` treats it as deaf and prompts it to read its inbox.
+<!-- harness: claude -->
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts a detached scout and returns. Only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`run_in_background`, `timeout: 2147483647`) and rearm it after handling each batch. Stop separate inbox, PR and children waiters before switching.
+<!-- /harness -->
+
+<!-- harness: codex -->
+Check `lemonaid watch --self --status`, then run `lemonaid watch --self --codex-thread` in an escalated exec_command session. Handle the whole batch, then rearm before ending the turn. Stop separate inbox, PR and children waiters before switching. An idle Codex without an armed waiter may not start a turn for queued messages; `tell` treats it as deaf and prompts it to read its inbox.
+<!-- /harness -->
+
+Idle lemons wait on events and never self-poll or schedule repeated wakeups.
 
 ## Check children and finished work
 

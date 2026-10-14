@@ -99,7 +99,7 @@ def classify(
         detail = (
             "the delivery service queues messages into its thread"
             if channel.startswith("codex:")
-            else "it will arm its inbox waiter when this turn ends"
+            else "it reads its inbox when this turn ends"
         )
         return State(MID_TURN, detail)
 

@@ -9,7 +9,17 @@ You wrote a document; the human reads it in Obsidian and responds with Relay Com
 
 ## With an attached brief
 
-Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first. In Claude, check `lemonaid watch --self --status` first. `push scout running` means lemonaid pushes each batch into your session: handle it and arm nothing. `no watcher running` means run `lemonaid watch --self --push`, which starts the scout and returns; only if it prints `not started`, run `lemonaid watch --self` as a background task. In Codex, run it with bare `--codex-thread` in an escalated exec_command session, and rearm after each batch. The standalone commands below remain available.
+Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first.
+
+<!-- harness: claude -->
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session: add the doc with `lemonaid brief doc add` if it is not in your brief's Docs table, and handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`timeout: 2147483647`) and rearm it after each batch.
+<!-- /harness -->
+
+<!-- harness: codex -->
+Run `lemonaid watch --self --codex-thread` in an escalated exec_command session, and rearm after each batch.
+<!-- /harness -->
+
+The standalone commands below remain available.
 
 ## Arguments
 
@@ -27,7 +37,7 @@ If `--me` and the `author` of your reply blocks differ, the waiter sees your own
 
 With an attached brief, the watch command automatically records its restartable command under the final `## Watching` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
 
-Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
+Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. Recording uses the attached brief of the lemon the waiter wakes.
 
 
 In OpenClaw, record the exact `lemonaid watch openclaw start` command for each doc manually; remove its entry when you remove the doc from the watch list.
@@ -40,6 +50,7 @@ Before starting a waiter, check for one: `lemonaid watch doc --status <doc> --me
 
 The waiter reads the document every 15 seconds. It reports when a thread becomes unanswered or an unanswered thread gains a block, and when the body outside comment threads has changed and then been quiet for 20 seconds.
 
+<!-- harness: claude -->
 In Claude Code, start the waiter with `--once` as a background Bash task and end the turn:
 
 ```
@@ -56,8 +67,11 @@ It prints the first event and exits, and the task's completion wakes you. Handle
 - Don't use `Monitor`: it expires after 30 minutes and wakes you for nothing.
 - Don't run the waiter without `--once` in background Bash: its output goes to a file and never wakes you.
 - Pass `timeout: 2147483647`. Claude Code stops a background task after 30 minutes by default, and after its `BASH_MAX_TIMEOUT_MS` ceiling otherwise. If the harness stops the waiter anyway, rearm it, whatever the notice says.
+<!-- /harness -->
 
+<!-- harness: codex -->
 In Codex, first check that `CODEX_THREAD_ID` is set and `codex queue --help` succeeds; if either fails, report that setup problem instead of claiming the watch is active. Start `lemonaid watch doc --wait <absolute-doc-path> --me <name> [--legacy <old name>] --codex-thread` (bare: it reads `CODEX_THREAD_ID` itself; never write `"$CODEX_THREAD_ID"`, which keeps the command from matching Codex's allow rule) as an `exec_command` session with escalated (unsandboxed) permissions, then end the turn normally. Inside the workspace sandbox `codex queue` cannot write `~/.codex`, so the waiter checks that and prints `not started: cannot write ...` instead of waiting for an event it could not deliver. Don't call `functions.wait`: keeping a turn open makes ordinary user steering interrupt the watcher. On the first event the waiter queues a message into your thread and exits. Handle every unanswered thread, then rearm by starting the same command again before ending that turn.
+<!-- /harness -->
 
 In OpenClaw, nothing inside a turn can wait. Instead each session gets one long-lived waiter that watches every doc on that session's list and runs one agent turn in the session per event. Get your session key from the `session_status` tool, then run `lemonaid watch openclaw start <absolute-doc-path> --session-key <your session key> --me <name>` through `exec`, and sign reply blocks with your session key as `authorId`. This adds the doc to your session's list, takes it off any other session's list (the latest writer wins), and starts the waiter if it isn't running. A doc drops off the list after 7 days with no comment, and there is nothing to rearm. `lemonaid watch openclaw list` shows every watched doc, and `stop <doc>` removes one.
 
@@ -72,10 +86,11 @@ Never use a hand-rolled polling loop or scheduled wakeups; they wake the session
 - The `{==...==}` highlight may be absent (a comment anchored to a point).
 - A thread is the highlight plus every `{{...>>...<<}}` block that immediately follows it, with nothing in between. Replies are appended as further blocks. A thread is **unanswered** when its last block's `author` is not your name or a legacy name. Human authors are never matched by name; anyone can comment, and several people can share a thread.
 - A human may also just edit your prose; the waiter reports it as `body of <doc> changed (+N/-M lines)`. Read what changed: it may be a request, a correction, or a note to you in the text itself. Don't revert it. If an edit changes a conclusion you disagree with, add a comment block beside it saying so.
-- Your own body edits don't wake your waiter when they're recorded; replies inside threads never do, and neither does reformatting such as re-padded tables. With lemonaid's hooks installed (`lemonaid hooks install`), every tool call that names the doc's file and changes it is recorded, in Claude Code and Codex alike, whatever the tool; name the doc in a script's command line so its edit counts. Without them, wrap each edit in `lemonaid watch doc --editing <absolute-doc-path>` before and `lemonaid watch doc --mine <absolute-doc-path>` after, as one shell call (see "Editing in Codex" below); with them, the wrapper is harmless. An unrecorded edit of yours wakes you once after you rearm; if the reported change is only yours, rearm without doing anything else.
+- Your own body edits don't wake your waiter when they're recorded; replies inside threads never do, and neither does reformatting such as re-padded tables. With lemonaid's hooks installed (`lemonaid hooks install`), every tool call that names the doc's file and changes it is recorded, in Claude Code and Codex alike, whatever the tool; name the doc in a script's command line so its edit counts. Without them, wrap each edit in `lemonaid watch doc --editing <absolute-doc-path>` before and `lemonaid watch doc --mine <absolute-doc-path>` after, as one shell call; with them, the wrapper is harmless. An unrecorded edit of yours wakes you once after you rearm; if the reported change is only yours, rearm without doing anything else.
 
 To find unanswered threads by hand, `rg -o 'author="[^"]*">>' <doc-path>` lists the blocks in order.
 
+<!-- harness: codex -->
 ## Editing in Codex
 
 Without lemonaid's hooks, make every edit to a watched doc's body one shell call that records it (a reply alone changes no body, so it needs none):
@@ -92,6 +107,7 @@ PATCH
 ```
 
 A doc outside your workspace needs the same escalated permissions as any other edit there.
+<!-- /harness -->
 
 ## Replying
 

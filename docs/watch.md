@@ -417,15 +417,16 @@ changes, rather than replacing that initial inspection.
 
 ```bash
 lemonaid watch --self --status
-lemonaid watch --self                        # Claude: run as a background Bash task
+lemonaid watch --self                        # Claude without a push scout: a background Bash task
 lemonaid watch --self --codex-thread         # Codex: escalated exec_command session
 ```
 
-For Claude, use `run_in_background` and `timeout: 2147483647`; task completion wakes
-the turn. A Claude lemon whose `--status` says `push scout running` arms nothing (see
-below). For Codex, use bare `--codex-thread` in an escalated session so `codex queue`
-can write to the thread. The command refuses to start if Codex delivery is unavailable.
-Do not start another watcher while `--status` says one is running.
+A Claude lemon whose `--status` says `push scout running` is already watched (see
+below). A Claude lemon without a scout runs the command with `run_in_background` and
+`timeout: 2147483647`; task completion wakes the turn. For Codex, use bare
+`--codex-thread` in an escalated session so `codex queue` can write to the thread. The
+command refuses to start if Codex delivery is unavailable. Do not start another watcher
+while `--status` says one is running.
 
 The unified command accepts:
 
@@ -523,8 +524,8 @@ Stop separately running watchers before switching, while preserving their declar
 
 ```bash
 lemonaid watch stop --self --keep-subscriptions
-lemonaid watch --self --codex-thread          # or background watch --self for Claude
 lemonaid watch --self --status
+lemonaid watch --self --codex-thread          # Codex only; a Claude push scout needs no arming
 ```
 
 The SessionStart hook tells attached lemons to read current work and arm the unified

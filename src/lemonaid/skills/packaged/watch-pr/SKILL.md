@@ -7,14 +7,24 @@ description: Wait, at zero token cost, until a GitHub PR gets a new push, is mer
 
 ## With an attached brief
 
-Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first. In Claude, check `lemonaid watch --self --status` first. `push scout running` means lemonaid pushes each batch into your session: handle it and arm nothing. `no watcher running` means run `lemonaid watch --self --push`, which starts the scout and returns; only if it prints `not started`, run `lemonaid watch --self` as a background task. In Codex, run it with bare `--codex-thread` in an escalated exec_command session, and rearm after each batch. The standalone commands below remain available.
+Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first.
+
+<!-- harness: claude -->
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session: add the PR with `lemonaid brief pr add` if it is not in your brief's PR table, and handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`timeout: 2147483647`) and rearm it after each batch.
+<!-- /harness -->
+
+<!-- harness: codex -->
+Run `lemonaid watch --self --codex-thread` in an escalated exec_command session, and rearm after each batch.
+<!-- /harness -->
+
+The standalone commands below remain available.
 
 ## Arguments
 
 A PR number or URL. If omitted, infer it from the current branch (`gh pr view --json number`).
 
 - `--comments --me "<your signature>"`: also wake on new comments from anyone but you, and, as the PR's author, when it starts conflicting with its base or its CI fails. Use it on every PR you open. `<your signature>` is the one you sign Relay Comments with, e.g. `Author (MotorHoe)`.
-- `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`, `--once`, and `--codex-thread`; it does not require `--comments`.
+- `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`; it does not require `--comments`.
 - `--legacy <name>`: another signature whose comments count as yours, e.g. one you signed with before (repeatable).
 - Without `--comments` or `--ci`: pushes, merge/close, draft/ready, and review decision only, e.g. when you reviewed someone else's PR. Conflicts and CI are the author's to fix, so a reviewer isn't woken for them.
 
@@ -26,7 +36,7 @@ For quieter waits, use `--skip-outdated` and/or `--skip-resolved`, or set `skip_
 
 With an attached brief, the watch command automatically records its restartable command under the final `## Watching` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
 
-Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
+Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. Recording uses the attached brief of the lemon the waiter wakes.
 
 ## Choosing where to test
 
@@ -42,6 +52,7 @@ A waiter reports only what changes after you start it, never what is already tru
 
 Check for an existing waiter first: `lemonaid watch pr --status <number> [--me "<your signature>"]`, with the same `--me` as the waiter. If one is running, don't start another; a second one for the same PR and name refuses to start.
 
+<!-- harness: claude -->
 In Claude Code, start the waiter with `--once` as a background Bash task, then end your turn:
 
 ```
@@ -54,14 +65,19 @@ Bash(
 ```
 
 It prints the first event and exits, and the task's completion wakes you. Handle the event, then rearm the same way with `--head` set to the head you just handled. (`--head` is optional: the waiter remembers the head it last reported, and with lemonaid's hooks installed your own pushes don't wake you.)
+<!-- /harness -->
 
 Never push with `-q` or `--quiet`. The hooks recognize your push from the `old..new branch -> branch` line `git push` prints, and a quiet push prints none, so your own push wakes you.
 
+<!-- harness: claude -->
 - Don't use `Monitor`: it expires after 30 minutes and wakes you for nothing.
 - Don't run the waiter without `--once` in background Bash: its output goes to a file and never wakes you.
 - Pass `timeout: 2147483647`. Claude Code stops a background task after 30 minutes by default, and after its `BASH_MAX_TIMEOUT_MS` ceiling otherwise. If the harness stops the waiter anyway, rearm it, whatever the notice says.
+<!-- /harness -->
 
+<!-- harness: codex -->
 In Codex, check that `CODEX_THREAD_ID` is set and `codex queue --help` succeeds, then start `lemonaid watch pr --wait <number or PR URL> [--repo <owner/name> with a number] --head <current head sha> [--comments --me "<your signature>"] --codex-thread` (bare: it reads `CODEX_THREAD_ID` itself; never write `"$CODEX_THREAD_ID"`, which keeps the command from matching Codex's allow rule) as an `exec_command` session with escalated (unsandboxed) permissions, since `codex queue` must write `~/.codex`, and end the turn. The first event is queued into your thread and the waiter exits. When woken, handle it, then rearm with `--head` set to the head you just handled. Don't pipe the waiter into `codex queue` yourself.
+<!-- /harness -->
 
 The waiter makes one GraphQL call a minute, for the repo of the current directory (pass the PR's URL instead of its number, or `--repo owner/name`, if you are elsewhere). The last reported head, state, comments, draft flag, review decision, and blocked heads are remembered as your cursors, so a change made between one waiter's exit and the rearm, a push or merge included, is reported by the next one. Your very first waiter on a PR takes it as it is now as already seen. Never poll in a background shell, and never chain scheduled wakeups.
 
@@ -78,7 +94,7 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 - **Review decision `CHANGES_REQUESTED`:** the reviewer's comments arrive as their own event, or in the same line; handle those. If none are visible, read `gh pr view <n> --json reviews`.
 - **Review decision `REVIEW_REQUIRED` or `none`:** an approval was dismissed (often by a push) or the requirement changed. Note it and rearm.
 - **New comments:** the event names each comment's author and location. Make any fix that is clearly asked for. Reply in the comment's own thread, starting with `🍋 <your signature>:`, if you are allowed to post; otherwise draft the reply in your final message for your human to post. Then rearm.
-- **Merged or closed:** nothing is left to watch, whether you wrote the PR or reviewed it. Stop the waiter with `lemonaid watch stop --self pr <number>` (in Codex, don't rearm), never `pkill -f` the command, which stops every lemon's matching waiter, and end your turn with one line saying so.
+- **Merged or closed:** nothing is left to watch, whether you wrote the PR or reviewed it. Stop the waiter with `lemonaid watch stop --self pr <number>`, never `pkill -f` the command, which stops every lemon's matching waiter, and end your turn with one line saying so.
 
 ## Notes
 

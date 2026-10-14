@@ -110,3 +110,25 @@ def test_inbox_only_is_not_enough_for_a_brief_with_pr_subscriptions(capsys, harn
         reason = waiter_check.reason_to_block({"session_id": session}, 0, harness)
     assert "lemonaid watch --self" in reason
     assert "--keep-subscriptions" in reason
+
+
+def test_a_claude_lemon_with_a_push_scout_is_told_what_lemonaid_does_for_it(monkeypatch):
+    _briefed(channel="claude:abcd1234")
+    monkeypatch.setattr(session_start, "_pushed", lambda path, session_id: True)
+
+    text = session_start.context({"session_id": "abcd1234-0000"}, "claude")
+
+    assert "lemonaid is watching for you" in text
+    assert "don't" not in text.lower()
+    assert "--codex-thread" not in text
+
+
+def test_the_codex_start_text_names_no_claude_mechanism():
+    _briefed()
+
+    text = session_start.context({"session_id": _THREAD}, "codex")
+
+    assert "--codex-thread" in text
+    assert "push scout" not in text
+    assert "--push" not in text
+    assert "Bash" not in text

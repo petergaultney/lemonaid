@@ -17,8 +17,10 @@ from ..watch import children_waiter, push_scout, wait_requirements, wait_state
 
 _log = get_logger("claude.waiter_check")
 
-_ARM = {
-    "claude": "Start `lemonaid watch --self` as a background Bash task (run_in_background, timeout: 2147483647).",
+ARM = {
+    "claude": "Run `lemonaid watch --self --push`, which starts lemonaid's push scout and returns; "
+    "only if it prints `not started`, start `lemonaid watch --self` as a background Bash task "
+    "(run_in_background, timeout: 2147483647).",
     "codex": "Start `lemonaid watch --self --codex-thread` as an escalated exec_command session.",
 }
 
@@ -74,7 +76,7 @@ def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_i
         if lemon_id and harness == "claude"
         else ""
     )
-    return f"{why}No unified watcher is armed for {lemon_id or path.name}. Stop separate waiters with `lemonaid watch stop --self --keep-subscriptions` first. {_ARM[harness]} Then end your turn."
+    return f"{why}No unified watcher is armed for {lemon_id or path.name}. Stop separate waiters with `lemonaid watch stop --self --keep-subscriptions` first. {ARM[harness]} Then end your turn."
 
 
 def _broken(path: Path, text: str) -> str:

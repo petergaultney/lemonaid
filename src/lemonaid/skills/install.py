@@ -1,9 +1,10 @@
 """Write rendered skills to lemonaid's state directory, and link each harness's skill entry to them.
 
-Claude and Codex both read `<skills dir>/<name>/SKILL.md`. Every harness links to the one
-rendered copy, so they always get the same text. An entry is lemonaid's when it is a
-symlink that resolves to that copy, directly or through another link (Codex's skill links
-often point into Claude's). Anything else there is someone else's and is left alone.
+Claude and Codex both read `<skills dir>/<name>/SKILL.md`. Each harness links to its own
+rendered copy, `<rendered root>/<harness>/<name>`, since the text differs per harness. An
+entry is lemonaid's when it is a symlink that resolves anywhere under the rendered root,
+directly or through another link (Codex's skill links often point into Claude's); it is
+repointed to the harness's own copy. Anything else there is someone else's and is left alone.
 """
 
 import enum
@@ -43,8 +44,12 @@ def harness_skill_dirs() -> dict[str, pathlib.Path]:
     }
 
 
-def default_rendered_dir() -> pathlib.Path:
+def rendered_root() -> pathlib.Path:
     return navigation.get_state_path() / "skills"
+
+
+def default_rendered_dir(harness: str) -> pathlib.Path:
+    return rendered_root() / harness
 
 
 class Unmanaged(Exception):
@@ -82,11 +87,22 @@ def _verified(entry: pathlib.Path, text: str) -> bool:
         return False
 
 
-def link(harness: str, entry: pathlib.Path, skill_dir: pathlib.Path, text: str) -> Result:
-    """Point `entry` at `skill_dir`, unless something lemonaid didn't create is already there."""
-    if entry.is_symlink() and entry.resolve() == skill_dir.resolve():
+def link(
+    harness: str, entry: pathlib.Path, skill_dir: pathlib.Path, text: str, root: pathlib.Path
+) -> Result:
+    """Point `entry` at `skill_dir`, unless something lemonaid didn't create is already there.
+
+    A symlink that already resolves under `root` is lemonaid's and is repointed.
+    """
+    if entry.is_symlink() and entry.resolve().is_relative_to(root.resolve()):
+        outcome = Outcome.CURRENT
+        if entry.resolve() != skill_dir.resolve():
+            entry.unlink()
+            entry.symlink_to(skill_dir)
+            outcome = Outcome.LINKED
+
         return (
-            Result(harness, entry, Outcome.CURRENT, "")
+            Result(harness, entry, outcome, "")
             if _verified(entry, text)
             else Result(harness, entry, Outcome.REFUSED, f"{entry}/SKILL.md does not match")
         )

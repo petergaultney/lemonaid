@@ -10,17 +10,16 @@ from ..brief import lemon
 from ..lineage import links
 from . import registry
 
-COMMAND = "lemonaid watch briefs --children --self --once"
-
 CLAUDE_REMINDER = (
-    f"Watch your children: run `{COMMAND}` as a background Bash task (run_in_background) "
-    "and list it under `## Waiters` in your brief; rearm it after each wake."
+    "Your children's status changes arrive with your other watch events. Check "
+    "`lemonaid watch --self --status`: `push scout running` needs nothing more, and "
+    "`no watcher running` means run `lemonaid watch --self --push`."
 )
 
 CODEX_REMINDER = (
-    "Watch your children: run `lemonaid watch briefs --children --self --codex-thread` as an "
-    "escalated `exec_command` session and list it under `## Waiters` in your brief; "
-    "each event is queued into your thread, so rearm it after each one."
+    "Your children's status changes arrive with your other watch events: run "
+    "`lemonaid watch --self --codex-thread` as an escalated `exec_command` session, "
+    "and rearm it after each event."
 )
 
 

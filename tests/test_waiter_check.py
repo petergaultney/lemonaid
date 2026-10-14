@@ -298,9 +298,13 @@ def test_a_done_parent_is_not_asked_to_watch_children(capsys):
     assert _stop(capsys) is None
 
 
-def test_the_reminder_names_the_codex_command_inside_codex(monkeypatch):
-    assert "--codex-thread" not in children_waiter.reminder()
-
+def test_the_reminder_names_only_the_calling_harnesss_mechanism(monkeypatch):
+    claude = children_waiter.reminder()
     monkeypatch.setenv("CODEX_THREAD_ID", "thread")
+    codex = children_waiter.reminder()
 
-    assert "--codex-thread" in children_waiter.reminder()
+    assert "--codex-thread" not in claude
+    assert "push scout running" in claude
+    assert "## Waiters" not in claude + codex
+    assert "--codex-thread" in codex
+    assert "push scout" not in codex
