@@ -1,3 +1,9 @@
+# 0.113.1 (2026-10-14)
+
+#### Fixed
+
+- **`brief children` hides cleaned done children by default**, including nested children and JSON output, while keeping surviving places, held cleanup and PR links visible; `--all` includes the cleaned children.
+
 # 0.113.0 (2026-10-13)
 
 #### Added

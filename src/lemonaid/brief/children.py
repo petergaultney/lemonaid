@@ -142,8 +142,14 @@ def _child(
 
 
 def shown(child: Child, everything: bool) -> bool:
-    """Whether a list leaves *child* in: anything but done with its directory known to be gone."""
-    return everything or child.status != "done" or not child.place or child.place.exists
+    """Hide cleaned families only when no PR table or descendant still needs attention."""
+    return (
+        everything
+        or child.status != "done"
+        or child.cleanup != "cleaned"
+        or bool(child.prs)
+        or any(shown(c, False) for c in child.children)
+    )
 
 
 def of(conn: sqlite3.Connection, parent_id: str, world: child_place.World) -> list[Child]:
@@ -154,3 +160,11 @@ def of(conn: sqlite3.Connection, parent_id: str, world: child_place.World) -> li
         _child(conn, lemon_id, world, by_path, frozenset({parent_id}))
         for lemon_id in links.children_of(conn, parent_id)
     ]
+
+
+def visible(child: Child, everything: bool) -> Child:
+    """Apply the same listing rule to every level of a retained tree."""
+    return dataclasses.replace(
+        child,
+        children=tuple(visible(c, everything) for c in child.children if shown(c, everything)),
+    )

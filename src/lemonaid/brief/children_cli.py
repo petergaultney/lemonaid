@@ -109,7 +109,7 @@ def cmd(args: argparse.Namespace) -> None:
             _fail(args, str(error))
 
         listed = [
-            child
+            children.visible(child, args.all)
             for child in children.of(conn, parent, _world())
             if children.shown(child, args.all)
         ]
@@ -129,8 +129,10 @@ def add_parser(brief_subparsers: argparse._SubParsersAction) -> None:
     parser = brief_subparsers.add_parser(
         "children",
         help=summary,
-        description=f"{summary}. A child whose Status is done is left out once its directory "
-        "is known to be gone, unless --all. Whether a branch is merged is not checked.",
+        description=f"{summary}. Done children are left out only when cleanup is cleaned "
+        "and neither they nor their descendants have PR links or remaining cleanup work. "
+        "This also applies to JSON and nested children; --all includes them. "
+        "PR links are kept without checking GitHub; whether a branch is merged is not checked.",
     )
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument(

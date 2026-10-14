@@ -650,8 +650,10 @@ nested under it:
   lemon that stopped without finishing its brief. `cleaned` when it is `done` and its session
   is gone and it has no place, or its directory is gone. Otherwise `held`, with what holds it up.
 
-A child whose brief says `done` is left out once its directory is known to be gone; `--all`
-shows it anyway. One whose place lemonaid couldn't find stays in.
+Done children are left out only when `cleanup` is `cleaned` and neither they nor their
+descendants have PR links or remaining cleanup work. This applies to nested children and
+`--json` too; `--all` includes them. Surviving places, held cleanup, and PR links stay
+visible. PR links are retained without querying GitHub, so remove closed PRs from the brief.
 `--json` gives the same tree, with the reasons in `held_by`.
 `ready` says nothing about the branch. lemonaid knows nothing about git, so before you tear a
 place down, check yourself that its work is on the trunk.

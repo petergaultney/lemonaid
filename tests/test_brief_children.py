@@ -155,7 +155,7 @@ def test_a_child_not_started_yet_finds_its_place_through_its_sessions_panes(tmp_
     assert found.place == child_place.Place("pending", str(tmp_path / "pending"), True, listed=True)
 
 
-def test_done_children_are_hidden_only_once_their_place_is_known_to_be_gone(tmp_path):
+def test_done_children_are_hidden_only_once_cleanup_is_cleaned(tmp_path):
     parent = _lemon("parent", "working", "claude:parent")
     kept = _lemon("kept", "done", "claude:kept", tmp_path / "feat")
     gone = _lemon("gone", "done", "claude:gone", tmp_path / "gone")
@@ -294,3 +294,66 @@ def test_since_is_when_the_status_last_changed_not_the_last_edit(tmp_path):
         ("running", 1000, 2000),
         ("blocked", 3000, 3000),
     ]
+
+
+@pytest.mark.parametrize("output", [(), ("--json",)])
+@pytest.mark.parametrize("everything", [False, True])
+def test_cleaned_children_without_a_place_are_filtered_at_every_level(
+    capsys, monkeypatch, tmp_path, output, everything
+):
+    parent = _lemon("parent", "", "claude:parent")
+    gone = _lemon("gone", "done", "claude:gone")
+    author = _lemon("author", "merge", "claude:author", tmp_path / "feat")
+    reviewer = _lemon("old-reviewer", "done", "codex:old-reviewer")
+    _link(gone, parent)
+    _link(author, parent)
+    _link(reviewer, author)
+    monkeypatch.setattr(children_cli, "_world", lambda: _world(tmp_path))
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:parent")
+
+    result = _run(capsys, "children", "--self", *output, *(["--all"] if everything else []))
+    if output:
+        assert [c["lemon_id"] for c in result["children"]] == (
+            [gone, author] if everything else [author]
+        )
+        assert [c["lemon_id"] for c in result["children"][-1]["children"]] == (
+            [reviewer] if everything else []
+        )
+    else:
+        assert (gone in result["out"]) is everything
+        assert (reviewer in result["out"]) is everything
+        assert author in result["out"]
+
+
+@pytest.mark.parametrize(
+    "reason", ["place", "session", "unknown", "client", "descendant", "pr", "descendant-pr"]
+)
+def test_done_children_with_remaining_attention_stay_visible(tmp_path, reason):
+    parent = _lemon("parent", "", "claude:parent")
+    child = _lemon(
+        "finished",
+        "done",
+        "claude:finished",
+        tmp_path / ("feat" if reason == "place" else "gone"),
+        _PRS if reason == "pr" else "",
+    )
+    _link(child, parent)
+    world = _world(tmp_path)
+    if reason in {"session", "client"}:
+        world = dataclasses.replace(
+            world, sessions={"s-finished"}, clients={"s-finished": int(reason == "client")}
+        )
+    if reason == "unknown":
+        world = dataclasses.replace(world, sessions=None, clients=None)
+    if reason in {"descendant", "descendant-pr"}:
+        grandchild = _lemon(
+            "grandchild",
+            "done" if reason == "descendant-pr" else "blocked",
+            "claude:grandchild",
+            now=_PRS if reason == "descendant-pr" else "",
+        )
+        _link(grandchild, child)
+
+    [found] = _of(parent, world)
+
+    assert children.shown(found, everything=False)
