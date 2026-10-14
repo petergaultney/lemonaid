@@ -5,67 +5,17 @@ import hashlib
 import json
 import os
 import pathlib
-import re
+import sqlite3
 import time
 from collections import abc
 
-from ..brief import lemon, status
+from ..brief import lemon, lemon_table, status, store
 from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
-from . import briefs_orphans, delivery
+from . import briefs_orphans, delivery, lemon_liveness, needs_text
 
 _log = get_logger("watch.briefs")
-
-_ASK_HEADING = re.compile(r"^#{3,6}\s+\**Needs(?:\s+\w+)?\**\s*:?\s*#*\s*$", re.I)
-_ASK_BULLET = re.compile(r"^([ \t]*)[-*+]\s+\**Needs(?:\s+\w+)?\**\s*:\**(.*)$", re.I)
-_HEADING = re.compile(r"^#{1,6}\s")
-_FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
-_BULLET = re.compile(r"^\s*[-*+]\s+")
-
-
-def _needs(text: str) -> str:
-    """The first Needs section, with whitespace and bullet formatting normalized."""
-    lines: list[str] = []
-    active = False
-    indent: int | None = None
-    fence = ""
-    for line in text.splitlines():
-        delimiter = _FENCE.match(line)
-        if not fence:
-            if active:
-                if _HEADING.match(line) or (
-                    indent is not None
-                    and line.strip()
-                    and len(line.expandtabs()) - len(line.expandtabs().lstrip()) <= indent
-                ):
-                    break
-            elif _ASK_HEADING.fullmatch(line):
-                active = True
-                continue
-            elif bullet := _ASK_BULLET.fullmatch(line):
-                active = True
-                indent = len(bullet[1].expandtabs())
-                lines.append(bullet[2])
-                continue
-        if active:
-            lines.append(_BULLET.sub("", line))
-        if delimiter:
-            if not fence:
-                fence = delimiter[1]
-            elif (
-                delimiter[1][0] == fence[0]
-                and len(delimiter[1]) >= len(fence)
-                and not delimiter[2].strip()
-            ):
-                fence = ""
-
-    collapsed = " ".join(" ".join(lines).split())
-    return (
-        ""
-        if collapsed.rstrip(".").lower() in {"", "nothing", "none", "no", "n/a", "-"}
-        else collapsed
-    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -75,10 +25,31 @@ class _Mark:
     path: str = dataclasses.field(default="", compare=False)
 
 
-def _snapshot(parent: str, orphans: bool = False) -> dict[str, _Mark]:
+@dataclasses.dataclass(frozen=True)
+class _Seen:
+    marks: dict[str, _Mark]
+    explicit: dict[str, lemon_table.Row]  # watched lemons whose row sets their wake statuses
+    problems: dict[str, lemon_liveness.Problem | None]
+
+
+def _resolve(
+    conn: sqlite3.Connection, rows: abc.Iterable[lemon_table.Row]
+) -> dict[str, lemon_table.Row]:
+    found: dict[str, lemon_table.Row] = {}
+    for row in rows:
+        try:
+            found[lemon.lemon_id(conn, row.lemon)] = row
+        except (LookupError, ValueError, store.ChangedUnderneath) as error:
+            _log.warning("Cannot resolve ### Lemons row %s: %s", row.lemon, error)
+    return found
+
+
+def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -> _Seen:
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
+        explicit = _resolve(conn, rows)
         watched = links.children_of(conn, lemon.current(conn, parent))
+        watched += [lemon_id for lemon_id in explicit if lemon_id not in watched]
         if orphans:
             watched += briefs_orphans.find(
                 conn, {lemon.current(conn, parent), *watched}, briefs_orphans.live_sessions
@@ -94,8 +65,9 @@ def _snapshot(parent: str, orphans: bool = False) -> dict[str, _Mark]:
             except OSError as error:
                 _log.warning("Cannot read child brief %s: %s", path, error)
                 continue
-            found[child] = _Mark(status.split(text).status, _needs(text), str(path))
-        return found
+            found[child] = _Mark(status.split(text).status, needs_text.needs(text), str(path))
+        problems = lemon_liveness.probe(conn, {child: mark.status for child, mark in found.items()})
+        return _Seen(found, explicit, problems)
 
 
 def state_stem(
@@ -137,7 +109,10 @@ class BriefsWatch:
     pending: dict[str, _Mark]
     pending_since: float
     to: frozenset[str]
+    tracker: lemon_liveness.Tracker
     orphans: bool = False
+    rows: tuple[lemon_table.Row, ...] = ()
+    needs: bool = False  # a changed Needs wakes, as it does with `orphans`
 
 
 def open_watch(
@@ -147,15 +122,31 @@ def open_watch(
     quiet: float,
     to: frozenset[str] = frozenset({"merge", "done"}),
     orphans: bool = False,
+    rows: tuple[lemon_table.Row, ...] = (),
+    needs: bool = False,
 ) -> BriefsWatch:
     state_dir.mkdir(parents=True, exist_ok=True)
-    path = state_stem(state_dir, parent, me, to, orphans).with_suffix(".reported.json")
-    current = _snapshot(parent, orphans)
+    stem = state_stem(state_dir, parent, me, to, orphans)
+    path = stem.with_suffix(".reported.json")
+    seen = _snapshot(parent, rows, orphans)
     reported = _load(path)
     if reported is None:
-        reported = current
+        reported = seen.marks
         _save(path, reported)
-    return BriefsWatch(parent, quiet, path, reported, current, time.monotonic(), to, orphans)
+    tracker = lemon_liveness.open_tracker(stem.with_suffix(".live.json"), seen.problems)
+    return BriefsWatch(
+        parent,
+        quiet,
+        path,
+        reported,
+        seen.marks,
+        time.monotonic(),
+        to,
+        tracker,
+        orphans,
+        rows,
+        needs,
+    )
 
 
 def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
@@ -172,21 +163,33 @@ def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
     return f"{child}: {state}{ask} ({current.path})"
 
 
-def _absorbed(w: BriefsWatch, mark: _Mark, previous: _Mark | None) -> bool:
-    """Whether a changed mark advances the baseline without waking: a Needs ask that appeared or
-    changed always wakes in orphans mode."""
-    if w.orphans and mark.needs and (previous is None or previous.needs != mark.needs):
+def _absorbed(
+    w: BriefsWatch, row: lemon_table.Row | None, mark: _Mark, previous: _Mark | None
+) -> bool:
+    """Whether a changed mark advances the baseline without waking, under the lemon's row if
+    it has one: a Needs ask that appeared or changed wakes when Needs is watched."""
+    if row and previous is None:  # a newly listed lemon's current state is taken as seen
+        return True
+
+    to = frozenset(row.wake) if row else w.to
+    if (
+        (lemon_table.NEEDS in to if row else w.orphans or w.needs)
+        and mark.needs
+        and (previous is None or previous.needs != mark.needs)
+    ):
         return False
 
-    return mark.status not in w.to or bool(previous and mark.status == previous.status)
+    return mark.status not in to or bool(previous and mark.status == previous.status)
 
 
 def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
-    current = _snapshot(w.parent, w.orphans)
+    seen = _snapshot(w.parent, w.rows, w.orphans)
+    current = seen.marks
     absorbed = {
         child: mark
         for child, mark in current.items()
-        if mark != (previous := w.reported.get(child)) and _absorbed(w, mark, previous)
+        if mark != (previous := w.reported.get(child))
+        and _absorbed(w, seen.explicit.get(child), mark, previous)
     }
     if absorbed:
         w.reported = w.reported | absorbed
@@ -197,14 +200,30 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
     }:
         w.pending_since = time.monotonic()
     w.pending = current
-    changed = {child: mark for child, mark in current.items() if mark != w.reported.get(child)}
-    if not changed or time.monotonic() - w.pending_since < w.quiet:
+    changed = (
+        {child: mark for child, mark in current.items() if mark != w.reported.get(child)}
+        if time.monotonic() - w.pending_since >= w.quiet
+        else {}
+    )
+    stopped = lemon_liveness.due(w.tracker, seen.problems, w.quiet, time.monotonic())
+    if not changed and not stopped:
         return False
 
     deliver(
-        "\n".join(_describe(child, w.reported.get(child), mark) for child, mark in changed.items())
+        "\n".join(
+            [
+                *(_describe(child, w.reported.get(child), mark) for child, mark in changed.items()),
+                *(
+                    f"{child}: {problem.detail}; Status: {current[child].status or 'none'}"
+                    f" ({current[child].path})"
+                    for child, problem in stopped.items()
+                ),
+            ]
+        )
     )
-    # Retain missing or unlinked briefs so their return alone does not repeat a report.
-    w.reported = w.reported | current
-    _save(w.reported_path, w.reported)
+    if changed:
+        # Retain missing or unlinked briefs so their return alone does not repeat a report.
+        w.reported = w.reported | current
+        _save(w.reported_path, w.reported)
+    lemon_liveness.commit(w.tracker, stopped)
     return True

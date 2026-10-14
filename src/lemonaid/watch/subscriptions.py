@@ -6,7 +6,7 @@ import re
 import shlex
 from pathlib import Path
 
-from ..brief import doc_table, identity, now_edit, pr_table, waiters
+from ..brief import doc_table, identity, lemon_table, now_edit, pr_table, waiters
 from . import briefs_cli, doc_cli, file_cli, pr_cli
 
 
@@ -40,6 +40,8 @@ class Subscription:
     skip_outdated: bool = False
     skip_resolved: bool = False
     state_dir: Path | None = None
+    lemons: tuple[lemon_table.Row, ...] = ()
+    needs: bool = False
 
     @property
     def source(self) -> str:
@@ -144,6 +146,8 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
                     specs.setdefault(key, Subscription("doc", key[1], me, quiet=20))
         elif section.heading.lower() == "docs":
             problems.extend(doc_table.parse(section.body)[1])
+        elif section.heading.lower() == "lemons":
+            problems.extend(lemon_table.parse(section.body)[1])
     for row in doc_table.rows(text):
         key = ("doc", (str(row.path),))
         old = specs.get(key, Subscription("doc", key[1], me, quiet=20))
@@ -152,7 +156,11 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
         )
     if parent:
         key = ("briefs", (parent,))
-        specs.setdefault(key, Subscription("briefs", (parent,), me))
+        specs[key] = dataclasses.replace(
+            specs.get(key) or Subscription("briefs", (parent,), me),
+            lemons=tuple(lemon_table.rows(text)),
+            needs=True,
+        )
     return Reading(tuple(specs.values()), tuple(problems))
 
 

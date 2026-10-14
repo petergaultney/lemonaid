@@ -1096,6 +1096,14 @@ lemonaid brief watching rm --self "run.log"
 lemonaid brief check --self
 ```
 
+List lemons to watch besides your children under `### Lemons`, with
+`lemonaid brief lemon add --self <lemon> [--purpose TEXT] [--to STATUS ...]`, `brief lemon set`
+and `brief lemon rm`. A row names a lemon by Lemon-ID, channel or brief name; `--to`
+repeats, takes any Status or `needs`, and defaults to `merge`, `done` and `needs`. An
+explicit row for a child replaces its defaults. Every watched lemon, child or not, is also
+reported once when its harness exits, its session or place is gone, or it is deaf; a lemon
+whose brief is `done` is not. Details in [Watching other lemons](watch.md#watching-other-lemons).
+
 Watch is an enum: `Relay comments` watches unanswered comments; `All edits`
 also watches body edits. No boolean Edits column is accepted. Docs remain subscribed
 at Status done. `Output-Doc:` supplies a document subscription; starting `watch doc`

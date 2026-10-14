@@ -11,6 +11,7 @@ from . import (
     doc_table,
     identity,
     layout,
+    lemon_table,
     name_words,
     now,
     now_edit,
@@ -107,6 +108,8 @@ def _now(now: layout.Now) -> list[str]:
 
         if section.heading.lower() == "docs":
             problems.extend(doc_table.parse(section.body)[1])
+        if section.heading.lower() == "lemons":
+            problems.extend(lemon_table.parse(section.body)[1])
 
     return problems
 

@@ -223,6 +223,47 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 - What was last reported is kept per set of paths in the lemon's [cursors](#cursors), so a
   rearmed waiter reports anything that changed in between. The first waiter for a set of paths takes their current state as its baseline.
 
+## Watching other lemons
+
+`### Lemons` in `## Now` lists lemons to watch besides your children. A row names a lemon
+by Lemon-ID, channel or brief name:
+
+```markdown
+### Lemons
+
+| Lemon | Purpose | Watch |
+|---|---|---|
+| `reviewer.SaltyEbb` | Reviews my PR | blocked, done |
+| `other.WordyBin` | Owns the shared fixture | |
+```
+
+```bash
+lemonaid brief lemon add --self reviewer.SaltyEbb --purpose "Reviews my PR" --to blocked --to done
+lemonaid brief lemon set --self reviewer.SaltyEbb --to merge --to needs
+lemonaid brief lemon rm --self reviewer.SaltyEbb
+```
+
+The Watch column lists the Statuses whose entry wakes you, plus `needs` for a change of
+the lemon's Needs. Empty means `merge`, `done` and `needs`. Your direct children are
+implicit rows with those defaults; an explicit row for a child replaces them. `brief
+check` refuses unknown words, duplicate lemons and malformed tables.
+
+Whatever the Watch column says, every watched lemon also reports, once per occurrence:
+
+- Its harness exited (the SessionEnd hook recorded it, or no harness runs on its terminal).
+- Its tmux session or its directory is gone, or no session is attached to its brief.
+- It is deaf: idle with no inbox waiter for 60 seconds, as `lemonaid lemon doctor` derives it.
+
+A report repeats only after the lemon was healthy (or had a different problem) in between,
+so a second exit is a second report. A lemon whose brief is `done` is never reported, since
+its session going away is normal, and one still waiting for its lemon to start is skipped.
+A first watch, and a lemon newly listed in a row, takes the current state as seen.
+A row whose lemon cannot be resolved is logged as a warning and not watched.
+
+`watch --self`, `watch --self --status` and the push scout include these rows.
+`watch briefs --children` reports the same liveness for children, and Status and Needs
+changes as before.
+
 ## Watching children's briefs
 
 `lemonaid watch briefs --children --self` waits for a direct child to enter selected brief
@@ -365,7 +406,8 @@ The rows and commands declare these sources:
 | A PR's Review cell | A local review document's unanswered comments. An explicit doc command or Docs row can also enable body edits. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
 | Inbox | Every pending message for this lemon, included in the same batch as source changes. |
-| Children | Direct children entering `merge` or `done`, using the existing child cursor. Needs-only changes advance the baseline without waking. An explicit `watch briefs` line selects other statuses or orphan behavior. |
+| Children | Direct children entering `merge` or `done` or changing their Needs, using the existing child cursor, and any child whose harness exits, whose session or place is gone, or that is deaf or dead (see [Watching other lemons](#watching-other-lemons)). An explicit `watch briefs` line selects other statuses or orphan behavior. |
+| `### Lemons` | Each listed lemon, child or not, like a child: its Status and Needs changes and its liveness. A row for a child sets that child's wake statuses. |
 
 A repeated source is watched once. Explicit options are retained; a PR row forces
 comments and CI on, and a Docs row with `All edits` enables edits. A closed or merged PR

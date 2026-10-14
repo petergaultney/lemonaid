@@ -82,7 +82,14 @@ def open_poller(
         return lambda: file_events.poll(watch, deliver)
     if spec.kind == "briefs":
         watch = briefs_events.open_watch(
-            directory, spec.target[0], me, spec.quiet, spec.to, spec.orphans
+            directory,
+            spec.target[0],
+            me,
+            spec.quiet,
+            spec.to,
+            spec.orphans,
+            spec.lemons,
+            spec.needs,
         )
         return lambda: briefs_events.poll(watch, deliver)
 

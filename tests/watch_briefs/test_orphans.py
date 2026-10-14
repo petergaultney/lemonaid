@@ -65,7 +65,8 @@ def test_brief_whose_parent_session_is_gone_is_watched(grove, live):
     w = _watch(grove)
     live[0].discard("lead")
     _set(path, "working", "done")
-    assert _poll(w) == [f"{owned}: Status: done ({path})"]
+    # The lead's own session going away is reported with it.
+    assert _poll(w)[0].splitlines()[0] == f"{owned}: Status: done ({path})"
 
 
 def test_needs_ask_wakes_in_orphans_mode_without_a_status_change(grove):
@@ -104,4 +105,4 @@ def test_parent_on_another_tmux_server_is_checked_there(grove, live):
     _set(path, "working", "blocked")
     assert _poll(w) == []
     live[1]["/tmp/other"].discard("remote")
-    assert _poll(w) == [f"{owned}: Status: blocked ({path})"]
+    assert _poll(w)[0].splitlines()[0] == f"{owned}: Status: blocked ({path})"

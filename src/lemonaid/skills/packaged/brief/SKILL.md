@@ -47,7 +47,8 @@ Keep `## Now` directly after `Status:` and any generated identity fields. Use th
 4. `### Next`: what you will do next.
 5. `### PRs`: the open PR table below.
 6. `### Docs`: the documents you wrote for someone to read, with path and purpose.
-7. `### Done`: what finished, always last.
+7. `### Lemons`: lemons you watch besides your children, in the table below.
+8. `### Done`: what finished, always last.
 
 Put a blank line above and below each heading and around its bullets or table. Write for scanning: one item per bullet, opening with its point in a few words. Keep each item to one or two sentences. Do not join separate items with semicolons or inline numbered lists. Put commits, test counts, and paths at the end, or omit them. Replace stale lines instead of appending news, and shrink finished items to one line. Older `- Label:` briefs still work; convert them when you next rewrite `## Now`.
 
@@ -97,7 +98,9 @@ Use the verbs to update a brief outside your workspace. Whether they run without
 
 List every doc you wrote for someone to read with `lemonaid brief doc add --self <path> "<purpose>"`; `--watch "All edits"` also watches its body. The Watch column accepts `Relay comments` (the default) or `All edits`, not booleans. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
 
-Read your work's current state first. `lemonaid watch --self` reads Watching, PRs (with comments and CI), Docs, your inbox and your children's statuses, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
+List a lemon you must hear about, a child or not, with `lemonaid brief lemon add --self <lemon-id-channel-or-brief> --purpose "<why>"`; repeat `--to STATUS` (or `needs`) to choose what wakes you, default `merge`, `done` and `needs`. `brief lemon set` changes a row and `brief lemon rm` removes it. An explicit row for a child replaces its defaults. Every watched lemon is also reported once when its harness exits, its session or place is gone, or it is deaf, unless its brief is `done`.
+
+Read your work's current state first. `lemonaid watch --self` reads Watching, PRs (with comments and CI), Docs, Lemons rows, your inbox and your children's statuses and liveness, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
 <!-- harness: claude -->
 Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts a detached scout and returns. Only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`run_in_background`, `timeout: 2147483647`) and rearm it after handling each batch. Stop separate inbox, PR and children waiters before switching.

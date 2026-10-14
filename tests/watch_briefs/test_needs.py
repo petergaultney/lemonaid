@@ -1,6 +1,6 @@
 import pytest
 
-from lemonaid.watch import briefs_events
+from lemonaid.watch import needs_text
 
 
 @pytest.mark.parametrize(
@@ -20,4 +20,4 @@ from lemonaid.watch import briefs_events
     ],
 )
 def test_needs_parsing(text, expected):
-    assert briefs_events._needs(text) == expected
+    assert needs_text.needs(text) == expected
