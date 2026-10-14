@@ -8,6 +8,9 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
 - Stop: block ending a turn while the attached brief's waiters aren't armed (waiter_check);
 - SessionStart: remind a lemon with an attached brief which waiters to arm.
 
+Codex also gets PostToolUse `lemonaid codex tool-used`, which clears a permission notice
+once the tool it asked for returns.
+
 Codex trusts a hook by a hash of it (`[hooks.state]` in its `config.toml`), so a hook this
 adds or changes runs only once it is trusted again in Codex's `/hooks`.
 """
@@ -45,6 +48,9 @@ def own_change_command(harness: str) -> str:
     return f"sh -c {shlex.quote(_own_change_script(harness))}"
 
 
+_CODEX_TOOL_USED_COMMAND = "lemonaid codex tool-used"
+
+
 def stop_command(harness: str) -> str:
     return (
         install_hooks.WAITER_CHECK_COMMAND
@@ -64,6 +70,7 @@ def hooks(harness: str) -> list[tuple[str, str]]:
         ("PostToolUse", own_change_command(harness)),
         ("Stop", stop_command(harness)),
         ("SessionStart", session_start_command(harness)),
+        *([("PostToolUse", _CODEX_TOOL_USED_COMMAND)] if harness == "codex" else []),
     ]
 
 

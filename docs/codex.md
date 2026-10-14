@@ -38,7 +38,7 @@ Codex asks you to trust a new hook the first time it loads it.
 
 `lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
-waking its waiters, a Stop hook that holds a briefed lemon to its children waiter and a
+waking its waiters, the PostToolUse `lemonaid codex tool-used` hook (section 3 below), a Stop hook that holds a briefed lemon to its children waiter and a
 working brief, and a SessionStart hook that lists the waiters its brief says to arm. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
@@ -78,7 +78,7 @@ Add a `PostToolUse` handler to `~/.codex/hooks.json` so a permission notice ends
 }
 ```
 
-Merge this entry into the existing `hooks` object; keep any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool, after Codex reports that tool use returned, including when a command exits nonzero. A request that remains unanswered stays unread and visible.
+`lemonaid hooks install --harness codex` adds this entry, beside your other hooks and only if it isn't there already; `--uninstall` removes it. To add it by hand instead, merge it into the existing `hooks` object, keeping any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool, after Codex reports that tool use returned, including when a command exits nonzero. A request that remains unanswered stays unread and visible.
 
 ## How it works
 

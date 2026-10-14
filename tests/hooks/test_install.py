@@ -85,3 +85,25 @@ def test_a_dry_run_changes_nothing(tmp_path):
 
     assert not settings.exists()
     assert all(line.startswith("would add") for line in lines)
+
+
+def test_codex_install_adds_tool_used_once_beside_a_hand_added_one(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    hooks_json = tmp_path / "hooks.json"
+    tool_used = {"hooks": [{"type": "command", "command": "lemonaid codex tool-used"}]}
+    hooks_json.write_text(json.dumps({"hooks": {"PostToolUse": [_FOLDER_NOTES, tool_used]}}))
+
+    install.install("codex")
+
+    assert _commands(hooks_json, "PostToolUse").count("lemonaid codex tool-used") == 1
+
+    install.uninstall("codex")
+    assert _commands(hooks_json, "PostToolUse") == ["python3 folder-notes-hook.py"]
+
+
+def test_a_fresh_codex_install_adds_tool_used(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+
+    install.install("codex")
+
+    assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PostToolUse")

@@ -1,3 +1,9 @@
+# 0.111.1 (2026-10-13)
+
+#### Fixed
+
+- **`lemonaid hooks install` adds Codex's `lemonaid codex tool-used` PostToolUse hook,** which clears a permission notice once its tool returns, unless it is already there. `--uninstall` removes it.
+
 # 0.111.0 (2026-10-13)
 
 #### Added
