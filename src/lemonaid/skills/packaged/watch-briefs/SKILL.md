@@ -5,7 +5,7 @@ description: Wait at zero token cost for a direct child's brief Status or Needs 
 
 # Watch children's briefs
 
-With an attached brief, prefer `lemonaid watch --self` for child statuses alongside Watching, PRs, Docs and inbox messages. Run it as a Claude background task or with `--codex-thread` in an escalated Codex exec_command session. Handle the entire batch and rearm. The standalone command below remains available.
+With an attached brief, prefer `lemonaid watch --self` for child statuses alongside Watching, PRs, Docs and inbox messages. In Claude, check `lemonaid watch --self --status` first. `push scout running` means lemonaid pushes each batch into your session: handle it and arm nothing. `no watcher running` means run `lemonaid watch --self --push`, which starts the scout and returns; only if it prints `not started`, run `lemonaid watch --self` as a background task. In Codex, run it with bare `--codex-thread` in an escalated exec_command session, and rearm after each batch. The standalone command below remains available.
 
 Use `lemonaid watch briefs --children --self` to wait on direct children through
 Lemonaid's Lemon-ID parent links. Grandchildren are their own parent's responsibility.

@@ -7,7 +7,7 @@ description: Wait, at zero token cost, until a GitHub PR gets a new push, is mer
 
 ## With an attached brief
 
-Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first, then run the unified watcher as a Claude background task or with `--codex-thread` in an escalated Codex exec_command session. Handle its entire batch and rearm. The standalone commands below remain available.
+Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first. In Claude, check `lemonaid watch --self --status` first. `push scout running` means lemonaid pushes each batch into your session: handle it and arm nothing. `no watcher running` means run `lemonaid watch --self --push`, which starts the scout and returns; only if it prints `not started`, run `lemonaid watch --self` as a background task. In Codex, run it with bare `--codex-thread` in an escalated exec_command session, and rearm after each batch. The standalone commands below remain available.
 
 ## Arguments
 

@@ -10,7 +10,9 @@ from ..watch import own_edits, push_scout
 from . import session_gate
 
 _ARM = {
-    "claude": "Start `lemonaid watch --self` as a background Bash task (run_in_background, timeout: 2147483647).",
+    "claude": "Run `lemonaid watch --self --push`, which starts lemonaid's push scout and returns; "
+    "only if it prints `not started`, start `lemonaid watch --self` as a background Bash task "
+    "(run_in_background, timeout: 2147483647).",
     "codex": "Start `lemonaid watch --self --codex-thread` as an escalated exec_command session.",
 }
 

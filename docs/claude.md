@@ -92,6 +92,10 @@ With a brief attached, lemonaid starts a scout for each Claude lemon: a detached
 messages into the session through Claude Code's inbox socket. The lemon keeps no
 background task, so it gets none of the harness's check-in prompts about quiet tasks.
 
+lemonaid's SessionStart hook and Stop check start the scout, so install them with
+`lemonaid hooks install --harness claude`. `lemonaid tell` and the live inbox also start
+one for a lemon that has none, and so does `lemonaid watch --self --push`.
+
 A session in bypass-permissions mode holds a pushed message for approval instead of
 reading it. Any session launched with `--allow-dangerously-skip-permissions` can reach
 that mode, so for those lemons add this to `~/.claude/settings.json` (or pass it with
@@ -105,8 +109,9 @@ that mode, so for those lemons add this to `~/.claude/settings.json` (or pass it
 
 Other permission modes deliver pushed messages without the setting. Lemonaid reads the
 setting from managed, `--settings`, project and user settings; without it, it checks the
-session's launch flags and default mode for a way into bypass mode. Where a session could hold a message, lemonaid starts no scout and the lemon
-runs `lemonaid watch --self` as a background task, as before. See
+session's launch flags and default mode for a way into bypass mode. Where a session could
+hold a message, lemonaid starts no scout and the lemon runs `lemonaid watch --self` as a
+background task, as before. See
 [watch.md](watch.md#the-claude-push-scout).
 
 A pushed batch arrives as a message from another session, not as tool output, and it

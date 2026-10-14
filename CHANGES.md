@@ -1,3 +1,9 @@
+# 0.115.3 (2026-10-14)
+
+#### Fixed
+
+- **The `watch-doc`, `watch-pr` and `watch-briefs` skills and the SessionStart hook tell Claude lemons to start the push scout with `--push`** instead of running a background `watch --self`, which a running scout refuses.
+
 # 0.115.2 (2026-10-14)
 
 #### Fixed
