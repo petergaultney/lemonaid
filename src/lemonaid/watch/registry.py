@@ -8,6 +8,7 @@ process still holds its entry.
 import contextlib
 import dataclasses
 import json
+import logging
 import os
 import pathlib
 import shlex
@@ -83,7 +84,8 @@ def _reports_termination(message: abc.Callable[[], str]) -> abc.Iterator[None]:
     def _exit(signum: int, _frame: object) -> None:
         try:
             text = message()
-            _log.warning("pid %s: %s", os.getpid(), text)
+            level = logging.INFO if stop_sender.requested(entry(os.getpid())) else logging.WARNING
+            _log.log(level, "pid %s: %s", os.getpid(), text)
             print(text, file=sys.stderr, flush=True)
         finally:
             raise SystemExit(128 + signum)  # whatever reporting did

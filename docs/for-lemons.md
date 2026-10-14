@@ -1055,6 +1055,9 @@ lemonaid watch --self                         # Claude background Bash task
 lemonaid watch --self --codex-thread          # escalated Codex exec_command session
 ```
 
+When `--status` prints `push scout running`, lemonaid is already pushing your batches
+into your Claude session: handle each as it arrives and start nothing.
+
 The watcher rereads Watching commands, PRs (comments and CI), local PR Review documents,
 Docs rows, inbox and direct children. It delivers one batch and exits; handle every source,
 then rearm. First subscriptions take current state as seen except unanswered document

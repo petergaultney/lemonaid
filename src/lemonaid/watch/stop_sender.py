@@ -22,6 +22,11 @@ def clear(entry: pathlib.Path) -> None:
     _path(entry).unlink(missing_ok=True)
 
 
+def requested(entry: pathlib.Path) -> bool:
+    """Whether `watch stop` asked for this stop, so it is a normal exit."""
+    return _path(entry).is_file()
+
+
 def describe(entry: pathlib.Path) -> str:
     """Who stopped the waiter whose registry entry is `entry`."""
     try:

@@ -93,7 +93,7 @@ List every doc you wrote for someone to read with `lemonaid brief doc add --self
 
 Read your work's current state first, then arm `lemonaid watch --self`. It reads Watching, PRs (with comments and CI), Docs, your inbox and your children's statuses, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
-In Claude, run it as a background Bash task (`run_in_background`, `timeout: 2147483647`). In Codex, add bare `--codex-thread` and use an escalated exec_command session. Check `lemonaid watch --self --status` before starting another. Handle the whole batch, then rearm before ending the turn. Stop separate inbox, PR and children waiters before switching. Idle lemons wait on events and never self-poll or schedule repeated wakeups.
+In Claude, if `lemonaid watch --self --status` says `push scout running`, lemonaid pushes each batch into your session: handle it and arm nothing. Otherwise run it as a background Bash task (`run_in_background`, `timeout: 2147483647`). In Codex, add bare `--codex-thread` and use an escalated exec_command session. Check `lemonaid watch --self --status` before starting another. Handle the whole batch, then rearm before ending the turn. Stop separate inbox, PR and children waiters before switching. Idle lemons wait on events and never self-poll or schedule repeated wakeups.
 
 ## Check children and finished work
 

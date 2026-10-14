@@ -8,9 +8,11 @@ os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 
 import pytest  # noqa: E402
 
+from lemonaid.claude import session_socket  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
+from lemonaid.watch import push_scout  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
 # reverts them all, which once pointed a test's migration at the live database and
@@ -106,6 +108,16 @@ def _no_detached_delivery_service(monkeypatch):
     never sees. Tests of starting the service stub `subprocess.Popen` instead.
     """
     monkeypatch.setattr(service, "ensure_running", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_detached_push_scout(monkeypatch, tmp_path):
+    """A spawned scout outlives the test and reads the real database, as the service would.
+
+    Claude's own session list and settings move to the test's directory too.
+    """
+    monkeypatch.setattr(session_socket, "claude_dir", lambda: tmp_path / "claude-home")
+    monkeypatch.setattr(push_scout, "_spawn", lambda entry: None)
 
 
 @pytest.fixture(autouse=True)

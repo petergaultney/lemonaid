@@ -17,7 +17,7 @@ def test_wait_is_registered_holds_one_lock_and_delivers_inbox(monkeypatch, capsy
     inbox = messages.inbox_for_id("task.IndexElf")
     messages.send(inbox, "one message", "other.IndexElf")
     args = argparse.Namespace(
-        codex_thread="", channel="codex:test", status=False, interval=0.01, quiet=0
+        codex_thread="", channel="codex:test", status=False, interval=0.01, quiet=0, push=False
     )
     real_wait = batch_wait.wait
 
@@ -42,7 +42,7 @@ def test_an_archived_session_stops_watching_its_brief():
         conn.execute("UPDATE notifications SET status = 'archived' WHERE channel = 'codex:test'")
         conn.commit()
     args = argparse.Namespace(
-        codex_thread="", channel="codex:test", status=False, interval=0.01, quiet=0
+        codex_thread="", channel="codex:test", status=False, interval=0.01, quiet=0, push=False
     )
     assert wait_cli.run(args) == 0
     assert not wait_state.is_armed("task.IndexElf")
@@ -55,7 +55,9 @@ def test_codex_rearm_waits_for_an_old_waiter_that_is_delivering(monkeypatch):
     with db.connect() as conn:
         db.add(conn, "codex:test", "", metadata={})
         attached.attach(conn, "codex:test", path)
-    args = argparse.Namespace(codex_thread="test", channel="", status=False, interval=0.01, quiet=0)
+    args = argparse.Namespace(
+        codex_thread="test", channel="", status=False, interval=0.01, quiet=0, push=False
+    )
     releasing, next_armed, stop_next = threading.Event(), threading.Event(), threading.Event()
     runs, results, threads = [], [], []
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")

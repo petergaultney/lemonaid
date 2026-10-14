@@ -85,6 +85,34 @@ The lemon then starts each waiter with `timeout: 2147483647`. If the harness sto
 anyway, the lemon rearms it. Its stop notice says not to restart a task that already had the
 maximum timeout; for a waiter, ignore that and restart it.
 
+### 3. Let lemonaid push events into each lemon
+
+With a brief attached, lemonaid starts a scout for each Claude lemon: a detached
+`lemonaid watch --self --push` that writes every batch of watch events and `tell`
+messages into the session through Claude Code's inbox socket. The lemon keeps no
+background task, so it gets none of the harness's check-in prompts about quiet tasks.
+
+A session in bypass-permissions mode holds a pushed message for approval instead of
+reading it. Any session launched with `--allow-dangerously-skip-permissions` can reach
+that mode, so for those lemons add this to `~/.claude/settings.json` (or pass it with
+`--settings`):
+
+```json
+{
+  "crossSessionInbound": "accept"
+}
+```
+
+Other permission modes deliver pushed messages without the setting. Lemonaid reads the
+setting from managed, `--settings`, project and user settings; without it, it checks the
+session's launch flags and default mode for a way into bypass mode. Where a session could hold a message, lemonaid starts no scout and the lemon
+runs `lemonaid watch --self` as a background task, as before. See
+[watch.md](watch.md#the-claude-push-scout).
+
+A pushed batch arrives as a message from another session, not as tool output, and it
+can quote PR and document comments other people wrote. Claude frames it as input that
+the user did not type, as it does for Codex's queued events.
+
 ## How it works
 
 ### Notification flow

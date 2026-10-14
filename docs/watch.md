@@ -410,7 +410,8 @@ lemonaid watch --self --codex-thread         # Codex: escalated exec_command ses
 ```
 
 For Claude, use `run_in_background` and `timeout: 2147483647`; task completion wakes
-the turn. For Codex, use bare `--codex-thread` in an escalated session so `codex queue`
+the turn. A Claude lemon whose `--status` says `push scout running` arms nothing (see
+below). For Codex, use bare `--codex-thread` in an escalated session so `codex queue`
 can write to the thread. The command refuses to start if Codex delivery is unavailable.
 Do not start another watcher while `--status` says one is running.
 
@@ -455,6 +456,29 @@ period, normally 20 seconds, before reporting a body edit. A new comment waits o
 until the file has been unchanged for 3 seconds, and the event lists all unanswered
 threads together. A document
 still being edited holds back only its own event; other ready sources can deliver.
+
+
+### The Claude push scout
+
+`lemonaid watch --self --push` keeps watching instead of exiting: it writes each batch
+into the Claude session through the session's inbox socket (listed in
+`~/.claude/sessions/<pid>.json`), saves cursors only once the socket has taken the batch,
+and exits when the session ends or its brief is detached. It holds the same lock as
+`watch --self`, so a second one for the same lemon refuses to start, and the Stop check
+counts it as the lemon's watcher.
+
+Lemons don't run it themselves. The SessionStart hook and the Stop check each start one, detached, when the lemon has none and its session would read a pushed
+message; its output goes to `push-scout.log` in the state directory. When the session
+would hold the message (bypass-permissions mode without `"crossSessionInbound": "accept"`,
+see [Claude setup](claude.md#3-let-lemonaid-push-events-into-each-lemon)), nothing starts
+and the lemon falls back to a background `watch --self`. If the socket refuses a batch, the
+scout exits and the batch stays pending for the next watcher.
+
+Each scout logs `push scout started` and `push scout exited normally` or `exited
+abnormally` to the lemonaid log, with its Lemon-ID, session and pid. A normal exit is
+its session ending, its brief being detached, or `lemonaid watch stop`. A refused batch,
+a crash, or a SIGTERM that `watch stop` didn't send is abnormal and logged as a warning.
+A start line with no exit line is a scout that was killed outright.
 
 ### Cursors, delivery and recovery
 

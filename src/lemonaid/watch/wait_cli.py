@@ -1,16 +1,27 @@
 """One one-shot waiter for a lemon's brief subscriptions and inbox."""
 
 import argparse
+import contextlib
 import os
 import sys
 from pathlib import Path
 
 from ..brief import attached, identity, lemon
+from ..claude import session_socket
 from ..hooks import session_gate
 from ..inbox import db
 from ..inbox.channel import full_channel_id
 from ..messages import store, waiter
-from . import batch_wait, cursors, delivery, own_edits, registry, wait_state, waiter_lock
+from . import (
+    batch_wait,
+    cursors,
+    delivery,
+    own_edits,
+    push_scout,
+    registry,
+    wait_state,
+    waiter_lock,
+)
 
 
 def _attached(path: Path, channel: str) -> bool:
@@ -44,8 +55,19 @@ def run(args: argparse.Namespace) -> int:
         return 2
     if args.status:
         running = wait_state.is_armed(lemon_id)
-        print("watcher running" if running else "no watcher running")
+        print(
+            ("push scout running" if push_scout.running(lemon_id) else "watcher running")
+            if running
+            else "no watcher running"
+        )
         return 0 if running else 1
+    if args.push and thread:
+        print(f"not started: {push_scout.FLAG} is for Claude; drop --codex-thread")
+        return 2
+    session = push_scout.session(channel.removeprefix("claude:"), wait=30) if args.push else None
+    if args.push and (problem := push_scout.problem(session)):
+        print(f"not started: {problem}")
+        return 2
     if thread and (problem := delivery.codex_setup_problem()):
         print(f"not started: {problem}")
         return 2
@@ -57,7 +79,9 @@ def run(args: argparse.Namespace) -> int:
         print("not started: this lemon already has a unified watcher")
         return 3
     output = (
-        delivery.to_codex(
+        push_scout.to_session(session)
+        if session
+        else delivery.to_codex(
             thread,
             "lemonaid watch",
             "Read the changed sources and handle the entire batch, then rearm `lemonaid watch --self --codex-thread`.",
@@ -72,7 +96,14 @@ def run(args: argparse.Namespace) -> int:
             wait_state.mark_delivering(lemon_id)
         output(message)
 
-    writer = own_edits.writer_from_env(os.environ, thread)
+    def still() -> bool:
+        return _attached(path, channel) and (session is None or session_socket.alive(session))
+
+    writer = (
+        own_edits.claude_writer(session.session_id)
+        if session
+        else own_edits.writer_from_env(os.environ, thread)
+    )
     session_gate.mark(own_edits.root(), writer, path)
     try:
         with (
@@ -81,19 +112,25 @@ def run(args: argparse.Namespace) -> int:
                 "wait",
                 (lemon_id,),
                 channel,
-                "lemonaid watch --self" + (" --codex-thread" if thread else ""),
+                "lemonaid watch --self"
+                + (" --codex-thread" if thread else "")
+                + (f" {push_scout.FLAG}" if session else ""),
             ),
+            push_scout.logged(lemon_id, session) if session else contextlib.nullcontext(),
         ):
-            batch_wait.wait(
-                path,
-                inbox,
-                cursors.root() / lemon_id,
-                writer,
-                deliver,
-                lambda: _attached(path, channel),
-                interval=args.interval,
-                quiet=args.quiet,
-            )
+            while still():
+                batch_wait.wait(
+                    path,
+                    inbox,
+                    cursors.root() / lemon_id,
+                    writer,
+                    deliver,
+                    still,
+                    interval=args.interval,
+                    quiet=args.quiet,
+                )
+                if session is None:
+                    break
     except waiter.AlreadyArmed as error:
         print(f"not started: {error}")
         return 3
@@ -131,6 +168,13 @@ def add_arguments(parser: argparse.ArgumentParser, *, require_self: bool = False
     )
     parser.add_argument(
         "--quiet", type=float, default=2, help="Seconds to gather a batch after the last event"
+    )
+    parser.add_argument(
+        push_scout.FLAG,
+        dest="push",
+        action="store_true",
+        help="Claude only: keep running, and push each batch into this session through its "
+        "inbox socket instead of printing it and exiting",
     )
     delivery.add_codex_thread_argument(parser)
     parser.set_defaults(func=_cmd)

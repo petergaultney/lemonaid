@@ -13,7 +13,7 @@ from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
 from ..log import get_logger
 from ..messages import store, waiter
-from ..watch import children_waiter, wait_requirements, wait_state
+from ..watch import children_waiter, push_scout, wait_requirements, wait_state
 
 _log = get_logger("claude.waiter_check")
 
@@ -50,7 +50,7 @@ def attached_brief(data: dict, harness: str = "claude") -> Path | None:
     return path if path is not None and path.is_file() else None
 
 
-def _missing_waiter(path: Path, text: str, grace: float, harness: str) -> str:
+def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_id: str) -> str:
     try:
         lemon_id = brief.identity.read(text)
     except ValueError:
@@ -63,6 +63,8 @@ def _missing_waiter(path: Path, text: str, grace: float, harness: str) -> str:
     if not required and harness == "codex":
         return ""
     if lemon_id and wait_state.is_armed(lemon_id, grace):
+        return ""
+    if lemon_id and harness == "claude" and push_scout.ensure(session_id, lemon_id, max(grace, 3)):
         return ""
     if not required and lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
         return ""
@@ -97,7 +99,11 @@ def reason_to_block(data: dict, grace: float, harness: str = "claude") -> str:
     return "\n\n".join(
         reason
         for reason in (
-            ("" if handing_off else _missing_waiter(path, text, grace, harness)),
+            (
+                ""
+                if handing_off
+                else _missing_waiter(path, text, grace, harness, data.get("session_id") or "")
+            ),
             _broken(path, text),
         )
         if reason
