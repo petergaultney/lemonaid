@@ -24,11 +24,12 @@ session made are recorded by Claude Code's edit hooks (`lemonaid claude hooks --
 or by `--editing DOC` before and `--mine DOC` after an edit made any other way, and don't
 wake its own waiter; edits by anyone else still do. Replies inside comment threads never wake their author.
 
-Threads already reported, and with edits on the body as of the last reported edit, are
-remembered per (doc, --me) in `--state-dir`, so a restarted waiter does not re-report a
-thread nobody has touched since, and does report body edits made while no waiter ran. One
-waiter per (doc, --me), and one per watch list, may run; a second exits at once, naming
-the first.
+Threads already reported, and the body as of the last reported edit, are saved as cursors
+under the lemon's Lemon-ID (or `--me` without a brief), so a restarted waiter does not
+re-report a thread nobody has touched since, and does report body edits made while no
+waiter ran. A first waiter takes the body as it is now, and reports every unanswered
+thread. One waiter per (doc, lemon), and one per watch list, may run; a second exits at
+once, naming the first.
 
     lemonaid watch doc --wait <doc> --me Pliny --legacy Claude [--no-edits] [--once]
     lemonaid watch doc --wait <doc> --me Pliny --legacy Codex --codex-thread
@@ -44,6 +45,7 @@ import sys
 
 from . import (
     brief_record,
+    cursors,
     delivery,
     doc_events,
     doc_wait,
@@ -65,10 +67,10 @@ def _record_own(a: argparse.Namespace) -> int:
 
     doc = a.editing or a.mine
     if a.editing:
-        own_edits.before_edit(a.state_dir, writer, own_edits.cli_key(doc), doc)
+        own_edits.before_edit(own_edits.root(), writer, own_edits.cli_key(doc), doc)
         return 0
 
-    if not own_edits.after_edit(a.state_dir, writer, own_edits.cli_key(doc), doc):
+    if not own_edits.after_edit(own_edits.root(), writer, own_edits.cli_key(doc), doc):
         print(f"not recorded: run --editing {doc} before the edit, then --mine after it")
         return 2
 
@@ -98,11 +100,13 @@ def run(a: argparse.Namespace) -> int:
         )
         return 2
 
-    a.state_dir.mkdir(parents=True, exist_ok=True)
+    state_dir = a.state_dir or cursors.directory("doc", a.me, a.codex_thread)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    cursor_key = a.me if a.state_dir else ""
     lock_path = (
         a.watch_list.with_suffix(".waiter")
         if a.watch_list
-        else doc_events.state_stem(a.state_dir, a.wait or a.status, a.me).with_suffix(".lock")
+        else doc_events.state_stem(state_dir, a.wait or a.status, cursor_key).with_suffix(".lock")
     )
     if a.status:
         running = waiter_lock.held(lock_path)
@@ -156,7 +160,7 @@ def run(a: argparse.Namespace) -> int:
         ):
             if a.watch_list:
                 doc_wait.wait_list(
-                    a.state_dir,
+                    state_dir,
                     a.watch_list,
                     lock,
                     a.me,
@@ -166,17 +170,19 @@ def run(a: argparse.Namespace) -> int:
                     deliver,
                     a.idle_expire,
                     a.interval,
+                    cursor_key,
                 )
             else:
                 doc_wait.wait_doc(
                     doc_events.open_watch(
-                        a.state_dir,
+                        state_dir,
                         a.wait,
                         a.me,
                         a.legacy,
                         a.edits,
                         a.quiet,
                         own_edits.writer_from_env(os.environ),
+                        cursor_key=cursor_key,
                     ),
                     deliver,
                     once,
@@ -268,7 +274,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,
-        default=doc_events.default_state_dir(),
-        help="where reported threads and waiter locks live (default: $TMPDIR/watch-doc)",
+        default=None,
+        help="where the cursors and waiter lock live (default: this lemon's cursor directory)",
     )
     ap.set_defaults(func=_cmd)

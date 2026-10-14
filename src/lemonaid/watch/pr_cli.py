@@ -13,10 +13,12 @@ By default prints one line per event and never exits on its own. With `--once`, 
 the first event and exits, so a Claude background Bash task wakes its session once on
 completion. With `--codex-thread`, queues the first event into that Codex thread and
 exits. `--ci` also reports passing CI once every check on the head finishes.
-In both one-shot modes the woken turn handles the event and starts a fresh waiter
-with `--head <new sha>`, so a push between the event and the rearm is still reported.
+The head, state, reported comments and the rest are saved as cursors under the lemon's
+Lemon-ID (or `--me` without a brief), so a waiter started later reports what changed after
+the last one reported, and a first waiter starts from the PR as it is now. `--head`
+overrides the saved head; with your own push recorded by lemonaid's hooks, it isn't needed.
 
-One waiter per (PR, --me) may run; a second exits at once, naming the first.
+One waiter per (PR, lemon) may run; a second exits at once, naming the first.
 
     lemonaid watch pr --wait <number|url> [--repo owner/name] [--interval 60]
     lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
@@ -31,7 +33,7 @@ import subprocess
 import sys
 
 from .. import config, pr_url
-from . import brief_record, delivery, pr_activity, pr_wait, registry, waiter_lock
+from . import brief_record, cursors, delivery, pr_activity, pr_wait, registry, waiter_lock
 
 
 def _repo_name(repo: str) -> str:
@@ -80,9 +82,10 @@ def run(a: argparse.Namespace, repo: str) -> int:
         print(f"not started: {problem}")
         return 2
 
-    a.state_dir.mkdir(parents=True, exist_ok=True)
     pr = a.wait or a.status
-    stem = pr_wait.state_stem(a.state_dir, repo, pr, a.me)
+    state_dir = a.state_dir or cursors.directory("pr", a.me, a.codex_thread)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    stem = pr_wait.state_stem(state_dir, repo, pr, a.me if a.state_dir else "")
     lock_path = stem.with_suffix(".lock")
     if a.status:
         running = waiter_lock.held(lock_path)
@@ -225,7 +228,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,
-        default=pr_wait.default_state_dir(),
-        help="where reported comments and waiter locks live (default: $TMPDIR/watch-pr)",
+        default=None,
+        help="where the cursors and waiter lock live (default: this lemon's cursor directory)",
     )
     ap.set_defaults(func=_cmd, parser=ap)

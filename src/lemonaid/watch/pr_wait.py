@@ -1,25 +1,19 @@
-"""The waiting loop behind `lemonaid watch pr`, and the state it keeps between waiters.
+"""The waiting loop behind `lemonaid watch pr`, and the cursors it keeps between waiters.
 
-Comments already reported, the last reported draft flag and review decision, and the heads
-whose conflict or CI result was reported, are remembered per (PR, --me) in a state
-directory, by default $TMPDIR/watch-pr.
+The head and state, comments already reported, the draft flag and review decision, and
+the heads whose conflict or CI result was reported, are remembered per PR in the lemon's
+cursor directory (see cursors.py), so a push, merge or comment made while no waiter ran
+is reported by the next one.
 """
 
 import hashlib
 import json
 import pathlib
 import sys
-import tempfile
 import time
 import typing as ty
 
-from . import delivery, merge_health, pr_activity, pr_comments
-
-
-def default_state_dir() -> pathlib.Path:
-    return (
-        pathlib.Path(tempfile.gettempdir()) / "watch-pr"
-    )  # writable in Codex's sandbox; ~/.cache is not
+from . import cursors, delivery, merge_health, pr_activity, pr_comments
 
 
 def state_stem(state_dir: pathlib.Path, repo: str, pr: int, me: str) -> pathlib.Path:
@@ -27,11 +21,12 @@ def state_stem(state_dir: pathlib.Path, repo: str, pr: int, me: str) -> pathlib.
     return state_dir / hashlib.sha1(key.encode()).hexdigest()[:16]
 
 
-def _load_reported(path: pathlib.Path) -> set[str]:
+def _load_reported(path: pathlib.Path) -> set[str] | None:
+    """Comment IDs already reported, or None with no saved state."""
     try:
         return set(json.loads(path.read_text()))
     except (OSError, ValueError):
-        return set()
+        return None
 
 
 def _load_review(path: pathlib.Path) -> tuple[bool, str] | None:
@@ -88,6 +83,15 @@ def _events(
     ]
 
 
+def _load_head(path: pathlib.Path) -> tuple[str, str] | None:
+    """(head, state) as last reported, or None with no saved state."""
+    try:
+        saved = json.loads(path.read_text())
+        return str(saved["head"]), str(saved["state"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def wait(
     fetch: ty.Callable[[], pr_activity.Snapshot | None],
     pr: int,
@@ -102,19 +106,23 @@ def wait(
 ) -> None:
     """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
 
-    With `ci`, passing CI is also reported.
+    With `ci`, passing CI is also reported. `head`, when set, overrides the saved head.
+    Whatever has no saved cursor starts from the first snapshot, unreported; a waiter
+    without `comments` saves no comment cursor, so a later one with it starts afresh.
 
     Raises `delivery.Failed` with the event unrecorded if `deliver` fails.
     """
-    reported_path, review_path, merge_path = (
+    reported_path, review_path, merge_path, head_path = (
         stem.with_suffix(".reported.json"),
         stem.with_suffix(".review.json"),
         stem.with_suffix(".merge.json"),
+        stem.with_suffix(".head.json"),
     )
-    reported = _load_reported(reported_path)
+    saved_reported = reported = _load_reported(reported_path)
     saved_review = review = _load_review(review_path)
-    seen = merge_health.load(merge_path)
-    sha, state = head, "OPEN" if head else ""
+    saved_seen = seen = merge_health.load(merge_path) if merge_path.exists() else None
+    saved_head = _load_head(head_path)
+    sha, state = (head, saved_head[1] if saved_head else "OPEN") if head else saved_head or ("", "")
     first = True
     hint = ""
     armed = False
@@ -135,6 +143,12 @@ def wait(
             sha, state = snap.head, snap.state
         review = review or (snap.draft, snap.decision)
         candidates = {c.id: c for c in snap.comments} if comments else {}
+        if reported is None:
+            reported = set(candidates) if comments else set()
+        if seen is None:
+            seen = merge_health.events(
+                pr, snap, merge_health.Seen("", ""), comments=comments, ci=ci
+            )[1]
         blockers, now_seen = (
             merge_health.events(pr, snap, seen, comments=comments, ci=ci)
             if comments or ci
@@ -154,16 +168,21 @@ def wait(
         if events:
             deliver("; ".join([*([hint] if hint else []), *events]))
             hint = ""
-        if now_seen != seen:
-            seen = now_seen
+        seen = now_seen
+        if seen != saved_seen:
+            saved_seen = seen
             merge_health.save(merge_path, seen)
-        if not set(candidates).issubset(reported):
-            reported.update(candidates)
-            reported_path.write_text(json.dumps(sorted(reported)))
+        reported = reported | set(candidates)
+        if comments and reported != saved_reported:
+            saved_reported = reported
+            cursors.write_json(reported_path, sorted(reported))
         review = snap.draft, snap.decision
         if review != saved_review:
             saved_review = review
-            review_path.write_text(json.dumps({"draft": review[0], "decision": review[1]}))
+            cursors.write_json(review_path, {"draft": review[0], "decision": review[1]})
+        if (snap.head, snap.state) != saved_head:
+            saved_head = snap.head, snap.state
+            cursors.write_json(head_path, {"head": snap.head, "state": snap.state})
         if events and once:
             return
 

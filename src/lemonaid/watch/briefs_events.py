@@ -6,7 +6,6 @@ import json
 import os
 import pathlib
 import re
-import tempfile
 import time
 from collections import abc
 
@@ -97,10 +96,6 @@ def _snapshot(parent: str, orphans: bool = False) -> dict[str, _Mark]:
                 continue
             found[child] = _Mark(status.split(text).status, _needs(text), str(path))
         return found
-
-
-def default_state_dir() -> pathlib.Path:
-    return pathlib.Path(tempfile.gettempdir()) / "lemonaid-watch-briefs"
 
 
 def state_stem(

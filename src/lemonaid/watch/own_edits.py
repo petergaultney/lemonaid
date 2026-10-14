@@ -11,7 +11,7 @@ Claude Code's PreToolUse and PostToolUse hooks record each transition. For edits
 through a shell or by Codex, `watch doc --editing` before the edit and `--mine` after it
 do the same.
 
-Layout, under `<state dir>/own/<writer>/`:
+Layout, under `<lemonaid state dir>/own-edits/<writer>/` (see `root`):
 - `<doc key>.doc`: the doc's resolved path; a waiter writes it, and the hook records
   edits only to docs that have one
 - `<doc key>.edits`: one `<seq> <before> <after>` transition per line, oldest first
@@ -19,6 +19,7 @@ Layout, under `<state dir>/own/<writer>/`:
 """
 
 import hashlib
+import os
 import pathlib
 import time
 from collections import abc
@@ -44,16 +45,22 @@ def writer_from_env(env: abc.Mapping[str, str]) -> str:
     return ""
 
 
-def writer_dir(state_dir: pathlib.Path, writer: str) -> pathlib.Path:
-    return state_dir / "own" / writer
+def root() -> pathlib.Path:
+    """Where every writer's records live; the installed hook command checks the same path."""
+    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
+    return pathlib.Path(state).expanduser() / "own-edits"
+
+
+def writer_dir(own_root: pathlib.Path, writer: str) -> pathlib.Path:
+    return own_root / writer
 
 
 def _doc_key(doc: pathlib.Path) -> str:
     return hashlib.sha1(str(doc.resolve()).encode()).hexdigest()[:16]
 
 
-def _edits_path(state_dir: pathlib.Path, writer: str, doc: pathlib.Path) -> pathlib.Path:
-    return writer_dir(state_dir, writer) / f"{_doc_key(doc)}.edits"
+def _edits_path(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> pathlib.Path:
+    return writer_dir(own_root, writer) / f"{_doc_key(doc)}.edits"
 
 
 def body_digest(body: str) -> str:
@@ -68,14 +75,14 @@ def _file_digest(doc: pathlib.Path) -> str:
     return body_digest(relay_comments.body_without_threads(text))
 
 
-def register(state_dir: pathlib.Path, writer: str, doc: pathlib.Path) -> None:
-    path = writer_dir(state_dir, writer) / f"{_doc_key(doc)}.doc"
+def register(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> None:
+    path = writer_dir(own_root, writer) / f"{_doc_key(doc)}.doc"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(str(doc.resolve()))
 
 
-def watched(state_dir: pathlib.Path, writer: str, doc: pathlib.Path) -> bool:
-    return (writer_dir(state_dir, writer) / f"{_doc_key(doc)}.doc").exists()
+def watched(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> bool:
+    return (writer_dir(own_root, writer) / f"{_doc_key(doc)}.doc").exists()
 
 
 def _transitions(path: pathlib.Path) -> list[tuple[int, str, str]]:
@@ -101,8 +108,8 @@ def _append(path: pathlib.Path, before: str, after: str) -> None:
         path.write_text("".join(f"{line}\n" for line in lines[-_KEEP:]))
 
 
-def _pending(state_dir: pathlib.Path, writer: str, key: str) -> pathlib.Path:
-    return writer_dir(state_dir, writer) / "pending" / key
+def _pending(own_root: pathlib.Path, writer: str, key: str) -> pathlib.Path:
+    return writer_dir(own_root, writer) / "pending" / key
 
 
 def cli_key(doc: pathlib.Path) -> str:
@@ -110,15 +117,15 @@ def cli_key(doc: pathlib.Path) -> str:
     return f"cli-{_doc_key(doc)}"
 
 
-def before_edit(state_dir: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> None:
-    path = _pending(state_dir, writer, key)
+def before_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> None:
+    path = _pending(own_root, writer, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_file_digest(doc))
 
 
-def after_edit(state_dir: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> bool:
+def after_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> bool:
     """Record the edit whose before digest `before_edit` kept; without one, record nothing."""
-    path = _pending(state_dir, writer, key)
+    path = _pending(own_root, writer, key)
     try:
         before = path.read_text().strip()
         fresh = time.time() - path.stat().st_mtime < _PENDING_MAX_AGE
@@ -129,12 +136,12 @@ def after_edit(state_dir: pathlib.Path, writer: str, key: str, doc: pathlib.Path
     if not fresh:
         return False
 
-    _append(_edits_path(state_dir, writer, doc), before, _file_digest(doc))
+    _append(_edits_path(own_root, writer, doc), before, _file_digest(doc))
     return True
 
 
-def last_seq(state_dir: pathlib.Path, writer: str, doc: pathlib.Path) -> int:
-    return max((t[0] for t in _transitions(_edits_path(state_dir, writer, doc))), default=0)
+def last_seq(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> int:
+    return max((t[0] for t in _transitions(_edits_path(own_root, writer, doc))), default=0)
 
 
 def chain_to(
@@ -155,7 +162,7 @@ def chain_to(
 
 
 def settles(
-    state_dir: pathlib.Path,
+    own_root: pathlib.Path,
     writer: str,
     doc: pathlib.Path,
     consumed: int,
@@ -164,7 +171,7 @@ def settles(
 ) -> int | None:
     """The seq through which the writer's own edits account for every change from `settled_body` to `body`."""
     return chain_to(
-        _transitions(_edits_path(state_dir, writer, doc)),
+        _transitions(_edits_path(own_root, writer, doc)),
         consumed,
         body_digest(settled_body),
         body_digest(body),

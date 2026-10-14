@@ -8,7 +8,7 @@ import json
 import pathlib
 import sys
 
-from ..watch import doc_events, own_edits
+from ..watch import own_edits
 
 
 def record(data: dict, state_dir: pathlib.Path) -> None:
@@ -38,4 +38,4 @@ def handle() -> None:
         return
 
     if isinstance(data, dict):
-        record(data, doc_events.default_state_dir())
+        record(data, own_edits.root())

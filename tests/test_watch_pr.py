@@ -49,8 +49,22 @@ def stem(tmp_path):
     return pr_wait.state_stem(tmp_path / "state", "o/r", 90, "Author (X)")
 
 
-def _run_once(stem, snaps, head=_HEAD, comments=True):
+def _seen_nothing(stem):
+    """Cursors for a lemon that has been shown no comment and no CI result yet.
+
+    Without them, a waiter takes the PR as it is now as already seen.
+    """
     stem.parent.mkdir(parents=True, exist_ok=True)
+    for suffix, value in (
+        (".reported.json", []),
+        (".merge.json", merge_health.Seen("", "")._asdict()),
+    ):
+        if not stem.with_suffix(suffix).exists():
+            stem.with_suffix(suffix).write_text(json.dumps(value))
+
+
+def _run_once(stem, snaps, head=_HEAD, comments=True):
+    _seen_nothing(stem)
     feed, sent = iter(snaps), []
     pr_wait.wait(lambda: next(feed), 90, 0, head, comments, sent.append, True, stem)
     return sent
@@ -121,7 +135,7 @@ def test_reported_comments_survive_a_wait_that_skips_their_threads(stem):
 
 
 def test_a_failed_delivery_records_nothing(stem):
-    stem.parent.mkdir(parents=True)
+    _seen_nothing(stem)
 
     def fail(message: str) -> None:
         raise delivery.Failed("codex queue failed (exit 1)")
@@ -309,6 +323,8 @@ def _write_snapshot(path, head):
 
 
 def _cli(tmp_path, *args):
+    me = args[args.index("--me") + 1] if "--me" in args else ""
+    _seen_nothing(pr_wait.state_stem(tmp_path / "state", "o/r", 90, me))
     return subprocess.run(
         [
             sys.executable,
@@ -537,3 +553,59 @@ def test_cli_thread_filter_overrides_config(tmp_path, fake_gh, kind, configured,
     assert result.returncode == 0
     assert ("3 new comment(s)" in result.stdout) is expected
     assert "head moved" in result.stdout
+
+
+def _wait_once(stem, snaps, head=""):
+    """A waiter with whatever cursors `stem` has, none seeded."""
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    feed, sent = iter(snaps), []
+    pr_wait.wait(lambda: next(feed), 90, 0, head, True, sent.append, True, stem)
+    return sent
+
+
+def test_a_first_waiter_takes_existing_comments_and_ci_as_seen(stem):
+    old = _snap(
+        comments=[_comment("c1")], mergeable="CONFLICTING", checks=[_check(outcome="failed")]
+    )
+    newer = old._replace(comments=[_comment("c1"), _comment("c2", "and this")])
+
+    assert _wait_once(stem, [old, newer]) == [
+        "PR #90: 1 new comment(s) - peter (src/x.py:3): and this"
+    ]
+
+
+def test_a_push_while_no_waiter_ran_is_reported_without_head(stem):
+    with pytest.raises(StopIteration):
+        _wait_once(stem, [_snap()])
+
+    assert _wait_once(stem, [_snap(head="b" * 40)]) == [
+        f"PR #90 head moved {'a' * 10} -> {'b' * 10}"
+    ]
+
+
+def test_a_merge_while_no_waiter_ran_is_reported(stem):
+    with pytest.raises(StopIteration):
+        _wait_once(stem, [_snap()])
+
+    assert _wait_once(stem, [_snap(state="MERGED")]) == ["PR #90 is now MERGED"]
+
+
+def test_head_overrides_the_saved_head(stem):
+    with pytest.raises(StopIteration):
+        _wait_once(stem, [_snap()])
+
+    assert _wait_once(stem, [_snap(head="b" * 40), _snap(head="c" * 40)], head="b" * 40) == [
+        f"PR #90 head moved {'b' * 10} -> {'c' * 10}"
+    ]
+
+
+def test_cursors_are_written_whole(stem):
+    with pytest.raises(StopIteration):
+        _wait_once(stem, [_snap(comments=[_comment("c1")])])
+
+    assert json.loads(stem.with_suffix(".head.json").read_text()) == {
+        "head": _HEAD,
+        "state": "OPEN",
+    }
+    assert json.loads(stem.with_suffix(".reported.json").read_text()) == ["c1"]
+    assert not list(stem.parent.glob(".*"))

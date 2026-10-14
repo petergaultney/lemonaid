@@ -11,7 +11,8 @@ completion. With `--codex-thread`, it queues the first event into that Codex thr
 exits. The woken turn handles the event and starts a fresh waiter, which reports anything
 that changed in between.
 
-One waiter per (paths, --me) may run; a second exits at once, naming the first.
+What was last reported is saved as a cursor under the lemon's Lemon-ID (or `--me` without
+a brief). One waiter per (paths, lemon) may run; a second exits at once, naming the first.
 
     lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once
     lemonaid watch file --wait <dir> --me <name> --codex-thread
@@ -23,7 +24,7 @@ import pathlib
 import sys
 import time
 
-from . import brief_record, delivery, file_events, registry, waiter_lock
+from . import brief_record, cursors, delivery, file_events, registry, waiter_lock
 
 
 def _wait(w: file_events.FileWatch, deliver: delivery.Deliver, once: bool, interval: float) -> None:
@@ -41,8 +42,10 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     paths = a.wait or a.status
-    a.state_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = file_events.state_stem(a.state_dir, paths, a.me).with_suffix(".lock")
+    state_dir = a.state_dir or cursors.directory("file", a.me, a.codex_thread)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    cursor_key = a.me if a.state_dir else ""
+    lock_path = file_events.state_stem(state_dir, paths, cursor_key).with_suffix(".lock")
     if a.status:
         running = waiter_lock.held(lock_path)
         print(
@@ -78,7 +81,7 @@ def run(a: argparse.Namespace) -> int:
     try:
         with registry.watching(a, "file", (str(p.resolve()) for p in paths), a.codex_thread):
             _wait(
-                file_events.open_watch(a.state_dir, paths, a.me, a.quiet, a.ignore_removed),
+                file_events.open_watch(state_dir, paths, cursor_key, a.quiet, a.ignore_removed),
                 deliver,
                 a.once or bool(a.codex_thread),
                 a.interval,
@@ -136,7 +139,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,
-        default=file_events.default_state_dir(),
-        help="where reported state and waiter locks live (default: $TMPDIR/lemonaid-watch-file)",
+        default=None,
+        help="where the cursors and waiter lock live (default: this lemon's cursor directory)",
     )
     ap.set_defaults(func=_cmd)

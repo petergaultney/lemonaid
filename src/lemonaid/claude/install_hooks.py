@@ -43,7 +43,7 @@ _OWN_EDIT_SCRIPT = "; ".join(
         'v() { printf "%s" "$d" | tr ",{" "\\n\\n" | '
         'sed -n "s/^ *\\"$1\\" *: *\\"\\([^\\"]*\\)\\".*/\\1/p" | sort -u; }',
         "s=$(v session_id)",
-        '[ -n "$s" ] && [ -d "${TMPDIR:-/tmp}/watch-doc/own/claude-$s" ] || exit 0',
+        '[ -n "$s" ] && [ -d "${LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}/own-edits/claude-$s" ] || exit 0',
         'case "$(v file_path)" in *.md*) ;; *) exit 0 ;; esac',
         'printf "%s" "$d" | exec lemonaid claude own-edit',
     ]

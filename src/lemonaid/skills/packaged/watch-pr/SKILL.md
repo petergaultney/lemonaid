@@ -55,13 +55,13 @@ It prints the first event and exits, and the task's completion wakes you. Handle
 
 In Codex, check that `CODEX_THREAD_ID` is set and `codex queue --help` succeeds, then start `lemonaid watch pr --wait <number or PR URL> [--repo <owner/name> with a number] --head <current head sha> [--comments --me "<your signature>"] --codex-thread` (bare: it reads `CODEX_THREAD_ID` itself; never write `"$CODEX_THREAD_ID"`, which keeps the command from matching Codex's allow rule) as an `exec_command` session with escalated (unsandboxed) permissions, since `codex queue` must write `~/.codex`, and end the turn. The first event is queued into your thread and the waiter exits. When woken, handle it, then rearm with `--head` set to the head you just handled. Don't pipe the waiter into `codex queue` yourself.
 
-The waiter makes one GraphQL call a minute, for the repo of the current directory (pass the PR's URL instead of its number, or `--repo owner/name`, if you are elsewhere). The last reported draft flag, review decision, and blocked heads are remembered, so a change made between one waiter's exit and the rearm is reported by the next one. Never poll in a background shell, and never chain scheduled wakeups.
+The waiter makes one GraphQL call a minute, for the repo of the current directory (pass the PR's URL instead of its number, or `--repo owner/name`, if you are elsewhere). The last reported head, state, comments, draft flag, review decision, and blocked heads are remembered as your cursors, so a change made between one waiter's exit and the rearm, a push or merge included, is reported by the next one. Your very first waiter on a PR takes it as it is now as already seen. Never poll in a background shell, and never chain scheduled wakeups.
 
 ## When woken
 
 - **Head moved:** record the old SHA from the event, then `git fetch origin && git log <old>..<new> --stat` and `gh pr diff <number>`. Report what changed. If you were watching for something specific, re-evaluate it against the new state. If you are on the PR's branch, `git pull --ff-only`; never switch branches to get there.
 - **Ready for review:** someone wants it reviewed now. Keep `--comments` if it's yours, and rearm.
-- **Conflicts with its base:** reported once per head, when GitHub says `CONFLICTING`, and at once if you arm on a PR that already conflicts. Rebase onto `origin/<base>` (if the base PR just merged, see the stacked-PR step below), run the tests, push with `--force-with-lease`, check that `gh pr view <n> --json mergeable` says `MERGEABLE`, tell your reviewer, and rearm.
+- **Conflicts with its base:** reported once per head, when GitHub says `CONFLICTING`. Rebase onto `origin/<base>` (if the base PR just merged, see the stacked-PR step below), run the tests, push with `--force-with-lease`, check that `gh pr view <n> --json mergeable` says `MERGEABLE`, tell your reviewer, and rearm.
 - **CI passed (`--ci`):** the current head has finished CI successfully. Continue the review or merge-readiness work, then rearm without `--ci`.
 - **CI failed:** reported once per head, after every check on it has finished. Required checks count when the PR has any; otherwise every check does. Read `gh pr checks <n>` and the failed job's log. Fix it and push, or rerun a flaky job (`gh run rerun <run-id> --failed`), tell your reviewer when it's green, and rearm.
 - **Stacked PR, base merged:** GitHub retargets your PR to the base's own base. If that merge was a squash, your branch still carries the base's original commits and usually conflicts. Rebase only your own commits (`git rebase --onto origin/main <base's last commit> <your branch>`), run the tests, push with `--force-with-lease`, check it's `MERGEABLE`, and rearm.
@@ -75,4 +75,4 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 ## Notes
 
 - One `gh` call per minute per watched PR. To watch many PRs, run one waiter per PR, or ask before starting dozens.
-- `lemonaid watch pr --help` lists every flag. State and locks live in `$TMPDIR/watch-pr`; deleting them breaks duplicate detection for every running waiter.
+- `lemonaid watch pr --help` lists every flag. State and locks are your cursors, under `~/.local/state/lemonaid/cursors/<your Lemon-ID>/`; deleting them loses what changed since the last report and breaks duplicate detection for running waiters.

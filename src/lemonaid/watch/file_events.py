@@ -2,26 +2,23 @@
 
 A file's fingerprint is its content hash; a directory's is the size and mtime of each
 non-hidden regular file directly in it, so a new, removed, or rewritten file changes it but
-a lock file or a subdirectory does not. What was last reported is kept per (paths, signer)
-in a state directory, so a rearmed waiter reports what changed while none ran; the first
-waiter for a set of paths takes the current state as its baseline. With `ignore_removed`, a
-removal is never reported, but the state still advances past it.
+a lock file or a subdirectory does not. What was last reported is kept per paths in the
+lemon's cursor directory (see cursors.py), so a rearmed waiter reports what changed while
+none ran; the first waiter for a set of paths takes the current state as its baseline.
+With `ignore_removed`, a removal is never reported, but the state still advances past it.
 """
 
 import dataclasses
 import hashlib
 import json
 import pathlib
-import tempfile
 import time
 import typing as ty
 from collections import abc
 
+from . import cursors
+
 Fingerprint = str | dict[str, str] | None  # file hash, directory listing, or absent
-
-
-def default_state_dir() -> pathlib.Path:
-    return pathlib.Path(tempfile.gettempdir()) / "lemonaid-watch-file"
 
 
 def state_stem(state_dir: pathlib.Path, paths: abc.Iterable[pathlib.Path], me: str) -> pathlib.Path:
@@ -110,7 +107,7 @@ def open_watch(
     saved = _load_reported(reported_path)
     reported = {k: saved.get(k, fp) for k, fp in current.items()}
     if reported != saved:
-        reported_path.write_text(json.dumps(reported))
+        cursors.write_json(reported_path, reported)
     return FileWatch(resolved, quiet, reported_path, reported, current, time.time(), ignore_removed)
 
 
@@ -138,5 +135,5 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
         deliver(message)
 
     w.reported = current
-    w.reported_path.write_text(json.dumps(current))
+    cursors.write_json(w.reported_path, current)
     return bool(message)

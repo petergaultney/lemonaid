@@ -44,7 +44,7 @@ wakeups. The command automatically records itself in an attached brief’s `## W
 and updates the entry on rearm. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief. Keep your status and
 what you are waiting on current.
 
-State and locks are separate from other watchers, under `$TMPDIR/lemonaid-watch-briefs/`.
+State and locks are the calling lemon's cursors, under `~/.local/state/lemonaid/cursors/`.
 `--state-dir` moves them. A failed delivery is not recorded, so a rearm retries it.
 Stop your own waiter with `lemonaid watch stop --self briefs` when the child work no longer
 needs watching; it also removes the entry from your brief. Never `pkill -f` the waiter

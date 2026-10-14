@@ -27,7 +27,7 @@ def _run_installed(tmp_path: Path, stdin: str) -> str:
         env={
             **os.environ,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-            "TMPDIR": str(tmp_path / "tmp"),
+            "LEMONAID_STATE_DIR": str(tmp_path / "state"),
         },
     )
     return received.read_text() if received.exists() else ""
@@ -49,7 +49,7 @@ def test_a_session_that_never_ran_a_doc_waiter_stays_in_the_shell(tmp_path):
 
 
 def test_a_watching_session_hands_markdown_edits_to_python(tmp_path):
-    (tmp_path / "tmp" / "watch-doc" / "own" / f"claude-{_SESSION}").mkdir(parents=True)
+    (tmp_path / "state" / "own-edits" / f"claude-{_SESSION}").mkdir(parents=True)
 
     assert _run_installed(tmp_path, _event("/vault/review.md")) == _event("/vault/review.md")
     assert _run_installed(tmp_path, _event("/src/app.py")) == ""

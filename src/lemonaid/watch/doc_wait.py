@@ -47,6 +47,7 @@ def wait_list(
     deliver: delivery.Deliver,
     idle_expire: float,
     interval: float,
+    cursor_key: str | None = None,
 ) -> None:
     attempt = _deliverer(deliver, once=False)
     watches: dict[str, doc_events.DocWatch] = {}
@@ -60,7 +61,9 @@ def wait_list(
 
         watches = {
             d: watches.get(d)
-            or doc_events.open_watch(state_dir, pathlib.Path(d), me, legacy, edits, quiet)
+            or doc_events.open_watch(
+                state_dir, pathlib.Path(d), me, legacy, edits, quiet, cursor_key=cursor_key
+            )
             for d in docs
         }
         for d, w in watches.items():

@@ -13,7 +13,7 @@ import time
 
 from ..brief import lemon, store
 from ..inbox import db
-from . import brief_record, briefs_events, delivery, registry, waiter_lock
+from . import brief_record, briefs_events, cursors, delivery, registry, waiter_lock
 
 CHILD_TO = ("merge", "done")
 _ORPHAN_TO = ("blocked", "alert", "merge", "approve", "review", "done")
@@ -42,9 +42,11 @@ def run(a: argparse.Namespace) -> int:
         print(f"not started: {error}")
         return 2
 
-    a.state_dir.mkdir(parents=True, exist_ok=True)
+    state_dir = a.state_dir or cursors.directory("briefs", a.me, thread)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    cursor_key = a.me if a.state_dir else ""
     to = frozenset(a.to or (_ORPHAN_TO if a.orphans else CHILD_TO))
-    lock_path = briefs_events.state_stem(a.state_dir, parent, a.me, to, a.orphans).with_suffix(
+    lock_path = briefs_events.state_stem(state_dir, parent, cursor_key, to, a.orphans).with_suffix(
         ".lock"
     )
     if a.status:
@@ -80,7 +82,7 @@ def run(a: argparse.Namespace) -> int:
             return 2
         with registry.watching(a, "briefs", (parent,), thread):
             _wait(
-                briefs_events.open_watch(a.state_dir, parent, a.me, a.quiet, to, a.orphans),
+                briefs_events.open_watch(state_dir, parent, cursor_key, a.quiet, to, a.orphans),
                 deliver,
                 a.once or bool(thread),
                 a.interval,
@@ -157,7 +159,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--state-dir",
         type=pathlib.Path,
-        default=briefs_events.default_state_dir(),
-        help="reported state and locks (default: $TMPDIR/lemonaid-watch-briefs)",
+        default=None,
+        help="cursors and waiter lock (default: this lemon's cursor directory)",
     )
     ap.set_defaults(func=_cmd)

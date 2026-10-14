@@ -1,8 +1,9 @@
 """Event detection for one watched document, independent of how events are delivered.
 
-A `DocWatch` holds what has already been reported for (doc, signer). Its state lives in
-a state directory, by default $TMPDIR/watch-doc, so a restarted waiter, or a different
-waiter under the same signer, does not re-report a thread nobody has touched since.
+A `DocWatch` holds what has already been reported for a doc to one lemon. Its cursors
+live in the lemon's cursor directory (see cursors.py), so a restarted waiter does not
+re-report a thread nobody has touched since, and does report a body edit made while no
+waiter ran.
 """
 
 import dataclasses
@@ -11,18 +12,11 @@ import enum
 import hashlib
 import json
 import pathlib
-import tempfile
 import time
 import typing as ty
 from collections import abc
 
-from . import own_edits, relay_comments
-
-
-def default_state_dir() -> pathlib.Path:
-    return (
-        pathlib.Path(tempfile.gettempdir()) / "watch-doc"
-    )  # writable in Codex's sandbox; ~/.cache is not
+from . import cursors, own_edits, relay_comments
 
 
 class Outcome(enum.Enum):
@@ -34,7 +28,7 @@ class Outcome(enum.Enum):
 @dataclasses.dataclass
 class DocWatch:
     doc: pathlib.Path
-    state_dir: pathlib.Path
+    own_root: pathlib.Path
     writer: str
     mine: frozenset[str]
     edits: bool
@@ -78,12 +72,12 @@ def _load_settled(path: pathlib.Path, doc: pathlib.Path) -> str:
     except FileNotFoundError:
         text = ""
     body = relay_comments.body_without_threads(text)
-    path.write_text(body)
+    cursors.write_text(path, body)
     return body
 
 
 def _load_consumed(
-    path: pathlib.Path, state_dir: pathlib.Path, writer: str, doc: pathlib.Path
+    path: pathlib.Path, own_root: pathlib.Path, writer: str, doc: pathlib.Path
 ) -> int:
     """The consumed seq saved for this writer; a new writer starts after its existing edits."""
     try:
@@ -93,8 +87,8 @@ def _load_consumed(
 
     except (OSError, ValueError):
         pass
-    seq = own_edits.last_seq(state_dir, writer, doc)
-    path.write_text(f"{writer} {seq}")
+    seq = own_edits.last_seq(own_root, writer, doc)
+    cursors.write_text(path, f"{writer} {seq}")
     return int(seq)
 
 
@@ -116,19 +110,27 @@ def open_watch(
     edits: bool,
     quiet: float,
     writer: str = "",
+    own_root: pathlib.Path | None = None,
+    cursor_key: str | None = None,
 ) -> DocWatch:
-    """`writer`, when set, is the watching lemon's own_edits key: body edits it made don't wake it."""
+    """`writer`, when set, is the watching lemon's own_edits key: body edits it made don't wake it.
+
+    The cursors are keyed by doc and `cursor_key`, by default `me`; a waiter using its
+    lemon's own cursor directory passes "". `own_root` is where own_edits keeps the
+    writer's records (default: own_edits.root()).
+    """
     state_dir.mkdir(parents=True, exist_ok=True)
+    own_root = own_root or own_edits.root()
     if writer and edits:
-        own_edits.register(state_dir, writer, doc)
-    stem = state_stem(state_dir, doc, me)
+        own_edits.register(own_root, writer, doc)
+    stem = state_stem(state_dir, doc, me if cursor_key is None else cursor_key)
     settled_path = stem.with_suffix(".settled.md")
     settled_body = _load_settled(settled_path, doc) if edits else ""
     consumed_path = stem.with_suffix(".consumed")
-    consumed = _load_consumed(consumed_path, state_dir, writer, doc) if writer and edits else 0
+    consumed = _load_consumed(consumed_path, own_root, writer, doc) if writer and edits else 0
     return DocWatch(
         doc=doc,
-        state_dir=state_dir,
+        own_root=own_root,
         writer=writer,
         mine=frozenset({me, *legacy}),
         edits=edits,
@@ -146,10 +148,10 @@ def open_watch(
 
 def _settle(w: DocWatch, body: str, consumed: int) -> None:
     w.settled_body = w.pending_body = body
-    w.settled_path.write_text(body)
+    cursors.write_text(w.settled_path, body)
     if w.writer and consumed != w.consumed:
         w.consumed = consumed
-        w.consumed_path.write_text(f"{w.writer} {consumed}")
+        cursors.write_text(w.consumed_path, f"{w.writer} {consumed}")
 
 
 def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
@@ -173,7 +175,7 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
 
     if set(threads) != w.reported:
         w.reported = set(threads)
-        w.reported_path.write_text(json.dumps(sorted(w.reported)))
+        cursors.write_json(w.reported_path, sorted(w.reported))
     if new:
         return Outcome.DELIVERED
 
@@ -182,7 +184,7 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
 
     body = relay_comments.body_without_threads(text)
     own = (
-        own_edits.settles(w.state_dir, w.writer, w.doc, w.consumed, w.settled_body, body)
+        own_edits.settles(w.own_root, w.writer, w.doc, w.consumed, w.settled_body, body)
         if w.writer
         else None
     )
@@ -208,5 +210,5 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     ):
         return Outcome.FAILED
 
-    _settle(w, body, own_edits.last_seq(w.state_dir, w.writer, w.doc) if w.writer else 0)
+    _settle(w, body, own_edits.last_seq(w.own_root, w.writer, w.doc) if w.writer else 0)
     return Outcome.DELIVERED

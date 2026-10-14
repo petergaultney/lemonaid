@@ -28,7 +28,9 @@ def state_dir(tmp_path):
 
 
 def _watch(state_dir, doc, writer=_WRITER):
-    return doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0, writer=writer)
+    return doc_events.open_watch(
+        state_dir, doc, _ME, [], edits=True, quiet=0, writer=writer, own_root=state_dir
+    )
 
 
 def _hook_edit(state_dir, doc, new_text: str, tool_use_id: str = "toolu_1") -> None:

@@ -1,3 +1,11 @@
+# 0.111.0 (2026-10-13)
+
+#### Changed
+
+- **`watch pr` saves the head and the open/merged state it last reported,** so a push or merge made while no waiter ran is reported by the next one, without `--head`. `--head` still works and overrides the saved head.
+- **A missing cursor means the lemon has just looked.** A first `watch pr` takes the PR's existing comments, conflict and CI result as seen instead of reporting them all. A first `watch doc` still reports every unanswered thread.
+- **Waiter state moved out of `$TMPDIR`** into `~/.local/state/lemonaid/cursors/<Lemon-ID>/`, so a reboot no longer clears it. `watch pr`, `doc`, `file` and `briefs` key it by the caller's Lemon-ID instead of its `--me` signature, falling back to `--me` without a brief, and write each cursor atomically. `--state-dir` still overrides it. Own-edit records moved to `~/.local/state/lemonaid/own-edits/`.
+
 # 0.110.0 (2026-10-13)
 
 - **Inbox groups keep a manual order,** regardless of their members' unread or brief status. Move one from its header or with `lemonaid group move`.

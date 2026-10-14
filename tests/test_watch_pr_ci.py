@@ -1,8 +1,10 @@
 """CI completion watches through the public waiting loop."""
 
+import json
+
 import pytest
 
-from lemonaid.watch import delivery, pr_activity, pr_comments, pr_wait
+from lemonaid.watch import delivery, merge_health, pr_activity, pr_comments, pr_wait
 
 _HEAD = "a" * 40
 _NEXT = "b" * 40
@@ -22,6 +24,14 @@ def _snap(outcomes=(), *, head=_HEAD, state="OPEN", comments=()):
 
 
 def _wait(stem, snapshots, *, head=_HEAD, ci=True, comments=False, deliver=None, once=True):
+    """Starts with cursors that show no comment and no CI result, as if the lemon has seen none."""
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    for suffix, value in (
+        (".reported.json", []),
+        (".merge.json", merge_health.Seen("", "")._asdict()),
+    ):
+        if not stem.with_suffix(suffix).exists():
+            stem.with_suffix(suffix).write_text(json.dumps(value))
     feed, sent = iter(snapshots), []
     pr_wait.wait(
         lambda: next(feed), 90, 0, head, comments, deliver or sent.append, once, stem, ci=ci

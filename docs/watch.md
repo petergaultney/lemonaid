@@ -61,12 +61,13 @@ The waiter replays the session's unconsumed edits in order from the body it last
 and stays asleep only if they chain without a gap to the body it now reads. A gap means
 someone else changed the doc in between.
 
-Records live in `<state dir>/own/<session>/`; the hook reads the default state dir, so a
-waiter given another `--state-dir` sees only `--editing`/`--mine` records written with the
-same flag.
+Records live in `~/.local/state/lemonaid/own-edits/<session>/`, whatever `--state-dir` a
+waiter uses.
 
-Reported threads are remembered per document and `--me` name, so a waiter started later
-reports only threads that are new or changed since.
+Reported threads are remembered per document in the lemon's cursors (see
+[Cursors](#cursors)), so a waiter started later reports only threads that are new or
+changed since. A first waiter reports every unanswered thread, since each is still waiting
+on the lemon.
 
 ## Waking the lemon
 
@@ -90,15 +91,39 @@ reports only threads that are new or changed since.
 A delivery that fails is not recorded: a one-shot waiter exits 1 and the next waiter reports
 the event again; a list waiter retries on its next read.
 
-Only one waiter may run per document and `--me` name, and one per watch list. A second exits
+Only one waiter may run per document and lemon, and one per watch list. A second exits
 with status 3, naming the first. `--status` exits 0 when a waiter is running and 1 when none
 is. It takes only a brief shared lock, and a waiter starting at the same moment retries rather
 than refusing to start.
 
+## Cursors
+
+Every watcher (`doc`, `pr`, `file` and `briefs`) compares what it watches with a saved
+record of what it last reported to the lemon, its cursor, and reports what differs. So a
+push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
+is reported twice.
+
+- **A missing cursor means the lemon has just looked.** A first waiter takes the current
+  state as seen: the PR's head, state, comments and CI result, a doc's body, a directory's
+  files, the children's statuses. Unanswered doc threads are the exception, and are
+  reported, since each is still waiting on the lemon.
+- **Cursors belong to the lemon, not the signature.** They live in
+  `~/.local/state/lemonaid/cursors/<Lemon-ID>/` (under `LEMONAID_STATE_DIR` when set),
+  keyed by the Lemon-ID of the caller's attached brief, current through rerolls. A lemon
+  signing as `Author (X)` on one waiter and `Reviewer (X)` on another shares one set. A
+  caller with no brief is keyed by its `--me` signature.
+- **Delivery is at least once.** A cursor advances only after the event is printed or
+  queued, and is replaced whole (written to a temporary file, then renamed), so a crash
+  leaves the old cursor or the new one. A crash between the two reports the event again.
+- **Codex can write them.** Lemonaid passes its state directory to the Codex lemons it
+  starts as a writable root; a Codex started some other way needs
+  `~/.local/state/lemonaid` in its `sandbox_workspace_write.writable_roots`.
+- `--state-dir` puts one waiter's cursors and lock elsewhere, keyed by `--me` as before.
+  Deleting a cursor loses whatever changed since its last report.
+
 ## State
 
-- Locks and reported threads: `$TMPDIR/watch-doc/` (`--state-dir` moves it). `$TMPDIR` is
-  used because it is writable inside Codex's sandbox.
+- Cursors and locks: see [Cursors](#cursors).
 - OpenClaw watch lists: `~/.local/state/watch-doc/lists/` (`LEMONAID_WATCH_LISTS_DIR` moves
   it).
 
@@ -113,7 +138,8 @@ lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" -
 lemonaid watch pr --status 90 --me "Author (MotorHoe)"
 ```
 
-It reports a push (the head differs from `--head`), a merge or close, a move to or from
+It reports a push (the head differs from the one last reported, or from `--head`), a merge
+or close, a move to or from
 draft, a review decision change, and with `--comments` a new comment from someone else, a
 conflict with the base, or failed CI. A comment counts when it is in any
 review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation, and is not
@@ -121,11 +147,11 @@ from a bot or a pending review. It is skipped as your own only when it is signed
 your `--me` signature or a `--legacy` one, then a colon (`🍋 Author (MotorHoe): done`).
 Lemons post with their human's account, so the signature is the only way to tell them apart.
 Other lemons' comments wake you, signed or not, and so does an unsigned 🍋 comment of your
-own from before you signed them. Comments already
-reported, and the last reported draft flag and decision, are kept per PR and `--me` in
-`$TMPDIR/watch-pr/`, so a rearm reports what changed in between and nothing it already
-reported. Pass the head you just handled as `--head` when rearming, in full or abbreviated to
-at least 7 digits; without it the first fetch is the baseline. `--wait` and `--status` take a
+own from before you signed them. The head and state, comments already reported, and the
+last reported draft flag and decision are kept in the lemon's [cursors](#cursors), so a
+rearm reports what changed in between, a push or merge included, and nothing it already
+reported. `--head`, in full or abbreviated to at least 7 digits, overrides the saved head;
+a first waiter without it takes the current head as seen. `--wait` and `--status` take a
 PR number or a `github.com` pull request URL. A URL names the repo itself, so `--repo` is
 unneeded, and an error if it names a different repo. For a number, `--repo owner/name` defaults
 to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
@@ -138,8 +164,7 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
 `--comments` is the author's mode, so only the author is woken for merge blockers:
 
 - A conflict is reported once per head, when GitHub says `CONFLICTING` (`UNKNOWN`, while it
-  computes, is not a conflict). A waiter armed on a PR that already conflicts reports it at
-  once.
+  computes, is not a conflict). A first waiter takes a conflict that already exists as seen.
 - Failed CI is reported once per head, after every check on it has finished. Required
   checks count when the PR has any; otherwise every check does.
 - The heads reported are kept beside the other state, so a rearm on the same head is quiet
@@ -179,9 +204,8 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
   still advances past it, so a later arrival is reported normally.
 - A change is reported once it has been quiet for `--quiet` seconds (2 by default); paths
   are read every `--interval` seconds (5 by default).
-- What was last reported is kept per set of paths and `--me` in
-  `$TMPDIR/lemonaid-watch-file/`, so a rearmed waiter reports anything that changed in
-  between. The first waiter for a set of paths takes their current state as its baseline.
+- What was last reported is kept per set of paths in the lemon's [cursors](#cursors), so a
+  rearmed waiter reports anything that changed in between. The first waiter for a set of paths takes their current state as its baseline.
 
 ## Watching children's briefs
 
@@ -245,10 +269,9 @@ do not postpone a pending batch. This reports the latest
 observed state, rather than a history of transitions between reads. Without `--once` or
 `--codex-thread`, the command keeps printing batches.
 
-State and locks live in `$TMPDIR/lemonaid-watch-briefs/` (`--state-dir` moves them), keyed
-by inbox database, parent Lemon-ID, optional `--me` watcher name, and selected target
-statuses. Different target sets keep independent state; order and repeated values do
-not change the key. Omitting `--to` shares state with explicit `--to merge --to done`. Different parents and named watchers keep independent state. A second waiter for the same key exits 3;
+State and locks live in the calling lemon's [cursors](#cursors), keyed by inbox database,
+parent Lemon-ID, and selected target statuses (and `--me`, with `--state-dir`). Different target sets keep independent state; order and repeated values do
+not change the key. Omitting `--to` shares state with explicit `--to merge --to done`. Different parents keep independent state. A second waiter for the same key exits 3;
 `--status` exits 0 when one is running and 1 when none is. Delivery failure leaves changes
 for the next waiter. This state is separate from document, PR, and external brief watches.
 

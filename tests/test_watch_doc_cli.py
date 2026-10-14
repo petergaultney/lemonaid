@@ -233,7 +233,7 @@ def test_editing_then_mine_records_an_edit_for_the_calling_lemon(tmp_path, doc):
     assert unannounced.returncode == 2
     assert "--editing" in unannounced.stdout
     assert paired.returncode == 0
-    assert list((tmp_path / "state" / "own" / "codex-t1").glob("*.edits"))
+    assert list((tmp_path / "state" / "own-edits" / "codex-t1").glob("*.edits"))
 
 
 def test_a_waiter_on_a_missing_doc_waits_for_it(tmp_path):

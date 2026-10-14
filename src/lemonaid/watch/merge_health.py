@@ -17,7 +17,7 @@ import json
 import pathlib
 import typing as ty
 
-from . import pr_activity
+from . import cursors, pr_activity
 
 
 class Seen(ty.NamedTuple):
@@ -41,7 +41,7 @@ def load(path: pathlib.Path) -> Seen:
 
 
 def save(path: pathlib.Path, seen: Seen) -> None:
-    path.write_text(json.dumps(seen._asdict()))
+    cursors.write_json(path, seen._asdict())
 
 
 def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[str]:

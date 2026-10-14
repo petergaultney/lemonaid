@@ -103,4 +103,4 @@ Only a human telling you the document conversation is over ends the watch. Stop 
 
 ## Notes
 
-`lemonaid watch doc --help` lists every flag. State and locks live in `$TMPDIR/watch-doc`; deleting them breaks duplicate detection for every running waiter.
+`lemonaid watch doc --help` lists every flag. State and locks are your cursors, under `~/.local/state/lemonaid/cursors/<your Lemon-ID>/`; deleting them loses what changed since the last report and breaks duplicate detection for running waiters.
