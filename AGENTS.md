@@ -26,25 +26,26 @@ writes their real inbox. A lemon working on lemonaid must not change either.
 
 ## Before Committing
 
-1. **Bump the version** in `pyproject.toml` if adding features or fixes
-2. **Update CHANGES.md** with a brief description of what changed
+1. **Add one change file** to `changes/`, `YYYY-MM-DD-two-to-six-word-title.md`, dated the day the work started. Its first line is `# Patch`, `# Minor` or `# Major`; the rest is the changelog entry. See `changes/README.md`.
+2. **Never add a version to `pyproject.toml`, or edit `CHANGES.md` or a change file already on main.** The version comes from the release tag; `CHANGES.md` is the history before `changes/`.
 3. **Update docs/** if the change affects user-facing behavior (new config options go in `docs/config.md`)
 4. **Update README.md** if adding significant features (add to Features list)
 
-Only a change to the product gets a version bump and a CHANGES.md entry. A change that touches only docs or tests gets neither.
+Only a change to the product gets a change file. A PR that touches only docs or tests gets none and takes the `no-change-file` label. Merging a PR releases nothing; the release workflow cuts one daily or on demand (`docs/development.md`).
 
-## Version Scheme
+## Choosing the bump
 
-- Patch (0.1.x → 0.1.y): Bug fixes, minor tweaks
-- Minor (0.1.x → 0.2.0): New features, significant changes
-- Major (0.x → 1.0): Breaking changes, major milestones
+- `# Patch` (0.1.x → 0.1.y): Bug fixes, minor tweaks
+- `# Minor` (0.1.x → 0.2.0): New features, significant changes
+- `# Major` (0.x → 1.0): Breaking changes, major milestones
 
 ## Project Structure
 
 - `src/lemonaid/` - Main package
 - `docs/` - User documentation (tmux.md, wezterm.md, etc.)
 - `docs/for-lemons.md` - The programmatic surface, for automated callers
-- `CHANGES.md` - Changelog (update with every release)
+- `changes/` - One change file per PR; a release is the files added since the last tag
+- `CHANGES.md` - Changelog through 0.115.3
 
 ## Lemonaid knows about directories and terminals
 

@@ -28,5 +28,5 @@ The full README, with setup for each harness and terminal, is on
 [GitHub](https://github.com/petergaultney/lemonaid#readme).
 
 - [Docs](https://github.com/petergaultney/lemonaid/tree/main/docs)
-- [Changelog](https://github.com/petergaultney/lemonaid/blob/main/CHANGES.md)
+- [Changelog](https://github.com/petergaultney/lemonaid/tree/main/changes)
 - [Issues](https://github.com/petergaultney/lemonaid/issues)

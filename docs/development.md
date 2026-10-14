@@ -28,19 +28,42 @@ development setup. As soon as a change lands on main:
 Do not silently replace a feature branch the user is testing. If the installed
 source or intended trial is unclear, confirm the target before switching it.
 
-## Releases
+## Changes and releases
 
-A merge to main that brings a version with no `v<version>` tag releases it:
-`.github/workflows/release.yml` runs once the `test` workflow passes on main,
-publishes the build to PyPI as `lemonaid-inbox`, and creates the tag and a
-GitHub Release whose notes are that version's CHANGES.md section
-(`scripts/changelog-section.py`). A merge that leaves the version alone
-releases nothing, and a version without a CHANGES.md section fails the run.
+A PR describes its change in one file under `changes/`, and never adds a version to
+`pyproject.toml` or edits `CHANGES.md` or a change file already on main, so two PRs
+conflict only where their code does. The file is `changes/YYYY-MM-DD-two-to-six-word-title.md`,
+dated the day the work started. Its first line is `# Patch`, `# Minor` or `# Major`, and
+the rest is its changelog entry. `changes/README.md` has the format. A PR that changes
+only docs or tests gets no file and takes the `no-change-file` label. The `changes`
+workflow (`.github/workflows/changes.yml`, `scripts/check-change-file.py`) enforces this.
+
+**Merging a PR publishes nothing.** Its change file waits on main until the next release.
+
+A release is made of the change files added since the previous `v*` tag. Its version is
+that tag's raised by the highest bump among them, and its notes are their entries in
+date order. `scripts/release.py version` and `scripts/release.py notes` print both and
+change nothing. Files keep their dated names after a release.
+
+`.github/workflows/release.yml` releases daily at 13:00 UTC, and on demand: run it from
+the Actions tab or with `gh workflow run release.yml` to release mid-day. A run takes the
+newest main commit whose `test` workflow passed and, if change files were added since the
+highest tag, pushes the next version's tag to that commit. It builds from the tag,
+publishes to PyPI as `lemonaid-inbox`, and creates a GitHub Release with the notes. It
+never commits to main or opens a PR.
+
+`pyproject.toml` has no version: `hatch-vcs` takes it from the nearest `v*` tag, so a
+build from a later commit is a dev version such as `0.116.1.dev3+g1a2b3c4`, and a tree
+without git history builds as `0.0.0`. `CHANGES.md` keeps the history through 0.115.3.
 
 PyPI accepts the upload through trusted publishing from the `pypi`
-environment, so the repo holds no token. A failed run can be re-run from the
-Actions page: the PyPI step skips files already uploaded, and a Release left
-as a draft is finished rather than created again.
+environment, so the repo holds no token. A run that fails after pushing its tag
+is finished by the next run, scheduled or manual: a tag with no published
+GitHub Release is built and published again, the PyPI step skips files already
+uploaded, and a Release left as a draft is finished rather than created again. A
+tag that can never finish (its build fails every time) holds up every later release:
+fix the cause on main and run the workflow again, or delete the tag to abandon that
+release.
 
 The tool environment named `lemonaid` from before the rename has to be
 removed once (`uv tool uninstall lemonaid`) before installing

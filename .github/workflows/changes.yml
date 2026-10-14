@@ -1,0 +1,25 @@
+name: changes
+
+# A PR adds one change file to changes/ and leaves the version, CHANGES.md and older
+# change files alone. See changes/README.md. A PR that needs no entry (docs or tests
+# only) takes the `no-change-file` label.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  change-file:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-change-file') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: uv run --no-project scripts/check-change-file.py "$BASE"

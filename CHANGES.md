@@ -1,3 +1,5 @@
+Changes after 0.115.3 are in [changes/](changes/), one file per change.
+
 # 0.115.3 (2026-10-14)
 
 #### Fixed

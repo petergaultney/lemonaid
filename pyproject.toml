@@ -1,6 +1,6 @@
 [project]
 name = "lemonaid-inbox"
-version = "0.115.3"
+dynamic = ["version"]
 description = "Attention inbox for managing notifications from lemons and other background tools"
 readme = "docs/pypi.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
 Homepage = "https://github.com/petergaultney/lemonaid"
 Repository = "https://github.com/petergaultney/lemonaid"
 Documentation = "https://github.com/petergaultney/lemonaid/tree/main/docs"
-Changelog = "https://github.com/petergaultney/lemonaid/blob/main/CHANGES.md"
+Changelog = "https://github.com/petergaultney/lemonaid/tree/main/changes"
 Issues = "https://github.com/petergaultney/lemonaid/issues"
 
 [dependency-groups]
@@ -27,8 +27,14 @@ lemonaid-tmux-session-name = "lemonaid.tmux.window_status:session_main"
 lemonaid-claude-statusline = "lemonaid.claude.statusline:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The version is the nearest v* tag, which the release workflow creates; a commit past it
+# gets a dev version. A tree without git history builds as 0.0.0.
+[tool.hatch.version]
+source = "vcs"
+raw-options = { fallback_version = "0.0.0" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lemonaid"]

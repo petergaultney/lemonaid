@@ -42,14 +42,3 @@ def test_old_double_hash_heading_is_a_section_too():
 def test_missing_or_prefix_version_has_no_section():
     assert _section("0.58.4") is None
     assert _section("0.58") is None
-
-
-def test_real_changelog_has_the_current_version():
-    root = _SCRIPT.parent.parent
-    version = next(
-        line.split('"')[1]
-        for line in (root / "pyproject.toml").read_text().splitlines()
-        if line.startswith("version = ")
-    )
-    with (root / "CHANGES.md").open() as f:
-        assert changelog_section.section(f, version)
