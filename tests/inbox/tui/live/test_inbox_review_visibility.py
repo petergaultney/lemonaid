@@ -430,3 +430,43 @@ def test_search_keeps_a_deaf_lemon_in_the_lower_table(monkeypatch):
 
     assert other not in (rows := _run(steps))
     assert rows == [deaf]
+
+
+def _sibling_shape(
+    conn,
+    status: str = "waiting",
+    author: bool = True,
+    lead: str = "lemonaid-plan-manager.BlessBar",
+) -> str:
+    if author:
+        author_id = "author.WorkerBin"
+        _parent_brief(conn, author_id, _PR_URL)
+        lineage_links.set_parent(conn, author_id, lead)
+    reviewer = _session(conn, "reviewer")
+    path = _brief(conn, reviewer, status, reviewer=True, parent=lead)
+    lineage_links.set_parent(conn, identity.read(path.read_text()), lead)
+    return reviewer
+
+
+def _visible(conn) -> list[str]:
+    active = view.ordered_active(conn, "tmux", BriefCache(), presence.Probe(), False, time.time())
+    return [row.channel for row in view.inbox_rows(active, set(), set())]
+
+
+def test_a_lead_parented_reviewer_with_an_author_sibling_on_its_pr_hides_while_quiet():
+    with db.connect() as conn:
+        _sibling_shape(conn)
+        assert _visible(conn) == []
+
+
+def test_a_control_center_parented_reviewer_with_an_author_sibling_hides_while_quiet():
+    with db.connect() as conn:
+        _sibling_shape(conn, lead="control-center.LemonAce")
+        assert _visible(conn) == []
+
+
+@pytest.mark.parametrize(("status", "author"), [("blocked", True), ("waiting", False)])
+def test_that_reviewer_shows_when_blocked_or_without_an_author_sibling(status, author):
+    with db.connect() as conn:
+        reviewer = _sibling_shape(conn, status=status, author=author)
+        assert _visible(conn) == [reviewer]

@@ -1,3 +1,9 @@
+# 0.113.2 (2026-10-14)
+
+#### Fixed
+
+- **A reviewer started with `--parent parent` is hidden again while quiet.** Its brief names the lead as parent, so it looked like a review the lead asked for; it now hides when a not-done sibling brief under the same lead lists the reviewed PR as its one `### PRs` row.
+
 # 0.113.1 (2026-10-14)
 
 #### Fixed
