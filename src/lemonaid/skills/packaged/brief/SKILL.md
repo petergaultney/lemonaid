@@ -62,7 +62,9 @@ Leave the Review cell empty if no review doc exists. Remove a row once its PR me
 
 `## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels.
 
-The worker owns `Status:`, `## Now`, `## Questions`, and `## Waiters`. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Limits`, and `## Output`; preserve them. Keep `## Waiters` last, after those sections. The title names the task itself, without a "Brief:" prefix.
+The worker owns `Status:`, `## Now`, `## Questions`, `## Executive Summary of Results`, and `## Waiters`. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Limits`, and `## Acceptance Criteria`; preserve them. Keep `## Waiters` last, after those sections. The title names the task itself, without a "Brief:" prefix.
+
+Before setting `Status: done`, fill `## Executive Summary of Results` with a concise account of the outcome: at most 1–3 paragraphs, plus any absolutely critical table. This summary belongs in the brief even when the full output lives elsewhere. For a review brief, put the verdict here. `brief check` warns if a done brief has this heading but leaves it empty; it does not block the status edit, and older briefs without the heading remain valid.
 
 ## Edit and validate
 

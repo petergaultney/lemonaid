@@ -135,6 +135,7 @@ def _section(
         part
         for part in (
             _part("Done", parsed.done) if parsed.done and detail != "compact" else "",
+            _part("Executive Summary of Results", parts.summary) if parts.summary else "",
             *(["---", parts.rest] if detail == "full" and parts.rest else []),
         )
         if part

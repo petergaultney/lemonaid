@@ -8,7 +8,11 @@ A cross-harness review of $pr_link, with a verdict, in the review doc at $output
 
 Don't post to GitHub, push, merge, or edit the author's worktree. Findings go only in the review doc, never in this brief or on the PR.
 
-## Output
+## Acceptance Criteria
+
+## Executive Summary of Results
+
+Write the review verdict here, including any critical findings or that the PR is clear.
 
 Write the review doc at `$output_doc`. When it's written, $tell a one-line pointer to it.
 

@@ -4,6 +4,8 @@
 
 ## Limits
 
-## Output
+## Acceptance Criteria
+
+## Executive Summary of Results
 
 ## Waiters

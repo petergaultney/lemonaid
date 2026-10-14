@@ -50,6 +50,25 @@ def test_a_well_formed_brief_has_no_problems():
     assert check.structure(_BRIEF) == []
 
 
+def test_done_brief_warns_when_its_present_summary_is_empty():
+    text = _BRIEF.replace("Status: working", "Status: done").replace(
+        "## Goal", "## Executive Summary of Results\n\n## Goal"
+    )
+
+    assert check.structure(text) == []
+    assert check.warnings(text) == ["`## Executive Summary of Results` is empty on a done brief"]
+
+
+def test_old_done_briefs_and_filled_summaries_do_not_warn():
+    old = _BRIEF.replace("Status: working", "Status: done")
+    filled = old.replace(
+        "## Goal", "## Executive Summary of Results\n\nCompleted the work.\n\n## Goal"
+    )
+
+    assert check.warnings(old) == []
+    assert check.warnings(filled) == []
+
+
 def test_every_line_doubled_is_caught():
     doubled = "".join(line + line for line in _BRIEF.splitlines(keepends=True))
 
@@ -147,6 +166,20 @@ def test_check_reports_by_lemon_and_by_file(capsys):
 
     assert by_lemon["problems"] == by_file["problems"]
     assert "Status 'busy'" in by_lemon["problems"][0]
+
+
+def test_check_warns_without_refusing_done_status(capsys):
+    text = _BRIEF.replace("Status: working", "Status: running").replace(
+        "## Goal", "## Executive Summary of Results\n\n## Goal"
+    )
+    path = _attached(text)
+
+    changed = _run(capsys, "status", "--channel", "codex:t1", "done")
+    checked = _run(capsys, "check", str(path))
+
+    assert changed["error"] is None
+    assert checked["problems"] == []
+    assert checked["warnings"] == ["`## Executive Summary of Results` is empty on a done brief"]
 
 
 def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):

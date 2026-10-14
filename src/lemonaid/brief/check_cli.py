@@ -60,6 +60,9 @@ def _cmd_check(args: argparse.Namespace) -> None:
         ]
 
     failing = [r for r in results if r["problems"]]
+    for result in results:
+        path = Path(result["path"])
+        result["warnings"] = check.warnings(path.read_text()) if path.is_file() else []
     if args.json:
         print(json.dumps(results if args.all else {**results[0], "error": None}))
     for result in [] if args.json else results:
@@ -68,6 +71,9 @@ def _cmd_check(args: argparse.Namespace) -> None:
     for result in [] if args.json else failing:
         name = Path(result["path"]).name
         print("\n".join(f"{name}: {p}" for p in result["problems"]), file=sys.stderr)
+    for result in [] if args.json else results:
+        name = Path(result["path"]).name
+        print("\n".join(f"{name}: warning: {p}" for p in result["warnings"]), file=sys.stderr)
     if not args.json and args.all:
         print(f"{len(results) - len(failing)} of {len(results)} briefs pass")
     elif not args.json and not failing:

@@ -46,7 +46,9 @@ Brief-ID: {lemon_id}
 
 ## Limits
 
-## Output
+## Acceptance Criteria
+
+## Executive Summary of Results
 """
 
 

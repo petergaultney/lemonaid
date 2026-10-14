@@ -138,6 +138,16 @@ def structure(text: str) -> list[str]:
     return problems
 
 
+def warnings(text: str) -> list[str]:
+    """Advice that does not make a brief invalid or refuse edits."""
+    lines = text.splitlines()
+    parts = status.split(text)
+    headings = [heading.lower() for level, heading in _headings(lines) if level == 2]
+    if parts.status == "done" and "executive summary of results" in headings and not parts.summary:
+        return ["`## Executive Summary of Results` is empty on a done brief"]
+    return []
+
+
 def recorded(conn: sqlite3.Connection, path: Path, text: str) -> list[str]:
     """Whether the brief's ID is the one the database records for *path*."""
     try:

@@ -33,6 +33,7 @@ class Parts:
     rest: str
     questions: str = ""  # the body of `## Questions`, kept out of `rest`
     area: str = ""  # the `Area:` line: the part of the project the work is in
+    summary: str = ""  # the body of `## Executive Summary of Results`
 
 
 def notes_dir(start: Path, place: Path | None) -> Path | None:
@@ -93,6 +94,7 @@ def split(text: str) -> Parts:
     title, status, area = "", "", ""
     now: list[str] = []
     questions: list[str] = []
+    summary: list[str] = []
     rest: list[str] = []
     within: list[str] | None = None  # `now` or `questions` while inside that section
     in_header = True  # above the first `##` heading, where `Status:` and `Area:` go
@@ -114,6 +116,8 @@ def split(text: str) -> Parts:
             within = now
         elif _QUESTIONS_HEADING.fullmatch(line):
             within = questions
+        elif line.lower() == "## executive summary of results":
+            within = summary
         elif within is not None:
             within.append(line)
         else:
@@ -130,6 +134,7 @@ def split(text: str) -> Parts:
         "\n".join(rest).strip(),
         "\n".join(questions).strip(),
         area,
+        "\n".join(summary).strip(),
     )
 
 

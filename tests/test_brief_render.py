@@ -39,6 +39,19 @@ def test_needs_peter_comes_right_after_identity_and_status_whatever_the_order(tm
     assert "Waiting on" not in out
 
 
+def test_brief_show_includes_the_results_summary(tmp_path):
+    path = _brief(
+        tmp_path,
+        "task",
+        "# Task\n\nStatus: done\n\n## Now\n- Done: shipped\n\n"
+        "## Executive Summary of Results\n\nThe feature shipped.\n",
+    )
+
+    out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
+
+    assert "**Executive Summary of Results:** The feature shipped." in out
+
+
 def test_sub_headings_render_like_bullets(tmp_path):
     path = _brief(
         tmp_path,

@@ -188,3 +188,12 @@ def test_approve_is_a_state():
 
 def test_running_is_a_state():
     assert status.split("# x\n\nStatus: running\n").status == "running"
+
+
+def test_summary_is_extracted_from_the_brief():
+    parts = status.split(
+        "# x\n\n## Executive Summary of Results\n\nAll done.\n\n## Goal\nDetails.\n"
+    )
+
+    assert parts.summary == "All done."
+    assert "## Goal" in parts.rest

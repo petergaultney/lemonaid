@@ -1,3 +1,9 @@
+# 0.112.0 (2026-10-14)
+
+#### Changed
+
+- **Brief templates now have `## Acceptance Criteria` and `## Executive Summary of Results`.** Workers add a concise result before setting `Status: done`; `brief check` warns when that summary is empty, and `brief show` displays it.
+
 # 0.111.3 (2026-10-13)
 
 #### Fixed

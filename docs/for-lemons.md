@@ -698,7 +698,7 @@ still works and warns; templates must use `$output_doc*` now.
 A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a
 literal `$`). Lemonaid packages two:
 
-- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Output` and `## Waiters`.
+- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, `## Executive Summary of Results` and `## Waiters`.
 - `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
   findings only in the `--output-doc` (linked into Obsidian when it is under a `[brief] vaults`
   root), the rule to keep watching, with no status, until the PR merges or closes, the `git range-diff`
@@ -824,6 +824,11 @@ would, but they still edit a brief that has already lost one. A `Parent:`, `Area
 `brief now` replaces the brief's line for that field, and a field it leaves out stays as it was. A Claude lemon's Stop hook
 runs it too, and blocks the turn's end until the brief passes. **After editing a brief by hand,
 run `lemonaid brief check --self`**: nothing else checks a Codex lemon's hand edits.
+
+On a brief with `Status: done`, `brief check` also warns when `## Executive Summary of Results`
+exists but is empty. The warning does not fail the check or block a status edit. Older briefs
+without that heading remain valid. Before marking work done, workers fill the section with at most
+1–3 paragraphs and any absolutely critical table; review briefs put their verdict there.
 
 A sandboxed lemon (Codex writes only inside its workspace) keeps its brief current with these
 verbs; any other lemon may do the same or edit the file directly.
