@@ -183,21 +183,41 @@ def test_reviewers_without_an_author_parent_stay_visible(parent):
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
-def test_a_reviewer_with_an_unrecognized_parent_stays_visible_without_an_owned_pr():
+@pytest.mark.parametrize(
+    "parent",
+    [
+        "spurious-permission-notices.JellyGet",
+        "card-shows-done-without-status.RoyalFit",
+    ],
+)
+def test_reviewers_parented_by_the_pr_author_hide_without_pr_table_matches(parent):
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
-        _parent_brief(
-            conn,
-            "operations-coordinator.MimicOld",
-            "https://github.com/example/repo/pull/9",
-        )
+        _parent_brief(conn, parent)
         _brief(
             conn,
             reviewer,
             "waiting",
             reviewer=True,
-            parent="operations-coordinator.MimicOld",
+            parent=parent,
         )
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert active.reviewers == {reviewer}
+    assert view.inbox_rows(active, set(), set()) == []
+
+
+def test_a_reviewer_started_directly_by_a_lead_stays_visible():
+    with db.connect() as conn:
+        lead = "lead.LeadBin"
+        _parent_brief(conn, lead)
+        worker = "worker.WorkerBin"
+        _parent_brief(conn, worker)
+        lineage_links.set_parent(conn, worker, lead)
+        reviewer = _session(conn, "reviewer")
+        _brief(conn, reviewer, "waiting", reviewer=True, parent=lead)
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
@@ -226,7 +246,7 @@ def test_a_reviewer_started_as_a_lead_sibling_stays_visible():
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
-def test_a_reviewer_parented_by_an_author_stays_hidden_if_author_has_a_same_pr_child():
+def test_a_reviewer_parented_by_a_lead_stays_visible_even_if_its_child_owns_the_pr():
     with db.connect() as conn:
         author = "author.WorkerBin"
         _parent_brief(conn, author, _PR_URL)
@@ -239,8 +259,8 @@ def test_a_reviewer_parented_by_an_author_stays_hidden_if_author_has_a_same_pr_c
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
 
-    assert active.reviewers == {reviewer}
-    assert [row.channel for row in view.inbox_rows(active, set(), set())] == []
+    assert active.reviewers == set()
+    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
 @pytest.mark.parametrize(

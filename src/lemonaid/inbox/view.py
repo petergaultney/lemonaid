@@ -129,67 +129,24 @@ def inbox_rows(
     ]
 
 
-def _pr_table(text: str) -> str:
-    """The `### PRs` table, where a brief records PRs its lemon owns."""
-    lines: list[str] = []
-    in_prs = False
-    for line in text.splitlines():
-        if line.startswith("### "):
-            if in_prs:
-                break
-            in_prs = line[4:].strip().casefold() == "prs"
-        elif in_prs:
-            lines.append(line)
-    return "\n".join(lines)
-
-
-def _parent_line_names(text: str, lemon_id: str) -> bool:
-    """Whether a brief's generated Parent line names *lemon_id*."""
-    pattern = re.compile(rf"(?<![\w.-]){re.escape(lemon_id)}(?![\w.-])")
-    return any(pattern.search(line) for line in text.splitlines() if line.startswith("Parent:"))
-
-
-def _has_author_parent(conn: sqlite3.Connection, brief_id: str, path: Path) -> bool:
-    """Only hide a reviewer parented by the brief that owns its PR."""
-    text = path.read_text()
-    reviewer_refs = set(brief.pr.refs(text))
+def _has_author_parent(conn: sqlite3.Connection, brief_id: str) -> bool:
+    """Hide reviewers whose recorded parent is a worker, not a coordinator."""
     parent_id = lineage_links.parent_of(conn, brief_id)
-    if (
-        not reviewer_refs
-        or not parent_id
-        or re.search(
-            r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
-            parent_id,
-            re.IGNORECASE,
-        )
+    if not parent_id or re.search(
+        r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
+        parent_id,
+        re.IGNORECASE,
     ):
         return False
 
-    parent_path = brief.lemon.brief_of(conn, parent_id) if parent_id else None
-    if parent_path is None or not parent_path.is_file():
-        return False
-
-    parent_refs = set(brief.pr.refs(_pr_table(parent_path.read_text())))
-    shared_refs = parent_refs.intersection(reviewer_refs)
-    if not shared_refs:
-        return False
-
-    # A reviewer started with `--parent parent` is a sibling of the author under
-    # the lead. The lead may list its child's PR, so a matching PR alone does not
-    # make the lead an author parent.
-    for sibling_id in lineage_links.children_of(conn, parent_id):
-        if sibling_id == brief_id or brief.identity.brief_description(sibling_id).startswith(
-            "review-"
-        ):
-            continue
-        sibling_path = brief.lemon.brief_of(conn, sibling_id)
-        if sibling_path is None or not sibling_path.is_file():
-            continue
-        sibling_refs = set(brief.pr.refs(_pr_table(sibling_path.read_text())))
-        if shared_refs.intersection(sibling_refs) and _parent_line_names(text, sibling_id):
-            return False
-
-    return True
+    # A lead has workers of its own. With `--parent parent`, the reviewer and
+    # author are siblings under that lead, so the lead remains a coordination
+    # parent even though the review brief's Parent line names the author.
+    return not any(
+        not brief.identity.brief_description(child_id).startswith("review-")
+        for child_id in lineage_links.children_of(conn, parent_id)
+        if child_id != brief_id
+    )
 
 
 def ordered_active(
@@ -214,7 +171,7 @@ def ordered_active(
         for channel, brief_id in brief_ids.items()
         if channel in attached
         and brief.identity.brief_description(brief_id).startswith("review-")
-        and _has_author_parent(conn, brief_id, attached[channel])
+        and _has_author_parent(conn, brief_id)
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),
