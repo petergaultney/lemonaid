@@ -14,6 +14,12 @@ It only formats the link, so another lemon can print it without resolving the
 recipient. Markdown-capable renderers can use
 `[go to the lemon](lemonaid://go/lemonaid-go.OzoneYes)` instead.
 
+In the inbox's brief view, every Lemon-ID is a `lemonaid://go/<Lemon-ID>` link:
+the `Brief-ID:` and `Parent:` lines, the children list, and any ID lemonaid has
+registered (or rerolled away from) in the brief's text, bare or alone in backticks.
+Text shaped like an ID that lemonaid doesn't know stays plain. Clicking needs the
+URL handler below. `lemonaid brief show` prints plain text and is unchanged.
+
 A Lemon-ID follows its attached brief and supports rerolled ID aliases. A channel
 also works without a brief. Row order, folding, read state and snoozing do not
 change the target. Jumping leaves the inbox state alone. An archived row, a

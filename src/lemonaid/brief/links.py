@@ -5,8 +5,10 @@ loses it at the break. A Markdown link with a short label renders as one OSC 8
 hyperlink per line instead, so it opens from anywhere on the label.
 
 A `.md` path under a configured vault root, written from `~` or in full, opens
-in Obsidian. Path cells in tables link even when written in backticks. Other code spans,
-fenced blocks, autolinks and existing Markdown links are left as written.
+in Obsidian. A Lemon-ID lemonaid knows, bare or alone in backticks, links to
+`lemonaid://go/<Lemon-ID>`; any other `slug.Name` text stays as written. Path
+cells in tables link even when written in backticks. Other code spans, fenced
+blocks, autolinks and existing Markdown links are left as written.
 """
 
 import re
@@ -34,20 +36,25 @@ _DOC_LINK_CELL = (
     r"\(<?(?P<doctarget>[^>]+?)>?\)[ \t]*(?=\|))"
 )
 _URL = r"(?P<url>(?<![\w/])(?:https?|obsidian)://[^\s<>`\[\]]+)"
+_LEMON = r"(?P<lemon>(?<![\w./~@:-])[\w-]+(?:\.[\w-]+)+(?![\w-]|\.\w))"
 _FLAGS = re.MULTILINE | re.DOTALL | re.IGNORECASE
+
+
+def go_url(lemon_id: str) -> str:
+    return f"lemonaid://go/{urllib.parse.quote(lemon_id, safe='')}"
 
 
 def _tokens(roots: abc.Iterable[Path]) -> re.Pattern[str]:
     spelled = sorted({s for root in roots for s in obsidian.spellings(root)}, key=len, reverse=True)
     if not spelled:
-        return re.compile(f"{_PROTECTED}|{_DOC_LINK_CELL}|{_DOC_CELL}|{_URL}", _FLAGS)
+        return re.compile(f"{_PROTECTED}|{_DOC_LINK_CELL}|{_DOC_CELL}|{_URL}|{_LEMON}", _FLAGS)
 
     vault = (
         r"(?P<vault>(?<![\w/~])(?P<root>"
         + "|".join(re.escape(s) for s in spelled)
         + r")/(?P<rest>(?:(?!~/)[^\n`<>\[\]])*?\.md)(?![\w-]|\.\w))"
     )
-    return re.compile(f"{_PROTECTED}|{_DOC_LINK_CELL}|{_DOC_CELL}|{vault}|{_URL}", _FLAGS)
+    return re.compile(f"{_PROTECTED}|{_DOC_LINK_CELL}|{_DOC_CELL}|{vault}|{_URL}|{_LEMON}", _FLAGS)
 
 
 def _trimmed(url: str) -> tuple[str, str]:
@@ -90,8 +97,19 @@ def _link(label: str, url: str) -> str:
 
 
 def _replace(
-    match: re.Match[str], vaults: abc.Mapping[str, str], roots: abc.Collection[Path]
+    match: re.Match[str],
+    vaults: abc.Mapping[str, str],
+    roots: abc.Collection[Path],
+    lemons: abc.Container[str],
 ) -> str:
+    if match.groupdict().get("lemon"):
+        return (
+            _link(match["lemon"], go_url(match["lemon"])) if match["lemon"] in lemons else match[0]
+        )
+
+    if match.groupdict().get("code") and (inner := match[0].strip("`").strip()) in lemons:
+        return f"[`{inner}`](<{go_url(inner)}>)"
+
     if match.groupdict().get("doccell"):
         prefix = match[0].split("|", 1)[0]
         path = Path(match["docpath"].strip()).expanduser().resolve()
@@ -116,10 +134,12 @@ def _replace(
     return match[0]
 
 
-def linkify(markdown: str, vaults: abc.Collection[Path]) -> str:
-    """*markdown* with bare URLs, and `.md` paths under each expanded vault root, as links.
+def linkify(
+    markdown: str, vaults: abc.Collection[Path], lemons: abc.Container[str] = frozenset()
+) -> str:
+    """*markdown* with bare URLs, `.md` paths under each expanded vault root, and *lemons* as links.
 
     Obsidian names a vault after its folder, so a root's basename is its vault name.
     """
     names = {s.lower(): root.name for root in vaults for s in obsidian.spellings(root)}
-    return _tokens(vaults).sub(lambda match: _replace(match, names, vaults), markdown)
+    return _tokens(vaults).sub(lambda match: _replace(match, names, vaults, lemons), markdown)

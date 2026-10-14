@@ -1,9 +1,10 @@
 """Which lemon a brief card is: its task, Lemon-ID and parent, as lines of the card."""
 
 from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 
-from ....brief import render
+from ....brief import links, render
 
 _CONSOLE = Console()  # for measuring wraps only; nothing is printed through it
 
@@ -23,6 +24,7 @@ def _parent(section: render.Section) -> Text:
 
 def id_text(brief_id: str, label: str = "") -> Text:
     line = Text(label, style="dim")
+    start = len(line)
     description, separator, name = brief_id.rpartition(".")
     if separator and name:
         line.append(description, style="dim")
@@ -31,6 +33,7 @@ def id_text(brief_id: str, label: str = "") -> Text:
     else:
         line.append(brief_id, style="dim")
 
+    line.stylize(Style(link=links.go_url(brief_id)), start, len(line))
     return line
 
 

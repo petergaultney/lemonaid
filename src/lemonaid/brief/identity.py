@@ -64,6 +64,16 @@ def by_channel(conn: sqlite3.Connection) -> dict[str, str]:
     }
 
 
+def known(conn: sqlite3.Connection) -> frozenset[str]:
+    """Every Lemon-ID this database has registered, including IDs since rerolled."""
+    return frozenset(
+        row[0]
+        for row in conn.execute(
+            "SELECT lemon_id FROM lemon_identities UNION SELECT old_id FROM lemon_aliases"
+        )
+    )
+
+
 def read(text: str) -> str:
     header = text.split("\n## ", 1)[0]
     lines = [line for line in header.splitlines() if line.startswith(("Brief-ID:", "Lemon-ID:"))]

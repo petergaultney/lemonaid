@@ -24,7 +24,7 @@ from textual.widgets._markdown import (  # no public name
     MarkdownTable,
 )
 
-from ....brief import attached, family, links, pr, questions, render, target
+from ....brief import attached, family, identity, links, pr, questions, render, target
 from ....config import KeybindingsConfig, PlaceRoot
 from ....log import get_logger
 from ... import db, turns
@@ -289,6 +289,7 @@ class BriefView(VerticalScroll):
         self._rendered_markdown: str | None = None
         self._pr_states = pr.Cache(pr_state)
         self._vaults = vaults
+        self._lemons: frozenset[str] = frozenset()
         self._keys = keys
         self._sections: tuple[render.Section, ...] = ()
         self._selected: brief_questions.Choice | None = None
@@ -333,7 +334,12 @@ class BriefView(VerticalScroll):
             else []
         )
         if not shown.sections:
-            return [*notice, _Markdown(links.linkify(render.to_markdown(shown, now), self._vaults))]
+            return [
+                *notice,
+                _Markdown(
+                    links.linkify(render.to_markdown(shown, now), self._vaults, self._lemons)
+                ),
+            ]
 
         top: list[Static | Markdown | Rule] = (
             [_SessionBar(shown.header)]
@@ -353,13 +359,21 @@ class BriefView(VerticalScroll):
                     if section.needs_text or section.unmatched_questions
                     else []
                 ),
-                *([_Markdown(links.linkify(section.body, self._vaults))] if section.body else []),
+                *(
+                    [_Markdown(links.linkify(section.body, self._vaults, self._lemons))]
+                    if section.body
+                    else []
+                ),
                 *(
                     [Static(brief_detail.children(section), classes="brief-children")]
                     if section.children
                     else []
                 ),
-                *([_Markdown(links.linkify(section.tail, self._vaults))] if section.tail else []),
+                *(
+                    [_Markdown(links.linkify(section.tail, self._vaults, self._lemons))]
+                    if section.tail
+                    else []
+                ),
             )
         ]
         return [
@@ -377,7 +391,7 @@ class BriefView(VerticalScroll):
 
     def _needs_markdown(self, section: render.Section) -> str:
         selected = self._selected[1] if self._selected and self._selected[0] == section.path else ""
-        return links.linkify(render.needs(section, True, selected), self._vaults)
+        return links.linkify(render.needs(section, True, selected), self._vaults, self._lemons)
 
     def _needs_widget(self, section: render.Section) -> _Markdown:
         widget = _Markdown(
@@ -443,6 +457,9 @@ class BriefView(VerticalScroll):
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
         shown = _turns(shown, now, self._mid_turn_working)
+        with db.connect() as conn:
+            self._lemons = identity.known(conn)
+
         rendered = render.to_markdown(shown, now, expanded=True)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):
