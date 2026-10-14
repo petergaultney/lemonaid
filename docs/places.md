@@ -132,19 +132,10 @@ clients: an agent has its own session and will never attach to one, so `place op
 leave an unused session behind for every directory it made. Since nothing is recorded either
 way, the two produce places that are indistinguishable afterward.
 
-Outside every root that has a key vocabulary, there's no key to resolve, so `place open
-<name>` is just a named session in the current directory — the same thing `tmux new -s` gets
-you, by way of your session template. Nothing is acquired.
-
-That's decided by where you are, not by whether a lookup succeeded. Inside a root with a
-vocabulary the name is always a key, so a mistyped one acquires a directory rather than
-silently becoming an empty session. A root with no `list` and no `path_of` has no vocabulary
-to speak of — it's there so `place list` reports the directory — so being inside one is the
-same as being outside every root.
-
-For these sessions the name is the identity, not the directory, so two differently-named
-sessions in one directory are fine. `place list` won't show them; they're sessions, not
-places.
+Run `place open` from a directory under a configured root with a key vocabulary. Outside
+one, it refuses and lists the configured roots rather than guessing that the current
+directory is the intended place. Pass `--root` to select a root explicitly. A root with no
+`list` and no `path_of` has no key vocabulary, so it cannot be selected implicitly.
 
 Add `--detach` to skip switching to it, and `--json` to any of these for machine-readable
 output. `list --json` includes each place's key and its live tmux session name (empty when

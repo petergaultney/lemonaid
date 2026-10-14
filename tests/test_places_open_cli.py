@@ -1,9 +1,9 @@
 """How `place open` reads its argument.
 
 Inside a root that has a key vocabulary the argument is a key, and a miss means
-acquire. Outside every such root no root could have meant it, so it names a
-session in the current directory and nothing is acquired. The distinction is
-what keeps a mistyped key from silently becoming an empty session.
+acquire. Outside every such root, `place open` refuses to guess where the key
+belongs. The distinction keeps a mistyped key from silently becoming an empty
+session.
 """
 
 import argparse
@@ -47,19 +47,14 @@ def _config(*roots: PlaceRoot) -> Config:
     )
 
 
-def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
+def _records(monkeypatch, config: Config, cwd, *, allow_outside: bool = False) -> tuple[list, list]:
+    synthetic_root = not config.places.roots and not allow_outside
+    if synthetic_root:
+        config.places.roots.append(PlaceRoot(path=cwd, path_of="echo {key}"))
     monkeypatch.setattr(cli, "load_config", lambda: config)
     monkeypatch.setattr(cli.Path, "cwd", staticmethod(lambda: cwd))
 
     keyed: list = []
-    monkeypatch.setattr(
-        lifecycle,
-        "open_key",
-        lambda key, cfg, root, attach=True, harness="default", prompt="", title="": (
-            keyed.append((key, root.path, attach, harness, prompt)),
-            (cwd, lifecycle.Opened(key, created=True)),
-        )[1],
-    )
 
     sessions: list = []
     monkeypatch.setattr(
@@ -70,6 +65,13 @@ def _records(monkeypatch, config: Config, cwd) -> tuple[list, list]:
             lifecycle.Opened(name, created=True),
         )[1],
     )
+
+    def open_key(key, cfg, root, attach=True, harness="default", prompt="", title=""):
+        target = sessions if synthetic_root else keyed
+        target.append((key, cwd if synthetic_root else root.path, attach, harness, prompt))
+        return cwd, lifecycle.Opened(key, created=True)
+
+    monkeypatch.setattr(lifecycle, "open_key", open_key)
 
     return keyed, sessions
 
@@ -84,41 +86,46 @@ def test_a_key_inside_a_namespaced_root(monkeypatch, tmp_path):
     assert not sessions
 
 
-def test_a_name_outside_every_root(monkeypatch, tmp_path):
-    keyed, sessions = _records(monkeypatch, _config(), tmp_path)
+def test_a_name_outside_every_root_is_refused_with_configured_roots(monkeypatch, tmp_path, capsys):
+    configured = PlaceRoot(path=tmp_path / "configured", path_of="echo {key}")
+    keyed, sessions = _records(monkeypatch, _config(configured), tmp_path, allow_outside=True)
 
-    cli.cmd_open(_args(key="notes"))
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path, True, "default", "")]
+    assert not sessions
     assert not keyed
+    assert str(tmp_path) in capsys.readouterr().err
 
 
 def test_a_hookless_root_does_not_claim_the_name(monkeypatch, tmp_path):
-    """It has no vocabulary, so being inside it is the same as being outside one."""
+    """It has no vocabulary, so being inside it cannot select a key."""
     keyed, sessions = _records(monkeypatch, _config(PlaceRoot(path=tmp_path)), tmp_path)
 
-    cli.cmd_open(_args(key="notes"))
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path, True, "default", "")]
+    assert not sessions
     assert not keyed
 
 
-def test_the_innermost_root_decides(monkeypatch, tmp_path):
-    """A plain clone checked out inside a worktree repo is not part of its namespace."""
+def test_the_innermost_root_without_a_vocabulary_is_refused(monkeypatch, tmp_path):
+    """A plain clone inside a namespaced root has no vocabulary of its own."""
     outer = PlaceRoot(path=tmp_path, path_of="wt path {key}")
     inner = PlaceRoot(path=tmp_path / "vendored")
     (tmp_path / "vendored").mkdir()
     keyed, sessions = _records(monkeypatch, _config(outer, inner), tmp_path / "vendored")
 
-    cli.cmd_open(_args(key="notes"))
+    with pytest.raises(SystemExit):
+        cli.cmd_open(_args(key="notes"))
 
-    assert sessions == [("notes", tmp_path / "vendored", True, "default", "")]
+    assert not sessions
     assert not keyed
 
 
 def test_an_explicit_root_is_still_required_to_resolve(monkeypatch, tmp_path, capsys):
     """--root asks for a vocabulary by name; a root without one is an error, not a session."""
-    _, sessions = _records(monkeypatch, _config(), tmp_path)
+    _, sessions = _records(monkeypatch, _config(), tmp_path, allow_outside=True)
 
     with pytest.raises(SystemExit):
         cli.cmd_open(_args(key="notes", root=str(tmp_path)))
@@ -156,7 +163,7 @@ def test_json_reports_no_root_for_a_plain_session(monkeypatch, tmp_path, capsys)
         "key": "notes",
         "session": "notes",
         "dir": str(tmp_path),
-        "root": None,
+        "root": str(tmp_path),
         "brief": None,
         "lemon_id": None,
         "parent": None,
@@ -495,14 +502,11 @@ def test_a_childs_own_group_replaces_its_parents(monkeypatch, tmp_path, capsys):
 def _dialog_checks(monkeypatch, created: bool) -> list[str]:
     monkeypatch.setattr(
         lifecycle,
-        "open_session",
-        lambda name,
-        directory,
-        cfg,
-        attach=True,
-        harness="default",
-        prompt="",
-        title="": lifecycle.Opened(name, created=created),
+        "open_key",
+        lambda key, cfg, root, attach=True, harness="default", prompt="", title="": (
+            root.path,
+            lifecycle.Opened(key, created=created),
+        ),
     )
     monkeypatch.setattr(cli.brief.session, "window", lambda session, index: (index, "@9"))
     checked: list[str] = []

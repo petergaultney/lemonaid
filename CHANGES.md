@@ -3,6 +3,7 @@
 #### Fixed
 
 - **A `done` lemon no longer fills its collapsed group's header,** which made a pinned lemon drawn under that header look `done` when its brief set no status.
+- **`place open` refuses to open a session when no configured root with a key vocabulary covers the current directory.**
 
 # 0.111.1 (2026-10-13)
 

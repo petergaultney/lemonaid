@@ -56,26 +56,23 @@ def cmd_open(args: argparse.Namespace) -> None:
     )
 
     if root is None:
-        directory: Path | None = Path.cwd()
-        opened = lifecycle.open_session(
-            args.key,
-            directory,
-            config,
-            attach=not args.detach,
-            harness=args.harness,
-            prompt=prompt,
-            title=title,
+        roots = ", ".join(str(root.path) for root in config.places.roots) or "(none)"
+        print(
+            f"No places root with a key vocabulary covers {Path.cwd()}. "
+            f"Configured roots: {roots}. Pass --root to choose one explicitly.",
+            file=sys.stderr,
         )
-    else:
-        directory, opened = lifecycle.open_key(
-            args.key,
-            config,
-            root,
-            attach=not args.detach,
-            harness=args.harness,
-            prompt=prompt,
-            title=title,
-        )
+        sys.exit(1)
+
+    directory, opened = lifecycle.open_key(
+        args.key,
+        config,
+        root,
+        attach=not args.detach,
+        harness=args.harness,
+        prompt=prompt,
+        title=title,
+    )
 
     session, error = opened.session, opened.error
     if session and not error and (given.brief or prompt):
@@ -243,15 +240,12 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "recorded here that later cleanup depends on - a directory acquired either "
         "way is reported by `list` and released by `toss` - so a session is the only "
         "thing this adds.\n\n"
-        "Run from a directory no configured root manages the names of, there is no "
-        "key to resolve, so the name is simply a session opened in the current "
-        "directory - nothing is acquired. Passing --root asks for that root's "
-        "vocabulary explicitly and fails if it has none.",
+        "Run from a directory no configured root manages the names of and this "
+        "refuses to guess where to open the session. Pass --root to choose a "
+        "root explicitly.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    open_parser.add_argument(
-        "key", help="What the root's tool names directories by, or a session name outside one"
-    )
+    open_parser.add_argument("key", help="What the root's tool names directories by")
     open_parser.add_argument(
         "--root", help="Root to acquire under (default: the one containing cwd)"
     )
