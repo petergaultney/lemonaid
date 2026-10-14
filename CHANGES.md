@@ -2,7 +2,7 @@
 
 #### Fixed
 
-- **Quiet reviewers are hidden when their recorded parent is an author, without relying on either brief's PR table; reviewers parented by a lead stay visible.**
+- **Quiet author-started reviewers stay hidden even when `--parent parent` records their lead in lineage; reviewers directly parented by a lead stay visible.**
 
 # 0.109.2 (2026-10-13)
 

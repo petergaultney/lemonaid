@@ -184,23 +184,27 @@ def test_reviewers_without_an_author_parent_stay_visible(parent):
 
 
 @pytest.mark.parametrize(
-    "parent",
+    ("parent", "lineage_parent"),
     [
-        "spurious-permission-notices.JellyGet",
-        "card-shows-done-without-status.RoyalFit",
+        ("spurious-permission-notices.JellyGet", ""),
+        ("card-shows-done-without-status.RoyalFit", "lemonaid-plan-manager.BlessBar"),
     ],
 )
-def test_reviewers_parented_by_the_pr_author_hide_without_pr_table_matches(parent):
+def test_reviewers_parented_by_the_pr_author_hide_without_pr_table_matches(parent, lineage_parent):
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
         _parent_brief(conn, parent)
-        _brief(
+        path = _brief(
             conn,
             reviewer,
             "waiting",
             reviewer=True,
             parent=parent,
         )
+        if lineage_parent:
+            lineage_links.set_parent(conn, identity.read(path.read_text()), lineage_parent)
+        else:
+            lineage_links.clear_parent(conn, identity.read(path.read_text()))
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
@@ -226,7 +230,7 @@ def test_a_reviewer_started_directly_by_a_lead_stays_visible():
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
-def test_a_reviewer_started_as_a_lead_sibling_stays_visible():
+def test_a_reviewer_started_by_an_author_with_parent_parent_stays_hidden():
     with db.connect() as conn:
         lead = "lead.LeadBin"
         author = "author.WorkerBin"
@@ -242,8 +246,8 @@ def test_a_reviewer_started_as_a_lead_sibling_stays_visible():
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
 
-    assert active.reviewers == set()
-    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
+    assert active.reviewers == {reviewer}
+    assert view.inbox_rows(active, set(), set()) == []
 
 
 def test_a_reviewer_parented_by_a_lead_stays_visible_even_if_its_child_owns_the_pr():
