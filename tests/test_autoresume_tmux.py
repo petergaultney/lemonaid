@@ -79,7 +79,14 @@ def test_prompt_refuses_a_pane_showing_a_dialog(tmux):
 
 @pytest.mark.parametrize(
     ("screen", "ready"),
-    [(_IDLE, True), (_DIALOG, False), ("\u276f half a draft\n", False), ("$ \n", False)],
+    [
+        (_IDLE, True),
+        ("\u203a Ask Codex to do anything\n", True),
+        (_DIALOG, False),
+        ("\u276f half a draft\n", False),
+        ("\u203a Ask Codex to do anything, then explain\n", False),
+        ("$ \n", False),
+    ],
 )
 def test_ready_for_input(screen, ready):
     assert autoresume_tmux.ready_for_input(screen) is ready

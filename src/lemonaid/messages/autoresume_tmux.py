@@ -17,8 +17,8 @@ from ..tmux import navigation, submit
 from . import wake
 
 _SUBMIT_PAUSE_SECONDS = 1.0  # lets the composer take the typed text before Enter
-# Claude Code's composer marker, U+276F; a dialog marks its chosen option with it too, then text.
-_EMPTY_COMPOSER = re.compile("\\s*\u276f\\s*")
+# Claude's bare composer marker and Codex's empty composer placeholder. Dialogs also use the marker.
+_EMPTY_COMPOSER = re.compile(r"\s*(?:\u276f|\u203a Ask Codex to do anything)\s*")
 
 
 def _tmux(row: db.Notification, *args: str) -> subprocess.CompletedProcess[str]:

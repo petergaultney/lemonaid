@@ -2,7 +2,7 @@
 
 #### Fixed
 
-- **An idle Codex lemon without an inbox waiter is reported as deaf,** so `tell` and `lemon resume` use their recovery paths instead of claiming the delivery service will wake it.
+- **An idle Codex lemon without an inbox waiter is reported as deaf, and `tell` and `lemon resume` recognize its empty composer placeholder so they can prompt it instead of claiming the delivery service will wake it.**
 
 # 0.115.0 (2026-10-14)
 
