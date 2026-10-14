@@ -31,7 +31,7 @@ writes their real inbox. A lemon working on lemonaid must not change either.
 3. **Update docs/** if the change affects user-facing behavior (new config options go in `docs/config.md`)
 4. **Update README.md** if adding significant features (add to Features list)
 
-Only a change to the product gets a change file. A PR that touches only docs or tests gets none and takes the `no-change-file` label. Merging a PR releases nothing; the release workflow cuts one daily or on demand (`docs/development.md`).
+Only a change to the product gets a change file. A PR that changes `src/` or `docs/for-lemons.md` adds one; any other PR needs none. Merging a PR releases nothing; the release workflow cuts one daily or on demand (`docs/development.md`).
 
 ## Choosing the bump
 

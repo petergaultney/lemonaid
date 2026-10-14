@@ -3,8 +3,8 @@
 
     scripts/check-change-file.py <base-ref>
 
-Prints each problem and exits 1 if there are any. A PR that needs no change file (docs or
-tests only) skips the check with the `no-change-file` label.
+Prints each problem and exits 1 if there are any. A PR that changes neither src/ nor
+docs/for-lemons.md needs no change file.
 """
 
 import subprocess
@@ -45,7 +45,7 @@ def main() -> int:
         print(problem, file=sys.stderr)
     if problems:
         print(
-            "See changes/README.md. A docs- or tests-only PR takes the `no-change-file` label.",
+            "See changes/README.md. A PR that changes src/ or docs/for-lemons.md adds a change file.",
             file=sys.stderr,
         )
         return 1

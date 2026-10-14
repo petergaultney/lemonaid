@@ -38,3 +38,34 @@ def test_editing_changes_md_an_old_change_file_or_the_version_fails():
     assert len(_check([_ADDED, ("M", "changes/2026-10-01-older-change.md")])) == 1
     assert len(_check([_ADDED, ("D", "changes/2026-10-01-older-change.md")])) == 1
     assert len(_check([_ADDED, ("M", "pyproject.toml")], head="0.116.0")) == 1
+
+
+def test_pr_changing_nothing_under_src_needs_no_change_file():
+    assert _check([("M", "docs/config.md"), ("A", "tests/test_x.py"), ("M", "README.md")]) == []
+    assert _check([("M", "scripts/release.py"), ("M", ".github/workflows/ci.yml")]) == []
+    assert _check([]) == []
+
+
+def test_pr_changing_src_needs_a_change_file():
+    assert len(_check([("M", "src/lemonaid/x.py")])) == 1
+    assert len(_check([("M", "src/lemonaid/x.py"), ("M", "docs/config.md")])) == 1
+    assert len(_check([("D", "src/lemonaid/x.py")])) == 1
+
+
+def test_packaged_doc_needs_a_change_file():
+    assert len(_check([("M", "docs/for-lemons.md")])) == 1
+    assert _check([("M", "docs/other.md"), ("M", "docs/src/for-lemons.md")]) == []
+
+
+def test_paths_merely_containing_src_do_not_count():
+    assert _check([("M", "docs/src/x.md"), ("M", "tests/src/x.py"), ("M", "srcs/x.py")]) == []
+
+
+def test_pr_outside_src_still_fails_the_conflict_guard():
+    assert len(_check([("M", "docs/x.md"), ("M", "CHANGES.md")])) == 1
+    assert len(_check([("M", "docs/x.md")], head="0.116.0")) == 1
+    assert len(_check([("M", "tests/x.py"), ("M", "changes/2026-10-01-older-change.md")])) == 1
+
+
+def test_pr_outside_src_may_add_a_change_file():
+    assert _check([("M", "docs/x.md"), _ADDED]) == []

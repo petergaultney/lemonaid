@@ -35,7 +35,7 @@ A PR describes its change in one file under `changes/`, and never adds a version
 conflict only where their code does. The file is `changes/YYYY-MM-DD-two-to-six-word-title.md`,
 dated the day the work started. Its first line is `# Patch`, `# Minor` or `# Major`, and
 the rest is its changelog entry. `changes/README.md` has the format. A PR that changes
-only docs or tests gets no file and takes the `no-change-file` label. The `changes`
+`src/` or `docs/for-lemons.md` adds a file; any other PR needs none. The `changes`
 workflow (`.github/workflows/changes.yml`, `scripts/check-change-file.py`) enforces this.
 
 **Merging a PR publishes nothing.** Its change file waits on main until the next release.

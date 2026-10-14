@@ -1,18 +1,17 @@
 name: changes
 
 # A PR adds one change file to changes/ and leaves the version, CHANGES.md and older
-# change files alone. See changes/README.md. A PR that needs no entry (docs or tests
-# only) takes the `no-change-file` label.
+# change files alone. See changes/README.md. A PR that changes neither
+# src/ nor docs/for-lemons.md needs no entry.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
 
 jobs:
   change-file:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-change-file') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

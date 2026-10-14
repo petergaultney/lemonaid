@@ -23,8 +23,8 @@ entry, in `CHANGES.md`'s style but with no version heading:
 - `# Major`: a breaking change or major milestone.
 
 Write each bullet as one or two sentences: what changed, and the one thing a reader would
-otherwise find surprising. A change to tests or docs alone gets no file; label its PR
-`no-change-file`.
+otherwise find surprising. A PR that changes `src/`, or
+`docs/for-lemons.md` (which ships in the wheel), adds a file; any other PR needs none.
 
 A PR never adds a version to `pyproject.toml`, or edits `CHANGES.md` or a change file
 already on main. The `changes` workflow checks this.
