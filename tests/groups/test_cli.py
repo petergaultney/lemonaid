@@ -125,6 +125,8 @@ def test_group_move_up_and_down_and_invalid_positions(capsys):
 
     run(capsys, "group", "move", "Third", "--up", "--json")
     run(capsys, "group", "move", "First", "--down", "--json")
+    assert run(capsys, "group", "move", "Third", "--up", "--json")["error"] is None
+    assert run(capsys, "group", "move", "Second", "--down", "--json")["error"] is None
     assert [g["name"] for g in run(capsys, "group", "list", "--json")["groups"]] == [
         "Third",
         "First",

@@ -28,7 +28,16 @@ def _cmd_move(args: argparse.Namespace) -> None:
 
         ordered = store.all_groups(conn)
         current = next(i for i, item in enumerate(ordered, 1) if item.group_id == group.group_id)
-        target = args.to if args.to is not None else current + (-1 if args.direction == "up" else 1)
+        if args.to is not None:
+            target = args.to
+        else:
+            target = max(
+                1,
+                min(
+                    len(ordered),
+                    current + (-1 if args.direction == "up" else 1),
+                ),
+            )
         try:
             group = arrangement.move(conn, group, target)
         except ValueError as error:
