@@ -52,7 +52,10 @@ def test_codex_hooks_go_beside_the_users_own(tmp_path, monkeypatch):
     assert saved["hooks"]["PostToolUse"][0] == _FOLDER_NOTES
     assert saved["hooks"]["PermissionRequest"] == [_NOTIFY]
     assert _commands(hooks_json, "Stop") == ["lemonaid hooks stop --harness codex"]
-    assert _commands(hooks_json, "PreToolUse") == [install.own_change_command("codex")]
+    assert _commands(hooks_json, "PreToolUse") == [
+        install.own_change_command("codex"),
+        "lemonaid codex tool-used",
+    ]
     assert all("already installed" in line for line in again)
 
     install.uninstall("codex")
@@ -96,8 +99,10 @@ def test_codex_install_adds_tool_used_once_beside_a_hand_added_one(tmp_path, mon
     install.install("codex")
 
     assert _commands(hooks_json, "PostToolUse").count("lemonaid codex tool-used") == 1
+    assert _commands(hooks_json, "PreToolUse").count("lemonaid codex tool-used") == 1
 
     install.uninstall("codex")
+    assert _commands(hooks_json, "PreToolUse") == []
     assert _commands(hooks_json, "PostToolUse") == ["python3 folder-notes-hook.py"]
 
 
@@ -106,4 +111,5 @@ def test_a_fresh_codex_install_adds_tool_used(tmp_path, monkeypatch):
 
     install.install("codex")
 
+    assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PreToolUse")
     assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PostToolUse")

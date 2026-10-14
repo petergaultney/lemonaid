@@ -1,3 +1,9 @@
+# 0.111.3 (2026-10-13)
+
+#### Fixed
+
+- **Codex permission notices clear when the approved tool starts, even if its return hook does not run.**
+
 # 0.111.2 (2026-10-13)
 
 #### Fixed

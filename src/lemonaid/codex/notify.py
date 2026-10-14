@@ -300,7 +300,7 @@ def handle_dismiss(debug: bool = False) -> None:
 
 
 def handle_tool_used(stdin_data: str | None = None) -> None:
-    """Clear a matching permission notice after Codex reports that tool use returned."""
+    """Clear a matching permission notice when Codex starts or finishes the requested tool."""
     if stdin_data is None:
         stdin_data = sys.stdin.read()
 

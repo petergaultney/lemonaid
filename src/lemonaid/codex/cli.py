@@ -27,7 +27,7 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
 
 
 def cmd_tool_used(_args: argparse.Namespace) -> None:
-    """Clear a matching permission notice after Codex reports tool use."""
+    """Clear a matching permission notice when Codex starts or finishes tool use."""
     handle_tool_used()
 
 
@@ -88,7 +88,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     tool_used_parser = codex_subparsers.add_parser(
         "tool-used",
-        help="Clear a matching permission notice after tool use (reads hook JSON)",
+        help="Clear a matching permission notice when tool use starts or finishes (reads hook JSON)",
     )
     tool_used_parser.set_defaults(func=cmd_tool_used)
 

@@ -38,7 +38,8 @@ Codex asks you to trust a new hook the first time it loads it.
 
 `lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
-waking its waiters, the PostToolUse `lemonaid codex tool-used` hook (section 3 below), a Stop hook that holds a briefed lemon to its children waiter and a
+waking its waiters, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
+(section 3 below), a Stop hook that holds a briefed lemon to its children waiter and a
 working brief, and a SessionStart hook that lists the waiters its brief says to arm. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
@@ -57,13 +58,23 @@ prefix_rule(pattern=["lemonaid", "watch"], decision="allow")
 
 These commands write under `~/.lemons/` (`~/.brief-lemons/` before `lemonaid home migrate`) and `~/.local/share/lemonaid/`, outside the project workspace. An `allow` rule lets a matching command run outside the sandbox without prompting. Codex matches rules only against commands it can split into plain words, so a command with a shell expansion in it (`--codex-thread "$CODEX_THREAD_ID"`) goes to the approval reviewer instead; write `--codex-thread` bare. Restart running Codex sessions after changing `default.rules`, since they read the rules at session start.
 
-### 3. Clear permission notices after a tool returns
+### 3. Clear permission notices after approval
 
-Add a `PostToolUse` handler to `~/.codex/hooks.json` so a permission notice ends as soon as its requested tool returns:
+Add `PreToolUse` and `PostToolUse` handlers to `~/.codex/hooks.json` so a permission notice clears when its requested tool starts, with `PostToolUse` as a fallback when the tool returns:
 
 ```json
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lemonaid codex tool-used"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "hooks": [
@@ -78,7 +89,7 @@ Add a `PostToolUse` handler to `~/.codex/hooks.json` so a permission notice ends
 }
 ```
 
-`lemonaid hooks install --harness codex` adds this entry, beside your other hooks and only if it isn't there already; `--uninstall` removes it. To add it by hand instead, merge it into the existing `hooks` object, keeping any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool, after Codex reports that tool use returned, including when a command exits nonzero. A request that remains unanswered stays unread and visible.
+`lemonaid hooks install --harness codex` adds these entries beside your other hooks and only if they aren't there already; `--uninstall` removes them. Codex requires you to trust the new `PreToolUse` hook in `/hooks`. To add the entries by hand, merge them into the existing `hooks` object and keep any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool. The `PreToolUse` hook clears it when the approved tool starts; `PostToolUse` handles cases where the tool returns without a matching start event, including nonzero command exits. A request that remains unanswered stays unread and visible.
 
 ## How it works
 
@@ -91,7 +102,7 @@ Add a `PostToolUse` handler to `~/.codex/hooks.json` so a permission notice ends
 
 ### Auto-dismiss
 
-The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read. The `PostToolUse` hook above also clears a matching permission notice as soon as that tool returns.
+The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read. The hooks above also clear a matching permission notice when its approved tool starts or returns.
 
 ### Live activity updates
 
@@ -112,7 +123,8 @@ lemonaid codex notify '{"type": "agent-turn-complete", "thread-id": "abc123", "c
 lemonaid codex dismiss --session-id abc123
 ```
 
-`lemonaid codex tool-used` is called by the `PostToolUse` hook with Codex's event JSON on stdin.
+`lemonaid codex tool-used` is called by the `PreToolUse` and `PostToolUse` hooks with
+Codex's event JSON on stdin.
 
 ## JSON payload format
 
