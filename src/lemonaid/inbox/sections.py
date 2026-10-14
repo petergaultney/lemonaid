@@ -23,10 +23,13 @@ class Header:
     band: str  # the most pressing of its rows' bands, as `order.band` names them; "" when empty
     unread: bool = False  # whether any of its rows is unread
     active: int = 0  # rows in the group that aren't folded
+    visible: int = 0  # rows actually drawn under the header
 
     @property
     def tally(self) -> str:
-        """`3`, or `2/3` when some of the group's rows are folded."""
+        """Visible count when collapsed; otherwise `3`, or `2/3` for folded rows."""
+        if self.group.collapsed:
+            return str(self.visible)
         return str(self.count) if self.active == self.count else f"{self.active}/{self.count}"
 
     @property
@@ -95,6 +98,14 @@ def layout(
 
     def drawn(group: groups.store.Group) -> list[Header | Row]:
         rows = grouped[group.name]
+        visible = [
+            n
+            for n in rows
+            if n.channel in pinned
+            or n.channel in deaf
+            or f"{n.id}@{group.group_id}" in kept
+            or (not group.collapsed and (fold_open or n.id not in folded_ids))
+        ]
         return [
             Header(
                 group,
@@ -102,6 +113,7 @@ def layout(
                 _band(rows, statuses),
                 any(n.is_unread for n in rows),
                 sum(n.id not in folded_ids for n in rows),
+                len(visible),
             ),
             *(
                 Row(f"{n.id}@{group.group_id}", n)

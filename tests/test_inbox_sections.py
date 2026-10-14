@@ -42,6 +42,8 @@ def test_a_pinned_lemon_heads_its_group_and_stays_when_the_group_collapses():
     assert _keys(open_) == ["group:1", "1@1", "2@1"]
     assert _keys(shut) == ["group:1", "1@1"]
     assert shut[0].count == 2
+    assert shut[0].visible == 1
+    assert shut[0].tally == "1"
 
 
 def test_a_lemon_in_two_groups_is_drawn_in_both():
