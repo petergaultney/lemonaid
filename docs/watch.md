@@ -460,16 +460,19 @@ still being edited holds back only its own event; other ready sources can delive
 
 ### The Claude push scout
 
-`lemonaid watch --self --push` keeps watching instead of exiting: it writes each batch
+A Claude lemon's scout is a detached process that keeps watching instead of exiting: it writes each batch
 into the Claude session through the session's inbox socket (listed in
 `~/.claude/sessions/<pid>.json`), saves cursors only once the socket has taken the batch,
 and exits when the session ends or its brief is detached. It holds the same lock as
 `watch --self`, so a second one for the same lemon refuses to start, and the Stop check
 counts it as the lemon's watcher.
 
-Lemons don't run it themselves. The SessionStart hook, the Stop check and `lemonaid tell`
-each start one, detached, when the lemon has none and its session would read a pushed
-message; its output goes to `push-scout.log` in the state directory. When the session
+The SessionStart hook, the Stop check and `lemonaid tell` each start one when the lemon
+has none and its session would read a pushed message, and so does the live inbox for a
+Claude lemon it marks `deaf` (at most once a minute per lemon). A lemon whose `--status`
+says `no watcher running` can start its own with `lemonaid watch --self --push`, which
+returns at once; starting one where a watcher already runs does nothing. The scout's
+output goes to `push-scout.log` in the state directory. When the session
 would hold the message (bypass-permissions mode without `"crossSessionInbound": "accept"`,
 see [Claude setup](claude.md#3-let-lemonaid-push-events-into-each-lemon)), nothing starts
 and the lemon falls back to a background `watch --self`. If the socket refuses a batch, the

@@ -64,6 +64,9 @@ def run(args: argparse.Namespace) -> int:
     if args.push and thread:
         print(f"not started: {push_scout.FLAG} is for Claude; drop --codex-thread")
         return 2
+    if args.push and not args.foreground:
+        return push_scout.start(channel.removeprefix("claude:"), lemon_id)
+
     session = push_scout.session(channel.removeprefix("claude:"), wait=30) if args.push else None
     if args.push and (problem := push_scout.problem(session)):
         print(f"not started: {problem}")
@@ -173,8 +176,9 @@ def add_arguments(parser: argparse.ArgumentParser, *, require_self: bool = False
         push_scout.FLAG,
         dest="push",
         action="store_true",
-        help="Claude only: keep running, and push each batch into this session through its "
-        "inbox socket instead of printing it and exiting",
+        help="Claude only: start a detached scout that pushes each batch into this session "
+        "through its inbox socket, unless a watcher already runs",
     )
+    parser.add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
     delivery.add_codex_thread_argument(parser)
     parser.set_defaults(func=_cmd)

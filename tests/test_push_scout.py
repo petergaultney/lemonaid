@@ -67,7 +67,13 @@ def _listener() -> tuple[str, list[str]]:
 
 def _args() -> argparse.Namespace:
     return argparse.Namespace(
-        codex_thread="", channel="claude:abcd1234", status=False, interval=0.01, quiet=0, push=True
+        codex_thread="",
+        channel="claude:abcd1234",
+        status=False,
+        interval=0.01,
+        quiet=0,
+        push=True,
+        foreground=True,
     )
 
 
@@ -207,3 +213,30 @@ def test_a_refused_push_logs_an_abnormal_exit(caplog):
 
     [(level, message)] = _exits(caplog)
     assert level == "WARNING" and "Failed" in message
+
+
+def test_push_without_foreground_starts_a_detached_scout_and_returns(monkeypatch, capsys):
+    _briefed()
+    _session("/tmp/unused.sock")
+    spawned: list[session_socket.Session] = []
+    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
+
+    assert wait_cli.run(argparse.Namespace(**{**vars(_args()), "foreground": False})) == 2
+
+    assert [e.session_id for e in spawned] == [_SESSION]
+    assert "did not take its lock" in capsys.readouterr().out
+
+
+def test_push_without_foreground_reports_a_running_scout(capsys):
+    inbox = _briefed()
+    sock, _ = _listener()
+    listing = _session(sock)
+    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
+    scout.start()
+    _until(lambda: push_scout.running(_LEMON))
+
+    assert wait_cli.run(argparse.Namespace(**{**vars(_args()), "foreground": False})) == 0
+    assert "push scout running" in capsys.readouterr().out
+    listing.unlink()
+    scout.join(timeout=10)
+    assert messages.pending_count(inbox) == 0

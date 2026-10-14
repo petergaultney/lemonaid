@@ -113,7 +113,7 @@ def _spawn(entry: session_socket.Session) -> None:
     with open(_log_path(), "a") as log:
         subprocess.Popen(
             [
-                *(sys.executable, "-m", "lemonaid", "watch", "--self", FLAG),
+                *(sys.executable, "-m", "lemonaid", "watch", "--self", FLAG, "--foreground"),
                 *("--channel", channel_id("claude", entry.session_id)),
             ],
             cwd=entry.cwd or None,
@@ -154,3 +154,14 @@ def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) 
 
     _log.warning("push scout for %s did not start within %ss; see %s", lemon_id, grace, _log_path())
     return False
+
+
+def start(session_id: str, lemon_id: str) -> int:
+    """`watch --self --push`: the exit code, after saying what now runs."""
+    if ensure(session_id, lemon_id):
+        print("push scout running" if running(lemon_id) else "watcher running")
+        return 0
+
+    why = problem(session(session_id)) or f"the scout did not take its lock; see {_log_path()}"
+    print(f"not started: {why}")
+    return 2

@@ -8,6 +8,7 @@ when the app asks it to.
 import contextlib
 import time
 from collections import abc
+from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -17,7 +18,7 @@ from ....config import PlaceRoot
 from ....log import get_logger
 from ....stalls import inbox as stalls_inbox
 from ....stalls import pulls as stalls_pulls
-from ... import db, presence, sections, unarchive
+from ... import db, presence, scout_revival, sections, unarchive, view
 from ..rows import pr_numbers, row_parts
 from ..tables import cursor_target, layout, row_keys
 from ..tables.table import ClickToActTable
@@ -58,6 +59,7 @@ class InboxList(Vertical):
         self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
         self.pr_numbers = pr_numbers.Cache()
         self.stalls = stalls_inbox.Tracker()
+        self.revival = scout_revival.Revival()
         self.shared_names = shared_names.Cache()
         self.arrangement = inbox_arrange.Arrangement(lists.config)
         self.fold_open = False
@@ -109,6 +111,17 @@ class InboxList(Vertical):
                 self.app.call_from_thread(self.redraw)
 
             self.run_worker(load, thread=True, group="stalls")
+
+    def _revive_deaf(self, active: view.Active) -> None:
+        for channel in self.revival.due(active.deaf, time.monotonic()):
+            if (brief_path := active.briefs.get(channel)) is None:
+                continue
+
+            def revive(channel: str = channel, path: Path = brief_path) -> None:
+                if scout_revival.revive(channel, path):
+                    self.app.call_from_thread(self.redraw)
+
+            self.run_worker(revive, thread=True, group="scout-revival")
 
     def _follow_focus(
         self,
@@ -191,6 +204,7 @@ class InboxList(Vertical):
             )
 
         active = frame.active
+        self._revive_deaf(active)
         shown, folded, self.fold_name = self.arrangement.arranged(
             active, frame.shown, frame.folded, frame.pinned, frame.emojis, cards, width
         )
