@@ -1,11 +1,13 @@
 """`lemonaid watch stop --self`: stop the caller's own waiters, never another lemon's."""
 
 import argparse
+import os
+import pathlib
 import sys
 
 from ..brief import attached
 from ..inbox import db
-from . import brief_record, registry, stopping
+from . import brief_record, own_edits, registry, stopping
 
 _HELP = """\
 Stop your own running waiters of any kind - inbox watch, watch pr, doc, file and
@@ -43,6 +45,9 @@ def run(a: argparse.Namespace) -> int:
             continue
 
         stopped.append(waiter)
+        if waiter.kind == "doc" and (writer := own_edits.writer_from_env(os.environ)):
+            for doc in waiter.targets:
+                own_edits.unregister(own_edits.root(), writer, pathlib.Path(doc))
         print(f"Stopped {waiter.kind} waiter {', '.join(waiter.targets)} (pid {waiter.pid})")
 
     with db.connect() as conn:

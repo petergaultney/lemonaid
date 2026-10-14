@@ -1,10 +1,18 @@
 # 0.111.0 (2026-10-13)
 
+#### Added
+
+- **`lemonaid hooks install` adds lemonaid's lemon-side hooks to Claude Code and Codex at once,** leaving other hooks alone. Codex gets the Stop check (its children waiter and a working brief; it needs no inbox waiter) and both get a SessionStart reminder listing the brief's waiters. Codex runs a new or changed hook only after it is trusted in `/hooks`.
+- **A lemon's own edits to a watched doc no longer wake it, whatever the tool.** The own-edit hooks now run before and after every tool call, in Claude Code and Codex, and record a change to a watched doc made by a call whose input names that doc's file, so edits through Bash scripts, `sed` and `apply_patch` count. `lemonaid claude hooks --own-edits` installs the new hooks and removes the Edit/Write-only ones.
+- **A lemon's own `git push` no longer wakes its `watch pr` waiter.** The after-tool hook reads the pushed head from the push's output.
+
 #### Changed
+
+- **Reformatting a doc wakes nobody.** `watch doc` compares bodies with whitespace collapsed and table padding removed, so Obsidian re-padding a table is not an edit, and a comment thread whose only change is whitespace is not reported again.
 
 - **`watch pr` saves the head and the open/merged state it last reported,** so a push or merge made while no waiter ran is reported by the next one, without `--head`. `--head` still works and overrides the saved head.
 - **A missing cursor means the lemon has just looked.** A first `watch pr` takes the PR's existing comments, conflict and CI result as seen instead of reporting them all. A first `watch doc` still reports every unanswered thread.
-- **Waiter state moved out of `$TMPDIR`** into `~/.local/state/lemonaid/cursors/<Lemon-ID>/`, so a reboot no longer clears it. `watch pr`, `doc`, `file` and `briefs` key it by the caller's Lemon-ID instead of its `--me` signature, falling back to `--me` without a brief, and write each cursor atomically. `--state-dir` still overrides it. Own-edit records moved to `~/.local/state/lemonaid/own-edits/`.
+- **Waiter state moved out of `$TMPDIR`** into `~/.local/state/lemonaid/cursors/<Lemon-ID>/`, so a reboot no longer clears it. `watch pr`, `doc`, `file` and `briefs` key it by the caller's Lemon-ID instead of its `--me` signature, falling back to `--me` without a brief, and write each cursor atomically. `--state-dir` still overrides it. Own-edit records moved to `~/.local/state/lemonaid/own-edits/`. Old state is not carried over, so the first waiter after upgrading starts from the current state.
 
 # 0.110.0 (2026-10-13)
 

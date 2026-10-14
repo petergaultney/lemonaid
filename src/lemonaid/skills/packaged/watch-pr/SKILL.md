@@ -28,11 +28,13 @@ Keep the entry across one-shot events while you handle them and rearm. When the 
 
 Use local tests during active development when their feedback helps you make the next change. After a small tweak whose behavior you understand, you may choose to push and let CI validate it instead of running the suite locally and then waiting for the same checks again. Use your judgment about the change and the CI coverage.
 
-When relying on CI, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch. If the waiter prints `has checks pending; add --ci` at startup or in its first event, you armed without `--ci` while CI is running: stop it and rearm with `--ci`, since a passing run never wakes a waiter without it.
+When relying on CI, check `gh pr checks <number>` first: a CI result that has already finished is never reported. If CI is still running, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch. If the waiter prints `has checks pending; add --ci` at startup or in its first event, you armed without `--ci` while CI is running: stop it and rearm with `--ci`, since a passing run never wakes a waiter without it.
 
 CI completion waits for every check on the current head to finish. Required checks determine the result when any are present; otherwise all checks count. No checks is not a completion. A completion is remembered once per head and watcher identity, so rearming with `--head` does not repeat it, even when switching between `--comments` and `--ci`.
 
 ## Waiting
+
+A waiter reports only what changes after you start it, never what is already true. Before your first waiter on a PR, read its current state yourself (`gh pr view <number> --comments`, `gh pr checks <number>`). Later waiters remember what the last one reported, so a change made between waiters still wakes you.
 
 Check for an existing waiter first: `lemonaid watch pr --status <number> [--me "<your signature>"]`, with the same `--me` as the waiter. If one is running, don't start another; a second one for the same PR and name refuses to start.
 
@@ -47,7 +49,9 @@ Bash(
 )
 ```
 
-It prints the first event and exits, and the task's completion wakes you. Handle the event, then rearm the same way with `--head` set to the head you just handled.
+It prints the first event and exits, and the task's completion wakes you. Handle the event, then rearm the same way with `--head` set to the head you just handled. (`--head` is optional: the waiter remembers the head it last reported, and with lemonaid's hooks installed your own pushes don't wake you.)
+
+Never push with `-q` or `--quiet`. The hooks recognize your push from the `old..new branch -> branch` line `git push` prints, and a quiet push prints none, so your own push wakes you.
 
 - Don't use `Monitor`: it expires after 30 minutes and wakes you for nothing.
 - Don't run the waiter without `--once` in background Bash: its output goes to a file and never wakes you.

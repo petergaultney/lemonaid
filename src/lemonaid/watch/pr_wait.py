@@ -53,13 +53,14 @@ def _events(
     state: str,
     review: tuple[bool, str],
     new: list[pr_comments.Comment],
+    own_head: ty.Callable[[str], bool],
 ) -> list[str]:
     draft, decision = review
     return [
         *([f"PR #{pr} is now {snap.state}"] if state and snap.state != state else []),
         *(
             [f"PR #{pr} head moved {sha[:10]} -> {snap.head[:10]}"]
-            if sha and not snap.head.startswith(sha)
+            if sha and not snap.head.startswith(sha) and not own_head(snap.head)
             else []
         ),
         *(
@@ -103,10 +104,12 @@ def wait(
     stem: pathlib.Path,
     *,
     ci: bool = False,
+    own_head: ty.Callable[[str], bool] = lambda head: False,
 ) -> None:
     """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
 
     With `ci`, passing CI is also reported. `head`, when set, overrides the saved head.
+    A move to a head `own_head` says the lemon pushed itself is not reported.
     Whatever has no saved cursor starts from the first snapshot, unreported; a waiter
     without `comments` saves no comment cursor, so a later one with it starts afresh.
 
@@ -162,6 +165,7 @@ def wait(
                 state,
                 review,
                 [c for i, c in candidates.items() if i not in reported],
+                own_head,
             ),
             *blockers,
         ]

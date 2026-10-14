@@ -19,6 +19,7 @@ import tempfile
 from ..brief import lemon
 from ..inbox import db
 from ..inbox.channel import full_channel_id
+from . import own_edits
 
 
 def root() -> pathlib.Path:
@@ -27,7 +28,7 @@ def root() -> pathlib.Path:
 
 
 def owner(me: str, codex_thread: str = "") -> str:
-    """The calling lemon's Lemon-ID, or a key for `me` when it has no brief."""
+    """The calling lemon's Lemon-ID; without a brief, a key for `me`, or else for its session."""
     try:
         with db.connect() as conn:
             return lemon.current(
@@ -36,7 +37,10 @@ def owner(me: str, codex_thread: str = "") -> str:
             )
     except (LookupError, ValueError):
         pass
-    return f"me-{hashlib.sha1(me.encode()).hexdigest()[:12]}" if me else "anonymous"
+    if me:
+        return f"me-{hashlib.sha1(me.encode()).hexdigest()[:12]}"
+
+    return own_edits.writer_from_env(os.environ, codex_thread) or "anonymous"
 
 
 def directory(kind: str, me: str, codex_thread: str = "") -> pathlib.Path:

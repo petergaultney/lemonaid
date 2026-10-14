@@ -2,7 +2,8 @@
 
 import argparse
 
-from . import install_hooks, own_edit, session_end, status_note, waiter_check
+from ..hooks import install
+from . import install_hooks, session_end, status_note, waiter_check
 from .bootstrap import run_bootstrap
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
@@ -34,30 +35,29 @@ def cmd_session_start(args: argparse.Namespace) -> None:
 
 def cmd_hooks(args: argparse.Namespace) -> None:
     """Install or remove the optional SessionStart hook, the Stop waiter check, the status note, the own-edit record, or the exit record."""
+    if args.own_edits:
+        own_change = ("PreToolUse", "PostToolUse")
+        for line in (
+            install.uninstall("claude", events=own_change)
+            if args.uninstall
+            else install.install("claude", dry_run=args.dry_run, events=own_change)
+        ):
+            print(line)
     chosen = [
-        (event, command, matcher)
-        for picked, event, command, matcher in (
-            (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND, ""),
-            (args.session_end, "SessionEnd", install_hooks.SESSION_END_COMMAND, ""),
-            (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND, ""),
-            *(
-                (
-                    args.own_edits,
-                    event,
-                    install_hooks.OWN_EDIT_COMMAND,
-                    install_hooks.OWN_EDIT_MATCHER,
-                )
-                for event in ("PreToolUse", "PostToolUse")
-            ),
+        (event, command)
+        for picked, event, command in (
+            (args.waiter_check, "Stop", install_hooks.WAITER_CHECK_COMMAND),
+            (args.session_end, "SessionEnd", install_hooks.SESSION_END_COMMAND),
+            (args.status_note, "PostToolUse", install_hooks.STATUS_NOTE_COMMAND),
         )
         if picked
     ]
-    for event, command, matcher in chosen:
+    for event, command in chosen:
         if args.uninstall:
             print(install_hooks.uninstall(event, command))
         else:
-            print(install_hooks.install(event, command, dry_run=args.dry_run, matcher=matcher))
-    if chosen:
+            print(install_hooks.install(event, command, dry_run=args.dry_run))
+    if chosen or args.own_edits:
         return
 
     if args.uninstall:
@@ -75,11 +75,6 @@ def cmd_session_end(args: argparse.Namespace) -> None:
 def cmd_status_note(args: argparse.Namespace) -> None:
     """Handle the PostToolUse hook that reminds a lemon what its brief's Status waits on."""
     status_note.handle()
-
-
-def cmd_own_edit(args: argparse.Namespace) -> None:
-    """Handle the Pre/PostToolUse hook that records a lemon's edits to the docs it watches."""
-    own_edit.handle()
 
 
 def cmd_waiter_check(args: argparse.Namespace) -> None:
@@ -278,8 +273,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     hooks_parser.add_argument(
         "--own-edits",
         action="store_true",
-        help="Act on the PreToolUse and PostToolUse hooks that record a lemon's edits to "
-        "the docs it watches, so `lemonaid watch doc` does not wake it for them",
+        help="Act on the PreToolUse and PostToolUse hooks that record a lemon's own edits "
+        "and pushes, so its waiters do not wake it for them (`lemonaid hooks install` "
+        "adds these and the rest, for Claude and Codex)",
     )
     hooks_parser.set_defaults(func=cmd_hooks)
 
@@ -289,14 +285,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Record when a session ended and why (SessionEnd hook; reads JSON from stdin)",
     )
     session_end_parser.set_defaults(func=cmd_session_end)
-
-    # claude own-edit
-    own_edit_parser = claude_subparsers.add_parser(
-        "own-edit",
-        help="Record an edit to a doc this session watches (PreToolUse and PostToolUse "
-        "hook; reads JSON from stdin)",
-    )
-    own_edit_parser.set_defaults(func=cmd_own_edit)
 
     # claude status-note
     status_note_parser = claude_subparsers.add_parser(

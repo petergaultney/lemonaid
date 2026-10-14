@@ -36,6 +36,13 @@ Codex's `notify` reports only finished turns. To have the inbox show a Codex lem
 
 Codex asks you to trust a new hook the first time it loads it.
 
+`lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
+beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
+waking its waiters, a Stop hook that holds a briefed lemon to its children waiter and a
+working brief, and a SessionStart hook that lists the waiters its brief says to arm. Codex
+trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
+after an upgrade changes a hook, trust them again in Codex's `/hooks`.
+
 ### 3. Allow brief and message commands under the automatic approval reviewer
 
 With `approvals_reviewer = "auto_review"` in `~/.codex/config.toml`, Codex can reject these commands because they write outside the project workspace. Add these rules to `~/.codex/rules/default.rules` if Codex lemons use briefs and lemon-to-lemon messages:

@@ -34,6 +34,14 @@ def test_without_a_brief_the_signature_is_the_key():
     assert cursors.owner("") == "anonymous"
 
 
+def test_without_a_brief_or_signature_each_session_keeps_its_own(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    first = cursors.owner("")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+
+    assert first != cursors.owner("") != "anonymous"
+
+
 def test_cursors_live_in_the_state_directory(monkeypatch, tmp_path):
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "elsewhere"))
 

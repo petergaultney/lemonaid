@@ -27,13 +27,24 @@ One waiter per (PR, lemon) may run; a second exits at once, naming the first.
 """
 
 import argparse
+import os
 import pathlib
 import re
 import subprocess
 import sys
 
 from .. import config, pr_url
-from . import brief_record, cursors, delivery, pr_activity, pr_wait, registry, waiter_lock
+from . import (
+    brief_record,
+    cursors,
+    delivery,
+    own_edits,
+    own_pushes,
+    pr_activity,
+    pr_wait,
+    registry,
+    waiter_lock,
+)
 
 
 def _repo_name(repo: str) -> str:
@@ -121,6 +132,9 @@ def run(a: argparse.Namespace, repo: str) -> int:
         lock.close()
         return 2
 
+    writer = own_edits.writer_from_env(os.environ, a.codex_thread)
+    if writer:
+        own_pushes.register(own_edits.root(), writer)
     try:
         filters = config.load_config().watch.pr
         with registry.watching(a, "pr", (f"{repo}#{pr}",), a.codex_thread, repo):
@@ -144,6 +158,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
                 a.once or bool(a.codex_thread),
                 stem,
                 ci=a.ci,
+                own_head=lambda head: own_pushes.is_own(own_edits.root(), writer, head),
             )
     except KeyboardInterrupt:
         pass

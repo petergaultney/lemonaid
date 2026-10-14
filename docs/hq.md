@@ -20,7 +20,9 @@ lemonaid claude hooks --waiter-check --status-note --own-edits
 - **No flag (SessionStart)** registers every Claude session, and where it runs, the moment it starts or is resumed. Without it a session nobody has spoken to yet is invisible, and that is the session a restore needs to find.
 - **`--waiter-check`** adds a Stop hook that stops a lemon with a brief from ending its turn while its `lemonaid inbox watch --self` isn't running. An HQ with children is also held to a running `watch briefs --children` waiter. See [messages](messages.md#will-it-be-read).
 - **`--status-note`** reminds a lemon whose brief is `blocked`, `alert`, `merge` or `approve` what it is waiting on, once per turn.
-- **`--own-edits`** records a lemon's edits to a document it watches so `watch doc` doesn't wake it for them. Skip it if you don't use `watch doc`.
+- **`--own-edits`** records a lemon's own edits to the documents it watches, by any tool, and its own `git push`es, so `watch doc` and `watch pr` don't wake it for them.
+
+`lemonaid hooks install` adds the Stop check, the own-edit hooks and a SessionStart reminder of the brief's waiters to Claude Code and Codex at once (`--harness claude` or `codex` for one). Codex needs its new hooks trusted in `/hooks`.
 
 Editing is additive and idempotent, and `--uninstall` removes what lemonaid added.
 

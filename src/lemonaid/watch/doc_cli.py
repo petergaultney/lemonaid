@@ -181,7 +181,7 @@ def run(a: argparse.Namespace) -> int:
                         a.legacy,
                         a.edits,
                         a.quiet,
-                        own_edits.writer_from_env(os.environ),
+                        own_edits.writer_from_env(os.environ, a.codex_thread),
                         cursor_key=cursor_key,
                     ),
                     deliver,

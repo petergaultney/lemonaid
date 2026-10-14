@@ -974,11 +974,11 @@ Codex thread instead. `--status <doc> --me <name>` says whether a waiter is alre
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
 `lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).
 
-Your own edits to the doc's body don't wake your own waiter, as long as they're recorded.
-Claude Code records `Edit` and `Write` calls itself when `lemonaid claude hooks --own-edits` is
-installed. For an edit made any other way (Codex, or a Claude edit through Bash), run
-`lemonaid watch doc --editing <doc>` just before it and `lemonaid watch doc --mine <doc>` right
-after. Codex does all three in one shell call:
+Your own edits to the doc's body don't wake your own waiter, as long as they're recorded,
+and reformatting such as a re-padded table never does. With `lemonaid hooks install`, Claude
+Code and Codex record every tool call's change to a doc you watch, whatever the tool.
+Without the hooks, run `lemonaid watch doc --editing <doc>` just before an edit and
+`lemonaid watch doc --mine <doc>` right after. Codex does all three in one shell call:
 
 ```sh
 lemonaid watch doc --editing <doc> && apply_patch <<'PATCH' && lemonaid watch doc --mine <doc>
@@ -995,14 +995,15 @@ Edits by anyone else, another lemon's included, still wake you. Details: [watch.
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
 comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).
 Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, and pass that
-signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. Rearm with `--head` set to the head you just handled.
+signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. A waiter reports only what changes after it starts, never what is already true, so read the PR (`gh pr view`, `gh pr checks`) before your first one. Your waiter remembers the head it last reported, so a push made while none ran still wakes you; `--head` set to the head you just handled overrides it, and with `lemonaid hooks install` your own pushes never wake you. Never push with `-q` or `--quiet`: the hooks recognize your push by the heads `git push` prints, and a quiet push prints none.
 
 Add `--ci` to report CI completion on the current head, passing or failing, with or
 without `--comments`. It waits for all checks to finish and reports a failure once per head.
 A pass is reported once the same set of checks has passed on two polls in a row (one
 `--interval` after they finish), and again if the set later changes on that head.
-No checks is not a completion. Keep `--ci` across rearms until the head is validated,
-then remove it. Required checks determine the result when present, otherwise all checks count.
+No checks is not a completion. A CI result that finished before your first waiter started
+is not reported; check `gh pr checks` first. Keep `--ci` across rearms until the head is
+validated, then remove it. Required checks determine the result when present, otherwise all checks count.
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.

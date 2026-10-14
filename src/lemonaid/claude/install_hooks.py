@@ -36,28 +36,13 @@ _STATUS_NOTE_SCRIPT = "; ".join(
 # tool_response object carrying its own prompt_id gives two values, matches no
 # seen file, and goes on to Python, which reads the top-level ones.
 STATUS_NOTE_COMMAND = f"sh -c {shlex.quote(_STATUS_NOTE_SCRIPT)}"
-OWN_EDIT_MATCHER = "Edit|Write|MultiEdit"
-_OWN_EDIT_SCRIPT = "; ".join(
-    [
-        "d=$(cat)",
-        'v() { printf "%s" "$d" | tr ",{" "\\n\\n" | '
-        'sed -n "s/^ *\\"$1\\" *: *\\"\\([^\\"]*\\)\\".*/\\1/p" | sort -u; }',
-        "s=$(v session_id)",
-        '[ -n "$s" ] && [ -d "${LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}/own-edits/claude-$s" ] || exit 0',
-        'case "$(v file_path)" in *.md*) ;; *) exit 0 ;; esac',
-        'printf "%s" "$d" | exec lemonaid claude own-edit',
-    ]
-)
-# Runs before and after every Edit/Write; it starts Python only in a session that has
-# run a doc waiter (own_edits.register made its directory), and only for a .md path.
-OWN_EDIT_COMMAND = f"sh -c {shlex.quote(_OWN_EDIT_SCRIPT)}"
 
 
 def settings_path() -> Path:
     return Path.home() / ".claude" / "settings.json"
 
 
-def _load(path: Path) -> dict:
+def load(path: Path) -> dict:
     if not path.exists():
         return {}
 
@@ -67,7 +52,7 @@ def _load(path: Path) -> dict:
         raise ValueError(f"{path} is not valid JSON ({e}); fix it before installing hooks") from e
 
 
-def _has_command(entries: ty.Iterable[dict], command: str) -> bool:
+def has_command(entries: ty.Iterable[dict], command: str) -> bool:
     return any(
         hook.get("command") == command
         for entry in entries
@@ -81,7 +66,7 @@ def _with_hook(settings: dict, event: str, command: str, matcher: str = "") -> t
     hooks = settings.setdefault("hooks", {})
     entries = hooks.setdefault(event, [])
 
-    if _has_command(entries, command):
+    if has_command(entries, command):
         return settings, False
 
     entries.append(
@@ -111,7 +96,7 @@ def install(
 ) -> str:
     """Add a hook running `command` on `event` (for tools `matcher` names). Returns the line to print."""
     path = path or settings_path()
-    settings = _load(path)
+    settings = load(path)
     settings, changed = _with_hook(settings, event, command, matcher)
 
     if not changed:
@@ -127,10 +112,10 @@ def install(
 def uninstall(event: str, command: str, path: Path | None = None) -> str:
     """Remove the `event` hook lemonaid installed for `command`, and nothing else."""
     path = path or settings_path()
-    settings = _load(path)
+    settings = load(path)
     entries = settings.get("hooks", {}).get(event, [])
 
-    kept = [entry for entry in entries if not _has_command([entry], command)]
+    kept = [entry for entry in entries if not has_command([entry], command)]
     if len(kept) == len(entries):
         return f"no lemonaid {event} hook in {path}"
 

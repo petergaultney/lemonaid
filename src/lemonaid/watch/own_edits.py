@@ -7,9 +7,9 @@ body it last reported, and adopts a changed body silently only when that chain r
 Anyone else's change on the way, a human's edit made earlier in the same turn included,
 breaks the chain and wakes it as before.
 
-Claude Code's PreToolUse and PostToolUse hooks record each transition. For edits made
-through a shell or by Codex, `watch doc --editing` before the edit and `--mine` after it
-do the same.
+Claude Code's and Codex's PreToolUse and PostToolUse hooks record a transition for each
+watched doc that a tool call changed, whatever the tool. `watch doc --editing` before an
+edit and `--mine` after it do the same where no hook is installed.
 
 Layout, under `<lemonaid state dir>/own-edits/<writer>/` (see `root`):
 - `<doc key>.doc`: the doc's resolved path; a waiter writes it, and the hook records
@@ -18,13 +18,15 @@ Layout, under `<lemonaid state dir>/own-edits/<writer>/` (see `root`):
 - `pending/<key>`: the before digest, until the edit's after side is recorded (at most 10 minutes)
 """
 
+import contextlib
+import fcntl
 import hashlib
 import os
 import pathlib
 import time
 from collections import abc
 
-from . import relay_comments
+from . import body_norm, relay_comments
 
 _KEEP = 50
 _PENDING_MAX_AGE = 600.0  # seconds; an --editing whose edit failed must not pair with a later one
@@ -34,8 +36,14 @@ def claude_writer(session_id: str) -> str:
     return f"claude-{session_id}"
 
 
-def writer_from_env(env: abc.Mapping[str, str]) -> str:
-    """The calling lemon's key, or "" when the environment names no harness session."""
+def writer_from_env(env: abc.Mapping[str, str], codex_thread: str = "") -> str:
+    """The calling lemon's key, or "" when the environment names no harness session.
+
+    A waiter delivering to `codex_thread` serves that thread's lemon.
+    """
+    if codex_thread:
+        return f"codex-{codex_thread}"
+
     if session_id := env.get("CLAUDE_CODE_SESSION_ID"):
         return claude_writer(session_id)
 
@@ -64,7 +72,7 @@ def _edits_path(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> pathl
 
 
 def body_digest(body: str) -> str:
-    return hashlib.sha256(body.encode()).hexdigest()[:16]
+    return hashlib.sha256(body_norm.normalized(body).encode()).hexdigest()[:16]
 
 
 def _file_digest(doc: pathlib.Path) -> str:
@@ -75,14 +83,34 @@ def _file_digest(doc: pathlib.Path) -> str:
     return body_digest(relay_comments.body_without_threads(text))
 
 
+@contextlib.contextmanager
+def locked(path: pathlib.Path) -> abc.Iterator[None]:
+    """Serialize read-modify-write of `path` across parallel tool calls' hooks."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.with_name(f".{path.name}.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def unregister(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> None:
+    (writer_dir(own_root, writer) / f"{_doc_key(doc)}.doc").unlink(missing_ok=True)
+
+
 def register(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> None:
     path = writer_dir(own_root, writer) / f"{_doc_key(doc)}.doc"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(str(doc.resolve()))
 
 
-def watched(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> bool:
-    return (writer_dir(own_root, writer) / f"{_doc_key(doc)}.doc").exists()
+def watched(own_root: pathlib.Path, writer: str) -> list[pathlib.Path]:
+    """The docs the writer's waiters registered."""
+    found = []
+    for path in sorted(writer_dir(own_root, writer).glob("*.doc")):
+        try:
+            found.append(pathlib.Path(path.read_text()))
+        except FileNotFoundError:
+            continue
+    return found
 
 
 def _transitions(path: pathlib.Path) -> list[tuple[int, str, str]]:
@@ -99,7 +127,6 @@ def _transitions(path: pathlib.Path) -> list[tuple[int, str, str]]:
 
 
 def _append(path: pathlib.Path, before: str, after: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     seq = max((t[0] for t in _transitions(path)), default=0) + 1
     with path.open("a") as f:
         f.write(f"{seq} {before} {after}\n")
@@ -117,9 +144,25 @@ def cli_key(doc: pathlib.Path) -> str:
     return f"cli-{_doc_key(doc)}"
 
 
+def tool_key(tool_use_id: str, doc: pathlib.Path) -> str:
+    """The pending key a tool call's before and after hooks share for one doc."""
+    return f"{tool_use_id}-{_doc_key(doc)}"
+
+
+def _sweep(pending: pathlib.Path) -> None:
+    """Drop before digests whose after side never came (a failed call runs no PostToolUse)."""
+    for stale in pending.iterdir():
+        try:
+            if time.time() - stale.stat().st_mtime > _PENDING_MAX_AGE:
+                stale.unlink()
+        except FileNotFoundError:
+            continue
+
+
 def before_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path) -> None:
     path = _pending(own_root, writer, key)
     path.parent.mkdir(parents=True, exist_ok=True)
+    _sweep(path.parent)
     path.write_text(_file_digest(doc))
 
 
@@ -136,43 +179,19 @@ def after_edit(own_root: pathlib.Path, writer: str, key: str, doc: pathlib.Path)
     if not fresh:
         return False
 
-    _append(_edits_path(own_root, writer, doc), before, _file_digest(doc))
+    after, edits = _file_digest(doc), _edits_path(own_root, writer, doc)
+    with locked(edits):
+        if before != after and (before, after) != next(
+            ((b, a) for _, b, a in sorted(_transitions(edits))[-1:]), None
+        ):
+            _append(edits, before, after)  # parallel tool calls each see the same change
+    # Two parallel calls that both edit the doc record two transitions from the same
+    # before digest, which don't chain, so the waiter wakes: a false wake, never a lost one.
     return True
 
 
-def last_seq(own_root: pathlib.Path, writer: str, doc: pathlib.Path) -> int:
-    return max((t[0] for t in _transitions(_edits_path(own_root, writer, doc))), default=0)
-
-
-def chain_to(
-    transitions: abc.Iterable[tuple[int, str, str]], consumed: int, start: str, goal: str
-) -> int | None:
-    """The last seq, if every transition after `consumed`, in order, chains from `start` and ends at `goal`.
-
-    A transition that doesn't start where the previous one ended means someone else changed
-    the doc in between, so nothing is accounted for.
-    """
-    current, last = start, consumed
-    for seq, before, after in sorted(t for t in transitions if t[0] > consumed):
-        if before != current:
-            return None
-
-        current, last = after, seq
-    return last if current == goal and last > consumed else None
-
-
-def settles(
-    own_root: pathlib.Path,
-    writer: str,
-    doc: pathlib.Path,
-    consumed: int,
-    settled_body: str,
-    body: str,
-) -> int | None:
-    """The seq through which the writer's own edits account for every change from `settled_body` to `body`."""
-    return chain_to(
-        _transitions(_edits_path(own_root, writer, doc)),
-        consumed,
-        body_digest(settled_body),
-        body_digest(body),
-    )
+def transitions(
+    own_root: pathlib.Path, writer: str, doc: pathlib.Path
+) -> list[tuple[int, str, str]]:
+    """The writer's recorded `(seq, before, after)` edits to `doc`, oldest first."""
+    return _transitions(_edits_path(own_root, writer, doc))

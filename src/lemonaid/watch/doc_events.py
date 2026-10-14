@@ -16,7 +16,7 @@ import time
 import typing as ty
 from collections import abc
 
-from . import cursors, own_edits, relay_comments
+from . import body_norm, cursors, own_edits, own_edits_replay, relay_comments
 
 
 class Outcome(enum.Enum):
@@ -48,7 +48,7 @@ def state_stem(state_dir: pathlib.Path, doc: pathlib.Path, me: str) -> pathlib.P
 
 
 def _thread_key(thread: str) -> str:
-    return hashlib.sha1(thread.encode()).hexdigest()[:16]
+    return hashlib.sha1(body_norm.normalized(thread).encode()).hexdigest()[:16]
 
 
 def _load_reported(path: pathlib.Path) -> set[str]:
@@ -87,7 +87,7 @@ def _load_consumed(
 
     except (OSError, ValueError):
         pass
-    seq = own_edits.last_seq(own_root, writer, doc)
+    seq = own_edits_replay.last_seq(own_root, writer, doc)
     cursors.write_text(path, f"{writer} {seq}")
     return int(seq)
 
@@ -184,7 +184,7 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
 
     body = relay_comments.body_without_threads(text)
     own = (
-        own_edits.settles(w.own_root, w.writer, w.doc, w.consumed, w.settled_body, body)
+        own_edits_replay.settles(w.own_root, w.writer, w.doc, w.consumed, w.settled_body, body)
         if w.writer
         else None
     )
@@ -192,11 +192,13 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         _settle(w, body, own)
         return Outcome.NOTHING
 
-    if body == w.settled_body:
+    if body_norm.normalized(body) == body_norm.normalized(w.settled_body):
+        if body != w.settled_body:
+            _settle(w, body, w.consumed)  # reformatted only
         w.pending_body = body
         return Outcome.NOTHING
 
-    if body != w.pending_body:
+    if body_norm.normalized(body) != body_norm.normalized(w.pending_body):
         w.pending_body, w.pending_since = body, time.time()
         return Outcome.NOTHING
 
@@ -210,5 +212,5 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     ):
         return Outcome.FAILED
 
-    _settle(w, body, own_edits.last_seq(w.own_root, w.writer, w.doc) if w.writer else 0)
+    _settle(w, body, own_edits_replay.last_seq(w.own_root, w.writer, w.doc) if w.writer else 0)
     return Outcome.DELIVERED

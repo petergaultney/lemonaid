@@ -24,7 +24,7 @@ session, then end the turn. The bare flag reads the thread ID from the environme
 `codex queue` needs access outside the workspace sandbox. A setup refusal means no
 waiter started. The first batch queues a turn and exits.
 
-The first run takes current children as its baseline. Rearms report transitions made
+The first run takes current children as its baseline and reports nothing already true, so check them yourself first (`lemonaid brief children --self`). Rearms report transitions made
 since the last successful delivery, plus newly linked children in a selected status,
 without repeating delivered events. By default, only entry into `merge` or `done` wakes.
 Repeat `--to STATUS` to choose other destination statuses, for example

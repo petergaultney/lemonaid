@@ -1,9 +1,10 @@
-"""Stop hook: a Claude lemon with a brief may not end its turn without an inbox waiter,
-or with a brief `lemonaid brief check` finds broken.
+"""Stop hook: a lemon with a brief may not end its turn without its waiters, or with a
+brief `lemonaid brief check` finds broken.
 
-Nothing but the lemon's own background task can wake a Claude session, so a
-lemon that forgets `lemonaid inbox watch --self` never sees its messages. A
-brief broken by a hand edit is caught in the turn that broke it.
+Nothing but the lemon's own background task can wake a Claude session, so a Claude
+lemon that forgets `lemonaid inbox watch --self` never sees its messages. Codex needs no
+inbox waiter, since messages queue into its thread, but a Codex parent still needs its
+children waiter. A brief broken by a hand edit is caught in the turn that broke it.
 """
 
 import json
@@ -14,7 +15,7 @@ from pathlib import Path
 from .. import brief
 from ..brief import handoff_state
 from ..inbox import db
-from ..inbox.channel import UnidentifiedSession, channel_id
+from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
 from ..log import get_logger
 from ..messages import store, waiter
 from ..watch import children_waiter
@@ -28,11 +29,8 @@ _ARM = (
 )
 
 
-_WATCH = (
-    "You have children and no waiter on them. "
-    + children_waiter.CLAUDE_REMINDER
-    + " Then end your turn."
-)
+_WATCH = "You have children and no waiter on them. {reminder} Then end your turn."
+_REMINDERS = {"claude": children_waiter.CLAUDE_REMINDER, "codex": children_waiter.CODEX_REMINDER}
 
 _BROKEN = (
     "`lemonaid brief check --self` finds {brief} broken:\n{problems}\n"
@@ -40,10 +38,19 @@ _BROKEN = (
 )
 
 
-def attached_brief(data: dict) -> Path | None:
+def _channel(harness: str, session_id: str | None) -> str:
+    """Raises `UnidentifiedSession` without a session ID."""
+    return (
+        channel_id("claude", session_id)
+        if harness == "claude"
+        else full_channel_id(harness, session_id)
+    )
+
+
+def attached_brief(data: dict, harness: str = "claude") -> Path | None:
     """The brief attached to the hook's session, if its file exists."""
     try:
-        channel = channel_id("claude", data.get("session_id"))
+        channel = _channel(harness, data.get("session_id"))
     except UnidentifiedSession:
         return None
 
@@ -67,7 +74,7 @@ def _missing_waiter(path: Path, text: str, grace: float) -> str:
     return _ARM.format(lemon=lemon_id or path.name)
 
 
-def _unwatched_children(text: str) -> str:
+def _unwatched_children(text: str, harness: str) -> str:
     if brief.status.split(text).status == "done":
         return ""
 
@@ -81,7 +88,7 @@ def _unwatched_children(text: str) -> str:
     if not waiting_on or children_waiter.is_armed(lemon_id):
         return ""
 
-    return _WATCH
+    return _WATCH.format(reminder=_REMINDERS[harness])
 
 
 def _broken(path: Path, text: str) -> str:
@@ -94,15 +101,15 @@ def _broken(path: Path, text: str) -> str:
     return _BROKEN.format(brief=path.name, problems=listed)
 
 
-def reason_to_block(data: dict, grace: float) -> str:
+def reason_to_block(data: dict, grace: float, harness: str = "claude") -> str:
     """The reason to block this Stop, or "" to let it through."""
-    path = attached_brief(data)
+    path = attached_brief(data, harness)
     if path is None:
         return ""
 
     text = path.read_text()
     try:
-        channel = channel_id("claude", data.get("session_id"))
+        channel = _channel(harness, data.get("session_id"))
     except UnidentifiedSession:
         channel = ""
     with db.connect() as conn:
@@ -111,21 +118,21 @@ def reason_to_block(data: dict, grace: float) -> str:
     return "\n\n".join(
         reason
         for reason in (
-            ("" if handing_off else _missing_waiter(path, text, grace)),
-            _unwatched_children(text),
+            ("" if handing_off or harness != "claude" else _missing_waiter(path, text, grace)),
+            _unwatched_children(text, harness),
             _broken(path, text),
         )
         if reason
     )
 
 
-def handle(stdin_data: str | None = None, grace: float = 3.0) -> None:
+def handle(stdin_data: str | None = None, grace: float = 3.0, harness: str = "claude") -> None:
     try:
         data = json.loads(stdin_data if stdin_data is not None else sys.stdin.read() or "{}")
     except json.JSONDecodeError:
         data = {}
 
-    reason = reason_to_block(data, grace)
+    reason = reason_to_block(data, grace, harness)
     if not reason:
         return
 

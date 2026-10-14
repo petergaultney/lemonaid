@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from lemonaid.claude import own_edit
-from lemonaid.watch import doc_events, own_edits
+from lemonaid.hooks import own_change
+from lemonaid.watch import doc_events, own_edits, own_edits_replay
 
 _ME = "Author (MotorHoe)"
 _SESSION = "11111111-2222-3333-4444-555555555555"
@@ -40,9 +40,9 @@ def _hook_edit(state_dir, doc, new_text: str, tool_use_id: str = "toolu_1") -> N
         "tool_use_id": tool_use_id,
         "tool_input": {"file_path": str(doc)},
     }
-    own_edit.record({**event, "hook_event_name": "PreToolUse"}, state_dir)
+    own_change.record({**event, "hook_event_name": "PreToolUse"}, "claude", state_dir)
     doc.write_text(new_text)
-    own_edit.record({**event, "hook_event_name": "PostToolUse"}, state_dir)
+    own_change.record({**event, "hook_event_name": "PostToolUse"}, "claude", state_dir)
 
 
 def _poll_twice(w) -> list[str]:
@@ -189,15 +189,15 @@ def test_the_hook_ignores_docs_no_waiter_of_this_session_watches(doc, state_dir,
     other.write_text("x\n")
     _hook_edit(state_dir, other, "y\n")
 
-    assert not (own_edits.writer_dir(state_dir, _WRITER) / "pending").exists()
+    assert not list(own_edits.writer_dir(state_dir, _WRITER).glob("*.edits"))
 
 
 def test_chain_to_needs_every_new_transition_in_order():
-    assert own_edits.chain_to([(1, "a", "b"), (2, "b", "c")], 0, "a", "c") == 2
-    assert own_edits.chain_to([(1, "a", "b"), (2, "x", "c")], 0, "a", "c") is None
-    assert own_edits.chain_to([(1, "a", "b"), (2, "b", "a")], 0, "a", "b") is None
-    assert own_edits.chain_to([(1, "z", "a"), (2, "a", "b")], 1, "a", "b") == 2
-    assert own_edits.chain_to([], 0, "a", "a") is None
+    assert own_edits_replay.chain_to([(1, "a", "b"), (2, "b", "c")], 0, "a", "c") == 2
+    assert own_edits_replay.chain_to([(1, "a", "b"), (2, "x", "c")], 0, "a", "c") is None
+    assert own_edits_replay.chain_to([(1, "a", "b"), (2, "b", "a")], 0, "a", "b") is None
+    assert own_edits_replay.chain_to([(1, "z", "a"), (2, "a", "b")], 1, "a", "b") == 2
+    assert own_edits_replay.chain_to([], 0, "a", "a") is None
 
 
 def test_a_stale_editing_does_not_pair_with_a_later_mine(doc, state_dir):
@@ -210,3 +210,21 @@ def test_a_stale_editing_does_not_pair_with_a_later_mine(doc, state_dir):
 
     assert not own_edits.after_edit(state_dir, "codex-thread", own_edits.cli_key(doc), doc)
     assert len(_poll_twice(w)) == 1
+
+
+def test_a_pending_edit_whose_tool_call_failed_is_swept(doc, state_dir):
+    _watch(state_dir, doc)
+    own_edits.before_edit(state_dir, _WRITER, "lost", doc)
+    lost = own_edits.writer_dir(state_dir, _WRITER) / "pending" / "lost"
+    os.utime(lost, (time.time() - 3600, time.time() - 3600))
+
+    own_edits.before_edit(state_dir, _WRITER, "next", doc)
+
+    assert not lost.exists()
+
+
+def test_a_stopped_doc_waiter_unregisters_its_doc(doc, state_dir):
+    _watch(state_dir, doc)
+    own_edits.unregister(state_dir, _WRITER, doc)
+
+    assert own_edits.watched(state_dir, _WRITER) == []

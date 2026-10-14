@@ -609,3 +609,23 @@ def test_cursors_are_written_whole(stem):
     }
     assert json.loads(stem.with_suffix(".reported.json").read_text()) == ["c1"]
     assert not list(stem.parent.glob(".*"))
+
+
+def test_a_push_the_lemon_made_itself_is_not_reported(stem):
+    with pytest.raises(StopIteration):
+        _wait_once(stem, [_snap()])
+
+    feed, sent = iter([_snap(head="b" * 40), _snap(head="c" * 40)]), []
+    pr_wait.wait(
+        lambda: next(feed),
+        90,
+        0,
+        "",
+        True,
+        sent.append,
+        True,
+        stem,
+        own_head=lambda head: head.startswith("bbbbbbb"),
+    )
+
+    assert sent == [f"PR #90 head moved {'b' * 10} -> {'c' * 10}"]

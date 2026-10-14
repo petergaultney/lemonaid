@@ -68,13 +68,13 @@ Never use a hand-rolled polling loop or scheduled wakeups; they wake the session
 - The `{==...==}` highlight may be absent (a comment anchored to a point).
 - A thread is the highlight plus every `{{...>>...<<}}` block that immediately follows it, with nothing in between. Replies are appended as further blocks. A thread is **unanswered** when its last block's `author` is not your name or a legacy name. Human authors are never matched by name; anyone can comment, and several people can share a thread.
 - A human may also just edit your prose; the waiter reports it as `body of <doc> changed (+N/-M lines)`. Read what changed: it may be a request, a correction, or a note to you in the text itself. Don't revert it. If an edit changes a conclusion you disagree with, add a comment block beside it saying so.
-- Your own body edits don't wake your waiter when they're recorded; replies inside threads never do. In Claude Code, `Edit` and `Write` calls are recorded by the `lemonaid claude hooks --own-edits` hooks, if installed. In Codex, or when editing through a shell, wrap each edit in `lemonaid watch doc --editing <absolute-doc-path>` before and `lemonaid watch doc --mine <absolute-doc-path>` after, as one shell call (see "Editing in Codex" below). An unrecorded edit of yours wakes you once after you rearm; if the reported change is only yours, rearm without doing anything else.
+- Your own body edits don't wake your waiter when they're recorded; replies inside threads never do, and neither does reformatting such as re-padded tables. With lemonaid's hooks installed (`lemonaid hooks install`), every tool call that names the doc's file and changes it is recorded, in Claude Code and Codex alike, whatever the tool; name the doc in a script's command line so its edit counts. Without them, wrap each edit in `lemonaid watch doc --editing <absolute-doc-path>` before and `lemonaid watch doc --mine <absolute-doc-path>` after, as one shell call (see "Editing in Codex" below); with them, the wrapper is harmless. An unrecorded edit of yours wakes you once after you rearm; if the reported change is only yours, rearm without doing anything else.
 
 To find unanswered threads by hand, `rg -o 'author="[^"]*">>' <doc-path>` lists the blocks in order.
 
 ## Editing in Codex
 
-Make every edit to a watched doc's body one shell call that records it (a reply alone changes no body, so it needs none):
+Without lemonaid's hooks, make every edit to a watched doc's body one shell call that records it (a reply alone changes no body, so it needs none):
 
 ```sh
 lemonaid watch doc --editing <absolute-doc-path> && apply_patch <<'PATCH' && lemonaid watch doc --mine <absolute-doc-path>

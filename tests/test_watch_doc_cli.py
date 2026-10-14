@@ -226,6 +226,7 @@ def test_editing_then_mine_records_an_edit_for_the_calling_lemon(tmp_path, doc):
     anonymous = run("--editing")
     unannounced = run("--mine", CODEX_THREAD_ID="t1")
     run("--editing", CODEX_THREAD_ID="t1")
+    doc.write_text(doc.read_text() + "An edit.\n")
     paired = run("--mine", CODEX_THREAD_ID="t1")
 
     assert anonymous.returncode == 2

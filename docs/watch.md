@@ -32,30 +32,26 @@ lemonaid watch openclaw stop <doc>
 ## Ignoring the lemon's own edits
 
 A waiter started from a Claude Code or Codex session (`CLAUDE_CODE_SESSION_ID` or
-`CODEX_THREAD_ID` set) doesn't wake that session for body edits it made itself. It
-adopts a changed body silently only when the session's recorded edits lead to it from the
-body it last reported, so an edit someone else made earlier in the same turn still wakes it,
-with a line delta that includes the lemon's own change.
+`CODEX_THREAD_ID` set, or `--codex-thread`) doesn't wake that session for body edits it
+made itself. It adopts a changed body silently only when the session's recorded edits lead
+to it from the body it last reported, so an edit someone else made earlier in the same turn
+still wakes it, with a line delta that includes the lemon's own change.
 
-- **Claude Code** records its edits through PreToolUse and PostToolUse hooks on `Edit`,
-  `Write` and `MultiEdit`. Install them with `lemonaid claude hooks --own-edits`. They
-  start Python only in a session that has run a doc waiter, and only for a `.md` path.
-- **Codex, and a Claude edit made through Bash,** record with
-  `lemonaid watch doc --editing <doc>` just before the edit and `lemonaid watch doc --mine
-  <doc>` right after it. Codex has no hook to do it. `--mine` without a preceding
-  `--editing` records nothing and exits 2, so the edit wakes the waiter as before.
-
-Codex can do all three in one shell call. `apply_patch` works as a shell command inside a
-compound command (checked with codex-cli 0.159.2, in the workspace-write sandbox):
-
-```sh
-lemonaid watch doc --editing <doc> && apply_patch <<'PATCH' && lemonaid watch doc --mine <doc>
-*** Begin Patch
-*** Update File: <doc>
-...
-*** End Patch
-PATCH
-```
+- **Hooks record them, whatever the tool.** `lemonaid hooks install` adds PreToolUse and
+  PostToolUse hooks to Claude Code and Codex. Before and after each tool call whose input
+  names a watched doc's file (an `Edit` path, an `apply_patch`, a shell command such as
+  `sed -i ... review.md` or `python3 fix.py review.md`), they hash that doc and record a
+  change in between as the lemon's own. A change during any other call, such as a long
+  test run, is taken as someone else's, so a script that edits the doc without naming it
+  wakes the lemon once. A human edit saved during a call that names the doc is
+  misattributed. The hooks start Python only in a session that has run a doc or PR
+  waiter, and `lemonaid watch stop --self doc <doc>` ends that for the doc.
+- **Without the hooks,** record an edit with `lemonaid watch doc --editing <doc>` just
+  before it and `lemonaid watch doc --mine <doc>` right after it. `--mine` without a
+  preceding `--editing` records nothing and exits 2, so the edit wakes the waiter as before.
+- **Reformatting is never a change.** The body is compared with runs of whitespace
+  collapsed, the spaces around table pipes removed, and table separator dashes shortened,
+  so Obsidian re-padding a table wakes nobody, whoever did it.
 
 The waiter replays the session's unconsumed edits in order from the body it last reported,
 and stays asleep only if they chain without a gap to the body it now reads. A gap means
@@ -103,8 +99,9 @@ record of what it last reported to the lemon, its cursor, and reports what diffe
 push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
 is reported twice.
 
-- **A missing cursor means the lemon has just looked.** A first waiter takes the current
-  state as seen: the PR's head, state, comments and CI result, a doc's body, a directory's
+- **A waiter never reports what is already true.** Read the current state yourself before
+  starting a first waiter (`gh pr view`, `gh pr checks`, the doc). A missing cursor means
+  the lemon has just looked, so a first waiter takes the current state as seen: the PR's head, state, comments and CI result, a doc's body, a directory's
   files, the children's statuses. Unanswered doc threads are the exception, and are
   reported, since each is still waiting on the lemon.
 - **Cursors belong to the lemon, not the signature.** They live in
@@ -138,8 +135,8 @@ lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" -
 lemonaid watch pr --status 90 --me "Author (MotorHoe)"
 ```
 
-It reports a push (the head differs from the one last reported, or from `--head`), a merge
-or close, a move to or from
+It reports a push (the head differs from the one last reported, or from `--head`) that the
+lemon didn't make itself, a merge or close, a move to or from
 draft, a review decision change, and with `--comments` a new comment from someone else, a
 conflict with the base, or failed CI. A comment counts when it is in any
 review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation, and is not
@@ -151,7 +148,10 @@ own from before you signed them. The head and state, comments already reported, 
 last reported draft flag and decision are kept in the lemon's [cursors](#cursors), so a
 rearm reports what changed in between, a push or merge included, and nothing it already
 reported. `--head`, in full or abbreviated to at least 7 digits, overrides the saved head;
-a first waiter without it takes the current head as seen. `--wait` and `--status` take a
+a first waiter without it takes the current head as seen. With lemonaid's hooks installed
+(`lemonaid hooks install`), a `git push` the lemon ran itself is recorded from its output,
+and a move to that head doesn't wake it (`git push -q` prints no heads, so a quiet push isn't recognized); GitHub can't say who pushed, since every lemon
+pushes under its human's account. `--wait` and `--status` take a
 PR number or a `github.com` pull request URL. A URL names the repo itself, so `--repo` is
 unneeded, and an error if it names a different repo. For a number, `--repo owner/name` defaults
 to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
@@ -173,8 +173,9 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
 Add `--ci` when you want a completion event whether CI passes or fails. It works
 with or without `--comments`, and with `--once` or `--codex-thread`. Completion waits
 for every check on the current head to finish; required checks determine the result
-when any exist, otherwise every check counts. No checks is not a completion.
-A pass is reported only when the same set of checks had passed on the previous poll too,
+when any exist, otherwise every check counts. No checks is not a completion. A first
+waiter takes a CI result that has already finished as seen, so check `gh pr checks` before
+arming one. A pass is reported only when the same set of checks had passed on the previous poll too,
 so it can arrive one `--interval` after the checks finish; if the set of checks changes
 afterward on the same head (a workflow queues more jobs), the new pass is reported again.
 The event names the result and head. Results are remembered per head and watcher
