@@ -2,13 +2,17 @@
 
 #### Added
 
-- `lemonaid wait --self` watches a brief’s subscriptions, PRs, documents, children and inbox in one process, gathers a burst into one wake, and saves delivered cursors only after delivery succeeds. Add `--codex-thread` to queue the batch into Codex.
+- `lemonaid watch --self` watches a brief’s subscriptions, PRs, documents, children and inbox in one process, gathers a burst into one wake, and saves delivered cursors only after delivery succeeds. Add `--codex-thread` to queue the batch into Codex.
 
 - Briefs list document subscriptions in `### Docs`, with `brief doc add|rm` and a Watch enum: `Relay comments` or `All edits`. `Output-Doc:` supplies the first row, and starting `watch doc` records its document. Document cells use short clickable filename labels in the inbox viewer, including backticked paths: vault documents use Obsidian and other paths use file URLs. The viewer reserves width for Watch modes and preserves links across wrapped lines; document edits refuse to rewrite invalid tables.
 
 #### Changed
 
+- SessionStart guides attached lemons to read their current work and arm `watch --self`; Stop requires it for subscribed briefs in both Claude and Codex. Own-edit hooks read declared documents between waits; `hooks install` replaces the previous hook command. Packaged skills and the review template use that workflow.
+
 - `## Watching` replaces `## Waiters` in new briefs and templates. Both headings remain readable; `brief watching` edits subscriptions, with `brief waiter` kept as an alias.
+
+- `lemonaid watch --self` is the primary unified command; `lemonaid wait --self` remains a compatibility alias.
 
 # 0.112.0 (2026-10-14)
 

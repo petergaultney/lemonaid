@@ -53,7 +53,7 @@ def test_a_briefed_lemon_without_a_waiter_is_blocked(capsys):
     assert blocked is not None
     assert blocked["decision"] == "block"
     assert inbox.name in blocked["reason"]
-    assert "lemonaid inbox watch --self" in blocked["reason"]
+    assert "lemonaid watch --self" in blocked["reason"]
 
 
 def test_an_armed_waiter_lets_the_turn_end(capsys):
@@ -186,7 +186,7 @@ def test_pending_handoff_suppresses_only_source_waiter_check(capsys):
     with db.connect() as conn:
         conn.execute("UPDATE brief_handoffs SET phase = 'failed' WHERE token = ?", (row["token"],))
         conn.commit()
-    assert "inbox watch" in _stop(capsys)["reason"]
+    assert "watch --self" in _stop(capsys)["reason"]
 
 
 def test_expired_handoff_restores_waiter_check(capsys):
@@ -206,7 +206,7 @@ def test_expired_handoff_restores_waiter_check(capsys):
             time.time() - 1,
         )
 
-    assert "inbox watch" in _stop(capsys)["reason"]
+    assert "watch --self" in _stop(capsys)["reason"]
 
 
 def _parent_with_child(status: str) -> str:
@@ -227,7 +227,7 @@ def test_a_parent_with_a_child_and_no_children_waiter_is_blocked(capsys):
         blocked = _stop(capsys)
 
     assert blocked is not None
-    assert children_waiter.COMMAND in blocked["reason"]
+    assert "watch --self" in blocked["reason"]
 
 
 def test_a_parent_whose_children_are_all_done_still_needs_the_waiter(capsys):
@@ -237,7 +237,7 @@ def test_a_parent_whose_children_are_all_done_still_needs_the_waiter(capsys):
         blocked = _stop(capsys)
 
     assert blocked is not None
-    assert children_waiter.COMMAND in blocked["reason"]
+    assert "watch --self" in blocked["reason"]
 
 
 @pytest.mark.parametrize(
@@ -256,7 +256,7 @@ def test_any_running_children_waiter_lets_the_parent_stop(capsys, tmp_path, monk
         waiter.armed(store.inbox_for_id(lemon_id)),
         registry.registered("briefs", [lemon_id], "claude:abcd1234", command),
     ):
-        assert _stop(capsys) is None
+        assert "watch --self" in _stop(capsys)["reason"]
 
 
 def test_a_children_waiter_started_by_another_lemon_for_this_parent_counts(
@@ -269,7 +269,7 @@ def test_a_children_waiter_started_by_another_lemon_for_this_parent_counts(
         waiter.armed(store.inbox_for_id(lemon_id)),
         registry.registered("briefs", [lemon_id], "claude:other", "cmd"),
     ):
-        assert _stop(capsys) is None
+        assert "watch --self" in _stop(capsys)["reason"]
 
 
 def test_a_waiter_for_a_different_parent_does_not_let_the_parent_stop(
@@ -285,7 +285,7 @@ def test_a_waiter_for_a_different_parent_does_not_let_the_parent_stop(
         blocked = _stop(capsys)
 
     assert blocked is not None
-    assert children_waiter.COMMAND in blocked["reason"]
+    assert "watch --self" in blocked["reason"]
 
 
 def test_a_done_parent_is_not_asked_to_watch_children(capsys):

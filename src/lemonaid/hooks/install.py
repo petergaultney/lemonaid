@@ -25,27 +25,52 @@ from ..claude import install_hooks
 HARNESSES = ("claude", "codex")
 
 
-def _own_change_script(harness: str) -> str:
+def _ungated_script(harness: str) -> str:
     return "; ".join(
         [
             "d=$(cat)",
             'v() { printf "%s" "$d" | tr ",{" "\\n\\n" | '
             'sed -n "s/^ *\\"$1\\" *: *\\"\\([^\\"]*\\)\\".*/\\1/p" | sort -u; }',
             "s=$(v session_id | head -n1)",
-            f'w="${{LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}}/own-edits/{harness}-$s"',
-            '[ -n "$s" ] && [ -d "$w" ] || exit 0',
-            'set -- "$w"/*.doc',
-            '[ -e "$1" ] || case "$d" in *git*push*) ;; *) exit 0 ;; esac',
+            '[ -n "$s" ] || exit 0',
             f'printf "%s" "$d" | exec lemonaid hooks own-change --harness {harness}',
         ]
     )
 
 
+def _own_change_script(harness: str) -> str:
+    return _ungated_script(harness).replace(
+        '[ -n "$s" ] || exit 0',
+        "; ".join(
+            [
+                f'w="${{LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}}/own-edits/{harness}-$s"',
+                '[ -n "$s" ] && [ -d "$w" ] || exit 0',
+                'set -- "$w"/*.doc',
+                '[ -e "$w/brief" ] || [ -e "$1" ] || case "$d" in *git*push*) ;; *) exit 0 ;; esac',
+            ]
+        ),
+    )
+
+
 def own_change_command(harness: str) -> str:
-    """Runs before and after every tool call, so it starts Python only in a session whose
-    waiters registered its directory (own_edits.register, own_pushes.register): every call
-    when a doc is watched, and otherwise only a call that mentions a push."""
+    """Skip unbriefed sessions without doc watches or pushes in the shell."""
     return f"sh -c {shlex.quote(_own_change_script(harness))}"
+
+
+def previous_own_change_command(harness: str) -> str:
+    """The pre-unified command gated on a running waiter's registrations."""
+    script = _ungated_script(harness).replace(
+        '[ -n "$s" ] || exit 0',
+        "; ".join(
+            [
+                f'w="${{LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}}/own-edits/{harness}-$s"',
+                '[ -n "$s" ] && [ -d "$w" ] || exit 0',
+                'set -- "$w"/*.doc',
+                '[ -e "$1" ] || case "$d" in *git*push*) ;; *) exit 0 ;; esac',
+            ]
+        ),
+    )
+    return f"sh -c {shlex.quote(script)}"
 
 
 _CODEX_TOOL_USED_COMMAND = "lemonaid codex tool-used"
@@ -127,7 +152,25 @@ def install(
 ) -> list[str]:
     """Add lemonaid's hooks (only those for `events`, when given); the lines to print."""
     path = path or settings_path(harness)
+    migrated = []
+    for previous, event in (
+        (command, event)
+        for command in (
+            previous_own_change_command(harness),
+            f"sh -c {shlex.quote(_ungated_script(harness))}",
+        )
+        for event in ("PreToolUse", "PostToolUse")
+    ):
+        if (not events or event in events) and install_hooks.has_command(
+            install_hooks.load(path).get("hooks", {}).get(event, []), previous
+        ):
+            migrated.append(
+                f"would replace the previous own-change {event} hook in {path}"
+                if dry_run
+                else install_hooks.uninstall(event, previous, path)
+            )
     return [
+        *migrated,
         *(_without_legacy(path, dry_run) if harness == "claude" else []),
         *(
             install_hooks.install(event, command, path, dry_run)

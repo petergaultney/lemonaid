@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -52,7 +53,7 @@ def _writer_dir(tmp_path: Path, harness: str = "claude") -> Path:
     return path
 
 
-def test_a_session_that_never_ran_a_waiter_stays_in_the_shell(tmp_path):
+def test_an_unbriefed_session_stays_in_the_shell(tmp_path):
     assert _run_installed(tmp_path, _event()) == ""
 
 
@@ -85,3 +86,36 @@ def test_the_hooks_install_for_every_tool(tmp_path):
         {"hooks": [{"type": "command", "command": install.own_change_command("claude")}]}
     ]
     assert hooks["PostToolUse"] == hooks["PreToolUse"]
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+@pytest.mark.parametrize("ungated", [False, True])
+def test_install_replaces_the_previous_gate_without_duplicate_hooks(tmp_path, harness, ungated):
+    settings = tmp_path / "settings.json"
+    previous = (
+        f"sh -c {shlex.quote(install._ungated_script(harness))}"
+        if ungated
+        else install.previous_own_change_command(harness)
+    )
+    settings.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    event: [{"hooks": [{"type": "command", "command": previous}]}]
+                    for event in ("PreToolUse", "PostToolUse")
+                }
+            }
+        )
+    )
+    install.install(harness, settings)
+    hooks = json.loads(settings.read_text())["hooks"]
+    for event in ("PreToolUse", "PostToolUse"):
+        commands = [hook["command"] for group in hooks[event] for hook in group["hooks"]]
+        assert previous not in commands
+        assert commands.count(install.own_change_command(harness)) == 1
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+def test_a_brief_marker_keeps_between_wait_edits_recordable(tmp_path, harness):
+    (_writer_dir(tmp_path, harness) / "brief").write_text("/vault/task.md")
+    assert _run_installed(tmp_path, _event(), harness) == _event()

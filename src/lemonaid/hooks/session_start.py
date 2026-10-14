@@ -1,41 +1,31 @@
-"""SessionStart hook: remind a lemon with an attached brief to arm the waiters it lists.
-
-A lemon starting, resuming or coming back from compaction reads its work from the brief,
-but nothing tells it that its waiters died with its last process. The reminder goes in as
-`additionalContext`, which Claude Code and Codex both add to the session.
-"""
+"""SessionStart guidance for the one watcher attached lemons arm each turn."""
 
 import json
 import sys
 
-from ..brief import status, waiters
 from ..claude import waiter_check
+from ..watch import own_edits
+from . import session_gate
 
 _ARM = {
-    "claude": "Start `lemonaid inbox watch --self` and each waiter below that isn't running "
-    "(check with its `--status` form) as a background Bash task (run_in_background).",
-    "codex": "Start each waiter below that isn't running (check with its `--status` form) "
-    "with `--codex-thread`, as an escalated `exec_command` session.",
+    "claude": "Start `lemonaid watch --self` as a background Bash task (run_in_background, timeout: 2147483647).",
+    "codex": "Start `lemonaid watch --self --codex-thread` as an escalated exec_command session.",
 }
 
 
 def context(data: dict, harness: str) -> str:
-    """The reminder for this session, or "" when it has no brief or its brief is done."""
     path = waiter_check.attached_brief(data, harness)
+    if session := data.get("session_id"):
+        session_gate.mark(own_edits.root(), f"{harness}-{session}", path)
     if path is None:
         return ""
 
-    text = path.read_text()
-    if status.split(text).status == "done":
-        return ""
-
-    listed = waiters.commands(text)
-    return "\n".join(
-        [
-            f"Your brief is {path}. {_ARM[harness]}",
-            *(f"- `{command}`" for command in listed),
-            *([] if listed else ["(Its `## Waiters` lists none.)"]),
-        ]
+    return (
+        f"Your brief is {path}. Read it and the current state of your work first. "
+        f"Check `lemonaid watch --self --status`; if none is running, {_ARM[harness]} "
+        "It reads your Watching section, PRs, Docs, children and inbox, reports every pending "
+        "change together, and exits. Handle the whole batch and rearm it before ending that turn. "
+        "Keep document rows watched while this session exists, including when its Status is done."
     )
 
 

@@ -5,6 +5,8 @@ description: Wait at zero token cost for a direct child's brief Status or Needs 
 
 # Watch children's briefs
 
+With an attached brief, prefer `lemonaid watch --self` for child statuses alongside Watching, PRs, Docs and inbox messages. Run it as a Claude background task or with `--codex-thread` in an escalated Codex exec_command session. Handle the entire batch and rearm. The standalone command below remains available.
+
 Use `lemonaid watch briefs --children --self` to wait on direct children through
 Lemonaid's Lemon-ID parent links. Grandchildren are their own parent's responsibility.
 You need an attached brief to use `--self`; an explicit parent Lemon-ID, channel, or

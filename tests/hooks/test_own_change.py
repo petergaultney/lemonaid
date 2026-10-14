@@ -3,7 +3,7 @@
 import pytest
 
 from lemonaid.hooks import own_change
-from lemonaid.watch import doc_events, own_pushes
+from lemonaid.watch import doc_events, own_edits, own_pushes
 
 _SESSION = "11111111-2222-3333-4444-555555555555"
 _PUSH_OUTPUT = (
@@ -159,3 +159,31 @@ def test_reformatting_a_reported_thread_does_not_report_it_again(tmp_path, doc):
     doc.write_text(doc.read_text().replace("is this   right?", "is this right?"))
 
     assert _poll_twice(w) == []
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+@pytest.mark.parametrize("source", ["Docs", "Watching"])
+def test_a_doc_in_the_attached_brief_is_recorded_between_waits(
+    tmp_path, doc, harness, monkeypatch, source
+):
+    _watch(tmp_path, doc, harness)
+    own_edits.unregister(tmp_path, f"{harness}-{_SESSION}", doc)
+    brief = tmp_path / "brief.md"
+    brief.write_text(
+        f"# task\n\nBrief-ID: task.IndexElf\n\n## Now\n\n### Docs\n\n| Document | Purpose | Watch |\n|---|---|---|\n| `{doc}` | Review | All edits |\n"
+    )
+    if source == "Watching":
+        brief.write_text(
+            f"# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n- `lemonaid watch doc --wait {doc}`\n"
+        )
+    monkeypatch.setattr(own_change.waiter_check, "attached_brief", lambda *args: brief)
+    _tool_call(
+        tmp_path,
+        harness,
+        lambda: doc.write_text(doc.read_text() + "Mine between waits.\n"),
+        {"file_path": str(doc)},
+    )
+    rearmed = _watch(tmp_path, doc, harness)
+    assert _poll_twice(rearmed) == []
+    doc.write_text(doc.read_text() + "Someone else's.\n")
+    assert len(_poll_twice(rearmed)) == 1

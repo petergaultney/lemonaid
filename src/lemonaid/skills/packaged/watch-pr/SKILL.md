@@ -5,6 +5,10 @@ description: Wait, at zero token cost, until a GitHub PR gets a new push, is mer
 
 # Watch a PR for pushes, state changes, review comments, and CI
 
+## With an attached brief
+
+Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first, then run the unified watcher as a Claude background task or with `--codex-thread` in an escalated Codex exec_command session. Handle its entire batch and rearm. The standalone commands below remain available.
+
 ## Arguments
 
 A PR number or URL. If omitted, infer it from the current branch (`gh pr view --json number`).

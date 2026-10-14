@@ -200,3 +200,20 @@ def test_a_stop_that_times_out_leaves_no_note_to_blame_later(tmp_path):
     finally:
         waiter.kill()
         waiter.wait()
+
+
+def test_stop_keeps_declared_watches_when_switching_to_unified_waiting(capsys, tmp_path):
+    watched = tmp_path / "watched"
+    watched.write_text("one")
+    brief = _briefed("claude:mine", "mine")
+    process = _start("claude:mine", tmp_path, "watch", "file", "--wait", str(watched))
+    try:
+        assert _registered("claude:mine", "file")
+        before = waiters.commands(brief.read_text())
+        _stop(capsys, "claude:mine", "--keep-subscriptions")
+        assert process.wait(timeout=10) == 143
+        assert waiters.commands(brief.read_text()) == before
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()

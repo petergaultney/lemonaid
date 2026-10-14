@@ -46,7 +46,8 @@ Keep `## Now` directly after `Status:` and any generated identity fields. Use th
 3. `### Waiting on`: the PRs, docs, reviewers, or runs you are watching.
 4. `### Next`: what you will do next.
 5. `### PRs`: the open PR table below.
-6. `### Done`: what finished, always last.
+6. `### Docs`: the documents you wrote for someone to read, with path and purpose.
+7. `### Done`: what finished, always last.
 
 Put a blank line above and below each heading and around its bullets or table. Write for scanning: one item per bullet, opening with its point in a few words. Keep each item to one or two sentences. Do not join separate items with semicolons or inline numbered lists. Put commits, test counts, and paths at the end, or omit them. Replace stale lines instead of appending news, and shrink finished items to one line. Older `- Label:` briefs still work; convert them when you next rewrite `## Now`.
 
@@ -84,28 +85,19 @@ lemonaid brief pr rm --self 12
 
 In Codex, use the verbs to update a brief outside your workspace. Whether they run without a permission prompt depends on your installed allow rules; hand edits outside the workspace require the applicable filesystem permission. Claude may edit directly. After every hand edit, run `lemonaid brief check --self` and fix its reports. When configured, Claude's Stop hook also checks and prevents the turn ending with an invalid brief; nothing automatically checks a Codex hand edit.
 
-## Record and rearm waiters
+## Declare subscriptions and arm one watcher
 
-With an attached brief, `lemonaid watch doc`, `pr`, `file`, and `briefs` automatically record their restartable command under the final `## Watching` after startup checks pass. Rearming updates the same entry, including a PR’s head and flags. The saved command keeps the supplied arguments, including `--self`; omitted defaults and temporary state paths are not inserted. No separate `brief waiter add` or `set` is needed for these commands. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
+`## Watching` lists one `lemonaid watch` command per line; legacy `## Waiters` remains readable. Edit it with `brief watching add|set|rm` (`brief waiter` is an alias). These lines describe subscriptions, regardless of whether a separate waiter is running.
 
-Use the manual verbs for custom shell waiters and to remove entries when a watch ends permanently:
+List every doc you wrote for someone to read with `lemonaid brief doc add --self <path> "<purpose>"`; `--watch "All edits"` also watches its body. The Watch column accepts `Relay comments` (the default) or `All edits`, not booleans. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
 
-```sh
-lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --repo owner/repo --head abc123 --codex-thread"
-lemonaid brief waiter set --self "wait 12" --head def456
-lemonaid brief waiter set --self "wait 12" "<replacement command>"
-lemonaid brief waiter rm --self "wait 12"
-```
+Read your work's current state first, then arm `lemonaid watch --self`. It reads Watching, PRs (with comments and CI), Docs, your inbox and your children's statuses, and reports all pending sources in one batch. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
-`set` and `rm` match a unique substring of the command, ignoring case. `add` is idempotent. Record actual paths, signatures, heads, and harness flags so a restart can rearm the same watches. A listed command is not proof of a running waiter: start it and confirm it started. Rearm after handling each one-shot event, keeping its entry current.
-
-Claude with an attached brief also keeps `lemonaid inbox watch --self` armed as a background Bash task with `timeout: 2147483647`, and records it here. Handle its message and rearm after each exit, including a harness timeout. Codex needs no inbox waiter: lemonaid's delivery service queues messages into the thread.
-
-Idle lemons wait on one-shot events and end the turn; do not self-poll or schedule repeated wakeups. Use the `watch-doc` and `watch-pr` skills for their harness-specific startup and rearm commands.
+In Claude, run it as a background Bash task (`run_in_background`, `timeout: 2147483647`). In Codex, add bare `--codex-thread` and use an escalated exec_command session. Check `lemonaid watch --self --status` before starting another. Handle the whole batch, then rearm before ending the turn. Stop separate inbox, PR and children waiters before switching. Idle lemons wait on events and never self-poll or schedule repeated wakeups.
 
 ## Check children and finished work
 
-A lemon with children keeps `lemonaid watch briefs --children --self --once` armed and listed in its brief's `## Watching`, and rearms it after each wake; that is how it learns a child's Status changed. `--to` picks which statuses wake it (default `merge` and `done`).
+The unified watcher watches child status changes automatically. Add an explicit `watch briefs --children --self --to <status>` subscription to select destination statuses.
 
 A lead may add a `Name words:` line to its brief header: five- and three-letter words tied to its work, best first (`Name words: audit check ink web`). Its children are named from them (`AuditInk`); `--name-words` on `brief new --child` overrides the line for one child.
 
@@ -126,4 +118,4 @@ lemonaid lemon start <your-session>:<review-window> --harness <claude-or-codex> 
 
 The first command prints an unattached child brief with you as parent; `--parent parent` then starts the reviewer as your sibling, a child of your own parent, and tells that parent in its inbox. With no parent of your own, the reviewer has none either. Use `--parent self` only for a reviewer that should report to you. Add the context the template cannot know: what changed and what needs the hardest check. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session <session>:<window> <file>`.
 
-The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer watching, with no status, until the PR closes. Fill its head and harness flags before arming those waiters. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.
+The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer watching, with no status, until the PR closes. Read the PR and arm `watch --self` for the subscriptions it lists. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.

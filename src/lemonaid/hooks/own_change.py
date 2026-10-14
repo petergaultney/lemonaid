@@ -5,8 +5,7 @@ its file name: an Edit's path, a patch, a shell command), that doc is hashed; on
 changed in between is recorded as the lemon's own edit (own_edits). A change during any
 other call, such as a long test run, is someone else's and still wakes the waiter.
 After a shell call that ran `git push`, each head the push printed is recorded as the
-lemon's own push (own_pushes). The installed command (install.own_change_command) starts
-this only for a session that has run a doc or PR waiter.
+lemon's own push (own_pushes). Attached briefs supply document subscriptions even between one-shot waits.
 """
 
 import json
@@ -15,7 +14,10 @@ import sys
 import typing as ty
 from collections import abc
 
-from ..watch import own_edits, own_pushes
+from ..claude import waiter_check
+from ..config import load_config
+from ..watch import own_edits, own_pushes, subscriptions
+from . import session_gate
 
 
 def _strings(value: ty.Any) -> abc.Iterator[str]:
@@ -38,7 +40,16 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
     writer = f"{harness}-{session_id}"
     call = str(data.get("tool_use_id") or "tool")  # without an ID, calls are assumed sequential
     named = "\n".join(_strings(data.get("tool_input")))
-    for doc in own_edits.watched(own_root, writer):
+    docs = set(own_edits.watched(own_root, writer))
+    path = waiter_check.attached_brief(data, harness)
+    session_gate.mark(own_root, writer, path)
+    if path:
+        for spec in subscriptions.read(
+            path.read_text(), pathlib.Path.cwd(), vaults=tuple(load_config().brief.vaults)
+        ):
+            if spec.kind == "doc":
+                docs.add(pathlib.Path(spec.target[0]))
+    for doc in docs:
         if doc.name not in named:
             continue
 

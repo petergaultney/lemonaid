@@ -52,7 +52,12 @@ def run(a: argparse.Namespace) -> int:
 
     with db.connect() as conn:
         path = attached.by_channel(conn, [channel]).get(channel)
-    if stopped and path is not None and (error := brief_record.forget(path, stopped)):
+    if (
+        stopped
+        and path is not None
+        and not getattr(a, "keep_subscriptions", False)
+        and (error := brief_record.forget(path, stopped))
+    ):
         print(f"Could not update ## Waiters in {path.name}: {error}")
         failed = True
     return 1 if failed else 0
@@ -74,5 +79,10 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("kind", nargs="?", choices=registry.KINDS, help="Stop only this kind")
     parser.add_argument(
         "target", nargs="?", help="Stop only the waiter watching this PR, path or lemon"
+    )
+    parser.add_argument(
+        "--keep-subscriptions",
+        action="store_true",
+        help="Keep declared watches when migrating to watch --self",
     )
     parser.set_defaults(func=_cmd)

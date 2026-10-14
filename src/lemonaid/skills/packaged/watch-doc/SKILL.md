@@ -7,6 +7,10 @@ description: Wait, at zero token cost, for a human to respond to a Markdown docu
 
 You wrote a document; the human reads it in Obsidian and responds with Relay Comments (inline CriticMarkup), or just edits it. This skill is how you wait for that without spending tokens, and how you reply so the conversation stays in the document.
 
+## With an attached brief
+
+Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first, then run the unified watcher as a Claude background task or with `--codex-thread` in an escalated Codex exec_command session. Handle its entire batch and rearm. The standalone commands below remain available.
+
 ## Arguments
 
 `<doc-path>` (absolute). Body edits are reported once the doc has been quiet for 20 seconds (`--quiet` changes it). Pass `--no-edits` only when you want comments alone.

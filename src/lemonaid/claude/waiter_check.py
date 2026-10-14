@@ -1,10 +1,5 @@
-"""Stop hook: a lemon with a brief may not end its turn without its waiters, or with a
-brief `lemonaid brief check` finds broken.
-
-Nothing but the lemon's own background task can wake a Claude session, so a Claude
-lemon that forgets `lemonaid inbox watch --self` never sees its messages. Codex needs no
-inbox waiter, since messages queue into its thread, but a Codex parent still needs its
-children waiter. A brief broken by a hand edit is caught in the turn that broke it.
+"""Stop hook: require the unified watcher for subscribed briefs in both harnesses,
+and catch broken brief edits before the turn ends.
 """
 
 import json
@@ -18,19 +13,14 @@ from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
 from ..log import get_logger
 from ..messages import store, waiter
-from ..watch import children_waiter
+from ..watch import children_waiter, wait_requirements, wait_state
 
 _log = get_logger("claude.waiter_check")
 
-_ARM = (
-    "No inbox waiter is armed for {lemon}. Start `lemonaid inbox watch --self` as a "
-    "background Bash task (run_in_background), list it under `## Waiters` in your brief, "
-    "then end your turn."
-)
-
-
-_WATCH = "You have children and no waiter on them. {reminder} Then end your turn."
-_REMINDERS = {"claude": children_waiter.CLAUDE_REMINDER, "codex": children_waiter.CODEX_REMINDER}
+_ARM = {
+    "claude": "Start `lemonaid watch --self` as a background Bash task (run_in_background, timeout: 2147483647).",
+    "codex": "Start `lemonaid watch --self --codex-thread` as an escalated exec_command session.",
+}
 
 _BROKEN = (
     "`lemonaid brief check --self` finds {brief} broken:\n{problems}\n"
@@ -60,35 +50,24 @@ def attached_brief(data: dict, harness: str = "claude") -> Path | None:
     return path if path is not None and path.is_file() else None
 
 
-def _missing_waiter(path: Path, text: str, grace: float) -> str:
-    if brief.status.split(text).status == "done":
-        return ""
-
+def _missing_waiter(path: Path, text: str, grace: float, harness: str) -> str:
     try:
         lemon_id = brief.identity.read(text)
     except ValueError:
-        lemon_id = ""  # the check reports it
-    if lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
-        return ""
-
-    return _ARM.format(lemon=lemon_id or path.name)
-
-
-def _unwatched_children(text: str, harness: str) -> str:
-    if brief.status.split(text).status == "done":
-        return ""
-
-    try:
-        lemon_id = brief.identity.read(text)
-    except ValueError:
-        return ""
-
+        lemon_id = ""
     with db.connect() as conn:
-        waiting_on = children_waiter.with_briefs(conn, lemon_id)
-    if not waiting_on or children_waiter.is_armed(lemon_id):
+        children = bool(children_waiter.with_briefs(conn, lemon_id)) if lemon_id else False
+    required = wait_requirements.needs_unified(text, children)
+    if brief.status.split(text).status == "done" and not required:
+        return ""
+    if not required and harness == "codex":
+        return ""
+    if lemon_id and wait_state.is_armed(lemon_id, grace):
+        return ""
+    if not required and lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
         return ""
 
-    return _WATCH.format(reminder=_REMINDERS[harness])
+    return f"No unified watcher is armed for {lemon_id or path.name}. Stop separate waiters with `lemonaid watch stop --self --keep-subscriptions` first. {_ARM[harness]} Then end your turn."
 
 
 def _broken(path: Path, text: str) -> str:
@@ -118,8 +97,7 @@ def reason_to_block(data: dict, grace: float, harness: str = "claude") -> str:
     return "\n\n".join(
         reason
         for reason in (
-            ("" if handing_off or harness != "claude" else _missing_waiter(path, text, grace)),
-            _unwatched_children(text, harness),
+            ("" if handing_off else _missing_waiter(path, text, grace, harness)),
             _broken(path, text),
         )
         if reason

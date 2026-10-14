@@ -38,9 +38,10 @@ Codex asks you to trust a new hook the first time it loads it.
 
 `lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
-waking its waiters, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
-(section 3 below), a Stop hook that holds a briefed lemon to its children waiter and a
-working brief, and a SessionStart hook that lists the waiters its brief says to arm. Codex
+waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
+(section 3 below), a Stop hook that requires the unified watcher for subscribed briefs
+and a valid brief, and a SessionStart hook that asks it to arm
+`lemonaid watch --self --codex-thread`. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 

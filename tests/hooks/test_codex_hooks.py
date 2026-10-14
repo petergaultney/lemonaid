@@ -10,7 +10,8 @@ from lemonaid.claude import waiter_check
 from lemonaid.hooks import session_start
 from lemonaid.inbox import db
 from lemonaid.lineage import links
-from lemonaid.watch import children_waiter
+from lemonaid.messages import store, waiter
+from lemonaid.watch import own_edits, wait_state, waiter_lock
 
 _THREAD = "019a0000-1111-2222-3333-444444444444"
 
@@ -48,11 +49,11 @@ def test_a_codex_parent_without_a_children_waiter_is_blocked_with_the_codex_comm
 
     assert blocked is not None
     assert blocked["decision"] == "block"
-    assert children_waiter.CODEX_REMINDER in blocked["reason"]
+    assert "lemonaid watch --self --codex-thread" in blocked["reason"]
 
 
 @pytest.mark.parametrize("harness", ["claude", "codex"])
-def test_session_start_lists_the_briefs_waiters(harness):
+def test_session_start_arms_one_waiter(harness):
     session = _THREAD if harness == "codex" else "abcd1234-0000"
     _briefed(
         channel=f"codex:{_THREAD}" if harness == "codex" else "claude:abcd1234",
@@ -61,9 +62,51 @@ def test_session_start_lists_the_briefs_waiters(harness):
 
     text = session_start.context({"session_id": session}, harness)
 
-    assert "- `lemonaid watch pr --wait 12 --once`" in text
-    assert ("inbox watch --self" in text) is (harness == "claude")
+    assert (own_edits.writer_dir(own_edits.root(), f"{harness}-{session}") / "brief").is_file()
+    assert "lemonaid watch --self" in text
+    assert "--status" in text
+    assert ("--codex-thread" in text) is (harness == "codex")
 
 
 def test_session_start_says_nothing_without_a_brief():
+    marker = own_edits.writer_dir(own_edits.root(), f"codex-{_THREAD}") / "brief"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("previous brief")
     assert session_start.context({"session_id": _THREAD}, "codex") == ""
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+def test_unified_waiter_satisfies_parent_stop_check(monkeypatch, harness):
+    session = _THREAD if harness == "codex" else "abcd1234-0000"
+    channel = f"codex:{_THREAD}" if harness == "codex" else "claude:abcd1234"
+    parent = _briefed(channel=channel)
+    child = brief_store.briefs_dir() / "child.md"
+    child.write_text("# child\n")
+    with db.connect() as conn:
+        links.set_parent(conn, identity.ensure(conn, child), parent)
+    wait_state.lock_path(parent).parent.mkdir(parents=True)
+    with waiter_lock.acquire(wait_state.lock_path(parent)):
+        assert waiter_check.reason_to_block({"session_id": session}, 0, harness) == ""
+
+
+def test_done_sessions_still_get_wait_guidance():
+    _briefed()
+    with db.connect() as conn:
+        path = attached.by_channel(conn, [f"codex:{_THREAD}"])[f"codex:{_THREAD}"]
+    path.write_text(path.read_text().replace("Status: working", "Status: done"))
+    assert "lemonaid watch --self" in session_start.context({"session_id": _THREAD}, "codex")
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+def test_inbox_only_is_not_enough_for_a_brief_with_pr_subscriptions(capsys, harness):
+    session = _THREAD if harness == "codex" else "abcd1234-0000"
+    channel = f"codex:{_THREAD}" if harness == "codex" else "claude:abcd1234"
+    lemon_id = _briefed(
+        channel=channel,
+        body="\n## Watching\n\n- `lemonaid watch pr --wait https://github.com/o/r/pull/12`\n",
+    )
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        reason = waiter_check.reason_to_block({"session_id": session}, 0, harness)
+    assert "lemonaid watch --self" in reason
+    assert "--keep-subscriptions" in reason
