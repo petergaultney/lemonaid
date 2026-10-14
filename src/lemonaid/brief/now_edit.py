@@ -11,7 +11,7 @@ from collections import abc
 from . import layout, store
 
 _FENCE = re.compile(r"(```|~~~)")
-_NAMES = ("Needs", "Running", "Waiting on", "Next", "PRs", "Done")
+_NAMES = ("Needs", "Running", "Waiting on", "Next", "PRs", "Docs", "Done")
 
 
 class EditError(ValueError):

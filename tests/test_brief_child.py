@@ -53,7 +53,7 @@ def test_a_child_brief_has_the_header_and_no_now(capsys, parent):
         f"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Goal\n"
     )
     assert "## Now" not in text
-    assert text.rstrip().endswith("## Waiters")
+    assert text.rstrip().endswith("## Watching")
     assert result["parent"] == _PARENT
 
 

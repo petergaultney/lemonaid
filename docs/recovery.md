@@ -10,9 +10,9 @@ lemonaid lemon doctor --all
 
 It lists lemons that are `deaf` (alive, but with no inbox waiter, so a `tell` to them won't be read) or `dead` (the harness exited). Its facts and their limits are in [for-lemons](for-lemons.md#checking-on-lemons-lemon-doctor). `lemonaid tell` also exits 1 when the recipient won't read the message, and logs it to `dead-letters.jsonl` in the inbox root.
 
-`doctor` does not compare a brief's `## Waiters` with the waiters actually running, or look for a frozen terminal. For a lemon it calls healthy but that has gone quiet:
+`doctor` does not compare a brief's `## Watching` with the waiters actually running, or look for a frozen terminal. For a lemon it calls healthy but that has gone quiet:
 
-1. **Waiters:** for each `lemonaid watch ... --wait X` line in `## Waiters`, look for it in `ps -axww`. Paths can contain spaces, so match the whole string and not its first word.
+1. **Waiters:** for each `lemonaid watch ... --wait X` line in `## Watching`, look for it in `ps -axww`. Paths can contain spaces, so match the whole string and not its first word.
 2. **Frozen input:** `tmux capture-pane -p -t <pane>` shows text sitting after the prompt with no activity. A healthy idle lemon has an empty prompt. Find the pane in the lemon's inbox metadata (`tmux_pane_identity`); a brief's recorded tmux window goes stale when windows are renumbered.
 3. **Unsaved work:** `git status` and `git log @{u}..` in its directory, before resuming it.
 

@@ -1,4 +1,4 @@
-"""The edits to a brief's `## Waiters`: add, replace, or remove one waiter's command.
+"""The edits to a brief's `## Watching`: add, replace, or remove one waiter's command.
 
 Each waiter is a bullet holding its command in backticks. Lines that aren't
 bullets (a note on how to arm them) stay as written, and so does the rest of
@@ -8,7 +8,7 @@ the brief.
 import re
 from collections import abc
 
-_HEADING = re.compile(r"##\s+waiters\s*", re.IGNORECASE)
+_HEADING = re.compile(r"##\s+(?:watching|waiters)\s*", re.IGNORECASE)
 _SECTION = re.compile(r"#{1,2}\s")
 _FENCE = re.compile(r"(```|~~~)")
 _HEAD = re.compile(r"(--head(?:=|\s+))(<[^>]*>|\S+)")
@@ -32,11 +32,14 @@ def _outside_fences(lines: abc.Sequence[str]) -> list[bool]:
 
 
 def command_of(line: str) -> str | None:
-    """The command a `## Waiters` bullet holds, or None for a line that isn't one."""
+    """The command a `## Watching` bullet holds, or None for a line that isn't one."""
     if not line.startswith("- "):
         return None
 
-    return line[2:].strip().strip("`").strip()
+    bullet = line[2:].strip()
+    if span := re.search(r"(`+)(.+?)\1(?=\s|$)", bullet):
+        return span[2].strip()
+    return bullet
 
 
 def _bullet(command: str) -> str:
@@ -53,14 +56,14 @@ def _bullet(command: str) -> str:
 
 
 def _with_body(text: str, change: abc.Callable[[list[str]], list[str]]) -> str:
-    """*text* with the body of `## Waiters` replaced by *change* of it; a missing one goes last."""
+    """*text* with the body of `## Watching` replaced by *change* of it; a missing one goes last."""
     lines = text.rstrip("\n").splitlines()
     outside = _outside_fences(lines)
     start = next(
         (i for i, line in enumerate(lines) if outside[i] and _HEADING.fullmatch(line)), None
     )
     if start is None:
-        return "\n".join([*lines, "", "## Waiters", *change([])]) + "\n"
+        return "\n".join([*lines, "", "## Watching", *change([])]) + "\n"
 
     end = next(
         (i for i in range(start + 1, len(lines)) if outside[i] and _SECTION.match(lines[i])),
@@ -94,14 +97,14 @@ def _the_one(body: abc.Sequence[str], match: str) -> int:
         return found[0]
 
     if not found:
-        raise EditError(f"No waiter in ## Waiters contains {match!r}")
+        raise EditError(f"No waiter in ## Watching contains {match!r}")
 
     shown = " | ".join(commands[i] for i in found)
     raise EditError(f"{len(found)} waiters contain {match!r}; use more of one: {shown}")
 
 
 def commands(text: str) -> list[str]:
-    """The command of each waiter listed under `## Waiters` in *text*, in order."""
+    """The command of each waiter listed under `## Watching` in *text*, in order."""
     found: list[str] = []
 
     def collect(body: list[str]) -> list[str]:
@@ -113,7 +116,7 @@ def commands(text: str) -> list[str]:
 
 
 def add(text: str, command: str) -> str:
-    """*text* with *command* listed under `## Waiters`; listing it again changes nothing."""
+    """*text* with *command* listed under `## Watching`; listing it again changes nothing."""
     line = _bullet(command)
 
     def change(body: list[str]) -> list[str]:
@@ -122,7 +125,7 @@ def add(text: str, command: str) -> str:
             return body
 
         if sum(1 for existing in body if _FENCE.match(existing)) % 2:
-            raise EditError("## Waiters has a code fence that is never closed")
+            raise EditError("## Watching has a code fence that is never closed")
 
         last = max((i for i, existing in enumerate(body) if existing.strip()), default=-1)
         gap = [""] if last >= 0 and last not in commands else []

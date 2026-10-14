@@ -8,7 +8,7 @@ import shlex
 import tempfile
 from collections import abc
 
-from ..brief import attached, identity, lemon, store, verbs_cli, waiters
+from ..brief import attached, doc_table, identity, lemon, store, verbs_cli, waiters
 from ..inbox import db
 from ..inbox.channel import full_channel_id
 from . import record_context, registry
@@ -172,7 +172,16 @@ def record(a: argparse.Namespace, kind: str, thread: str = "", repo: str = "") -
             context_path = _context_path(path)
             contexts = record_context.load(context_path)
             error = verbs_cli.edit(
-                path, lambda text: _upsert(text, command, repo, contexts), preserve_existing=True
+                path,
+                lambda text: doc_table.add(
+                    _upsert(text, command, repo, contexts),
+                    a.wait.expanduser(),
+                    "Watched document",
+                    getattr(a, "edits", False),
+                )
+                if kind == "doc" and a.wait
+                else _upsert(text, command, repo, contexts),
+                preserve_existing=True,
             )
             if error:
                 return error

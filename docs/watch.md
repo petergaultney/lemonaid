@@ -278,7 +278,7 @@ for the next waiter. This state is separate from document, PR, and external brie
 
 ## Recording watches in a brief
 
-When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically record their restartable command in its final `## Waiters` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
+When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
 
 The entry survives one-shot events, interrupted waits, and delivery failures so it can be rearmed. `lemonaid watch stop --self` removes it along with the waiter it stops (see below); for a waiter that already exited, remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch ends permanently. The manual `add` and `set` verbs remain available for custom shell waiters. With no attached brief, watching works as before without recording; a failed write to an attached brief prevents startup and reports the error. Status queries, document edit markers, and refused duplicate waits never change the brief.
 
@@ -290,6 +290,18 @@ lemonaid watch stop --self pr 12        # one kind and target: a PR number, a pa
 lemonaid watch stop --self inbox        # your `lemonaid inbox watch --self`
 ```
 
-While it runs, each waiter (`inbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Waiters`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
+While it runs, each waiter (`inbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Watching`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
 
 A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter it was, who stopped it and the command that rearms it, then exits 143. Who is the lemon and pid that ran `watch stop`, or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness; the lemonaid log records the same line. Never `pkill -f` a waiter command: the pattern matches every lemon's waiter on the machine.
+
+## A brief's subscriptions
+
+New briefs use `## Watching`; older `## Waiters` sections still work. Add or remove
+subscription commands with `lemonaid brief watching add|rm --self` (`brief waiter`
+remains an alias).
+
+Documents written for someone to read belong under `### Docs` in `## Now`, beside
+`### PRs`. `lemonaid brief doc add --self /path/to/doc.md "Design discussion"`
+adds a row; `--edits` also subscribes to body edits. `brief doc rm --self <path>`
+removes it. An `Output-Doc:` header supplies the first row. Starting `watch doc`
+records the doc too. `brief check` warns about linked vault documents without a row.

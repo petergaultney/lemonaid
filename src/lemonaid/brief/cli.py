@@ -14,6 +14,7 @@ from ..inbox.tui.briefs import brief_popup
 from . import (
     attached,
     dismiss,
+    docs_cli,
     family,
     handoff_cli,
     lemon,
@@ -240,6 +241,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.set_defaults(func=cmd_show)
 
+    docs_cli.add_parser(brief_subparsers)
     write_cli.add_parsers(brief_subparsers)
     handoff_cli.add_parser(brief_subparsers)
 

@@ -18,9 +18,9 @@ A comment counts when it is in any review thread, including outdated and resolve
 
 For quieter waits, use `--skip-outdated` and/or `--skip-resolved`, or set `skip_outdated = true` and/or `skip_resolved = true` under `[watch.pr]` in the lemonaid config. Both default to false. `--no-skip-outdated` and `--no-skip-resolved` override configured filters for one wait. These filters apply only to review threads.
 
-## Waiters in your brief
+## Watching in your brief
 
-With an attached brief, the watch command automatically records its restartable command under the final `## Waiters` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
+With an attached brief, the watch command automatically records its restartable command under the final `## Watching` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
 
 Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
 

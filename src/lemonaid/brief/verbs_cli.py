@@ -16,7 +16,18 @@ from pathlib import Path
 from .. import obsidian
 from ..config import load_config
 from ..inbox import db
-from . import check, command, layout, links, now_edit, pr, pr_table, status_guide, store, waiters
+from . import (
+    check,
+    command,
+    layout,
+    links,
+    now_edit,
+    pr,
+    pr_table,
+    status_guide,
+    store,
+    watching_cli,
+)
 
 
 def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: bool = False) -> str:
@@ -49,7 +60,7 @@ def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: boo
     return ""
 
 
-def _edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
+def edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
     path, error = command.own_brief(args)
     if path:
         error = edit(path, change)
@@ -58,7 +69,7 @@ def _edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
 
 def _cmd_now(args: argparse.Namespace) -> None:
     text = sys.stdin.read() if args.markdown == "-" else args.markdown
-    _edited(args, lambda brief: now_edit.with_now(brief, layout.parse(text)))
+    edited(args, lambda brief: now_edit.with_now(brief, layout.parse(text)))
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -69,23 +80,23 @@ def _cmd_status(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
     state = store.CLEAR if args.state in store.RETIRED else args.state
-    _edited(args, lambda brief: store.with_status(brief, state))
+    edited(args, lambda brief: store.with_status(brief, state))
 
 
 def _cmd_bullet(args: argparse.Namespace) -> None:
     vaults = load_config().brief.vaults
     if args.verb == "add":
-        _edited(
+        edited(
             args,
             lambda brief: now_edit.add(brief, args.heading, links.linkify(args.text, vaults)),
         )
     elif args.verb == "set":
-        _edited(
+        edited(
             args,
             lambda brief: now_edit.replace(brief, args.lead, links.linkify(args.text, vaults)),
         )
     else:
-        _edited(args, lambda brief: now_edit.remove(brief, args.lead))
+        edited(args, lambda brief: now_edit.remove(brief, args.lead))
 
 
 def _review(review: str, vaults: abc.Collection[Path]) -> tuple[str, str]:
@@ -102,7 +113,7 @@ def _review(review: str, vaults: abc.Collection[Path]) -> tuple[str, str]:
 
 def _cmd_pr(args: argparse.Namespace) -> None:
     if args.verb == "rm":
-        _edited(
+        edited(
             args,
             lambda brief: now_edit.with_section(
                 brief, "PRs", lambda body: pr_table.without(body, args.ref)
@@ -117,7 +128,7 @@ def _cmd_pr(args: argparse.Namespace) -> None:
         command.finish(args, {"path": None}, error or review_error)
         return
 
-    _edited(
+    edited(
         args,
         lambda brief: now_edit.with_section(
             brief,
@@ -125,15 +136,6 @@ def _cmd_pr(args: argparse.Namespace) -> None:
             lambda body: pr_table.with_row(body, url, args.work, review if args.review else None),
         ),
     )
-
-
-def _cmd_waiter(args: argparse.Namespace) -> None:
-    if args.verb == "add":
-        _edited(args, lambda brief: waiters.add(brief, args.command))
-    elif args.verb == "set":
-        _edited(args, lambda brief: waiters.replace(brief, args.match, args.command, args.head))
-    else:
-        _edited(args, lambda brief: waiters.remove(brief, args.match))
 
 
 def _verbs(
@@ -144,6 +146,7 @@ def _verbs(
 
 
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
+    watching_cli.add_parser(brief_subparsers)
     now = command.parser(brief_subparsers, "now", "Replace the `## Now` section of a lemon's brief")
     now.add_argument("markdown", help="The new section body; - reads it from stdin")
     now.set_defaults(func=_cmd_now)
@@ -188,20 +191,3 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     remove = verb("rm", "Remove the row for a PR")
     remove.add_argument("ref", help="The PR's URL, or its number when only one row has it")
     prs.set_defaults(func=_cmd_pr)
-
-    waiter = brief_subparsers.add_parser(
-        "waiter",
-        help="Add, replace, or remove one waiter's command in a lemon's `## Waiters`",
-        description="A missing `## Waiters` is added as the last section. SET and RM name a "
-        "waiter by part of its command, case ignored, and refuse unless exactly one matches.",
-    )
-    verb = _verbs(waiter, "verb")
-    add = verb("add", "List a waiter's command; listing it again changes nothing")
-    add.add_argument("command")
-    replace = verb("set", "Replace the one waiter whose command contains MATCH")
-    replace.add_argument("match")
-    replace.add_argument("command", nargs="?", default="", help="The new command")
-    replace.add_argument("--head", default="", help="Keep the command, with this `--head`")
-    remove = verb("rm", "Remove the one waiter whose command contains MATCH")
-    remove.add_argument("match")
-    waiter.set_defaults(func=_cmd_waiter)

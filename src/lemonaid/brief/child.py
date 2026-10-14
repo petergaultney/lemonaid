@@ -17,6 +17,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home, obsidian, pr_url
+from . import doc_table
 
 PACKAGED_DIR = Path(__file__).parent / "templates"
 
@@ -119,7 +120,7 @@ def render(
         raise Problem(f"The template has a stray $: {cause}") from None
 
     where = f" ({parent_session})" if parent_session else ""
-    return "\n".join(
+    rendered = "\n".join(
         [
             f"# {title}",
             "",
@@ -133,3 +134,5 @@ def render(
             "",
         ]
     )
+
+    return doc_table.add(rendered, Path(output_doc), "Output document") if output_doc else rendered

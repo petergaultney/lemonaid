@@ -6,8 +6,9 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from ..config import load_config
 from ..inbox import db
-from . import active_names, attached, check, command, identity, selector, store
+from . import active_names, attached, check, command, doc_warnings, identity, selector, store
 
 
 def _live_briefs() -> list[tuple[Path, str]]:
@@ -30,7 +31,10 @@ def _warnings(conn: sqlite3.Connection, path: Path) -> list[str]:
         return []  # problems() reports it
 
     warning = active_names.warning(lemon_id, active_names.sharing(conn, lemon_id))
-    return [warning] if warning else []
+    return [
+        *([warning] if warning else []),
+        *doc_warnings.warnings(path.read_text(), load_config().brief.vaults),
+    ]
 
 
 def _cmd_check(args: argparse.Namespace) -> None:

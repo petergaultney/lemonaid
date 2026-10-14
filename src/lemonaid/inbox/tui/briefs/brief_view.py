@@ -11,6 +11,7 @@ import urllib.parse
 from collections import abc
 from pathlib import Path
 
+from markdown_it import MarkdownIt
 from markdown_it.token import Token
 from rich.text import Text
 from textual.binding import Binding, BindingsMap
@@ -18,14 +19,17 @@ from textual.containers import VerticalScroll
 from textual.content import Content, Span
 from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
-from textual.widgets._markdown import MarkdownBlock  # no public name
+from textual.widgets._markdown import (  # no public name
+    MarkdownBlock,
+    MarkdownTable,
+)
 
 from ....brief import attached, family, links, pr, questions, render, target
 from ....config import KeybindingsConfig, PlaceRoot
 from ....log import get_logger
 from ... import db, turns
 from .. import utils
-from . import brief_detail, brief_questions
+from . import brief_detail, brief_questions, brief_tables
 
 _log = get_logger("tui.brief_view")
 _OPENER = ["open"] if sys.platform == "darwin" else ["xdg-open"]
@@ -156,11 +160,37 @@ def _linked_block(block: type[MarkdownBlock]) -> type[MarkdownBlock]:
     return type(block.__name__, (block,), {"_token_to_content": _token_to_content})
 
 
+class _BriefTable(_linked_block(MarkdownTable)):
+    def compose(self):
+        headers, rows = self._get_headers_and_rows()
+        self._headers, self._rows = headers, rows
+        yield brief_tables.content(headers, rows)
+
+
+class _BriefParser(MarkdownIt):
+    def __init__(self) -> None:
+        super().__init__("gfm-like")
+
+    def validateLink(self, url: str) -> bool:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme.lower() == "file":
+            return parsed.netloc in {"", "localhost"} and parsed.path.startswith("/")
+        return super().validateLink(url)
+
+
 class _Markdown(Markdown):
     """Markdown whose links open in their own app, from any block: a heading, paragraph or table cell."""
 
+    def __init__(self, markdown: str | None = None, **kwargs) -> None:
+        kwargs.setdefault("parser_factory", _BriefParser)
+        super().__init__(markdown, **kwargs)
+
     def get_block_class(self, block_name: str) -> type[MarkdownBlock]:
-        return _linked_block(super().get_block_class(block_name))
+        return (
+            _BriefTable
+            if block_name == "table_open"
+            else _linked_block(super().get_block_class(block_name))
+        )
 
     def on_markdown_link_clicked(self, event: Markdown.LinkClicked) -> None:
         event.prevent_default()

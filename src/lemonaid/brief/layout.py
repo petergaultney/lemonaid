@@ -12,7 +12,7 @@ import dataclasses
 import re
 from collections import abc
 
-ORDER = ("needs", "running", "waiting on", "next", "prs", "done")
+ORDER = ("needs", "running", "waiting on", "next", "prs", "docs", "done")
 
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)
 _SECTION = re.compile(r"#{1,2}\s")

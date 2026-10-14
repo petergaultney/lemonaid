@@ -151,7 +151,7 @@ lemonaid usage --watch
 
 Each prints what woke it and exits. Read it, act, and rearm the same command.
 
-Run them as tracked background tasks of the harness, with `timeout: 2147483647` for Claude. A detached process (`nohup`, `&`, `disown`) won't wake the lemon, and the Stop hook can't tell it is running. If one stops, rearm it. Lemonaid records `watch` waiters under `## Waiters` in the brief when they start. List the others there yourself with `lemonaid brief waiter add --self "<command>"`, since `restore` rearms only what the brief lists.
+Run them as tracked background tasks of the harness, with `timeout: 2147483647` for Claude. A detached process (`nohup`, `&`, `disown`) won't wake the lemon, and the Stop hook can't tell it is running. If one stops, rearm it. Lemonaid records `watch` waiters under `## Watching` in the brief when they start. List the others there yourself with `lemonaid brief waiter add --self "<command>"`, since `restore` rearms only what the brief lists.
 
 The Stop hook accepts any running `watch briefs --children` waiter, including the `--orphans` form. It does not check which statuses it wakes on. Details: [watch](watch.md#watching-childrens-briefs) and [usage](usage.md).
 

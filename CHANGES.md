@@ -1,3 +1,13 @@
+# 0.113.0 (2026-10-13)
+
+#### Added
+
+- Briefs list document subscriptions in `### Docs`, with `brief doc add|rm` and a Watch enum: `Relay comments` or `All edits`. `Output-Doc:` supplies the first row, and starting `watch doc` records its document. Document cells use short clickable filename labels in the inbox viewer, including backticked paths: vault documents use Obsidian and other paths use file URLs. The viewer reserves width for Watch modes and preserves links across wrapped lines; document edits refuse to rewrite invalid tables.
+
+#### Changed
+
+- `## Watching` replaces `## Waiters` in new briefs and templates. Both headings remain readable; `brief watching` edits subscriptions, with `brief waiter` kept as an alias.
+
 # 0.112.0 (2026-10-14)
 
 #### Changed

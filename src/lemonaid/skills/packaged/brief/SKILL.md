@@ -62,7 +62,7 @@ Leave the Review cell empty if no review doc exists. Remove a row once its PR me
 
 `## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels.
 
-The worker owns `Status:`, `## Now`, `## Questions`, `## Executive Summary of Results`, and `## Waiters`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Waiters` last, after those sections. The title names the task itself, without a "Brief:" prefix.
+The worker owns `Status:`, `## Now`, `## Questions`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
 
 Before setting `Status: done`, fill `## Executive Summary of Results` with a concise account of the outcome: at most 1–3 paragraphs, plus any absolutely critical table. This summary belongs in the brief even when the full output lives elsewhere. For a review brief, put the verdict here. `brief check` warns if a done brief has this heading but leaves it empty; it does not block the status edit, and older briefs without the heading remain valid.
 
@@ -86,7 +86,7 @@ In Codex, use the verbs to update a brief outside your workspace. Whether they r
 
 ## Record and rearm waiters
 
-With an attached brief, `lemonaid watch doc`, `pr`, `file`, and `briefs` automatically record their restartable command under the final `## Waiters` after startup checks pass. Rearming updates the same entry, including a PR’s head and flags. The saved command keeps the supplied arguments, including `--self`; omitted defaults and temporary state paths are not inserted. No separate `brief waiter add` or `set` is needed for these commands. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
+With an attached brief, `lemonaid watch doc`, `pr`, `file`, and `briefs` automatically record their restartable command under the final `## Watching` after startup checks pass. Rearming updates the same entry, including a PR’s head and flags. The saved command keeps the supplied arguments, including `--self`; omitted defaults and temporary state paths are not inserted. No separate `brief waiter add` or `set` is needed for these commands. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
 
 Use the manual verbs for custom shell waiters and to remove entries when a watch ends permanently:
 
@@ -105,7 +105,7 @@ Idle lemons wait on one-shot events and end the turn; do not self-poll or schedu
 
 ## Check children and finished work
 
-A lemon with children keeps `lemonaid watch briefs --children --self --once` armed and listed in its brief's `## Waiters`, and rearms it after each wake; that is how it learns a child's Status changed. `--to` picks which statuses wake it (default `merge` and `done`).
+A lemon with children keeps `lemonaid watch briefs --children --self --once` armed and listed in its brief's `## Watching`, and rearms it after each wake; that is how it learns a child's Status changed. `--to` picks which statuses wake it (default `merge` and `done`).
 
 A lead may add a `Name words:` line to its brief header: five- and three-letter words tied to its work, best first (`Name words: audit check ink web`). Its children are named from them (`AuditInk`); `--name-words` on `brief new --child` overrides the line for one child.
 

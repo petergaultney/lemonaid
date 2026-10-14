@@ -8,9 +8,10 @@ import pytest
 import rich.console
 import rich.markdown
 from textual.app import App, ComposeResult
+from textual.geometry import Region
 from textual.widgets._markdown import MarkdownH2, MarkdownParagraph, MarkdownTableCellContents
 
-from lemonaid.brief import links
+from lemonaid.brief import doc_table, links
 from lemonaid.inbox.tui.briefs import brief_view
 
 _VAULTS = (Path.home() / "work/vault", Path.home() / "trove")
@@ -214,3 +215,162 @@ def test_a_heading_link_is_a_terminal_hyperlink_and_opens_as_written(monkeypatch
 
     assert asyncio.run(check()) == [review]
     assert [argv[-1] for argv in opened] == [review]
+
+
+@pytest.mark.parametrize("backticks", [False, True])
+def test_document_path_cells_link_to_vault_or_file_urls(tmp_path, backticks):
+    vault = tmp_path / "notes"
+    paths = [vault / "a doc.md", tmp_path / "other [draft].html"]
+    for path in paths:
+        cell = f"`{path}`" if backticks else str(path)
+        source = f"### Docs\n\n| Document | Purpose | Watch |\n|---|---|---|\n| {cell} | Design | All edits |\n"
+        linked = links.linkify(source, [vault])
+        target = "obsidian://open?vault=notes&file=a%20doc" if path == paths[0] else path.as_uri()
+        assert target in linked
+        assert links.linkify(linked, [vault]) == linked
+
+
+@pytest.mark.parametrize("generated", [False, True])
+def test_docs_cells_are_terminal_links_and_click_the_correct_opener(
+    tmp_path, monkeypatch, generated
+):
+    vault = tmp_path / "notes"
+    paths = [vault / "a doc.md", tmp_path / "outside file.html"]
+    targets = ["obsidian://open?vault=notes&file=a%20doc", paths[1].as_uri()]
+    if generated:
+        source = "\n".join(
+            doc_table.render([doc_table.Row(path, "Review") for path in paths], [vault])
+        )
+    else:
+        source = "| Document | Purpose | Watch |\n|---|---|---|\n" + "\n".join(
+            f"| `{path}` | Review | Relay comments |" for path in paths
+        )
+    opened = []
+    monkeypatch.setattr(
+        brief_view.subprocess, "Popen", lambda argv, **kwargs: opened.append(argv[-1])
+    )
+
+    class Show(App):
+        def compose(self):
+            yield brief_view._Markdown(links.linkify(source, [vault]))
+
+    async def check():
+        app = Show()
+        async with app.run_test(size=(240, 12)) as pilot:
+            await pilot.pause()
+            found = []
+            for cell in app.query(MarkdownTableCellContents):
+                urls = [
+                    span.style.link
+                    for span in cell.content.spans
+                    if getattr(span.style, "link", None)
+                ]
+                if urls:
+                    found.extend(urls)
+                    await pilot.click(cell, offset=(2, 0))
+                    await pilot.pause()
+            return found
+
+    assert asyncio.run(check()) == targets
+    assert opened == targets
+
+
+def test_long_document_path_uses_a_short_label_without_changing_its_target(tmp_path):
+    path = tmp_path / ("deep/" * 12) / ("long-document-name-" * 6 + ".md")
+    source = "\n".join(
+        doc_table.render([doc_table.Row(path, "Explain defaults", doc_table.Watch.ALL_EDITS)])
+    )
+    linked = links.linkify(source, ())
+    assert path.as_uri() in linked
+    label = re.search(r"\[([^]]+)\]", linked)[1]
+    assert len(label) <= 40 and label.endswith("…")
+    assert links.linkify(linked, ()) == linked
+
+
+def test_docs_table_has_readable_columns_at_sidebar_width(tmp_path):
+    path = tmp_path / ("deep/" * 12) / "theory-of-operation.md"
+    source = "\n".join(
+        doc_table.render(
+            [
+                doc_table.Row(
+                    path,
+                    "Routing caveats, event fixes and draft review notes",
+                    doc_table.Watch.ALL_EDITS,
+                )
+            ]
+        )
+    )
+
+    class Show(App):
+        def compose(self):
+            yield brief_view._Markdown(links.linkify(source, ()))
+
+    async def check():
+        app = Show()
+        async with app.run_test(size=(80, 20)) as pilot:
+            await pilot.pause()
+            cells = list(app.query(MarkdownTableCellContents))
+            return {str(cell.content): cell.size.width for cell in cells}
+
+    widths = asyncio.run(check())
+    assert widths["Purpose"] >= 15
+    assert widths["Watch"] >= len("All edits")
+    assert max(widths.values()) < 60
+
+
+@pytest.mark.parametrize("mode", list(doc_table.Watch))
+def test_wrapped_document_link_clicks_on_each_line(tmp_path, monkeypatch, mode):
+    path = tmp_path / ("deep/" * 12) / "Design notes for unified notifications.md"
+    source = "\n".join(
+        doc_table.render(
+            [
+                doc_table.Row(
+                    path,
+                    "Routing caveats and event fixes for the draft review",
+                    mode,
+                )
+            ]
+        )
+    )
+    opened = []
+    monkeypatch.setattr(
+        brief_view.subprocess, "Popen", lambda argv, **kwargs: opened.append(argv[-1])
+    )
+
+    class Show(App):
+        def compose(self):
+            yield brief_view._Markdown(links.linkify(source, ()))
+
+    async def check():
+        app = Show()
+        async with app.run_test(size=(60, 20)) as pilot:
+            await pilot.pause()
+            cell = next(
+                cell
+                for cell in app.query(MarkdownTableCellContents)
+                if "Design" in str(cell.content)
+            )
+            assert cell.size.height > 1
+            assert cell.tooltip == path.as_uri()
+            await pilot.click(cell, offset=(2, 0))
+            await pilot.pause()
+            await pilot.click(cell, offset=(2, 1))
+            await pilot.pause()
+            watch = next(
+                cell
+                for cell in app.query(MarkdownTableCellContents)
+                if str(cell.content) == mode.value
+            )
+            assert watch.size.width >= len(mode.value) + 2
+            watch_lines = watch.render_lines(Region(0, 0, watch.size.width, watch.size.height))
+            assert any(mode.value in line.text for line in watch_lines)
+            lines = cell.render_lines(Region(0, 0, cell.size.width, cell.size.height))
+            urls = [
+                [segment.style.link for segment in line if segment.style and segment.style.link]
+                for line in lines
+            ]
+            assert sum(bool(line) for line in urls) >= 2
+            assert {url for line in urls for url in line} == {path.as_uri()}
+
+    asyncio.run(check())
+    assert opened == [path.as_uri(), path.as_uri()]

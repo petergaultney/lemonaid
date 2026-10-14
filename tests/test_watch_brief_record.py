@@ -63,7 +63,7 @@ def test_pr_rearm_replaces_head_and_flags_without_touching_other_commands(brief,
     assert "--head 1234567" in command and "abcdef0" not in command
     assert "--legacy 'Old Author'" in command
     assert "sh /tmp/custom.sh" in commands
-    assert before.split("## Waiters")[0] == brief.read_text().split("## Waiters")[0]
+    assert before.split("## Watching")[0] == brief.read_text().split("## Watching")[0]
 
 
 def test_relative_paths_and_bare_codex_thread_are_preserved(brief, tmp_path, monkeypatch):

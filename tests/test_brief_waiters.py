@@ -48,7 +48,7 @@ def test_a_missing_section_is_added_last():
 
     out = waiters.add(without, "lemonaid inbox watch --self")
 
-    assert out.endswith("The thing exists.\n\n## Waiters\n- `lemonaid inbox watch --self`\n")
+    assert out.endswith("The thing exists.\n\n## Watching\n- `lemonaid inbox watch --self`\n")
     assert check.structure(out) == []
 
 
@@ -162,3 +162,9 @@ def test_commands_lists_each_waiter_in_order():
 
 def test_a_brief_with_no_waiters_section_lists_no_commands():
     assert waiters.commands("# the task\n\nStatus: working\n") == []
+
+
+def test_watching_is_read_and_preserved():
+    text = _BRIEF.replace("## Waiters", "## Watching")
+    assert waiters.commands(text) == waiters.commands(_BRIEF)
+    assert "## Watching" in waiters.add(text, "x")

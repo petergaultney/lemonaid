@@ -19,9 +19,9 @@ Reply blocks look like `{{authorId="<id>" author="<name>">>...<<}}`. Relay shows
 
 If `--me` and the `author` of your reply blocks differ, the waiter sees your own replies as unanswered and wakes you on them.
 
-## Waiters in your brief
+## Watching in your brief
 
-With an attached brief, the watch command automatically records its restartable command under the final `## Waiters` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
+With an attached brief, the watch command automatically records its restartable command under the final `## Watching` after startup checks pass. The command keeps the supplied arguments without injecting defaults or temporary state paths. Rearming updates the same entry, including the head and flags; you do not need a separate `brief waiter add` or `set`. Confirm it is running with `--status`: a saved command can remain while a one-shot waiter has exited.
 
 Keep the entry across one-shot events while you handle them and rearm. When the watch ends permanently, remove it with `lemonaid brief waiter rm --self "<unique command substring>"`. Without an attached brief, the command watches normally without recording. With `--codex-thread`, recording uses the recipient thread’s attached brief; otherwise it uses the caller’s attached brief.
 
@@ -99,7 +99,7 @@ A doc outside your workspace needs the same escalated permissions as any other e
 
 ## Stopping
 
-Only a human telling you the document conversation is over ends the watch. Stop the waiter (`lemonaid watch stop --self doc <doc>`, which also removes it from your brief's `## Waiters`; in OpenClaw, `lemonaid watch openclaw stop <doc>`), then confirm `--status` says `no waiter running`. A "thanks" or one answered question does not end the watch; the human may keep commenting.
+Only a human telling you the document conversation is over ends the watch. Stop the waiter (`lemonaid watch stop --self doc <doc>`, which also removes it from your brief's `## Watching`; in OpenClaw, `lemonaid watch openclaw stop <doc>`), then confirm `--status` says `no waiter running`. A "thanks" or one answered question does not end the watch; the human may keep commenting.
 
 ## Notes
 

@@ -363,7 +363,7 @@ for a lemon that has since started.
 | `pane` | `empty prompt`, `dialog: <what>`, or `other`, from a capture of its tmux pane | `other` covers working, a draft, and a permission prompt alike |
 | `exited_at`, `exit_reason` | The `SessionEnd` hook (`claude hooks --session-end`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; missing when the hook isn't installed, for Codex, and for a session that was killed or crashed |
 | `last_activity` | The transcript file's last write | A lemon waiting on a long process writes nothing |
-| `waiters_listed`, `waiters_running` | The brief's `## Waiters` bullets, and the waiters registered under its channel | Listed commands are as written, so compare them by hand |
+| `waiters_listed`, `waiters_running` | The brief's `## Watching` bullets, and the waiters registered under its channel | Listed commands are as written, so compare them by hand |
 | `messages_queued` | Unread messages in its inbox | |
 | `recent_starts` | Starts by autoresume or `lemon resume` within `autoresume_window` | |
 
@@ -498,7 +498,7 @@ lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one b
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
-lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --head a1b2c3d --once"  # a bullet in ## Waiters
+lemonaid brief waiter add --self "lemonaid watch pr --wait 12 --head a1b2c3d --once"  # a bullet in ## Watching
 lemonaid brief waiter set --self "wait 12" --head e4f5a6b  # rearm: the same waiter on a new head
 lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
@@ -698,7 +698,7 @@ still works and warns; templates must use `$output_doc*` now.
 A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a
 literal `$`). Lemonaid packages two:
 
-- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, `## Executive Summary of Results` and `## Waiters`.
+- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, `## Executive Summary of Results` and `## Watching`.
 - `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
   findings only in the `--output-doc` (linked into Obsidian when it is under a `[brief] vaults`
   root), the rule to keep watching, with no status, until the PR merges or closes, the `git range-diff`
@@ -789,12 +789,12 @@ link unless `--review` gives a new one. `--review` takes a URL or a `.md` path u
 `[brief] vaults` root, which becomes an `obsidian://` link.
 
 With an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically
-record their commands as invoked under `## Waiters` after startup checks pass, without
+record their commands as invoked under `## Watching` after startup checks pass, without
 inserting omitted defaults or temporary state paths. Rearms update
 the same entry; it stays across one-shot events. With `--codex-thread`, recording uses the
 recipient thread’s attached brief; otherwise it uses the caller’s brief. Use `brief waiter add` and `set` for custom
 commands, and `rm` when any watch ends permanently. Each waiter is a bullet holding
-its command in backticks. A missing `## Waiters` is added as the last section, and notes in it
+its command in backticks. A missing `## Watching` is added as the last section, and notes in it
 that aren't bullets stay as written. `set` and `rm` name a waiter by any part of its command,
 case ignored, and fail unless exactly one matches, listing the ones that do. `set --head <sha>`
 keeps the command and changes its `--head` (filling a `<head SHA>` placeholder, or adding the
@@ -809,7 +809,7 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 - `## Now` sub-headings out of order, repeated, empty, or without a blank line above and below;
 - a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
   or that has no rows;
-- a `## Waiters` section that is not last;
+- a `## Watching` section that is not last;
 - no `Parent:` line, when the database records a parent for the brief;
 - a `Groups:` line that doesn't name the groups the database records for the brief;
 - with `--all`, an attached brief whose file is gone.
@@ -817,7 +817,7 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
 `status`, `bullet`, `pr`, `waiter`) runs it on the result and refuses the edit if it finds
 anything, listing what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
-`Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Waiters` or a
+`Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Watching` or a
 wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
 way the other verbs do. The verbs never drop a `Parent:` line, and refuse an edit that
 would, but they still edit a brief that has already lost one. A `Parent:`, `Area:` or `Groups:` line given to
@@ -950,7 +950,7 @@ described in [Codex setup](codex.md#3-allow-brief-and-message-commands-under-the
 ### Stopping your waiters
 
 `lemonaid watch stop --self` stops every waiter you started (`inbox watch`, `watch pr`,
-`doc`, `file` and `briefs`) and removes each from your brief's `## Waiters`. Name one to stop
+`doc`, `file` and `briefs`) and removes each from your brief's `## Watching`. Name one to stop
 only that: `lemonaid watch stop --self pr 12`, `... doc <path>`, `... inbox`. Each waiter
 registers under your channel while it runs and holds that entry locked, so `stop` signals
 only processes that are still your waiters. A waiter started before lemonaid 0.90.1 isn't
@@ -1042,3 +1042,17 @@ user adds their conventions in:
 ## Direct lemon links
 
 Run `lemonaid go <Lemon-ID | channel>` to switch to a lemon's recorded tmux pane. `lemonaid go <target> --link` prints an OSC 8 hyperlink to `lemonaid://go/<target>` without jumping. In Markdown, use `[go to the lemon](lemonaid://go/<Lemon-ID>)`. A registered URL handler is required for clicks; see [Jump to a lemon](go.md) for macOS setup and the client-selection rule. `--client NAME` chooses an exact attached tmux client when several are available.
+
+### Document subscriptions
+
+List each document you wrote for someone to read in `### Docs` under `## Now`:
+
+```sh
+lemonaid brief doc add --self /path/to/document.md "Purpose" [--edits]
+lemonaid brief doc rm --self /path/to/document.md
+lemonaid brief watching add --self "lemonaid watch doc --wait /path/to/document.md --me 'Author (Name)'"
+```
+
+The table has Document, Purpose and Edits columns; Edits is yes or no. `Output-Doc:`
+supplies the first row. New briefs use `## Watching` for subscriptions; the old
+`## Waiters` heading and `brief waiter` verbs still work.
