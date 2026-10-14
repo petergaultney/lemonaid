@@ -31,6 +31,18 @@ def _pushed(path: Path, session_id: str) -> bool:
     )
 
 
+def _not_pushing(path: Path, session_id: str, harness: str) -> str:
+    try:
+        lemon_id = brief.identity.read(path.read_text())
+    except (OSError, ValueError):
+        return ""
+
+    notice = (
+        push_scout.not_pushing(session_id, lemon_id) if harness == "claude" and lemon_id else ""
+    )
+    return f"{notice} " if notice else ""
+
+
 def context(data: dict, harness: str) -> str:
     path = waiter_check.attached_brief(data, harness)
     if session := data.get("session_id"):
@@ -48,7 +60,8 @@ def context(data: dict, harness: str) -> str:
         )
 
     return (
-        f"Your brief is {path}. Read it and the current state of your work first. "
+        _not_pushing(path, session or "", harness)
+        + f"Your brief is {path}. Read it and the current state of your work first. "
         f"Check `lemonaid watch --self --status`; if none is running, {_ARM[harness]} "
         "It reads your Watching section, PRs, Docs, children and inbox, reports every pending "
         "change together, and exits. Handle the whole batch and rearm it before ending that turn. "

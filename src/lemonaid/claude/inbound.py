@@ -76,3 +76,12 @@ def accepts(argv: list[str], cwd: str) -> bool:
 def session_accepts(entry: session_socket.Session) -> bool:
     argv = launch_args.argv(entry.pid)
     return bool(argv) and accepts(argv, entry.cwd)
+
+
+def session_setting(entry: session_socket.Session) -> str:
+    """ "accepted" or "not accepted"; "unknown" when the session's launch arguments can't be read."""
+    argv = launch_args.argv(entry.pid)
+    if not argv:
+        return "unknown"
+
+    return "accepted" if accepts(argv, entry.cwd) else "not accepted"

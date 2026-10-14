@@ -92,13 +92,15 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     scout = threading.Thread(target=lambda: results.append(wait_cli.run(_args())))
     scout.start()
     _until(lambda: push_scout.running(_LEMON))
+    _until(lambda: len(received) == 1)
 
     messages.send(inbox, "first message", "other.IndexElf")
-    _until(lambda: len(received) == 1)
-    messages.send(inbox, "second message", "other.IndexElf")
     _until(lambda: len(received) == 2)
+    messages.send(inbox, "second message", "other.IndexElf")
+    _until(lambda: len(received) == 3)
 
-    assert "first message" in received[0] and "second message" in received[1]
+    assert "push scout started" in received[0] and sock in received[0]
+    assert "first message" in received[1] and "second message" in received[2]
     assert messages.pending_count(inbox) == 0
     assert wait_cli.run(_args()) == 3  # a second scout for the same lemon refuses
     listing.unlink()
@@ -240,3 +242,30 @@ def test_push_without_foreground_reports_a_running_scout(capsys):
     listing.unlink()
     scout.join(timeout=10)
     assert messages.pending_count(inbox) == 0
+
+
+def test_a_lemon_with_no_socket_is_told_it_is_not_on_push():
+    _briefed()
+
+    notice = push_scout.not_pushing("abcd1234", _LEMON)
+
+    assert (
+        "NOT pushing" in notice
+        and "no running Claude session" in notice
+        and "background waiter" in notice
+    )
+
+
+def test_a_lemon_whose_session_would_hold_pushes_is_told_so(monkeypatch):
+    _briefed()
+    _session("/tmp/unused.sock")
+    monkeypatch.setattr(inbound, "session_accepts", lambda entry: False)
+
+    assert "crossSessionInbound" in push_scout.not_pushing("abcd1234", _LEMON)
+
+
+def test_a_lemon_with_a_background_waiter_is_not_told_it_is_off_push():
+    _briefed()
+    wait_state.lock_path(_LEMON).parent.mkdir(parents=True, exist_ok=True)
+    with waiter_lock.acquire(wait_state.lock_path(_LEMON), grace=1):
+        assert push_scout.not_pushing("abcd1234", _LEMON) == ""

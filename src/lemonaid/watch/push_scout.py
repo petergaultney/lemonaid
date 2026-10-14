@@ -57,6 +57,30 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
     return deliver
 
 
+def announce(entry: session_socket.Session) -> None:
+    """Tell the lemon its scout is delivering, so it knows to arm nothing."""
+    try:
+        session_socket.send(
+            entry,
+            f"lemonaid push scout started: batches and messages now arrive in this session through "
+            f"its socket ({entry.socket}). Don't start `lemonaid watch --self`.",
+        )
+    except session_socket.Refused as error:
+        _log.warning("could not announce the scout to %s: %s", entry.session_id, error)
+
+
+def not_pushing(session_id: str, lemon_id: str) -> str:
+    """The loud notice for a lemon whose batches and messages will not be pushed, or "" if a waiter reads them."""
+    if wait_state.is_armed(lemon_id):
+        return ""
+
+    why = problem(session(session_id)) or f"its scout did not start; see {_log_path()}"
+    return (
+        f"lemonaid is NOT pushing batches or messages into this session ({why}). "
+        "Messages reach you only while a background waiter runs, so you must run it."
+    )
+
+
 def _scout_channels(lemon_id: str) -> set[str]:
     return {w.channel for w in registry.running_for("wait", lemon_id) if FLAG in w.command.split()}
 

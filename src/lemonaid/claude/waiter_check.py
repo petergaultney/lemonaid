@@ -69,7 +69,12 @@ def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_i
     if not required and lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
         return ""
 
-    return f"No unified watcher is armed for {lemon_id or path.name}. Stop separate waiters with `lemonaid watch stop --self --keep-subscriptions` first. {_ARM[harness]} Then end your turn."
+    why = (
+        f"{push_scout.not_pushing(session_id, lemon_id)} "
+        if lemon_id and harness == "claude"
+        else ""
+    )
+    return f"{why}No unified watcher is armed for {lemon_id or path.name}. Stop separate waiters with `lemonaid watch stop --self --keep-subscriptions` first. {_ARM[harness]} Then end your turn."
 
 
 def _broken(path: Path, text: str) -> str:

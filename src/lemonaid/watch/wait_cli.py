@@ -17,6 +17,7 @@ from . import (
     cursors,
     delivery,
     own_edits,
+    push_path,
     push_scout,
     registry,
     wait_state,
@@ -55,11 +56,15 @@ def run(args: argparse.Namespace) -> int:
         return 2
     if args.status:
         running = wait_state.is_armed(lemon_id)
-        print(
+        lines = [
             ("push scout running" if push_scout.running(lemon_id) else "watcher running")
             if running
             else "no watcher running"
-        )
+        ]
+        if channel.startswith("claude:"):
+            found = push_path.gather(lemon_id, channel.removeprefix("claude:"))
+            lines.insert(0 if push_path.path_of(found).loud else 1, push_path.status_line(found))
+        print("\n".join(lines))
         return 0 if running else 1
     if args.push and thread:
         print(f"not started: {push_scout.FLAG} is for Claude; drop --codex-thread")
@@ -121,6 +126,8 @@ def run(args: argparse.Namespace) -> int:
             ),
             push_scout.logged(lemon_id, session) if session else contextlib.nullcontext(),
         ):
+            if session:
+                push_scout.announce(session)
             while still():
                 batch_wait.wait(
                     path,
