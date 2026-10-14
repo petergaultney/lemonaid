@@ -34,6 +34,15 @@ def test_status_replaces_the_first_status_line_only():
     assert "Status: in a code block" in out
 
 
+def test_status_ignores_status_lines_below_the_header():
+    brief = "# t\n\n## Goal\n```\nStatus: quoted\n```\n"
+
+    assert store.with_status(brief, "blocked") == (
+        "# t\n\nStatus: blocked\n\n## Goal\n```\nStatus: quoted\n```\n"
+    )
+    assert store.with_status(brief, "clear") == brief
+
+
 def test_status_is_the_bare_state():
     assert "\nStatus: blocked\n" in store.with_status(_BRIEF, "blocked")
 

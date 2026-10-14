@@ -173,10 +173,11 @@ def _without_status(lines: list[str], i: int) -> str:
 
 
 def with_status(text: str, state: str) -> str:
-    """Set the first `Status:` line without changing `## Now`; `CLEAR` removes it."""
+    """Set the header's `Status:` line (above the first section); `CLEAR` removes it."""
     line = f"Status: {state}"
     lines = text.splitlines()
-    for i, existing in enumerate(lines):
+    header_end = next((i for i in range(1, len(lines)) if _SECTION.match(lines[i])), len(lines))
+    for i, existing in enumerate(lines[:header_end]):
         if _STATUS_LINE.fullmatch(existing.strip()):
             if state == CLEAR:
                 return _without_status(lines, i)
