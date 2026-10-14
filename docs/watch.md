@@ -1,4 +1,4 @@
-# Watching documents, PRs, and files
+# Watching documents, PRs, repos, and files
 
 `lemonaid watch doc` blocks until someone responds to a Markdown document through
 Relay Comments (inline CriticMarkup blocks written by an Obsidian plugin), and
@@ -200,6 +200,38 @@ with `--ci` to wait for that head's checks. Remove `--ci` after handling the res
 A waiter armed without `--ci` while checks on the head are still pending prints a
 one-line hint to stderr, and repeats it at the start of its first event.
 
+## Watching a repo for PRs
+
+`lemonaid watch repo` waits on a whole GitHub repo rather than one PR, so a lead notices PRs
+from lemons and people who are not its children. It makes one `gh api graphql` call per
+`--interval` (60 seconds by default), plus one more page for each 100 open PRs.
+
+```bash
+lemonaid watch repo --wait owner/name --once
+lemonaid watch repo --wait owner/name --label needs-review --exclude-author my-bot --codex-thread
+lemonaid watch repo --status owner/name
+```
+
+It reports, one line per event naming the PR's number, title, author and head branch:
+
+- a PR opened ready for review (a new draft is remembered and reported when it is marked ready);
+- a draft marked ready for review;
+- a `--label` added to an open PR;
+- a PR you have seen closed or merged, once (only the 30 most recently updated closed PRs are
+  read, so more closings than that between polls leave the older ones unreported);
+- with `--pushes`, a ready PR's head moving.
+
+`--label NAME` (repeatable) limits every event to PRs carrying at least one of those labels,
+compared without regard to case. `--exclude-author LOGIN` (repeatable) skips PRs by those
+logins. "Tag" is read as a GitHub label.
+
+The first waiter takes the PRs open now as already seen. The cursor (each open PR's draft
+flag, head and labels) lives under the lemon's Lemon-ID like the other [cursors](#cursors), so
+what changes between waiters is reported by the next one. One waiter per repo and lemon may
+run; `--once`, `--codex-thread` and `--state-dir` work as in `watch pr`. As a `## Watching`
+line it is read like `watch pr`, and its events join the batch. Stop it with
+`lemonaid watch stop --self repo owner/name`.
+
 ## Watching files and directories
 
 `lemonaid watch file` blocks until a file or directory changes. It wakes Claude and Codex
@@ -334,7 +366,7 @@ for the next waiter. This state is separate from document, PR, and external brie
 
 ## Recording watches in a brief
 
-When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
+When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
 
 The entry survives one-shot events, interrupted waits, and delivery failures so it can be rearmed. `lemonaid watch stop --self` removes it along with the waiter it stops (see below); for a waiter that already exited, remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch ends permanently. The manual `add` and `set` verbs remain available for custom shell waiters. With no attached brief, watching works as before without recording; a failed write to an attached brief prevents startup and reports the error. Status queries, document edit markers, and refused duplicate waits never change the brief.
 

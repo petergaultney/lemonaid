@@ -27,7 +27,7 @@ def _identity(
 ) -> tuple | None:
     # Use the actual CLI grammar so unknown arguments and shell operations cannot
     # be mistaken for an automatic entry. Import lazily: each CLI records itself.
-    from . import briefs_cli, doc_cli, file_cli, pr_cli
+    from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli
 
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
@@ -40,7 +40,7 @@ def _identity(
             return None
         parser = _WatchParser(allow_abbrev=False)
         sub = parser.add_subparsers(required=True)
-        for module in (doc_cli, pr_cli, file_cli, briefs_cli):
+        for module in (doc_cli, pr_cli, repo_cli, file_cli, briefs_cli):
             module.add_parser(sub)
         a = parser.parse_args(words[2:])
     except ValueError:
@@ -53,6 +53,8 @@ def _identity(
         if not parent:
             return None  # preserve an old --self command when its owner is unknown
         target = (parent,)
+    elif kind == "repo":
+        target = (a.wait.lower(),)
     elif kind == "pr":
         url_repo, number = a.wait
         target = (str(number),)

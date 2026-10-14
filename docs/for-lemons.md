@@ -499,6 +499,7 @@ lemonaid brief bullet rm --self "PR #12"                     # remove it; an emp
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
 lemonaid brief waiter add --self "lemonaid watch pr --wait https://github.com/owner/repo/pull/12 --comments --ci --once"  # a bullet in ## Watching
+lemonaid brief waiter add --self "lemonaid watch repo --wait owner/repo --label needs-review --once"  # every PR in a repo, not one
 lemonaid brief waiter set --self "wait 12" --head e4f5a6b  # seed a standalone waiter; unified waits prefer their saved head
 lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
@@ -790,7 +791,7 @@ bullet become short links, as in the brief view. `pr add` takes the PR's URL, or
 link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
 `[brief] vaults` root, which becomes an `obsidian://` link.
 
-With an attached brief, `watch doc`, `watch pr`, `watch file`, and `watch briefs` automatically
+With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, and `watch briefs` automatically
 record their commands as invoked under `## Watching` after startup checks pass, without
 inserting omitted defaults or temporary state paths. Rearms update
 the same entry; it stays across one-shot events. With `--codex-thread`, recording uses the

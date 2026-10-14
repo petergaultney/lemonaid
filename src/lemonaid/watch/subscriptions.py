@@ -7,7 +7,7 @@ import shlex
 from pathlib import Path
 
 from ..brief import doc_table, identity, lemon_table, now_edit, pr_table, waiters
-from . import briefs_cli, doc_cli, file_cli, pr_cli
+from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli
 
 
 class Problem(ValueError):
@@ -39,6 +39,9 @@ class Subscription:
     ignore_removed: bool = False
     skip_outdated: bool = False
     skip_resolved: bool = False
+    labels: tuple[str, ...] = ()
+    exclude_authors: tuple[str, ...] = ()
+    pushes: bool = False
     state_dir: Path | None = None
     lemons: tuple[lemon_table.Row, ...] = ()
     needs: bool = False
@@ -67,7 +70,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
 
     parser = _Parser(allow_abbrev=False)
     sub = parser.add_subparsers(dest="kind", required=True)
-    for module in (doc_cli, file_cli, pr_cli, briefs_cli):
+    for module in (doc_cli, file_cli, pr_cli, repo_cli, briefs_cli):
         module.add_parser(sub)
     args = parser.parse_args(words[2:])
     if args.status or not getattr(args, "wait", True):
@@ -80,6 +83,8 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         if not repo:
             raise Problem("PR subscriptions need a URL or --repo owner/name")
         target = (repo, str(number))
+    elif kind == "repo":
+        target = (args.wait,)
     elif kind == "briefs":
         target = (parent if args.use_self else args.lemon,)
     else:
@@ -98,10 +103,13 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
             "ignore_removed",
             "skip_outdated",
             "skip_resolved",
+            "pushes",
             "state_dir",
         )
         if hasattr(args, name) and getattr(args, name) is not None
     }
+    if kind == "repo":
+        values["labels"], values["exclude_authors"] = tuple(args.label), tuple(args.exclude_author)
     values["to"] = (
         frozenset(args.to or briefs_cli.CHILD_TO) if kind == "briefs" else Subscription.to
     )

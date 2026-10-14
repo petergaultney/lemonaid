@@ -96,6 +96,10 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 - **New comments:** the event names each comment's author and location. Make any fix that is clearly asked for. Reply in the comment's own thread, starting with `🍋 <your signature>:`, if you are allowed to post; otherwise draft the reply in your final message for your human to post. Then rearm.
 - **Merged or closed:** nothing is left to watch, whether you wrote the PR or reviewed it. Stop the waiter with `lemonaid watch stop --self pr <number>`, never `pkill -f` the command, which stops every lemon's matching waiter, and end your turn with one line saying so.
 
+## Watching a whole repo
+
+A lead that should notice PRs it did not open, or that opens no PR itself, waits on the repo instead of one PR: `lemonaid watch repo --wait owner/name [--label NAME] [--exclude-author LOGIN] --once`. It reports a PR opened or marked ready for review, a watched label added, and a seen PR closed or merged. Put the command under `## Watching` and `lemonaid watch --self` delivers its events with the rest. See `docs/watch.md`.
+
 ## Notes
 
 - One `gh` call per minute per watched PR. To watch many PRs, run one waiter per PR, or ask before starting dozens.

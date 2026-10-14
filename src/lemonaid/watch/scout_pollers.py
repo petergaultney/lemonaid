@@ -18,6 +18,8 @@ from . import (
     pr_activity,
     pr_events,
     pr_wait,
+    repo_activity,
+    repo_events,
     subscriptions,
 )
 
@@ -26,6 +28,42 @@ from . import (
 _THREAD_SETTLE = 3.0
 
 _log = get_logger("watch.scouts")
+
+
+def _repo_poller(
+    spec: subscriptions.Subscription,
+    root: Path,
+    directory: Path,
+    me: str,
+    deliver: abc.Callable[[str], bool],
+) -> abc.Callable[[], object]:
+    [repo] = spec.target
+    stem = repo_events.state_stem(directory, repo, me)
+    failed = failure_state.path(root, spec, "github")
+
+    def poll() -> None:
+        if (prs := repo_activity.fetch(repo)) is None:
+            _log.warning("Cannot reach GitHub for %s", repo)
+            failure_state.report(
+                failed,
+                f"Cannot reach GitHub for {repo} after repeated attempts",
+                deliver,
+                threshold=3,
+            )
+            return
+
+        failure_state.clear(failed)
+        repo_events.poll(
+            stem,
+            repo,
+            prs,
+            deliver,
+            labels=spec.labels,
+            exclude_authors=spec.exclude_authors,
+            pushes=spec.pushes,
+        )
+
+    return poll
 
 
 def open_poller(
@@ -92,6 +130,9 @@ def open_poller(
             spec.needs,
         )
         return lambda: briefs_events.poll(watch, deliver)
+
+    if spec.kind == "repo":
+        return _repo_poller(spec, root, directory, me, deliver)
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)
