@@ -12,7 +12,7 @@ import pytest
 from lemonaid.brief import attached, identity, lemon
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, self_session
-from lemonaid.messages import cli, store
+from lemonaid.messages import cli, recipient, store
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,6 +28,13 @@ def _parser() -> argparse.ArgumentParser:
 def _no_inherited_session_identity(monkeypatch):
     for name in ("LEMONAID_CHANNEL", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "TMUX_PANE"):
         monkeypatch.delenv(name, raising=False)
+    # These tests cover inbox storage and identity. Recipient state is covered
+    # separately, so model successful Codex recipients as having a waiter.
+    monkeypatch.setattr(
+        cli.recipient,
+        "probe",
+        lambda channel, row, inbox: recipient.State(recipient.LISTENING, "test waiter"),
+    )
 
 
 def _run(parser: argparse.ArgumentParser, *arguments: str) -> None:

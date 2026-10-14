@@ -12,7 +12,7 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.codex import notify as codex_notify
 from lemonaid.inbox import db
-from lemonaid.messages import cli, service, store
+from lemonaid.messages import cli, service, store, waiter
 from lemonaid.messages.service import ensure_running as real_ensure_running
 
 _FAKE_CODEX = """#!/bin/sh
@@ -128,14 +128,15 @@ def _tell(target: str, message: str) -> None:
 def test_telling_a_codex_lemon_starts_the_service(capsys, monkeypatch):
     started: list[bool] = []
     monkeypatch.setattr(service, "ensure_running", lambda: started.append(True))
-    _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    inbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
     _lemon("claude-lemon", "claude:abcd1234", "abcd1234-session")
 
     with pytest.raises(SystemExit):
         _tell("claude:abcd1234", "No service for Claude.")  # idle with no waiter, so tell fails
     assert not started
 
-    _tell("codex:01a0d8ce-long-thread-id", "Please review.")
+    with waiter.armed(inbox):
+        _tell("codex:01a0d8ce-long-thread-id", "Please review.")
     assert started == [True]
 
 

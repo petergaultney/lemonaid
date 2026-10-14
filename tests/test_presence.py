@@ -56,16 +56,16 @@ def test_a_lemon_whose_terminal_runs_no_harness_is_dead(monkeypatch):
     assert _marks(monkeypatch, rows, frozenset()) == {"claude:a": "dead", "codex:b": "dead"}
 
 
-def test_a_codex_lemon_with_a_harness_always_listens(monkeypatch):
+def test_an_idle_codex_lemon_with_a_harness_and_no_waiter_is_deaf(monkeypatch):
     row = _row("codex:b", "ttys002", created_at=10.0)
 
-    assert _marks(monkeypatch, [row], frozenset({"ttys002"})) == {}
+    assert _marks(monkeypatch, [row], frozenset({"ttys002"})) == {"codex:b": "deaf"}
 
 
 def test_a_row_reported_after_the_listing_is_not_marked_dead(monkeypatch):
     row = _row("codex:b", "ttys002", created_at=2000.0)
 
-    assert _marks(monkeypatch, [row], frozenset(), now=1000.0) == {}
+    assert _marks(monkeypatch, [row], frozenset(), now=1000.0) == {"codex:b": "deaf"}
 
 
 def test_a_mid_turn_claude_lemon_is_not_deaf(monkeypatch):
