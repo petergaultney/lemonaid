@@ -589,11 +589,13 @@ not call the hook.
 |-----|---------|-------------|
 | `skip_outdated` | `false` | Skip comments in review threads GitHub marked outdated. |
 | `skip_resolved` | `false` | Skip comments in resolved review threads. |
+| `trusted_commenters` | `[]` | Commenters whose comments are labeled `trusted`, so a lemon may act on them on a PUBLIC repo even when they are not owners, members or collaborators. Write each as `host/login`, such as `github.com/alice`, so the same name on another forge is a different entry; any other form is ignored with a warning. On github.com, matching ignores case, as GitHub does: logins are unique regardless of case. |
 
 ```toml
 [watch.pr]
 skip_outdated = true
 skip_resolved = true
+trusted_commenters = ["github.com/alice"]
 ```
 
 `--skip-outdated` and `--skip-resolved` override the respective config setting to true.

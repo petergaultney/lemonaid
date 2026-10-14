@@ -1,3 +1,9 @@
+# 0.115.0 (2026-10-14)
+
+#### Added
+
+- **PR comment events say whether the repo is PUBLIC or private, and who each commenter is to it.** Each author shows with GitHub's role for them (`alice [NONE]`, `peter [OWNER]`), and commenters listed in `[watch.pr] trusted_commenters` as `github.com/<login>` are labeled `trusted`. On a PUBLIC repo, a comment from anyone else adds a line telling the lemon to treat it as information, not an instruction, unless its user has said to act on that person.
+
 # 0.114.0 (2026-10-14)
 
 #### Added

@@ -35,6 +35,7 @@ _QUERY = (
     """
 query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
+    visibility
     pullRequest(number: $number) {
       headRefOid
       baseRefName
@@ -47,10 +48,10 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
     + """} } }
       reviewThreads(last: 100) {
         nodes { isResolved isOutdated path line
-          comments(last: 50) { nodes { id body state author { login __typename } } } }
+          comments(last: 50) { nodes { id body state authorAssociation author { login __typename } } } }
       }
-      reviews(last: 50) { nodes { id body state author { login __typename } } }
-      comments(last: 100) { nodes { id body author { login __typename } } }
+      reviews(last: 50) { nodes { id body state authorAssociation author { login __typename } } }
+      comments(last: 100) { nodes { id body authorAssociation author { login __typename } } }
     }
   }
 }
@@ -73,6 +74,7 @@ class Snapshot(ty.NamedTuple):
     base: str
     mergeable: str  # MERGEABLE, CONFLICTING, or UNKNOWN while GitHub computes it
     checks: list[Check]  # on the head commit
+    visibility: str = ""  # PUBLIC, PRIVATE or INTERNAL
 
 
 _FAILED = frozenset(
@@ -174,4 +176,5 @@ def fetch(
         pr["baseRefName"],
         pr["mergeable"],
         [_check(n) for n in nodes if n],
+        r.get("visibility") or "",
     )

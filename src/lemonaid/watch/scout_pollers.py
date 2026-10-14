@@ -5,6 +5,8 @@ import time
 from collections import abc
 from pathlib import Path
 
+from .. import pr_url, watch_config
+from ..config import load_config
 from ..log import get_logger
 from . import (
     briefs_events,
@@ -86,6 +88,7 @@ def open_poller(
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)
+    trusted = watch_config.logins_on(load_config().watch.pr.trusted_commenters, pr_url.HOST)
     if writer:
         own_pushes.register(own_edits.root(), writer)
     head, closed = spec.head, False
@@ -124,6 +127,7 @@ def open_poller(
             comments=spec.comments,
             ci=spec.ci,
             own_head=lambda value: own_pushes.is_own(own_edits.root(), writer, value),
+            trusted=trusted,
         )
         head = ""
         closed = snapshot.state != "OPEN"

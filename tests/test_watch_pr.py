@@ -32,7 +32,7 @@ def _snap(
     checks=(),
 ):
     return pr_activity.Snapshot(
-        head, state, draft, decision, list(comments), "main", mergeable, list(checks)
+        head, state, draft, decision, list(comments), "main", mergeable, list(checks), "PRIVATE"
     )
 
 
@@ -100,7 +100,7 @@ def test_a_merge_and_a_decision_are_reported(stem):
 
 def test_a_comment_handled_but_left_open_is_not_reported_after_a_rearm(stem):
     assert _run_once(stem, [_snap(comments=[_comment("c1")])])[0].startswith(
-        "PR #90: 1 new comment(s) - peter (src/x.py:3): please fix"
+        'PR #90: 1 new comment(s) on a private repo - peter (src/x.py:3): "please fix"'
     )
     sent = _run_once(
         stem,
@@ -110,7 +110,7 @@ def test_a_comment_handled_but_left_open_is_not_reported_after_a_rearm(stem):
         ],
     )
 
-    assert sent == ["PR #90: 1 new comment(s) - peter (src/x.py:3): and this"]
+    assert sent == ['PR #90: 1 new comment(s) on a private repo - peter (src/x.py:3): "and this"']
 
 
 def test_a_draft_change_between_waiters_is_reported(stem):
@@ -301,6 +301,7 @@ def _write_snapshot(path, head):
             {
                 "data": {
                     "repository": {
+                        "visibility": "PRIVATE",
                         "pullRequest": {
                             "headRefOid": head,
                             "baseRefName": "main",
@@ -314,7 +315,7 @@ def _write_snapshot(path, head):
                             "reviewThreads": {"nodes": []},
                             "reviews": {"nodes": []},
                             "comments": {"nodes": []},
-                        }
+                        },
                     }
                 }
             }
@@ -450,7 +451,9 @@ def test_cli_reports_others_comments_but_not_mine(tmp_path, fake_gh):
     )
 
     assert result.returncode == 0
-    assert result.stdout.startswith("PR #90: 5 new comment(s) - harrison (src/x.py:3): ")
+    assert result.stdout.startswith(
+        "PR #90: 5 new comment(s) on a private repo - harrison (src/x.py:3): "
+    )
     assert "Reviewer (StateJob)" in result.stdout
 
 
@@ -488,7 +491,7 @@ def test_new_reply_in_outdated_or_resolved_thread_wakes_once(stem, fake_gh, outd
 
     sent = _run_once(stem, [before, after], head="b" * 40)
     assert sent == [
-        f"PR #90: 1 new comment(s) - peter (src/x.py:{None if outdated else 3}): please fix this too"
+        f'PR #90: 1 new comment(s) on a private repo - peter (src/x.py:{None if outdated else 3}): "please fix this too"'
     ]
     assert _run_once(stem, [after, after._replace(head="c" * 40)], head="b" * 40) == [
         f"PR #90 head moved {'b' * 10} -> {'c' * 10}"
@@ -570,7 +573,7 @@ def test_a_first_waiter_takes_existing_comments_and_ci_as_seen(stem):
     newer = old._replace(comments=[_comment("c1"), _comment("c2", "and this")])
 
     assert _wait_once(stem, [old, newer]) == [
-        "PR #90: 1 new comment(s) - peter (src/x.py:3): and this"
+        'PR #90: 1 new comment(s) on a private repo - peter (src/x.py:3): "and this"'
     ]
 
 

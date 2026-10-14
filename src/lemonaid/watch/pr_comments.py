@@ -1,6 +1,8 @@
 """Review comments eligible to wake a PR watcher."""
 
+import json
 import typing as ty
+from collections import abc
 
 from . import lemon_signature
 
@@ -10,6 +12,9 @@ class Comment(ty.NamedTuple):
     where: str  # "path:line", "review", or "conversation"
     author: str
     body: str
+    association: str = (
+        ""  # GitHub's authorAssociation: OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE...
+    )
 
 
 def _is_others(node: dict, signatures: tuple[str, ...]) -> bool:
@@ -24,7 +29,11 @@ def _is_others(node: dict, signatures: tuple[str, ...]) -> bool:
 
 def _comment(node: dict, where: str) -> Comment:
     return Comment(
-        node["id"], where, (node.get("author") or {}).get("login", "ghost"), node["body"]
+        node["id"],
+        where,
+        (node.get("author") or {}).get("login", "ghost"),
+        node["body"],
+        node.get("authorAssociation") or "",
     )
 
 
@@ -46,5 +55,25 @@ def others(
     yield from (_comment(c, "conversation") for c in eligible(pr["comments"]["nodes"]))
 
 
-def gist(c: Comment) -> str:
-    return f"{c.author} ({c.where}): {' '.join(c.body.split())[:100]}"
+_INSIDERS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+
+
+def is_trusted(c: Comment, trusted: abc.Set[str]) -> bool:
+    """*trusted* holds the github.com logins, lowercased, the user has said to act on."""
+    return c.author.lower() in trusted
+
+
+def is_outsider(c: Comment, trusted: abc.Set[str]) -> bool:
+    return c.association not in _INSIDERS and not is_trusted(c, trusted)
+
+
+def gist(c: Comment, trusted: abc.Set[str] = frozenset()) -> str:
+    label = ", ".join(
+        [
+            *([c.association] if c.association else []),
+            *(["trusted"] if is_trusted(c, trusted) else []),
+        ]
+    )
+    # Quoted, so a body can't read as another comment's author and label.
+    body = json.dumps(" ".join(c.body.split())[:100], ensure_ascii=False)
+    return f"{c.author}{f' [{label}]' if label else ''} ({c.where}): {body}"

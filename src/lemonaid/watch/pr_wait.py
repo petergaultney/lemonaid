@@ -11,6 +11,7 @@ import pathlib
 import sys
 import time
 import typing as ty
+from collections import abc
 
 from . import delivery, pr_activity, pr_events
 
@@ -40,6 +41,7 @@ def wait(
     *,
     ci: bool = False,
     own_head: ty.Callable[[str], bool] = lambda head: False,
+    trusted: abc.Set[str] = frozenset(),
 ) -> None:
     """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
 
@@ -74,6 +76,7 @@ def wait(
             comments=comments,
             ci=ci,
             own_head=own_head,
+            trusted=trusted,
         )
         head = ""
         if changed:

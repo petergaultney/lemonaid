@@ -2,6 +2,7 @@
 
 import re
 
+HOST = "github.com"
 _PR_URL = re.compile(r"https://github\.com/([^/\s#?]+/[^/\s#?]+)/pull/(\d+)(?:[/#?]\S*)?")
 
 

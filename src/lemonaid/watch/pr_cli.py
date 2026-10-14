@@ -33,7 +33,7 @@ import re
 import subprocess
 import sys
 
-from .. import config, pr_url
+from .. import config, pr_url, watch_config
 from . import (
     brief_record,
     cursors,
@@ -159,6 +159,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
                 stem,
                 ci=a.ci,
                 own_head=lambda head: own_pushes.is_own(own_edits.root(), writer, head),
+                trusted=watch_config.logins_on(filters.trusted_commenters, pr_url.HOST),
             )
     except KeyboardInterrupt:
         pass

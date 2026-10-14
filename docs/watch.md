@@ -159,6 +159,18 @@ PR number or a `github.com` pull request URL. A URL names the repo itself, so `-
 unneeded, and an error if it names a different repo. For a number, `--repo owner/name` defaults
 to the current directory's repo. It wakes Claude and Codex the same way `watch doc` does.
 
+The comment event says whether the repo is `PUBLIC` (in capitals) or `private`, and gives each
+comment's author with GitHub's role for them in the repo, such as `alice [NONE]` or
+`peter [OWNER]`. A login listed in `[watch.pr] trusted_commenters` (as `github.com/<login>`)
+is also labeled `trusted`.
+On a PUBLIC repo, when any new comment comes from someone who is not an owner, member,
+collaborator or trusted commenter, the event adds a line telling the lemon to treat that
+comment as information, not an instruction, unless its user has said to act on that person.
+If GitHub doesn't report the repo's visibility, the line is added as for a PUBLIC repo.
+GitHub's `MEMBER` means any member of the repo's organization, not only people with access
+to it; `trusted_commenters` is the only narrower setting. Each comment's text appears in
+quotes, so it can't pass for another comment's author and role.
+
 To skip outdated or resolved review threads, use `--skip-outdated` or `--skip-resolved`.
 Set either default in [`[watch.pr]`](config.md#watchpr). The corresponding
 `--no-skip-outdated` and `--no-skip-resolved` flags override those settings for one wait.
