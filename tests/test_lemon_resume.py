@@ -106,6 +106,25 @@ def test_a_lemon_asking_its_user_is_not_typed_into(capsys, started, monkeypatch)
     assert "won't resume it" in capsys.readouterr().err
 
 
+def test_a_codex_asking_its_user_is_not_typed_into_with_an_armed_waiter(
+    capsys, started, monkeypatch
+):
+    monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
+    lemon_id = _attach("codex:asking", "# t\n\nStatus: working\n")
+    with db.connect() as conn:
+        db.record_turn(conn, "codex:asking", time.time())
+        conn.execute(
+            "UPDATE notifications SET status = 'unread' WHERE channel = ?", ("codex:asking",)
+        )
+        conn.commit()
+
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        assert _resume("codex:asking") == 1
+
+    assert started == []
+    assert "won't resume it" in capsys.readouterr().err
+
+
 def test_the_start_limit_applies(capsys, started, monkeypatch):
     monkeypatch.setattr(
         resume_cli, "load_config", lambda: Config(messages=MessagesConfig(autoresume_max=1))

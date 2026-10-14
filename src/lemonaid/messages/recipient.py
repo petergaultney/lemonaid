@@ -95,9 +95,6 @@ def classify(
     if row is None or alive is False:
         return State(DEAD, "its harness is not running")
 
-    if armed:
-        return State(LISTENING, "its inbox waiter is armed")
-
     if turns.mid_turn(row, now):
         detail = (
             "the delivery service queues messages into its thread"
@@ -108,6 +105,9 @@ def classify(
 
     if row.turn_at is not None:  # however old: it may have sat at a permission prompt for hours
         return State(ASKING, "it stopped mid-turn to ask its user something")
+
+    if armed:
+        return State(LISTENING, "its inbox waiter is armed")
 
     detail = (
         "it is idle with no inbox waiter to start a turn from queued messages"

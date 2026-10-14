@@ -97,6 +97,21 @@ def test_codex_with_a_live_harness_and_armed_waiter_is_listening(capsys, monkeyp
     assert "listening" in capsys.readouterr().err
 
 
+def test_codex_stopped_at_a_question_is_asking_even_with_an_armed_waiter(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
+    lemon_id = _attach("codex:asking", {"tty": "/dev/ttys998"}, turn_at=time.time())
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE notifications SET status = 'unread' WHERE channel = ?", ("codex:asking",)
+        )
+        conn.commit()
+
+    with waiter.armed(store.inbox_for_id(lemon_id)):
+        assert _tell("codex:asking") == 1
+
+    assert "stopped mid-turn to ask its user" in capsys.readouterr().err
+
+
 def test_message_is_queued_even_when_it_will_not_be_read(capsys):
     lemon_id = _attach("claude:deaf", {})
 
