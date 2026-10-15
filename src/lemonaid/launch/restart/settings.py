@@ -13,6 +13,7 @@ from ...config import Config
 from ...inbox import db
 from ...resume import build_resume_command
 from . import arguments
+from . import environment as launch_env
 
 
 def _value(argv: list[str], *flags: str) -> str:
@@ -45,31 +46,7 @@ def capture(
             "A model alias cannot freeze the effective model; a native model observation is required"
         )
 
-    launch_environment = {
-        key: environment[key]
-        for key in (
-            "PATH",
-            "CODEX_HOME",
-            "CLAUDE_CONFIG_DIR",
-            "CLAUDE_CODE_USE_BEDROCK",
-            "CLAUDE_CODE_USE_VERTEX",
-            "CLAUDE_CODE_USE_FOUNDRY",
-            "ANTHROPIC_BASE_URL",
-            "OPENAI_BASE_URL",
-        )
-        if key in environment
-    }
-
-    if harness == "codex" and "PATH" in launch_environment:
-        # Codex prepends a fresh per-process tool directory. Never replay that stale
-        # directory, and compare the inherited search path rather than its new nonce.
-        root = Path(environment.get("CODEX_HOME") or Path.home() / ".codex") / "tmp/arg0"
-        entries = [
-            part
-            for part in launch_environment["PATH"].split(os.pathsep)
-            if not (Path(part).parent == root and Path(part).name.startswith("codex-arg0"))
-        ]
-        launch_environment["PATH"] = os.pathsep.join(dict.fromkeys(entries))
+    launch_environment = launch_env.capture(harness, environment)
 
     if harness == "claude":
         permission = data.get("permission_mode") or _value(argv, "--permission-mode")
@@ -83,6 +60,7 @@ def capture(
             "permission": permission,
             "argv": argv,
             "environment": launch_environment,
+            "native_homes": launch_env.homes(launch_environment),
         }
 
     if "--no-daemon" not in argv or any(w in argv for w in ("--remote", "app-server")):
@@ -118,6 +96,7 @@ def capture(
         "provider": provider,
         "argv": argv,
         "environment": launch_environment,
+        "native_homes": launch_env.homes(launch_environment),
     }
 
 
@@ -138,7 +117,8 @@ def command(row: db.Notification, config: Config, settings: dict[str, ty.Any]) -
         words = ["claude", "--resume", words[3]]
     if Path(words[0]).name != harness:
         raise ValueError("Cannot verify settings through this configured resume wrapper")
-    executable = shutil.which(harness, path=settings.get("environment", {}).get("PATH"))
+    search_path = settings.get("environment", {}).get("PATH")
+    executable = shutil.which(harness, path=os.defpath if search_path is None else search_path)
     if not executable:
         raise ValueError(f"{harness} is unavailable on the launch PATH")
 
@@ -186,9 +166,7 @@ def command(row: db.Notification, config: Config, settings: dict[str, ty.Any]) -
     ]
 
 
-def line(argv: list[str], prompt: str, environment: dict[str, str] | None = None) -> str:
+def line(argv: list[str], prompt: str, environment: dict[str, str | None] | None = None) -> str:
     # A tmux shell can rebuild PATH in its startup files, after tmux applies -e.
-    prefix = (
-        ["env", *(f"{key}={value}" for key, value in environment.items())] if environment else []
-    )
+    prefix = launch_env.prefix(environment) if environment else []
     return "exec " + shlex.join([*prefix, *argv, prompt])

@@ -13,6 +13,7 @@ from ..codex import channels
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import full_channel_id
+from ..launch.restart import state
 from . import store
 
 
@@ -75,6 +76,16 @@ def deliver_next(
     only if it yields True, and otherwise the file stays pending and this returns None.
     The thread's first message of a day ends with `daily_date`'s line.
     """
+    with state.admission(full_channel_id("codex", thread)) as allowed:
+        if not allowed:
+            return None
+
+        return _deliver_next(inbox, thread, while_current)
+
+
+def _deliver_next(
+    inbox: Path, thread: str, while_current: abc.Callable[[], ty.ContextManager[bool]]
+) -> tuple[Path, str] | None:
     with home.guard.operation(), store.receive_lock(inbox, wait=False) as held:
         found = store.peek_next(inbox) if held else None
         if found is None:

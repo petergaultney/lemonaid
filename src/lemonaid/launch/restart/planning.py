@@ -13,7 +13,7 @@ from ...config import Config
 from ...inbox import db
 from ...messages import recipient, store
 from ...watch import registry
-from . import configuration, history, native, pane, process, settings
+from . import configuration, environment, history, jobs, native, pane, process, settings, watchers
 
 
 def idle(row: db.Notification, lemon_id: str, force: bool) -> None:
@@ -75,6 +75,22 @@ def build(
     if harness == "codex" and ("--no-daemon" not in argv or "app-server" in argv):
         raise ValueError("Shared Codex app-server processes cannot be restarted")
 
+    branch = lineage[: lineage.index(root) + 1]
+    if sum(recipient.is_harness(entry.executable) for entry in branch) != 1:
+        raise ValueError("Multiple harnesses share the reserved terminal ancestry")
+    root_name = Path(root.executable).name
+    codex_wrapper = (
+        harness == "codex"
+        and root_name == "node"
+        and any(Path(word).resolve().name == "codex.js" for word in launch_args.argv(root.pid))
+    )
+    if (
+        root.pid != source.pid
+        and not process.shell(root, launch_args.argv(root.pid))
+        and not codex_wrapper
+    ):
+        raise ValueError("The pane root is neither the harness nor a recognized shell or launcher")
+
     history_path = row.metadata.get("session_path") or row.metadata.get("transcript_path")
     if harness == "claude" and not history_path:
         paths = list((session_socket.claude_dir() / "projects").glob(f"*/{session}.jsonl"))
@@ -88,16 +104,23 @@ def build(
     if effective.get("error"):
         raise ValueError(effective["error"])
 
+    environment.validate(effective)
     command = settings.command(row, config, effective)
     configuration.unchanged(effective.get("files", {}))
-    pane.model(target_pane, effective["model"])
+    pane.model(target_pane, effective["model"], str(effective.get("effort") or ""))
     waiters = registry.mine(row.channel)
+    watchers.check_source(harness, waiters)
     caller = process.ancestry(os.getpid())
     own_chain = caller[: caller.index(source)] if source in caller else []
     allowed = {e.pid for e in lineage} | {e.pid for e in own_chain} | {w.pid for w in waiters}
-    unknown = [p for p in process.on_tty(target_pane.tty) if p.pid not in allowed]
+    children = process.descendants(source.pid)
+    helpers = jobs.helpers(source, harness, children)
+    allowed |= {entry.pid for entry in helpers}
+    unknown = [p for p in [*process.on_tty(target_pane.tty), *children] if p.pid not in allowed]
     if unknown:
-        raise ValueError(f"Unmanaged jobs on the terminal: {[p.pid for p in unknown]}")
+        raise ValueError(
+            f"Unmanaged jobs on the terminal or in the harness descendant tree: {[p.pid for p in unknown]}"
+        )
     if not force:
         pane.composer(target_pane, harness)
 
@@ -111,6 +134,7 @@ def build(
         "pane": dataclasses.asdict(target_pane),
         "source": dataclasses.asdict(source),
         "root": dataclasses.asdict(root),
+        "helpers": [dataclasses.asdict(entry) for entry in helpers],
         "caller": [dataclasses.asdict(entry) for entry in own_chain],
         "settings": effective,
         "argv": command,

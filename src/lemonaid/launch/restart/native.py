@@ -12,7 +12,6 @@ from ...claude import launch_args
 from ...inbox import db
 from ...inbox.channel import channel_id, full_channel_id
 from ...log import get_logger
-from ...messages import recipient
 from . import configuration, native_data, pane, process, settings, state
 
 _log = get_logger("restart.native")
@@ -33,7 +32,9 @@ def harness_parent(harness: str) -> process.Identity | None:
 
     for entry in ancestors:
         name = Path(entry.executable).name
-        if name == harness or (harness == "claude" and recipient.is_harness(name)):
+        if name == harness or (
+            harness == "claude" and "." in name and name.replace(".", "").isdigit()
+        ):
             return entry
 
     return None
@@ -126,6 +127,22 @@ def observe(data: dict[str, ty.Any], harness: str) -> bool:
                 time.time(),
             ),
         )
+        if operation:
+            conn.execute(
+                "UPDATE notifications SET metadata = json_patch(json_remove(metadata, '$.exited_at', '$.exit_reason'), ?) WHERE channel = ?",
+                (
+                    json.dumps(
+                        {
+                            "tty": current.tty,
+                            "tmux_socket": current.socket,
+                            "harness_pid": identity.pid,
+                            "harness_started": identity.started,
+                            "restart_generation": token,
+                        }
+                    ),
+                    target,
+                ),
+            )
         conn.commit()
     return True
 
@@ -149,3 +166,17 @@ def turn_allowed(data: dict[str, ty.Any], harness: str) -> bool:
         return True
 
     return not state.blocked(channel(harness, session), replacement=True)
+
+
+def verifying(data: dict[str, ty.Any], harness: str) -> bool:
+    session = data.get("session_id") or data.get("thread_id")
+    token = os.environ.get("LEMONAID_RESTART_TOKEN", "")
+    if not token or not session:
+        return False
+    with db.connect() as conn:
+        operation = state.active(conn, channel(harness, session))
+    return bool(
+        operation
+        and operation["token"] == token
+        and operation["phase"] in ("starting", "verifying")
+    )

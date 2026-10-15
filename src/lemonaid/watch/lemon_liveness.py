@@ -12,6 +12,7 @@ import time
 from collections import abc
 
 from ..brief import attached, lemon
+from ..launch.restart import state
 from ..log import get_logger
 from ..messages import recipient, store, waiter
 from . import briefs_orphans, cursors
@@ -39,6 +40,9 @@ def _problem(
     sessions: abc.Callable[[str], abc.Set[str] | None],
 ) -> Problem | None:
     row = entry.notification
+    if state.blocked(entry.channel):
+        return None
+
     if row is None:
         if time.time() - entry.attached_at < _ROW_GRACE:
             return None
@@ -62,10 +66,10 @@ def _problem(
     if row.is_archived or row.is_snoozed:
         return None
 
-    state = recipient.classify(
+    found_state = recipient.classify(
         entry.channel, row, alive, waiter.is_armed(store.inbox_for_id(lemon_id)), time.time()
     )
-    return Problem("deaf", "", state.detail) if state.state == recipient.DEAF else None
+    return Problem("deaf", "", found_state.detail) if found_state.state == recipient.DEAF else None
 
 
 def probe(

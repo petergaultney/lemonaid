@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import typing as ty
 
+from ..inbox.channel import full_channel_id
+from ..launch.restart import gates
 from ..log import get_logger
 
 _log = get_logger("watch.delivery")
@@ -91,7 +93,7 @@ def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
 
         _log.info("queued a %s event into Codex thread %s", kind, thread)
 
-    return deliver
+    return gates.deliver(full_channel_id("codex", thread), deliver)
 
 
 def openclaw_setup_problem(cli: str) -> str:

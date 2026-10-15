@@ -11,6 +11,7 @@ from pathlib import Path
 
 from ..config import Config
 from ..inbox import db
+from ..launch.restart import state
 from . import autoresume_cmux, autoresume_tmux, resume_log, wake
 
 STARTED = "started"
@@ -41,7 +42,7 @@ def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> 
     )
 
 
-def revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: str) -> Outcome:
+def _revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: str) -> Outcome:
     """Resume *row*'s lemon if *dead*, else prompt it, unless the start log says not to.
 
     A lemon found dead soon after its last start counts that start as failed.
@@ -65,3 +66,18 @@ def revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: 
     with db.connect() as conn:
         db.hold_snooze_through_turns(conn, row.id)
     return Outcome(STARTED)
+
+
+def revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: str) -> Outcome:
+    with state.admission(row.channel) as allowed:
+        if not allowed:
+            return Outcome(STARTING, "restart in progress")
+
+        with db.connect() as conn:
+            if dead and state.recovery_required(conn, row.channel):
+                return Outcome(
+                    FAILED,
+                    "An interrupted restart needs inspection; use lemon restart --status OPERATION_ID",
+                )
+
+        return _revive(row, inbox, dead, config, text)

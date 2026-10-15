@@ -5,6 +5,8 @@ import hashlib
 from collections import abc
 from pathlib import Path
 
+from . import environment as launch_env
+
 
 def snapshot(paths: abc.Iterable[Path], started: str) -> dict[str, str]:
     birth = dt.datetime.strptime(started, "%a %b %d %H:%M:%S %Y").timestamp()
@@ -26,10 +28,10 @@ def paths(
     harness: str, environment: abc.Mapping[str, str], cwd: str, profile: str, argv: list[str]
 ) -> list[Path]:
     if harness == "codex":
-        root = Path(environment.get("CODEX_HOME") or Path.home() / ".codex")
+        root = Path(launch_env.homes(environment)["codex"])
         return [root / "config.toml", *([root / f"{profile}.config.toml"] if profile else [])]
 
-    root = Path(environment.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    root = Path(launch_env.homes(environment)["claude"])
     settings = [
         root / "settings.json",
         Path(cwd) / ".claude/settings.json",

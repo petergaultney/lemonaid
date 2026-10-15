@@ -354,6 +354,26 @@ you decided. A lemon that is listening or mid-turn is left alone (exit 0); one s
 question for its user is refused, as is one started too often recently (exit 1). Each start,
 and each failed start, adds a line to the user's inbox.
 
+### Restarting one live lemon: `lemon restart`
+
+```sh
+lemonaid lemon restart <lemon> --dry-run --json
+lemonaid lemon restart <lemon> [--force] --json
+lemonaid lemon restart --status <operation-id> --json
+```
+
+Restart resumes the same native session in its reserved tmux pane and preserves
+its Lemon-ID, brief, inbox row, groups and parent. It returns an operation ID
+after scheduling a detached coordinator, so a lemon can restart itself.
+Self-restart normally needs `--force` because the command is part of an active turn.
+
+The default refuses busy turns, input requests and nonempty or unrecognized
+composers. `--force` permits interruption or discarded input, but never overrides
+ownership or uncertain settings. A dead lemon uses `lemon resume`. Native process
+registration and recoverable settings are required; shared Codex app-servers are
+unsupported. Messages remain pending through verification. Check the saved
+outcome before resuming work. See [restart requirements and recovery](lemon-restart.md).
+
 ### Checking on lemons: `lemon doctor`
 
 ```bash

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from .. import auto_read, tmux
+from ..launch.restart import state
 from ..log import get_logger
 from . import untracked
 from .common import ContextReading, ModelInfo
@@ -378,6 +379,9 @@ def _archive_stale_sessions(
         **evidence: object,
     ) -> None:
         channel, session_id, cwd, created_at, _unread, tty, _message, source = item
+        if state.blocked(channel):
+            return
+
         details = " ".join(f"{key}={value!r}" for key, value in evidence.items())
         if channel in protected_channels:
             if reason == "pane-gone":

@@ -11,6 +11,7 @@ from ..brief import handoff_state, handoff_transfer
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, full_channel_id
+from ..launch.restart import gates
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_cmux_surface,
@@ -110,6 +111,7 @@ def _status_after(notification_type: str, channel: str, data: dict) -> str:
     )
 
 
+@gates.notification("codex")
 def handle_notification(
     stdin_data: str | None = None,
     *,

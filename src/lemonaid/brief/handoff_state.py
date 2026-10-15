@@ -7,6 +7,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from ..launch.restart import gates
 from . import check, handoff_claude
 
 _PHRASE = re.compile(r"^lemonaid handoff (ready|accept) ([0-9a-f]{24})$")
@@ -49,6 +50,7 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+@gates.exclusive("source")
 def request(
     conn: sqlite3.Connection,
     path: Path,

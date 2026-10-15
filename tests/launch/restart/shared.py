@@ -4,7 +4,7 @@ import time
 
 from lemonaid.brief import attached, store
 from lemonaid.inbox import db
-from lemonaid.launch.restart import pane, process
+from lemonaid.launch.restart import environment, pane, process
 
 SESSION = "01234567-1234-4321-9876-012345678901"
 CHANNEL = "codex:" + SESSION
@@ -18,6 +18,8 @@ SETTINGS = {
     "profile": "",
     "effort": "high",
     "provider": "openai",
+    "environment": environment.capture("codex", {"PATH": "/source/bin"}),
+    "native_homes": environment.homes(environment.capture("codex", {"PATH": "/source/bin"})),
     "argv": ["codex", "--no-daemon", "-m", "gpt-6", "-s", "workspace-write", "-a", "on-request"],
 }
 
@@ -77,6 +79,8 @@ def plan(tmp_path):
         "pane": dataclasses.asdict(dataclasses.replace(TARGET, cwd=str(tmp_path))),
         "settings": SETTINGS,
         "force": False,
+        "environment": environment.capture("codex", {"PATH": "/source/bin"}),
+        "native_homes": environment.homes(environment.capture("codex", {"PATH": "/source/bin"})),
         "argv": ["codex", "resume", SESSION],
         "history": str(tmp_path / f"{SESSION}.jsonl"),
         "history_stamp": [0, 0],
