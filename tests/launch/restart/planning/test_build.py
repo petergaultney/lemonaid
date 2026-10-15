@@ -18,7 +18,7 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(planning.pane, "locate", lambda socket, tty: target)
     monkeypatch.setattr(planning.pane, "exit_option", lambda target: "")
     monkeypatch.setattr(planning.pane, "composer", lambda target, harness: None)
-    monkeypatch.setattr(planning.pane, "model", lambda target, model: None)
+    monkeypatch.setattr(planning.pane, "model", lambda *args: None)
     monkeypatch.setattr(
         planning.process,
         "inspect",
@@ -26,6 +26,7 @@ def setup(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(planning.process, "same", lambda source: True)
     monkeypatch.setattr(planning.process, "ancestry", lambda pid: [shared.SOURCE, shared.ROOT])
+    monkeypatch.setattr(planning.process, "descendants", lambda pid: [])
     monkeypatch.setattr(planning.process, "on_tty", lambda tty: [shared.SOURCE, shared.ROOT])
     monkeypatch.setattr(planning.launch_args, "argv", lambda pid: shared.SETTINGS["argv"])
     monkeypatch.setattr(
@@ -81,3 +82,25 @@ def test_native_busy_transcript_refuses_despite_idle_row(setup):
     )
     with db.connect() as conn, pytest.raises(ValueError, match="idle turn"):
         planning.build(conn, shared.CHANNEL, Config())
+
+
+@pytest.mark.parametrize("executable", ["/bin/codex", "/bin/vim"])
+def test_force_cannot_replace_an_ancestor_harness_or_foreign_application(
+    setup, monkeypatch, executable
+):
+    foreign_root = dataclasses.replace(shared.ROOT, executable=executable)
+    monkeypatch.setattr(
+        planning.process,
+        "inspect",
+        lambda pid: foreign_root if pid == foreign_root.pid else shared.SOURCE,
+    )
+    monkeypatch.setattr(planning.process, "ancestry", lambda pid: [shared.SOURCE, foreign_root])
+    with db.connect() as conn, pytest.raises(ValueError, match=r"Multiple harnesses|pane root"):
+        planning.build(conn, shared.CHANNEL, Config(), force=True)
+
+
+def test_detached_descendant_refuses_even_force(setup, monkeypatch):
+    detached = dataclasses.replace(shared.SOURCE, pid=999, tty="??")
+    monkeypatch.setattr(planning.process, "descendants", lambda pid: [detached])
+    with db.connect() as conn, pytest.raises(ValueError, match="Unmanaged jobs"):
+        planning.build(conn, shared.CHANNEL, Config(), force=True)

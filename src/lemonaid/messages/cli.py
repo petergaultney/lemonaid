@@ -10,6 +10,7 @@ from pathlib import Path
 from .. import brief, lineage
 from ..config import load_config
 from ..inbox import db
+from ..launch.restart import state
 from ..log import get_logger
 from ..watch import push_scout, registry
 from . import autoresume, codex_delivery, dead_letters, recipient, service, store, waiter
@@ -109,28 +110,33 @@ def cmd_tell(args: argparse.Namespace) -> None:
     except ValueError as error:
         _fail(str(error))
 
+    if state.blocked(channel):
+        print(path)
+        print(f"queued for {lemon_id}: restart in progress", file=sys.stderr)
+        return
+
     if channel.startswith("codex:"):
         service.ensure_running()
     elif channel.startswith("claude:") and row is not None:
         push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
     print(path)
-    state = recipient.probe(channel, row, inbox)
-    if state.state not in recipient.UNREAD:
-        print(recipient.describe(lemon_id, state), file=sys.stderr)
+    found_state = recipient.probe(channel, row, inbox)
+    if found_state.state not in recipient.UNREAD:
+        print(recipient.describe(lemon_id, found_state), file=sys.stderr)
         return
 
     line, will_read = (
-        (autoresume.off(lemon_id, parent, state), False)  # no record of its session to start
+        (autoresume.off(lemon_id, parent, found_state), False)  # no record of its session to start
         if row is None or brief_path is None
         else autoresume.respond(
             autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
-            state,
+            found_state,
             load_config(),
         )
     )
     print(line, file=sys.stderr)
     if not will_read:
-        dead_letters.record(sender, lemon_id, state.state, line, path)
+        dead_letters.record(sender, lemon_id, found_state.state, line, path)
         raise SystemExit(1)
 
 
@@ -199,7 +205,11 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
             print(result[1], end="")
             return
     else:
-        result = store.take_next(inbox)
+        with state.admission(channel) as allowed:
+            if not allowed:
+                _fail("A restart holds inbox delivery; messages remain pending")
+
+            result = store.take_next(inbox)
 
     if result is None:
         raise SystemExit(1)

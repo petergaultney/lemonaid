@@ -21,6 +21,7 @@ from collections import abc
 from ..brief import lemon
 from ..inbox import db
 from ..inbox.channel import full_channel_id
+from ..launch.restart import gates
 from ..log import get_logger
 from . import stop_sender, waiter_lock
 
@@ -97,6 +98,7 @@ def _reports_termination(message: abc.Callable[[], str]) -> abc.Iterator[None]:
         signal.signal(signal.SIGTERM, previous)
 
 
+@gates.registration
 @contextlib.contextmanager
 def registered(
     kind: str, targets: abc.Iterable[str], channel: str, command: str, repo: str = ""

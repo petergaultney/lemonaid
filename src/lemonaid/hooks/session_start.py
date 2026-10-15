@@ -41,6 +41,12 @@ def context(data: dict, harness: str) -> str:
     if not native.observe(data, harness):
         return "Restart is in progress; wait for its coordinator before starting work."
 
+    if native.verifying(data, harness):
+        return (
+            "Your restart coordinator is verifying this native session and rebuilding its watcher. "
+            "Do not use tools yet. Wait for its restart-completed batch, then read pending "
+            "messages, rearm subscriptions if needed, and continue your existing task and brief."
+        )
     path = waiter_check.attached_brief(data, harness)
     if session := data.get("session_id"):
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)

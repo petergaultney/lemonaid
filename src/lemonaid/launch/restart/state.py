@@ -85,6 +85,8 @@ def reserve(conn: sqlite3.Connection, plan: dict[str, ty.Any]) -> str:
 
 
 def update(conn: sqlite3.Connection, token: str, phase: str, **evidence: ty.Any) -> None:
+    if phase in TERMINAL:
+        evidence = {**evidence, "finished_at": time.time()}
     conn.execute(
         "UPDATE lemon_restarts SET phase = ?, evidence = json_patch(evidence, ?), error = COALESCE(?, error) WHERE token = ?",
         (phase, json.dumps(evidence), evidence.get("error"), token),
@@ -108,6 +110,11 @@ def recovery_required(conn: sqlite3.Connection, channel: str) -> bool:
         return False
 
     generation = conn.execute(
-        "SELECT registered FROM harness_generations WHERE channel = ?", (channel,)
+        "SELECT registered, token FROM harness_generations WHERE channel = ?", (channel,)
     ).fetchone()
-    return generation is None or generation["registered"] <= row["created"]
+    finished = json.loads(row["evidence"]).get("finished_at", row["deadline"])
+    return (
+        generation is None
+        or generation["token"] == row["token"]
+        or generation["registered"] <= finished
+    )

@@ -14,6 +14,9 @@ import shutil
 import subprocess
 import typing as ty
 
+from ..inbox.channel import full_channel_id
+from ..launch.restart import gates
+
 Deliver = ty.Callable[[str], None]
 
 
@@ -85,7 +88,7 @@ def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
         except subprocess.CalledProcessError as e:
             raise Failed(f"codex queue failed ({e})") from e
 
-    return deliver
+    return gates.deliver(full_channel_id("codex", thread), deliver)
 
 
 def openclaw_setup_problem(cli: str) -> str:
