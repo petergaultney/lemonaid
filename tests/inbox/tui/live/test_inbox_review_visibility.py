@@ -63,6 +63,7 @@ def _brief(
     *,
     reviewer: bool = False,
     parent: str | None = "author.WorkerBin",
+    hidden: bool = True,
 ) -> Path:
     stem = f"review-{channel.split(':')[1]}" if reviewer else f"work-{channel.split(':')[1]}"
     path = brief_store.briefs_dir() / f"2026-10-07-{stem}.md"
@@ -73,6 +74,7 @@ def _brief(
     elif parent == "author.WorkerBin":
         _parent_brief(conn, parent, _PR_URL)
     parent_line = f"Parent: {parent}, 2026-10-13\n\n" if parent else ""
+    parent_line += "Hidden: yes\n\n" if reviewer and hidden else ""
     path.write_text(
         f"# {title}\n\nBrief-ID: {stem}.SampleBin\n\n{parent_line}"
         f"Status: {status}\n\n## Goal\nReview {_PR_URL if reviewer else 'work'}.\n\n## Now\n"
@@ -159,21 +161,10 @@ def test_a_reviewer_stuck_on_a_prompt_stays_visible(kind, unread, moved_on, show
     )
 
 
-@pytest.mark.parametrize(
-    "parent",
-    [
-        None,
-        "control-center.LemonAce",
-        "control center (`hq`)",
-        "lemonaid-plan-manager.BlessBar",
-        "hq.BlessBar",
-        "pe" + "ter",
-    ],
-)
-def test_reviewers_without_an_author_parent_stay_visible(parent):
+def test_a_reviewer_without_the_hidden_line_stays_visible():
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
-        _brief(conn, reviewer, "waiting", reviewer=True, parent=parent)
+        _brief(conn, reviewer, "waiting", reviewer=True, hidden=False)
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
@@ -182,88 +173,16 @@ def test_reviewers_without_an_author_parent_stay_visible(parent):
     assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
-@pytest.mark.parametrize(
-    ("parent", "lineage_parent"),
-    [
-        ("spurious-permission-notices.JellyGet", ""),
-        ("card-shows-done-without-status.RoyalFit", "lemonaid-plan-manager.BlessBar"),
-    ],
-)
-def test_reviewers_parented_by_the_pr_author_hide_without_pr_table_matches(parent, lineage_parent):
+def test_any_quiet_lemon_with_the_hidden_line_hides_whatever_its_parent():
     with db.connect() as conn:
         reviewer = _session(conn, "reviewer")
-        _parent_brief(conn, parent)
-        path = _brief(
-            conn,
-            reviewer,
-            "waiting",
-            reviewer=True,
-            parent=parent,
-        )
-        if lineage_parent:
-            lineage_links.set_parent(conn, identity.read(path.read_text()), lineage_parent)
-        else:
-            lineage_links.clear_parent(conn, identity.read(path.read_text()))
+        _brief(conn, reviewer, "waiting", reviewer=True, parent="someone.AnyBin")
         active = view.ordered_active(
             conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
         )
 
     assert active.reviewers == {reviewer}
     assert view.inbox_rows(active, set(), set()) == []
-
-
-def test_a_reviewer_started_directly_by_a_lead_stays_visible():
-    with db.connect() as conn:
-        lead = "lead.LeadBin"
-        _parent_brief(conn, lead)
-        worker = "worker.WorkerBin"
-        _parent_brief(conn, worker)
-        lineage_links.set_parent(conn, worker, lead)
-        reviewer = _session(conn, "reviewer")
-        _brief(conn, reviewer, "waiting", reviewer=True, parent=lead)
-        active = view.ordered_active(
-            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
-        )
-
-    assert active.reviewers == set()
-    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
-
-
-def test_a_reviewer_started_by_an_author_with_parent_parent_stays_hidden():
-    with db.connect() as conn:
-        lead = "lead.LeadBin"
-        author = "author.WorkerBin"
-        _parent_brief(conn, lead, _PR_URL)
-        _parent_brief(conn, author, _PR_URL)
-        lineage_links.set_parent(conn, author, lead)
-
-        reviewer = _session(conn, "reviewer")
-        reviewer_path = _brief(conn, reviewer, "waiting", reviewer=True, parent=author)
-        # The generated brief still says author, but --parent parent records the lead.
-        lineage_links.set_parent(conn, identity.read(reviewer_path.read_text()), lead)
-        active = view.ordered_active(
-            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
-        )
-
-    assert active.reviewers == {reviewer}
-    assert view.inbox_rows(active, set(), set()) == []
-
-
-def test_a_reviewer_parented_by_a_lead_stays_visible_even_if_its_child_owns_the_pr():
-    with db.connect() as conn:
-        author = "author.WorkerBin"
-        _parent_brief(conn, author, _PR_URL)
-        reviewer = _session(conn, "reviewer")
-        _brief(conn, reviewer, "waiting", reviewer=True, parent=author)
-        work_child = "author-child.WorkerBin"
-        _parent_brief(conn, work_child, _PR_URL)
-        lineage_links.set_parent(conn, work_child, author)
-        active = view.ordered_active(
-            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
-        )
-
-    assert active.reviewers == set()
-    assert [row.channel for row in view.inbox_rows(active, set(), set())] == [reviewer]
 
 
 @pytest.mark.parametrize(
@@ -429,43 +348,3 @@ def test_search_keeps_a_deaf_lemon_in_the_lower_table(monkeypatch):
 
     assert other not in (rows := _run(steps))
     assert rows == [deaf]
-
-
-def _sibling_shape(
-    conn,
-    status: str = "waiting",
-    author: bool = True,
-    lead: str = "lemonaid-plan-manager.BlessBar",
-) -> str:
-    if author:
-        author_id = "author.WorkerBin"
-        _parent_brief(conn, author_id, _PR_URL)
-        lineage_links.set_parent(conn, author_id, lead)
-    reviewer = _session(conn, "reviewer")
-    path = _brief(conn, reviewer, status, reviewer=True, parent=lead)
-    lineage_links.set_parent(conn, identity.read(path.read_text()), lead)
-    return reviewer
-
-
-def _visible(conn) -> list[str]:
-    active = view.ordered_active(conn, "tmux", BriefCache(), presence.Probe(), False, time.time())
-    return [row.channel for row in view.inbox_rows(active, set(), set())]
-
-
-def test_a_lead_parented_reviewer_with_an_author_sibling_on_its_pr_hides_while_quiet():
-    with db.connect() as conn:
-        _sibling_shape(conn)
-        assert _visible(conn) == []
-
-
-def test_a_control_center_parented_reviewer_with_an_author_sibling_hides_while_quiet():
-    with db.connect() as conn:
-        _sibling_shape(conn, lead="control-center.LemonAce")
-        assert _visible(conn) == []
-
-
-@pytest.mark.parametrize(("status", "author"), [("blocked", True), ("waiting", False)])
-def test_that_reviewer_shows_when_blocked_or_without_an_author_sibling(status, author):
-    with db.connect() as conn:
-        reviewer = _sibling_shape(conn, status=status, author=author)
-        assert _visible(conn) == [reviewer]

@@ -506,6 +506,7 @@ lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose co
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
 lemonaid brief check --all                     # every brief of a session that isn't archived
 lemonaid brief now --self "### Next ..."       # replace progress, keep omitted PRs/Docs (- reads stdin)
+lemonaid brief hide --self [--show]          # add or remove `Hidden: yes`: out of the inbox default list
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session

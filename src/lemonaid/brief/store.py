@@ -172,12 +172,16 @@ def _without_status(lines: list[str], i: int) -> str:
     return "\n".join([*lines[:i], *lines[end:]]).rstrip("\n") + "\n"
 
 
+def header_end(lines: list[str]) -> int:
+    """The index of the first section heading after the title, or the line count."""
+    return next((i for i in range(1, len(lines)) if _SECTION.match(lines[i])), len(lines))
+
+
 def with_status(text: str, state: str) -> str:
     """Set the header's `Status:` line (above the first section); `CLEAR` removes it."""
     line = f"Status: {state}"
     lines = text.splitlines()
-    header_end = next((i for i in range(1, len(lines)) if _SECTION.match(lines[i])), len(lines))
-    for i, existing in enumerate(lines[:header_end]):
+    for i, existing in enumerate(lines[: header_end(lines)]):
         if _STATUS_LINE.fullmatch(existing.strip()):
             if state == CLEAR:
                 return _without_status(lines, i)

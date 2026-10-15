@@ -102,7 +102,7 @@ tmux source-file ~/.tmux.conf
 
 ## How it works
 
-Reviewer lemons whose brief ID starts with `review-` stay out of the default inbox while their brief is `working` or `waiting`. Switching to their terminal, selecting or pinning their row, or changing their brief to `alert`, `blocked`, `running`, `merge`, `approve`, `review`, or `done` keeps them visible, as does a permission prompt or question waiting on you. A reviewer stays in history and the snoozed list under the usual rules.
+A lemon whose brief has a `Hidden: yes` header line (add it with `lemonaid brief hide`) stays out of the default inbox while its brief has no special status. Reviewers without the line stay visible. Switching to their terminal, selecting or pinning their row, or changing their brief to `alert`, `blocked`, `running`, `merge`, `approve`, `review`, or `done` keeps them visible, as does a permission prompt or question waiting on you. A reviewer stays in history and the snoozed list under the usual rules.
 
 When the scratch inbox has keyboard focus, its window's last selected lemon
 pane still counts as in view. Moving the inbox cursor to another row does not

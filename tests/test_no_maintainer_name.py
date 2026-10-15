@@ -19,7 +19,6 @@ _FROZEN = "CHANGES.md"  # history up to 0.115.3
 
 _ALLOWED: dict[str, tuple[int, str]] = {
     "LICENSE": (1, "the copyright line"),
-    "src/lemonaid/inbox/view.py": (1, "coordinator-name regex; needs a config option"),
 }
 
 

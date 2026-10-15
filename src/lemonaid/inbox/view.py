@@ -5,15 +5,13 @@ arranger tested from the CLI sees what `lma` would send it.
 """
 
 import dataclasses
-import re
 import sqlite3
 from collections import abc
 from pathlib import Path
 from typing import Any
 
 from .. import brief
-from ..lineage import links as lineage_links
-from . import author_sibling, db, order, pins, presence, status_since, turns
+from . import db, order, pins, presence, status_since, turns
 from .tui.rows import brief_cards
 
 SNAPSHOT_VERSION = 1
@@ -129,43 +127,6 @@ def inbox_rows(
     ]
 
 
-def _parent_id(text: str) -> str:
-    """The stable Lemon-ID in a generated `Parent:` line, if present."""
-    for line in text.splitlines():
-        if not line.startswith("Parent:"):
-            continue
-        for match in re.finditer(r"(?<![\w.-])([\w-]+\.[A-Za-z]+)(?![\w.-])", line):
-            if brief.identity.valid(match.group(1)):
-                return match.group(1)
-    return ""
-
-
-def _has_author_parent(conn: sqlite3.Connection, brief_id: str, path: Path) -> bool:
-    """Hide reviewers whose brief names a worker as parent, not a coordinator."""
-    text = path.read_text()
-    parent_id = _parent_id(text) or lineage_links.parent_of(conn, brief_id)
-    if not parent_id:
-        return False
-
-    if re.search(
-        r"\b(?:control[ -]center|hq|peter|lemonaid-plan-manager)\b",
-        parent_id,
-        re.IGNORECASE,
-    ):
-        return author_sibling.has_author_sibling(conn, brief_id, text, parent_id)
-
-    # A lead has workers of its own. The brief's Parent line takes precedence
-    # over lineage because `--parent parent` links the reviewer under the
-    # author's parent while the generated line still names the author. That
-    # author-started reviewer stays quiet; a lead-parented brief with no
-    # author sibling on its PR remains visible.
-    return not any(
-        not brief.identity.brief_description(child_id).startswith("review-")
-        for child_id in lineage_links.children_of(conn, parent_id)
-        if child_id != brief_id
-    ) or author_sibling.has_author_sibling(conn, brief_id, text, parent_id)
-
-
 def ordered_active(
     conn: sqlite3.Connection,
     switch_source: str | None,
@@ -186,9 +147,7 @@ def ordered_active(
     reviewers = frozenset(
         channel
         for channel, brief_id in brief_ids.items()
-        if channel in attached
-        and brief.identity.brief_description(brief_id).startswith("review-")
-        and _has_author_parent(conn, brief_id, attached[channel])
+        if channel in attached and brief.hidden.is_hidden(attached[channel].read_text())
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),

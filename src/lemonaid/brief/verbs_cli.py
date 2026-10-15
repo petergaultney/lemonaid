@@ -19,6 +19,7 @@ from ..inbox import db
 from . import (
     check,
     command,
+    hidden,
     links,
     now_edit,
     pr,
@@ -69,6 +70,10 @@ def edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
 def _cmd_now(args: argparse.Namespace) -> None:
     text = sys.stdin.read() if args.markdown == "-" else args.markdown
     edited(args, lambda brief: now_edit.replace_progress(brief, text))
+
+
+def _cmd_hide(args: argparse.Namespace) -> None:
+    edited(args, lambda brief: hidden.with_hidden(brief, not args.show))
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -162,6 +167,14 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     status.formatter_class = argparse.RawDescriptionHelpFormatter
     status.add_argument("state", choices=(*store.STATES, store.CLEAR, *store.RETIRED))
     status.set_defaults(func=_cmd_status)
+
+    hide = command.parser(
+        brief_subparsers,
+        "hide",
+        "Add `Hidden: yes` to a lemon's brief, so the inbox leaves it out of its default list",
+    )
+    hide.add_argument("--show", action="store_true", help="Remove the line instead")
+    hide.set_defaults(func=_cmd_hide)
 
     bullet = brief_subparsers.add_parser(
         "bullet",
