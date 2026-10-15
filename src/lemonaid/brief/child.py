@@ -1,6 +1,6 @@
 """Child briefs: a dated brief for a lemon not started yet, from a template.
 
-A template is the body of a brief with `$name` placeholders
+A template contains optional header fields and brief sections, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
 above it: the title, `Brief-ID:`, `Parent:`, `Output-Doc:` when `--output-doc` gives one,
 and `Area:` when `--area` gives one.

@@ -134,6 +134,8 @@ When your own work is accepted and nothing remains, stop your waiters with `lemo
 
 ## Start a reviewer
 
+The packaged review template sets `Hidden: yes`, so no separate `brief hide` command is needed. Use `brief hide` for other lemons you want out of the default inbox.
+
 Use your user's policy for when to review, which harness, window, and review-doc location. The mechanics are:
 
 ```sh

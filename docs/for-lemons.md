@@ -700,11 +700,13 @@ without one can add the line itself, anywhere above its brief's first `##` headi
 still works and warns; templates must use `$output_doc*` now.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 
-A template is the brief's body, from `## Goal` down, with `$name` placeholders (`$$` is a
-literal `$`). Lemonaid packages two:
+A template contains optional header fields followed by the brief's sections, with `$name`
+placeholders (`$$` is a literal `$`). Lemonaid packages two:
 
 - `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, `## Executive Summary of Results` and `## Watching`.
-- `review`: a cross-harness review of `--pr` (a URL, or a number with `--repo owner/name`), with
+- `review`: starts with `Hidden: yes`, keeping the reviewer out of the default inbox without
+  a separate `brief hide` command. It requests a cross-harness review of `--pr` (a URL, or a
+  number with `--repo owner/name`), with
   findings only in the `--output-doc` (linked into Obsidian when it is under a `[brief] vaults`
   root), the rule to keep watching, with no status, until the PR merges or closes, the `git range-diff`
   rule for re-reviews, a `lemonaid tell` to the parent and `--author` when it is someone else, and the

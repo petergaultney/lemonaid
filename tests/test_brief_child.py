@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from lemonaid import groups, obsidian
-from lemonaid.brief import attached, child, identity, output_doc, status, write_cli
+from lemonaid.brief import attached, child, hidden, identity, output_doc, status, write_cli
 from lemonaid.inbox import db
 
 _PARENT = "hq.BlessBar"
@@ -61,6 +61,7 @@ def test_a_child_brief_has_the_header_and_canonical_sections(capsys, parent):
         < text.index("## Done")
         < text.index("## Goal")
     )
+    assert not hidden.is_hidden(text)
     assert text.rstrip().endswith("## Watching")
     assert result["parent"] == _PARENT
 
@@ -118,6 +119,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     text = Path(result["path"]).read_text()
     wordybin = result["lemon_id"].rsplit(".", 1)[1]
     assert Path(result["path"]).name.endswith("-review-widgets-12.md")
+    assert hidden.is_hidden(text)
     assert f"[widgets#12]({_PR})" in text
     assert "[widgets-12](obsidian://open?vault=notes&file=reviews%2Fwidgets-12)" in text
     assert f"`lemonaid tell {_PARENT}` and `lemonaid tell widget.QuickOdd`" in text
