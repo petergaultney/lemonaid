@@ -1,5 +1,7 @@
 """`lemonaid lemon doctor --stalls`: the stuck lines the inbox cards show, as text."""
 
+__lazy_modules__ = ["lemonaid.inbox", "lemonaid.inbox.tui.rows"]
+
 import json
 import time
 

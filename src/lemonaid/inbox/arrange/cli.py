@@ -1,5 +1,7 @@
 """`lemonaid inbox arrange`: try an arranger against the live inbox without `lma`."""
 
+__lazy_modules__ = ["lemonaid.inbox", "lemonaid.inbox.tui.rows"]
+
 import argparse
 import json
 import subprocess

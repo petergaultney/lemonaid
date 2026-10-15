@@ -3,6 +3,8 @@
 It outranks `[tui.group_colors]`, which outranks the palette's choice.
 """
 
+__lazy_modules__ = ["textual.color"]
+
 import sqlite3
 from collections import abc
 

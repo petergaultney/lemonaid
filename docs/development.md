@@ -85,6 +85,17 @@ Code that needs a tmux command calls a function in `src/lemonaid/tmux/`, and tho
 
 ## Where the inbox TUI's code lives
 
+On Python 3.15, selected CLI imports use PEP 810's `__lazy_modules__` declarations
+to load Textual only when rendering or color parsing is requested. Keep these
+imports at module scope; Python 3.11 to 3.14 ignore the declarations and import
+eagerly. `tests/test_lazy_imports.py` checks startup and first UI use in fresh
+interpreters so test collection cannot mask an eager import.
+`tests/test_cli_startup.py` discovers every registered command's help path, checks
+all non-TUI console scripts, and executes notification hooks and common text/JSON
+commands without Textual. New parser paths are included automatically; new console
+scripts must be classified explicitly. These checks cover startup and the exercised
+handler paths, rather than every possible argument or external-service response.
+
 `inbox/tui/app.py` routes input: key bindings, `action_*` methods, mouse and
 message handlers, refresh ticks and the brief overlay. Each action decides what
 should happen and hands the work to the widget or module that owns it. The

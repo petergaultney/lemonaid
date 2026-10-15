@@ -1,7 +1,10 @@
 """The stuck line of each inbox card, recomputed every half minute from cached GitHub facts."""
 
+__lazy_modules__ = ["lemonaid.inbox"]
+
 import dataclasses
 import sqlite3
+
 from .. import brief
 from ..config import Config
 from ..inbox import view

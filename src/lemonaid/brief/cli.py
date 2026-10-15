@@ -1,5 +1,7 @@
 """CLI for showing where a lemon's work stands, from its brief."""
 
+__lazy_modules__ = ["lemonaid.inbox.tui.briefs"]
+
 import argparse
 import dataclasses
 import json
