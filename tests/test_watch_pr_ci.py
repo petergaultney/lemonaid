@@ -129,14 +129,15 @@ def test_closed_pr_does_not_report_ci(tmp_path):
     assert _wait(tmp_path / "pr", [_snap(["passed"], state="MERGED")]) == ["PR #90 is now MERGED"]
 
 
-def test_ci_follows_required_check_results_after_all_checks_finish(tmp_path):
+def test_ci_includes_optional_failures_after_all_checks_finish(tmp_path):
     done = _snap(["passed", "failed"])._replace(
         checks=[
             pr_activity.Check("gate", True, "passed"),
             pr_activity.Check("optional", False, "failed"),
         ]
     )
-    assert _wait(tmp_path / "pr", [done, done]) == [f"PR #90 CI passed at {_HEAD[:10]}"]
+    (message,) = _wait(tmp_path / "pr", [done, done])
+    assert message.startswith(f"PR #90 CI failed at {_HEAD[:10]}: optional:")
 
 
 def test_pass_waits_for_a_stable_set_of_checks(tmp_path):

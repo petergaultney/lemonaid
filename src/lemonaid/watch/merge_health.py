@@ -3,14 +3,11 @@
 Each is reported once per head commit. A conflict is reported when GitHub first says
 CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN (GitHub
 still computing) changes nothing. CI is reported once no check on the head is still
-running and a check that counts has failed. Required checks count when there are any;
-otherwise (a PR stacked on another branch, a repo without branch protection) every check
-does. With `--ci`, passing CI is also reported, only when every check has passed and the
-same set of checks passed on the previous poll too (a workflow's jobs may not be queued
+running and any check has failed, whether or not it is required for merging. With `--ci`,
+passing CI is also reported, only when every check has passed and the same set of checks
+passed on the previous poll too (a workflow's jobs may not be queued
 yet when the first ones finish); no checks is not completion. A pass is reported again if
 the set of checks it covered later changes, so a premature one never hides the real one.
-A repo whose one required check gates on all the others gets one event naming
-just that check.
 """
 
 import json
@@ -45,21 +42,16 @@ def save(path: pathlib.Path, seen: Seen) -> None:
 
 
 def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[str]:
-    """Names of the failed checks that count, or [] while any check is still running."""
+    """Names of all failed checks, or [] while any check is still running."""
     if any(c.outcome == "pending" for c in checks):
         return []
 
-    return [c.name for c in ([c for c in checks if c.required] or checks) if c.outcome == "failed"]
+    return [c.name for c in checks if c.outcome == "failed"]
 
 
 def _all_passed(snap: pr_activity.Snapshot) -> str:
-    """Identifies the head and its set of checks once all are finished and none that count failed, else ""."""
-    counted = [c for c in snap.checks if c.required] or snap.checks
-    if (
-        not snap.checks
-        or any(c.outcome == "pending" for c in snap.checks)
-        or any(c.outcome == "failed" for c in counted)
-    ):
+    """Identifies the head and its set of checks once all have passed, else ""."""
+    if not snap.checks or any(c.outcome != "passed" for c in snap.checks):
         return ""
 
     return snap.head + ":" + ",".join(sorted(c.name for c in snap.checks))

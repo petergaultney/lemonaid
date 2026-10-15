@@ -81,6 +81,8 @@ _FAILED = frozenset(
     {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "ACTION_REQUIRED", "STALE"}
 )
 
+_PASSED = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
+
 
 def _check(node: dict) -> Check:
     if node["__typename"] == "CheckRun":
@@ -93,7 +95,7 @@ def _check(node: dict) -> Check:
     return Check(
         name,
         bool(node["isRequired"]),
-        "pending" if result is None else "failed" if result in _FAILED else "passed",
+        "passed" if result in _PASSED else "failed" if result in _FAILED else "pending",
     )
 
 

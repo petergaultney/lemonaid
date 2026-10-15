@@ -44,7 +44,7 @@ Use local tests during active development when their feedback helps you make the
 
 When relying on CI, check `gh pr checks <number>` first: a CI result that has already finished is never reported. If CI is still running, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch. If the waiter prints `has checks pending; add --ci` at startup or in its first event, you armed without `--ci` while CI is running: stop it and rearm with `--ci`, since a passing run never wakes a waiter without it.
 
-CI completion waits for every check on the current head to finish. Required checks determine the result when any are present; otherwise all checks count. No checks is not a completion. A completion is remembered once per head and watcher identity, so rearming with `--head` does not repeat it, even when switching between `--comments` and `--ci`.
+CI completion waits for every check on the current head to finish. Every check counts, including checks that are not required for merging. No checks is not a completion. A completion is remembered once per head and watcher identity, so rearming with `--head` does not repeat it, even when switching between `--comments` and `--ci`.
 
 ## Waiting
 
@@ -87,7 +87,7 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 - **Ready for review:** someone wants it reviewed now. Keep `--comments` if it's yours, and rearm.
 - **Conflicts with its base:** reported once per head, when GitHub says `CONFLICTING`. Rebase onto `origin/<base>` (if the base PR just merged, see the stacked-PR step below), run the tests, push with `--force-with-lease`, check that `gh pr view <n> --json mergeable` says `MERGEABLE`, tell your reviewer, and rearm.
 - **CI passed (`--ci`):** the current head has finished CI successfully. Continue the review or merge-readiness work, then rearm without `--ci`.
-- **CI failed:** reported once per head, after every check on it has finished. Required checks count when the PR has any; otherwise every check does. Read `gh pr checks <n>` and the failed job's log. Fix it and push, or rerun a flaky job (`gh run rerun <run-id> --failed`), tell your reviewer when it's green, and rearm.
+- **CI failed:** reported once per head, after every check on it has finished. Every check counts, including checks that are not required for merging. Read `gh pr checks <n>` and the failed job's log. Fix it and push, or rerun a flaky job (`gh run rerun <run-id> --failed`), tell your reviewer when it's green, and rearm.
 - **Stacked PR, base merged:** GitHub retargets your PR to the base's own base. If that merge was a squash, your branch still carries the base's original commits and usually conflicts. Rebase only your own commits (`git rebase --onto origin/main <base's last commit> <your branch>`), run the tests, push with `--force-with-lease`, check it's `MERGEABLE`, and rearm.
 - **Back in draft:** more work is wanted before review. Look for what in the PR's comments; if nothing says, ask in your final message. Rearm.
 - **Review decision `APPROVED`:** report it and rearm. Don't merge unless you were told to.

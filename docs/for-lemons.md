@@ -1056,7 +1056,7 @@ A pass is reported once the same set of checks has passed on two polls in a row 
 `--interval` after they finish), and again if the set later changes on that head.
 No checks is not a completion. A CI result that finished before your first waiter started
 is not reported; check `gh pr checks` first. Keep `--ci` across rearms until the head is
-validated, then remove it. Required checks determine the result when present, otherwise all checks count.
+validated, then remove it. Every check counts, including checks that are not required for merging.
 
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.

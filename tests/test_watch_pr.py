@@ -183,10 +183,13 @@ def test_ci_is_reported_once_every_check_has_finished(stem):
     )
 
 
-def test_only_required_checks_count_when_there_are_any():
+def test_optional_failure_counts_even_when_required_checks_pass():
     checks = [_check("allow-merge", required=True), _check("flaky", outcome="failed")]
 
-    assert merge_health.events(90, _snap(checks=checks), merge_health.Seen("", ""))[0] == []
+    messages, _ = merge_health.events(90, _snap(checks=checks), merge_health.Seen("", ""))
+    assert len(messages) == 1
+    assert "CI failed" in messages[0]
+    assert "flaky" in messages[0]
 
 
 def test_a_reviewer_is_not_woken_for_conflicts_or_ci(stem):

@@ -180,15 +180,19 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
 
 - A conflict is reported once per head, when GitHub says `CONFLICTING` (`UNKNOWN`, while it
   computes, is not a conflict). A first waiter takes a conflict that already exists as seen.
-- Failed CI is reported once per head, after every check on it has finished. Required
-  checks count when the PR has any; otherwise every check does.
+- Failed CI is reported once per head, after every check on it has finished. Every check counts,
+  including checks that are not required for merging.
 - The heads reported are kept beside the other state, so a rearm on the same head is quiet
   and a new push that still conflicts or fails is reported.
 
 Add `--ci` when you want a completion event whether CI passes or fails. It works
 with or without `--comments`, and with `--once` or `--codex-thread`. Completion waits
-for every check on the current head to finish; required checks determine the result
-when any exist, otherwise every check counts. No checks is not a completion. A first
+for every check on the current head to finish; every check counts, including checks
+that are not required for merging. Completed `SUCCESS`, `NEUTRAL`, and `SKIPPED` check runs count as passed.
+`FAILURE`, `ERROR`, `TIMED_OUT`, `CANCELLED`, `STARTUP_FAILURE`, `ACTION_REQUIRED`,
+and `STALE` count as failed. Unfinished runs, missing conclusions, and unrecognized
+results remain pending. Status contexts pass on `SUCCESS`, fail on `FAILURE` or
+`ERROR`, and remain pending otherwise. No checks is not a completion. A first
 waiter takes a CI result that has already finished as seen, so check `gh pr checks` before
 arming one. A pass is reported only when the same set of checks had passed on the previous poll too,
 so it can arrive one `--interval` after the checks finish; if the set of checks changes

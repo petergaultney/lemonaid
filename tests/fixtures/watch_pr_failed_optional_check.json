@@ -1,0 +1,63 @@
+{
+  "data": {
+    "repository": {
+      "visibility": "PUBLIC",
+      "pullRequest": {
+        "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseRefName": "main",
+        "state": "OPEN",
+        "isDraft": true,
+        "reviewDecision": null,
+        "mergeable": "MERGEABLE",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "statusCheckRollup": {
+                  "contexts": {
+                    "pageInfo": {
+                      "hasNextPage": false
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "required gate",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "isRequired": true
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "optional test",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "isRequired": false
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "optional plan",
+                        "status": "COMPLETED",
+                        "conclusion": "FAILURE",
+                        "isRequired": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "reviewThreads": {
+          "nodes": []
+        },
+        "reviews": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": []
+        }
+      }
+    }
+  }
+}
