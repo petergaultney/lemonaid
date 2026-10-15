@@ -153,3 +153,8 @@ def startup_dialog(target: str, wait: float = _DIALOG_WAIT_SECONDS) -> str:
         _log.warning("%s stopped at %s", target, found)
 
     return found
+
+
+def server_command(socket: str, *args: str) -> subprocess.CompletedProcess[str]:
+    """A launch operation bound to an explicit server, with a bounded wait."""
+    return tmux.run(args, socket=socket, timeout=5)

@@ -6,6 +6,7 @@ against, which differs by model and by plan.
 
 from pathlib import Path
 
+from ..launch.restart import native
 from ..usage import paths
 
 
@@ -14,6 +15,7 @@ def _windows_dir() -> Path:
 
 
 def save(statusline_data: dict) -> None:
+    native.observe(statusline_data, "claude")
     session_id = statusline_data.get("session_id")
     size = (statusline_data.get("context_window") or {}).get("context_window_size")
     if not isinstance(session_id, str) or not session_id or not isinstance(size, int) or size <= 0:

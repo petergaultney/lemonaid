@@ -62,6 +62,8 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ## Features
 
+- **[Restart preflight](docs/lemon-restart.md)**: `lemonaid lemon restart <lemon> --dry-run` verifies one live lemon's process, session, pane and effective settings before a same-pane restart.
+
 - **[Jump from a link](docs/go.md)**: `lemonaid go <Lemon-ID | channel>` switches to a lemon's tmux pane or cmux surface, and `--link` prints a clickable link. macOS URL-handler setup is documented.
 
 - **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session shows its PR numbers beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.

@@ -152,6 +152,8 @@ def test_a_brief_waiting_from_before_the_upgrade_keeps_waiting(tmp_path):
             (channel, json.dumps({"tmux_session": "fresh", "tmux_window": "2"}), status),
         )
     conn.execute("INSERT INTO pending_briefs VALUES ('fresh', '2', '/b/task.md', 2, 1)")
+    conn.execute("DROP TABLE harness_generations")
+    conn.execute("DROP TABLE lemon_restarts")
     conn.execute(f"PRAGMA user_version = {m011_pending_briefs_live_before.VERSION - 1}")
     conn.commit()
     conn.close()

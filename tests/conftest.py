@@ -12,6 +12,7 @@ import pytest  # noqa: E402
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
+from lemonaid.launch.restart import native  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
 from lemonaid.watch import codex_waiter, push_scout  # noqa: E402
@@ -91,6 +92,8 @@ def _no_harness_identity(monkeypatch):
     """`--self` reads these first, and a test run from inside a lemon inherits its own."""
     for name in ("LEMONAID_CHANNEL", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "TMUX_PANE"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("LEMONAID_RESTART_TOKEN", raising=False)
+    monkeypatch.setattr(native, "harness_parent", lambda harness: None)
 
 
 @pytest.fixture(autouse=True)
