@@ -27,14 +27,9 @@ def _child(conn: sqlite3.Connection, lemon_id: str) -> render.Child | None:
     current = lemon.current(conn, lemon_id)
     path = lemon.brief_of(conn, current)
     state = status.split(path.read_text()).status if path and path.is_file() else ""
-    if state == "done":
-        return None
-
     row = _session_row(conn, path)
     if row and row.is_archived:
-        cwd = row.metadata.get("cwd")
-        if not cwd or not Path(cwd).is_dir():
-            return None
+        return None
 
     return render.Child(
         state,

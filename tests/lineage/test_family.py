@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 
+import pytest
 from textual.app import App
 
 from lemonaid.brief import family, identity, pr, render, status, store, target
@@ -85,7 +86,7 @@ def test_children_are_listed_one_per_line_before_done(capsys):
     out = render.to_markdown(family.added(render.view(found, 0, pr.no_state)), 0)
 
     assert f"**Children:**\n\n- blocked · {identity.markdown_id(first)}" in out
-    assert identity.markdown_id(second) not in out
+    assert f"- done · {identity.markdown_id(second)}" in out
     assert out.index("a decision") < out.index("**Children:**") < out.index("**Done:**")
 
 
@@ -109,11 +110,12 @@ def test_a_brief_with_a_broken_lemon_id_shows_no_family_line():
     assert (section.lemon_id, section.parent, section.children) == ("", "", ())
 
 
-def test_the_brief_view_shows_the_parent_and_children(capsys):
+@pytest.mark.parametrize("state", ["", "done"])
+def test_the_brief_view_shows_the_parent_and_children(capsys, state):
     parent = lemon("parent")
     child = lemon("child")
     run(capsys, "lemon", "parent", child, "--set", parent, "--json")
-    grandchild = lemon("grandchild")
+    grandchild = lemon("grandchild", status=state)
     run(capsys, "lemon", "parent", grandchild, "--set", child, "--json")
     path = (store.briefs_dir() / "child.md").resolve()
     found = target.Target([path], [path.parent], path.parent, ["child"], "child", "**child**")
@@ -139,4 +141,4 @@ def test_the_brief_view_shows_the_parent_and_children(capsys):
     assert (
         f"Brief-ID: {identity.markdown_id(child)}  \nParent: {identity.markdown_id(parent)}"
     ) in rendered
-    assert children == f"Children:\n  -  {grandchild}"
+    assert children == f"Children:\n  {state or '-'}  {grandchild}"

@@ -2,10 +2,11 @@ import asyncio
 import statistics
 import time
 
+import pytest
 from textual.app import App
 
 from lemonaid import tmux
-from lemonaid.brief import attached, children, family, pr, render, store, target
+from lemonaid.brief import children, family, pr, render, store, target
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.lineage import links
@@ -24,7 +25,7 @@ def _lead(count):
         for i in range(count):
             name = f"child-{i}"
             archived = bool(i % 2)
-            channel = f"codex:{name}" if archived else ""
+            channel = f"codex:{name}"
             child = lemon(
                 name,
                 channel=channel,
@@ -40,21 +41,27 @@ def _lead(count):
     return target.Target([path], [], path.parent, ["lead"], "lead", "")
 
 
-def test_all_done_children_hide_the_section_and_status_edits_are_reflected():
+def test_done_children_remain_until_archived_and_status_edits_are_reflected():
     parent = lemon("parent")
-    child = lemon("child", status="done")
+    child = lemon("child", channel="codex:child", status="done")
     with db.connect() as conn:
         links.set_parent(conn, child, parent)
     path = store.briefs_dir() / "parent.md"
     found = target.Target([path], [], path.parent, ["parent"], "parent", "")
     shown = family.added(render.view(found, 0, pr.no_state))
-    assert not shown.sections[0].children
-    assert "**Children:**" not in render.to_markdown(shown, 0)
+    assert shown.sections[0].children == (render.Child("done", "child", child),)
+    assert "- done" in render.to_markdown(shown, 0)
     path = store.briefs_dir() / "child.md"
     path.write_text(path.read_text().replace("Status: done", "Status: blocked"))
     assert family.added(render.view(found, 0, pr.no_state)).sections[0].children == (
         render.Child("blocked", "child", child),
     )
+
+    with db.connect() as conn:
+        db.archive_channel(conn, "codex:child", "test")
+    shown = family.added(render.view(found, 0, pr.no_state))
+    assert not shown.sections[0].children
+    assert "**Children:**" not in render.to_markdown(shown, 0)
 
 
 def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
@@ -73,14 +80,14 @@ def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
             view = app.query_one(BriefView)
             view.show(found)
             await pilot.pause()
-            assert len(view._sections[0].children) == 10
+            assert len(view._sections[0].children) == 50
             durations = []
             for _ in range(30):
                 start = time.perf_counter()
                 view.update_brief(found)
                 durations.append(time.perf_counter() - start)
             print(
-                f"100 children (40 done, 50 archived with no directory): redraw median={statistics.median(durations)*1000:.2f}ms, max={max(durations)*1000:.2f}ms, n=30"
+                f"100 children (40 visible done, 50 archived): redraw median={statistics.median(durations)*1000:.2f}ms, max={max(durations)*1000:.2f}ms, n=30"
             )
             rebuilt = []
             for _ in range(10):
@@ -90,7 +97,7 @@ def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
                 rebuilt.append(time.perf_counter() - start)
                 await pilot.pause()
             print(
-                f"100 children (40 done, 50 archived with no directory): forced rebuild median={statistics.median(rebuilt)*1000:.2f}ms, max={max(rebuilt)*1000:.2f}ms, n=10"
+                f"100 children (40 visible done, 50 archived): forced rebuild median={statistics.median(rebuilt)*1000:.2f}ms, max={max(rebuilt)*1000:.2f}ms, n=10"
             )
             view.focus()
             await pilot.press("pagedown")
@@ -99,33 +106,43 @@ def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
     asyncio.run(check())
 
 
-def test_archived_children_without_a_directory_hide_but_cleanup_and_live_children_remain(
-    tmp_path, monkeypatch
-):
+@pytest.mark.parametrize("state", ["", "done", "blocked", "running"])
+@pytest.mark.parametrize("inbox_status", ["unread", "read", "snoozed", "archived"])
+@pytest.mark.parametrize("exists", [False, True])
+def test_child_visibility_follows_archive_state(tmp_path, monkeypatch, state, inbox_status, exists):
     found = _lead(0)
     parent = family.added(render.view(found, 0, pr.no_state)).sections[0].lemon_id
-    kept = []
-    for name, archived, exists in (
-        ("gone", True, False),
-        ("cleanup", True, True),
-        ("live", False, False),
-    ):
-        cwd = tmp_path / name
-        if exists:
-            cwd.mkdir()
-        channel = f"codex:{name}"
-        child = lemon(name, channel=channel, status="")
-        with db.connect() as conn:
-            db.add(conn, channel, "", metadata={"cwd": str(cwd)})
-            attached.attach(conn, channel, store.briefs_dir() / f"{name}.md")
-            links.set_parent(conn, child, parent)
-            if archived:
-                db.archive_channel(conn, channel, "test")
-        if not archived or exists:
-            kept.append(child)
+    cwd = tmp_path / "place"
+    if exists:
+        cwd.mkdir()
+    child = lemon("child", channel="codex:child", status=state)
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "codex:child",
+            "",
+            metadata={"cwd": str(cwd), "tmux_session": "work", "tmux_window": "2"},
+        )
+        conn.execute(
+            "UPDATE notifications SET status = ? WHERE channel = ?", (inbox_status, "codex:child")
+        )
+        links.set_parent(conn, child, parent)
     monkeypatch.setattr(tmux, "run", _forbidden)
     monkeypatch.setattr(children, "of", _forbidden)
     monkeypatch.setattr(ownership, "managed_places", _forbidden)
-    assert {
-        c.lemon_id for c in family.added(render.view(found, 0, pr.no_state)).sections[0].children
-    } == set(kept)
+    monkeypatch.setattr(type(cwd), "is_dir", _forbidden)
+    shown = family.added(render.view(found, 0, pr.no_state))
+    assert shown.sections[0].children == (
+        () if inbox_status == "archived" else (render.Child(state, "child", child),)
+    )
+
+
+def test_pending_child_without_a_session_is_visible():
+    found = _lead(0)
+    parent = family.added(render.view(found, 0, pr.no_state)).sections[0].lemon_id
+    child = lemon("pending", status="")
+    with db.connect() as conn:
+        links.set_parent(conn, child, parent)
+    assert family.added(render.view(found, 0, pr.no_state)).sections[0].children == (
+        render.Child("", "pending", child),
+    )
