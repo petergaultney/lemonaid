@@ -206,13 +206,13 @@ class InboxList(Vertical):
 
         active = frame.active
         self._revive_deaf(active)
-        shown, folded, self.fold_name = self.arrangement.arranged(
+        shown, folded, self.fold_name, group_order = self.arrangement.arranged(
             active, frame.shown, frame.folded, frame.pinned, frame.emojis, cards, width
         )
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
         all_folded = folded  # grouped ones too, which hide in place rather than in the fold
         entries, folded, other_notifications = inbox_entries.entries(
-            frame, shown, folded, self.kept, self.fold_open
+            frame, shown, folded, self.kept, self.fold_open, group_order
         )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]

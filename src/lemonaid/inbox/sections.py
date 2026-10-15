@@ -77,6 +77,8 @@ def layout(
     kept: abc.Container[str] = (),
     fold_open: bool = False,
     deaf: abc.Container[str] = (),
+    *,
+    group_order: abc.Sequence[db.Notification] = (),
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
@@ -84,9 +86,12 @@ def layout(
     A group with no rows here isn't drawn, nor is one whose rows are all
     folded while the fold is closed: its header would have nothing to open.
     *kept* holds row keys drawn even inside a collapsed group or folded; a *deaf* lemon's
-    rows are always drawn.
+    rows are always drawn. *group_order* keeps group members in their order before
+    folding, so pulling a focused row out of the fold doesn't move it in its group.
     """
     every = [*shown, *folded]
+    positions = {n.id: i for i, n in enumerate(group_order)}
+    every.sort(key=lambda n: positions.get(n.id, len(positions)))
     grouped = {
         group.name: [n for n in every if group.name in memberships.get(n.channel, ())]
         for group in all_groups

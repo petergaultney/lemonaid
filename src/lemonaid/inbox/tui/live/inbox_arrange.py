@@ -35,13 +35,13 @@ class Arrangement:
         emojis: abc.Mapping[str, str],
         cards: bool,
         width: int,
-    ) -> tuple[list[db.Notification], list[db.Notification], str]:
-        """*shown* and *folded* as the arranger has them, and its fold label.
+    ) -> tuple[list[db.Notification], list[db.Notification], str, list[db.Notification]]:
+        """*shown*, *folded*, the fold label, and group members' order before folding.
 
         While it has no usable answer they come back as they are, and `error` says why.
         """
         if self._arranger is None:
-            return shown, folded, ""
+            return shown, folded, "", active.rows
 
         now = time.time()
         reply = self._arranger.answer(
@@ -52,7 +52,7 @@ class Arrangement:
         )
         self.error = self._arranger.error
         if reply is None:
-            return shown, folded, ""
+            return shown, folded, "", active.rows
 
         try:
             arranged = answer.apply(
@@ -63,11 +63,16 @@ class Arrangement:
                 _log.warning("arrange: %s", e)
                 self._logged.add(str(e))
             self.error = str(e)
-            return shown, folded, ""
+            return shown, folded, "", active.rows
 
         if len(self._logged) > 1000:
             self._logged.clear()  # problems name row ids, which keep changing
         for problem in set(arranged.problems) - self._logged:
             _log.info("arrange: %s", problem)
         self._logged.update(arranged.problems)
-        return arranged.shown, arranged.folded, arranged.fold_label
+        return (
+            arranged.shown,
+            arranged.folded,
+            arranged.fold_label,
+            [*arranged.shown, *arranged.folded],
+        )
