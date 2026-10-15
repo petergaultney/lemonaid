@@ -149,7 +149,7 @@ def test_replacing_progress_keeps_omitted_tables_and_orders_them(tmp_path):
         lambda body: pr_table.with_row(body, "https://github.com/o/r/pull/12", "Fix", None),
     )
     brief = doc_table.add(brief, tmp_path / "review.md", "Review")
-    out = now_edit.replace_progress(brief, "### Done\n\n- Code finished\n")
+    out = now_edit.replace_progress(brief, "### Done\n\n- Code finished\n", replace_all=True)
 
     assert "write the docs" not in out
     assert now_edit.now_of(out).sections[:-1] == tuple(
@@ -170,3 +170,22 @@ def test_replacing_progress_can_explicitly_replace_or_clear_a_table():
     assert "### PRs" not in now_edit.replace_progress(out, "### PRs\n")
     removed = now_edit.with_section(out, "PRs", lambda body: pr_table.without(body, "13"))
     assert "### PRs" not in removed
+
+
+def test_replacing_progress_refuses_to_drop_a_sub_heading():
+    with pytest.raises(now_edit.EditError, match="### Next") as refused:
+        now_edit.replace_progress(_BRIEF, "### Done\n\n- Code finished\n")
+
+    assert "- merge #12" in str(refused.value) and "write the docs" in str(refused.value)
+
+
+def test_replacing_progress_keeping_every_sub_heading_needs_no_flag():
+    kept = "### Needs you\n\n- x\n\n### Waiting on\n\n- y\n\n### Next\n\n- something else\n\n### Done\n\n- z\n"
+    out = now_edit.replace_progress(_BRIEF, kept)
+
+    assert "something else" in out and "write the docs" not in out
+
+
+def test_replacing_progress_refuses_an_empty_heading_that_would_vanish():
+    with pytest.raises(now_edit.EditError, match="### Waiting on"):
+        now_edit.replace_progress(_BRIEF, "### Waiting on\n")

@@ -241,7 +241,7 @@ def test_the_waiter_verbs_edit_the_attached_brief(capsys):
 def test_an_edit_that_would_break_the_brief_is_refused(capsys):
     path = _attached()
 
-    refused = _run(capsys, "now", "--channel", "codex:t1", "- x\n\n## Goal\nagain")
+    refused = _run(capsys, "now", "--channel", "codex:t1", "--replace-all", "- x\n\n## Goal\nagain")
 
     assert "Refused" in refused["error"] and "`## Goal` appears 2 times" in refused["error"]
     assert path.read_text() == _BRIEF

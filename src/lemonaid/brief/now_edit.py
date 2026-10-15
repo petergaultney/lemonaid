@@ -11,6 +11,7 @@ from collections import abc
 from . import layout, store
 
 _FENCE = re.compile(r"(```|~~~)")
+_KEPT = (layout.ORDER.index("prs"), layout.ORDER.index("docs"))
 _NAMES = ("Needs", "Running", "Waiting on", "Next", "PRs", "Docs", "Lemons", "Done")
 
 
@@ -71,14 +72,30 @@ def now_of(text: str) -> layout.Now:
     return layout.parse("\n".join(lines[start:end]))
 
 
-def replace_progress(text: str, body: str) -> str:
-    """Replace progress, retaining subscription tables omitted from the new body."""
+def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
+    """Replace progress, retaining subscription tables omitted from the new body.
+
+    Without *replace_all*, a body that omits a sub-heading the section has is refused.
+    """
     now = layout.parse(body)
+    dropped = [
+        section.heading
+        for section in now_of(text).sections
+        if layout.rank(section.heading) not in _KEPT
+        and not ((at := layout.find(now, section.heading)) is not None and now.sections[at].body)
+    ]
+    if dropped and not replace_all:
+        current = layout.render(now_of(text)).rstrip()
+        raise EditError(
+            f"This would drop {', '.join(f'### {h}' for h in dropped)} from ## Now, which is now:"
+            f"\n\n{current}\n\nChange one line with `brief bullet add|set|rm`, or pass"
+            " --replace-all to rewrite the section."
+        )
+
     kept = tuple(
         section
         for section in now_of(text).sections
-        if layout.rank(section.heading) in (layout.ORDER.index("prs"), layout.ORDER.index("docs"))
-        and layout.find(now, section.heading) is None
+        if layout.rank(section.heading) in _KEPT and layout.find(now, section.heading) is None
     )
     return with_now(text, dataclasses.replace(now, sections=(*now.sections, *kept)))
 

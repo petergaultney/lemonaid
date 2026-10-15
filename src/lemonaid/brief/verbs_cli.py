@@ -69,7 +69,7 @@ def edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
 
 def _cmd_now(args: argparse.Namespace) -> None:
     text = sys.stdin.read() if args.markdown == "-" else args.markdown
-    edited(args, lambda brief: now_edit.replace_progress(brief, text))
+    edited(args, lambda brief: now_edit.replace_progress(brief, text, args.replace_all))
 
 
 def _cmd_hide(args: argparse.Namespace) -> None:
@@ -155,6 +155,12 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         brief_subparsers, "now", "Replace progress in `## Now`, keeping omitted PRs and Docs tables"
     )
     now.add_argument("markdown", help="The new section body; - reads it from stdin")
+    now.add_argument(
+        "--replace-all",
+        action="store_true",
+        help="Allow the new body to drop sub-headings the section has; "
+        "`brief bullet add|set|rm` change one line",
+    )
     now.set_defaults(func=_cmd_now)
 
     status = command.parser(

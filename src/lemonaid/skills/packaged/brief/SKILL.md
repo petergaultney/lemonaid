@@ -82,7 +82,7 @@ lemonaid brief pr add --self <PR-URL> "Delivery service" --review <review-doc-li
 lemonaid brief pr rm --self 12
 ```
 
-`bullet set` and `rm` match the beginning of exactly one bullet, ignoring case. `Done` additions go at the top of that section. `lemonaid brief now --self "..."` replaces progress in `## Now`, keeping existing PRs and Docs tables when their headings are omitted; pass `-` to read it from stdin. Supplying a PRs or Docs heading replaces that table. Use `brief pr rm` or `brief doc rm` to remove individual rows.
+`bullet set` and `rm` match the beginning of exactly one bullet, ignoring case. `Done` additions go at the top of that section. `lemonaid brief now --self "..."` replaces progress in `## Now`, keeping existing PRs and Docs tables when their headings are omitted; pass `-` to read it from stdin. It refuses a body that drops any other sub-heading the section has; to change one line use the bullet verbs, and to rewrite the whole section pass `--replace-all` (`lemonaid brief now --self --replace-all -`). Supplying a PRs or Docs heading replaces that table. Use `brief pr rm` or `brief doc rm` to remove individual rows.
 
 <!-- harness: claude -->
 You may edit a brief directly. After every hand edit, run `lemonaid brief check --self` and fix its reports; the Stop hook also keeps the turn from ending with an invalid brief.
