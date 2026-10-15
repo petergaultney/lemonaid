@@ -1,5 +1,25 @@
+from lemonaid.brief import migrate
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox.tui.rows import pr_numbers
+
+from .shared import table
+
+
+def test_brief_cache_reads_migrated_tables_and_reuses_unchanged_file(tmp_path, monkeypatch):
+    path = tmp_path / "brief.md"
+    path.write_text(table(12))
+    cache = pr_numbers.Cache()
+    expected = pr_numbers.PR("12", "https://github.com/owner/repo/pull/12")
+    assert cache.brief(path) == expected
+    path.write_text(migrate.layout(table(13)))
+    expected = pr_numbers.PR("13", "https://github.com/owner/repo/pull/13")
+    assert cache.brief(path) == expected
+
+    def unexpected_read(*args):
+        raise AssertionError("Unchanged briefs should use the cache")
+
+    monkeypatch.setattr(pr_numbers, "brief_number", unexpected_read)
+    assert cache.brief(path) == expected
 
 
 def test_maps_are_per_root_cached_and_single_flight(tmp_path):

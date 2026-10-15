@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from lemonaid.brief import migrate
 from lemonaid.stalls import pulls
 
 from .shared import lemon
@@ -12,7 +15,8 @@ def _brief(path: Path, body: str) -> Path:
     return path
 
 
-def test_author_row_pairs_with_the_reviewer_that_mentions_the_pr(tmp_path: Path) -> None:
+@pytest.mark.parametrize("promoted", [False, True])
+def test_author_row_pairs_with_the_reviewer_that_mentions_the_pr(tmp_path: Path, promoted) -> None:
     doc_url = "obsidian://open?vault=vault&file=pr-reviews%2F238"
     author = lemon(
         "a",
@@ -21,6 +25,8 @@ def test_author_row_pairs_with_the_reviewer_that_mentions_the_pr(tmp_path: Path)
             f"| Work | PR | Review |\n|---|---|---|\n| x | [w#238]({URL}) | [d]({doc_url}) |",
         ),
     )
+    if promoted:
+        author.path.write_text(migrate.layout(author.path.read_text()))
     (tmp_path / "r.md").write_text(
         f"Review {URL}\n\n## Waiters\n\n- `lemonaid watch pr --wait 238 --head abc1234 --me X`\n"
     )

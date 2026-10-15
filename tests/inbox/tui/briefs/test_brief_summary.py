@@ -5,22 +5,27 @@ import asyncio
 import pytest
 from textual.widgets._markdown import MarkdownH2, MarkdownParagraph
 
+from lemonaid.brief import migrate
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
 
 from ..shared import lemons, until
 
 
+@pytest.mark.parametrize("promoted", [False, True])
 @pytest.mark.parametrize("summary", ["", "The notification now arrives."])
-def test_b_shows_results_before_needs_and_refreshes_them(monkeypatch, tmp_path, summary):
+def test_b_shows_results_before_needs_and_refreshes_them(monkeypatch, tmp_path, summary, promoted):
     _, state = lemons(monkeypatch, tmp_path, 1)
     path = state["targets"][0].attached[0]
     source = (
         "# Work\n\nStatus: merge\n\n## Now\n\n### Needs Sam\n\n"
-        "- Merge the fix.\n\n## Goal\n\nDeliver notifications.\n\n"
+        "- Merge the fix.\n\n### Next\n\n- verify delivery\n\n"
+        "### Done\n\n- fixed delivery\n\n## Goal\n\nDeliver notifications.\n\n"
         "## Executive Summary of Results\n\n{summary}\n\n"
         "## Context\n\nKeep the existing delivery service.\n"
     )
+    if promoted:
+        source = migrate.layout(source)
     path.write_text(source.format(summary=summary))
 
     async def check() -> None:
@@ -32,6 +37,9 @@ def test_b_shows_results_before_needs_and_refreshes_them(monkeypatch, tmp_path, 
             view = app.query_one(BriefView)
             headings = [h._content.plain for h in view.query(MarkdownH2)]
             assert ("Executive Summary of Results" in headings) == bool(summary)
+            paragraphs = [p._content.plain for p in view.query(MarkdownParagraph)]
+            assert "verify delivery" in paragraphs
+            assert "fixed delivery" in paragraphs
             if summary:
                 paragraphs = [p._content.plain for p in view.query(MarkdownParagraph)]
                 assert paragraphs.index(summary) < paragraphs.index("Needs Sam:")

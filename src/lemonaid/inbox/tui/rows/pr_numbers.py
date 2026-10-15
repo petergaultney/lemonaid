@@ -6,7 +6,7 @@ from collections import abc
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from ....brief import attached, layout, pr_table
+from ....brief import attached, pr_table, sections
 from ....config import PlaceRoot, PlacesConfig
 from ....log import get_logger
 from ....places import hooks
@@ -56,15 +56,7 @@ def branch_map(lines: abc.Iterable[str]) -> dict[str, PR]:
 
 
 def brief_number(text: str) -> PR | None:
-    bounds = layout.bounds(text.splitlines())
-    if bounds is None:
-        return None
-
-    now = layout.parse("\n".join(text.splitlines()[slice(*bounds)]))
-    tables = [section for section in now.sections if section.heading.lower() == "prs"]
-    if not tables:
-        return None
-
+    tables = [section for section in sections.behavior(text) if section.heading.lower() == "prs"]
     if len(tables) != 1:
         return None
 

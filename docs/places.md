@@ -66,7 +66,7 @@ to report, so that `place list` over a large repo highlights only what needs att
 
 Inbox rows show `#number` before the session name in both layouts. The row's working directory selects its innermost configured root, and its `git_branch` is looked up in that root's open-PR map first.
 
-When branch lookup finds no number, an attached brief's `### PRs` table supplies the fallback if it has exactly one valid row. Empty, invalid, or multi-row tables supply no number. Children and their roles do not affect the result.
+When branch lookup finds no number, an attached brief's `## PRs` table (or legacy `### PRs` under `## Now`) supplies the fallback if it has exactly one valid row. Empty, invalid, or multi-row tables supply no number. Children and their roles do not affect the result.
 
 Set `open_prs` to a shell command that prints one `<branch> <number> [url]` line per open PR:
 

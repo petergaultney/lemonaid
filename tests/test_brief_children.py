@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import lemonaid.brief.write_cli
-from lemonaid.brief import attached, child_place, children, children_cli, identity, store
+from lemonaid.brief import attached, child_place, children, children_cli, identity, migrate, store
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
 from lemonaid.lineage import links
@@ -79,9 +79,16 @@ def _of(parent: str, world: child_place.World) -> list[children.Child]:
         return children.of(conn, parent, world)
 
 
-def test_a_child_carries_its_place_session_prs_and_reviewer(tmp_path):
+@pytest.mark.parametrize("promoted", [False, True])
+def test_a_child_carries_its_place_session_prs_and_reviewer(tmp_path, promoted):
     parent = _lemon("parent", "working", "claude:parent")
-    author = _lemon("author", "merge", "claude:author", tmp_path / "feat" / "src", _PRS)
+    author = _lemon(
+        "author",
+        "merge",
+        "claude:author",
+        tmp_path / "feat" / "src",
+        migrate.layout(_PRS) if promoted else _PRS,
+    )
     reviewer = _lemon("reviewer", "waiting", "codex:reviewer", tmp_path / "feat")
     _link(author, parent)
     _link(reviewer, author)
