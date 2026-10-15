@@ -9,11 +9,11 @@ from pathlib import Path
 
 from textual import events
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Markdown
 
 from ...log import get_logger
+from . import scroll_position
 
 _log = get_logger("tui.notes")
 
@@ -27,7 +27,7 @@ def _version(path: Path) -> tuple[int, float] | None:
     return stat.st_size, stat.st_mtime
 
 
-class NotesPanel(VerticalScroll):
+class NotesPanel(scroll_position.StableScroll):
     """The notes file as Markdown, never more than a share of the pane's height.
 
     A file longer than that scrolls inside the panel, so the sessions above it
@@ -79,4 +79,4 @@ class NotesPanel(VerticalScroll):
         except (OSError, UnicodeDecodeError) as e:
             _log.warning("could not read notes %s: %s", self.path, e)
             text = f"*No notes at `{self.path}`*"
-        self.query_one(Markdown).update(text)
+        scroll_position.update(self, self.query_one(Markdown), text)

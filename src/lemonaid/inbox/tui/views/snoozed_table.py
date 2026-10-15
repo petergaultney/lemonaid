@@ -2,16 +2,15 @@
 
 from collections import abc
 
-from textual.widgets import DataTable
-
 from .. import utils
 from ..edits import inbox_edits
 from ..rows import row_parts
 from ..tables import row_keys
+from ..tables.scroll_position import StableTable
 from . import snoozed_rows
 
 
-class SnoozedTable(DataTable):
+class SnoozedTable(StableTable):
     def __init__(
         self,
         lists: row_parts.Lists,

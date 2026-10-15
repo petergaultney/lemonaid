@@ -7,8 +7,10 @@ from textual.message import Message
 from textual.widgets import DataTable
 from textual.widgets.data_table import RowKey
 
+from .scroll_position import StableTable
 
-class ClickToActTable(DataTable):
+
+class ClickToActTable(StableTable):
     """A DataTable whose rows act on one click rather than two.
 
     Since Textual 7.5.0 the base widget posts RowSelected only when a click lands

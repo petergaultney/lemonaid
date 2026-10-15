@@ -2,18 +2,17 @@
 
 from collections import abc
 
-from textual.widgets import DataTable
-
 from .... import brief
 from ... import db
 from .. import error_screen
 from ..rows import row_parts
 from ..switching import history_resume, inbox_switch
 from ..tables import row_keys
+from ..tables.scroll_position import StableTable
 from . import history_rows
 
 
-class HistoryTable(DataTable):
+class HistoryTable(StableTable):
     def __init__(
         self,
         lists: row_parts.Lists,

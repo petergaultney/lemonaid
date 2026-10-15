@@ -8,6 +8,7 @@ from textual.coordinate import Coordinate
 from textual.widgets import DataTable
 
 from ..tables import layout
+from ..tables.scroll_position import preserve_scroll
 from ..tables.table import ClickToActTable
 from ..utils import same_cell
 from . import brief_cards, brief_rows, card_context, cards
@@ -28,6 +29,7 @@ def row_height(cells: list[Text]) -> int:
     return len(cells[layout.CARD_BODY_COLUMN].plain.split("\n"))
 
 
+@preserve_scroll
 def sync_rows(
     table: DataTable,
     rows: list[tuple[str, list[Text]]],

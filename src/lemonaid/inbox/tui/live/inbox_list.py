@@ -21,6 +21,7 @@ from ....stalls import pulls as stalls_pulls
 from ... import db, presence, scout_revival, sections, unarchive, view
 from ..rows import pr_numbers, row_parts
 from ..tables import cursor_target, layout, row_keys
+from ..tables.scroll_position import StableTable
 from ..tables.table import ClickToActTable
 from ..utils import update_static
 from ..watchers import focus
@@ -79,7 +80,7 @@ class InboxList(Vertical):
         yield ClickToActTable(id="main_table")
         yield Static("", id="fold_label")
         yield Static("", id="other_sources_label")
-        yield DataTable(id="other_sources_table", show_header=False)
+        yield StableTable(id="other_sources_table", show_header=False)
 
     def on_unmount(self) -> None:
         self.arrangement.close()
@@ -276,13 +277,13 @@ class InboxList(Vertical):
                 main.focus()
 
         if other.row_count > 0:
-            other.move_cursor(row=cursor_target.kept(other, other_key, other_index))
+            other.move_cursor(row=cursor_target.kept(other, other_key, other_index), scroll=False)
 
         # An in-place update leaves the cursor where it was, so only a rebuild (or an
         # explicit jump) moves it; moving it every tick made the list flash to the top.
         follow = self._follow_focus(entries, frame, current_key)
         if main.row_count > 0 and follow is not None:
-            main.move_cursor(row=follow)
+            main.move_cursor(row=follow, scroll=False)
         elif main.row_count > 0 and stay_on_unread:
             main.move_cursor(
                 row=cursor_target.after_unread_action(
@@ -291,7 +292,8 @@ class InboxList(Vertical):
             )
         elif main.row_count > 0 and rebuilt:
             main.move_cursor(
-                row=cursor_target.after_rebuild(main, current_row, current_key, current_index)
+                row=cursor_target.after_rebuild(main, current_row, current_key, current_index),
+                scroll=False,
             )
         return inbox_draw.Drawn(
             unread_count,

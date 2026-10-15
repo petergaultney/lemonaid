@@ -95,6 +95,13 @@ Press `/` from the inbox to filter session and attached brief names, messages, c
 | `Enter` | Wake the selected session now (returns it to the inbox) |
 | `S` / `q` | Back to the inbox |
 
+The inbox tables, brief views and optional notes panel keep the content you are reading in place during
+background updates, without briefly displaying another scroll position. Changes
+above the viewport adjust the offset to keep the same
+content visible. If that content is removed, the next surviving content stays in
+place, within the scrollable range. Cursor movement, search, the wheel and scrollbar
+dragging still scroll when you request them.
+
 ## Brief
 
 When the scratch pane follows on the left, `b` shows the selected lemon's brief

@@ -67,4 +67,4 @@ def fill(
         },
     )
     if rebuilt and table.row_count > 0:
-        table.move_cursor(row=min(current_row, table.row_count - 1))
+        table.move_cursor(row=min(current_row, table.row_count - 1), scroll=False)

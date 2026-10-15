@@ -46,6 +46,7 @@ from .notes import NotesPanel
 from .rows import brief_cards, row_parts
 from .switching import history_resume, inbox_switch
 from .tables import row_keys, table_nav
+from .tables.scroll_position import StableTable
 from .tables.table import ClickToActTable
 from .utils import JUMP_DIGITS, set_terminal_title
 from .views import usage_view, view_modes
@@ -146,7 +147,7 @@ class LemonaidApp(App):
                     id="history_table",
                 ),
                 SnoozedTable(lists, self._refresh_snoozed, id="snoozed_table"),
-                DataTable(id="usage_table"),
+                StableTable(id="usage_table"),
                 *(
                     []
                     if self.config.tui.notes is None
@@ -703,7 +704,9 @@ class LemonaidApp(App):
 
     def action_refresh(self) -> None:
         if self._brief_target is not None:
-            self.query_one(BriefPane).show(self._brief_target, self.query_one(BriefPane).unread())
+            self.query_one(BriefPane).update_brief(
+                self._brief_target, self.query_one(BriefPane).unread()
+            )
             return
 
         self._refresh_notifications()

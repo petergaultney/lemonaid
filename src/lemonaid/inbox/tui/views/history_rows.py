@@ -10,6 +10,7 @@ from ....brief import attached
 from ....config import Config
 from ... import db, search
 from ..rows import brief_cards, card_context, cards, row_cells, row_parts, table_rows
+from ..tables.scroll_position import preserve_scroll
 from ..utils import styled_cell
 
 
@@ -68,6 +69,7 @@ def load(text: str, searching_from: str | None, searching: bool) -> list[db.Noti
         return [result.notification for result in results if result.source == "archive"]
 
 
+@preserve_scroll
 def fill(
     table: DataTable,
     notifications: abc.Iterable[db.Notification],
@@ -100,4 +102,4 @@ def fill(
         table.add_row(*cells, key=str(n.id), height=height)
 
     if table.row_count > 0:
-        table.move_cursor(row=min(current_row, table.row_count - 1))
+        table.move_cursor(row=min(current_row, table.row_count - 1), scroll=False)

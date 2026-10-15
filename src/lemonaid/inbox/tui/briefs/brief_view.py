@@ -15,8 +15,8 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 from rich.text import Text
 from textual.binding import Binding, BindingsMap
-from textual.containers import VerticalScroll
 from textual.content import Content, Span
+from textual.geometry import Size
 from textual.style import Style
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import (  # no public name
@@ -28,7 +28,7 @@ from ....brief import attached, family, identity, links, pr, questions, render, 
 from ....config import KeybindingsConfig, PlaceRoot
 from ....log import get_logger
 from ... import db, turns
-from .. import utils
+from .. import scroll_position, utils
 from . import brief_detail, brief_questions, brief_tables
 
 _log = get_logger("tui.brief_view")
@@ -102,15 +102,21 @@ class _Card(Static):
         self.unread = unread
         self.neutral_timing = neutral_timing
 
-    def render(self) -> Text:
+    def _header(self, width: int) -> Text:
         return brief_detail.header(
             self._section,
             self._in_session,
             self.now,
-            self.size.width,
+            width,
             self.unread,
             self.neutral_timing,
         )
+
+    def render(self) -> Text:
+        return self._header(self.size.width)
+
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        return len(self._header(width).wrap(self.app.console, width)) if width else 0
 
 
 def open_link(url: str) -> None:
@@ -213,7 +219,7 @@ class _SessionBar(Static):
         super().__init__(header.removeprefix("# ").strip(), markup=False)
 
 
-class BriefView(VerticalScroll):
+class BriefView(scroll_position.StableScroll):
     DEFAULT_CSS = f"""
     BriefView {{
         height: 1fr;
@@ -322,8 +328,7 @@ class BriefView(VerticalScroll):
 
     def notice(self, message: str) -> None:
         self._notice = message
-        self.query(".brief-terminal-notice").remove()
-        self.mount(Static(message, classes="brief-terminal-notice", markup=False), before=0)
+        self.call_later(scroll_position.notice, self, message)
 
     def _widgets(
         self, shown: render.View, now: float, unread: bool
@@ -480,6 +485,7 @@ class BriefView(VerticalScroll):
                 card.refresh()
             return
 
+        preserve = self._rendered_markdown is not None
         self._rendered_markdown = rendered
         self._sections = shown.sections
         available = self._choices()
@@ -487,5 +493,4 @@ class BriefView(VerticalScroll):
             self._selected if self._selected in available else next(iter(available), None)
         )
         self._needs = {}
-        self.remove_children()
-        self.mount_all(self._widgets(shown, now, unread))
+        self.call_later(scroll_position.replace, self, self._widgets(shown, now, unread), preserve)

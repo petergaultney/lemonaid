@@ -9,6 +9,7 @@ from textual.widgets._header import HeaderTitle
 
 from ....log import get_logger
 from ....usage import color, overall, samples, settings, table
+from ..tables.scroll_position import preserve_scroll
 
 _log = get_logger("inbox.usage_view")
 
@@ -63,6 +64,7 @@ def setup_table(usage_table: DataTable) -> None:
         usage_table.add_column(label, width=width)
 
 
+@preserve_scroll
 def fill_table(usage_table: DataTable, rows: list[table.Row], config: settings.UsageConfig) -> None:
     usage_table.clear()
     for r in rows:
@@ -73,6 +75,7 @@ def fill_table(usage_table: DataTable, rows: list[table.Row], config: settings.U
             Text(f"{r.used_percent:g}%", style=f"rgb({used[0]},{used[1]},{used[2]})"),
             f"{r.elapsed_percent:.0f}%",
             r.resets,
+            key=r.window,
         )
 
 
