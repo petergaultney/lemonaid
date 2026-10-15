@@ -48,7 +48,7 @@ def test_pr_table_stays_subscribed_after_a_progress_update(tmp_path, monkeypatch
     try:
         shared.eventually(lambda: bool(list((root / "pr").glob("*.merge.json"))))
         run("now", "- Reviewer cleared the PR. CI running.")
-        assert "### PRs" in path.read_text()
+        assert "\n## PRs\n" in path.read_text()
         assert not path.read_text().split("## Watching", 1)[1].strip()
         if event == "ci":
             current[0] = snapshot._replace(checks=[pr_activity.Check("test", False, "passed")])

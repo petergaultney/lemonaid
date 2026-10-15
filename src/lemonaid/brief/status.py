@@ -6,7 +6,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home
-from . import store
+from . import sections, store
 
 _BRIEF_FILE = re.compile(r"brief(?:-(?P<name>.+))?\.md")
 _STATUS = re.compile(r"status:\s*(?P<status>.*)", re.IGNORECASE)
@@ -98,7 +98,7 @@ def split(text: str) -> Parts:
     rest: list[str] = []
     within: list[str] | None = None  # `now` or `questions` while inside that section
     in_header = True  # above the first `##` heading, where `Status:` and `Area:` go
-    for line in text.splitlines():
+    for line in sections.projected(text).splitlines():
         if within is not None and _SECTION_END.match(line):
             within = None
         if line.startswith("## "):

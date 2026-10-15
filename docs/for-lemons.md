@@ -493,10 +493,10 @@ lemonaid brief id --channel <channel>          # print the stable ID stored in i
 lemonaid brief id --self --reroll              # new random WordyBin; the old ID keeps working (--set AuditInk picks one)
 lemonaid brief new --child --name-words audit,check,ink,web "Review it"  # name it from these words; see Names
 lemonaid brief status --self blocked            # Status: blocked  (running | blocked | merge | approve | review | alert | done | clear)
-lemonaid brief bullet add --self "Next" "open the PR"       # under ### Next; Done adds at the top
+lemonaid brief bullet add --self "Next" "open the PR"       # under any heading; Done adds at the top
 lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
-lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in ### PRs
+lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in PRs (new sections use ##)
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
 lemonaid brief waiter add --self "lemonaid watch pr --wait https://github.com/owner/repo/pull/12 --comments --ci --once"  # a bullet in ## Watching
 lemonaid brief waiter add --self "lemonaid watch repo --wait owner/repo --label needs-review --once"  # every PR in a repo, not one
@@ -505,7 +505,7 @@ lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole c
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
 lemonaid brief check --all                     # every brief of a session that isn't archived
-lemonaid brief now --self "### Next ..."       # replace progress, keep omitted PRs/Docs (- reads stdin);
+lemonaid brief now --self "Current progress..."       # replace progress, keep omitted PRs/Docs (- reads stdin);
                                                # refuses to drop other sub-headings unless --replace-all
 lemonaid brief hide --self [--show]          # add or remove `Hidden: yes`: out of the inbox default list
 lemonaid brief detach --self                   # the file stays
@@ -782,16 +782,34 @@ An ID's shape is not validated; only folder safety is checked. It must be
 non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control
 character, or leading dot.
 
-Make routine changes to `## Now` with `brief bullet` and `brief pr` rather than by editing the
-file. They keep its `###` sub-headings in the order the rules give (Needs, Running, Waiting on,
-Next, PRs, Done), with a blank line around each, and remove a heading or PR table left empty.
-`## Questions` and every other section stay as written. `bullet add` takes the heading
-(`Needs <who>` keeps who it names); `set` and `rm` name a bullet by the start of its text, case
-ignored, and fail unless exactly one bullet in `## Now` matches. Bare URLs and vault paths in a
-bullet become short links, as in the brief view. `pr add` takes the PR's URL, or its number when
-`[brief] pr_url` is set (`docs/config.md`); adding a PR again updates its row, keeping its review
-link unless `--review` gives a new one. `--review` takes a URL or a `.md` path under a
-`[brief] vaults` root, which becomes an `obsidian://` link.
+Keep `## Now` for current prose, `### Needs <who>`, `### Running` and `### Waiting on`.
+Use level-2 sections for `Next`, `PRs`, `Docs` and `Done`. The canonical writing order is
+header, Now, Questions, Next, PRs, Docs, Done, the parent's sections, then Watching.
+This order is a convention; readers and editors do not sort sections.
+
+Readers accept both the older subheadings inside Now and separate sections. Nothing
+migrates automatically, including `brief now`. `lemonaid brief migrate --self` promotes
+exactly those four old names; `--all` handles active attached and pending briefs.
+A duplicate heading name refuses migration with both locations listed.
+
+Use `brief section show|set|rm --self "<heading>"` for arbitrary headings. `set` takes its
+body from stdin by default, or an optional argument (`-` also means stdin). Existing
+headings keep their level and location; new ones default to level 2. To create a subheading,
+pass `--level 3 --parent "<existing heading>"`. Replacing or removing a section includes its
+descendants. Ambiguous names are refused with the candidate headings, parents and line numbers.
+
+`brief bullet add --self "<heading>" "<text>"` appends a direct bullet under any heading;
+Done additions go at the top. Missing headings default to level 2, except Needs, Running,
+Waiting on and Lemons, which are created under Now. `set` and `rm` match the start of one
+bullet anywhere in the brief, ignoring case. Use `--heading "<heading>"` to scope them.
+Fenced examples are ignored. An emptied heading is removed, and other sections stay as written.
+Bare URLs and vault paths in a bullet become short links, as in the brief view.
+
+`pr add` takes the PR's URL, or its number when `[brief] pr_url` is set
+(`docs/config.md`); adding a PR again updates its row, keeping its review link unless
+`--review` gives a new one. `--review` takes a URL or a `.md` path under a `[brief] vaults`
+root, which becomes an `obsidian://` link. `pr` and `doc` edit either layout and create
+level-2 sections when missing.
 
 With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, and `watch briefs` automatically
 record their commands as invoked under `## Watching` after startup checks pass, without
@@ -811,7 +829,7 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 - more or fewer than one `# ` title, or a `## ` section that appears twice;
 - a repeated or unknown `Status:` word (a missing one is fine);
 - a malformed `Lemon-ID` line, or one that differs from the ID the database records for the file;
-- `## Now` sub-headings out of order, repeated, empty, or without a blank line above and below;
+- `## Now` sub-headings repeated, empty, or without a blank line above and below;
 - a `### PRs` table that is not `| Work | PR | Review |` rows with a pull-request link in each,
   or that has no rows;
 - a `## Watching` section that is not last;
@@ -820,13 +838,17 @@ that isn't archived or waiting for one) reports what is wrong with a brief:
 - with `--all`, an attached brief whose file is gone.
 
 It exits 1 when it finds anything, and `--json` lists the problems. Every edit verb (`now`,
-`status`, `bullet`, `pr`, `waiter`) runs it on the result and refuses the edit if it finds
-anything, listing what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
-`Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Watching` or a
-wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
-way the other verbs do. It keeps existing `### PRs` and `### Docs` tables when the new body
-omits those headings, so a progress update keeps their watches. A supplied heading replaces
-its table; use `brief pr rm` or `brief doc rm` to remove individual rows.
+`status`, `bullet`, `section`, `pr`, `doc`, `waiter`, `migrate`) runs it on the result and refuses the edit if it finds
+anything, listing what. A brief that already fails takes only an edit that fixes it,
+except for existing unmatched Questions entries. `brief now` preserves omitted legacy
+PRs and Docs tables. It refuses to drop other subheadings and prints the current Now;
+pass `--replace-all` to replace all progress. That flag still preserves omitted subscription
+tables. A supplied legacy PRs or Docs heading replaces its table; use `brief pr rm` or
+`brief doc rm` to remove individual rows. On a brief with promoted sections, `brief now`
+refuses to reintroduce those names inside Now and points to the generic verbs.
+
+`brief check` warns about legacy Next, PRs, Docs and Done subheadings and names
+`brief migrate --self` (or `--all`). The warning does not refuse an edit.
 The verbs never drop a `Parent:` line, and refuse an edit that
 would, but they still edit a brief that has already lost one. A `Parent:`, `Area:` or `Groups:` line given to
 `brief now` replaces the brief's line for that field, and a field it leaves out stays as it was. A Claude lemon's Stop hook
@@ -905,15 +927,34 @@ switching to your session. Leave `Status:` out unless one of the words in `brief
 
 ```markdown
 ## Now
-- Done: <what is finished, with PR numbers>
-- Next: <what you are doing now>
-- Needs: <a decision or action from a person, or "nothing">
-- Waiting on: <who or what has the next move, or "nothing">
-- Running: <the long process you are minding, and its tmux session:window>
+
+Current progress.
+
+### Needs you
+
+- <a decision or action from a person>
+
+### Waiting on
+
+- <who or what has the next move>
+
+## Questions
+
+## Next
+
+- <what you will do next>
+
+## PRs
+
+## Docs
+
+## Done
+
+- <what is finished, with PR links>
 ```
 
-Each part can instead be a sub-heading (`### Needs`, `### Running`, `### Waiting on`, `### Next`, `### Done`)
-with anything under it. `Needs` may name who it needs (`Needs you`); readers show it first
+Older labelled bullets and `### Next`, `### Done`, `### PRs`, and `### Docs` inside Now
+remain readable. `### Running` names a long process and its tmux session:window. `Needs` may name who it needs (`Needs you`); readers show it first
 whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.
 
 ## Lemon-to-lemon messages

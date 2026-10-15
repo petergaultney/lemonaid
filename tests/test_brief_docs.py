@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import check, doc_table, docs_cli, now_edit, store, verbs_cli
+from lemonaid.brief import check, doc_table, docs_cli, now_edit, sections, store, verbs_cli
 
 
 def test_output_row_and_added_doc_are_watched_and_removable(tmp_path):
@@ -25,7 +25,8 @@ def test_vault_links_round_trip_and_docs_precede_done(tmp_path):
     text = doc_table.add(text, path, "Explain | options", vaults=[tmp_path])
     assert "obsidian://" in text
     assert doc_table.rows(text)[0].path == path
-    assert [s.heading for s in now_edit.now_of(text).sections] == ["Docs", "Done"]
+    assert sections.find(text, "Docs").level == 2
+    assert [s.heading for s in now_edit.now_of(text).sections] == ["Done"]
     assert check.structure(text) == []
     assert doc_table.add(text, path, "Updated").count(str(path)) == 1
 

@@ -6,7 +6,7 @@ import re
 import shlex
 from pathlib import Path
 
-from ..brief import doc_table, identity, lemon_table, now_edit, pr_table, waiters
+from ..brief import doc_table, identity, lemon_table, pr_table, sections, waiters
 from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli
 
 
@@ -140,7 +140,7 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
 
         if spec and all(spec.target):
             specs[spec.key] = spec
-    for section in now_edit.now_of(text).sections:
+    for section in sections.behavior(text):
         if section.heading.lower() == "prs":
             rows, errors = pr_table.parse(section.body)
             problems.extend(errors)

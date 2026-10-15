@@ -97,10 +97,12 @@ def _cmd_bullet(args: argparse.Namespace) -> None:
     elif args.verb == "set":
         edited(
             args,
-            lambda brief: now_edit.replace(brief, args.lead, links.linkify(args.text, vaults)),
+            lambda brief: now_edit.replace(
+                brief, args.lead, links.linkify(args.text, vaults), args.heading
+            ),
         )
     else:
-        edited(args, lambda brief: now_edit.remove(brief, args.lead))
+        edited(args, lambda brief: now_edit.remove(brief, args.lead, args.heading))
 
 
 def _review(review: str, vaults: abc.Collection[Path]) -> tuple[str, str]:
@@ -184,20 +186,20 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
 
     bullet = brief_subparsers.add_parser(
         "bullet",
-        help="Add, replace, or remove one bullet in a lemon's `## Now`",
-        description="Each edit keeps the sub-headings in order (Needs, Running, Waiting on, "
-        "Next, PRs, Done), removes one left empty, and refuses a result `brief check` "
-        "would fail.",
+        help="Add, replace, or remove one bullet under any heading",
+        description="Edit a heading by name; ambiguous headings or bullet prefixes are refused.",
     )
     verb = _verbs(bullet, "verb")
     add = verb("add", "Add a bullet under a sub-heading; Done adds at the top")
-    add.add_argument("heading", help="Needs <who>, Running, Waiting on, Next, or Done")
+    add.add_argument("heading", help="Any heading name")
     add.add_argument("text")
     replace = verb("set", "Replace the one bullet whose text starts with LEAD")
     replace.add_argument("lead")
     replace.add_argument("text")
+    replace.add_argument("--heading", default="", help="Restrict matching to this heading")
     remove = verb("rm", "Remove the one bullet whose text starts with LEAD")
     remove.add_argument("lead")
+    remove.add_argument("--heading", default="", help="Restrict matching to this heading")
     bullet.set_defaults(func=_cmd_bullet)
 
     prs = brief_subparsers.add_parser(

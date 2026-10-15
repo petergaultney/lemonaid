@@ -1,11 +1,6 @@
-"""The `## Now` section as sub-headings in a fixed order, for the edit verbs and `brief check`.
+"""Parse and render the subheadings in a brief's Now section.
 
-Each `### <heading>` comes in the order of `ORDER`, with a blank line around it,
-and none is empty. Headings outside that list are allowed and keep their place
-after the known heading they follow. Lines above the first sub-heading (an older
-brief's `- Label:` bullets) are kept as written. The header's `Parent:`,
-`Output-Doc:`, `Area:` and `Groups:` lines, which a `## Now` written under `Status:` takes in, are kept at
-the end of the section.
+ORDER identifies conventional labels; it does not constrain heading order.
 """
 
 import dataclasses

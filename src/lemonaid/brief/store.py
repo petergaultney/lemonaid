@@ -38,7 +38,18 @@ _TEMPLATE = """\
 Brief-ID: {lemon_id}
 
 ## Now
+
 - Starting.
+
+## Questions
+
+## Next
+
+## PRs
+
+## Docs
+
+## Done
 
 ## Goal
 
@@ -49,6 +60,8 @@ Brief-ID: {lemon_id}
 ## Acceptance Criteria
 
 ## Limits
+
+## Watching
 
 """
 

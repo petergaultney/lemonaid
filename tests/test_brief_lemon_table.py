@@ -28,10 +28,10 @@ def test_an_empty_watch_cell_means_the_defaults():
     assert row.watch == () and row.wake == ("merge", "done", "needs")
 
 
-def test_lemons_section_goes_after_docs_and_before_done(tmp_path):
+def test_adding_lemons_preserves_existing_heading_order(tmp_path):
     text = "# task\n\n## Now\n\n### Done\n\n- done\n\n## Watching\n"
     text = lemon_table.add(text, "a.B", "why")
-    assert [s.heading for s in now_edit.now_of(text).sections] == ["Lemons", "Done"]
+    assert [s.heading for s in now_edit.now_of(text).sections] == ["Done", "Lemons"]
     assert check.structure(text) == []
 
 

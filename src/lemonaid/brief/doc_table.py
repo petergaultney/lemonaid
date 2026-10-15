@@ -8,7 +8,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import obsidian
-from . import now_edit, output_doc
+from . import now_edit, output_doc, sections
 
 _LINK = re.compile(r"\[(?P<label>(?:\\.|[^\]])*)\]\(<?(?P<url>[^>]+?)>?\)")
 
@@ -85,7 +85,7 @@ def rows(text: str) -> list[Row]:
     output = output_doc.read(text)
     listed = [
         row
-        for section in now_edit.now_of(text).sections
+        for section in sections.behavior(text)
         if section.heading.lower() == "docs"
         for row in parse(section.body)[0]
     ]
@@ -118,7 +118,7 @@ def render(rows: abc.Iterable[Row], vaults: abc.Collection[Path] = ()) -> list[s
 def _editable_rows(text: str) -> list[Row]:
     problems = [
         problem
-        for section in now_edit.now_of(text).sections
+        for section in sections.behavior(text)
         if section.heading.lower() == "docs"
         for problem in parse(section.body)[1]
     ]

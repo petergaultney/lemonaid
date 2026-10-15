@@ -27,9 +27,11 @@ _PARENT = "Parent: hq.BlessBar (hq), 2026-10-02"
 _PR = "https://github.com/o/r/pull/7"
 
 
-def _child_brief() -> str:
+def _child_brief(
+    body: str = "## Goal\n\n## Executive Summary of Results\n\n## Context\n\n## Acceptance Criteria\n\n## Limits\n\n## Watching\n",
+) -> str:
     return child.render(
-        (child.PACKAGED_DIR / "child.md").read_text(),
+        body,
         "the task",
         "task.QuickOdd",
         ("hq.BlessBar", "hq"),
@@ -43,6 +45,7 @@ _NOW = "## Now\n\n### Needs you\n\n- merge #12\n\n### Next\n\n- write the docs\n
 _QUESTIONS = "## Questions\n\n### merge #12\n\n- **Context:** x\n\n"
 
 _BRIEFS = {
+    "current child template": _child_brief((child.PACKAGED_DIR / "child.md").read_text()),
     "child, no Now": _child_brief(),
     "child, Now under Status": _child_brief().replace(
         "Status: working\n\n", f"Status: working\n\n{_NOW}", 1
@@ -88,9 +91,9 @@ def test_every_verb_keeps_the_parent_line(brief, verb):
 
 
 def test_a_new_now_goes_below_the_header_lines():
-    out = now_edit.add(_BRIEFS["child, no Now"], "Next", "x")
+    out = now_edit.add(_BRIEFS["child, no Now"], "Needs you", "x")
 
-    assert f"{_PARENT}\n\nArea: lemonaid\n\n## Now\n\n### Next\n\n- x\n\n## Goal" in out
+    assert f"{_PARENT}\n\nArea: lemonaid\n\n## Now\n\n### Needs you\n\n- x\n\n## Goal" in out
 
 
 @pytest.mark.parametrize("brief", _BRIEFS)

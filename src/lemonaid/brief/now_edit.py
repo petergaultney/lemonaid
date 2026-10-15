@@ -1,31 +1,16 @@
-"""The routine edits to a brief's `## Now`: add, replace, or remove one bullet.
-
-Every edit rewrites the section in the order `layout` gives it, and leaves the
-rest of the brief as written.
-"""
+"""Progress replacement and compatibility entry points for brief edits."""
 
 import dataclasses
 import re
 from collections import abc
 
-from . import layout, store
+from . import layout, section_edit, sections, store
 
 _FENCE = re.compile(r"(```|~~~)")
 _KEPT = (layout.ORDER.index("prs"), layout.ORDER.index("docs"))
-_NAMES = ("Needs", "Running", "Waiting on", "Next", "PRs", "Docs", "Lemons", "Done")
 
 
-class EditError(ValueError):
-    pass
-
-
-def heading_name(heading: str) -> str:
-    """*heading* as the rules spell it; `Needs <who>` keeps who it names."""
-    found = layout.rank(heading)
-    if found is None:
-        raise EditError(f"{heading!r} is not one of: Needs <who>, {', '.join(_NAMES[1:])}")
-
-    return heading.strip()[:1].upper() + heading.strip()[1:] if found == 0 else _NAMES[found]
+EditError = ValueError
 
 
 def _field(line: str) -> str:
@@ -61,7 +46,9 @@ def with_now(text: str, now: layout.Now) -> str:
     below = _with_fields(lines[end:], given)
     kept = layout.parse("\n".join(lines[start:end])).tail
     tail = (*(given.pop(_field(line), line) for line in kept), *given.values())
-    rendered = layout.render(layout.ordered(dataclasses.replace(now, tail=tail))).splitlines()
+    rendered = layout.render(
+        dataclasses.replace(now, tail=tail, sections=tuple(s for s in now.sections if s.body))
+    ).splitlines()
     body = ["", *rendered, ""] if rendered else [""]
     return "\n".join([*above, *body, *below]).rstrip("\n") + "\n"
 
@@ -77,6 +64,19 @@ def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
 
     Without *replace_all*, a body that omits a sub-heading the section has is refused.
     """
+    promoted = {
+        h.name.lower()
+        for h in sections.scan(text)
+        if h.level == 2 and h.name.lower() in sections.PROMOTED
+    }
+    carried = [
+        h.name for h in sections.scan(body) if promoted and h.name.lower() in sections.PROMOTED
+    ]
+    if carried:
+        raise EditError(
+            f"{', '.join(carried)} belongs in its own section in this layout; use `brief section set`"
+            " or `brief bullet add|set|rm` instead of `brief now`"
+        )
     now = layout.parse(body)
     dropped = [
         section.heading
@@ -107,79 +107,20 @@ def with_section(
 
     A missing section starts empty, and one left empty is removed.
     """
-    now = now_of(text)
-    at = layout.find(now, heading)
-    body = tuple(change(now.sections[at].body if at is not None else ()))
-    sections = list(now.sections)
-    if at is None:
-        sections.append(layout.Section(heading_name(heading), body))
-    else:
-        sections[at] = dataclasses.replace(sections[at], body=body)
-    return with_now(text, dataclasses.replace(now, sections=tuple(sections)))
-
-
-def _item(bullet: str) -> tuple[str, ...]:
-    first, *rest = bullet.strip().splitlines() or [""]
-    if not first.strip():
-        raise EditError("The bullet is empty")
-
-    return (f"- {layout.bullet_text([first]) or first.strip()}", *rest)
+    found = sections.find(text, heading)
+    level = 3 if layout.rank(heading) in (0, 1, 2) or heading.lower() == "lemons" else 2
+    if found is None and level == 3 and sections.find(text, "Now") is None:
+        text = store.with_now(text, "")
+    return section_edit.change(text, heading, change, level=level)
 
 
 def add(text: str, heading: str, bullet: str) -> str:
-    """Add *bullet* to the end of the section *heading* names, or to the top of Done."""
-    if layout.rank(heading) == layout.ORDER.index("prs"):
-        raise EditError("The PR table has its own verb: `lemonaid brief pr add`")
-
-    heading_name(heading)
-    item = _item(bullet)
-    at_top = layout.rank(heading) == layout.ORDER.index("done")
-    return with_section(text, heading, lambda body: [*item, *body] if at_top else [*body, *item])
+    return section_edit.add(text, heading, bullet)
 
 
-def _matching(now: layout.Now, lead: str) -> list[tuple[int, int]]:
-    """(section, item) of every bullet outside the PR table whose text starts with *lead*."""
-    wanted = lead.strip().lower()
-    if not wanted:
-        raise EditError("Name the bullet by the start of its text")
-
-    return [
-        (s, i)
-        for s, section in enumerate(now.sections)
-        if layout.rank(section.heading) != layout.ORDER.index("prs")
-        for i, item in enumerate(layout.bullets(section.body))
-        if layout.bullet_text(item).lower().startswith(wanted)
-    ]
+def replace(text: str, lead: str, bullet: str, heading: str = "") -> str:
+    return section_edit.with_item(text, lead, section_edit.item(bullet), heading)
 
 
-def _the_one(now: layout.Now, lead: str) -> tuple[int, int]:
-    found = _matching(now, lead)
-    if len(found) == 1:
-        return found[0]
-
-    if not found:
-        raise EditError(f"No bullet in ## Now starts with {lead!r}")
-
-    shown = " | ".join(
-        layout.bullet_text(layout.bullets(now.sections[s].body)[i])[:40] for s, i in found[:3]
-    ) + (f" (+{len(found) - 3} more)" if len(found) > 3 else "")
-    raise EditError(f"{len(found)} bullets start with {lead!r}; use more of one: {shown}")
-
-
-def _with_item(text: str, lead: str, replacement: abc.Sequence[str]) -> str:
-    now = now_of(text)
-    s, i = _the_one(now, lead)
-    items = layout.bullets(now.sections[s].body)
-    body = [line for item in [*items[:i], replacement, *items[i + 1 :]] for line in item]
-    sections = list(now.sections)
-    sections[s] = dataclasses.replace(sections[s], body=layout.trimmed(body))
-    return with_now(text, dataclasses.replace(now, sections=tuple(sections)))
-
-
-def replace(text: str, lead: str, bullet: str) -> str:
-    """Replace the one bullet whose text starts with *lead*, and what is under it."""
-    return _with_item(text, lead, _item(bullet))
-
-
-def remove(text: str, lead: str) -> str:
-    return _with_item(text, lead, ())
+def remove(text: str, lead: str, heading: str = "") -> str:
+    return section_edit.with_item(text, lead, (), heading)

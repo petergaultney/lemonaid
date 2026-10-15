@@ -1,3 +1,15 @@
+## Now
+
+## Questions
+
+## Next
+
+## PRs
+
+## Docs
+
+## Done
+
 ## Goal
 
 A cross-harness review of $pr_link, with a verdict, in the review doc at $output_doc_link.

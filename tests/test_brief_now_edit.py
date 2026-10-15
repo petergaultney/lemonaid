@@ -2,7 +2,7 @@
 
 import pytest
 
-from lemonaid.brief import check, doc_table, now_edit, pr_table
+from lemonaid.brief import check, doc_table, migrate, now_edit, pr_table, sections
 
 _BRIEF = """\
 # the task
@@ -50,20 +50,21 @@ def _now(text: str) -> str:
     return text.split("## Now\n", 1)[1].split("\n## ", 1)[0]
 
 
-def test_a_new_heading_goes_in_its_place_with_blank_lines_around_it():
+def test_a_new_heading_keeps_existing_headings_in_place():
     out = now_edit.add(
         _BRIEF.replace("### Needs you\n\n- merge #12\n\n", ""), "Needs you", "merge #12"
     )
 
-    assert _now(out).startswith("\n### Needs you\n\n- merge #12\n\n### Waiting on\n")
+    assert "### Needs you\n\n- merge #12\n" in out
+    assert _now(out).index("### Waiting on") < _now(out).index("### Needs you")
     assert check.structure(out) == []
 
 
-def test_running_goes_between_needs_and_waiting_on():
+def test_running_is_added_without_reordering():
     out = now_edit.add(now_edit.add(_BRIEF, "Needs you", "x"), "running", "the backfill, ua:3")
 
-    assert _now(out).index("### Needs you") < _now(out).index("### Running")
-    assert _now(out).index("### Running") < _now(out).index("### Waiting on")
+    assert _now(out).index("### Needs you") < _now(out).index("### running")
+    assert _now(out).index("### Waiting on") < _now(out).index("### running")
 
 
 def test_add_appends_to_a_heading_but_done_adds_at_the_top():
@@ -119,48 +120,49 @@ def test_a_parent_line_inside_now_stays_at_its_end():
     assert "- parser merged\n\nParent: hq, 2026-09-29\n\n## Questions" in out
 
 
-def test_an_out_of_order_now_is_put_in_order():
+def test_existing_now_order_is_preserved():
     brief = _BRIEF.replace("### Waiting on", "### Done\n\n- old\n\n### Waiting on", 1)
     brief = brief.replace("### Done\n\n- parser merged\n", "", 1)
 
     out = now_edit.add(brief, "Next", "x")
 
-    assert _now(out).index("### Waiting on") < _now(out).index("### Done")
+    assert _now(out).index("### Done") < _now(out).index("### Waiting on")
     assert check.structure(out) == []
 
 
-def test_unknown_headings_and_the_pr_table_have_no_add():
-    with pytest.raises(now_edit.EditError, match="not one of"):
-        now_edit.add(_BRIEF, "Notes", "x")
-    with pytest.raises(now_edit.EditError, match="brief pr add"):
-        now_edit.add(_BRIEF, "PRs", "x")
+def test_unknown_headings_can_be_created():
+    out = now_edit.add(_BRIEF, "Notes", "x")
+    assert "## Notes\n\n- x" in out
 
 
-def test_a_brief_without_now_gets_one_under_status():
-    out = now_edit.add("# t\n\nStatus: working\n\n## Goal\nx\n", "Next", "start")
+def test_a_new_promoted_heading_is_level_two_without_creating_now():
+    out = now_edit.add("# t\n\n## Goal\nx\n", "Next", "start")
+    assert "## Next\n\n- start" in out
+    assert "## Now" not in out
 
-    assert out == "# t\n\nStatus: working\n\n## Now\n\n### Next\n\n- start\n\n## Goal\nx\n"
 
-
-def test_replacing_progress_keeps_omitted_tables_and_orders_them(tmp_path):
+def test_replacing_progress_leaves_promoted_tables_untouched(tmp_path):
     brief = now_edit.with_section(
         _BRIEF,
         "PRs",
         lambda body: pr_table.with_row(body, "https://github.com/o/r/pull/12", "Fix", None),
     )
     brief = doc_table.add(brief, tmp_path / "review.md", "Review")
-    out = now_edit.replace_progress(brief, "### Done\n\n- Code finished\n", replace_all=True)
+    brief = migrate.layout(brief)
+    out = now_edit.replace_progress(brief, "Code finished.\n", replace_all=True)
 
-    assert "write the docs" not in out
-    assert now_edit.now_of(out).sections[:-1] == tuple(
-        section for section in now_edit.now_of(brief).sections if section.heading in ("PRs", "Docs")
+    assert "write the docs" in out
+    assert sections.body(out, sections.find(out, "PRs")) == sections.body(
+        brief, sections.find(brief, "PRs")
     )
-    assert out.index("### PRs") < out.index("### Docs") < out.index("### Done")
+    assert sections.body(out, sections.find(out, "Docs")) == sections.body(
+        brief, sections.find(brief, "Docs")
+    )
 
 
 def test_replacing_progress_can_explicitly_replace_or_clear_a_table():
     brief = now_edit.with_section(
-        "# task\n",
+        "# task\n\n## Now\n\n### PRs\n",
         "PRs",
         lambda body: pr_table.with_row(body, "https://github.com/o/r/pull/12", "Old", None),
     )

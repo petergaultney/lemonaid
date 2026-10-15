@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import io
 import json
 from pathlib import Path
 
@@ -56,7 +57,7 @@ def test_done_brief_warns_when_its_present_summary_is_empty():
     )
 
     assert check.structure(text) == []
-    assert check.warnings(text) == ["`## Executive Summary of Results` is empty on a done brief"]
+    assert "`## Executive Summary of Results` is empty on a done brief" in check.warnings(text)
 
 
 def test_old_done_briefs_and_filled_summaries_do_not_warn():
@@ -65,8 +66,8 @@ def test_old_done_briefs_and_filled_summaries_do_not_warn():
         "## Goal", "## Executive Summary of Results\n\nCompleted the work.\n\n## Goal"
     )
 
-    assert check.warnings(old) == []
-    assert check.warnings(filled) == []
+    assert all("migrate" in warning for warning in check.warnings(old))
+    assert all("migrate" in warning for warning in check.warnings(filled))
 
 
 def test_every_line_doubled_is_caught():
@@ -94,7 +95,7 @@ def test_a_second_lemon_id_run_into_the_first_is_caught():
         ("Status: working\n", "", ""),
         ("Status: working", "Status: waiting", ""),
         ("Status: working", "Status: working\nStatus: done", "2 `Status:` lines"),
-        ("### PRs", "### Needs you\n\n- x\n\n### PRs", "out of order"),
+        ("### PRs", "### Needs you\n\n- x\n\n### PRs", ""),
         ("- write the docs\n", "", "`### Next` in ## Now is empty"),
         ("|---|---|---|\n", "", "`|---|---|---|`"),
         ("[lemonaid#125](https://github.com/o/lemonaid/pull/125)", "#125", "no pull-request link"),
@@ -179,7 +180,7 @@ def test_check_warns_without_refusing_done_status(capsys):
 
     assert changed["error"] is None
     assert checked["problems"] == []
-    assert checked["warnings"] == ["`## Executive Summary of Results` is empty on a done brief"]
+    assert "`## Executive Summary of Results` is empty on a done brief" in checked["warnings"]
 
 
 def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
@@ -262,13 +263,13 @@ def test_now_lays_out_progress_and_preserves_omitted_prs(capsys):
     path = _attached()
     table = now_edit.now_of(path.read_text()).sections[1]
 
-    _run(capsys, "now", "--channel", "codex:t1", "### Done\n- x\n### Next\n- y\n### Running")
+    _run(capsys, "now", "--channel", "codex:t1", "### Done\n- x\n### Next\n- y\n### Running\n- run")
 
     now = now_edit.now_of(path.read_text())
-    assert [section.heading for section in now.sections] == ["Next", "PRs", "Done"]
-    assert now.sections[0].body == ("- y",)
-    assert now.sections[1] == table
-    assert now.sections[2].body == ("- x",)
+    assert [section.heading for section in now.sections] == ["Done", "Next", "Running", "PRs"]
+    assert now.sections[0].body == ("- x",)
+    assert now.sections[1].body == ("- y",)
+    assert now.sections[3] == table
     assert check.structure(path.read_text()) == []
 
 
@@ -353,3 +354,40 @@ def test_a_malformed_name_word_is_a_problem():
         problems = check.problems(conn, path, text)
 
     assert problems == ["`Name words:` ok is not five or three letters"]
+
+
+def test_generic_section_cli_and_migrate_are_explicit(capsys, monkeypatch):
+    path = _attached()
+    before = path.read_text()
+    shown = _run(capsys, "section", "show", "--channel", "codex:t1", "Next")
+    assert shown["body"] == "- write the docs"
+    assert path.read_text() == before
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO("- custom bullet\n\n### Details\n\nNested body.\n")
+    )
+    result = _run(capsys, "section", "set", "--channel", "codex:t1", "Notes")
+    assert result["error"] is None
+    assert "## Notes\n\n- custom bullet" in path.read_text()
+    edited = _run(
+        capsys, "bullet", "set", "--channel", "codex:t1", "custom", "updated", "--heading", "Notes"
+    )
+    assert edited["error"] is None
+    assert "Nested body." in path.read_text()
+    migrated = _run(capsys, "migrate", "--channel", "codex:t1")
+    assert migrated["error"] is None
+    assert "\n## Next\n" in path.read_text()
+    refused = _run(capsys, "now", "--channel", "codex:t1", "### Next\n\n- old")
+    assert "brief section set" in refused["error"]
+    removed = _run(capsys, "section", "rm", "--channel", "codex:t1", "Notes")
+    assert removed["error"] is None
+    assert "Details" not in path.read_text()
+
+
+def test_migrate_all_handles_attached_briefs_and_is_idempotent(capsys):
+    path = _attached()
+    result = _run(capsys, "migrate", "--all")
+    assert result["error"] is None
+    first = path.read_text()
+    assert "\n## PRs\n" in first
+    assert _run(capsys, "migrate", "--all")["error"] is None
+    assert path.read_text() == first

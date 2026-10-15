@@ -21,6 +21,7 @@ from . import (
     name_clash,
     name_words_cli,
     query_cli,
+    sections_cli,
     selector,
     store,
     verbs_cli,
@@ -189,6 +190,7 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     new.set_defaults(func=_cmd_new)
 
     verbs_cli.add_parsers(brief_subparsers)
+    sections_cli.add_parsers(brief_subparsers)
     check_cli.add_parsers(brief_subparsers)
 
     detach = command.parser(brief_subparsers, "detach", "Detach a lemon's brief; the file stays")

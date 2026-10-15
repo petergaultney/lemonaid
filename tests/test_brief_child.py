@@ -42,7 +42,7 @@ def parent(monkeypatch, tmp_path):
     return path
 
 
-def test_a_child_brief_has_the_header_and_no_now(capsys, parent):
+def test_a_child_brief_has_the_header_and_canonical_sections(capsys, parent):
     result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
 
     path = Path(result["path"])
@@ -50,9 +50,17 @@ def test_a_child_brief_has_the_header_and_no_now(capsys, parent):
     assert path.name == f"{datetime.date.today().isoformat()}-fix-the-widget.md"
     assert text.startswith(
         f"# Fix the widget\n\nBrief-ID: {result['lemon_id']}\n\n"
-        f"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Goal\n"
+        f"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Now\n"
     )
-    assert "## Now" not in text
+    assert (
+        text.index("## Now")
+        < text.index("## Questions")
+        < text.index("## Next")
+        < text.index("## PRs")
+        < text.index("## Docs")
+        < text.index("## Done")
+        < text.index("## Goal")
+    )
     assert text.rstrip().endswith("## Watching")
     assert result["parent"] == _PARENT
 
@@ -61,7 +69,7 @@ def test_area_goes_in_the_header_where_the_card_reads_it(capsys, parent):
     result = _run(capsys, "--child", "--parent", _PARENT, "--area", "apps/web", "Fix the widget")
 
     text = Path(result["path"]).read_text()
-    assert f"{datetime.date.today().isoformat()}\n\nArea: apps/web\n\n## Goal\n" in text
+    assert f"{datetime.date.today().isoformat()}\n\nArea: apps/web\n\n## Now\n" in text
     assert status.split(text).area == "apps/web"
 
 

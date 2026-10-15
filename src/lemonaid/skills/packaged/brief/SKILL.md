@@ -39,20 +39,15 @@ Before asking your user to review a PR, check mergeability and green CI too. Con
 
 ## Lay out the brief
 
-Keep `## Now` directly after `Status:` and any generated identity fields. Use these sub-headings in this order, omitting empty ones:
+Keep `## Now` directly after the header. It holds current prose and `### Needs <who>`, `### Running`, and `### Waiting on`. `### Lemons` can still list lemons you watch besides your children.
 
-1. `### Needs <who>`: a decision, answer, review, merge, or text to post.
-2. `### Running`: the process you are monitoring and its `session:window`.
-3. `### Waiting on`: the PRs, docs, reviewers, or runs you are watching.
-4. `### Next`: what you will do next.
-5. `### PRs`: the open PR table below.
-6. `### Docs`: the documents you wrote for someone to read, with path and purpose.
-7. `### Lemons`: lemons you watch besides your children, in the table below.
-8. `### Done`: what finished, always last.
+Use this section order, omitting empty sections: header, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, then the parent's task sections, then `## Watching`. This is a writing convention, not an enforced order. Arbitrary headings are welcome at any level.
 
-Put a blank line above and below each heading and around its bullets or table. Write for scanning: one item per bullet, opening with its point in a few words. Keep each item to one or two sentences. Do not join separate items with semicolons or inline numbered lists. Put commits, test counts, and paths at the end, or omit them. Replace stale lines instead of appending news, and shrink finished items to one line. Older `- Label:` briefs still work; convert them when you next rewrite `## Now`.
+`## Next` says what you will do next, `## PRs` holds the open PR table, `## Docs` lists documents for someone to read, and `## Done` records finished work. Readers accept both these sections and the older `###` headings inside Now. Nothing moves automatically. Run `lemonaid brief migrate --self` to promote exactly those four old names, or `--all` for active attached and pending briefs. `brief check` warns about the older layout.
 
-Every open PR you author or review, or that your children author, gets a row under `### PRs`, just before `### Done`:
+Put a blank line above and below each heading and around its bullets or table. Write for scanning: one item per bullet, opening with its point in a few words. Keep each item to one or two sentences. Do not join separate items with semicolons or inline numbered lists. Put commits, test counts, and paths at the end, or omit them. Replace stale lines instead of appending news, and shrink finished items to one line. Older `- Label:` briefs still work; keep them unless you explicitly migrate the layout.
+
+Every open PR you author or review, or that your children author, gets a row under `## PRs`:
 
 ```markdown
 | Work | PR | Review |
@@ -64,13 +59,13 @@ Leave the Review cell empty if no review doc exists. Remove a row once its PR me
 
 `## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels.
 
-The worker owns `Status:`, `## Now`, `## Questions`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
+The worker owns `Status:`, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
 
 Before setting `Status: done`, fill `## Executive Summary of Results` with a concise account of the outcome: at most 1–3 paragraphs, plus any absolutely critical table. This summary belongs in the brief even when the full output lives elsewhere. For a review brief, put the verdict here. `brief check` warns if a done brief has this heading but leaves it empty; it does not block the status edit, and older briefs without the heading remain valid.
 
 ## Edit and validate
 
-Prefer the edit verbs. They preserve heading order and spacing, remove empty headings, validate the result, and refuse edits that break the brief:
+Prefer the edit verbs. They preserve existing heading order and spacing, remove emptied headings, validate the result, and refuse edits that break the brief:
 
 ```sh
 lemonaid brief status --self blocked
@@ -80,9 +75,22 @@ lemonaid brief bullet set --self "open the PR" "PR #12 open"
 lemonaid brief bullet rm --self "PR #12 open"
 lemonaid brief pr add --self <PR-URL> "Delivery service" --review <review-doc-link-or-path>
 lemonaid brief pr rm --self 12
+lemonaid brief section show --self "Notes"
+lemonaid brief section set --self "Notes" -          # body from stdin; new headings default to ##
+lemonaid brief section set --self "Detail" --level 3 --parent "Notes" -
+lemonaid brief section rm --self "Detail"             # removes its descendants too
+lemonaid brief migrate --self
 ```
 
-`bullet set` and `rm` match the beginning of exactly one bullet, ignoring case. `Done` additions go at the top of that section. `lemonaid brief now --self "..."` replaces progress in `## Now`, keeping existing PRs and Docs tables when their headings are omitted; pass `-` to read it from stdin. It refuses a body that drops any other sub-heading the section has; to change one line use the bullet verbs, and to rewrite the whole section pass `--replace-all` (`lemonaid brief now --self --replace-all -`). Supplying a PRs or Docs heading replaces that table. Use `brief pr rm` or `brief doc rm` to remove individual rows.
+`bullet add` accepts any heading name. Existing headings retain their level; missing headings default to level 2, except Needs, Running, Waiting on, and Lemons, which are created under Now.
+
+`bullet set` and `rm` match the beginning of exactly one direct bullet anywhere in the brief, ignoring case; `--heading "Notes"` scopes the match. Fenced examples are ignored. Duplicate heading names are refused with their parent and line number, rather than choosing one.
+
+`Done` additions go at the top of that section.
+
+`lemonaid brief now --self "..."` replaces progress in `## Now`, keeping existing PRs and Docs tables when their headings are omitted; pass `-` to read it from stdin. It refuses a body that drops any other sub-heading the section has; to change one line use the bullet verbs, and to rewrite the whole section pass `--replace-all` (
+
+`lemonaid brief now --self --replace-all -`). Supplying a legacy PRs or Docs heading replaces that table. Once promoted sections exist, `brief now` refuses to put those headings back under Now, including with `--replace-all`; use `brief section set` or the bullet verbs. `brief now` never migrates headings. Use `brief pr rm` or `brief doc rm` to remove individual rows.
 
 <!-- harness: claude -->
 You may edit a brief directly. After every hand edit, run `lemonaid brief check --self` and fix its reports; the Stop hook also keeps the turn from ending with an invalid brief.

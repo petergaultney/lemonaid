@@ -99,11 +99,17 @@ def test_new_briefs_are_dated_and_named_after_the_work():
     assert "Status:" not in text
     assert [line for line in text.splitlines() if line.startswith("## ")] == [
         "## Now",
+        "## Questions",
+        "## Next",
+        "## PRs",
+        "## Docs",
+        "## Done",
         "## Goal",
         "## Executive Summary of Results",
         "## Context",
         "## Acceptance Criteria",
         "## Limits",
+        "## Watching",
     ]
 
 
