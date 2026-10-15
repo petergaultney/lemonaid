@@ -75,7 +75,8 @@ autoresume cannot race native startup. It does not verify model or watcher readi
 pane. The saved operation includes the command and its prompt environment.
 A failure before launch retains the pane for inspection. There are no automatic
 replacement retries and no second supervisor. An interrupted worker becomes
-`partial` after its 90-second reservation expires; checking status or rerunning
+`partial` after its 90-second reservation expires and its worker has exited. A live
+worker keeps the channel reserved even beyond that deadline; checking status or rerunning
 the worker never repeats an uncertain signal or launch. Inspect the pane and use
 the saved command/environment for manual recovery. Autoresume refuses a partial
 restart until a fresh hook identifies a later live process for that session.

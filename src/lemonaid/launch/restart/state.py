@@ -48,13 +48,29 @@ def barrier(channel: str, exclusive: bool = False) -> abc.Iterator[None]:
         yield
 
 
+def worker_active(token: str) -> bool:
+    try:
+        with _path(token + ".lock").open("r") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+    except FileNotFoundError:
+        pass
+    return False
+
+
 def get(token: str) -> dict:
     if len(token) != 24 or any(c not in "0123456789abcdef" for c in token):
         raise ValueError("Invalid restart operation ID")
     operation = read(token + ".json")
     if operation is None:
         raise ValueError("No restart has that operation ID")
-    if operation["phase"] not in TERMINAL and time.time() >= operation["deadline"]:
+    if (
+        operation["phase"] not in TERMINAL
+        and time.time() >= operation["deadline"]
+        and not worker_active(token)
+    ):
         return {
             **operation,
             "phase": "partial",

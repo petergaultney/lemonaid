@@ -63,14 +63,17 @@ def _execute(token: str, plan: dict) -> None:
 
 
 def run(token: str) -> None:
+    operation = state.get(token)
     with state._path(token + ".lock").open("a+") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return
-        operation = state.get(token)
-        if operation["phase"] != "planned":
-            return  # Status/another worker never repeats an uncertain stop or respawn.
+        # Starting a worker and admitting competing work share the channel barrier.
+        with state.barrier(operation["plan"]["channel"], exclusive=True):
+            operation = state.get(token)
+            if operation["phase"] != "planned":
+                return  # Never repeat an uncertain stop or respawn.
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
         plan = operation["plan"]
         try:
             _execute(token, plan)
