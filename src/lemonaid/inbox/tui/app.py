@@ -7,6 +7,7 @@ from pathlib import Path
 
 from textual import events
 from textual.app import App, ComposeResult
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widget import Widget
@@ -294,8 +295,13 @@ class LemonaidApp(App):
 
     def _the(self, widget: type[_W]) -> _W | None:
         """The one *widget*, or None before the screen is up or after it is torn down."""
-        found = self.query(widget) if self._screen_stack else None
-        return found.first() if found else None
+        if not self._screen_stack:
+            return None
+
+        try:
+            return self.query_one(widget)
+        except NoMatches:
+            return None
 
     @property
     def _mode(self) -> view_modes.Mode | None:
