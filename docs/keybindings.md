@@ -13,6 +13,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `Ctrl`+`e` / `End` | Move to the bottom row of the list (see below) |
 | `m` | Mark as read |
 | `M` | Mark as unread again |
+| `H` | Hide/unhide the lemon via its attached brief; `/` search includes hidden lemons |
 | `a` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
@@ -29,7 +30,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `-` | Take the session out of the group it's drawn under; on a group's header, delete the group |
 | `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `R` | Resume the selected detached session when available |
-| `H` | Save scratch pane size (follow mode, only when it has drifted) |
+| `Ctrl`+`s` | Save scratch pane size (follow mode, only when it has drifted) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
 | `/` | Search inbox and archived sessions as you type; in history, filter archived sessions |
@@ -37,6 +38,13 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `?` | Toggle the key hints (see below) |
 | `q` / `Escape` | Quit |
 | `↑` / `↓` | Navigate list |
+
+`H` writes `Hidden: yes` using the same checked edit as `lemonaid brief hide`,
+or removes that line to unhide. The list updates immediately, selecting the next
+row or the previous one at the end. A lemon without an attached brief gets a notice.
+Hidden lemons still appear when focused, pinned, deaf, blocked, or in a specially
+ranked brief status. Search with `/` to find a hidden lemon, then press `H` on its
+row to restore it to the default list.
 
 Rows retained after their terminal pane closes show a `detached` marker. When the
 saved session details are insufficient to resume one, its marker also says
@@ -217,7 +225,8 @@ Set `jump_by_number = false` to leave the digits unbound.
 `z` reverses the last change you made to the inbox, and keeps going back through
 earlier ones. Actions that only change a session's state are undoable — archive,
 mark-read, snooze, rename, and group edits. Actions that reach outside the inbox are not:
-switching to a session and resuming one both do something to your terminal that
+hiding edits a brief (press `H` again to reverse it), while switching to a
+session and resuming one both do something to your terminal that
 restoring a database row wouldn't take back.
 
 Each undoable action shows a toast naming what it did, so an accidental archive
@@ -238,6 +247,7 @@ jump_unread = "u"
 mark_read = "m"
 mark_unread = "M"
 archive = "a"
+hide = "H"  # hide/unhide through the attached brief
 snooze = "s"
 snoozed_list = "S"
 usage_view = "U"
@@ -260,7 +270,7 @@ search = "/"  # search inbox and archive sessions; filter in history
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 resume_detached = "R"  # resume a detached inbox row
-save_size = "H"  # save scratch pane size (follow mode)
+save_size = "ctrl+s"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 notes = "N"  # show or hide your notes (needs [tui] notes)
@@ -299,7 +309,8 @@ filter, where it still moves focus.
 
 ### Multiple keys per action
 
-Each character in the string is a separate keybinding. For example:
+Most action fields accept one keybinding per character. `save_size` instead
+names a single key, such as `"ctrl+s"` or `"H"`. For example:
 
 ```toml
 quit = "qQ"  # both 'q' and 'Q' will quit

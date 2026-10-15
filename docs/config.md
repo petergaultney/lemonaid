@@ -361,6 +361,11 @@ The reading is the newest request's input, so it updates when the lemon next cal
 
 ### `[tui.keybindings]`
 
+The `[tui.keybindings]` option `hide = "H"` toggles the selected lemon's
+`Hidden: yes` brief annotation. Set it to `""` to disable the key.
+`save_size = "ctrl+s"` accepts the resized scratch pane size; it names one key,
+including its modifiers.
+
 `answer_yes = "Y"` immediately sends `Yes, approved` for the selected brief question.
 `search = "/"` opens inbox search with archive matches below a divider, and filters history.
 See [keybindings.md](keybindings.md) for the other keys and conflict warnings.

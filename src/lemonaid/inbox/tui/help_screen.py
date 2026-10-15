@@ -33,6 +33,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("mark_read", "Mark as read"),
             ("mark_unread", "Mark as unread"),
+            ("hide", "Hide/unhide via its brief; / search includes hidden lemons"),
             ("archive", "Archive - remove it from the list"),
             ("snooze", "Snooze until a time you pick"),
             ("rename", "Rename (clear it to go back to the auto name)"),
@@ -88,7 +89,7 @@ def _key_display(value: str, field: str) -> str:
     if field == "group_key":
         return value.capitalize()
 
-    if field in ("move_pin_up", "move_pin_down", "first", "last", "search"):
+    if field in ("move_pin_up", "move_pin_down", "first", "last", "search", "save_size"):
         return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+")
 
     return " / ".join(value)

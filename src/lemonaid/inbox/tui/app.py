@@ -37,7 +37,7 @@ from ...tmux.scratch import (
 from .. import db, sections, undo
 from . import bindings, claude_patch, error_screen, styles, utils
 from .briefs.brief_pane import BriefPane
-from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups
+from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
 from .help_screen import HelpScreen
 from .inbox_content import InboxContent
 from .live import inbox_draw, status_line
@@ -727,6 +727,15 @@ class LemonaidApp(App):
         ):
             self._undo_stack.push(entry)
             self._refresh_notifications()
+
+    def action_hide(self) -> None:
+        table = self._focused_table()
+        if (
+            self._mode is None
+            and table.id in {"main_table", "other_sources_table"}
+            and (notification := row_keys.notification(row_keys.notification_at_cursor(table)))
+        ):
+            inbox_hidden.toggle(self._content.inbox, notification)
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""

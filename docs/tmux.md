@@ -309,7 +309,7 @@ The default scratch pane height (in rows) is configurable:
 scratch_height = "12"
 ```
 
-In follow mode, if you manually resize the pane (drag the border), a `save pane height` hint appears in the status bar. Press `H` to persist the new size.
+In follow mode, if you manually resize the pane (drag the border), a `save pane height` hint appears in the status bar. Press `Ctrl`+`s` to persist the new size.
 
 #### Moving between top and left
 

@@ -83,7 +83,11 @@ def load(
         else None
     )
     in_view = {
-        n.channel for n in active.rows if n.channel in focused_channels or str(n.id) == current_key
+        n.channel
+        for n in active.rows
+        if n.channel in focused_channels
+        or str(n.id) == current_key
+        or (matching_ids is not None and n.id in matching_ids)
     }
     shown, folded = order.fold(
         view.inbox_rows(active, pinned, in_view),
@@ -115,7 +119,9 @@ def load(
         other_in_view = {
             n.channel
             for n in other_active.rows
-            if n.metadata.get("tty", "") in focused or str(n.id) in {current_key, other_key}
+            if n.metadata.get("tty", "") in focused
+            or str(n.id) in {current_key, other_key}
+            or (matching_ids is not None and n.id in matching_ids)
         }
         other = [
             n

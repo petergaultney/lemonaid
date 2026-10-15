@@ -48,6 +48,7 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.jump_unread, "jump_unread", "Jump Unread")
     yield from build_bindings(kb.mark_read, "mark_read", "Mark Read")
     yield from build_bindings(kb.mark_unread, "mark_unread", "Mark Unread")
+    yield from build_bindings(kb.hide, "hide", "Hide/show", show=False)
     yield from build_bindings(kb.archive, "archive", "Archive")
     yield from build_bindings(kb.rename, "rename", "Rename")
     yield from build_bindings(kb.snooze, "snooze", "Snooze")
@@ -105,7 +106,8 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield _hidden("question_mark", "help", "Keys")
 
     yield from build_bindings(kb.flip_position, "flip_position", "Flip", show=False)
-    yield from build_bindings(kb.save_size, "save_scratch_size", "Save Size", show=False)
+    if kb.save_size:
+        yield _hidden(kb.save_size, "save_scratch_size", "Save Size")
 
     if kb.jump_by_number:
         for digit in JUMP_DIGITS:

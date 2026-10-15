@@ -62,6 +62,7 @@ class InboxList(Vertical):
         self.revival = scout_revival.Revival()
         self.shared_names = shared_names.Cache()
         self.arrangement = inbox_arrange.Arrangement(lists.config)
+        self.dismissed_key: str | None = None
         self.fold_open = False
         self.fold_name = ""  # the arranger's name for the folded group
         self._unfolded_ids: frozenset[str] = (
@@ -192,8 +193,8 @@ class InboxList(Vertical):
                 env_filter=env_filter,
                 focused=focused,
                 search_text=search_text,
-                current_key=current_key,
-                other_key=other_key,
+                current_key=None if current_key == self.dismissed_key else current_key,
+                other_key=None if other_key == self.dismissed_key else other_key,
                 unfolded_ids=self._unfolded_ids,
                 shared_names=(
                     self.shared_names.names(conn, self.config.brief.name_idle_days, time.time())
@@ -203,6 +204,7 @@ class InboxList(Vertical):
                 now=time.time(),
             )
 
+        self.dismissed_key = None
         active = frame.active
         self._revive_deaf(active)
         shown, folded, self.fold_name = self.arrangement.arranged(
