@@ -349,6 +349,18 @@ class BriefView(VerticalScroll):
                 *([Rule()] if i else []),
                 _Card(section, shown.in_session, now, unread, self._neutral_timing),
                 *(
+                    [
+                        _Markdown(
+                            links.linkify(
+                                "## Executive Summary of Results\n\n" + section.summary,
+                                self._vaults,
+                            )
+                        )
+                    ]
+                    if section.summary
+                    else []
+                ),
+                *(
                     [self._needs_widget(section)]
                     if section.needs_text or section.unmatched_questions
                     else []

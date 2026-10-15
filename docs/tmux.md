@@ -163,7 +163,8 @@ to receive keys; this reflects tmux focus, not whether the terminal app is front
 
 When the scratch pane is on top, parked, or not following, the brief opens as a popup over
 the client that pressed the key. Pressing the same key again closes it.
-Each lemon starts with its inbox card, opened up, then what it needs from you; the brief's path
+Each lemon starts with its inbox card, opened up, then its populated Executive Summary of
+Results before what it needs from you; the brief's path
 comes last. A brief without an attached session says so at the top.
 From a window with no lemon, a session holding several shows its name as a bar across the top,
 then one section per lemon (see [keybindings.md](keybindings.md#brief)).
