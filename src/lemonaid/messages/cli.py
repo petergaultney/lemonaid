@@ -155,6 +155,22 @@ def own_lemon(explicit_channel: str) -> tuple[str, str]:
             raise
 
 
+def _take_and_print(inbox: Path, channel: str):
+    with state.admission(channel) as allowed:
+        if not allowed:
+            return None
+        result = store.take_next(inbox)
+        if result is not None:
+            path, message = result
+            try:
+                print(message, end="" if message.endswith("\n") else "\n")
+                sys.stdout.flush()
+            except (OSError, UnicodeError):
+                store.restore(path)
+                raise
+        return result
+
+
 def _receive(args: argparse.Namespace, wait: bool) -> None:
     channel, lemon_id = own_lemon(args.channel or "")
     inbox = store.inbox_for_id(lemon_id)
@@ -195,7 +211,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                     find=(
                         (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
                         if codex_thread
-                        else store.take_next
+                        else lambda inbox: _take_and_print(inbox, channel)
                     ),
                 )
         except (ValueError, TimeoutError, RuntimeError, waiter.AlreadyArmed) as error:
@@ -205,22 +221,10 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
             print(result[1], end="")
             return
     else:
-        with state.admission(channel) as allowed:
-            if not allowed:
-                _fail("A restart holds inbox delivery; messages remain pending")
-
-            result = store.take_next(inbox)
+        result = _take_and_print(inbox, channel)
 
     if result is None:
         raise SystemExit(1)
-
-    path, message = result
-    try:
-        print(message, end="" if message.endswith("\n") else "\n")
-        sys.stdout.flush()
-    except (OSError, UnicodeError):
-        store.restore(path)
-        raise
 
 
 def cmd_next(args: argparse.Namespace) -> None:

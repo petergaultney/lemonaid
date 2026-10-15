@@ -94,3 +94,69 @@ def test_sigterm_timeout_keeps_source_watchers_and_does_not_respawn(monkeypatch)
     coordinator.run(token)
     assert state.get(token)["phase"] == "failed"
     assert not state.blocked(shared.CHANNEL)
+
+
+def test_live_worker_keeps_reservation_after_deadline(monkeypatch):
+    from lemonaid.launch.restart import pane, planning
+    from lemonaid.watch import registry
+
+    plan = shared.plan()
+    token = state.reserve(plan)
+    clock = state.time.time()
+    monkeypatch.setattr(planning, "build", lambda *a: plan)
+    monkeypatch.setattr(pane, "preserve", lambda *a: None)
+    monkeypatch.setattr(process, "terminate", lambda *a: None)
+    monkeypatch.setattr(registry, "mine", lambda *a: [])
+    monkeypatch.setattr(pane, "check", lambda p: p)
+    monkeypatch.setattr(pane, "restore", lambda *a: None)
+    monkeypatch.setattr(native, "resumed", lambda *a: True)
+
+    def paused_replace(*a):
+        monkeypatch.setattr(state.time, "time", lambda: clock + 91)
+        assert state.get(token)["phase"] == "starting"
+        with state.admission(plan["channel"]) as allowed:
+            assert not allowed
+        with pytest.raises(ValueError, match="already"):
+            state.reserve(plan)
+        return shared.TARGET
+
+    monkeypatch.setattr(pane, "replace", paused_replace)
+    coordinator.run(token)
+    assert state.get(token)["phase"] == "started"
+    assert not state.worker_active(token)
+
+
+def test_already_armed_claude_inbox_waiter_leaves_cutover_message_pending(
+    tmp_path, monkeypatch, capsys
+):
+    import argparse
+    import contextlib
+
+    from lemonaid.messages import cli
+    from lemonaid.watch import registry
+
+    channel = "claude:01234567"
+    with db.connect() as conn:
+        path, lemon_id = shared.setup(conn, tmp_path)
+    inbox = store.inbox_for_id(lemon_id)
+    monkeypatch.setattr(cli, "own_lemon", lambda *a: (channel, lemon_id))
+    monkeypatch.setattr(cli.brief.attached, "by_channel", lambda *a: {channel: path})
+    monkeypatch.setattr(cli.codex_delivery, "own_thread", lambda *a: "")
+    pending, tokens = [], []
+
+    @contextlib.contextmanager
+    def armed(*a):
+        tokens.append(state.reserve({**shared.plan(), "channel": channel}))
+        pending.append(store.send(inbox, "must remain pending", "test"))
+        yield
+
+    monkeypatch.setattr(registry, "registered", armed)
+    args = argparse.Namespace(channel=channel, codex_thread="", timeout=0)
+    with pytest.raises(SystemExit):
+        cli._receive(args, wait=True)
+    assert pending[0].exists()
+    assert "must remain pending" not in capsys.readouterr().out
+    state.update(tokens[0], "started")
+    cli._receive(args, wait=False)
+    assert not pending[0].exists()
+    assert "must remain pending" in capsys.readouterr().out
