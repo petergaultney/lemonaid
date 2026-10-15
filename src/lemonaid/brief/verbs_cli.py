@@ -19,7 +19,6 @@ from ..inbox import db
 from . import (
     check,
     command,
-    layout,
     links,
     now_edit,
     pr,
@@ -69,7 +68,7 @@ def edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
 
 def _cmd_now(args: argparse.Namespace) -> None:
     text = sys.stdin.read() if args.markdown == "-" else args.markdown
-    edited(args, lambda brief: now_edit.with_now(brief, layout.parse(text)))
+    edited(args, lambda brief: now_edit.replace_progress(brief, text))
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -147,7 +146,9 @@ def _verbs(
 
 def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
     watching_cli.add_parser(brief_subparsers)
-    now = command.parser(brief_subparsers, "now", "Replace the `## Now` section of a lemon's brief")
+    now = command.parser(
+        brief_subparsers, "now", "Replace progress in `## Now`, keeping omitted PRs and Docs tables"
+    )
     now.add_argument("markdown", help="The new section body; - reads it from stdin")
     now.set_defaults(func=_cmd_now)
 

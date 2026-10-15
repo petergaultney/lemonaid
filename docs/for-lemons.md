@@ -504,7 +504,7 @@ lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole c
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
 lemonaid brief check --self                    # what is wrong with the brief; exit 1 if anything is
 lemonaid brief check --all                     # every brief of a session that isn't archived
-lemonaid brief now --self "### Next ..."       # replace all of ## Now (- reads it from stdin)
+lemonaid brief now --self "### Next ..."       # replace progress, keep omitted PRs/Docs (- reads stdin)
 lemonaid brief detach --self                   # the file stays
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
@@ -821,7 +821,10 @@ It exits 1 when it finds anything, and `--json` lists the problems. Every edit v
 anything, listing what. A brief that already fails takes only an edit that fixes it: `brief status` fixes a bad
 `Status:` and any `## Now` edit puts the sub-headings in order, but a misplaced `## Watching` or a
 wrong `Lemon-ID` needs a hand edit first. `brief now` lays out the section it is given the same
-way the other verbs do. The verbs never drop a `Parent:` line, and refuse an edit that
+way the other verbs do. It keeps existing `### PRs` and `### Docs` tables when the new body
+omits those headings, so a progress update keeps their watches. A supplied heading replaces
+its table; use `brief pr rm` or `brief doc rm` to remove individual rows.
+The verbs never drop a `Parent:` line, and refuse an edit that
 would, but they still edit a brief that has already lost one. A `Parent:`, `Area:` or `Groups:` line given to
 `brief now` replaces the brief's line for that field, and a field it leaves out stays as it was. A Claude lemon's Stop hook
 runs it too, and blocks the turn's end until the brief passes. **After editing a brief by hand,

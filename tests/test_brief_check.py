@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, check, identity, store, write_cli
+from lemonaid.brief import attached, check, identity, now_edit, store, write_cli
 from lemonaid.inbox import db
 
 _BRIEF = """\
@@ -258,12 +258,18 @@ def test_a_brief_that_already_fails_takes_only_the_edit_that_fixes_it(capsys):
     assert "Status: done\n" in path.read_text() and "- more" not in path.read_text()
 
 
-def test_now_lays_out_what_it_is_given(capsys):
+def test_now_lays_out_progress_and_preserves_omitted_prs(capsys):
     path = _attached()
+    table = now_edit.now_of(path.read_text()).sections[1]
 
     _run(capsys, "now", "--channel", "codex:t1", "### Done\n- x\n### Next\n- y\n### Running")
 
-    assert "## Now\n\n### Next\n\n- y\n\n### Done\n\n- x\n\n## Goal" in path.read_text()
+    now = now_edit.now_of(path.read_text())
+    assert [section.heading for section in now.sections] == ["Next", "PRs", "Done"]
+    assert now.sections[0].body == ("- y",)
+    assert now.sections[1] == table
+    assert now.sections[2].body == ("- x",)
+    assert check.structure(path.read_text()) == []
 
 
 def test_a_review_doc_in_a_vault_becomes_an_obsidian_link(capsys, monkeypatch, tmp_path):

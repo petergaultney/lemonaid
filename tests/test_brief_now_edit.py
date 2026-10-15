@@ -2,7 +2,7 @@
 
 import pytest
 
-from lemonaid.brief import check, now_edit
+from lemonaid.brief import check, doc_table, now_edit, pr_table
 
 _BRIEF = """\
 # the task
@@ -140,3 +140,33 @@ def test_a_brief_without_now_gets_one_under_status():
     out = now_edit.add("# t\n\nStatus: working\n\n## Goal\nx\n", "Next", "start")
 
     assert out == "# t\n\nStatus: working\n\n## Now\n\n### Next\n\n- start\n\n## Goal\nx\n"
+
+
+def test_replacing_progress_keeps_omitted_tables_and_orders_them(tmp_path):
+    brief = now_edit.with_section(
+        _BRIEF,
+        "PRs",
+        lambda body: pr_table.with_row(body, "https://github.com/o/r/pull/12", "Fix", None),
+    )
+    brief = doc_table.add(brief, tmp_path / "review.md", "Review")
+    out = now_edit.replace_progress(brief, "### Done\n\n- Code finished\n")
+
+    assert "write the docs" not in out
+    assert now_edit.now_of(out).sections[:-1] == tuple(
+        section for section in now_edit.now_of(brief).sections if section.heading in ("PRs", "Docs")
+    )
+    assert out.index("### PRs") < out.index("### Docs") < out.index("### Done")
+
+
+def test_replacing_progress_can_explicitly_replace_or_clear_a_table():
+    brief = now_edit.with_section(
+        "# task\n",
+        "PRs",
+        lambda body: pr_table.with_row(body, "https://github.com/o/r/pull/12", "Old", None),
+    )
+    table = "\n".join(pr_table.with_row([], "https://github.com/o/r/pull/13", "New", None))
+    out = now_edit.replace_progress(brief, f"### PRs\n\n{table}\n")
+    assert "pull/12" not in out and "pull/13" in out
+    assert "### PRs" not in now_edit.replace_progress(out, "### PRs\n")
+    removed = now_edit.with_section(out, "PRs", lambda body: pr_table.without(body, "13"))
+    assert "### PRs" not in removed

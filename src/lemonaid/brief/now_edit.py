@@ -71,6 +71,18 @@ def now_of(text: str) -> layout.Now:
     return layout.parse("\n".join(lines[start:end]))
 
 
+def replace_progress(text: str, body: str) -> str:
+    """Replace progress, retaining subscription tables omitted from the new body."""
+    now = layout.parse(body)
+    kept = tuple(
+        section
+        for section in now_of(text).sections
+        if layout.rank(section.heading) in (layout.ORDER.index("prs"), layout.ORDER.index("docs"))
+        and layout.find(now, section.heading) is None
+    )
+    return with_now(text, dataclasses.replace(now, sections=(*now.sections, *kept)))
+
+
 def with_section(
     text: str, heading: str, change: abc.Callable[[tuple[str, ...]], abc.Sequence[str]]
 ) -> str:
