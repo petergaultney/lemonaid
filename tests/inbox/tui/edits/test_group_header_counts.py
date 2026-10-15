@@ -17,7 +17,7 @@ def test_header_counts_current_members_and_actual_visible_rows(size):
         worker = session(conn, "worker", "working")
         reviewer = session(conn, "review-quiet", "working")
         path = brief.store.briefs_dir() / "review-quiet.md"
-        path.write_text(path.read_text() + f"\nParent: {worker}\n")
+        path.write_text(brief.hidden.with_hidden(path.read_text(), True))
         archived = session(conn, "old", "working")
         groups.store.add(conn, group, [lead, worker, reviewer, archived])
         db.archive_channel(conn, "claude:old", reason="test")
