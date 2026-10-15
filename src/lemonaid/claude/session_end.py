@@ -10,7 +10,6 @@ import time
 
 from ..inbox import db
 from ..inbox.channel import channel_id
-from ..launch.restart import native
 from ..log import get_logger
 
 _log = get_logger("claude.session_end")
@@ -29,9 +28,6 @@ def handle_session_end(stdin_data: str | None = None) -> None:
         return
 
     channel = channel_id("claude", session_id)
-    if not native.accept_exit(channel):
-        return
-
     with db.connect() as conn:
         if not db.record_exit(conn, channel, time.time(), str(data.get("reason") or "")):
             _log.info("session end for %s, which the inbox has no row for", channel)

@@ -93,7 +93,6 @@ def session_start_command(harness: str) -> str:
 def hooks(harness: str) -> list[tuple[str, str]]:
     """(event, command) for every hook lemonaid installs in `harness`."""
     return [
-        ("UserPromptSubmit", f"lemonaid hooks turn-start --harness {harness}"),
         ("PreToolUse", own_change_command(harness)),
         ("PostToolUse", own_change_command(harness)),
         ("Stop", stop_command(harness)),

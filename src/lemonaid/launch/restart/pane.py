@@ -1,7 +1,6 @@
 """Socket-explicit pane inspection and guarded replacement."""
 
 import dataclasses
-import re
 import time
 
 from ...claude import launch_args
@@ -99,50 +98,18 @@ def restore(target: Pane, previous: str) -> None:
     )
 
 
-def composer(target: Pane, harness: str) -> None:
-    text = run(target.socket, "capture-pane", "-p", "-t", target.pane)
-    marker = "\u276f" if harness == "claude" else "\u203a"
-    lines = text.splitlines()
-    prompts = [i for i, line in enumerate(lines) if line.lstrip().startswith(marker)]
-    if not prompts:
-        raise ValueError("Cannot verify an empty composer; close dialogs or use --force")
-
-    content = lines[prompts[-1]].lstrip()[len(marker) :].strip()
-    if content:
-        raise ValueError("The composer contains text or a picker; use --force to discard it")
-
-    for line in lines[prompts[-1] + 1 :]:
-        if not line.strip() or line.lstrip().startswith(("\u2500", "\u2570")):
-            break
-
-        raise ValueError("Cannot verify the composer below its prompt; use --force")
-
-
-def model(target: Pane, expected: str, effort: str = "") -> None:
-    text = run(target.socket, "capture-pane", "-p", "-t", target.pane)
-    footer = [
-        line for line in text.splitlines()[-8:] if re.search(r"gpt-|opus|sonnet|haiku", line, re.I)
-    ]
-    selected = re.sub(r"[^a-z0-9]", "", footer[-1].lower()) if footer else ""
-    name = re.sub(r"-\d{8}$", "", expected.removeprefix("claude-"))
-    if not selected or re.sub(r"[^a-z0-9]", "", name.lower()) not in selected:
-        raise ValueError("Cannot corroborate the native model against the live model display")
-
-    if effort and not re.search(r"\b" + re.escape(effort) + r"\b", footer[-1], re.I):
-        raise ValueError("The displayed reasoning effort does not match the native settings")
-
-
 def replace(
     target: Pane, root: process.Identity, cwd: str, line: str, environment: dict[str, str]
 ) -> Pane:
     current = check(target)
     deadline = time.monotonic() + 3
     remaining = process.on_tty(target.tty)
-    expected = [] if current.dead else [root]
+    shell_root = process.shell(root, launch_args.argv(root.pid))
+    expected = [root] if not current.dead and shell_root else []
     while remaining != expected and time.monotonic() < deadline:
         time.sleep(0.05)
         current = check(target)
-        expected = [] if current.dead else [root]
+        expected = [root] if not current.dead and shell_root else []
         remaining = process.on_tty(target.tty)
     if remaining != expected:
         raise ValueError("Unmanaged jobs remain on the terminal; refusing to respawn the pane")

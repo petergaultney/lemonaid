@@ -1,150 +1,94 @@
-"""Detached, journaled cutover. No destructive step is replayed after a crash."""
+"""One detached stop/start; native resume owns session restoration."""
 
+import contextlib
+import dataclasses
 import fcntl
-import os
-import sqlite3
+import json
 import subprocess
 import sys
-import typing as ty
-from pathlib import Path
+import time
 
-from ...brief import attached
+from ...config import load_config
 from ...inbox import db
 from ...watch import registry, stopping
-from . import (
-    configuration,
-    environment,
-    history,
-    jobs,
-    native,
-    pane,
-    planning,
-    process,
-    startup,
-    state,
-    watchers,
-)
+from . import native, pane, planning, process, state
 
 
-def _recheck(conn: sqlite3.Connection, plan: dict[str, ty.Any]) -> None:
-    target = pane.Pane(**plan["pane"])
-    pane.check(target)
-    if not process.same(process.Identity(**plan["source"])):
-        raise ValueError("Source process generation changed")
-
-    allowed = {entry.pid for entry in process.ancestry(plan["source"]["pid"])} | {
-        entry["pid"] for entry in plan.get("caller", []) if process.same(process.Identity(**entry))
-    }
-    allowed |= {entry.pid for entry in process.ancestry(os.getpid())} | jobs.saved(plan)
-    if any(
-        entry.pid not in allowed
-        for entry in [*process.on_tty(target.tty), *process.descendants(plan["source"]["pid"])]
-    ):
-        raise ValueError("Unmanaged terminal or descendant jobs appeared after preflight")
-
-    row = db.get_by_channel(conn, plan["channel"], unread_only=False)
-    if row is None or attached.by_channel(conn, [plan["channel"]]).get(plan["channel"]) is None:
-        raise ValueError("Source row or brief attachment disappeared")
-    if (
-        row.metadata.get("session_id") != plan["session_id"]
-        or row.metadata.get("cwd") != plan["cwd"]
-    ):
-        raise ValueError("Source session identity or directory changed")
-
-    generation = native.registered(conn, plan["channel"])
-    if (
-        generation is None
-        or generation["identity"] != plan["source"]
-        or generation["settings"] != plan["settings"]
-    ):
-        raise ValueError("Native identity or effective settings changed after preflight")
-
-    pane.model(target, plan["settings"]["model"], str(plan["settings"].get("effort") or ""))
-    configuration.unchanged(plan["settings"].get("files", {}))
-    planning.idle(row, plan["lemon_id"], plan["force"])
-    history.validate(Path(plan["history"]), plan["session_id"], plan["harness"], plan["force"])
-    stamp = Path(plan["history"]).stat()
-    if not plan["force"] and [stamp.st_size, stamp.st_mtime_ns] != plan["history_stamp"]:
-        raise ValueError("Native transcript changed after preflight; retry when idle")
-    if not plan["force"]:
-        pane.composer(target, plan["harness"])
-
-
-def _execute(conn: sqlite3.Connection, operation: dict[str, ty.Any]) -> None:
-    token, plan = operation["token"], operation["plan"]
-    target = pane.Pane(**plan["pane"])
-    environment.validate(plan["settings"])
-    waiters = registry.mine(plan["channel"])
-    watchers.check_source(plan["harness"], waiters)
-    state.update(conn, token, "quiescing")
-    for waiter in waiters:
-        stopping.stop(waiter, f"restart {token}")
-    _recheck(conn, plan)
-    pane.preserve(target)
-    state.update(conn, token, "stopping")
-    process.terminate(process.Identity(**plan["source"]))
-    state.update(conn, token, "source-exited")
-    startup.run(conn, token)
-
-
-def reconcile(conn: sqlite3.Connection, operation: dict[str, ty.Any], error: str) -> None:
-    """Release a failed reservation without signaling or launching another harness."""
-    plan, evidence = operation["plan"], operation["evidence"]
-    original = process.Identity(**plan["source"])
-    outcome = "failed" if process.same(original) else "partial"
-    target = pane.Pane(**evidence.get("replacement", plan["pane"]))
-    try:
-        if operation["phase"] != "planned" and (
-            process.same(original)
-            or (
-                evidence.get("replacement_root")
-                and process.same(process.Identity(**evidence["replacement_root"]))
-            )
+def _execute(token: str, plan: dict) -> None:
+    with db.connect() as conn:
+        current = planning.build(conn, plan["channel"], load_config(), plan["force"])
+        if any(
+            current[k] != plan[k] for k in ("source", "pane", "line", "environment", "lemon_id")
         ):
-            pane.restore(target, plan["exit_option"])
-    except (ValueError, OSError, subprocess.TimeoutExpired) as restore_error:
-        error += f"; pane option: {restore_error}"
-    state.update(conn, operation["token"], outcome, error=error)
-    if process.same(original) and operation["phase"] != "planned":
-        try:
-            watchers.restore(plan)
-        except (OSError, TimeoutError, ValueError) as restore_error:
-            state.update(conn, operation["token"], outcome, error=f"{error}; {restore_error}")
+            raise ValueError(
+                "The process, pane, attachment or resume command changed after preflight"
+            )
+        if conn.execute(
+            "SELECT 1 FROM brief_handoffs WHERE source = ? AND phase NOT IN ('complete','failed')",
+            (plan["channel"],),
+        ).fetchone():
+            raise ValueError("A handoff is in progress")
+    target = pane.Pane(**plan["pane"])
+    pane.preserve(target)
+    state.update(token, "stopping")
+    process.terminate(process.Identity(**plan["source"]))
+    # Let the harness close its own tools. Do not classify or kill helper processes.
+    # Stop its registered delivery processes before reusing the terminal.
+    for waiter in registry.mine(plan["channel"]):
+        stopping.stop(waiter, f"restart {token}")
+    state.update(token, "starting")
+    replacement = pane.replace(
+        target, process.Identity(**plan["root"]), plan["cwd"], plan["line"], plan["environment"]
+    )
+    if pane.check(replacement).dead:
+        raise ValueError(
+            "Resume command exited; inspect the retained pane and saved resume command"
+        )
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE notifications SET metadata = json_patch(metadata, ?) WHERE channel = ?",
+            (json.dumps({"tty": replacement.tty}), plan["channel"]),
+        )
+        conn.commit()
+    state.update(token, "starting", replacement=dataclasses.asdict(replacement))
+    # A fresh process observation prevents autoresume racing native CLI startup.
+    # This checks ownership only; settings, tools and watcher readiness belong to the harness.
+    deadline = time.monotonic() + 15
+    while not native.resumed(plan["channel"], plan["source"], replacement.pid):
+        if pane.check(replacement).dead or time.monotonic() >= deadline:
+            raise TimeoutError("Resume process did not register; inspect the retained pane")
+        time.sleep(0.1)
+    pane.restore(replacement, plan["exit_option"])
+    state.update(token, "started", replacement=dataclasses.asdict(replacement))
 
 
 def run(token: str) -> None:
-    lock_path = db.get_db_path().parent / f"restart-coordinator-{token}.lock"
-    with lock_path.open("a+") as lock:
+    with state._path(token + ".lock").open("a+") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return
-
-        with db.connect() as conn:
-            operation = state.get(conn, token)
-            if operation["phase"] in state.TERMINAL:
-                return
-            if operation["phase"] != "planned":
-                reconcile(
-                    conn, operation, "Coordinator interrupted; inspect the saved recovery command"
-                )
-                return
-
-            try:
-                _execute(conn, operation)
-            except (ValueError, OSError, TimeoutError, subprocess.SubprocessError) as error:
-                reconcile(conn, state.get(conn, token), str(error))
+        operation = state.get(token)
+        if operation["phase"] != "planned":
+            return  # Status/another worker never repeats an uncertain stop or respawn.
+        plan = operation["plan"]
+        try:
+            _execute(token, plan)
+        except (ValueError, OSError, TimeoutError, subprocess.SubprocessError) as error:
+            source_alive = process.same(process.Identity(**plan["source"]))
+            if source_alive and state.get(token)["phase"] != "planned":
+                with contextlib.suppress(ValueError, OSError, subprocess.SubprocessError):
+                    pane.restore(pane.Pane(**plan["pane"]), plan["exit_option"])
+            state.update(token, "failed" if source_alive else "partial", error=str(error))
 
 
 def spawn(token: str) -> None:
-    log = db.get_db_path().parent / f"restart-{token}.log"
-    with log.open("a") as output:
+    with state._path(token + ".log").open("a") as log:
         subprocess.Popen(
             [sys.executable, "-m", "lemonaid.launch.restart.worker", token],
             stdin=subprocess.DEVNULL,
-            stdout=output,
-            stderr=output,
+            stdout=log,
+            stderr=log,
             start_new_session=True,
             close_fds=True,
-            env={**os.environ, "LEMONAID_DB": str(db.get_db_path())},
         )

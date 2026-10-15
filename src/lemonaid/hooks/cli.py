@@ -3,7 +3,6 @@
 import argparse
 import sys
 
-from ..launch.restart import gates
 from . import install, own_change, session_start, stop_check
 
 
@@ -45,11 +44,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.set_defaults(func=_install)
 
     for name, help_text, run in (
-        (
-            "turn-start",
-            "UserPromptSubmit: hold new turns during a restart",
-            lambda a: gates.turn_start(a.harness),
-        ),
         (
             "own-change",
             "PreToolUse/PostToolUse: record the session's own edits to watched docs, and its pushes",

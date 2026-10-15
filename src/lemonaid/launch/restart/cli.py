@@ -1,102 +1,63 @@
-"""Restart one attached lemon in its reserved tmux pane."""
+"""Restart one attached lemon through its configured native resume command."""
 
 import argparse
 import json
-import shlex
 import sys
 
 from ...config import load_config
 from ...inbox import db
-from . import coordinator, environment, planning, state
-
-
-def _report(operation: dict) -> dict:
-    plan = operation["plan"]
-    recovery_error = ""
-    try:
-        environment.validate(plan["settings"])
-        resume = shlex.join(
-            [
-                *environment.prefix(
-                    {**plan["settings"]["environment"], "LEMONAID_RESTART_TOKEN": None}
-                ),
-                *plan["argv"],
-            ]
-        )
-    except ValueError as error:
-        resume, recovery_error = "", str(error)
-    return {
-        "operation_id": operation["token"],
-        "lemon": plan["lemon_id"],
-        "channel": plan["channel"],
-        "pane": plan["pane"]["pane"],
-        "socket": plan["pane"]["socket"],
-        "phase": operation["phase"],
-        "error": operation["error"],
-        "deadline": operation["deadline"],
-        "resume_command": resume,
-        "recovery_error": recovery_error,
-        "status_command": f"lemonaid lemon restart --status {operation['token']}",
-    }
+from . import coordinator, planning, state
 
 
 def _cmd(args: argparse.Namespace) -> None:
     try:
-        with db.connect() as conn:
-            if args.status:
-                result = _report(state.get(conn, args.status))
-            else:
-                if not args.lemon:
-                    raise ValueError("Name one lemon, or use --status OPERATION_ID")
+        if args.status:
+            result = state.get(args.status)
+        else:
+            if not args.lemon:
+                raise ValueError("Name one lemon, or use --status OPERATION_ID")
+            with db.connect() as conn:
                 plan = planning.build(conn, args.lemon, load_config(), args.force)
-                if args.dry_run:
-                    result = {"phase": "dry-run", **plan}
-                else:
-                    token = state.reserve(conn, plan)
-                    try:
-                        coordinator.spawn(token)
-                    except OSError as error:
-                        state.update(conn, token, "failed", error=str(error))
-                        raise
-                    result = _report(state.get(conn, token))
-        if args.force and not args.status:
-            print(
-                "Warning: --force may discard input or interrupt tools with external effects.",
-                file=sys.stderr,
-            )
-        print(
-            json.dumps(result, indent=2)
-            if args.json
-            else (
-                f"{result.get('lemon', result.get('lemon_id'))}: {result['phase']}"
-                + (
-                    f"; operation {result['operation_id']}\n{result['status_command']}"
-                    if "operation_id" in result
-                    else ""
-                )
-                + (f"\n{result['error']}" if result.get("error") else "")
-            )
-        )
+            if args.dry_run:
+                result = {"phase": "dry-run", "plan": plan}
+            else:
+                token = state.reserve(plan)
+                try:
+                    coordinator.spawn(token)
+                except OSError as error:
+                    state.update(token, "failed", error=str(error))
+                    raise
+                result = state.get(token)
+        result["resume_command"] = result["plan"]["line"]
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"{result['plan']['lemon_id']}: {result['phase']}")
+            if token := result.get("token"):
+                print(f"lemonaid lemon restart --status {token}")
+            if result.get("error"):
+                print(result["error"])
+                print("Inspect the pane; resume manually with the saved command and environment.")
     except (LookupError, ValueError, OSError) as error:
         print(str(error), file=sys.stderr)
         raise SystemExit(1) from error
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("restart", help="Restart one live lemon in its own tmux pane")
-    parser.add_argument("lemon", nargs="?", help="Lemon-ID, channel, or attached brief name")
+    parser = subparsers.add_parser(
+        "restart", help="Stop and resume one lemon in the same tmux pane"
+    )
+    parser.add_argument("lemon", nargs="?")
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Interrupt a turn or discard input; ownership checks still apply",
+        help="Allow interrupting a turn; ownership checks still apply",
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Check and print the plan without stopping anything"
+        "--dry-run",
+        action="store_true",
+        help="Print the checked resume plan without stopping anything",
     )
-    parser.add_argument(
-        "--status",
-        metavar="OPERATION_ID",
-        help="Report a saved operation without replaying actions",
-    )
+    parser.add_argument("--status", metavar="OPERATION_ID")
     parser.add_argument("--json", action="store_true")
     parser.set_defaults(func=_cmd)

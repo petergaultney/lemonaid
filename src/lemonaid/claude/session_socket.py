@@ -31,8 +31,8 @@ def claude_dir() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 
 
-def _entries(root: Path | None = None) -> ty.Iterator[Session]:
-    for path in ((root or claude_dir()) / "sessions").glob("*.json"):
+def _entries() -> ty.Iterator[Session]:
+    for path in (claude_dir() / "sessions").glob("*.json"):
         try:
             data = json.loads(path.read_text())
             entry = Session(
@@ -47,7 +47,7 @@ def _entries(root: Path | None = None) -> ty.Iterator[Session]:
             yield entry
 
 
-def find(session_id: str, root: Path | None = None) -> Session | None:
+def find(session_id: str) -> Session | None:
     """The live session whose ID starts with *session_id* (a channel holds only 8 characters).
 
     None when no session matches, or more than one does.
@@ -55,11 +55,11 @@ def find(session_id: str, root: Path | None = None) -> Session | None:
     if not session_id:
         return None
 
-    found = [e for e in _entries(root) if e.session_id.startswith(session_id) and alive(e, root)]
+    found = [e for e in _entries() if e.session_id.startswith(session_id) and alive(e)]
     return found[0] if len(found) == 1 else None
 
 
-def alive(entry: Session, root: Path | None = None) -> bool:
+def alive(entry: Session) -> bool:
     """Whether *entry*'s process still runs and still lists itself as that session."""
     try:
         os.kill(entry.pid, 0)
@@ -68,7 +68,7 @@ def alive(entry: Session, root: Path | None = None) -> bool:
     except PermissionError:
         pass
     try:
-        data = json.loads(((root or claude_dir()) / "sessions" / f"{entry.pid}.json").read_text())
+        data = json.loads((claude_dir() / "sessions" / f"{entry.pid}.json").read_text())
     except (OSError, ValueError):
         return False
     return data.get("sessionId") == entry.session_id

@@ -367,12 +367,16 @@ its Lemon-ID, brief, inbox row, groups and parent. It returns an operation ID
 after scheduling a detached coordinator, so a lemon can restart itself.
 Self-restart normally needs `--force` because the command is part of an active turn.
 
-The default refuses busy turns, input requests and nonempty or unrecognized
-composers. `--force` permits interruption or discarded input, but never overrides
-ownership or uncertain settings. A dead lemon uses `lemon resume`. Native process
-registration and recoverable settings are required; shared Codex app-servers are
-unsupported. Messages remain pending through verification. Check the saved
-outcome before resuming work. See [restart requirements and recovery](lemon-restart.md).
+Restart delegates native session/settings restoration to the configured resume
+command and adds an instruction to rearm watchers and other transient state.
+Lemonaid does not rebuild watchers or verify native settings. `started` reports
+that the resume command launched, not that the model or its watcher is ready.
+An observed busy turn or input request refuses without `--force`; draft input is
+not inspected. Force never overrides process or pane ownership checks. A fresh
+hook process binding and a dedicated terminal are required; a dead lemon uses
+`lemon resume`. Messages remain pending during cutover. Failed or interrupted
+operations retain status and a manual recovery command; no launch is retried.
+See [restart requirements and recovery](lemon-restart.md).
 
 ### Checking on lemons: `lemon doctor`
 

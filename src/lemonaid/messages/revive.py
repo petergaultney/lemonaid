@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..config import Config
 from ..inbox import db
-from ..launch.restart import state
+from ..launch.restart import native, state
 from . import autoresume_cmux, autoresume_tmux, resume_log, wake
 
 STARTED = "started"
@@ -73,11 +73,10 @@ def revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: 
         if not allowed:
             return Outcome(STARTING, "restart in progress")
 
-        with db.connect() as conn:
-            if dead and state.recovery_required(conn, row.channel):
-                return Outcome(
-                    FAILED,
-                    "An interrupted restart needs inspection; use lemon restart --status OPERATION_ID",
-                )
+        if dead and native.recovery_required(row.channel):
+            return Outcome(
+                FAILED,
+                "An interrupted restart needs inspection; use lemon restart --status OPERATION_ID",
+            )
 
         return _revive(row, inbox, dead, config, text)

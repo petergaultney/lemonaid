@@ -3,6 +3,7 @@
 import datetime as dt
 import json
 import re
+from contextlib import contextmanager
 from unittest.mock import patch
 
 from lemonaid import config, daily_date
@@ -53,8 +54,14 @@ def test_day_starts_is_configurable(tmp_path):
         assert config.load_config(path).inbox.day_starts == expected
 
 
+@contextmanager
+def _fake_connect():
+    yield object()
+
+
 def _submit(capsys) -> str:
     with (
+        patch("lemonaid.claude.notify.db.connect", _fake_connect),
         patch("lemonaid.claude.notify.db.register_working"),
         patch("lemonaid.claude.notify.handoff_transfer.reclaim"),
         patch(

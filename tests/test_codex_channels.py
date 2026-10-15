@@ -192,8 +192,6 @@ def _database_before_full_channels(path: Path) -> None:
         conn.execute("INSERT INTO pins (channel, position) VALUES (?, ?)", (channel, at))
         conn.execute("INSERT INTO session_emoji VALUES (?, '🍋', 1)", (channel,))
         conn.execute("INSERT INTO session_briefs VALUES (?, ?, 1)", (channel, f"/b/{at}.md"))
-    conn.execute("DROP TABLE harness_generations")
-    conn.execute("DROP TABLE lemon_restarts")
     conn.execute(f"PRAGMA user_version = {m010_full_codex_channels.VERSION - 1}")
     conn.commit()
     conn.close()
@@ -265,8 +263,6 @@ def _database_at_version_9(path: Path, rows: list[tuple[str, dict]]) -> sqlite3.
             " VALUES (?, '', ?, ?, ?, 'read')",
             (channel, f"row {at}", json.dumps(metadata), at),
         )
-    conn.execute("DROP TABLE harness_generations")
-    conn.execute("DROP TABLE lemon_restarts")
     conn.execute(f"PRAGMA user_version = {m010_full_codex_channels.VERSION - 1}")
     return conn
 

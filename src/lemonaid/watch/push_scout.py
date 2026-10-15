@@ -17,7 +17,6 @@ from collections import abc
 
 from ..claude import inbound, session_socket
 from ..inbox.channel import channel_id
-from ..launch.restart import gates
 from ..log import get_logger
 from . import deaf_waiter, delivery, registry, stop_sender, wait_state
 
@@ -56,7 +55,7 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
         except session_socket.Refused as error:
             raise delivery.Failed(f"Claude session refused the batch ({error})") from error
 
-    return gates.deliver(channel_id("claude", entry.session_id), deliver)
+    return deliver
 
 
 def _announced_marker(session_id: str) -> pathlib.Path:
@@ -174,7 +173,6 @@ def _spawn(entry: session_socket.Session) -> None:
         )
 
 
-@gates.scout
 def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) -> bool:
     """Start a scout for the lemon in *session_id* unless a waiter already runs; whether one now does.
 

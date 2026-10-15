@@ -75,21 +75,13 @@ def _not_pushing(path: Path, session_id: str, harness: str) -> str:
 
 
 def context(data: dict, harness: str) -> str:
+    native.observe(data, harness)
     session = data.get("session_id")
     cleared = (
         _carry_across_clear(session)
         if harness == "claude" and session and data.get("source") == "clear"
         else ""
     )
-    if not native.observe(data, harness):
-        return "Restart is in progress; wait for its coordinator before starting work."
-
-    if native.verifying(data, harness):
-        return (
-            "Your restart coordinator is verifying this native session and rebuilding its watcher. "
-            "Do not use tools yet. Wait for its restart-completed batch, then read pending "
-            "messages, rearm subscriptions if needed, and continue your existing task and brief."
-        )
     path = session_brief.attached(data, harness)
     if session:
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)

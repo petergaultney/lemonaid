@@ -1,8 +1,8 @@
 # Restart one lemon
 
-`lemonaid lemon restart <lemon>` upgrades the running harness process by resuming
-the same native conversation in the same tmux pane. Install the desired harness
-version first. Restart does not install packages.
+`lemonaid lemon restart <lemon>` stops a live harness and runs its configured
+resume command in the same tmux pane. Install the desired harness version first;
+restart does not install packages.
 
 ```sh
 lemonaid lemon restart my-task.TestyJob --dry-run --json
@@ -10,93 +10,74 @@ lemonaid lemon restart my-task.TestyJob
 lemonaid lemon restart --status <operation-id> --json
 ```
 
-The target can be a Lemon-ID, channel, or attached brief name. The command returns
-an operation ID after scheduling a detached coordinator, including when the
-target calls it on itself. Use `--status` to inspect the saved phase, outcome,
-error, and same-session recovery command. Status inspection never repeats a stop
-or launch.
+The target is a Lemon-ID, channel, or attached brief name. The command returns an
+operation ID after scheduling a detached worker, so a lemon can restart itself.
+Self-restart normally needs `--force`, because its tool call is part of a turn.
 
-The native session ID, Lemon-ID, attached brief, inbox row, name, emoji, pin,
-groups, parent, and snooze stay attached to that conversation. The pane stays in
-its window without selecting it or changing the layout. Its replacement can have
-a different TTY; fresh hook evidence updates the row's process and terminal data.
+## What resumes
 
-## Before restarting
+Restart uses the same resume builder as restore and `lemon resume`, including the
+backend's configured `resume_command`. For a direct Codex command, the shared
+builder adds `--no-daemon` so restart retains a dedicated terminal process. The harness restores its conversation,
+model, permissions and other native settings. Lemonaid does not reconstruct or
+verify those settings, parse model displays, or replay the old process's flags
+and environment. Put any required launch overrides in the configured resume
+command or native configuration, as for an ordinary resume.
 
-Install Lemonaid's session hooks with `lemonaid hooks install`. A native
-SessionStart, notification, or Claude statusline observation must have bound the
-session to its current process generation. Restart refuses an older session
-without that evidence. It requires a full native session ID, an existing native
-transcript and working directory, a recorded tmux socket, and recoverable model
-and operating settings.
+The command adds one initial instruction:
 
-Codex must run as a dedicated `--no-daemon` TUI. A shared or remote app-server is
-refused. Configured resume commands must be simple native commands or the built-in
-`lemonaid claude resume` wrapper. Other wrappers and unsupported operating flags
-are refused before stopping anything. The built-in Claude wrapper is planned as
-a direct native resume so it cannot change the verified working directory.
+> You were just restarted in the same native session. Keep your existing task
+> and brief. Rearm any watchers or other transient state you need to manage,
+> read your pending inbox messages, and continue your existing work.
 
-The live model display must corroborate the captured native model. A model
-selection made after the last turn cannot silently become the previous model.
-If the model display is hidden or cannot be interpreted, restart refuses.
-Codex provider and reasoning effort must be recoverable from native turn context
-or explicit configuration overrides. Existing extra writable directories and
-permission flags are retained; restart does not add writable roots. Codex's temporary
-per-process tool directory is regenerated rather than replayed from the old PATH.
-The binding records both set and unset environment overrides, plus resolved native
-home paths. Unset home overrides stay unset, preserving native default account/config
-lookup; a caller's custom homes or provider selectors cannot leak into the restart.
-An older incomplete environment binding requires a fresh native hook observation.
+Both supported native harnesses accept that initial prompt through the existing
+resume builder. The lemon rearms its own watcher and other transient state.
+Restart does not infer subscriptions, start replacement scouts, or wait for a
+model's acknowledgement. The stable Lemon-ID, brief attachment, groups and parent
+remain attached to the existing native session.
 
-Claude requires a running push scout before restart. A missing scout or a harness-owned
-background waiter is refused before quiescing, because detached coordination cannot
-recreate a tool-owned waiter. Codex can restart with a missing watcher.
-Busy turns, input requests, draft text, and unrecognized composer contents are
-refused by default. `--force` allows interruption or discarded input, and prints
-a warning about tools' external effects. It never overrides process ownership,
-model, directory, or launch-setting checks. Other background jobs on the terminal or in the harness descendant tree
-must finish first, including when using `--force`.
+## Checks before stopping
 
-Known direct native helpers are checked by kernel executable path, launch arguments
-and parent generation: Claude's sleep inhibitor and Codex's bundled code-mode host.
-Their tool-job descendants remain subject to refusal, and surviving helpers must
-exit before pane replacement. Restart does not adopt previously disowned OS jobs.
+A normal SessionStart hook, Codex notification or Claude statusline must have
+recorded the session's OS process identity. Install session hooks with
+`lemonaid hooks install` and obtain a fresh observation for older sessions.
+The identity records only PID, parent, start time, executable and terminal;
+there is no new native-settings database or schema migration.
 
-For a self-restart, `--force` is normally necessary because its tool call is part
-of an active turn. A dead lemon uses `lemonaid lemon resume` instead.
+Restart checks the recorded tmux socket, pane, working directory and process
+ancestry. It refuses dead or ambiguous targets, unrelated terminal jobs, changed
+process generations, and launchers that remain alive after their harness exits. Shared Codex
+app-server sessions cannot identify a dedicated process to stop; use a dedicated
+launch/resume configuration (`--no-daemon`) for restartable Codex lemons.
 
-## Cutover and failures
+Without `--force`, an observed busy turn or request for input refuses restart.
+Draft text and arbitrary keystrokes are not inspected or preserved. Avoid typing
+or starting tools during restart. `--force` permits an interrupted turn but never
+overrides process or pane ownership checks.
 
-The operation reserves the channel, drains in-flight delivery, stops only its
-registered waiters, and rechecks the native transcript and process generation.
-It sends SIGTERM to that exact harness PID and waits up to ten seconds. It never
-uses SIGKILL on the harness, types into its composer, or signals its process group.
+## Stop, start and failures
 
-Messages sent during cutover remain pending. Delivery, watcher startup, handoff,
-automatic archive decisions, and explicit or automatic resume respect the
-reservation. Only a replacement carrying its operation token can establish its
-watcher during verification. Readiness requires the expected native session,
-model, pane generation, and a fresh watcher. Claude's push scout must use the
-replacement's socket. During verification, the resume prompt and session hook defer
-tool use. Continuation instructions are queued for the rebuilt watcher and released
-with pending messages after readiness, so tool approval cannot hide the model display
-before verification.
+A short reservation drains message delivery and excludes competing resume and
+handoff operations. Messages sent during cutover remain pending. The worker
+rechecks the source, sends SIGTERM to that exact process and waits up to ten
+seconds; it never sends SIGKILL or signals a process group.
 
-Startup has a 60-second deadline. A replacement that exits after its generation
-was captured can receive one recovery resume in the reserved pane, subject to
-the autoresume crash-loop limit. A running replacement with failed verification
-is left for inspection. SIGTERM timeout preserves the source and restores its
-watcher, and records an error if that watcher cannot register. Unmanaged surviving jobs or a changed pane stop replacement.
+The harness owns shutdown of its tools and helpers. Lemonaid neither classifies
+helper binaries nor kills descendant jobs. Before replacing the pane, it requires
+all terminal processes to have exited except the captured root shell. A surviving
+job prevents replacement. Detached or previously disowned jobs are not managed.
+Old registered waiters are stopped, and the resumed lemon rearms them from the
+instruction above. A SIGTERM timeout leaves the original watchers untouched.
 
-A supervisor reconciles a coordinator that dies. Abandoned reservations also
-reconcile on expiry without repeating uncertain signals or launches. A partial
-operation retains its error and recovery command; inspect the pane before using
-that command. Autoresume cannot start another harness when an interrupted restart
-has no evidence of a later session registration.
+`started` means the resumed process registered on the reserved pane. The short
+reservation waits up to 15 seconds for that process ownership observation, so
+autoresume cannot race native startup. It does not verify model or watcher readiness. Native startup failures appear in the
+pane. The saved operation includes the command and its prompt environment.
+A failure before launch retains the pane for inspection. There are no automatic
+replacement retries and no second supervisor. An interrupted worker becomes
+`partial` after its 90-second reservation expires; checking status or rerunning
+the worker never repeats an uncertain signal or launch. Inspect the pane and use
+the saved command/environment for manual recovery. Autoresume refuses a partial
+restart until a fresh hook identifies a later live process for that session.
 
-The tool cannot undo external effects from an interrupted turn. Fresh transcript
-checks and cooperative turn-start hooks reduce the interval in which user input
-can race with a stop; arbitrary keystrokes cannot be made atomic with SIGTERM.
-Restart does not preserve a shell job table or guarantee scrollback preservation.
-
-There is no `--all` or batch mode in this version.
+There is no batch mode.

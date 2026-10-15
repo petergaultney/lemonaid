@@ -38,9 +38,14 @@ int main(int argc, char **argv) {
   if (pclose(hook)) return 2;
   FILE *ready = fopen(getenv("TEST_STARTED"), "a");
   fprintf(ready, "%d\n", getpid()); fclose(ready);
-  printf("\033[24;1Hgpt-6 high"); fflush(stdout);
+  for (int i=1; i<argc; ++i) {
+    if (strstr(argv[i], "You were just restarted")) {
+      FILE *prompt = fopen(getenv("TEST_PROMPT"), "w");
+      fprintf(prompt, "%s", argv[i]); fclose(prompt);
+    }
+  }
   while (1) {
-    if (getenv("TEST_SELF") && !getenv("LEMONAID_RESTART_TOKEN") && !access(getenv("TEST_SELF"), F_OK)) {
+    if (getenv("TEST_SELF") && !access(getenv("TEST_SELF"), F_OK)) {
       unlink(getenv("TEST_SELF"));
       system(getenv("TEST_SELF_COMMAND"));
     }
@@ -88,6 +93,7 @@ def runtime(tmp_path, monkeypatch, request):
     monkeypatch.setenv("TEST_SESSION", shared.SESSION)
     monkeypatch.setenv("TEST_STARTED", str(tmp_path / "started"))
     monkeypatch.setenv("TEST_QUEUE", str(tmp_path / "queued"))
+    monkeypatch.setenv("TEST_PROMPT", str(tmp_path / "prompt"))
     monkeypatch.setenv("TEST_SELF", str(tmp_path / "self-restart"))
     monkeypatch.setenv(
         "TEST_SELF_COMMAND",
@@ -109,9 +115,7 @@ def runtime(tmp_path, monkeypatch, request):
         + shlex.quote(str(tmp_path / "self-stderr")),
     )
     with db.connect() as conn:
-        path, _row, lemon_id, _transcript = shared.setup(conn, tmp_path)
-        conn.execute("DELETE FROM harness_generations")
-        conn.commit()
+        path, lemon_id = shared.setup(conn, tmp_path)
     directory = tempfile.TemporaryDirectory(prefix="restart-runtime-", dir="/tmp")
     socket = str(Path(directory.name) / "tmux")
     try:
