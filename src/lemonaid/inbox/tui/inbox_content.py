@@ -16,8 +16,8 @@ from .live import search_archive
 from .live.inbox_draw import Drawn
 from .live.inbox_list import InboxList
 from .notes import NotesPanel
+from .status_notice import StatusLine
 from .tables import table_layout, table_setup
-from .utils import update_static
 from .views import view_modes
 from .views.history_table import HistoryTable
 from .views.snoozed_table import SnoozedTable
@@ -120,7 +120,7 @@ class InboxContent(Container):
         return panel.outer_size.height if panel is not None and panel.display else 0
 
     def set_status(self, text: str) -> None:
-        update_static(self.query_one("#status", Static), text)
+        self.query_one(StatusLine).set_status(text)
 
     def show_mode(self, mode: view_modes.Mode, enabled: bool) -> None:
         """Put *mode*'s table in place of the inbox, or the inbox back."""

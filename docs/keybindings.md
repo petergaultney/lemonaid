@@ -42,6 +42,11 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 `H` writes `Hidden: yes` using the same checked edit as `lemonaid brief hide`,
 or removes that line to unhide. The list updates immediately, selecting the next
 row or the previous one at the end. A lemon without an attached brief gets a notice.
+The status line reports each toggle for ten seconds, including why a hidden lemon
+stays visible. In history, snoozed and usage views, return to the inbox before
+using `H`. While the search box has focus, `H` types a search character; move to
+a result with Down to hide or unhide it.
+
 Hidden lemons still appear when focused, pinned, deaf, blocked, or in a specially
 ranked brief status. Search with `/` to find a hidden lemon, then press `H` on its
 row to restore it to the default list.

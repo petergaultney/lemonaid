@@ -45,6 +45,7 @@ from .live import inbox_draw, status_line
 from .live.inbox_list import InboxList
 from .notes import NotesPanel
 from .rows import brief_cards, row_parts
+from .status_notice import StatusLine
 from .switching import history_resume, inbox_switch
 from .tables import row_keys, table_nav
 from .tables.scroll_position import StableTable
@@ -154,7 +155,7 @@ class LemonaidApp(App):
                     if self.config.tui.notes is None
                     else [NotesPanel(self.config.tui.notes, id="notes")]
                 ),
-                Static("", id="status"),
+                StatusLine(id="status"),
                 id="inbox_content",
             )
             yield BriefPane(
@@ -744,7 +745,12 @@ class LemonaidApp(App):
             and table.id in {"main_table", "other_sources_table"}
             and (notification := row_keys.notification(row_keys.notification_at_cursor(table)))
         ):
-            inbox_hidden.toggle(self._content.inbox, notification)
+            message = inbox_hidden.toggle(self._content.inbox, notification)
+        else:
+            message = "Hide/show is available on a lemon in the inbox; exit this view first"
+        self._stop_hint_timer()
+        self._show_keys(False)
+        self.query_one(StatusLine).show_notice(message)
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
