@@ -18,7 +18,7 @@ def test_inbox_and_two_changed_files_arrive_in_one_batch(tmp_path):
     sent = []
     _path, inbox, root, stop, thread, errors = shared.start(tmp_path, text, sent.append)
     try:
-        shared.eventually(lambda: len(list((root / "file").glob("*.json"))) == 2)
+        shared.eventually(lambda: len(list((root / "file").glob("*.reported.json"))) == 2)
         assert sent == []
         one.write_text("after")
         two.write_text("after")

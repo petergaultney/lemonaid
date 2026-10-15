@@ -15,6 +15,7 @@ from . import (
     file_events,
     own_edits,
     own_pushes,
+    path_presence,
     pr_activity,
     pr_events,
     pr_wait,
@@ -102,7 +103,9 @@ def open_poller(
             try:
                 current = path.read_text()
             except FileNotFoundError:
+                doc_events.poll(watch, deliver)
                 return
+            path_presence.observe(watch.presence)
             if current != fingerprint:
                 fingerprint, since = current, time.monotonic()
             still_for = time.monotonic() - since

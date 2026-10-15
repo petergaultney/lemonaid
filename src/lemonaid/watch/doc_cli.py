@@ -12,6 +12,8 @@ seconds with no event, and exits when the list is empty. With `--openclaw-sessio
 event runs one OpenClaw agent turn in that session; `lemonaid watch openclaw` manages these.
 
 Events:
+- a previously present document stays missing for `--quiet` seconds; a bounded nearby
+  identity search may suggest a replacement for the lemon to confirm (the watch stays put)
 - a Relay Comment thread whose last block is not by `--me` (or a `--legacy` name)
   appeared, or an unanswered one gained a block (always on)
 - the document body changed outside comment threads, after `--quiet` seconds of no further

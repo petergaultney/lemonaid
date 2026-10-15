@@ -29,6 +29,21 @@ lemonaid watch openclaw stop <doc>
   the doc as created once its body has been quiet for `--quiet` seconds, or, with
   `--no-edits`, reports only the threads in it.
 
+A previously present document that stays missing for `--quiet` seconds produces a notice,
+including with `--no-edits`. If a nearby path matches its last recorded filesystem identity,
+the notice suggests that path as a possible replacement. The receiving lemon should confirm
+it and update its Docs row or watch command. The watcher never changes its target or list.
+The notice is delivered through the same scout/batch as comments and edits, and is remembered
+across rearming until the original path is observed present again. A failed delivery is retried.
+
+The nearby search examines at most 1,024 entries in 32 directories, starting in the former
+directory and its immediate subdirectories before looking one level below its parent. It skips symlinks and does not descend into
+hidden directories or read candidate contents. It runs once per disappearance notification,
+not on every poll; an undelivered notice can search again after rearming. Moves outside this
+area or budget, replacement saves between observations, and cross-filesystem moves can yield
+no suggestion. Filesystem identity can be reused, so a suggested path always needs confirmation.
+If no match is found, the notice says the document may have been deleted or moved.
+
 ## Ignoring the lemon's own edits
 
 A waiter started from a Claude Code or Codex session (`CLAUDE_CODE_SESSION_ID` or
@@ -250,6 +265,10 @@ lemonaid watch file --status notes.md --me "Author (MotorHoe)"
 - `--ignore-removed` reports only arrivals and changes. A file that is removed or moved
   away (for example into `done/` once handled) does not wake the waiter, but the saved state
   still advances past it, so a later arrival is reported normally.
+- If a watched path itself disappears, its removal notice can suggest a nearby file or
+  directory matching its last recorded identity, using the bounded search described above.
+  The watch remains on the original path. `--ignore-removed` suppresses this notice and search;
+  removals of children inside a watched directory retain the ordinary listing summary.
 - A change is reported once it has been quiet for `--quiet` seconds (2 by default); paths
   are read every `--interval` seconds (5 by default).
 - What was last reported is kept per set of paths in the lemon's [cursors](#cursors), so a

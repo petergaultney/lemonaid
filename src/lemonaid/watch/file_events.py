@@ -16,7 +16,7 @@ import time
 import typing as ty
 from collections import abc
 
-from . import cursors
+from . import cursors, path_presence
 
 Fingerprint = str | dict[str, str] | None  # file hash, directory listing, or absent
 
@@ -81,6 +81,7 @@ class FileWatch:
     reported: dict[str, Fingerprint]
     pending: dict[str, Fingerprint]
     pending_since: float
+    presence: dict[str, path_presence.Presence]
     ignore_removed: bool = False
 
 
@@ -102,13 +103,24 @@ def open_watch(
     """A path with no saved fingerprint takes its current state as its baseline."""
     state_dir.mkdir(parents=True, exist_ok=True)
     resolved = [p.resolve() for p in paths]
-    reported_path = state_stem(state_dir, resolved, me).with_suffix(".reported.json")
+    stem = state_stem(state_dir, resolved, me)
+    reported_path = stem.with_suffix(".reported.json")
     current = {str(p): _fingerprint(p) for p in resolved}
     saved = _load_reported(reported_path)
     reported = {k: saved.get(k, fp) for k, fp in current.items()}
     if reported != saved:
         cursors.write_json(reported_path, reported)
-    return FileWatch(resolved, quiet, reported_path, reported, current, time.time(), ignore_removed)
+    presence = {
+        str(p): path_presence.open_watch(
+            stem.with_name(f"{stem.name}-{hashlib.sha1(str(p).encode()).hexdigest()[:16]}"),
+            p,
+            seen=reported[str(p)] is not None,
+        )
+        for p in resolved
+    }
+    return FileWatch(
+        resolved, quiet, reported_path, reported, current, time.time(), presence, ignore_removed
+    )
 
 
 def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
@@ -118,6 +130,9 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
     change for the next waiter.
     """
     current = {str(p): _fingerprint(p) for p in w.paths}
+    for path, fingerprint in current.items():
+        if fingerprint is not None:
+            path_presence.observe(w.presence[path])
     if current != w.pending:
         w.pending, w.pending_since = current, time.time()
         if w.quiet:
@@ -127,7 +142,7 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
         return False
 
     message = "; ".join(
-        d
+        path_presence.missing_message(w.presence[p], d) if new is None else d
         for p, new in current.items()
         if new != w.reported[p] and (d := _describe(p, w.reported[p], new, w.ignore_removed))
     )

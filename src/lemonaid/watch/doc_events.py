@@ -1,10 +1,4 @@
-"""Event detection for one watched document, independent of how events are delivered.
-
-A `DocWatch` holds what has already been reported for a doc to one lemon. Its cursors
-live in the lemon's cursor directory (see cursors.py), so a restarted waiter does not
-re-report a thread nobody has touched since, and does report a body edit made while no
-waiter ran.
-"""
+"""Cursor-aware document events, including advisory notices when a document disappears."""
 
 import dataclasses
 import enum
@@ -14,7 +8,15 @@ import pathlib
 import typing as ty
 from collections import abc
 
-from . import body_norm, cursors, doc_body, own_edits, own_edits_replay, relay_comments
+from . import (
+    body_norm,
+    cursors,
+    doc_body,
+    own_edits,
+    own_edits_replay,
+    path_presence,
+    relay_comments,
+)
 
 
 class Outcome(enum.Enum):
@@ -39,6 +41,7 @@ class DocWatch:
     settled_body: str
     pending_body: str
     pending_since: float
+    presence: path_presence.Presence
     all_threads: bool = False
     settled_quiet: float = 0  # quiet period enforced outside this detector
 
@@ -133,6 +136,7 @@ def open_watch(
         settled_body=settled_body,
         pending_body=settled_body,
         pending_since=0.0,
+        presence=path_presence.open_watch(stem, doc, seen=bool(settled_body)),
     )
 
 
@@ -148,8 +152,10 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     """Read the doc once and deliver at most one event; state advances only when `deliver` returns True."""
     try:
         text = w.doc.read_text()
+        path_presence.observe(w.presence)
     except FileNotFoundError:
-        return Outcome.NOTHING
+        result = path_presence.report_missing(w.presence, max(w.quiet, w.settled_quiet), deliver)
+        return {None: Outcome.NOTHING, False: Outcome.FAILED, True: Outcome.DELIVERED}[result]
 
     except OSError as e:
         print(f"cannot read {w.doc}: {e}", flush=True)

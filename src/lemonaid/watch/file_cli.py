@@ -3,7 +3,8 @@
 Reports when a watched file is created, changed, or removed, or when a regular file directly
 in a watched directory is added, removed, or rewritten, once the change has been quiet for
 `--quiet` seconds. With `--ignore-removed`, removals are not reported. Hidden files and
-subdirectories are ignored.
+subdirectories are ignored. A removed watched path may include a nearby replacement
+suggestion to confirm; the watch target stays unchanged.
 
 By default prints one line per event and never exits on its own. With `--once`, it prints
 the first event and exits, so a Claude background Bash task wakes its session once on
