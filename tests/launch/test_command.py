@@ -124,3 +124,13 @@ def test_a_codex_line_has_no_name_flag():
     line, _ = command.harness_line("codex --no-daemon", Path("/w"), title="x")
 
     assert "--name" not in line
+
+
+def test_quoted_harness_executable_paths_get_the_same_startup_flags():
+    line, _ = command.harness_line("'/opt/my tools/codex' --no-daemon", Path("/work"))
+    assert shlex.split(line)[0] == "/opt/my tools/codex"
+    assert "check_for_update_on_startup=false" in shlex.split(line)
+    line, _ = command.harness_line(
+        "'/opt/my tools/claude' --model small", Path("/work"), title="Task"
+    )
+    assert shlex.split(line) == ["/opt/my tools/claude", "--name", "Task", "--model", "small"]

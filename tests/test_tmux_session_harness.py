@@ -109,7 +109,7 @@ def test_prompt_can_target_a_window_other_than_resume(monkeypatch, tmp_path):
     assert created[0]["environments"] == [{"LEMONAID_PROMPT": "start here"}, {}]
 
 
-def test_unknown_harness_template_is_an_error(monkeypatch, tmp_path):
+def test_an_unconfigured_harness_uses_the_default_shape(monkeypatch, tmp_path):
     created = _created_sessions(monkeypatch)
 
     error = session.spawn_session(
@@ -120,8 +120,8 @@ def test_unknown_harness_template_is_an_error(monkeypatch, tmp_path):
         attach=False,
     )
 
-    assert error == "No tmux-session template 'codex' in config"
-    assert not created
+    assert error is None
+    assert created[0]["windows"][0].startswith("codex -c ")
 
 
 def test_prompt_requires_a_command_in_the_harness_window(monkeypatch, tmp_path):

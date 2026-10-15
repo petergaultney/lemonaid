@@ -126,6 +126,7 @@ def _cmd(args: argparse.Namespace) -> None:
         with db.connect() as conn:
             source_job = None
             if args.to:
+                backend = handoff_launch.destination(args.to)
                 on_tty = not getattr(args, "brief", "") and sys.stdin.isatty()
                 stopped = None
                 if on_tty:
@@ -161,7 +162,7 @@ def _cmd(args: argparse.Namespace) -> None:
                 else:
                     channel = lemon.self_channel(conn)
                 path, session, index, window_id, pane_id, source_command = (
-                    handoff_coordinator.source(conn, channel, args.to)
+                    handoff_coordinator.source(conn, channel, backend)
                 )
                 notification = db.get_by_channel(conn, channel, unread_only=False)
                 if same_terminal:
@@ -190,13 +191,14 @@ def _cmd(args: argparse.Namespace) -> None:
                     conn,
                     path,
                     channel,
-                    args.to,
+                    backend,
                     session,
                     index,
                     window_id,
                     pane_id,
                     source_command,
                     time.time() + _DEADLINE_SECONDS,
+                    launch_name=args.to,
                 )
                 conn.execute(
                     "UPDATE brief_handoffs SET resume_line = ?, resume_cwd = ? WHERE token = ?",
@@ -305,7 +307,9 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("handoff", help="Move this brief to another harness")
     parser.add_argument("action", nargs="?", choices=("status", "ready", "accept"))
     parser.add_argument("token", nargs="?", default="")
-    parser.add_argument("--to", choices=("claude", "codex"))
+    parser.add_argument(
+        "--to", metavar="NAME", help="Claude, Codex, or a named lemon running either backend"
+    )
     parser.add_argument("--brief", default="", help="Outgoing brief, if called by another lemon")
     parser.add_argument("--source-pid", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--source-pgid", type=int, default=0, help=argparse.SUPPRESS)

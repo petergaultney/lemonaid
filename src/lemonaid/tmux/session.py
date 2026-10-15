@@ -9,6 +9,7 @@ from pathlib import Path
 from .. import launch
 from ..claude.projects import find_session_project
 from ..config import TmuxSessionConfig
+from ..launch import resolve
 from ..log import get_logger
 from . import submit
 from .navigation import is_inside_tmux
@@ -209,13 +210,13 @@ def _spawn(
     title: str,
 ) -> tuple[str | None, str]:
     """`spawn_session`, plus the tmux target of the window running *resume_argv*."""
-    windows = config.get_template(template_name)
-    if not windows:
-        return f"No tmux-session template {template_name!r} in config", ""
+    try:
+        resolved = resolve.resolve(config, template_name)
+    except ValueError as error:
+        return str(error), ""
 
-    # Never mutate the list held by Config: the next session may choose a
-    # different prompt or no prompt at all.
-    windows = list(windows)
+    config = resolved.session_config(config, template_name)
+    windows = list(resolved.windows)
 
     # For Claude sessions, prefer the history-derived project dir
     if channel.startswith("claude:") and session_metadata:

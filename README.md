@@ -107,6 +107,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 ### Assorted helpers
 - **Claude statusline**: Colorful statusline showing time, elapsed, git branch, context %, vim mode
+- **[Lemon presets and session shapes](docs/config.md#independent-session-shapes-and-lemon-presets)**: Choose a window layout independently of a lemon's harness and model, append startup flags, and inspect the resolved launch before starting it
 - **`tmux` session templates**: Spin up new named workspaces with a predefined window layout
 - **`tmux` window status formatting**: An optional `tmux` integration to keep your status bar sane
 

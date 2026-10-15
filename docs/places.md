@@ -101,21 +101,21 @@ it's missing, switches to its session only if there isn't one, and neither case 
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
 
-Choose a configured lemon with `--harness NAME`, such as `claude` or `codex`. The
-name selects the matching entry under `[tmux-session.templates]`; without it,
-`default` is used. An
-initial prompt can be passed directly to that template's harness command:
+Choose a named lemon with `--preset NAME`, or an executable or legacy template with `--harness NAME`. Select its session layout separately with `--shape NAME`, and put any harness arguments after `--`:
 
 ```bash
-lemonaid place open feat/thing --harness codex --prompt 'read .z/brief.md and do what it says'
+lemonaid place open feat/thing --preset sonnet --shape work --prompt 'read .z/brief.md and do what it says' -- --model opus
+lemonaid place open feat/thing --harness codex --dry-run --json -- --no-daemon
 ```
+
+The defaults and legacy behavior are described in [the configuration reference](config.md#independent-session-shapes-and-lemon-presets). Dry-run prints the resolved lemon command and shape using the current directory, without running directory hooks or creating a session.
 
 `--brief <file>` attaches a brief (a path, or a name in `~/.lemons/brief/`) to the
 first lemon that starts in the session's harness window. Without `--prompt`, that
 lemon's first prompt tells it to read the brief and do the work, led by the lemon's title (`--name`, else the brief's first heading). See `lemonaid for-lemons` for the `brief` commands. `--parent self` (or a Lemon-ID) also records the caller as that brief's lemon's parent; see [parent links](lineage.md).
 
 The prompt is set as `LEMONAID_PROMPT` in the environment of the window's shell, and the
-command in `harness_window` (or `resume_window` when `harness_window` is unset) gets
+command in the shape's `lemon_window` (or the legacy `harness_window`, falling back to `resume_window`) gets
 `"$LEMONAID_PROMPT"` appended. A POSIX shell, fish, and xonsh all read that as one
 argument, whatever the prompt contains, so lemonaid needn't know your shell's quoting.
 A one-command line runs as `env -u LEMONAID_PROMPT <command> "$LEMONAID_PROMPT"`, so the

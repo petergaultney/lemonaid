@@ -260,15 +260,22 @@ way to acquire a directory. Use it when a session is wanted but the terminal sho
 An unattached session nobody asked for is worse than no session: it clutters the session
 list and competes for the directory when something later tries to resolve who works there.
 
-`--harness NAME` selects `[tmux-session.templates].NAME`, named for the harness
-it starts (`--harness claude`, `--harness codex`); omitting it selects the
-template `default` names. Commands are config-owned — Lemonaid does not hardcode how Claude,
-Codex, or another harness starts. `--prompt TEXT` reaches the command in
-`harness_window` (falling back to `resume_window` when that setting is absent) as
-one positional argument, through the window's environment, so any text is safe
-in any shell. Both options matter only
-when `open` creates the session. If a session already exists, `open` switches to
-it without starting another harness or sending the prompt.
+`--preset NAME` selects a named lemon from `[launch.presets.NAME]`. `--harness NAME` preserves existing `[tmux-session.templates].NAME` entries, then tries preset names, and otherwise names an executable directly. The selectors are mutually exclusive. With neither, `[launch] default` selects the lemon or the legacy `default` template applies.
+
+Select session shape separately with `--shape NAME`, or `[launch] shape`. New `[tmux-session.shapes.NAME]` entries define `windows` and a zero-based `lemon_window`. Without a selected shape, legacy templates keep their layout; new presets/executables use the legacy default layout or one shell window. See [config](config.md#independent-session-shapes-and-lemon-presets).
+
+```bash
+lemonaid lemon presets --json
+lemonaid lemon presets show sonnet --shape work --directory /path/to/work --json -- --model opus
+lemonaid place open feat/thing --preset sonnet --shape work --brief <file> --parent self --detach --json -- --model opus
+lemonaid place open feat/thing --harness codex --shape work --dry-run --json -- --no-daemon -m custom
+```
+
+Put all lemonaid options before `--`; every token after it passes to the harness, appended after preset defaults. Tokens preserve their order and boundaries, including repeated options, empty strings and flags such as `--json` that also name lemonaid options. The harness decides their meaning and precedence. Repeatable `--lemon-arg=TOKEN` remains available before the separator, with `=` required for tokens starting with `-`; those arguments precede the passthrough tail when both forms are used. Presets optionally include a `description` and `tags` for scanning. The list includes legacy templates marked `legacy: true`; `--preset` disambiguates a new preset from a legacy template of the same name.
+
+`presets show` prints `lemon`, `shape`, `lemon_window` (zero-based), resolved `windows`, `command`, `environment` and `directory`. The command includes Codex's trust, update and writable-root overrides. `place open --dry-run` and `lemon start --dry-run` print the same fields plus a note that the current directory is used, without directory hooks, tmux queries or brief attachment. Use `presets show --directory PATH` to resolve for the eventual working directory.
+
+`--prompt TEXT` reaches the lemon command as one positional argument through its window environment. All startup options affect only creation. If a session already exists, `open` switches to it without starting another harness or sending the prompt.
 
 With `--brief` and no `--prompt`, a new lemon's first prompt is `<title>. Your task file is
 <path>; read it all and do the work.` An explicit `--prompt` replaces it. `lemon start --brief`
@@ -310,13 +317,14 @@ lemonaid lemon start <session>:4 --harness codex --prompt 'REVIEW #12. Instructi
     --brief <file> --parent parent --name 'REVIEW #12 thing' --json
 ```
 
-It runs the same template line `place open` runs in its harness window, in the session's
-directory. The window is made if it doesn't exist and respawned if its panes are dead; a window
+It resolves the same lemon command as `place open`, with `--preset`, `--shape` and `-- <harness arguments>` available. It runs only that command in the session's directory, leaving other shape windows alone. The window is made if it doesn't exist and respawned if its panes are dead; a window
 with anything running in it is refused. `--brief`, `--parent` and `--name` work as on
 `place open`: the brief and the name go to the first new lemon in that window. Afterwards it
 checks the pane once and fails if the lemon is stuck at a startup dialog; `--no-check` skips
 that. `--json` returns `{"session", "window", "window_id", "dir", "harness", "brief",
 "lemon_id", "parent", "name", "error"}`.
+
+`brief handoff --to NAME` accepts a named lemon running Claude or Codex, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
 
 ### Bringing one back: `lemon resume`
 

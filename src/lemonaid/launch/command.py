@@ -100,13 +100,22 @@ def harness_line(
     A Claude line gets *title* as `--name`, unless the line already names the
     session. Codex has no flag for it, so it takes its title from the prompt.
     """
-    program, _, rest = line.strip().partition(" ")
-    if title and _is_claude(shlex.split(program)) and not _names_session(shlex.split(rest)):
-        line = f"{program} --name {shlex.quote(title)} {rest}".strip()
+    lexer = shlex.shlex(line.strip(), posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    program = lexer.get_token() or ""
+    spelling = line.strip()[: lexer.instream.tell()].rstrip()
+    rest = lexer.instream.read()
+    if title and _is_claude([program]) and not _names_session(shlex.split(rest)):
+        line = f"{spelling} --name {shlex.quote(title)} {rest}".strip()
 
-    if _is_codex(shlex.split(program)):
+    if _is_codex([program]):
         line = " ".join(
-            [program, *(shlex.quote(f) for f in _codex_flags(directory, writable)), rest]
+            [
+                spelling,
+                *(shlex.quote(f) for f in _codex_flags(directory, writable)),
+                rest,
+            ]
         ).strip()
 
     if not prompt:

@@ -5,29 +5,43 @@ from pathlib import Path
 
 from ..config import load_config
 from ..inbox import db
-from ..launch import command
+from ..launch import command, resolve
 from ..resume import build_resume_command
 from . import handoff_tmux
 
 
 def configured_line(harness: str, fallback: str = "") -> str:
     config = load_config()
-    windows = config.tmux_session.get_template(harness)
-    if not windows:
-        if fallback:
-            return fallback
+    if (
+        fallback
+        and harness not in config.tmux_session.templates
+        and harness not in config.tmux_session.launch.presets
+        and not (harness == "default" and config.tmux_session.launch.default)
+    ):
+        return fallback
 
-        raise ValueError(f"No tmux-session template {harness!r} in config")
+    line = resolve.resolve(config.tmux_session, harness).line
 
-    line = windows[command.template_window(config.tmux_session, windows)]
     if not line.strip():
         raise ValueError(f"Tmux-session template {harness!r} has no harness command")
 
     return line
 
 
+def destination(name: str) -> str:
+    if name in ("claude", "codex"):
+        return name
+
+    words = shlex.split(configured_line(name))
+    backend = Path(words[0]).name if words else ""
+    if backend not in ("claude", "codex"):
+        raise ValueError(f"Handoff destination {name!r} must run a Claude or Codex executable")
+
+    return backend
+
+
 def run(conn, row) -> None:
-    line = configured_line(row["harness"])
+    line = configured_line(row["launch_name"] or row["harness"])
 
     if error := command.unclaimable(line):
         raise ValueError(error)

@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read, keys, messages_config, palette, watch_config
+from . import auto_read, keys, launch_config, messages_config, palette, watch_config
 from .inbox import context_use, snooze_time
 from .usage import settings
 
@@ -62,6 +62,8 @@ class TmuxSessionConfig:
     """Configuration for tmux session templates."""
 
     templates: dict[str, list[str]] = field(default_factory=dict)
+    shapes: dict[str, launch_config.Shape] = field(default_factory=dict)
+    launch: launch_config.Settings = field(default_factory=launch_config.Settings)
     # 0-based index into the template window list: which window to replace
     # with the resume command when spawning a session from history.
     resume_window: int = 0
@@ -533,6 +535,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
     tmux_session_defaults = TmuxSessionConfig()
     tmux_session = TmuxSessionConfig(
         templates=_templates(tmux_session_data.get("templates", {})),
+        shapes=launch_config.parse_shapes(tmux_session_data.get("shapes", {})),
+        launch=launch_config.parse(data.get("launch", {})),
         resume_window=tmux_session_data.get("resume_window", 0),
         harness_window=tmux_session_data.get("harness_window"),
         codex_writable_roots=_paths(tmux_session_data.get("codex_writable_roots", [])),

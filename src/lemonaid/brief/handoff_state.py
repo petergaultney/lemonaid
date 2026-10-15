@@ -60,13 +60,18 @@ def request(
     pane_id: str,
     source_command: str,
     deadline: float,
+    launch_name: str = "",
 ) -> sqlite3.Row:
     existing = conn.execute(
         "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
         (str(path),),
     ).fetchone()
     if existing:
-        if existing["source"] != source or existing["harness"] != harness:
+        if (
+            existing["source"] != source
+            or existing["harness"] != harness
+            or (existing["launch_name"] or existing["harness"]) != (launch_name or harness)
+        ):
             raise ValueError("A different handoff is already pending for this brief")
 
         if deadline > existing["deadline"]:
@@ -82,14 +87,15 @@ def request(
     token = secrets.token_hex(12)
     conn.execute(
         """INSERT INTO brief_handoffs
-           (token, path, source, harness, phase, section_hash, session, source_window,
+           (token, path, source, harness, launch_name, phase, section_hash, session, source_window,
             source_window_id, source_pane_id, source_command, created_at, deadline)
-           VALUES (?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             token,
             str(path),
             source,
             harness,
+            launch_name,
             digest(section(path.read_text())),
             session,
             window,

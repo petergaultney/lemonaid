@@ -73,6 +73,58 @@ See [wezterm.md](wezterm.md).
 | `codex_writable_roots` | `[]` | Directories a Codex lemon may write, in addition to the lemonaid database and state directories, which are always included. Set it to wherever your lemons write documents outside their workspace, such as a review-docs folder. Passed as `sandbox_workspace_write.writable_roots`, so it takes effect only when your `codex` template runs the `workspace-write` sandbox, and it replaces any `writable_roots` in Codex's own config. `~` is expanded. |
 | `harness_window` | `resume_window` | 0-based template window whose command accepts `place open --prompt`. Set it separately only when new-session prompts and resumed sessions belong in different windows. |
 
+### Independent session shapes and lemon presets
+
+A shape chooses the windows of a new session. A lemon preset chooses an executable and its default arguments. Any preset or executable can use any shape:
+
+```toml
+[tmux-session.shapes.work]
+windows = ["emacsclient -nw .", "", ""]
+lemon_window = 1
+
+[tmux-session.shapes.solo]
+windows = [""]
+lemon_window = 0
+
+[launch]
+default = "sonnet"
+shape = "work"
+
+[launch.presets.sonnet]
+harness = "claude"
+args = ["--model", "sonnet"]
+description = "General implementation"  # optional
+tags = ["code"]                       # optional
+
+[launch.presets.codex-low]
+harness = "codex"
+args = ["--no-daemon", "-c", 'model_reasoning_effort="low"']
+```
+
+`windows` is a nonempty array of shell commands; an empty string opens a shell. `lemon_window` is a zero-based index, defaulting to `0`, whose command is replaced by the selected lemon. New shapes use that slot for restored sessions too, independently of the legacy `resume_window` and `harness_window` settings.
+
+Each preset's `harness` is one executable name or path, and `args` is an array of individual argument strings, defaulting to `[]`. Optional `description` and `tags` help callers scan names; they do not change launch behavior. Presets do not inherit from other presets or select a shape.
+
+```bash
+lemonaid place open feat/thing --preset sonnet --shape solo -- --model opus
+lemonaid lemon start work:4 --harness codex --shape work -- --no-daemon -m custom
+lemonaid lemon presets --json
+lemonaid lemon presets show codex-low --shape solo --directory /path/to/work --json -- -c 'model_reasoning_effort="high"'
+lemonaid place open feat/thing --preset sonnet --shape work --dry-run --json
+```
+
+Put lemonaid options before `--`. Everything after that separator passes to the lemon as individual arguments, appended after preset defaults. Arguments remain in order, including duplicates and flags that share lemonaid option names; the harness decides whether a later value overrides an earlier one. Lemonaid does not interpret model or effort options. Extra arguments on a legacy shell command are quoted and appended to its end.
+
+Repeatable `--lemon-arg=TOKEN` is also available before the separator. Use the equals sign for tokens starting with `-`; when both forms are used, these tokens precede the passthrough tail.
+
+`--preset NAME` requires a configured preset or legacy template. `--harness NAME` first selects an existing legacy template, then a preset, and otherwise treats NAME as an executable. If both namespaces contain a name, `--preset` selects the new preset and `--harness` preserves the old template. These two selectors are mutually exclusive. With neither, `[launch] default` selects the lemon, falling back to the legacy `default` template.
+
+`--shape NAME` selects a new shape or uses a legacy template as a layout. With no explicit shape, `[launch] shape` applies. Without that setting, a legacy lemon keeps its own layout, while a new preset or executable uses the legacy `default` layout if present, otherwise one shell window. `lemon start` runs only the lemon command in the requested existing session window; the shape's other windows are shown for inspection and are not created.
+
+`lemon presets show` prints the resolved shape, zero-based lemon slot, window commands and environment, including Codex startup overrides. `--directory` sets the directory used to resolve those overrides. Both start commands accept `--dry-run` to inspect the same resolution without acquiring a directory, attaching a brief or querying tmux. Their previews use the current directory, explicitly marked in the output; use `presets show --directory` to inspect another directory. A brief's default prompt is included without attaching it.
+
+Existing configuration and `--harness` names keep working. No configuration migrates automatically: add independent shapes and presets when desired, and keep old entries for callers that still use them. `lemon presets` includes legacy entries with `legacy: true`. Resume still uses the backend's `resume_command` to reopen its recorded session; `brief handoff --to NAME` can select a preset that runs Claude or Codex. The handoff records the named lemon separately from its backend so the replacement can claim and accept the brief.
+
 ### `[tmux-session.templates]`
 
 See [tmux.md](tmux.md).

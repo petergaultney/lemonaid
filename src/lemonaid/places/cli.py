@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .. import brief, launch
 from ..config import Config, PlaceRoot, load_config
+from ..launch import options
 from ..watch import children_waiter
 from . import lifecycle, ownership, toss_cli
 
@@ -34,9 +35,19 @@ def _harness_window(config: Config, harness: str, session: str) -> tuple[str, st
 def cmd_open(args: argparse.Namespace) -> None:
     """Get a session for a key, acquiring its directory if it doesn't exist yet."""
     config = load_config()
+    try:
+        if options.preview(args, config.tmux_session):
+            return
+        resolved = options.selected(config.tmux_session, args)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        sys.exit(1)
+
+    config = dataclasses.replace(
+        config, tmux_session=resolved.session_config(config.tmux_session, args.harness)
+    )
     given, error = launch.handoff.prepare(args.brief, args.parent, args.name, tuple(args.group))
-    windows = config.tmux_session.get_template(args.harness) or [""]
-    line = windows[launch.command.template_window(config.tmux_session, windows)]
+    line = resolved.line
     if not error and given.brief:
         error = launch.command.unclaimable(line)
 
@@ -249,13 +260,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     open_parser.add_argument(
         "--root", help="Root to acquire under (default: the one containing cwd)"
     )
-    open_parser.add_argument(
-        "--harness",
-        default="default",
-        metavar="NAME",
-        help="The harness to start, e.g. claude or codex: [tmux-session.templates].NAME"
-        " (without it, the template named default)",
-    )
+    options.add_arguments(open_parser)
     open_parser.add_argument(
         "--prompt",
         default="",

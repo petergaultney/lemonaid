@@ -30,6 +30,7 @@ import lemonaid.wezterm.cli
 
 from . import claude, for_lemons, go, inbox
 from .config import ensure_config_exists, get_config_path
+from .launch import passthrough
 
 
 # Config commands (kept here since config isn't a package)
@@ -165,7 +166,7 @@ def main() -> None:
     # intercepts before parse_args when the first arg after "claude" is a flag.
     claude.resume.maybe_intercept(sys.argv[1:])
 
-    args = parser.parse_args()
+    args = passthrough.parse_args(parser, sys.argv[1:])
     args.invocation = ["lemonaid", *sys.argv[1:]]
 
     try:

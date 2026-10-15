@@ -6,7 +6,7 @@ import sys
 
 from ..config import load_config
 from ..watch import children_waiter
-from . import command, handoff, window
+from . import command, handoff, options, window
 
 
 def _start(args: argparse.Namespace) -> tuple[dict, str]:
@@ -16,13 +16,16 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         return {}, f"Name a window by its index: SESSION:WINDOW, not {args.target!r}"
 
     config = load_config()
-    windows = config.tmux_session.get_template(args.harness)
-    if not windows:
-        return {}, f"No tmux-session template {args.harness!r} in config"
+    try:
+        resolved = options.selected(config.tmux_session, args)
+        if options.preview(args, config.tmux_session):
+            return {"preview": True}, ""
+    except ValueError as error:
+        return {}, str(error)
 
-    line = windows[command.template_window(config.tmux_session, windows)]
+    line = resolved.line
     if not line.strip():
-        return {}, f"Tmux-session template {args.harness!r} has no harness command"
+        return {}, f"Lemon {resolved.lemon!r} has no harness command"
 
     directory = window.session_dir(session)
     if directory is None:
@@ -51,7 +54,7 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
         "window": index,
         "window_id": pane.window_id,
         "dir": str(directory),
-        "harness": args.harness,
+        "harness": resolved.lemon,
         "brief": str(given.brief) if given.brief else None,
         "lemon_id": given.link[0] if given.link else None,
         "parent": given.link[1] if given.link else None,
@@ -73,12 +76,15 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
 
 def _cmd_start(args: argparse.Namespace) -> None:
     result, error = _start(args)
+    if result.get("preview"):
+        return
+
     if args.json:
         print(json.dumps({**result, "error": error or None}))
     elif error:
         print(error, file=sys.stderr)
     else:
-        print(f"started {args.harness} in {result['session']}:{result['window']}")
+        print(f"started {result['harness']} in {result['session']}:{result['window']}")
 
     if error:
         sys.exit(1)
@@ -88,7 +94,7 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
     start = lemon_subparsers.add_parser(
         "start",
         help="Start a lemon in a window of an existing tmux session",
-        description="Runs [tmux-session.templates].NAME's harness line - the same one "
+        description="Runs a preset, harness executable, or legacy template's lemon line - the same one "
         "`place open` starts in its harness window - in SESSION:WINDOW, in the "
         "session's directory. The window is made if it doesn't exist and respawned "
         "if its panes are dead; anything running there is refused. Codex is started "
@@ -97,13 +103,7 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
     start.add_argument(
         "target", metavar="SESSION:WINDOW", help="Where to start it; WINDOW is an index"
     )
-    start.add_argument(
-        "--harness",
-        default="default",
-        metavar="NAME",
-        help="The harness to start, e.g. claude or codex: [tmux-session.templates].NAME"
-        " (without it, the template named default)",
-    )
+    options.add_arguments(start)
     start.add_argument(
         "--prompt",
         default="",
@@ -139,3 +139,4 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
     )
     start.add_argument("--json", action="store_true", help="Print the result as JSON")
     start.set_defaults(func=_cmd_start)
+    options.add_presets_parser(lemon_subparsers)

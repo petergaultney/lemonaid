@@ -33,7 +33,7 @@ def build(row) -> dict:
         )
         report["start_prompt"] = prompt
         typed, _ = command.harness_line(
-            handoff_launch.configured_line(row["harness"], row["harness"]),
+            handoff_launch.configured_line(row["launch_name"] or row["harness"], row["harness"]),
             Path(row["source_command"]),
             writable=command.codex_writable_roots(load_config().tmux_session),
         )
