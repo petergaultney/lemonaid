@@ -27,10 +27,8 @@ class Header:
 
     @property
     def tally(self) -> str:
-        """Visible count when collapsed; otherwise `3`, or `2/3` for folded rows."""
-        if self.group.collapsed:
-            return str(self.visible)
-        return str(self.count) if self.active == self.count else f"{self.active}/{self.count}"
+        members = len(self.group.members)
+        return str(members) if self.visible == members else f"{self.visible}/{members}"
 
     @property
     def key(self) -> str:

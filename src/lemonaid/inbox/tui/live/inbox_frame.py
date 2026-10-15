@@ -98,7 +98,12 @@ def load(
         },
         active.deaf,
     )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
-    group_list = groups.store.all_groups(conn)
+    identities = brief.identity.by_channel(conn)
+    current_members = {identities[n.channel] for n in active.rows if n.channel in identities}
+    group_list = [
+        dataclasses.replace(g, members=tuple(m for m in g.members if m in current_members))
+        for g in groups.store.all_groups(conn)
+    ]
     colors = groups.color.drawn(group_list, config.tui.group_colors)
     # Lower pane: live sessions from other switchable terminals.
     # Headless sessions (switch_source IS NULL) are excluded — they can't be

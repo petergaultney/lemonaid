@@ -1,5 +1,6 @@
 """A group header's fill and unread dot."""
 
+import pytest
 from rich.console import Console
 
 from lemonaid import groups
@@ -8,7 +9,7 @@ from lemonaid.inbox.tui.live import group_headers
 
 
 def _header(band: str, unread: bool, collapsed: bool = True) -> sections.Header:
-    group = groups.store.Group(1, "Watchers", 0, (), collapsed, color="#c8a0f0")
+    group = groups.store.Group(1, "Watchers", 0, ("one", "two"), collapsed, color="#c8a0f0")
     return sections.Header(group, 2, band, unread)
 
 
@@ -50,3 +51,12 @@ def test_the_rule_takes_the_groups_color_under_a_status_fill_but_the_count_keeps
 
     assert _color_at(text, 28) == "#c8a0f0"
     assert _color_at(text, text.plain.index("(")) != "#c8a0f0"
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+@pytest.mark.parametrize("visible, tally", [(0, "0/2"), (1, "1/2"), (2, "2")])
+def test_label_shows_visible_rows_out_of_members(collapsed, visible, tally):
+    group = groups.store.Group(1, "Watchers", 0, ("one", "two"), collapsed, color="#c8a0f0")
+    header = sections.Header(group, 2, "read", visible=visible)
+
+    assert f"({tally})" in group_headers.label(header).plain
