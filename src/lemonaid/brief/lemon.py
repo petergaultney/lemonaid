@@ -58,9 +58,12 @@ def current(conn: sqlite3.Connection, lemon_id: str) -> str:
     return row["lemon_id"] if row else lemon_id
 
 
-def attachment(conn: sqlite3.Connection, target: str) -> attached.Attachment:
+def attachment(
+    conn: sqlite3.Connection, target: str, *, claim_pending: bool = True
+) -> attached.Attachment:
     """The one attached lemon *target* names: a channel, a Lemon-ID (or an old one), or a brief's name."""
-    attached.claim_pending(conn)
+    if claim_pending:
+        attached.claim_pending(conn)
     all_briefs = attached.everything(conn)
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):

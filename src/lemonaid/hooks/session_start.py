@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import brief
 from ..claude import waiter_check
+from ..launch.restart import native
 from ..watch import own_edits, push_scout
 from . import session_gate
 
@@ -37,6 +38,9 @@ def _not_pushing(path: Path, session_id: str, harness: str) -> str:
 
 
 def context(data: dict, harness: str) -> str:
+    if not native.observe(data, harness):
+        return "Restart is in progress; wait for its coordinator before starting work."
+
     path = waiter_check.attached_brief(data, harness)
     if session := data.get("session_id"):
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)

@@ -50,6 +50,8 @@ def _before(path, version: int, *statements: str) -> None:
     conn.execute("ALTER TABLE lemon_groups DROP COLUMN color")
     for statement in statements:
         conn.execute(statement)
+    conn.execute("DROP TABLE harness_generations")
+    conn.execute("DROP TABLE lemon_restarts")
     conn.execute(f"PRAGMA user_version = {version}")
     conn.commit()
     conn.close()

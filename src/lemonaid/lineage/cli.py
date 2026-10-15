@@ -7,6 +7,7 @@ import sqlite3
 import sys
 
 import lemonaid.launch.cli
+import lemonaid.launch.restart.cli
 import lemonaid.lemon_facts.cli
 import lemonaid.messages.resume_cli
 
@@ -125,5 +126,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     children.set_defaults(func=_cmd_children)
 
     lemonaid.launch.cli.add_parser(lemon_subparsers)
+    lemonaid.launch.restart.cli.add_parser(lemon_subparsers)
     lemonaid.messages.resume_cli.add_parser(lemon_subparsers)
     lemonaid.lemon_facts.cli.add_parser(lemon_subparsers)
