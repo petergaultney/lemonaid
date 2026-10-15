@@ -33,7 +33,6 @@ from ..brief import handoff_state, handoff_transfer
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id
-from ..launch.restart import gates
 from ..lemon_watchers import (
     detect_terminal_switch_source,
     get_cmux_surface,
@@ -321,8 +320,6 @@ def _tell_date(channel: str) -> None:
     daily_date.mark(seen, now, day_starts)
 
 
-@gates.submit
-@gates.notification("claude")
 def handle_submit(stdin_data: str | None = None) -> None:
     """Register a session as working in response to a UserPromptSubmit hook.
 
@@ -366,7 +363,6 @@ def handle_submit(stdin_data: str | None = None) -> None:
     _tell_date(channel)
 
 
-@gates.notification("claude")
 def handle_session_start(stdin_data: str | None = None) -> None:
     """Record a session and where it is running, from a SessionStart hook.
 
@@ -493,7 +489,6 @@ def _status_after(notification_type: str, channel: str, data: dict) -> str:
     return auto_read.status_after_turn(patterns, channel, _final_message(data))
 
 
-@gates.notification("claude")
 def handle_notification(stdin_data: str | None = None) -> None:
     """
     Handle a Claude Code notification from stdin.

@@ -1,1 +1,1 @@
-"""Same-session, same-pane harness restarts."""
+"""Restart a native session through its configured resume command."""

@@ -6,15 +6,12 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
 import uuid
 from pathlib import Path
 
 import pytest
 
-from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.launch.restart import native, pane, planning, process
 
 
 def prepare(tmp_path, monkeypatch, session_hook):
@@ -107,36 +104,6 @@ def prepare(tmp_path, monkeypatch, session_hook):
             }
         ),
     ]
+    (home / "settings.json").write_text(flags[-1])
+    flags = flags[:-2]
     return binary, home, cwd, sid, flags, private_auth
-
-
-def select_model(socket, target, channel, model, identity):
-    # A UI selection after the last completed turn must be preserved or refused.
-    pane.run(socket, "send-keys", "-t", target.pane, "-l", "/model opus")
-    time.sleep(1)
-    pane.run(socket, "send-keys", "-t", target.pane, "Enter")
-    time.sleep(0.5)
-    if "Yes, switch to Opus" in pane.run(socket, "capture-pane", "-p", "-t", target.pane):
-        pane.run(socket, "send-keys", "-t", target.pane, "Enter")
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        with db.connect() as conn:
-            selected = native.registered(conn, channel)["settings"]
-        if selected.get("error") or selected.get("model") != model:
-            break
-        time.sleep(0.2)
-    assert selected.get("error") or selected.get("model") != model, pane.run(
-        socket, "capture-pane", "-p", "-t", target.pane
-    )
-    with db.connect() as conn:
-        if selected.get("error"):
-            with pytest.raises(ValueError):
-                planning.build(conn, channel, Config(), force=True)
-        else:
-            selected_plan = planning.build(conn, channel, Config(), force=True)
-            assert selected_plan["settings"]["model"] == selected["model"]
-            assert (
-                selected_plan["argv"][selected_plan["argv"].index("--model") + 1]
-                == selected["model"]
-            )
-    assert process.same(identity)

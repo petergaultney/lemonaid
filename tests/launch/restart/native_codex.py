@@ -37,6 +37,7 @@ screen_reader_detection_done = true
 [tui.model_availability_nux]
 "gpt-6.1-sol" = 100
 """)
+    (home / "config.toml").write_text((home / "restart_canary.config.toml").read_text())
     (home / "hooks.json").write_text(
         json.dumps(
             {

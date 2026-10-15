@@ -13,7 +13,7 @@ from pathlib import Path
 _CTL_KERN, _KERN_PROCARGS2 = 1, 49
 
 
-def _darwin(pid: int, executable_only: bool = False) -> list[str]:
+def _darwin(pid: int) -> list[str]:
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
     mib = (ctypes.c_int * 3)(_CTL_KERN, _KERN_PROCARGS2, pid)
     size = ctypes.c_size_t(0)
@@ -24,8 +24,6 @@ def _darwin(pid: int, executable_only: bool = False) -> list[str]:
         return []
 
     raw = buf.raw[: size.value]
-    if executable_only:
-        return [raw[4:].split(b"\0", 1)[0].decode(errors="replace")]
     argc = struct.unpack_from("i", raw)[0]
     # After argc: the executable path, NUL padding, then argc NUL-terminated arguments.
     rest = raw[4:].split(b"\0", 1)[1].lstrip(b"\0")
@@ -42,14 +40,3 @@ def argv(pid: int) -> list[str]:
     except OSError:
         return []
     return [a.decode(errors="replace") for a in raw.split(b"\0") if a]
-
-
-def executable(pid: int) -> str:
-    """Kernel executable path, independent of a caller-controlled argv[0]."""
-    if sys.platform == "darwin":
-        found = _darwin(pid, executable_only=True)
-        return found[0] if found else ""
-    try:
-        return str(Path(f"/proc/{pid}/exe").readlink())
-    except OSError:
-        return ""

@@ -6,9 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lemonaid.claude import notify
-from lemonaid.inbox import db
-
-_connect = db.connect
 
 
 @pytest.fixture(autouse=True)
@@ -18,8 +15,7 @@ def _no_handoff_reclaim(monkeypatch):
 
 @contextmanager
 def _fake_connect():
-    with _connect() as conn:
-        yield conn
+    yield object()
 
 
 def test_handle_submit_registers_working():

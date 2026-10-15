@@ -1,8 +1,7 @@
-"""Detached restart coordinator entry point."""
+"""Run independently of a calling lemon that may itself be restarted."""
 
 import sys
 
-from . import coordinator, supervisor
+from .coordinator import run
 
-if __name__ == "__main__":
-    (coordinator.run if "--coordinate" in sys.argv else supervisor.run)(sys.argv[1])
+run(sys.argv[1])

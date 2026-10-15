@@ -11,7 +11,7 @@ from ..claude import session_socket
 from ..hooks import session_gate
 from ..inbox import db
 from ..inbox.channel import full_channel_id
-from ..launch.restart import gates, state, watchers
+from ..launch.restart import gates
 from ..messages import store, waiter
 from . import (
     batch_wait,
@@ -55,10 +55,6 @@ def run(args: argparse.Namespace) -> int:
     except (ValueError, LookupError, OSError) as error:
         print(f"not started: {error}")
         return 2
-    if not args.status and state.blocked(channel, replacement=True):
-        print("not started: a restart holds watcher registration")
-        return 2
-
     if args.status:
         running = wait_state.is_armed(lemon_id)
         lines = [
@@ -100,8 +96,9 @@ def run(args: argparse.Namespace) -> int:
             "Read the changed sources and handle the entire batch, then rearm `lemonaid watch --self --codex-thread`.",
         )
         if thread
-        else gates.deliver(channel, delivery.to_stdout)
+        else delivery.to_stdout
     )
+    output = gates.deliver(channel, output)
     wait_state.clear_delivery(lemon_id)
 
     def deliver(message: str) -> None:
@@ -131,8 +128,7 @@ def run(args: argparse.Namespace) -> int:
             ),
             push_scout.logged(lemon_id, session) if session else contextlib.nullcontext(),
         ):
-            watchers.stamp(channel, session)
-            if session and not state.blocked(channel):
+            if session:
                 push_scout.announce(session)
             while still():
                 batch_wait.wait(
