@@ -9,23 +9,36 @@ from ..lineage import links
 from . import lemon, render, status
 
 
-def _session_name(conn: sqlite3.Connection, path: Path | None) -> str:
-    """The name of the session *path* is attached to, or "" when it has none."""
+def _session_row(conn: sqlite3.Connection, path: Path | None) -> db.Notification | None:
     attached = (
         conn.execute("SELECT channel FROM session_briefs WHERE path = ?", (str(path),)).fetchone()
         if path
         else None
     )
-    newest = db.get_by_channel(conn, attached["channel"], unread_only=False) if attached else None
-    return newest.name if newest and newest.name else ""
+    return db.get_by_channel(conn, attached["channel"], unread_only=False) if attached else None
 
 
-def _child(conn: sqlite3.Connection, lemon_id: str) -> render.Child:
+def _session_name(conn: sqlite3.Connection, path: Path | None) -> str:
+    row = _session_row(conn, path)
+    return row.name if row and row.name else ""
+
+
+def _child(conn: sqlite3.Connection, lemon_id: str) -> render.Child | None:
     current = lemon.current(conn, lemon_id)
     path = lemon.brief_of(conn, current)
+    state = status.split(path.read_text()).status if path and path.is_file() else ""
+    if state == "done":
+        return None
+
+    row = _session_row(conn, path)
+    if row and row.is_archived:
+        cwd = row.metadata.get("cwd")
+        if not cwd or not Path(cwd).is_dir():
+            return None
+
     return render.Child(
-        status.split(path.read_text()).status if path and path.is_file() else "",
-        _session_name(conn, path) or current.split(".", 1)[0],
+        state,
+        (row.name if row else "") or current.split(".", 1)[0],
         current,
     )
 
@@ -39,7 +52,11 @@ def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Se
         section,
         parent=parent,
         parent_name=_session_name(conn, lemon.brief_of(conn, parent)) if parent else "",
-        children=tuple(_child(conn, child) for child in links.children_of(conn, section.lemon_id)),
+        children=tuple(
+            child
+            for child_id in links.children_of(conn, section.lemon_id)
+            if (child := _child(conn, child_id)) is not None
+        ),
     )
 
 

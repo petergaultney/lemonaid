@@ -85,10 +85,8 @@ def test_children_are_listed_one_per_line_before_done(capsys):
 
     out = render.to_markdown(family.added(render.view(found, 0, pr.no_state)), 0)
 
-    assert (
-        f"**Children:**\n\n- blocked · {identity.markdown_id(first)}\n"
-        f"- done · {identity.markdown_id(second)}"
-    ) in out
+    assert f"**Children:**\n\n- blocked · {identity.markdown_id(first)}" in out
+    assert identity.markdown_id(second) not in out
     assert out.index("a decision") < out.index("**Children:**") < out.index("**Done:**")
 
 

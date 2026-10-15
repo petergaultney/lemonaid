@@ -164,6 +164,11 @@ Press `q` or `Escape` to close the popup. `lemonaid brief
 show <session> --popup` uses the same sidebar-or-popup behavior from any pane, and can be bound to a tmux key (see [tmux.md](tmux.md#brief-view)). The popup has a yellow border and uses 90% of the
 client width up to a 140-column maximum.
 
+The Children section omits children whose briefs say `Status: done`, plus archived children
+whose recorded working directory is gone. Archived children with an existing directory stay
+visible for cleanup. This also applies to `lemonaid brief show`; use `lemonaid brief children
+--all` to inspect completed children.
+
 ## Snooze
 
 `s` holds a session out of the inbox until a time you pick. Type a duration
