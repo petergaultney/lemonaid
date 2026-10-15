@@ -11,6 +11,7 @@ message and before it rearms one, so `deaf` waits until it has lasted.
 import subprocess
 from collections import abc
 
+from .. import handlers
 from ..messages import recipient, store, waiter
 from . import db
 
@@ -59,13 +60,26 @@ class Probe:
     """Caches the `ps` listing the marks come from for `_TTL_SECONDS`; waiter locks are read every time.
 
     A lemon is marked `deaf` once it has been deaf for *deaf_after* seconds of calls.
+    Batch misses are confirmed with the same recipient probe as `lemon doctor`.
     """
 
     def __init__(self, deaf_after: float = 0.0) -> None:
         self._at = float("-inf")
         self._ttys: frozenset[str] | None = None
+        self._confirmed: dict[str, tuple[db.Notification, bool | None]] = {}
         self._deaf_after = deaf_after
         self._deaf_since: dict[str, float] = {}
+
+    def _alive(self, row: db.Notification) -> bool | None:
+        if row.switch_source not in handlers.PER_SESSION_SOURCES:
+            alive = _alive(row, self._ttys, self._at)
+            if alive is not False:
+                return alive
+
+        confirmed = self._confirmed.get(row.channel)
+        if confirmed is None or confirmed[0] != row:
+            confirmed = self._confirmed[row.channel] = (row, recipient.harness_alive(row))
+        return confirmed[1]
 
     def marks(
         self, rows: abc.Iterable[db.Notification], lemon_ids: abc.Mapping[str, str], now: float
@@ -73,6 +87,7 @@ class Probe:
         """`deaf` or `dead` for each row of *rows* in *lemon_ids* that is one, by channel."""
         if now - self._at >= _TTL_SECONDS:
             self._at, self._ttys = now, _harness_ttys()
+            self._confirmed.clear()
 
         found = {}
         deaf_since = {}
@@ -81,9 +96,7 @@ class Probe:
                 continue
             if (armed := _armed(lemon_id)) is None:
                 continue
-            state = recipient.classify(
-                row.channel, row, _alive(row, self._ttys, self._at), armed, now
-            )
+            state = recipient.classify(row.channel, row, self._alive(row), armed, now)
             if state.state == recipient.DEAF:
                 deaf_since[row.channel] = self._deaf_since.get(row.channel, now)
                 if now - deaf_since[row.channel] < self._deaf_after:
