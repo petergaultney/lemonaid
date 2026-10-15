@@ -52,7 +52,7 @@ function M.apply(config)
   config.hyperlink_rules = config.hyperlink_rules or wezterm.default_hyperlink_rules()
   table.insert(config.hyperlink_rules, {{
     regex = {_long_string(regex)},
-    format = PREFIX .. '$0',
+    format = PREFIX .. '$1',
   }})
 end
 

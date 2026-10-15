@@ -11,7 +11,7 @@ from pathlib import Path
 from .. import obsidian
 
 _META = frozenset("\\.^$*+?()[]{}|")
-_TOKEN_START = "(?:^|\\s)"  # no lookbehind in Rust regex, so the match includes the space
+_TOKEN_START = "(?:^|[\\s(\\[{\"'`:<>|,])"
 _CLASS_META = frozenset("\\[]^-&~")
 
 
@@ -30,22 +30,21 @@ def vault_path_regex(
 
     It also matches a path written without a root: a run of non-space characters
     ending in `.md` (no `:`, so no URL), or one starting with a folder name from *spaced_folders*, which a
-    plain run could not cover. Either must start a line or follow whitespace (the match
-    includes that whitespace). Nothing after a root or folder contains a character in
-    *excluded*.
+    plain run could not cover. Paths start a line or follow whitespace or an opening
+    delimiter. Capture group 1 holds the path without that leading character, which
+    the full match includes because Rust regex has no lookbehind. Nothing after a
+    root or folder contains a character in *excluded*.
     """
     spelled = sorted({s for root in roots for s in obsidian.spellings(root)}, key=len, reverse=True)
     barred = _class_escaped("`[]" + excluded)
+    token_barred = _class_escaped("`[]{}()\"'|," + excluded)
     tail = f"/[^\\n<>{barred}]*?\\.md\\b"
     folders = sorted(spaced_folders, key=len, reverse=True)
-    return "|".join(
+    paths = "|".join(
         [
             "(?:" + "|".join(map(_escaped, spelled)) + ")" + tail,
-            *(
-                [f"{_TOKEN_START}(?:" + "|".join(map(_escaped, folders)) + ")" + tail]
-                if folders
-                else []
-            ),
-            f"{_TOKEN_START}[^\\s/~.:(\"'<>{barred}][^\\s:<>{barred}]*\\.md\\b",
+            *(["(?:" + "|".join(map(_escaped, folders)) + ")" + tail] if folders else []),
+            f"[^\\s/~.:<>{token_barred}][^\\s:<>{token_barred}]*\\.md\\b",
         ]
     )
+    return f"{_TOKEN_START}({paths})"

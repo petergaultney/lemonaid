@@ -16,6 +16,10 @@ Each run replaces lemonaid's own rule and leaves your other rules alone, so run 
 again after changing `vaults`. `--dry-run` shows what would change, `--print`
 prints the rule without changing anything, and `--remove` takes lemonaid's rule out.
 
+Paths can follow whitespace or an opening parenthesis, bracket, brace, quote or
+backtick, as in `Update(~/notes/Project Plans/launch.md)`. The click action receives
+only the path, without the surrounding punctuation.
+
 A click runs `lemonaid terminal open-vault <path>`. For a path with a root it builds
 the `obsidian://open` URL the same way briefs do (the vault is named after its
 folder) and opens it. The rule records the full path of the `lemonaid` it was
@@ -24,9 +28,10 @@ installed by, so reinstall if that moves.
 ## Paths without a root
 
 A path without a root matches when it is one run of non-space characters ending in
-`.md` that starts a line or follows whitespace. It can't start with `/`, `~`, `.`,
-`(`, a quote or a backtick, and it can't contain `:`, so absolute paths, `./x.md`
-and URLs are left to the terminal. A new vault folder needs no re-run, except one
+`.md` that starts a line or follows whitespace or a delimiter, which is excluded
+from the path. The path can't start with `/`, `~` or `.`, and it can't contain `:`,
+so absolute paths, `./x.md` and URLs are left to the terminal.
+A new vault folder needs no re-run, except one
 whose name contains a space: a plain run can't cover `94 System Lemons/rules.md`,
 so the install reads those names from each root.
 
@@ -89,6 +94,9 @@ The install prints them until `wezterm.lua` mentions the module. WezTerm keeps
 starting after `--remove` deletes the module, and logs an error if the module
 fails to load for any other reason. WezTerm runs the click without a shell, so
 its rule matches any characters except a newline, backtick, `<`, `>`, `[` and `]`.
+Quotes, parentheses and braces within a filename are preserved for paths with a
+vault root or a recognized folder name with spaces. Other root-relative paths
+use these characters as delimiters.
 
 ## Under tmux
 

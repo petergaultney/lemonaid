@@ -23,7 +23,7 @@ _REGEX = re.compile(pattern.vault_path_regex([Path.home() / "trove", Path("/srv/
         ("~/trove/a.mdx", []),
         ("~/trove/script.py", []),
         ("~/elsewhere/a.md", []),
-        ("`~/trove/a` b.md", [" b.md"]),
+        ("`~/trove/a` b.md", ["b.md"]),
     ],
 )
 def test_vault_paths_match_with_spaces(line, found):
@@ -31,7 +31,7 @@ def test_vault_paths_match_with_spaces(line, found):
 
 
 def test_no_backslash_escapes_a_character_rust_regex_rejects():
-    assert pattern.vault_path_regex([Path("/a~b/x-y z")]).startswith(r"(?:/a~b/x-y z)/")
+    assert r"(?:/a~b/x-y z)/" in pattern.vault_path_regex([Path("/a~b/x-y z")])
 
 
 @pytest.mark.parametrize(
@@ -57,9 +57,10 @@ _RELATIVE = re.compile(
         ("open top-of-mind.md", ["top-of-mind.md"]),
         ("a/b.md and c/d.md", ["a/b.md", "c/d.md"]),
         ("src/foo.py", []),
-        ('(docs/a.md) and "b/c.md"', []),
+        ('(docs/a.md) and "b/c.md"', ["docs/a.md", "b/c.md"]),
         ("see https://github.com/o/r/blob/main/README.md", []),
         ("notes.mdx", []),
+        ("a.md.md", ["a.md.md"]),
         ("edit /Users/p/repo/docs/a.md", []),
         ("edit ~/repo/a.md ./b.md ../c.md", []),
         ("src/my-README.md", ["src/my-README.md"]),
@@ -68,3 +69,49 @@ _RELATIVE = re.compile(
 )
 def test_relative_paths_match_wherever_a_token_starts(line, found):
     assert [m.strip() for m in _RELATIVE.findall(line)] == found
+
+
+@pytest.mark.parametrize("excluded", ["", iterm2_rules.SHELL_CHARS])
+@pytest.mark.parametrize(
+    "opening,closing", [("(", ")"), ("[", "]"), ("{", "}"), ('"', '"'), ("'", "'"), ("`", "`")]
+)
+@pytest.mark.parametrize(
+    "path",
+    [
+        "projects/proposal.md",
+        "proposal.md",
+        "94 System Lemons/my notes.md",
+        "~/trove/Project Plans/my notes.md",
+        f"{Path.home()}/trove/Project Plans/my notes.md",
+    ],
+)
+def test_delimited_paths_capture_only_the_path(excluded, opening, closing, path):
+    regex = pattern.vault_path_regex([Path.home() / "trove"], excluded, ["94 System Lemons"])
+    match = re.search(regex, f"Update{opening}{path}{closing}, then continue.")
+
+    assert match is not None
+    assert match.group(0) == opening + path
+    assert match.group(1) == path
+
+
+@pytest.mark.parametrize("suffix", [")", "]", "}", '"', "'", "`", ",", "."])
+def test_trailing_punctuation_is_not_captured(suffix):
+    assert _RELATIVE.findall(f"projects/proposal.md{suffix}") == ["projects/proposal.md"]
+
+
+@pytest.mark.parametrize("prefix", ["file:", "<", ">", "|", ","])
+def test_rooted_paths_after_other_punctuation(prefix):
+    assert _REGEX.findall(f"{prefix}~/trove/a.md>") == ["~/trove/a.md"]
+
+
+@pytest.mark.parametrize(
+    "name", ["Meeting (2026).md", "Q&A {draft}.md", "Sam's notes.md", 'The "draft".md']
+)
+@pytest.mark.parametrize("folder", ["~/trove", "94 System Lemons"])
+def test_wezterm_preserves_punctuation_inside_filenames(name, folder):
+    path = f"{folder}/{name}"
+    assert _RELATIVE.findall(f"Update({path})") == [path]
+
+
+def test_adjacent_delimited_paths_remain_separate():
+    assert _RELATIVE.findall('(a.md)(b.md)"c.md"') == ["a.md", "b.md", "c.md"]
