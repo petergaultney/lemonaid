@@ -87,6 +87,7 @@ def test_a_body_edit_is_reported_once_it_has_been_quiet(doc, state_dir):
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING  # just changed
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
     assert "+1/-0 lines" in sent[0]
+    assert "line 4 [# Review]; 0 removed line(s)\n+ A new line." in sent[0]
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
 
 
@@ -122,7 +123,10 @@ def test_a_doc_that_does_not_exist_yet_is_reported_when_it_is_created(tmp_path, 
     doc_events.poll(w, _collect(sent))  # just changed
 
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
-    assert sent == [f"{doc} was created (+3/-0 lines), quiet for 0s"]
+    assert sent == [
+        f"{doc} was created (+3/-0 lines), quiet for 0s\n"
+        "lines 1-3 [# Review]; 0 removed line(s)\n+ # Review\n+ \n+ A claim."
+    ]
 
 
 def test_a_doc_created_while_no_waiter_ran_is_reported(tmp_path, state_dir):

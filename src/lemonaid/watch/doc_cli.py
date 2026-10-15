@@ -1,5 +1,8 @@
 """`lemonaid watch doc`: a blocking waiter on Markdown documents with Relay Comments.
 
+Text documents only. Body changes report line hunks; binary files and byte ranges
+are not supported. Use `lemonaid watch file` for binary-file change notifications.
+
 With `--wait DOC`, watches one doc. By default it prints one line per event and never
 exits on its own. With `--once`, it prints the first event and exits, so a Claude
 background Bash task wakes its session once on completion. With `--codex-thread`, it

@@ -1054,6 +1054,18 @@ PATCH
 
 Edits by anyone else, another lemon's included, still wake you. Details: [watch.md](watch.md#ignoring-the-lemons-own-edits).
 
+With body edits enabled (`All edits` in a brief's Docs table), the wake keeps its
+`+N/-M lines` summary first, then lists up to five changed hunks. Each gives the
+new-body line range, nearest Markdown heading (levels 1-6), removed-line count,
+and added text. Deletions give the position `after line N` (0 means the start).
+Before the first heading it says `before any heading`; headings inside fenced
+code are ignored. Heading excerpts stop at 120 characters and added-text excerpts
+at 500 characters per hunk, with omitted-character counts. A final count reports
+any hunks omitted. Line numbers refer to the body with Relay comment markup removed.
+Comments-only watches keep their existing thread summaries.
+`watch doc` supports text documents only; binary files and byte ranges are not
+supported. Use `watch file` for binary-file change notifications without ranges.
+
 `lemonaid watch pr --wait <n> --head <sha you handled> --comments --me "<signature>" --once` does
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
 comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).

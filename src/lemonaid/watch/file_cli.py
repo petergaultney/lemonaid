@@ -1,5 +1,8 @@
 """`lemonaid watch file`: a blocking waiter on files and directories.
 
+Supports text and binary files, but reports only that they changed, without line
+hunks or byte ranges. Use `lemonaid watch doc` for text-document line hunks.
+
 Reports when a watched file is created, changed, or removed, or when a regular file directly
 in a watched directory is added, removed, or rewritten, once the change has been quiet for
 `--quiet` seconds. With `--ignore-removed`, removals are not reported. Hidden files and
