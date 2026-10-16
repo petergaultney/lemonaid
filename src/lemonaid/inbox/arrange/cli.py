@@ -11,14 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from ...config import Config, load_config
-from .. import db, emoji, order, pins, presence, view
+from .. import db, emoji, pins, presence, view
 from ..tui.rows import brief_cards
 from . import answer, child, serve
 
 
 def _snapshot(
     config: Config, layout: str, width: int
-) -> tuple[dict[str, Any], list[db.Notification], list[db.Notification]]:
+) -> tuple[dict[str, Any], list[db.Notification], list[db.Notification], frozenset[str]]:
     """The snapshot `lma` would send now, with the inbox's own shown and folded rows."""
     now = time.time()
     with db.connect() as conn:
@@ -32,18 +32,19 @@ def _snapshot(
         )
         pinned = frozenset(pins.pinned_positions(conn))
         emojis = emoji.by_channel(conn)
-    shown, folded = order.fold(
-        view.inbox_rows(active, pinned, frozenset()),
-        view.statuses(active.cards, active.rows),
+    shown, folded, hidden = view.default_fold(
+        active,
         pinned,
-        config.tui.fold_statuses,
         frozenset(),
-        active.deaf,
+        config.tui.fold_statuses,
+        bool(config.inbox.arrange),
+        frozenset(),
     )
     return (
         view.snapshot(active, shown, folded, pinned, emojis, layout, width, now),
         shown,
         folded,
+        hidden,
     )
 
 
@@ -54,7 +55,7 @@ def _print_rows(title: str, rows: list[db.Notification]) -> None:
 
 
 def cmd_snapshot(args: argparse.Namespace) -> None:
-    snap, _, _ = _snapshot(load_config(), args.layout, args.width)
+    snap, _, _, _ = _snapshot(load_config(), args.layout, args.width)
     print(json.dumps({**snap, "now": time.time()}, indent=2 if args.pretty else None))
 
 
@@ -64,7 +65,7 @@ def cmd_check(args: argparse.Namespace) -> None:
     if not command:
         sys.exit("No [inbox] arrange is configured; pass --command to try one.")
 
-    snap, shown, folded = _snapshot(config, args.layout, args.width)
+    snap, shown, folded, hidden = _snapshot(config, args.layout, args.width)
     started = time.perf_counter()
     try:
         done = subprocess.run(
@@ -88,7 +89,7 @@ def cmd_check(args: argparse.Namespace) -> None:
 
     try:
         arranged = answer.apply(
-            json.loads(first), shown, folded, config.inbox.arrange_may_fold_unread
+            json.loads(first), shown, folded, config.inbox.arrange_may_fold_unread, hidden=hidden
         )
     except (json.JSONDecodeError, answer.AnswerError) as e:
         sys.exit(f"unusable answer: {e}")

@@ -59,8 +59,12 @@ def apply(
     folded: abc.Sequence[db.Notification],
     may_fold_unread: bool,
     deaf: abc.Container[str] = (),
+    hidden: abc.Container[str] = (),
 ) -> Arranged:
-    """*answer* applied to the inbox's own *shown* and *folded* rows."""
+    """*answer* applied to the inbox's own *shown* and *folded* rows.
+
+    A *hidden* lemon may stay folded while unread, since the inbox folded it that way.
+    """
     if not isinstance(answer, dict):
         raise AnswerError(f"answer must be a JSON object, not {type(answer).__name__}")
 
@@ -87,7 +91,12 @@ def apply(
                 problems.append(f"folded: row {i} is deaf, kept in the list")
                 kept_out.append(by_id[i])
                 placed.add(i)
-            elif out is out_folded and by_id[i].is_unread and not may_fold_unread:
+            elif (
+                out is out_folded
+                and by_id[i].is_unread
+                and not may_fold_unread
+                and by_id[i].channel not in hidden
+            ):
                 problems.append(f"folded: row {i} is unread, kept in the list")
                 kept_out.append(by_id[i])
                 placed.add(i)

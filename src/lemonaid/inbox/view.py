@@ -112,19 +112,62 @@ def statuses(
 
 
 def inbox_rows(
-    active: Active, pinned: abc.Container[str], in_view: abc.Container[str]
+    active: Active,
+    pinned: abc.Container[str],
+    in_view: abc.Container[str],
+    keep_hidden: bool = False,
 ) -> list[db.Notification]:
-    """Omit quiet reviewers unless the user chose them, they are deaf, or their status needs a band."""
+    """Omit quiet reviewers unless the user chose them, they are deaf, or their status needs a band.
+
+    *keep_hidden* keeps every hidden lemon, for the caller to fold away.
+    """
     brief_statuses = statuses(active.cards, active.rows)
     return [
         row
         for row in active.rows
-        if row.channel not in active.reviewers
+        if keep_hidden
+        or row.channel not in active.reviewers
         or row.channel in pinned
         or row.channel in in_view
         or row.channel in active.deaf
         or order.special_status(brief_statuses.get(row.channel, ""))
     ]
+
+
+def hidden_channels(
+    active: Active, pinned: abc.Container[str], in_view: abc.Container[str]
+) -> frozenset[str]:
+    """Lemons `inbox_rows` leaves out as hidden."""
+    kept = {n.channel for n in inbox_rows(active, pinned, in_view)}
+    return (
+        frozenset(n.channel for n in inbox_rows(active, pinned, in_view, keep_hidden=True)) - kept
+    )
+
+
+def default_fold(
+    active: Active,
+    pinned: abc.Container[str],
+    in_view: abc.Container[str],
+    folded_statuses: abc.Container[str],
+    arranged: bool,
+    unfolded: abc.Container[str],
+) -> tuple[list[db.Notification], list[db.Notification], frozenset[str]]:
+    """The inbox's own *shown* and *folded* rows, and the hidden channels that fold.
+
+    Hidden lemons fold only where a fold exists: *folded_statuses* is set or an arranger runs.
+    """
+    fold_exists = bool(folded_statuses) or arranged
+    hidden = hidden_channels(active, pinned, in_view) if fold_exists else frozenset()
+    shown, folded = order.fold(
+        inbox_rows(active, pinned, in_view, fold_exists),
+        statuses(active.cards, active.rows),
+        pinned,
+        folded_statuses,
+        unfolded,
+        active.deaf,
+        hidden,
+    )
+    return shown, folded, hidden
 
 
 def ordered_active(

@@ -7,7 +7,7 @@ from collections import abc
 from .... import brief, groups
 from ....config import Config
 from ....stalls import inbox as stalls_inbox
-from ... import db, emoji, order, pins, presence, search, view
+from ... import db, emoji, pins, presence, search, view
 from ..rows import brief_cards, pr_numbers
 from ..watchers import focus
 
@@ -19,6 +19,7 @@ class Frame:
     focused_channels: frozenset[str]
     shown: list[db.Notification]
     folded: list[db.Notification]
+    hidden: frozenset[str]  # channels folded for being hidden
     emojis: dict[str, str]
     groups: list[groups.store.Group]
     wordybins: dict[str, str]
@@ -89,18 +90,18 @@ def load(
         or str(n.id) == current_key
         or (matching_ids is not None and n.id in matching_ids)
     }
-    shown, folded = order.fold(
-        view.inbox_rows(active, pinned, in_view),
-        view.statuses(active.cards, active.rows),
+    shown, folded, hidden = view.default_fold(
+        active,
         pinned,
+        in_view,
         config.tui.fold_statuses,
+        bool(config.inbox.arrange),
         {
             n.channel
             for n in active.rows
             if n.channel in focused_channels
             or (str(n.id) == current_key and current_key in unfolded_ids)
         },
-        active.deaf,
     )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
     identities = brief.identity.by_channel(conn)
     current_members = {identities[n.channel] for n in active.rows if n.channel in identities}
@@ -137,6 +138,7 @@ def load(
         focused_channels,
         shown,
         folded,
+        hidden,
         emoji.by_channel(conn),
         [dataclasses.replace(g, color=colors[g.name]) for g in group_list],
         _brief_names(conn, shared_names) if config.tui.brief_names_in_inbox else {},

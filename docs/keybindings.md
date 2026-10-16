@@ -18,7 +18,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
 | `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
-| `w` | Show or hide the folded sessions, when `[tui] fold_statuses` is set |
+| `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
 | `p` | Pin the session below any other pins, or unpin it |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |

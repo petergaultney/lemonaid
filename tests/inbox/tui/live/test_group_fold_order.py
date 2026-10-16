@@ -19,7 +19,7 @@ def test_group_order_uses_default_order_until_an_arranger_answers(reply):
     arrangement._arranger = SimpleNamespace(answer=lambda *args: reply, error="")
 
     shown, folded, _, group_order = arrangement.arranged(
-        active, [newer], [older], frozenset(), {}, False, 120
+        active, [newer], [older], frozenset(), frozenset(), {}, False, 120
     )
 
     assert shown == [newer] and folded == [older]
