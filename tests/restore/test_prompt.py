@@ -39,3 +39,17 @@ def test_a_codex_brief_with_only_an_inbox_waiter_gets_no_prompt():
     only_inbox = "# the task\n\n## Waiters\n- `lemonaid inbox watch --self`\n"
 
     assert prompt.rearm(_BRIEF, only_inbox, "codex") == ""
+
+
+def test_dedicated_resume_keeps_codex_in_its_own_process(tmp_path):
+    from lemonaid.config import Config
+    from lemonaid.inbox.db import Notification
+    from lemonaid.restore.launch import launch
+
+    row = Notification(
+        1, "codex:session", "", metadata={"cwd": str(tmp_path), "session_id": "session"}
+    )
+    normal = launch(row, Config(), "continue")
+    dedicated = launch(row, Config(), "continue", dedicated=True)
+    assert "--no-daemon" not in normal.line
+    assert dedicated.line.count("--no-daemon") == 1

@@ -20,7 +20,9 @@ class Launch(ty.NamedTuple):
     prompted: bool  # whether the line starts the lemon on the prompt it was given
 
 
-def launch(notification: Notification, config: Config, prompt: str) -> Launch | None:
+def launch(
+    notification: Notification, config: Config, prompt: str, *, dedicated: bool = False
+) -> Launch | None:
     """How to resume *notification*'s session starting on *prompt*, or None if it can't be.
 
     Only Claude and Codex take a first prompt on resume; any other harness is
@@ -34,6 +36,8 @@ def launch(notification: Notification, config: Config, prompt: str) -> Launch | 
         return None
 
     cwd, argv = resumable
+    if dedicated and command.unclaimable(shlex.join(argv)):
+        argv.insert(1, "--no-daemon")
     prompted = bool(prompt) and notification.channel.partition(":")[0] in _PROMPTABLE
     line, environment = command.harness_line(
         shlex.join(argv),

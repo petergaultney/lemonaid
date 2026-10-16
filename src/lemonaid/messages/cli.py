@@ -10,6 +10,7 @@ from pathlib import Path
 from .. import brief, lineage
 from ..config import load_config
 from ..inbox import db
+from ..launch.restart import state
 from ..log import get_logger
 from ..watch import push_scout, registry
 from . import autoresume, codex_delivery, dead_letters, recipient, service, store, waiter
@@ -109,28 +110,33 @@ def cmd_tell(args: argparse.Namespace) -> None:
     except ValueError as error:
         _fail(str(error))
 
+    if state.blocked(channel):
+        print(path)
+        print(f"queued for {lemon_id}: restart in progress", file=sys.stderr)
+        return
+
     if channel.startswith("codex:"):
         service.ensure_running()
     elif channel.startswith("claude:") and row is not None:
         push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
     print(path)
-    state = recipient.probe(channel, row, inbox)
-    if state.state not in recipient.UNREAD:
-        print(recipient.describe(lemon_id, state), file=sys.stderr)
+    found_state = recipient.probe(channel, row, inbox)
+    if found_state.state not in recipient.UNREAD:
+        print(recipient.describe(lemon_id, found_state), file=sys.stderr)
         return
 
     line, will_read = (
-        (autoresume.off(lemon_id, parent, state), False)  # no record of its session to start
+        (autoresume.off(lemon_id, parent, found_state), False)  # no record of its session to start
         if row is None or brief_path is None
         else autoresume.respond(
             autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
-            state,
+            found_state,
             load_config(),
         )
     )
     print(line, file=sys.stderr)
     if not will_read:
-        dead_letters.record(sender, lemon_id, state.state, line, path)
+        dead_letters.record(sender, lemon_id, found_state.state, line, path)
         raise SystemExit(1)
 
 
@@ -147,6 +153,22 @@ def own_lemon(explicit_channel: str) -> tuple[str, str]:
         except (ValueError, brief.store.ChangedUnderneath) as error:
             _fail(str(error))
             raise
+
+
+def _take_and_print(inbox: Path, channel: str):
+    with state.admission(channel) as allowed:
+        if not allowed:
+            return None
+        result = store.take_next(inbox)
+        if result is not None:
+            path, message = result
+            try:
+                print(message, end="" if message.endswith("\n") else "\n")
+                sys.stdout.flush()
+            except (OSError, UnicodeError):
+                store.restore(path)
+                raise
+        return result
 
 
 def _receive(args: argparse.Namespace, wait: bool) -> None:
@@ -189,7 +211,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                     find=(
                         (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
                         if codex_thread
-                        else store.take_next
+                        else lambda inbox: _take_and_print(inbox, channel)
                     ),
                 )
         except (ValueError, TimeoutError, RuntimeError, waiter.AlreadyArmed) as error:
@@ -199,18 +221,10 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
             print(result[1], end="")
             return
     else:
-        result = store.take_next(inbox)
+        result = _take_and_print(inbox, channel)
 
     if result is None:
         raise SystemExit(1)
-
-    path, message = result
-    try:
-        print(message, end="" if message.endswith("\n") else "\n")
-        sys.stdout.flush()
-    except (OSError, UnicodeError):
-        store.restore(path)
-        raise
 
 
 def cmd_next(args: argparse.Namespace) -> None:

@@ -11,6 +11,7 @@ from ..claude import session_socket
 from ..hooks import session_gate
 from ..inbox import db
 from ..inbox.channel import full_channel_id
+from ..launch.restart import gates
 from ..messages import store, waiter
 from . import (
     batch_wait,
@@ -97,6 +98,7 @@ def run(args: argparse.Namespace) -> int:
         if thread
         else delivery.to_stdout
     )
+    output = gates.deliver(channel, output)
     wait_state.clear_delivery(lemon_id)
 
     def deliver(message: str) -> None:
