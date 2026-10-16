@@ -36,6 +36,15 @@ Codex's `notify` reports only finished turns. To have the inbox show a Codex lem
 
 Codex asks you to trust a new hook the first time it loads it.
 
+`PermissionRequest` also runs for requests handled by Codex's automatic approval
+reviewer. Lemonaid checks the requesting turn's `approvals_reviewer` in its rollout
+and ignores shell and patch hooks when it is `auto_review`, so these reviews do not show
+"Permission needed" or surface hidden lemons. User-reviewed requests still appear
+immediately. If the turn's reviewer cannot be determined, the request appears as a
+permission notice. MCP/app requests stay visible because an app can override the
+turn's reviewer. This uses the running turn's context rather than global config,
+which can differ from a session's effective settings.
+
 `lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
 waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks

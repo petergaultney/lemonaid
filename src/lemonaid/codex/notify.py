@@ -23,7 +23,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import hosting
+from . import hosting, permissions
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -173,6 +173,14 @@ def handle_notification(
         or data.get("type")
         or "agent-turn-complete"
     )
+
+    if notification_type == "PermissionRequest" and permissions.automatically_reviewed(
+        session_path_obj, data.get("turn_id", ""), data.get("tool_name", "")
+    ):
+        _log.info(
+            "ignored automatic approval review: session=%s turn=%s", session_id, data.get("turn_id")
+        )
+        return
 
     if not message:
         short_path = shorten_path(cwd or "")
