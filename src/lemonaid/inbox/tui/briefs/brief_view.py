@@ -18,18 +18,28 @@ from textual.binding import Binding, BindingsMap
 from textual.content import Content, Span
 from textual.geometry import Size
 from textual.style import Style
+from textual.widget import Widget
 from textual.widgets import Markdown, Rule, Static
 from textual.widgets._markdown import (  # no public name
     MarkdownBlock,
     MarkdownTable,
 )
 
-from ....brief import attached, family, identity, links, pr, questions, render, target
+from ....brief import attached, family, identity, links, pr, questions, render, store, target
 from ....config import KeybindingsConfig, PlaceRoot
 from ....log import get_logger
 from ... import db, turns
 from .. import scroll_position, utils
-from . import brief_detail, brief_questions, brief_tables
+from . import (
+    brief_answers,
+    brief_detail,
+    brief_help,
+    brief_item_content,
+    brief_items,
+    brief_questions,
+    brief_tables,
+)
+from .brief_item_widget import ItemView
 
 _log = get_logger("tui.brief_view")
 _OPENER = ["open"] if sys.platform == "darwin" else ["xdg-open"]
@@ -272,7 +282,8 @@ class BriefView(scroll_position.StableScroll):
     }}
     BriefView .brief-question-keys {{
         dock: bottom;
-        height: 1;
+        height: auto;
+        max-height: 4;
         color: $text-muted;
         background: $panel;
     }}
@@ -286,9 +297,11 @@ class BriefView(scroll_position.StableScroll):
         mid_turn_working: bool = False,
         roots: abc.Sequence[PlaceRoot] = (),
         neutral_timing: bool = False,
+        browsing: bool = False,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
+        self._browsing = browsing
         self._mid_turn_working = mid_turn_working
         self._neutral_timing = neutral_timing
         self._roots = roots
@@ -299,8 +312,11 @@ class BriefView(scroll_position.StableScroll):
         self._keys = keys
         self._sections: tuple[render.Section, ...] = ()
         self._selected: brief_questions.Choice | None = None
-        self._needs: dict[Path, _Markdown] = {}
+        self._items: tuple[brief_items.Item, ...] = ()
         self._notice = ""
+        self._found: target.Target | None = None
+        self._unread = False
+        self._answers_expanded = False
         # Built as a map, not bound one by one, so a character such as `(` becomes its key name.
         self._bindings = BindingsMap.merge(
             [
@@ -313,6 +329,10 @@ class BriefView(scroll_position.StableScroll):
                         (keys.answer, "answer", "Answer"),
                         (keys.answer_yes, "answer_yes", "Yes, approved"),
                         (keys.more_detail, "more_detail", "More detail"),
+                        (keys.answer_archive, "archive_answer(False)", "Archive selected answer"),
+                        (keys.answer_archive_all, "archive_answer(True)", "Archive all answers"),
+                        (keys.answers_expand, "expand_answers", "Expand archived answers"),
+                        ("question_mark", "brief_help", "Brief keys"),
                     )
                     if key
                 ),
@@ -323,6 +343,7 @@ class BriefView(scroll_position.StableScroll):
         self._notice = ""
         self._rendered_markdown = None
         self._selected = None
+        self._answers_expanded = False
         self.update_brief(found, unread)
         self.scroll_home(animate=False)
 
@@ -330,9 +351,7 @@ class BriefView(scroll_position.StableScroll):
         self._notice = message
         self.call_later(scroll_position.notice, self, message)
 
-    def _widgets(
-        self, shown: render.View, now: float, unread: bool
-    ) -> list[Static | Markdown | Rule]:
+    def _widgets(self, shown: render.View, now: float, unread: bool) -> list[Widget]:
         notice = (
             [Static(self._notice, classes="brief-terminal-notice", markup=False)]
             if self._notice
@@ -371,15 +390,11 @@ class BriefView(scroll_position.StableScroll):
                     if section.summary
                     else []
                 ),
-                *(
-                    [self._needs_widget(section)]
-                    if section.needs_text or section.unmatched_questions
-                    else []
-                ),
-                *(
-                    [_Markdown(links.linkify(section.body, self._vaults, self._lemons))]
-                    if section.body
-                    else []
+                *brief_item_content.widgets(
+                    section,
+                    self._items,
+                    self._selected,
+                    lambda text: _Markdown(links.linkify(text, self._vaults, self._lemons)),
                 ),
                 *(
                     [Static(brief_detail.children(section), classes="brief-children")]
@@ -400,42 +415,81 @@ class BriefView(scroll_position.StableScroll):
             Rule(),
             Static(brief_detail.files(shown), classes="brief-files"),
             *(
-                [Static(brief_questions.hint(self._keys), classes="brief-question-keys")]
+                [Static(self._selection_hint(), classes="brief-question-keys")]
                 if self._selected
                 else []
             ),
         ]
 
+    def _selected_item(self) -> brief_items.Item | None:
+        return next((item for item in self._items if item.choice == self._selected), None)
+
+    def _selection_hint(self) -> str:
+        item = self._selected_item()
+        return brief_items.hint(item, self._keys) if item else ""
+
     def _needs_markdown(self, section: render.Section) -> str:
-        selected = self._selected[1] if self._selected and self._selected[0] == section.path else ""
-        return links.linkify(render.needs(section, True, selected), self._vaults, self._lemons)
-
-    def _needs_widget(self, section: render.Section) -> _Markdown:
-        widget = _Markdown(
-            self._needs_markdown(section), classes="brief-needs-mid-turn" if section.held else ""
+        item = self._selected_item()
+        selected = (
+            item.label if item and item.kind == "need" and item.choice[0] == section.path else ""
         )
-        if section.path:
-            self._needs[section.path] = widget
-        return widget
+        complete = tuple(
+            dataclasses.replace(
+                need, label=need.label or next(iter(questions.labels(need.text)), need.text)
+            )
+            for need in brief_items.needs(section)
+        )
+        return links.linkify(
+            render.needs(dataclasses.replace(section, questions=complete), True, selected),
+            self._vaults,
+            self._lemons,
+        )
 
-    def _choices(self) -> list[brief_questions.Choice]:
-        return brief_questions.choices(self._sections)
+    def _choices(self) -> list[brief_items.Choice]:
+        return [item.choice for item in self._items]
 
     def _section(self, path: Path) -> render.Section | None:
         return next((s for s in self._sections if s.path == path), None)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in {"question", "answer", "answer_yes", "more_detail"}:
-            return self._selected is not None
+        item = self._selected_item()
+        if action == "question":
+            return bool(self._items)
+        if action in {"answer", "answer_yes", "more_detail"}:
+            return bool(item and item.kind == "need")
+        if action == "archive_answer":
+            return bool(item and item.kind == "answer")
 
         return True
 
+    def _select_item(self, choice: brief_items.Choice, scroll: bool = False) -> None:
+        self._selected = choice
+        self.focus()
+        for widget in self.query(ItemView):
+            selected = widget.item.choice == choice
+            widget.select(selected)
+            if selected and scroll:
+                widget.query_one(".item-title").scroll_visible(animate=False)
+        for hint in self.query(".brief-question-keys").results(Static):
+            hint.update(self._selection_hint())
+
     def action_question(self, by: int) -> None:
-        before = self._selected
-        self._selected = brief_questions.step(self._choices(), self._selected, by)
-        for path in {choice[0] for choice in (before, self._selected) if choice}:
-            if (widget := self._needs.get(path)) and (section := self._section(path)):
-                widget.update(self._needs_markdown(section))
+        choice = brief_questions.step(self._choices(), self._selected, by)
+        if choice:
+            self._select_item(choice, scroll=True)
+
+    def on_item_view_chosen(self, event: ItemView.Chosen) -> None:
+        if event.item.choice not in self._choices():
+            return
+
+        self._select_item(event.item.choice)
+        if event.activate:
+            if event.item.kind == "need":
+                self.action_answer()
+            elif event.item.kind == "answer":
+                self.action_archive_answer()
+            else:
+                self.action_expand_answers()
 
     def _lemon_name(self, path: Path) -> str:
         section = self._section(path)
@@ -449,9 +503,11 @@ class BriefView(scroll_position.StableScroll):
         self.notify(f"Sent to {self._lemon_name(choice[0])}: {choice[1]}")
 
     def action_answer(self) -> None:
-        choice = self._selected
-        if choice is None:
+        item = self._selected_item()
+        if item is None or item.kind != "need":
             return
+
+        choice = item.choice[0], item.label
 
         def answered(text: str | None) -> None:
             if text:
@@ -462,22 +518,52 @@ class BriefView(scroll_position.StableScroll):
         )
 
     def action_answer_yes(self) -> None:
-        if self._selected:
-            self._send(self._selected, brief_questions.answer(*self._selected, "Yes, approved"))
+        if (item := self._selected_item()) and item.kind == "need":
+            choice = item.choice[0], item.label
+            self._send(choice, brief_questions.answer(*choice, "Yes, approved"))
 
     def action_more_detail(self) -> None:
-        if self._selected:
-            self._send(self._selected, questions.more_detail(self._selected[1]))
+        if (item := self._selected_item()) and item.kind == "need":
+            self._send((item.choice[0], item.label), questions.more_detail(item.label))
+
+    def action_brief_help(self) -> None:
+        self.app.push_screen(
+            brief_help.BriefHelpScreen(
+                self._keys, self._browsing, self._selection_hint(), wide=self.app.size.width >= 100
+            )
+        )
+
+    def action_archive_answer(self, all_answers: bool = False) -> None:
+        item = self._selected_item()
+        if item is None or item.kind != "answer":
+            return
+
+        try:
+            message = brief_answers.archive(item, all_answers)
+        except (OSError, ValueError, store.ChangedUnderneath) as cause:
+            self.notify(str(cause), title="Answers not archived", severity="error")
+            return
+
+        self.notify(message)
+        if self._found:
+            self.update_brief(self._found, self._unread)
+
+    def action_expand_answers(self) -> None:
+        self._answers_expanded = not self._answers_expanded
+        if self._found:
+            self.update_brief(self._found, self._unread)
 
     def update_brief(self, found: target.Target, unread: bool = False) -> None:
         """Redraw *found*, whose inbox row is *unread* or not."""
+        self._found, self._unread = found, unread
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
         shown = _turns(shown, now, self._mid_turn_working)
         with db.connect() as conn:
             self._lemons = identity.known(conn)
 
-        rendered = render.to_markdown(shown, now, expanded=True)
+        items = brief_items.items(shown.sections, self._answers_expanded)
+        rendered = render.to_markdown(shown, now, expanded=True) + repr(items)
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):
                 card.now = now
@@ -488,9 +574,9 @@ class BriefView(scroll_position.StableScroll):
         preserve = self._rendered_markdown is not None
         self._rendered_markdown = rendered
         self._sections = shown.sections
+        self._items = items
         available = self._choices()
         self._selected = (
             self._selected if self._selected in available else next(iter(available), None)
         )
-        self._needs = {}
         self.call_later(scroll_position.replace, self, self._widgets(shown, now, unread), preserve)
