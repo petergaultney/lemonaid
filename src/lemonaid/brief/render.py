@@ -15,7 +15,7 @@ from collections import abc
 from pathlib import Path
 
 from ..config import PlaceRoot
-from . import display, identity, now, pr, project, questions, status, store, target
+from . import answers, display, identity, now, pr, project, questions, status, store, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -127,11 +127,14 @@ def _section(
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot],
 ) -> Section:
-    parts = status.split(brief.text)
+    text, answer_body = answers.display(brief.text, brief.path)
+    parts = status.split(text)
     parsed = now.parse(parts.now)
     explained = questions.entries(parts.questions)
     title = _display_title(parts.title) or brief.name or "Work status"
-    body = "\n\n".join(_labelled(parsed, detail == "compact"))
+    body = "\n\n".join(
+        part for part in (answer_body, *_labelled(parsed, detail == "compact")) if part
+    )
     tail = "\n\n".join(
         part
         for part in (

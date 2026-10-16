@@ -41,7 +41,7 @@ Before asking your user to review a PR, check mergeability and green CI too. Con
 
 Keep `## Now` directly after the header. It holds current prose and `### Needs <who>`, `### Running`, and `### Waiting on`. Different people may have separate Needs headings; duplicate heading names are refused without regard to case. `### Lemons` can still list lemons you watch besides your children.
 
-Use this section order, omitting empty sections: header, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, then the parent's task sections, then `## Watching`. This is a writing convention, not an enforced order. Arbitrary headings are welcome at any level.
+Use this section order, omitting empty sections: header, `## Now`, `## Questions`, `## Answers`, `## Next`, `## PRs`, `## Docs`, `## Done`, then the parent's task sections, then `## Watching`. This is a writing convention, not an enforced order. Arbitrary headings are welcome at any level.
 
 `## Next` says what you will do next, `## PRs` holds the open PR table, `## Docs` lists documents for someone to read, and `## Done` records finished work. Readers accept both these sections and the older `###` headings inside Now. Nothing moves automatically. Run `lemonaid brief migrate --self` to promote exactly those four old names, or `--all` for active attached and pending briefs. `brief check` warns about the older layout.
 
@@ -59,7 +59,11 @@ Leave the Review cell empty if no review doc exists. Remove a row once its PR me
 
 `## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels.
 
-The worker owns `Status:`, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
+When the user asks a nontrivial question in chat, answer there and also record the question and a short, plain-prose answer with `lemonaid brief answer --self "<question>" -` (answer on stdin, or as the next argument). Answers are dated, newest first under `## Answers`, after Questions. Skip trivial replies. Keep the useful explanation, not a transcript of your work.
+
+The user can run `lemonaid brief answers archive --self [COUNT]` (default 1) or `--all` to archive entries from the top. `lemonaid brief answers expand --self` prints the archive without restoring it. Normal brief views show live answers and the archived count. Keep the brief and its `.answers.json` sidecar together when moving or backing them up.
+
+The worker owns `Status:`, `## Now`, `## Questions`, `## Answers`, `## Next`, `## PRs`, `## Docs`, `## Done`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
 
 Before setting `Status: done`, fill `## Executive Summary of Results` with a concise account of the outcome: at most 1–3 paragraphs, plus any absolutely critical table. This summary belongs in the brief even when the full output lives elsewhere. For a review brief, put the verdict here. `brief check` warns if a done brief has this heading but leaves it empty; it does not block the status edit, and older briefs without the heading remain valid.
 
