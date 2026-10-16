@@ -4,7 +4,7 @@ import argparse
 import datetime
 import sys
 
-from . import answer_archive, answers, command, store, verbs_cli
+from . import answer_archive, answer_edit, answers, command, store, verbs_cli
 
 
 def _answer(args: argparse.Namespace) -> None:
@@ -19,28 +19,19 @@ def _archive(args: argparse.Namespace) -> None:
         return
 
     path, error = command.own_brief(args)
-    moved: list[str] = []
+    moved = 0
     if path:
-
-        def change(before: str) -> str:
-            after, entries = answers.take(
-                before, None if args.all else (args.count if args.count is not None else 1)
-            )
-            verbs_cli.validate(path, before, after)
-            if entries:
-                answer_archive.save(path, entries)
-            moved[:] = entries
-            return after
-
         try:
-            error = verbs_cli.edit(path.resolve(), change)
+            moved = answer_edit.archive(
+                path, None if args.all else (args.count if args.count is not None else 1)
+            )
         except (OSError, ValueError, store.ChangedUnderneath) as cause:
             error = str(cause)
     command.finish(
         args,
-        {"path": str(path) if path else None, "archived": len(moved)},
+        {"path": str(path) if path else None, "archived": moved},
         error,
-        f"Archived {len(moved)} answers",
+        f"Archived {moved} answers",
     )
 
 

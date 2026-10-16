@@ -98,6 +98,7 @@ class Section:
     parent_name: str = ""  # its parent's session name, when lemonaid knows it
     children: tuple[Child, ...] = ()
     summary: str = ""  # rendered first when populated
+    answers: str = ""  # the live Answers prefix included in body
 
 
 @dataclasses.dataclass(frozen=True)
@@ -163,6 +164,7 @@ def _section(
         lemon_id=_lemon_id(brief.text),
         compact=detail == "compact",
         summary=parts.summary,
+        answers=answer_body,
     )
 
 

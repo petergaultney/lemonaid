@@ -916,7 +916,7 @@ when moving or backing it up. It is not another brief.
 
 `brief show`, the inbox brief view and the popup show only live answers and an
 archived count. `answers expand` prints archived entries without restoring them
-to these views. There are no inbox archive or expand keys.
+to these views. In the brief view, `A` archives the selected live answer, `Ctrl+A` archives all live answers in the selected brief, and `e` toggles archived answers. `?` shows help and the selected entry's available actions. Click an entry to select it; a separate click on the selected entry invokes its main action.
 
 ### Editing sections
 

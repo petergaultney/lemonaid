@@ -7,6 +7,7 @@ same reference reads the same in either layout.
 
 from collections.abc import Iterator
 
+from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -140,10 +141,13 @@ _CLOSE_KEYS = frozenset({"escape", "q", "question_mark"})
 
 
 def _section_widgets(sections: list[tuple[str, list[tuple[str, str]]]]) -> Iterator[Widget]:
+    key_width = max(
+        12, min(20, max((len(key) for _, rows in sections for key, _ in rows), default=0))
+    )
     for title, entries in sections:
         yield Label(title, classes="section")
         for keys, description in entries:
-            yield Static(f"[b]{keys:<12}[/b] {description}")
+            yield Static(Text.assemble((f"{keys:<{key_width}}", "bold"), "  ", description))
 
 
 def _halves(
@@ -165,9 +169,9 @@ def _halves(
 
 
 class HelpScreen(ModalScreen[None]):
-    """The key reference. Any key closes it."""
+    """A shared key reference, closed by q, Escape or ?."""
 
-    CSS = """
+    DEFAULT_CSS = """
     HelpScreen {
         align: center middle;
     }
@@ -199,6 +203,16 @@ class HelpScreen(ModalScreen[None]):
         padding-right: 2;
     }
 
+    HelpScreen > Vertical > VerticalScroll {
+        height: auto;
+        max-height: 1fr;
+    }
+
+    HelpScreen .header {
+        dock: top;
+        height: auto;
+    }
+
     HelpScreen .title {
         width: 100%;
         text-align: center;
@@ -216,7 +230,13 @@ class HelpScreen(ModalScreen[None]):
         padding-left: 2;
     }
 
+    HelpScreen .context {
+        color: $text-muted;
+        padding-bottom: 1;
+    }
+
     HelpScreen .hint {
+        dock: bottom;
         color: $text-muted;
         text-style: italic;
         padding-top: 1;
@@ -226,15 +246,37 @@ class HelpScreen(ModalScreen[None]):
 
     BINDINGS = [("escape", "close", "Close")]
 
-    def __init__(self, keybindings: KeybindingsConfig, wide: bool = False) -> None:
+    def __init__(
+        self,
+        keybindings: KeybindingsConfig,
+        wide: bool = False,
+        *,
+        title: str = "Keys and indicators",
+        sections: list[tuple[str, list[tuple[str, str]]]] | None = None,
+        context: str = "",
+    ) -> None:
         super().__init__()
         self.keybindings = keybindings
         self.wide = wide
+        self.help_title = title
+        self.help_sections = sections
+        self.context = context
 
     def compose(self) -> ComposeResult:
-        sections = [(title, rows) for title, rows in help_lines(self.keybindings) if rows]
+        sections = [
+            (title, rows)
+            for title, rows in (
+                self.help_sections
+                if self.help_sections is not None
+                else help_lines(self.keybindings)
+            )
+            if rows
+        ]
         with Vertical():
-            yield Label("Keys and indicators", classes="title")
+            with Vertical(classes="header"):
+                yield Label(self.help_title, classes="title")
+                if self.context:
+                    yield Static(self.context, classes="context", markup=False)
             with VerticalScroll():
                 if self.wide:
                     with Horizontal(classes="columns"):

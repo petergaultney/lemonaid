@@ -79,8 +79,8 @@ def test_the_first_question_starts_selected_and_the_keys_move_and_ask():
             assert "- ▶ retry policy: which one?" in _needs(app)
             assert "**Context:** retries pile up." in _needs(app)
 
-            await pilot.press("]", "]")
-            assert "- ▶ rename the flag" in _needs(app)  # an aside has no entry to land on
+            await pilot.press("]")
+            assert "- ▶ rename the flag" in _needs(app)
 
             await pilot.press("D")
             await pilot.press("[", "a")
@@ -109,7 +109,7 @@ def test_popup_flags_an_unmatched_question_without_needs():
         async with app.run_test(size=(100, 40)) as pilot:
             await pilot.pause()
             assert "**Unmatched Questions:** `### Lost decision`" in _needs(app)
-            assert app.query_one(BriefView)._needs
+            assert app.query_one(BriefView).query("Markdown")
 
     asyncio.run(run())
 
@@ -152,17 +152,19 @@ def test_yes_answers_the_selected_popup_question_without_an_answer_box():
     ]
 
 
-def test_without_questions_the_keys_do_nothing_and_no_hint_shows():
+def test_needs_without_questions_are_selectable_and_answerable():
     path, inbox = _attached_brief("# Old\n\nStatus: blocked\n\n## Now\n\n- Needs you: pick one\n")
 
     async def run() -> None:
         app = _popup(path)
         async with app.run_test(size=(100, 40)) as pilot:
             await pilot.pause()
-            await pilot.press("]", "D", "a", "Y")
+            await pilot.press("]", "a")
             await pilot.pause()
-            assert not isinstance(app.screen, AnswerScreen)
-            assert not app.query(".brief-question-keys")
+            assert isinstance(app.screen, AnswerScreen)
+            assert app.screen._label == "pick one"
+            await pilot.press("escape")
+            assert app.query(".brief-question-keys")
 
     asyncio.run(run())
 
@@ -183,7 +185,7 @@ def test_the_keys_come_from_config_and_the_hint_names_them():
             await pilot.press(")")
             assert "- ▶ rename the flag" in _needs(app)
             hint = app.query_one(".brief-question-keys")
-            assert "( ) question · a answer · ctrl+y yes · D more detail" in str(hint.render())
+            assert "( ) select · a answer · ctrl+y yes · D more detail" in str(hint.render())
 
     asyncio.run(run())
 
