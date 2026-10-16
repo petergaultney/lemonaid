@@ -64,7 +64,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 
 - **[Jump from a link](docs/go.md)**: `lemonaid go <Lemon-ID | channel>` switches to a lemon's tmux pane or cmux surface, and `--link` prints a clickable link. macOS URL-handler setup is documented.
 
-- **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session with one PR shows its number beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
+- **[PR numbers in the inbox](docs/places.md#pr-numbers-in-the-inbox)**: A session shows its PR numbers beside its name, from its brief or an optional per-root branch lookup hook. When a URL is available, modifier-click opens the PR.
 
 - **[Context use in the inbox](docs/config.md#tuicontext_threshold)**: Opt in to see how much context each Claude and Codex lemon has used, as a percentage of a threshold you set per backend or model, coloured from blue to red at the threshold
 

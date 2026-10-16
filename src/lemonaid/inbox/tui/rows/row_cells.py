@@ -64,17 +64,19 @@ def name_cell(
     emojis: abc.Mapping[str, str],
     wordybin: str,
     is_unread: bool,
-    pr_number: pr_numbers.PR | None = None,
+    prs: tuple[pr_numbers.PR, ...] = (),
 ) -> Text:
     """The decorated name with its PR number and optional grey brief name."""
     name = styled_cell(_decorated_name(n, emojis), is_unread, "name")
-    if pr_number:
-        offset = len(emojis[n.channel]) + 1 if emojis.get(n.channel) else 0
+    offset = len(emojis[n.channel]) + 1 if emojis.get(n.channel) else 0
+    markers = Text()
+    for pr_number in prs:
         number = styled_cell(f"#{pr_number.number} ", is_unread, "name")
         number.stylize("bold")
         if pr_number.url:
             number.stylize(Style(link=pr_number.url), 0, len(number) - 1)
-        name = name[:offset] + number + name[offset:]
+        markers += number
+    name = name[:offset] + markers + name[offset:]
     if not wordybin:
         return name
 

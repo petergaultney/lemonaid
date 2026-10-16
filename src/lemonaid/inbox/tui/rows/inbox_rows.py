@@ -109,7 +109,7 @@ def active_row(
     detached: Text,
     tui: TuiConfig,
     wordybin: str = "",
-    pr_number: pr_numbers.PR | None = None,
+    prs: tuple[pr_numbers.PR, ...] = (),
 ) -> tuple[str, list[Text]]:
     """The main-table row for a session, keyed by notification id.
 
@@ -122,7 +122,7 @@ def active_row(
         Text("●", style=utils.unread_marker_style()) if is_unread else Text(""),
         backend_cell(backend, is_pinned),
         jump_gutter(row_index, is_here)
-        + row_cells.name_cell(n, emojis, wordybin, is_unread, pr_number)
+        + row_cells.name_cell(n, emojis, wordybin, is_unread, prs)
         + detached,
         styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
         where,
@@ -138,14 +138,14 @@ def other_row(
     where: Text,
     tui: TuiConfig,
     wordybin: str = "",
-    pr_number: pr_numbers.PR | None = None,
+    prs: tuple[pr_numbers.PR, ...] = (),
 ) -> tuple[str, list[Text]]:
     """The non-switchable-table row for a session. Always dimmed."""
     return str(n.id), [
         row_cells.time_cell(n.created_at, False, neutral_timing=tui.project_name_colors),
         Text("○", style="dim") if n.is_unread else Text(""),
         backend,
-        row_cells.name_cell(n, emojis, wordybin, False, pr_number),
+        row_cells.name_cell(n, emojis, wordybin, False, prs),
         styled_cell(n.metadata.get("git_branch", ""), False, "branch"),
         where,
         styled_cell(n.message, False, "message"),

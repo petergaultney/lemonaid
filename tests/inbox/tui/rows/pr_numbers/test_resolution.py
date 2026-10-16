@@ -42,7 +42,7 @@ def test_branch_precedence_and_single_table_fallback(tmp_path, branch_number):
         numbers = pr_numbers.rows(conn, db.get_active(conn), places, cache)
     assert numbers == (
         {
-            f"codex:{name}": pr_numbers.PR("99")
+            f"codex:{name}": (pr_numbers.PR("99"),)
             for name in (
                 "parent",
                 "single",
@@ -56,8 +56,12 @@ def test_branch_precedence_and_single_table_fallback(tmp_path, branch_number):
         }
         if branch_number
         else {
-            "codex:parent": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
-            "codex:single": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
+            "codex:parent": (pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),),
+            "codex:single": (pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),),
+            "codex:many": (
+                pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
+                pr_numbers.PR("13", "https://github.com/owner/repo/pull/13"),
+            ),
         }
     )
 
@@ -78,7 +82,7 @@ def test_nested_root_and_missing_metadata(tmp_path):
             db.add(conn, f"codex:{name}", "message", name, meta, status="read")
         assert pr_numbers.rows(
             conn, db.get_active(conn), PlacesConfig(roots=[outer, inner]), cache
-        ) == {"codex:nested": pr_numbers.PR("2")}
+        ) == {"codex:nested": (pr_numbers.PR("2"),)}
 
 
 def test_fallback_updates_when_branch_map_changes(tmp_path):
@@ -100,11 +104,16 @@ def test_fallback_updates_when_branch_map_changes(tmp_path):
         notifications = db.get_active(conn)
         cache.store(root, {"topic": pr_numbers.PR("99")}, 0)
         assert pr_numbers.rows(conn, notifications, places, cache) == {
-            "codex:task": pr_numbers.PR("99")
+            "codex:task": (pr_numbers.PR("99"),)
         }
         cache.store(root, {}, 180)
         assert pr_numbers.rows(conn, notifications, places, cache) == {
-            "codex:task": pr_numbers.PR("12", "https://github.com/owner/repo/pull/12")
+            "codex:task": (pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),)
         }
         path.write_text(table(12, 13))
-        assert pr_numbers.rows(conn, notifications, places, cache) == {}
+        assert pr_numbers.rows(conn, notifications, places, cache) == {
+            "codex:task": (
+                pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),
+                pr_numbers.PR("13", "https://github.com/owner/repo/pull/13"),
+            )
+        }

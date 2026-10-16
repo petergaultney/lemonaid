@@ -23,7 +23,7 @@ class Frame:
     groups: list[groups.store.Group]
     wordybins: dict[str, str]
     other: list[db.Notification]  # live sessions switchable only from another terminal
-    numbers: dict[str, pr_numbers.PR]
+    numbers: dict[str, tuple[pr_numbers.PR, ...]]
     matching_ids: set[int] | None  # None outside a search
 
 

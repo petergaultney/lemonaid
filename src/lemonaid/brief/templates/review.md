@@ -8,6 +8,10 @@ Hidden: yes
 
 ## PRs
 
+| Work | PR | Review |
+|---|---|---|
+| Review | $pr_link | $output_doc_link |
+
 ## Docs
 
 ## Done

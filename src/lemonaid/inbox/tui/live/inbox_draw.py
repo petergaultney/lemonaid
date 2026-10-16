@@ -80,7 +80,7 @@ def active_row(
         _detached_marker(n, detached, config),
         config.tui,
         frame.wordybins.get(n.channel, ""),
-        frame.numbers.get(n.channel),
+        frame.numbers.get(n.channel, ()),
     )[1]
 
 
@@ -109,7 +109,7 @@ def other_table(
                 parts.where_cell(n, False, areas.get(n.channel, "")),
                 config.tui,
                 frame.wordybins.get(n.channel, ""),
-                frame.numbers.get(n.channel),
+                frame.numbers.get(n.channel, ()),
             )
             for n in rows
         ],

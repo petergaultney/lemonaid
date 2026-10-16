@@ -12,6 +12,7 @@ import pytest
 from lemonaid import groups, obsidian
 from lemonaid.brief import attached, child, hidden, identity, output_doc, status, write_cli
 from lemonaid.inbox import db
+from lemonaid.inbox.tui.rows import pr_numbers
 
 _PARENT = "hq.BlessBar"
 _PR = "https://github.com/acme/widgets/pull/12"
@@ -120,6 +121,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     wordybin = result["lemon_id"].rsplit(".", 1)[1]
     assert Path(result["path"]).name.endswith("-review-widgets-12.md")
     assert hidden.is_hidden(text)
+    assert pr_numbers.brief_numbers(text) == (pr_numbers.PR("12", _PR),)
     assert f"[widgets#12]({_PR})" in text
     assert "[widgets-12](obsidian://open?vault=notes&file=reviews%2Fwidgets-12)" in text
     assert f"`lemonaid tell {_PARENT}` and `lemonaid tell widget.QuickOdd`" in text

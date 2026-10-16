@@ -1,4 +1,4 @@
-"""One PR per inbox session, with user-configured branch lookups off the UI thread."""
+"""PR markers per inbox session, with user-configured branch lookups off the UI thread."""
 
 import dataclasses
 import sqlite3
@@ -55,39 +55,42 @@ def branch_map(lines: abc.Iterable[str]) -> dict[str, PR]:
     return result
 
 
-def brief_number(text: str) -> PR | None:
+def brief_numbers(text: str) -> tuple[PR, ...]:
     tables = [section for section in sections.behavior(text) if section.heading.lower() == "prs"]
     if len(tables) != 1:
-        return None
+        return ()
 
     rows, problems = pr_table.parse(tables[0].body)
-    if problems or len(rows) != 1:
-        return None
+    if problems or len(rows) > 2:
+        return ()
 
-    found = pr_table.target(rows[0].pr)
-    return PR(found[1], pr_table.url(rows[0].pr) or "") if found else None
+    return tuple(
+        PR(found[1], pr_table.url(row.pr) or "")
+        for row in rows
+        if (found := pr_table.target(row.pr))
+    )
 
 
 class Cache:
     """Mutated only on the UI thread; workers return maps through `store`."""
 
     def __init__(self) -> None:
-        self._briefs: dict[Path, tuple[int, int, PR | None]] = {}
+        self._briefs: dict[Path, tuple[int, int, tuple[PR, ...]]] = {}
         self._maps: dict[tuple[Path, str], tuple[float, dict[str, PR]]] = {}
         self._pending: set[tuple[Path, str]] = set()
 
-    def brief(self, path: Path) -> PR | None:
+    def brief(self, path: Path) -> tuple[PR, ...]:
         try:
             stat = path.stat()
             cached = self._briefs.get(path)
             if cached and cached[:2] == (stat.st_mtime_ns, stat.st_size):
                 return cached[2]
 
-            number = brief_number(path.read_text())
+            number = brief_numbers(path.read_text())
         except (OSError, UnicodeError) as error:
             _log.warning("could not read brief %s: %s", path, error)
             self._briefs.pop(path, None)
-            return None
+            return ()
 
         self._briefs[path] = (stat.st_mtime_ns, stat.st_size, number)
         return number
@@ -121,13 +124,14 @@ def rows(
     notifications: abc.Sequence[db.Notification],
     places: PlacesConfig,
     cache: Cache,
-) -> dict[str, PR]:
+) -> dict[str, tuple[PR, ...]]:
     paths = attached.for_rows(conn, notifications)
     numbers = {}
     for n in notifications:
         cwd, branch = n.metadata.get("cwd", ""), n.metadata.get("git_branch", "")
         root = places.root_for(cwd) if cwd and branch else None
-        number = cache.number(root, branch) if root else None
+        branch_pr = cache.number(root, branch) if root else None
+        number = (branch_pr,) if branch_pr else ()
         if not number and n.channel in paths:
             number = cache.brief(paths[n.channel])
         if number:

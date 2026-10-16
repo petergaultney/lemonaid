@@ -9,16 +9,16 @@ def test_brief_cache_reads_migrated_tables_and_reuses_unchanged_file(tmp_path, m
     path = tmp_path / "brief.md"
     path.write_text(table(12))
     cache = pr_numbers.Cache()
-    expected = pr_numbers.PR("12", "https://github.com/owner/repo/pull/12")
+    expected = (pr_numbers.PR("12", "https://github.com/owner/repo/pull/12"),)
     assert cache.brief(path) == expected
     path.write_text(migrate.layout(table(13)))
-    expected = pr_numbers.PR("13", "https://github.com/owner/repo/pull/13")
+    expected = (pr_numbers.PR("13", "https://github.com/owner/repo/pull/13"),)
     assert cache.brief(path) == expected
 
     def unexpected_read(*args):
         raise AssertionError("Unchanged briefs should use the cache")
 
-    monkeypatch.setattr(pr_numbers, "brief_number", unexpected_read)
+    monkeypatch.setattr(pr_numbers, "brief_numbers", unexpected_read)
     assert cache.brief(path) == expected
 
 
@@ -44,11 +44,11 @@ def test_brief_cache_updates_and_forgets_deleted_files(tmp_path):
     path = tmp_path / "brief.md"
     path.write_text("## Now\n### PRs\nbroken\n")
     cache = pr_numbers.Cache()
-    assert cache.brief(path) is None
+    assert cache.brief(path) == ()
     path.write_text("## Now\n### Next\n- work\n")
-    assert cache.brief(path) is None
+    assert cache.brief(path) == ()
     path.unlink()
-    assert cache.brief(path) is None
+    assert cache.brief(path) == ()
 
 
 def test_hook_parsing_and_ambiguous_branches():

@@ -3,11 +3,14 @@ import threading
 
 import pytest
 
+from lemonaid.brief import migrate
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
 from lemonaid.inbox.tui import app
 from lemonaid.inbox.tui.rows import pr_numbers, row_cells
 from lemonaid.tmux import scratch
+
+from .shared import table
 
 
 @pytest.mark.parametrize("position,size", [("top", (160, 12)), ("left", (60, 36))])
@@ -84,7 +87,7 @@ def test_number_precedes_long_name_and_keeps_emoji_prefix():
         {"codex:task": "X"},
         "Name",
         False,
-        pr_numbers.PR("123", "https://example.com/pr/123"),
+        (pr_numbers.PR("123", "https://example.com/pr/123"),),
     )
     assert text.plain == "X #123 a long task name · Name"
 
@@ -94,7 +97,7 @@ def test_pr_label_emits_a_terminal_hyperlink_without_linking_the_name():
 
     n = db.Notification(1, "codex:task", "", "task", {}, "read", 0)
     url = "https://example.com/pr/123"
-    text = row_cells.name_cell(n, {}, "", False, pr_numbers.PR("123", url))
+    text = row_cells.name_cell(n, {}, "", False, (pr_numbers.PR("123", url),))
     console = Console(force_terminal=True, color_system="truecolor")
     with console.capture() as capture:
         console.print(text)
@@ -103,3 +106,39 @@ def test_pr_label_emits_a_terminal_hyperlink_without_linking_the_name():
     assert "\x1b]8;" in ansi
     assert text.get_style_at_offset(console, 0).link == url
     assert text.get_style_at_offset(console, len("#123 ")).link is None
+
+
+@pytest.mark.parametrize("position,size", [("top", (160, 12)), ("left", (60, 36))])
+@pytest.mark.parametrize("promoted", [False, True])
+@pytest.mark.parametrize("count", [2, 20])
+def test_multiple_brief_prs_reach_both_layouts(tmp_path, position, size, promoted, count):
+    scratch.set_position(position)
+    path = tmp_path / "brief.md"
+    text = table(*range(6032, 6032 + count))
+    path.write_text(migrate.layout(text) if promoted else text)
+    with db.connect() as conn:
+        db.add(
+            conn, "codex:task", "message", "eval commands", {}, switch_source="tmux", status="read"
+        )
+        pr_numbers.attached.attach(conn, "codex:task", path)
+
+    async def check():
+        tui = app.LemonaidApp(scratch_mode=True)
+        tui.config.tui.brief_status = False
+        async with tui.run_test(size=size) as pilot:
+            await pilot.pause()
+            widget = tui.query_one("#main_table", app.ClickToActTable)
+            row = " ".join(cell.plain for cell in widget.get_row_at(0))
+            assert ("#6032 #6033 eval commands" in row) if count == 2 else "#6032" not in row
+            links = {
+                segment.style.link
+                for y in range(widget.size.height)
+                for segment in widget.render_line(y)
+                if segment.style and segment.style.link
+            }
+            expected = {
+                f"https://github.com/owner/repo/pull/{n}" for n in range(6032, 6032 + count)
+            }
+            assert expected <= links if count == 2 else not expected & links
+
+    asyncio.run(check())
