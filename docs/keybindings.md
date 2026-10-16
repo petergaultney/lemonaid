@@ -146,22 +146,59 @@ otherwise says it has none. The lowest-numbered window's
 lemon shows its whole `## Now`, the others only their `Needs` and one line each of `Running` and `Waiting on`.
 
 
+### Help and saved answers
+
+Press `?` while viewing a brief to open **Brief keys**, with the keys for that
+view and its current configuration. It shares the inbox help's framed panel,
+spaced headings and bold key labels, using two columns when the pane is wide.
+`q`, `Escape`, or `?` closes help and returns
+to the brief. PageUp/PageDown, Home/End and the mouse wheel scroll the brief;
+in the sidebar, Up/Down browse briefs, while in the popup they scroll.
+
+| Key | Action |
+|-----|--------|
+| `A` | Archive the selected live saved chat answer |
+| `Ctrl`+`a` | Archive all live saved chat answers in the selected entry's brief |
+| `e` | Expand or collapse archived answers for the shown briefs |
+
+Archiving uses the same checked operation as `brief answers archive`: the
+sidecar is saved before entries are removed, and other brief sections stay in
+place. Expanding reads the sidecar without restoring its entries to the brief.
+The archive keys act on the selected answer, including in a multi-lemon view;
+a notice names the affected brief and count. Expansion resets when you open a
+different brief. The question-answer key `a` still answers a question from the
+lemon; uppercase `A` archives the selected saved answer from the lemon.
+
+A colored left border and arrow mark the selected Needs or saved-answer entry.
+The hint names that entry and its available actions; `?` includes the same
+selection context. The configured previous/next question keys (by default `[` and
+`]`) move through all Needs entries and saved answers in their displayed order,
+including Needs without a separate Questions explanation.
+
+Click an entry's title or text to select it. A separate click on the selected
+entry runs its main action: open the answer box for a Need, archive a live saved
+answer, or collapse an archived answer. Double-clicking text still selects a
+word, dragging selects text, and links open normally without selecting or acting
+on their entry. Enter retains its existing switch-to-session behavior in the
+inbox brief view.
+
 ### Questions
 
 A brief can explain what its lemon needs from you in a `## Questions` section after
 `## Now`: one `###` entry per `Needs` bullet that asks something, named with that bullet's
 label. A bullet's label is its text up to its first colon, or the whole bullet, ignoring
 bold and case, so `- **retry policy:** which one?` is explained by `### retry policy`.
-Both views show each entry under its bullet, and mark the first question selected with `▶`.
-Bullets with no entry, and briefs with no `## Questions`, show as before.
+Both views show each explanation under its Needs bullet and select the first
+Needs or saved-answer entry. Needs bullets without an explanation remain
+selectable and answerable.
 An entry whose heading matches no Needs bullet appears as a warning in the brief view;
 `brief check` reports the same mismatch.
 
 | Key | Action |
 |-----|--------|
-| `[` | Select the previous question |
-| `]` | Select the next question |
-| `a` | Answer it: type one line, Enter sends it, Escape cancels |
+| `[` | Select the previous Needs or saved-answer entry |
+| `]` | Select the next Needs or saved-answer entry |
+| `a` | Answer the selected Need: type one line, Enter sends it, Escape cancels |
 | `Y` | Send `Yes, approved` for the selected question immediately |
 | `d` | Ask the lemon for more detail |
 
@@ -281,11 +318,14 @@ save_size = "ctrl+s"  # save scratch pane size (follow mode)
 flip_position = "f"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 notes = "N"  # show or hide your notes (needs [tui] notes)
-question_previous = "["  # in a brief view, the previous question
-question_next = "]"  # in a brief view, the next question
+question_previous = "["  # in a brief view, the previous Needs or saved-answer entry
+question_next = "]"  # in a brief view, the next Needs or saved-answer entry
 answer = "a"  # in a brief view, answer the selected question
 answer_yes = "Y"  # in a brief view, send "Yes, approved" immediately
 more_detail = "d"  # in a brief view, ask for more detail on it
+answer_archive = "A"  # archive the selected live saved answer
+answer_archive_all = "ctrl+a"  # archive all live saved answers in the selected brief
+answers_expand = "e"  # show or hide archived answers
 jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
 ```
@@ -300,7 +340,7 @@ select = "o"
 ### Keys given by name
 
 `brief_key`, `group_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
-`answer_yes` and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
+`answer_yes`, `more_detail`, `answer_archive`, `answer_archive_all` and `answers_expand` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
 name, not a set of one-character alternatives. Set any of them to `""` to leave it unbound.

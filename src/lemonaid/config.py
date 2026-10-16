@@ -151,6 +151,9 @@ class KeybindingsConfig:
     answer: str = "a"  # Type an answer, sent to the lemon with `lemonaid tell`
     answer_yes: str = "Y"  # Immediately answer the selected question "Yes, approved"
     more_detail: str = "d"  # Ask the lemon to rewrite the selected question
+    answer_archive: str = "A"  # Archive the selected live saved chat answer
+    answer_archive_all: str = "ctrl+a"  # Archive all live answers in the selected brief
+    answers_expand: str = "e"  # Show or hide archived chat answers
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.
     jump_by_number: bool = True
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)
