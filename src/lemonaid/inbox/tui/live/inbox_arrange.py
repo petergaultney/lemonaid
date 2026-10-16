@@ -32,6 +32,7 @@ class Arrangement:
         shown: list[db.Notification],
         folded: list[db.Notification],
         pinned: frozenset[str],
+        hidden: frozenset[str],
         emojis: abc.Mapping[str, str],
         cards: bool,
         width: int,
@@ -56,7 +57,12 @@ class Arrangement:
 
         try:
             arranged = answer.apply(
-                reply, shown, folded, self._config.inbox.arrange_may_fold_unread, active.deaf
+                reply,
+                shown,
+                folded,
+                self._config.inbox.arrange_may_fold_unread,
+                active.deaf,
+                hidden,
             )
         except answer.AnswerError as e:
             if str(e) not in self._logged:

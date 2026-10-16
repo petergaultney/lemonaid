@@ -2,6 +2,7 @@
 
 import asyncio
 import itertools
+import os
 import time
 from pathlib import Path
 
@@ -185,6 +186,19 @@ def test_any_quiet_lemon_with_the_hidden_line_hides_whatever_its_parent():
     assert view.inbox_rows(active, set(), set()) == []
 
 
+def test_keep_hidden_returns_hidden_lemons_for_the_fold():
+    with db.connect() as conn:
+        reviewer = _session(conn, "reviewer")
+        _brief(conn, reviewer, "waiting", reviewer=True)
+        active = view.ordered_active(
+            conn, "tmux", BriefCache(), presence.Probe(), False, time.time()
+        )
+
+    assert view.inbox_rows(active, set(), set()) == []
+    assert [r.channel for r in view.inbox_rows(active, set(), set(), True)] == [reviewer]
+    assert view.hidden_channels(active, set(), set()) == {reviewer}
+
+
 @pytest.mark.parametrize(
     "status", ["alert", "blocked", "running", "merge", "approve", "review", "done"]
 )
@@ -217,11 +231,28 @@ def test_arranger_snapshot_uses_the_same_default_visibility():
         ordinary = _session(conn, "worker")
         _brief(conn, reviewer, "waiting", reviewer=True)
 
-    snapshot, shown, folded = _snapshot(load_config(), "table", 120)
+    snapshot, shown, folded, hidden = _snapshot(load_config(), "table", 120)
 
     assert [row.channel for row in shown] == [ordinary]
     assert folded == []
+    assert hidden == frozenset()
     assert [row["channel"] for row in snapshot["rows"]] == [ordinary]
+
+
+@pytest.mark.parametrize("unread", [False, True])
+def test_arranger_snapshot_folds_hidden_lemons_as_the_inbox_does(unread):
+    Path(os.environ["LEMONAID_CONFIG"]).write_text('[tui]\nfold_statuses = ["idle"]\n')
+    with db.connect() as conn:
+        reviewer = _session(conn, "reviewer", unread=unread)
+        ordinary = _session(conn, "worker")
+        _brief(conn, reviewer, "waiting", reviewer=True)
+
+    snapshot, shown, folded, hidden = _snapshot(load_config(), "table", 120)
+
+    assert [row.channel for row in shown] == [ordinary]
+    assert [row.channel for row in folded] == [reviewer]
+    assert hidden == {reviewer}
+    assert [row["channel"] for row in snapshot["rows"]] == [ordinary, reviewer]
 
 
 @pytest.mark.parametrize("size", [(120, 40), (40, 60)])

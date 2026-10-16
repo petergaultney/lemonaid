@@ -85,3 +85,12 @@ def test_the_default_answer_is_the_inbox_order():
     }
 
     assert answer.default(snapshot) == {"rows": [5, 7], "folded": [9]}
+
+
+def test_a_hidden_unread_row_stays_folded_when_the_answer_folds_it():
+    arranged = answer.apply(
+        {"rows": [1], "folded": [2]}, [_row(1)], [_row(2, True)], False, hidden={"claude:2"}
+    )
+
+    assert _ids(arranged.folded) == [2]
+    assert arranged.problems == []
