@@ -18,14 +18,33 @@ def entries(
 ) -> tuple[list[Entry], list[db.Notification], list[db.Notification]]:
     """The main table's entries, the rows still folded away, and the other-terminal rows.
 
-    A search draws only its matches, flat; otherwise rows sit under their
+    A search draws only its matches, under their groups; otherwise rows sit under their
     groups, and an open fold draws its rows after everything else.
     """
     if frame.matching_ids is not None:
+        matching = frame.matching_ids
+        found = [n for n in [*shown, *folded] if n.id in matching]
+        laid_out, _ = sections.layout(
+            found,
+            [],
+            frame.pinned,
+            frame.active.memberships,
+            frame.groups,
+            view.statuses(frame.active.cards, frame.active.rows),
+            {
+                f"{n.id}@{group.group_id}"
+                for group in frame.groups
+                for n in found
+                if group.name in frame.active.memberships.get(n.channel, ())
+            },
+            True,
+            frame.active.deaf,
+            group_order=group_order,
+        )
         return (
-            [sections.Row(str(n.id), n) for n in [*shown, *folded] if n.id in frame.matching_ids],
+            laid_out,
             folded,
-            [n for n in frame.other if n.id in frame.matching_ids],
+            [n for n in frame.other if n.id in matching],
         )
 
     laid_out, folded = sections.layout(

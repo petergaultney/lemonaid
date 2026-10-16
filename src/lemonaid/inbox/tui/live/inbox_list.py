@@ -307,7 +307,7 @@ class InboxList(Vertical):
         return inbox_draw.Drawn(
             unread_count,
             len(active.rows) - unread_count,
-            len(drawn) + len(other_notifications),
+            len({e.notification.id for e in drawn}) + len(other_notifications),
             bool(other_notifications),
             show_other,
         )
