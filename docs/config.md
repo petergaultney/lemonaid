@@ -420,6 +420,14 @@ including its modifiers.
 
 `answer_yes = "Y"` immediately sends `Yes, approved` for the selected brief question.
 `search = "/"` opens inbox search with archive matches below a divider, and filters history.
+
+Under `[tui.keybindings]`, `answer_archive = "A"` archives the selected live saved chat
+answer, `answer_archive_all = "ctrl+a"` archives all
+live answers in the selected entry's brief, and `answers_expand = "e"` expands or collapses the shown
+archives. Each names one Textual key, or `""` to leave it unbound. These keys act
+only in the brief view; `?` there shows the brief view's own help. See
+[keybindings](keybindings.md#help-and-saved-answers).
+
 See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 
 ## `[brief]`
