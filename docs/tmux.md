@@ -279,7 +279,7 @@ lines to `.tmux.conf`. Remove them; `--follow` says so if it sees them.
 - **`q` in lma**: Temporarily parks the pane. The next `prefix + l` brings it back with follow still active
 - **Selecting a notification**: Switches to that session; the scratch pane follows via the hook
 - **Focus**: The scratch pane never arrives focused, and never leaves the placeholder focused behind it. A switch made from inside the inbox puts focus back on the pane you came from
-- **Resizing**: Manual resizes are preserved across switches
+- **Resizing**: Save a manual resize with `Ctrl`+`s`, or enable autosave below, to preserve it across switches
 
 #### Disabling follow
 
@@ -309,7 +309,37 @@ The default scratch pane height (in rows) is configurable:
 scratch_height = "12"
 ```
 
-In follow mode, if you manually resize the pane (drag the border), a `save pane height` hint appears in the status bar. Press `Ctrl`+`s` to persist the new size.
+#### Saving the pane size
+
+In follow mode, resizing the pane shows a `save pane width now` or `save pane
+height now` hint. Press `Ctrl`+`s` to persist that dimension. Width and height
+are saved separately and survive a tmux server restart.
+
+To save resizes automatically:
+
+```toml
+[tmux-session]
+autosave_scratch_size = true
+```
+
+Restart the scratch inbox after changing this setting (`lemonaid tmux scratch
+--restart`). Autosave accepts a changed split dimension after it has settled for
+about a second. Border drags and keyboard resizes work with existing bindings,
+including resizing the adjacent work pane. `Ctrl`+`s` remains the explicit save
+and fallback for a change autosave skipped.
+
+Autosave ignores startup geometry, parked panes, zoom, explicit `select-layout`, and
+changes during follow, position or client-size transitions. A saved width of 58
+fitted to 40 columns in a narrow terminal stays 58. It observes only the visible,
+managed scratch pane while follow is on, using one server-wide preference even
+with several clients. Other inboxes and popups cannot autosave the scratch size.
+
+A stable size change from an external `resize-pane` command is treated like a
+manual resize. Layout cycling with `next-layout` or `previous-layout` also counts
+as a size change: tmux does not expose separate hooks for those commands. Use
+`select-layout -n` or `select-layout -p` to cycle layouts without autosaving their
+geometry. Autosave detects geometry drift, rather than the input device or person
+that caused it. Resizes made during a transition may need `Ctrl`+`s`.
 
 #### Moving between top and left
 

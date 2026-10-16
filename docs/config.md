@@ -68,6 +68,7 @@ See [wezterm.md](wezterm.md).
 | `scratch_position` | `"left"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `f` in `lma`; that choice is remembered per tmux server. |
 | `scratch_height` | `"10"` | Height of the scratch pane on top, in rows. |
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
+| `autosave_scratch_size` | `false` | In follow mode, save settled scratch pane resizes automatically. Ctrl+s remains available to save explicitly. Restart the scratch inbox after changing this setting. See [tmux.md](tmux.md#saving-the-pane-size). |
 | `follow_scratch` | `false` | Bootstrap follow mode for new tmux servers. When the scratch pane is first toggled on a server, this determines whether follow is enabled by default. See [tmux.md](tmux.md#follow-mode). |
 | `resume_window` | `0` | 0-based index into the template window list: which window to replace with the resume command when spawning a tmux session from history (`T`). Set to `1` if your lemon is in the second tab. |
 | `codex_writable_roots` | `[]` | Directories a Codex lemon may write, in addition to the lemonaid database and state directories, which are always included. Set it to wherever your lemons write documents outside their workspace, such as a review-docs folder. Passed as `sandbox_workspace_write.writable_roots`, so it takes effect only when your `codex` template runs the `workspace-write` sandbox, and it replaces any `writable_roots` in Codex's own config. `~` is expanded. |

@@ -101,6 +101,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Snooze**: Hold a session that needs attention "but not yet" until a time you pick, with a snoozed list so nothing goes missing. A lemon can snooze itself with `lemonaid inbox snooze --self`
 - **Undo**: Reverse an accidental archive, mark-read, snooze, or rename - multi-level, with a toast naming what changed
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
+- **[Scratch pane size autosave](docs/tmux.md#saving-the-pane-size)**: Opt in to save settled border and keyboard resizes in follow mode; `Ctrl`+`s` remains available to save explicitly
 - **Always-visible sidebar** (`tmux`): [Follow mode](docs/tmux.md#follow-mode) keeps the inbox in view across every window and session switch, on the left or across the top. Sessions render as cards when the pane is too narrow for columns. Without follow mode it is still a scratch pane you toggle with a keybinding, with no startup delay
 - **Brief beside the lemon** (`tmux`): When the scratch pane follows on the left, `b` replaces the inbox with the selected lemon's brief and keeps keyboard focus there. `prefix+b` opens the brief from the lemon and focuses the scratch pane; switching away restores the inbox
 - **Auto-refresh TUI**: See new notifications appear without losing your place

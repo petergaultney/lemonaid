@@ -72,7 +72,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("usage_view", "Show usage pace for each limit window"),
             ("notes", "Show or hide your notes (tui.notes)"),
             ("flip_position", "Move the scratch pane between top and left"),
-            ("save_size", "Save the scratch pane size (follow mode)"),
+            ("save_size", "Save pane size explicitly (also available with autosave)"),
             ("refresh", "Refresh now"),
             ("quit", "Quit"),
         ],

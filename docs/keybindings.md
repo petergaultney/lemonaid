@@ -30,7 +30,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `-` | Take the session out of the group it's drawn under; on a group's header, delete the group |
 | `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `R` | Resume the selected detached session when available |
-| `Ctrl`+`s` | Save scratch pane size (follow mode, only when it has drifted) |
+| `Ctrl`+`s` | Save scratch pane size explicitly (follow mode; also available with autosave) |
 | `f` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
 | `/` | Search inbox and archived sessions as you type; in history, filter archived sessions |
@@ -277,7 +277,7 @@ search = "/"  # search inbox and archive sessions; filter in history
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 resume_detached = "R"  # resume a detached inbox row
-save_size = "ctrl+s"  # save scratch pane size (follow mode)
+save_size = "ctrl+s"  # save scratch pane size explicitly (also with autosave)
 flip_position = "f"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 notes = "N"  # show or hide your notes (needs [tui] notes)

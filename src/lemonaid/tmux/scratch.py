@@ -129,20 +129,22 @@ def _current_size(pane_id: str, position: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def save_current_size(position: str) -> None:
-    """Persist the pane's size along the axis its position splits.
+def save_size(position: str, size: str) -> None:
+    """Persist a captured dimension and update the follow slots."""
+    _log.info("saving scratch %s size %s", position, size)
+    _save_size(position, size)
+    follow.resize_placeholders(position, size)
 
-    Only called on explicit user action (keybinding), never automatically.
-    """
+
+def save_current_size(position: str) -> None:
+    """Persist the pane's size along the axis its position splits."""
     pane_id = _get_pane_id()
     if not pane_id:
         return
 
     size = _current_size(pane_id, position)
     if size:
-        _log.info("save_current_size: %s (%s)", size, position)
-        _save_size(position, size)
-        follow.resize_placeholders(position, size)
+        save_size(position, size)
 
 
 def size_has_drifted(position: str, current: int) -> bool:

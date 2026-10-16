@@ -82,6 +82,7 @@ class TmuxSessionConfig:
     scratch_width: str = "45"
     # When true, the scratch pane follows across window/session switches.
     follow_scratch: bool = False
+    autosave_scratch_size: bool = False
 
     def get_template(self, name: str) -> list[str] | None:
         """Get a template by name."""
@@ -549,6 +550,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         ),
         scratch_width=tmux_session_data.get("scratch_width", tmux_session_defaults.scratch_width),
         follow_scratch=tmux_session_data.get("follow_scratch", False),
+        autosave_scratch_size=tmux_session_data.get("autosave_scratch_size", False),
     )
 
     tmux_window_data = data.get("tmux-window", {})

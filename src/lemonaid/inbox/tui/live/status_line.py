@@ -29,7 +29,7 @@ def inbox_status(
         text += "  |  [bold cyan]P[/]atch Claude for faster notifications"
 
     if drifted_dimension:
-        text += f"  |  [bold cyan]{save_size_key}[/] save pane {drifted_dimension}"
+        text += f"  |  [bold cyan]{save_size_key}[/] save pane {drifted_dimension} now"
 
     if arrange_error:
         text += f"  |  [bold red]arrange:[/] {escape(arrange_error)}"

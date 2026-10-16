@@ -24,7 +24,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import navigation
+from ...tmux import navigation, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -192,6 +192,14 @@ class LemonaidApp(App):
     def on_mount(self) -> None:
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
+        if (
+            self._scratch_mode
+            and self.config.tmux_session.autosave_scratch_size
+            and os.environ.get("TMUX_PANE")
+        ):
+            scratch_autosave.install_guards()
+            self._size_observer = scratch_autosave.Observer()
+            self.set_interval(0.25, self._size_observer.poll)
         self._refresh_usage()
         self.set_interval(self.config.usage.poll_seconds, self._refresh_usage)
         utils.use_light_theme(not self.current_theme.dark)
