@@ -822,13 +822,47 @@ character, or leading dot.
 
 Keep `## Now` for current prose, `### Needs <who>`, `### Running` and `### Waiting on`.
 Use level-2 sections for `Next`, `PRs`, `Docs` and `Done`. The canonical writing order is
-header, Now, Questions, Next, PRs, Docs, Done, the parent's sections, then Watching.
+header, Now, Questions, Answers, Next, PRs, Docs, Done, the parent's sections, then Watching.
 This order is a convention; readers and editors do not sort sections.
 
 Readers accept both the older subheadings inside Now and separate sections. Nothing
 migrates automatically, including `brief now`. `lemonaid brief migrate --self` promotes
 exactly those four old names; `--all` handles active attached and pending briefs.
 A duplicate heading name refuses migration with both locations listed.
+
+### Keeping chat answers
+
+When the user asks a nontrivial question in chat, answer it there and record the
+question and a short answer in the brief too:
+
+```sh
+lemonaid brief answer --self "Why does this happen?" "The explanation."
+lemonaid brief answer --self "What did you find?" -  # answer Markdown on stdin
+lemonaid brief answers archive --self              # archive the newest answer
+lemonaid brief answers archive --self 3            # archive the top three
+lemonaid brief answers archive --self --all
+lemonaid brief answers expand --self               # read archived answers
+```
+
+`answer` creates `## Answers` after Questions (or Now when Questions is absent),
+with dated entries, newest first. Question and answer Markdown are blockquoted
+so their headings cannot become brief sections. The section and its entries
+remain editable with the section verbs. Unrelated sections keep their text.
+All three commands accept the usual `--self`, `--session`, `--channel`, or `--id`
+target and `--json`; omitting the answer reads stdin.
+
+`archive` moves whole `###` entries from the top into `<brief-stem>.answers.json`
+beside the brief, leaving any prose above the entries in place. It defaults to
+one entry; COUNT must be positive and cannot be combined with `--all`.
+The archive is saved before the brief is changed; after an interrupted removal,
+retrying recognizes entries already archived. Keep the sidecar with the brief
+when moving or backing it up. It is not another brief.
+
+`brief show`, the inbox brief view and the popup show only live answers and an
+archived count. `answers expand` prints archived entries without restoring them
+to these views. There are no inbox archive or expand keys.
+
+### Editing sections
 
 Use `brief section show|set|rm --self "<heading>"` for arbitrary headings. `set` takes its
 body from stdin by default, or an optional argument (`-` also means stdin). Existing

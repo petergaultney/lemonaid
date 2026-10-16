@@ -30,26 +30,29 @@ from . import (
 )
 
 
+def validate(path: Path, before: str, after: str, *, preserve_existing: bool = False) -> None:
+    existing_questions = set(
+        check.structure(before) if preserve_existing else check.question_problems(before)
+    )
+    with db.connect() as conn:
+        problems = [
+            *(p for p in check.structure(after) if p not in existing_questions),
+            *check.recorded(conn, path, after),
+        ]
+    if check.has_parent_line(before) and not check.has_parent_line(after):
+        problems.append("the edit drops the `Parent:` line")
+    if problems:
+        raise ValueError(
+            f"Refused: {path.name} would fail `lemonaid brief check`: " + "; ".join(problems)
+        )
+
+
 def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: bool = False) -> str:
     """An error, or "" once *change* is written."""
 
     def checked(before: str) -> str:
         after = change(before)
-        existing_questions = set(
-            check.structure(before) if preserve_existing else check.question_problems(before)
-        )
-        with db.connect() as conn:
-            problems = [
-                *(p for p in check.structure(after) if p not in existing_questions),
-                *check.recorded(conn, path, after),
-            ]
-        if check.has_parent_line(before) and not check.has_parent_line(after):
-            problems.append("the edit drops the `Parent:` line")
-        if problems:
-            raise ValueError(
-                f"Refused: {path.name} would fail `lemonaid brief check`: " + "; ".join(problems)
-            )
-
+        validate(path, before, after, preserve_existing=preserve_existing)
         return after
 
     try:
