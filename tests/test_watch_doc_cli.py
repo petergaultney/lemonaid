@@ -5,6 +5,7 @@ import stat
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -181,10 +182,16 @@ def test_exclusive_modes_refuse_to_start(tmp_path, doc, extra):
     assert result.stdout.startswith("not started: ")
 
 
+def _replace_doc(doc: Path, body: str) -> None:
+    replacement = doc.with_suffix(".tmp")
+    replacement.write_text(body)
+    os.replace(replacement, doc)  # The waiter must only see complete contents.
+
+
 def _edit_while_waiting(tmp_path, doc, *args: str) -> subprocess.CompletedProcess[str]:
     doc.write_text("# Review\n")
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once", *args)
-    doc.write_text("# Review\n\nPlease look at the second section.\n")
+    _replace_doc(doc, "# Review\n\nPlease look at the second section.\n")
     try:
         out, _ = proc.communicate(timeout=5)
     except subprocess.TimeoutExpired:
@@ -240,7 +247,7 @@ def test_editing_then_mine_records_an_edit_for_the_calling_lemon(tmp_path, doc):
 def test_a_waiter_on_a_missing_doc_waits_for_it(tmp_path):
     doc = tmp_path / "later.md"
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once")
-    doc.write_text("# Review\n\nPlease look.\n")
+    _replace_doc(doc, "# Review\n\nPlease look.\n")
     try:
         out, _ = proc.communicate(timeout=5)
     except subprocess.TimeoutExpired:
