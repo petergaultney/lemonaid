@@ -12,6 +12,7 @@ from ..config import load_config
 from ..inbox import db, emoji
 from ..inbox.tui.briefs import brief_popup
 from . import (
+    answers_cli,
     attached,
     dismiss,
     docs_cli,
@@ -242,6 +243,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.set_defaults(func=cmd_show)
 
+    answers_cli.add_parsers(brief_subparsers)
     docs_cli.add_parser(brief_subparsers)
     lemons_cli.add_parser(brief_subparsers)
     write_cli.add_parsers(brief_subparsers)

@@ -100,6 +100,7 @@ def test_new_briefs_are_dated_and_named_after_the_work():
     assert [line for line in text.splitlines() if line.startswith("## ")] == [
         "## Now",
         "## Questions",
+        "## Answers",
         "## Next",
         "## PRs",
         "## Docs",
