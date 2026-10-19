@@ -91,14 +91,12 @@ def parse(body: str) -> Now:
 
 
 def find(now: Now, heading: str) -> int | None:
-    """The index of the section *heading* names: the same rank, or the same text if unranked."""
-    wanted = rank(heading)
+    """The index of the section with the same heading text, ignoring case."""
     return next(
         (
             i
             for i, section in enumerate(now.sections)
-            if (wanted is not None and rank(section.heading) == wanted)
-            or (wanted is None and section.heading.strip().lower() == heading.strip().lower())
+            if section.heading.strip().lower() == heading.strip().lower()
         ),
         None,
     )

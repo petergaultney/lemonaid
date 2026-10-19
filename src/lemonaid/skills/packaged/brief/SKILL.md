@@ -39,7 +39,7 @@ Before asking your user to review a PR, check mergeability and green CI too. Con
 
 ## Lay out the brief
 
-Keep `## Now` directly after the header. It holds current prose and `### Needs <who>`, `### Running`, and `### Waiting on`. `### Lemons` can still list lemons you watch besides your children.
+Keep `## Now` directly after the header. It holds current prose and `### Needs <who>`, `### Running`, and `### Waiting on`. Different people may have separate Needs headings; duplicate heading names are refused without regard to case. `### Lemons` can still list lemons you watch besides your children.
 
 Use this section order, omitting empty sections: header, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, then the parent's task sections, then `## Watching`. This is a writing convention, not an enforced order. Arbitrary headings are welcome at any level.
 
@@ -90,7 +90,7 @@ lemonaid brief migrate --self
 
 `lemonaid brief now --self "..."` replaces progress in `## Now`, keeping existing PRs and Docs tables when their headings are omitted; pass `-` to read it from stdin. It refuses a body that drops any other sub-heading the section has; to change one line use the bullet verbs, and to rewrite the whole section pass `--replace-all` (
 
-`lemonaid brief now --self --replace-all -`). Supplying a legacy PRs or Docs heading replaces that table. Once promoted sections exist, `brief now` refuses to put those headings back under Now, including with `--replace-all`; use `brief section set` or the bullet verbs. `brief now` never migrates headings. Use `brief pr rm` or `brief doc rm` to remove individual rows.
+`lemonaid brief now --self --replace-all -`). Supplying a legacy PRs or Docs heading replaces that table. Once promoted sections exist, `brief now` still edits Now in place and leaves the separate sections unchanged. Its replacement body must omit Next, PRs, Docs and Done headings, including with `--replace-all`; edit a separate section with `lemonaid brief section set --self "Next" -` (substitute its heading), or use the bullet verbs. `brief now` never migrates headings. Use `brief pr rm` or `brief doc rm` to remove individual rows.
 
 <!-- harness: claude -->
 You may edit a brief directly. After every hand edit, run `lemonaid brief check --self` and fix its reports; the Stop hook also keeps the turn from ending with an invalid brief.

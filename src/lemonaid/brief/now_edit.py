@@ -74,8 +74,9 @@ def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
     ]
     if carried:
         raise EditError(
-            f"{', '.join(carried)} belongs in its own section in this layout; use `brief section set`"
-            " or `brief bullet add|set|rm` instead of `brief now`"
+            f"{', '.join(carried)} must stay outside ## Now in this layout, even with --replace-all. "
+            f"Edit it with `lemonaid brief section set --self \"{carried[0]}\" -`. "
+            "To edit only ## Now, omit Next, PRs, Docs and Done headings from the new body."
         )
     now = layout.parse(body)
     dropped = [
@@ -88,8 +89,9 @@ def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
         current = layout.render(now_of(text)).rstrip()
         raise EditError(
             f"This would drop {', '.join(f'### {h}' for h in dropped)} from ## Now, which is now:"
-            f"\n\n{current}\n\nChange one line with `brief bullet add|set|rm`, or pass"
-            " --replace-all to rewrite the section."
+            f"\n\n{current}\n\nChange one line with `lemonaid brief bullet set --self "
+            '"<bullet prefix>" "<new text>"`, or rewrite ## Now with '
+            "`lemonaid brief now --self --replace-all -`. Sections outside ## Now stay unchanged."
         )
 
     kept = tuple(

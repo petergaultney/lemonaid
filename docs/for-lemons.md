@@ -792,7 +792,7 @@ An ID's shape is not validated; only folder safety is checked. It must be
 non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control
 character, or leading dot.
 
-Keep `## Now` for current prose, `### Needs <who>`, `### Running` and `### Waiting on`.
+Keep `## Now` for current prose, `### Needs <who>`, `### Running` and `### Waiting on`. Different people may have separate Needs headings; duplicate heading names are refused without regard to case.
 Use level-2 sections for `Next`, `PRs`, `Docs` and `Done`. The canonical writing order is
 header, Now, Questions, Next, PRs, Docs, Done, the parent's sections, then Watching.
 This order is a convention; readers and editors do not sort sections.
@@ -855,7 +855,10 @@ PRs and Docs tables. It refuses to drop other subheadings and prints the current
 pass `--replace-all` to replace all progress. That flag still preserves omitted subscription
 tables. A supplied legacy PRs or Docs heading replaces its table; use `brief pr rm` or
 `brief doc rm` to remove individual rows. On a brief with promoted sections, `brief now`
-refuses to reintroduce those names inside Now and points to the generic verbs.
+still edits Now in place and leaves the separate sections unchanged. It refuses replacement
+bodies containing Next, PRs, Docs or Done headings, even with `--replace-all`. Edit a separate
+section with `lemonaid brief section set --self "Next" -` (substitute its heading),
+or omit those headings to update only Now.
 
 `brief check` warns about legacy Next, PRs, Docs and Done subheadings and names
 `brief migrate --self` (or `--all`). The warning does not refuse an edit.

@@ -191,3 +191,13 @@ def test_replacing_progress_keeping_every_sub_heading_needs_no_flag():
 def test_replacing_progress_refuses_an_empty_heading_that_would_vanish():
     with pytest.raises(now_edit.EditError, match="### Waiting on"):
         now_edit.replace_progress(_BRIEF, "### Waiting on\n")
+
+
+def test_replacing_progress_requires_each_persons_needs_heading():
+    brief = "# task\n\n## Now\n\n### Needs Sam\n\n- decide\n\n### Needs Ben\n\n- review\n"
+    with pytest.raises(now_edit.EditError, match="drop ### Needs Ben"):
+        now_edit.replace_progress(brief, "### Needs Sam\n\n- changed")
+
+    out = now_edit.replace_progress(brief, "### Needs Sam\n\n- changed", replace_all=True)
+    assert "### Needs Ben" not in out
+    assert "### Needs Sam\n\n- changed" in out

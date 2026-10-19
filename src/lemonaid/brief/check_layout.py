@@ -73,13 +73,16 @@ def spacing(lines: abc.Sequence[str]) -> list[str]:
 
 def now_problems(now: layout.Now) -> list[str]:
     problems = []
-    seen: dict[object, str] = {}
+    seen: set[str] = set()
     for section in now.sections:
         rank = layout.rank(section.heading)
-        key = rank if rank is not None else section.heading.strip().lower()
+        key = section.heading.strip().lower()
         if key in seen:
-            problems.append(f"`### {section.heading}` appears twice in ## Now")
-        seen[key] = section.heading
+            detail = (
+                "; Needs headings must have different names (case-insensitive)" if rank == 0 else ""
+            )
+            problems.append(f"`### {section.heading}` appears twice in ## Now{detail}")
+        seen.add(key)
         if not section.body:
             problems.append(f"`### {section.heading}` in ## Now is empty")
         if rank == layout.ORDER.index("prs") and section.body:

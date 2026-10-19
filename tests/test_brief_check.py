@@ -391,3 +391,44 @@ def test_migrate_all_handles_attached_briefs_and_is_idempotent(capsys):
     assert "\n## PRs\n" in first
     assert _run(capsys, "migrate", "--all")["error"] is None
     assert path.read_text() == first
+
+
+@pytest.mark.parametrize("names", [("Needs Sam", "Needs Ben"), ("Needs", "Needs Sam")])
+def test_needs_headings_for_different_people_are_valid(names):
+    text = _BRIEF.replace(
+        "### Next", f"### {names[0]}\n\n- decision\n\n### {names[1]}\n\n- review\n\n### Next"
+    )
+    assert check.structure(text) == []
+
+
+@pytest.mark.parametrize("second", ["Needs Sam", "needs sam"])
+def test_duplicate_needs_heading_names_are_refused(second):
+    text = _BRIEF.replace(
+        "### Next", f"### Needs Sam\n\n- decision\n\n### {second}\n\n- review\n\n### Next"
+    )
+    assert check.structure(text) == [
+        f"`### {second}` appears twice in ## Now; Needs headings must have different names (case-insensitive)"
+    ]
+
+
+def test_now_edits_migrated_layout_and_preserves_other_sections(capsys):
+    text = (
+        _BRIEF.replace("### Next", "## Next")
+        .replace("### PRs", "## PRs")
+        .replace("### Done", "## Done")
+    )
+    path = _attached(text)
+    result = _run(capsys, "now", "--channel", "codex:t1", "Updated progress.")
+
+    assert result["error"] is None
+    assert "## Now\n\nUpdated progress.\n" in path.read_text()
+    assert path.read_text().split("## Next", 1)[1] == text.split("## Next", 1)[1]
+
+
+def test_now_refusal_names_an_executable_replacement_command(capsys):
+    text = _BRIEF.replace("### Next", "## Next")
+    path = _attached(text)
+    result = _run(capsys, "now", "--channel", "codex:t1", "### Next\n\n- new")
+
+    assert 'lemonaid brief section set --self "Next" -' in result["error"]
+    assert path.read_text() == text

@@ -184,3 +184,12 @@ def test_new_nested_heading_has_the_requested_parent():
 def test_check_reports_duplicate_now_even_with_promoted_sections():
     text = "# task\n\n## Now\n\n## Now\n\n## Next\n\n- next\n"
     assert "`## Now` appears 2 times" in check.structure(text)
+
+
+def test_now_refusal_does_not_treat_example_headings_as_promoted_sections():
+    text = migrate.layout(LEGACY)
+    out = now_edit.replace_progress(
+        text, "Example:\n\n```markdown\n### Next\n\n- example\n```", replace_all=True
+    )
+    assert "```markdown\n### Next\n\n- example\n```" in out
+    assert sections.body(out, sections.find(out, "Next")) == ("- write docs",)
