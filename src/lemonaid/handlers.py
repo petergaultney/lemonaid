@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from collections import abc
 from typing import Any, Literal
 
 from . import cmux, tmux, wezterm
@@ -56,6 +57,7 @@ def handle_notification(
     metadata: dict[str, Any] | None,
     config: Config | None = None,
     switch_source: str | None = None,
+    on_tmux_resume: abc.Callable[[str], None] | None = None,
 ) -> bool:
     """
     Handle a notification by switching to its source.
@@ -82,7 +84,7 @@ def handle_notification(
         return subprocess.run(["open", uri], check=False).returncode == 0
 
     if switch_source == "tmux":
-        return _handle_tmux(metadata, config)
+        return _handle_tmux(metadata, config, on_tmux_resume)
     elif switch_source == "wezterm":
         return _handle_wezterm(metadata, config)
     elif switch_source == "cmux":
@@ -207,21 +209,24 @@ def _runs(tty: str, harness: str) -> bool:
     return found
 
 
-def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
+def _handle_tmux(
+    metadata: dict[str, Any] | None,
+    config: Config,
+    on_resume: abc.Callable[[str], None] | None = None,
+) -> bool:
     """Handle notification by switching to its pane, or recreating a dead session."""
     if metadata is None:
         return False
 
-    session, pane_id = None, None
+    try:
+        session, pane_id = tmux.recorded_pane.locate(metadata)
+    except tmux.navigation.TmuxUnavailable as error:
+        _log.warning("not switching to %s: %s", metadata.get("channel"), error)
+        return False
 
-    # Try to resolve pane from TTY first (most reliable)
-    tty = metadata.get("tty")
-    if tty:
-        session, pane_id = tmux.navigation.get_pane_for_tty(tty)
-
-    # Fallback: resolve from cwd, for rows with no tty (a Codex session hosted on
-    # the app-server daemon records none) or whose tty is no longer a pane.
-    if session is None or pane_id is None:
+    # Directory lookup is only for rows without a recorded identity; it cannot
+    # override evidence that a known pane is gone.
+    if (session is None or pane_id is None) and not tmux.recorded_pane.has_identity(metadata):
         cwd = metadata.get("cwd")
         if cwd:
             harness = watcher.harness_process(metadata.get("channel", ""))
@@ -245,6 +250,14 @@ def _handle_tmux(metadata: dict[str, Any] | None, config: Config) -> bool:
         return False
 
     if session is None or pane_id is None:
-        return tmux.recreate.recreate(metadata, config)
+        if on_resume is None:
+            return tmux.recreate.recreate(metadata, config)
+
+        tty = tmux.recreate.resume(metadata, config)
+        if tty is None:
+            return False
+
+        on_resume(tty)
+        return True
 
     return tmux.navigation.switch_to_pane(session, pane_id)

@@ -114,9 +114,16 @@ which lemon is in view.
 When you press Enter on a notification in the `lma` TUI:
 
 1. Lemonaid looks up the TTY from the notification metadata
-2. Queries tmux to find which session/pane owns that TTY
+2. Queries tmux for that TTY and validates the saved session and pane identity when available
 3. Saves your current location to `~/.local/state/lemonaid/tmux-back.json`
 4. Runs `tmux switch-client -t <pane_id>` to switch to the target
+
+If the saved location is gone, Lemonaid tries to resume the conversation in a
+safe existing session. A TTY reused by another session is not a valid jump target.
+Successful resumes update the row immediately, so selecting it again switches
+to the resumed pane.
+If tmux cannot answer or the recorded server differs from the current one, no
+jump or resume is attempted.
 
 ### Back navigation
 

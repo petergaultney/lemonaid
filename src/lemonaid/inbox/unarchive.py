@@ -99,7 +99,8 @@ def moved(
         return
 
     metadata = {**json.loads(row["metadata"] or "{}"), "tty": tty, "tmux_socket": socket}
-    metadata.pop("tmux_session_order", None)
+    for key in ("tmux_session", "tmux_window", "tmux_session_order", "tmux_pane_identity"):
+        metadata.pop(key, None)
     if socket is None:
         metadata.pop("tmux_socket")
     if location is not None:

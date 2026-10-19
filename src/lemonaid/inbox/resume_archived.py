@@ -17,6 +17,15 @@ def recorded_here(conn: sqlite3.Connection, channel: str, tty: str) -> None:
     unarchive.moved(conn, channel, tty, socket, location)
 
 
+def record_inbox_resume(notification: db.Notification, tty: str) -> None:
+    with db.connect() as conn:
+        recorded_here(conn, notification.channel, tty)
+        updated = db.get(conn, notification.id)
+    if updated is not None:
+        notification.metadata.clear()
+        notification.metadata.update(updated.metadata)
+
+
 def _returned(channel: str, tty: str | None) -> None:
     with db.connect() as conn:
         if tty:
