@@ -4,7 +4,8 @@ import json
 import pytest
 
 from lemonaid import launch_config
-from lemonaid.brief import handoff_launch, store
+from lemonaid.brief import store
+from lemonaid.brief.handoff import launch as handoff_launch
 from lemonaid.config import Config, PlaceRoot, PlacesConfig, TmuxSessionConfig
 from lemonaid.inbox import db
 from lemonaid.launch import passthrough
