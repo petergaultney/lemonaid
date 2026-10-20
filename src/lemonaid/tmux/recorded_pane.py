@@ -68,3 +68,49 @@ def locate(metadata: dict[str, ty.Any]) -> tuple[str | None, str | None]:
         matches.add((session, pane))
 
     return next(iter(matches)) if len(matches) == 1 else (None, None)
+
+
+def pane_metadata() -> dict[str, list[dict[str, ty.Any]]]:
+    """Live physical panes by TTY; linked aliases use the first sorted location."""
+    socket = navigation.current_socket()
+    try:
+        result = subprocess.run(
+            [
+                *navigation.server_args(socket),
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_id}|#{pane_tty}|#{session_name}|#{window_index}|#{session_created}|#{start_time}|#{session_id}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=0.5,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise navigation.TmuxUnavailable(str(error)) from error
+    locations: dict[str, list[dict[str, ty.Any]]] = {}
+    seen: set[tuple[str, int]] = set()
+    for line in sorted(result.stdout.splitlines()):
+        parts = line.split("|")
+        if len(parts) != 7:
+            continue
+        pane, tty, session, window, created, started, sid = parts
+        try:
+            order = [int(created), int(started), int(sid.removeprefix("$"))]
+        except ValueError:
+            continue
+        identity = (pane, order[1])
+        if identity in seen:
+            continue
+        seen.add(identity)
+        location = {
+            "tty": tty,
+            "tmux_session": session,
+            "tmux_window": window,
+            "tmux_pane_identity": [pane, order[1]],
+            "tmux_session_order": order,
+            **({"tmux_socket": socket} if socket else {}),
+        }
+        locations.setdefault(tty, []).append(location)
+    return locations

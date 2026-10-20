@@ -1,6 +1,7 @@
 """The inbox's side of the transcript watcher: what it reads and records in the database."""
 
 import functools
+import time
 import typing as ty
 from collections import abc
 
@@ -176,9 +177,20 @@ def start(
     brief_cache: brief_cards.BriefCache,
     detached_channels: abc.Callable[[set[str]], None],
 ) -> None:
+    last_repair: float | None = None
+
+    def active() -> list[tuple]:
+        nonlocal last_repair
+        now = time.monotonic()
+        if last_repair is None or now - last_repair >= 10:
+            last_repair = now
+            with db.connect() as conn:
+                handlers.repair_tmux_locations(conn)
+        return active_sessions()
+
     start_unified_watcher(
         backends=ty.cast(list, [claude.watcher, codex.watcher, openclaw.watcher, opencode.watcher]),
-        get_active=active_sessions,
+        get_active=active,
         mark_read=mark_channel_read,
         update_message=update_channel_message,
         archive_channel=archive_channel,

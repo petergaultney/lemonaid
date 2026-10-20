@@ -1128,3 +1128,24 @@ def add_notification(
 
     with connect() as conn:
         return add(conn, channel, message, name, metadata, upsert).id
+
+
+def repair_location(
+    conn: sqlite3.Connection, notification: Notification, location: dict[str, Any]
+) -> bool:
+    """Replace only location fields, if this row has not changed since it was read."""
+    row = conn.execute(
+        "SELECT metadata FROM notifications WHERE id = ? AND channel = ?",
+        (notification.id, notification.channel),
+    ).fetchone()
+    if row is None or json.loads(row["metadata"] or "{}") != notification.metadata:
+        return False
+    updated = {**notification.metadata, **location}
+    if updated == notification.metadata:
+        return False
+    changed = conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ? AND channel = ? AND metadata IS ?",
+        (json.dumps(updated), notification.id, notification.channel, row["metadata"]),
+    ).rowcount
+    conn.commit()
+    return bool(changed)

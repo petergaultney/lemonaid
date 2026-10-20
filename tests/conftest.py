@@ -9,6 +9,7 @@ os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 import pytest  # noqa: E402
 
 from lemonaid.claude import session_socket  # noqa: E402
+from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
@@ -57,6 +58,11 @@ def _no_real_tmux(monkeypatch):
     override this.
     """
     monkeypatch.setenv("TMUX", "/nonexistent/lemonaid-tests,0,0")
+
+
+@pytest.fixture(autouse=True)
+def _no_live_codex_threads(monkeypatch):
+    monkeypatch.setattr(codex_processes, "thread_ttys", lambda: None)
 
 
 @pytest.fixture(autouse=True)

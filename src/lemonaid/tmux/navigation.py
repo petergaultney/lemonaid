@@ -483,6 +483,17 @@ def switch_to_pane(session: str, pane_id: str, save_current: bool = True) -> boo
             check=True,
             capture_output=True,
         )
+        try:
+            clients = subprocess.run(
+                ["tmux", "list-clients", "-F", "#{client_name}|#{session_name}|#{pane_id}"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=_QUERY_TIMEOUT_SECONDS,
+            )
+            _log.info("after tmux jump target=%s clients=%s", pane_id, clients.stdout.strip())
+        except (OSError, subprocess.SubprocessError) as error:
+            _log.debug("could not observe client after jump: %s", error)
         return True
     except subprocess.CalledProcessError:
         return False

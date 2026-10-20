@@ -63,3 +63,61 @@ def test_inbox_jump_without_tty_returns_to_author_from_reviewer(server, clients,
 
     assert handlers.handle_notification(metadata, Config(), switch_source="tmux")
     assert _query(server, "list-clients", "-F", "#{pane_id}") == pane
+
+
+def test_click_handler_repairs_author_row_pointing_to_live_reviewer(server, clients, monkeypatch):
+    from lemonaid import handlers
+    from lemonaid.codex import processes
+    from lemonaid.config import Config
+    from lemonaid.inbox import db
+
+    author = _record(server, "source:0")
+    _query(server, "new-window", "-t", "source")
+    reviewer = _record(server, "source:1")
+    with db.connect() as conn:
+        db.add(conn, "codex:author", "author", metadata=reviewer.metadata, switch_source="tmux")
+    clients("source")
+    monkeypatch.setenv("TMUX", f"{server[2]},0,0")
+    monkeypatch.setattr(processes, "thread_ttys", lambda: {"author": {author.metadata["tty"]}})
+
+    assert handlers.handle_notification(
+        {**reviewer.metadata, "channel": "codex:author"}, Config(), switch_source="tmux"
+    )
+    assert (
+        _query(server, "list-clients", "-F", "#{pane_id}")
+        == author.metadata["tmux_pane_identity"][0]
+    )
+    with db.connect() as conn:
+        fixed = db.get_by_channel(conn, "codex:author", unread_only=False)
+        assert fixed.metadata["tty"] == author.metadata["tty"]
+        assert fixed.metadata["tmux_window"] == "0"
+        assert fixed.metadata["tmux_pane_identity"] == author.metadata["tmux_pane_identity"]
+
+
+@pytest.mark.parametrize("destination", ["source:1", "second:1"])
+def test_linked_physical_pane_with_verified_owner_remains_switchable(
+    server, clients, monkeypatch, destination
+):
+    from lemonaid import handlers
+    from lemonaid.codex import processes
+    from lemonaid.config import Config
+    from lemonaid.inbox import db
+
+    row = _record(server, "source:0")
+    if destination.startswith("second:"):
+        _query(server, "new-session", "-d", "-s", "second")
+    _query(server, "link-window", "-s", "source:0", "-t", destination)
+    reviewer = _query(server, "new-window", "-P", "-F", "#{pane_id}", "-t", "source")
+    clients("source")
+    assert _query(server, "list-clients", "-F", "#{pane_id}") == reviewer
+    monkeypatch.setenv("TMUX", f"{server[2]},0,0")
+    monkeypatch.setattr(processes, "thread_ttys", lambda: {"real": {row.metadata["tty"]}})
+    assert len(handlers.codex_tmux_locations()["real"]) == 1
+    assert handlers.handle_notification(
+        {**row.metadata, "channel": row.channel}, Config(), switch_source="tmux"
+    )
+    assert (
+        _query(server, "list-clients", "-F", "#{pane_id}") == row.metadata["tmux_pane_identity"][0]
+    )
+    with db.connect() as conn:
+        assert handlers.repair_tmux_locations(conn) == 0

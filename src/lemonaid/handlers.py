@@ -1,12 +1,15 @@
 """Notification handlers for lemonaid."""
 
 import json
+import sqlite3
 import subprocess
 from collections import abc
 from typing import Any, Literal
 
 from . import cmux, tmux, wezterm
+from .codex import processes
 from .config import Config, load_config
+from .inbox import db
 from .lemon_watchers import watcher
 from .log import get_logger
 
@@ -209,6 +212,56 @@ def _runs(tty: str, harness: str) -> bool:
     return found
 
 
+def codex_tmux_locations() -> dict[str, list[dict[str, Any]]] | None:
+    threads = processes.thread_ttys()
+    if threads is None:
+        return None
+    try:
+        panes = tmux.recorded_pane.pane_metadata()
+    except tmux.navigation.TmuxUnavailable:
+        return None
+    return {
+        thread: [location for tty in ttys for location in panes.get(tty, [])]
+        for thread, ttys in threads.items()
+    }
+
+
+def repair_tmux_locations(
+    conn: sqlite3.Connection, locations: dict[str, list[dict[str, Any]]] | None = None
+) -> int:
+    if locations is None:
+        locations = codex_tmux_locations()
+    if locations is None:
+        return 0
+    repaired = 0
+    for notification in db.get_active(conn, switch_source="tmux"):
+        if not notification.channel.startswith("codex:"):
+            continue
+        matches = locations.get(notification.channel.removeprefix("codex:"), [])
+        if len(matches) == 1 and db.repair_location(conn, notification, matches[0]):
+            repaired += 1
+            _log.info(
+                "repaired tmux location channel=%s pane=%s",
+                notification.channel,
+                matches[0]["tmux_pane_identity"][0],
+            )
+    return repaired
+
+
+def refresh_notification_location(notification: db.Notification) -> db.Notification:
+    if notification.switch_source != "tmux" or not notification.channel.startswith("codex:"):
+        return notification
+    locations = codex_tmux_locations()
+    if locations is None:
+        return notification
+    matches = locations.get(notification.channel.removeprefix("codex:"), [])
+    if len(matches) != 1:
+        return notification
+    with db.connect() as conn:
+        db.repair_location(conn, notification, matches[0])
+        return db.get(conn, notification.id) or notification
+
+
 def _handle_tmux(
     metadata: dict[str, Any] | None,
     config: Config,
@@ -217,6 +270,18 @@ def _handle_tmux(
     """Handle notification by switching to its pane, or recreating a dead session."""
     if metadata is None:
         return False
+
+    channel = metadata.get("channel", "")
+    if channel.startswith("codex:"):
+        locations = codex_tmux_locations()
+        if locations is not None and channel.removeprefix("codex:") in locations:
+            matches = locations[channel.removeprefix("codex:")]
+            if len(matches) != 1:
+                _log.warning("not switching to %s: no unique terminal owns its thread", channel)
+                return False
+            with db.connect() as conn:
+                repair_tmux_locations(conn, {channel.removeprefix("codex:"): matches})
+            metadata.update(matches[0])
 
     try:
         session, pane_id = tmux.recorded_pane.locate(metadata)

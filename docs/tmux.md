@@ -696,9 +696,17 @@ lived in it.
    override a mismatched recorded identity.
 3. Test manually: `tmux switch-client -t %5` (replace %5 with actual pane ID)
 
+The inbox repairs saved Codex locations at startup and every ten seconds when
+open rollout files identify one live terminal for the thread. Clicking also
+checks that mapping before switching. An author and reviewer sharing a directory
+are resolved by their separate threads, and repair preserves names, messages,
+read state and timestamps. Unavailable process information or ambiguous locations
+do not change saved rows.
+
 Jumps log the channel, resolved session and pane, and whether tmux accepted the
-switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). Refusals and resume failures
-are logged there too.
+switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). The client listing immediately
+after the command records which pane the attached clients actually show.
+Location repairs, refusals and resume failures are logged there too.
 
 ### The sidebar stays behind when you switch windows
 

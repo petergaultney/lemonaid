@@ -4,6 +4,7 @@ import subprocess
 import time
 from collections.abc import Iterable, Sequence
 
+from .... import handlers
 from ....lemon_watchers import get_tmux_socket
 from ....tmux import navigation
 from ... import db, sections
@@ -105,6 +106,8 @@ def behind_scratch(pane: str, socket: str | None) -> str | None:
 
 def is_behind_scratch(notification: db.Notification | None, pane: str) -> bool:
     """Whether *notification* is the session in the terminal this scratch pane covers."""
+    if notification is not None:
+        notification = handlers.refresh_notification_location(notification)
     behind = behind_scratch(pane, get_tmux_socket())
     return bool(notification and behind and notification.metadata.get("tty") == behind)
 
