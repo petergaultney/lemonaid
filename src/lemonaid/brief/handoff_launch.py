@@ -7,7 +7,7 @@ from ..config import load_config
 from ..inbox import db
 from ..launch import command, resolve
 from ..resume import build_resume_command
-from . import handoff_tmux
+from . import handoff_executable, handoff_tmux
 
 
 def configured_line(harness: str, fallback: str = "") -> str:
@@ -32,9 +32,7 @@ def destination(name: str) -> str:
     if name in ("claude", "codex"):
         return name
 
-    words = shlex.split(configured_line(name))
-    backend = Path(words[0]).name if words else ""
-    if backend not in ("claude", "codex"):
+    if not (backend := handoff_executable.harness_executable(configured_line(name))):
         raise ValueError(f"Handoff destination {name!r} must run a Claude or Codex executable")
 
     return backend

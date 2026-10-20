@@ -7,7 +7,14 @@ from unittest.mock import Mock
 import pytest
 
 from lemonaid import launch_config
-from lemonaid.brief import attached, handoff_cli, handoff_launch, handoff_report, handoff_state
+from lemonaid.brief import (
+    attached,
+    handoff_cli,
+    handoff_executable,
+    handoff_launch,
+    handoff_report,
+    handoff_state,
+)
 from lemonaid.config import Config, TmuxSessionConfig
 from lemonaid.inbox.migrations import m027_handoff_launch_name
 
@@ -86,3 +93,63 @@ def test_handoff_rejects_a_preset_for_an_unsupported_backend(monkeypatch):
     monkeypatch.setattr(handoff_launch, "load_config", lambda: config)
     with pytest.raises(ValueError, match="must run a Claude or Codex"):
         handoff_launch.destination("other")
+
+
+@pytest.mark.parametrize(
+    ("line", "backend"),
+    [
+        ("lemonaid claude patch && claude --model sonnet --remote-control", "claude"),
+        ("lemonaid claude patch && claude --allow-dangerously-skip-permissions", "claude"),
+        ("claude", "claude"),
+        ("codex --no-daemon", "codex"),
+        ("FOO=1 env BAR=2 /usr/bin/codex -c x=1", "codex"),
+        ("other-cli --flag", ""),
+        ("lemonaid claude patch && other-cli", ""),
+        ('echo "&&" claude', ""),
+        ("echo ';' codex", ""),
+        ("echo \\&\\& claude", ""),
+        ('"tools=x/claude" --flag', "claude"),
+        ('"FOO=bar" claude', ""),
+        ("env -u FOO claude", "claude"),
+        ("env -i FOO=1 codex", "codex"),
+        ("command -- claude", "claude"),
+        ('FOO="a b" claude', "claude"),
+        ("/tmp/my\\ tools/claude --x", "claude"),
+        ('env "FOO=bar" claude', "claude"),
+        ("command -v claude", ""),
+        ("command -V claude", ""),
+        ("command -pv claude", ""),
+        ("command -p claude", "claude"),
+        ("env --help claude", ""),
+        ("env --version claude", ""),
+        ("env --unknown claude", ""),
+        ("env --unset=FOO -i claude", "claude"),
+        ('env -S "claude --model sonnet"', ""),
+        ("lemonaid claude patch && env -u X claude --model sonnet", "claude"),
+    ],
+)
+def test_harness_executable_skips_wrappers(line, backend):
+    assert handoff_executable.harness_executable(line) == backend
+
+
+def test_heal_migration_adds_missing_launch_name_and_is_idempotent():
+    from lemonaid.inbox.migrations import m028_heal_handoff_launch_name as m028
+
+    with sqlite3.connect(":memory:") as conn:
+        conn.execute("CREATE TABLE brief_handoffs (harness TEXT)")
+        conn.execute("INSERT INTO brief_handoffs VALUES ('claude')")
+        m028.migrate(conn)
+        m028.migrate(conn)
+        assert conn.execute("SELECT launch_name FROM brief_handoffs").fetchall() == [("",)]
+
+
+def test_heal_runs_on_a_database_stuck_at_version_27(tmp_path):
+    from lemonaid.inbox import migrations
+
+    conn = sqlite3.connect(tmp_path / "x.db")
+    conn.execute("CREATE TABLE brief_handoffs (harness TEXT)")
+    conn.execute("PRAGMA user_version = 27")
+    migrations.run_migrations(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(brief_handoffs)")}
+    assert "launch_name" in cols
+    assert migrations.get_current_version(conn) >= 28
