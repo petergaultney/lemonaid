@@ -250,8 +250,8 @@ used to when it set `working`, and while it is `dead` unless that is listed too.
 A lemon marked `deaf` never folds, even when `deaf` or its manual status is listed.
 A `done` lemon is never marked `deaf`, so it folds as listed.
 `waiting` and `working`, from before lemonaid derived them, mean `idle` and
-`active`. `w` (the `fold` key) opens the group, listing those
-sessions at the bottom of the list, and closes it again. A folded session in a
+`active`. `w` (the `fold` key) opens the fold, restoring those
+sessions in their usual order, and closes it again. A folded session in a
 group stays hidden in its group instead, and still counts on the line; see
 [groups.md](groups.md#in-the-inbox). It works the same in the
 column layout and the sidebar.

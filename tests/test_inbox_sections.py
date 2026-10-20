@@ -109,8 +109,8 @@ def test_a_folded_row_in_a_group_hides_in_place_and_the_rest_stay_in_the_fold():
     assert _keys(closed) == ["group:1", "3@1"]
     assert closed[0].tally == "1/2"
     assert folded == [quiet_loose]
-    assert _keys(opened) == ["group:1", "3@1", "1@1"]
-    assert opened[0].tally == "2"
+    assert _keys(opened) == ["2", "group:1", "3@1", "1@1"]
+    assert opened[1].tally == "2"
 
 
 def test_without_groups_the_order_is_unchanged():

@@ -21,7 +21,7 @@ def entries(
     """The main table's entries, the rows still folded away, and the other-terminal rows.
 
     A search draws only its matches, under their groups; otherwise rows sit under their
-    groups, and an open fold draws its rows after everything else.
+    groups, and an open fold restores its rows in place.
     """
     if frame.matching_ids is not None:
         matching = frame.matching_ids
@@ -63,6 +63,4 @@ def entries(
         group_order=group_order,
         ungrouped_first=ungrouped_first,
     )
-    if fold_open:
-        laid_out = [*laid_out, *(sections.Row(str(n.id), n) for n in folded)]
     return laid_out, folded, frame.other

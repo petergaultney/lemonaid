@@ -66,7 +66,7 @@ def test_fold_expand_keeps_grouped_rows_in_place(enabled):
         await pilot.press(app.config.tui.keybindings.fold)
         await pilot.pause()
         expected = (
-            ["claude:loose", "", "claude:member", "claude:folded"]
+            ["claude:loose", "claude:folded", "", "claude:member"]
             if enabled
             else ["", "claude:member", "claude:loose", "claude:folded"]
         )

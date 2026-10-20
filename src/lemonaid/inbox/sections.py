@@ -149,10 +149,14 @@ def layout(
         )
 
     entries: list[Header | Row] = [
-        Row(str(n.id), n) for n in shown if n.channel in pinned and n.channel not in in_a_group
+        Row(str(n.id), n)
+        for n in (every if fold_open else shown)
+        if n.channel in pinned and n.channel not in in_a_group
     ]
     ungrouped = [
-        Row(str(n.id), n) for n in shown if n.channel not in in_a_group and n.channel not in pinned
+        Row(str(n.id), n)
+        for n in (every if fold_open else shown)
+        if n.channel not in in_a_group and n.channel not in pinned
     ]
     if ungrouped_first:
         entries.extend(ungrouped)

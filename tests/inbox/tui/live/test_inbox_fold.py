@@ -137,7 +137,7 @@ def test_folded_rows_leave_the_list_and_the_label_counts_them(fold_waiting):
     assert label == "▸ idle (2) · w to show"
 
 
-def test_the_fold_key_opens_the_group_at_the_bottom_and_closes_it(fold_waiting):
+def test_the_fold_key_restores_rows_in_order_and_closes_it(fold_waiting):
     with db.connect() as conn:
         waiting = _session(conn, "waiting", age=5)
         working = _session(conn, "working", age=30)
@@ -153,7 +153,7 @@ def test_the_fold_key_opens_the_group_at_the_bottom_and_closes_it(fold_waiting):
 
     opened, closed = _run(steps)
 
-    assert opened == ([working, waiting], "▴ idle (1) above · w to fold")
+    assert opened == ([waiting, working], "▴ idle (1) above · w to fold")
     assert closed == ([working], "▸ idle (1) · w to show")
 
 
