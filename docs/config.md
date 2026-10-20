@@ -493,6 +493,7 @@ vaults = ["~/notes", "~/work/kb"]
 | `snooze_day_starts` | `"09:00"` | Local time a snooze of a day or more ends; not related to `day_starts`. |
 | `snooze_presets` | `["30m", "3h", "1d", "4d"]` | The snooze picker's presets, in the `s` key's syntax. |
 | `arrange` | `""` | A program `lma` keeps running to order its list and choose what folds; see [arrange.md](arrange.md). |
+| `ungrouped_first` | `true` | Show ungrouped lemons above group headings, after ungrouped pins. Set `false` to put them below groups. |
 | `arrange_may_fold_unread` | `false` | Let the arranger fold unread sessions, which otherwise stay in the list. |
 | `stall_minutes` | `15` | Minutes a lemon may sit idle on a PR it owes the next move on before its card says "stuck" and `lemon doctor --stalls` lists it. |
 

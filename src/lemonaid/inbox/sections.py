@@ -1,7 +1,7 @@
 """The inbox list cut into groups: each under a header line, in manual order.
 
-Pinned rows in no group come first, followed by groups in their stored order,
-then the remaining rows in no group in the order they arrived in.
+Pinned rows in no group come first. The remaining rows in no group keep their
+incoming order, before or after groups in their stored order.
 
 A group is its header, its pinned and deaf rows, which stay when it's collapsed, and
 unless it's collapsed the rest of its rows, bar any the caller keeps drawn. A
@@ -79,6 +79,7 @@ def layout(
     deaf: abc.Container[str] = (),
     *,
     group_order: abc.Sequence[db.Notification] = (),
+    ungrouped_first: bool = True,
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
@@ -150,13 +151,15 @@ def layout(
     entries: list[Header | Row] = [
         Row(str(n.id), n) for n in shown if n.channel in pinned and n.channel not in in_a_group
     ]
+    ungrouped = [
+        Row(str(n.id), n) for n in shown if n.channel not in in_a_group and n.channel not in pinned
+    ]
+    if ungrouped_first:
+        entries.extend(ungrouped)
     for group in all_groups:
         if shows_a_row(group):
             entries.extend(drawn(group))
-
-    for n in shown:
-        if n.channel in in_a_group or n.channel in pinned:
-            continue
-        entries.append(Row(str(n.id), n))
+    if not ungrouped_first:
+        entries.extend(ungrouped)
 
     return entries, [n for n in folded if n.channel not in in_a_group]

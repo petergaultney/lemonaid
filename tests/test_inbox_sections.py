@@ -16,7 +16,8 @@ def _keys(entries) -> list[str]:
     return [e.key for e in entries]
 
 
-def test_ungrouped_pins_then_each_group_under_its_header_then_the_rest():
+@pytest.mark.parametrize("ungrouped_first", [True, False])
+def test_ungrouped_position_keeps_pins_first_and_groups_in_manual_order(ungrouped_first):
     pin, loose, a1, b1 = _n(1, "pin"), _n(2, "loose"), _n(3, "a1"), _n(4, "b1")
 
     entries, folded = sections.layout(
@@ -26,9 +27,11 @@ def test_ungrouped_pins_then_each_group_under_its_header_then_the_rest():
         {"a1": ("A",), "b1": ("B",)},
         [_group(1, "A"), _group(2, "B")],
         {},
+        ungrouped_first=ungrouped_first,
     )
 
-    assert _keys(entries) == ["1", "group:1", "3@1", "group:2", "4@2", "2"]
+    grouped = ["group:1", "3@1", "group:2", "4@2"]
+    assert _keys(entries) == (["1", "2", *grouped] if ungrouped_first else ["1", *grouped, "2"])
     assert folded == []
 
 
@@ -125,7 +128,7 @@ def test_header_keys_name_their_group_and_no_notification():
     assert sections.group_id("12@7") is None
 
 
-def test_groups_keep_their_order_before_ungrouped_rows_in_status_order():
+def test_groups_keep_their_order_after_ungrouped_rows_in_status_order():
     alarm, blocked, chatty, quiet = (
         _n(1, "alarm"),
         _n(2, "blocked"),
@@ -144,7 +147,7 @@ def test_groups_keep_their_order_before_ungrouped_rows_in_status_order():
         statuses,
     )
 
-    assert _keys(entries) == ["group:1", "6@1", "group:2", "5@2", "1", "2", "3", "4"]
+    assert _keys(entries) == ["1", "2", "3", "4", "group:1", "6@1", "group:2", "5@2"]
 
 
 def test_a_group_with_every_row_folded_is_drawn_only_with_the_fold_open():
@@ -152,7 +155,7 @@ def test_a_group_with_every_row_folded_is_drawn_only_with_the_fold_open():
     args = ([loose], [quiet], set(), {"q": ("A",)}, [_group(1, "A")], {})
 
     assert _keys(sections.layout(*args)[0]) == ["1"]
-    assert _keys(sections.layout(*args, fold_open=True)[0]) == ["group:1", "2@1", "1"]
+    assert _keys(sections.layout(*args, fold_open=True)[0]) == ["1", "group:1", "2@1"]
 
 
 @pytest.mark.parametrize("collapsed", [False, True])

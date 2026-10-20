@@ -1,5 +1,8 @@
 """Groups in `lma`: a header line per group, collapsed with Enter or Tab, moved with the pin-move keys."""
 
+import os
+from pathlib import Path
+
 import pytest
 from textual.widgets import DataTable
 
@@ -13,6 +16,7 @@ from .shared import channels, keep_sessions, run, session  # noqa: F401
 
 @pytest.fixture
 def inbox():
+    Path(os.environ["LEMONAID_CONFIG"]).write_text("[inbox]\nungrouped_first = false\n")
     with db.connect() as conn:
         session(conn, "loose", "working")
         work = groups.store.create(conn, "Work")

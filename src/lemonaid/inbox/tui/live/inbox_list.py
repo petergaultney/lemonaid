@@ -221,7 +221,13 @@ class InboxList(Vertical):
         self._unfolded_ids = frozenset(str(n.id) for n in shown)
         all_folded = folded  # grouped ones too, which hide in place rather than in the fold
         entries, folded, other_notifications = inbox_entries.entries(
-            frame, shown, folded, self.kept, self.fold_open, group_order
+            frame,
+            shown,
+            folded,
+            self.kept,
+            self.fold_open,
+            group_order,
+            ungrouped_first=self.config.inbox.ungrouped_first,
         )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
