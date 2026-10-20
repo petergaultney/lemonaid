@@ -36,8 +36,12 @@ class Pause(ty.NamedTuple):
     reason: ty.Literal["quota", "secondary"]
 
 
+def state_dir() -> Path:
+    return cursors.root().parent / "github"
+
+
 def pause_path() -> Path:
-    return cursors.root().parent / "github" / "paused-until.json"
+    return state_dir() / "paused-until.json"
 
 
 def _saved() -> Pause | None:
@@ -101,10 +105,12 @@ def _pause_for(headers: dict[str, str], stderr: str, ok: bool) -> Pause | None:
     return None
 
 
-def graphql(fields: list[str], query: str) -> dict | None:
+def graphql(fields: list[str], query: str, *, partial: bool = False) -> dict | None:
     """The response's `data`; None when paused, refused, timed out or unreadable.
 
-    `fields` are `gh api` field flags such as `["-F", "number=3"]`.
+    `fields` are `gh api` field flags such as `["-F", "number=3"]`. With `partial`, a
+    response with errors still returns whatever `data` it has, so one unreadable PR in a
+    batch doesn't hide the rest.
     """
     if paused():
         return None
@@ -125,7 +131,8 @@ def graphql(fields: list[str], query: str) -> dict | None:
         _pause(pause)
     if r.returncode != 0:
         _log.warning("gh api graphql failed: %s", r.stderr.strip()[:300])
-        return None
+        if not partial or pause:
+            return None
 
     try:
         return json.loads(body)["data"]

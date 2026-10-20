@@ -17,6 +17,7 @@ from . import (
     cursors,
     delivery,
     own_edits,
+    pr_poller,
     push_path,
     push_scout,
     registry,
@@ -128,6 +129,7 @@ def run(args: argparse.Namespace) -> int:
         ):
             if session:
                 push_scout.announce(session)
+            pr_poller.ensure_running()
             while still():
                 batch_wait.wait(
                     path,

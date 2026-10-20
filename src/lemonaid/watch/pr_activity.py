@@ -121,24 +121,16 @@ def _repository(repo: str, number: int, query: str, after: str, oid: str) -> dic
     return (data or {}).get("repository")
 
 
-def fetch(
-    repo: str,
-    number: int,
-    signatures: abc.Iterable[str],
-    *,
-    skip_outdated: bool = False,
-    skip_resolved: bool = False,
-) -> Snapshot | None:
-    """None when gh fails or GitHub reads are paused - a transient failure must not end the wait.
+def read(repo: str, number: int) -> dict | None:
+    """The PR's `repository` with every page of its head's checks merged into the first.
 
-    Comments signed with one of `signatures` are left out as the watching lemon's own.
+    None when gh fails or GitHub reads are paused.
     """
     r = _repository(repo, number, _QUERY, "", "")
     if r is None:
         return None
 
-    pr = r["pullRequest"]
-    commit = pr["commits"]["nodes"][0]["commit"]
+    commit = r["pullRequest"]["commits"]["nodes"][0]["commit"]
     page = _contexts(commit)
     nodes = list(page["nodes"])
     while page["pageInfo"]["hasNextPage"]:  # a PR can have over 100 checks
@@ -150,6 +142,24 @@ def fetch(
 
         page = _contexts(more["object"])
         nodes.extend(page["nodes"])
+    if commit["statusCheckRollup"]:
+        commit["statusCheckRollup"]["contexts"] = {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": nodes,
+        }
+    return r
+
+
+def parse(
+    r: dict,
+    signatures: abc.Iterable[str],
+    *,
+    skip_outdated: bool = False,
+    skip_resolved: bool = False,
+) -> Snapshot:
+    """Comments signed with one of `signatures` are left out as the watching lemon's own."""
+    pr = r["pullRequest"]
+    commit = pr["commits"]["nodes"][0]["commit"]
     return Snapshot(
         commit["oid"],  # the head the checks belong to
         pr["state"],
@@ -162,6 +172,26 @@ def fetch(
         ),
         pr["baseRefName"],
         pr["mergeable"],
-        [_check(n) for n in nodes if n],
+        [_check(n) for n in _contexts(commit)["nodes"] if n],
         r.get("visibility") or "",
     )
+
+
+def fetch(
+    repo: str,
+    number: int,
+    signatures: abc.Iterable[str],
+    *,
+    skip_outdated: bool = False,
+    skip_resolved: bool = False,
+    source: abc.Callable[[str, int], dict | None] = read,
+) -> Snapshot | None:
+    """None when gh fails or GitHub reads are paused - a transient failure must not end the wait.
+
+    `source` gives the raw `repository`, from GitHub by default.
+    """
+    r = source(repo, number)
+    if r is None:
+        return None
+
+    return parse(r, signatures, skip_outdated=skip_outdated, skip_resolved=skip_resolved)

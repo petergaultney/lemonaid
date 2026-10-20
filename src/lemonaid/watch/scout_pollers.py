@@ -18,6 +18,7 @@ from . import (
     path_presence,
     pr_activity,
     pr_events,
+    pr_poller,
     pr_wait,
     repo_activity,
     repo_events,
@@ -152,12 +153,14 @@ def open_poller(
         if closed or time.monotonic() < retry_at:
             return
 
+        pr_poller.interested(repo, int(number), root.name)
         snapshot = pr_activity.fetch(
             repo,
             int(number),
             (spec.me, *spec.legacy, *signatures),
             skip_outdated=spec.skip_outdated,
             skip_resolved=spec.skip_resolved,
+            source=pr_poller.read,
         )
         if snapshot is None:
             _log.warning("Cannot read GitHub for %s#%s", repo, number)
