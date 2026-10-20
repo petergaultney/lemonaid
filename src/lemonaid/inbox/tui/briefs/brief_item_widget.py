@@ -52,26 +52,25 @@ class ItemView(Vertical):
         self._down: Offset | None = None
         self._activation: Timer | None = None
         self.set_class(selected, "-selected")
+        self._title = Static(self._title_text(), classes="item-title", markup=False)
 
-    def compose(self) -> ComposeResult:
+    def _title_text(self) -> str:
         title = {"need": "Needs", "answer": "Saved answer", "archived": "Archived answer"}[
             self.item.kind
         ]
-        yield Static(
-            f"{'▶ ' if self.has_class('-selected') else ''}{title}: {self.item.label}",
-            classes="item-title",
-            markup=False,
-        )
+        return f"{'▶ ' if self.has_class('-selected') else ''}{title}: {self.item.label}"
+
+    def compose(self) -> ComposeResult:
+        yield self._title
         yield self.factory(self.markdown)
 
     def select(self, selected: bool) -> None:
         self.set_class(selected, "-selected")
-        title = {"need": "Needs", "answer": "Saved answer", "archived": "Archived answer"}[
-            self.item.kind
-        ]
-        self.query_one(".item-title", Static).update(
-            f"{'▶ ' if selected else ''}{title}: {self.item.label}"
-        )
+        self._title.update(self._title_text())
+
+    def scroll_title(self) -> None:
+        if self._title.is_attached:
+            self._title.scroll_visible(animate=False)
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         self._down = event.screen_offset
