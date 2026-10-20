@@ -1,0 +1,74 @@
+name: integration
+
+# Separate from `test` so new integration coverage can prove stable before
+# becoming a release prerequisite.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tmux-and-shells:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TMUX_VERSION: "3.6"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - name: Install shells and tmux dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh fish libevent-dev libncurses-dev build-essential bison pkg-config
+          uv tool install --python 3.14 'xonsh[full]'
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          # Fresh runners must not consume launch commands as zsh setup answers.
+          touch "$HOME/.zshrc"
+          echo 'skip_global_compinit=1' >> "$HOME/.zshenv"
+      - uses: actions/cache@v4
+        id: tmux-cache
+        with:
+          path: ~/.local/tmux
+          key: tmux-${{ runner.os }}-${{ runner.arch }}-ubuntu-24.04-${{ env.TMUX_VERSION }}-v1
+      - name: Build pinned tmux
+        if: steps.tmux-cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/tmux.tar.gz" "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz"
+          echo "136db80cfbfba617a103401f52874e7c64927986b65b1b700350b6058ad69607  $RUNNER_TEMP/tmux.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/tmux.tar.gz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
+          ./configure --prefix="$HOME/.local/tmux"
+          make -j2
+          make install
+      - name: Check prerequisites
+        run: |
+          export PATH="$HOME/.local/tmux/bin:$PATH"
+          echo "$HOME/.local/tmux/bin" >> "$GITHUB_PATH"
+          test "$(tmux -V)" = "tmux $TMUX_VERSION"
+          tmux -V
+          zsh --version
+          fish --version
+          xonsh --version
+      - name: Run integration tests
+        run: |
+          uv run pytest -q -rs --junitxml=integration-results.xml \
+            tests/test_follow_hook.py tests/scratch_autosave/ \
+            tests/test_places_open_launch.py tests/brief/handoff/test_tty_handoff.py
+      - name: Reject skipped integration tests
+        run: |
+          uv run python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          report = ET.parse("integration-results.xml")
+          skipped = report.findall(".//testcase/skipped")
+          assert not skipped, [item.get("message") for item in skipped]
+          PY

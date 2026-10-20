@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from lemonaid.tmux import follow, scratch
+from tests import tmux_hook_sync
 
 
 def test_the_hook_never_leaves_the_server():
@@ -104,7 +105,7 @@ def tmux(monkeypatch, tmp_path):
     name = f"lemonaid-test-{uuid.uuid4().hex[:8]}"
 
     def run(*args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["tmux", "-L", name, *args], capture_output=True, text=True)
+        return tmux_hook_sync.run(name, *args)
 
     started = run(
         "-f", "/dev/null", "new-session", "-d", "-s", "a", "-n", "w1", "-x", "245", "-y", "90"
@@ -112,6 +113,16 @@ def tmux(monkeypatch, tmp_path):
     if started.returncode != 0:
         pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
 
+    tmux_hook_sync.install(
+        name,
+        (
+            *follow.HOOKS,
+            "window-resized",
+            "after-select-layout",
+            "after-resize-pane",
+            "window-pane-changed",
+        ),
+    )
     run("new-window", "-d", "-t", "a", "-n", "w2")  # -d: w1 stays current, so w2 is a change
     run("new-session", "-d", "-s", "b", "-n", "w1", "-x", "245", "-y", "90")
     run("new-window", "-d", "-t", "b", "-n", "w2")
@@ -122,6 +133,7 @@ def tmux(monkeypatch, tmp_path):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    tmux_hook_sync.attached(name)
     run("refresh-client", "-C", "245x90")
     monkeypatch.setenv("TMUX", f"{run('display', '-p', '#{socket_path}').stdout.strip()},0,0")
     monkeypatch.setattr(scratch, "get_state_path", lambda: tmp_path)
