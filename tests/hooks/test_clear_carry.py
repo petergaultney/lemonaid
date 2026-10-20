@@ -184,13 +184,30 @@ def test_a_clear_in_another_pane_on_a_reused_tty_moves_nothing(lemon, tmp_path, 
     assert _holder(lemon) == "claude:6f3198c7"
 
 
+def _during_registration(monkeypatch, action):
+    """Register the target only when the hook asks for its missing row after selection."""
+    original = db.get_by_channel
+    triggered = False
+
+    def get(conn, channel, *args, **kwargs):
+        nonlocal triggered
+        row = original(conn, channel, *args, **kwargs)
+        if channel == "claude:fb0730c2" and row is None and not triggered:
+            triggered = True
+            action(0)
+            return original(conn, channel, *args, **kwargs)
+        return row
+
+    monkeypatch.setattr(db, "get_by_channel", get)
+
+
 def test_archive_while_waiting_cancels_transfer(lemon, tmp_path, monkeypatch):
     def archive_then_register(seconds):
         with db.connect() as conn:
             db.archive_channel(conn, "claude:6f3198c7", "user-dismissed")
         _start(_NEW, "clear", tmp_path)
 
-    monkeypatch.setattr(session_start.time, "sleep", archive_then_register)
+    _during_registration(monkeypatch, archive_then_register)
     _clear(tmp_path, register=False)
     assert _holder(lemon) == "claude:6f3198c7"
     assert _row("claude:6f3198c7").status == "archived"
@@ -206,7 +223,7 @@ def test_resume_while_waiting_cancels_transfer(lemon, tmp_path, monkeypatch):
         monkeypatch.setattr(notify, "get_tty", lambda: _TTY)
         _start(_NEW, "clear", tmp_path)
 
-    monkeypatch.setattr(session_start.time, "sleep", resume_then_register)
+    _during_registration(monkeypatch, resume_then_register)
     _clear(tmp_path, register=False)
     assert _holder(lemon) == "claude:6f3198c7"
     assert _row("claude:6f3198c7").status != "archived"
@@ -217,13 +234,15 @@ def test_resume_while_waiting_cancels_transfer(lemon, tmp_path, monkeypatch):
 
 
 def test_another_clear_event_while_waiting_cancels_transfer(lemon, tmp_path, monkeypatch):
+    monkeypatch.setattr(session_start.native, "observe", lambda *a: time.sleep(0.001))
+
     def clear_again_then_register(seconds):
         with db.connect() as conn:
             old = db.get_by_channel(conn, "claude:6f3198c7", unread_only=False)
             db.record_exit(conn, old.channel, old.metadata["exited_at"] + 0.01, "clear")
         _start(_NEW, "clear", tmp_path)
 
-    monkeypatch.setattr(session_start.time, "sleep", clear_again_then_register)
+    _during_registration(monkeypatch, clear_again_then_register)
     _clear(tmp_path, register=False)
     assert _holder(lemon) == "claude:6f3198c7"
 
@@ -233,7 +252,7 @@ def test_changed_target_tty_while_waiting_cancels_transfer(lemon, tmp_path, monk
         monkeypatch.setattr(notify, "get_tty", lambda: "/dev/ttys099")
         _start(_NEW, "clear", tmp_path)
 
-    monkeypatch.setattr(session_start.time, "sleep", register_elsewhere)
+    _during_registration(monkeypatch, register_elsewhere)
     _clear(tmp_path, register=False)
     assert _holder(lemon) == "claude:6f3198c7"
 
@@ -249,7 +268,7 @@ def test_clear_respects_restart_reservation(lemon, tmp_path, monkeypatch, reserv
         _start(_NEW, "clear", tmp_path)
 
     if reserve_while_waiting:
-        monkeypatch.setattr(session_start.time, "sleep", reserve_then_register)
+        _during_registration(monkeypatch, reserve_then_register)
     else:
         state.reserve({"channel": channel})
     _clear(tmp_path, register=not reserve_while_waiting)
