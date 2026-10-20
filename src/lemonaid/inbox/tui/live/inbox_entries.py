@@ -17,6 +17,7 @@ def entries(
     group_order: abc.Sequence[db.Notification] = (),
     *,
     ungrouped_first: bool = True,
+    parents_first: bool = True,
 ) -> tuple[list[Entry], list[db.Notification], list[db.Notification]]:
     """The main table's entries, the rows still folded away, and the other-terminal rows.
 
@@ -43,6 +44,7 @@ def entries(
             frame.active.deaf,
             group_order=group_order,
             ungrouped_first=ungrouped_first,
+            parents=frame.parents if parents_first else {},
         )
         return (
             laid_out,
@@ -62,5 +64,6 @@ def entries(
         frame.active.deaf,
         group_order=group_order,
         ungrouped_first=ungrouped_first,
+        parents=frame.parents if parents_first else {},
     )
     return laid_out, folded, frame.other

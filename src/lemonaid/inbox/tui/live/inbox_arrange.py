@@ -19,6 +19,7 @@ class Arrangement:
             if config.inbox.arrange
             else None
         )
+        self.parents_first = True
         self.error = ""  # why the last answer wasn't used, for the status line
         self._logged: set[str] = set()
 
@@ -41,6 +42,7 @@ class Arrangement:
 
         While it has no usable answer they come back as they are, and `error` says why.
         """
+        self.parents_first = True
         if self._arranger is None:
             return shown, folded, "", active.rows
 
@@ -76,6 +78,7 @@ class Arrangement:
         for problem in set(arranged.problems) - self._logged:
             _log.info("arrange: %s", problem)
         self._logged.update(arranged.problems)
+        self.parents_first = False
         return (
             arranged.shown,
             arranged.folded,

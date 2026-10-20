@@ -17,6 +17,7 @@ def _frame(matching: set[int], collapsed: bool = False):
     return SimpleNamespace(
         matching_ids=matching,
         pinned=frozenset(),
+        parents={},
         other=[],
         groups=[Group(1, "A", 1.0, (), collapsed), Group(2, "B", 2.0, (), False)],
         active=SimpleNamespace(

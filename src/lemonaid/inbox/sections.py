@@ -13,7 +13,7 @@ import dataclasses
 from collections import abc
 
 from .. import groups
-from . import db, order
+from . import db, order, parent_order
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,6 +80,7 @@ def layout(
     *,
     group_order: abc.Sequence[db.Notification] = (),
     ungrouped_first: bool = True,
+    parents: abc.Mapping[str, str] | None = None,
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
@@ -110,6 +111,8 @@ def layout(
             or f"{n.id}@{group.group_id}" in kept
             or (not group.collapsed and (fold_open or n.id not in folded_ids))
         ]
+        leading = [n for n in visible if n.channel in pinned or n.channel in deaf]
+        ordinary = [n for n in visible if n.channel not in pinned and n.channel not in deaf]
         return [
             Header(
                 group,
@@ -119,21 +122,10 @@ def layout(
                 sum(n.id not in folded_ids for n in rows),
                 len(visible),
             ),
+            *(Row(f"{n.id}@{group.group_id}", n) for n in leading),
             *(
                 Row(f"{n.id}@{group.group_id}", n)
-                for n in [
-                    *(n for n in rows if n.channel in pinned or n.channel in deaf),
-                    *(
-                        n
-                        for n in rows
-                        if n.channel not in pinned
-                        and n.channel not in deaf
-                        and (
-                            f"{n.id}@{group.group_id}" in kept
-                            or (not group.collapsed and (fold_open or n.id not in folded_ids))
-                        )
-                    ),
-                ]
+                for n in parent_order.ordered(ordinary, parents or {})
             ),
         ]
 

@@ -7,7 +7,7 @@ from collections import abc
 from .... import brief, groups
 from ....config import Config
 from ....stalls import inbox as stalls_inbox
-from ... import db, emoji, pins, presence, search, view
+from ... import db, emoji, parent_order, pins, presence, search, view
 from ..rows import brief_cards, pr_numbers
 from ..watchers import focus
 
@@ -26,6 +26,7 @@ class Frame:
     other: list[db.Notification]  # live sessions switchable only from another terminal
     numbers: dict[str, tuple[pr_numbers.PR, ...]]
     matching_ids: set[int] | None  # None outside a search
+    parents: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 def _brief_names(conn: sqlite3.Connection, shared: abc.Set[str]) -> dict[str, str]:
@@ -145,4 +146,5 @@ def load(
         other,
         pr_numbers.rows(conn, [*active.rows, *other], config.places, pr_cache),
         matching_ids,
+        parent_order.channels(conn),
     )

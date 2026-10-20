@@ -154,7 +154,8 @@ closes. Flush after each answer.
 - A row marked `deaf` stays in the list even if the answer folds it, and
   `arrange_may_fold_unread` doesn't change that.
 - `lma` then draws groups from the answer's order: rows in no group keep it, and
-  each group lists its rows in it under the group's header. Folding a row in a
+  each group lists its rows in it under the group's header. A usable answer takes
+  precedence over the default parent-before-child ordering within groups. Folding a row in a
   group has no effect; it is drawn in its group.
 - `{"error": "..."}` reports a failure; `lma` shows it and draws its own order.
 - Ids that aren't rows, and fields `lma` doesn't know, are ignored.

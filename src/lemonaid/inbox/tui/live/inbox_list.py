@@ -114,7 +114,7 @@ class InboxList(Vertical):
 
             self.run_worker(load, thread=True, group="stalls")
 
-    def _revive_deaf(self, active: view.Active) -> None:
+    def _revive_deaf(self, active: "view.Active") -> None:
         for channel in self.revival.due(active.deaf, time.monotonic()):
             if (brief_path := active.briefs.get(channel)) is None:
                 continue
@@ -228,6 +228,7 @@ class InboxList(Vertical):
             self.fold_open,
             group_order,
             ungrouped_first=self.config.inbox.ungrouped_first,
+            parents_first=self.arrangement.parents_first,
         )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]

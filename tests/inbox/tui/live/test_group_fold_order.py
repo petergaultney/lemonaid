@@ -22,5 +22,6 @@ def test_group_order_uses_default_order_until_an_arranger_answers(reply):
         active, [newer], [older], frozenset(), frozenset(), {}, False, 120
     )
 
+    assert arrangement.parents_first == (not reply or "rows" not in reply)
     assert shown == [newer] and folded == [older]
     assert group_order == ([newer, older] if reply and "rows" in reply else active.rows)
