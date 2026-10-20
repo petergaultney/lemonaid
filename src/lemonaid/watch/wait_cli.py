@@ -8,9 +8,9 @@ from pathlib import Path
 
 from ..brief import attached, identity, lemon
 from ..claude import session_socket
+from ..codex import channels
 from ..hooks import session_gate
 from ..inbox import db
-from ..inbox.channel import full_channel_id
 from ..messages import store, waiter
 from . import (
     batch_wait,
@@ -41,7 +41,7 @@ def run(args: argparse.Namespace) -> int:
     try:
         with db.connect() as conn:
             channel = (
-                full_channel_id("codex", thread)
+                channels.for_session(conn, thread)
                 if thread
                 else lemon.self_channel(conn, args.channel)
             )

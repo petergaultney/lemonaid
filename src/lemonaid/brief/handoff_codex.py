@@ -3,6 +3,7 @@
 import json
 
 from .. import auto_read
+from ..codex import channels
 from ..codex import watcher as codex_watcher
 from ..inbox import db
 from ..lemon_watchers import read_jsonl_tail
@@ -20,7 +21,8 @@ def has_ready_marker(conn, row) -> bool:
         return False
 
     transcript = codex_watcher.get_session_path(
-        channel.removeprefix("codex:"), str(notification.metadata.get("cwd") or "")
+        channels.owner_id(channel, notification.metadata, {}),
+        str(notification.metadata.get("cwd") or ""),
     )
     if transcript is None:
         return False
@@ -99,7 +101,8 @@ def phrases(conn, row) -> None:
             continue
 
         path = codex_watcher.get_session_path(
-            channel.removeprefix("codex:"), str(notification.metadata.get("cwd") or "")
+            channels.owner_id(channel, notification.metadata, {}),
+            str(notification.metadata.get("cwd") or ""),
         )
         if path is None:
             continue

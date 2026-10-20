@@ -17,8 +17,8 @@ import pathlib
 import tempfile
 
 from ..brief import lemon
+from ..codex import channels
 from ..inbox import db
-from ..inbox.channel import full_channel_id
 from . import own_edits
 
 
@@ -33,7 +33,9 @@ def owner(me: str, codex_thread: str = "") -> str:
         with db.connect() as conn:
             return lemon.current(
                 conn,
-                lemon.own_id(conn, full_channel_id("codex", codex_thread) if codex_thread else ""),
+                lemon.own_id(
+                    conn, channels.for_session(conn, codex_thread) if codex_thread else ""
+                ),
             )
     except (LookupError, ValueError):
         pass

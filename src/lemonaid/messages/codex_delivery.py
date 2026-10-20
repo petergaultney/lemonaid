@@ -9,6 +9,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import brief, daily_date, home
+from ..codex import channels
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import full_channel_id
@@ -18,7 +19,10 @@ from . import store
 def own_thread(channel: str) -> str:
     """This process's Codex thread, when the watched channel is that thread's own."""
     thread = os.environ.get("CODEX_THREAD_ID", "")
-    return thread if thread and channel == full_channel_id("codex", thread) else ""
+    if not thread:
+        return ""
+    with db.connect() as conn:
+        return thread if channel == channels.for_session(conn, thread) else ""
 
 
 def _with_status_note(inbox: Path, message: str) -> str:

@@ -19,6 +19,10 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
     """
     channel = explicit or os.environ.get("LEMONAID_CHANNEL", "")
     if channel:
+        if channel.startswith("codex:"):
+            from ..codex import channels
+
+            return channels.for_session(conn, channel.removeprefix("codex:"))
         return channel
 
     if session_id := os.environ.get("CLAUDE_CODE_SESSION_ID"):
@@ -63,6 +67,10 @@ def current(conn: sqlite3.Connection, lemon_id: str) -> str:
 def attachment(conn: sqlite3.Connection, target: str) -> attached.Attachment:
     """The one attached lemon *target* names: a channel, a Lemon-ID (or an old one), or a brief's name."""
     attached.claim_pending(conn)
+    if target.startswith("codex:"):
+        from ..codex import channels
+
+        target = channels.for_session(conn, target.removeprefix("codex:"))
     all_briefs = attached.everything(conn)
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):

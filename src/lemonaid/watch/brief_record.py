@@ -9,8 +9,8 @@ import tempfile
 from collections import abc
 
 from ..brief import attached, doc_table, identity, lemon, store, verbs_cli, waiters
+from ..codex import channels
 from ..inbox import db
-from ..inbox.channel import full_channel_id
 from . import record_context, registry
 
 
@@ -142,7 +142,7 @@ def record(a: argparse.Namespace, kind: str, thread: str = "", repo: str = "") -
     with db.connect() as conn:
         try:
             channel = (
-                full_channel_id("codex", thread)
+                channels.for_session(conn, thread)
                 if thread
                 else lemon.self_channel(conn, getattr(a, "channel", "") or "")
             )

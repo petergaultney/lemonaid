@@ -19,8 +19,8 @@ import typing as ty
 from collections import abc
 
 from ..brief import lemon
+from ..codex import channels
 from ..inbox import db
-from ..inbox.channel import full_channel_id
 from ..log import get_logger
 from . import stop_sender, waiter_lock
 
@@ -52,10 +52,10 @@ def entry(pid: int) -> pathlib.Path:
 
 def owner_channel(explicit: str = "", codex_thread: str = "") -> str:
     """The caller's channel, or "" when it has none."""
-    if codex_thread:
-        return full_channel_id("codex", codex_thread)
-
     with db.connect() as conn:
+        if codex_thread:
+            return channels.for_session(conn, codex_thread)
+
         try:
             return lemon.self_channel(conn, explicit)
         except LookupError:
@@ -169,11 +169,19 @@ def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
     if not channel:
         return []
 
-    return [
-        waiter
-        for waiter in _running()
-        if waiter.channel == channel and kind in ("", waiter.kind) and _matches(waiter, target)
-    ]
+    with db.connect() as conn:
+
+        def resolved(value: str) -> str:
+            return channels.for_session(conn, value[6:]) if value.startswith("codex:") else value
+
+        owner = resolved(channel)
+        return [
+            waiter
+            for waiter in _running()
+            if resolved(waiter.channel) == owner
+            and kind in ("", waiter.kind)
+            and _matches(waiter, target)
+        ]
 
 
 def running_for(kind: str, target: str) -> list[Waiter]:

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .. import brief
 from ..brief import handoff_state
+from ..codex import channels
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
 from ..log import get_logger
@@ -32,6 +33,10 @@ _BROKEN = (
 
 def _channel(harness: str, session_id: str | None) -> str:
     """Raises `UnidentifiedSession` without a session ID."""
+    if harness == "codex":
+        full_channel_id(harness, session_id)  # Keep rejecting unidentified hooks.
+        with db.connect() as conn:
+            return channels.for_session(conn, session_id)
     return (
         channel_id("claude", session_id)
         if harness == "claude"

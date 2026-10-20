@@ -709,6 +709,10 @@ handoff channels stay outside automatic reconciliation until transfer finishes.
 Linked windows count as one physical pane. Unavailable process information or
 ambiguous ownership leaves saved rows unchanged.
 
+An attached Codex alias also keeps the same inbox, watcher registry and watch
+cursors. Unified and direct watchers find its brief through the persistent
+thread ID, while messages are still queued to the actual Codex thread.
+
 Jumps log the channel, resolved session and pane, and whether tmux accepted the
 switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). The client listing immediately
 after the command records which pane the attached clients actually show.
