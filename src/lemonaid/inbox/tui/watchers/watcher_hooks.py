@@ -7,7 +7,7 @@ from collections import abc
 from .... import claude, codex, handlers, openclaw, opencode
 from ....brief import attached
 from ....config import Config
-from ....lemon_watchers import ModelInfo, start_unified_watcher
+from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes
 from ... import db, teardown_evidence
 from ..rows import brief_cards
 
@@ -195,4 +195,5 @@ def start(
         record_turn=record_channel_turn,
         protected_channels=functools.partial(protected_brief_channels, brief_cache),
         detached_channels=detached_channels,
+        tty_processes=tty_processes.by_tty,
     )

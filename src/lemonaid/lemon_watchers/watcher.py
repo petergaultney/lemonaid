@@ -151,6 +151,10 @@ def process_on_tty(tty: str, process_name: str) -> bool | None:
     return any(is_harness(line, process_name) for line in result.stdout.splitlines())
 
 
+def tty_device_exists(name: str) -> bool:
+    return os.path.exists(f"/dev/{name}")
+
+
 def is_process_running_on_tty(tty: str, process_name: str = "claude") -> bool:
     """Whether *process_name* runs on *tty*, assuming it does when that can't be checked.
 
@@ -338,6 +342,7 @@ def _archive_stale_sessions(
     protected_channels: set[str] | None = None,
     detached_channels: Callable[[set[str]], None] | None = None,
     session_orders: dict[str, tmux.navigation.SessionOrder] | None = None,
+    tty_processes: dict[str, list[str]] | None = None,
 ) -> set[str]:
     """Archive stale sessions using channel identity, pane presence and process evidence.
 
@@ -356,6 +361,8 @@ def _archive_stale_sessions(
     `located` is, by channel, where a session that can outlive its tty runs now:
     its current tty, False if it is gone, None if its backend could not tell. A
     located session is judged on its current tty rather than the recorded one.
+    `tty_processes` is one `tty_processes.by_tty` listing for every tty; None asks
+    `ps` about each tty on its own.
 
     Returns set of archived channel names.
     """
@@ -503,14 +510,24 @@ def _archive_stale_sessions(
             )
         )
 
+    def running(tty: str, process_name: str) -> bool:
+        if tty_processes is None:
+            return is_process_running_on_tty(tty, process_name)
+
+        name = tty.replace("/dev/", "")
+        if name not in tty_processes and not tty_device_exists(name):
+            return True  # `ps -t` can't say either, for a terminal with no device
+
+        return any(is_harness(args, process_name) for args in tty_processes.get(name, ()))
+
     # Process each TTY group
     for (tty, process_name), sessions in tty_groups.items():
         if len(sessions) == 1:
             # Only one session - check if process is still running
-            if not is_process_running_on_tty(tty, process_name):
+            if not running(tty, process_name):
                 archive(sessions[0], "process-exited", expected_process=process_name)
         else:
-            process_running = is_process_running_on_tty(tty, process_name)
+            process_running = running(tty, process_name)
             if not process_running:
                 for item in sessions:
                     archive(item, "process-exited", expected_process=process_name)
@@ -568,6 +585,7 @@ def unified_watch_loop(
     stop_event: threading.Event | None = None,
     protected_channels: Callable[[], set[str]] | None = None,
     detached_channels: Callable[[set[str]], None] | None = None,
+    tty_processes: Callable[[], dict[str, list[str]] | None] | None = None,
 ) -> None:
     """Main watch loop - polls all active sessions across all backends.
 
@@ -593,6 +611,8 @@ def unified_watch_loop(
         record_turn: Optional callback recording a channel's turn in progress, as the
             timestamp of its newest entry, or None between turns
         poll_interval: How often to poll (seconds)
+        tty_processes: Optional callback listing every tty's processes at once, for the
+            archiver; without it, each tty is asked about on its own
     """
     # Build prefix -> backend mapping
     backend_map = {b.CHANNEL_PREFIX: b for b in backends}
@@ -660,6 +680,7 @@ def unified_watch_loop(
                     protected_channels() if protected_channels else None,
                     detached_channels,
                     saved_session_orders,
+                    tty_processes() if tty_processes else None,
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
@@ -861,6 +882,7 @@ def start_unified_watcher(
     record_turn: Callable[[str, float | None], None] | None = None,
     protected_channels: Callable[[], set[str]] | None = None,
     detached_channels: Callable[[set[str]], None] | None = None,
+    tty_processes: Callable[[], dict[str, list[str]] | None] | None = None,
 ) -> None:
     """Start the unified session watcher daemon thread.
 
@@ -885,6 +907,7 @@ def start_unified_watcher(
         record_turn: Optional callback recording a channel's turn in progress
         protected_channels: Optional callback returning channels protected by brief status
         detached_channels: Optional callback receiving protected channels with no pane
+        tty_processes: Optional callback listing every tty's processes at once
     """
     global _watcher_stop, _watcher_thread
 
@@ -910,6 +933,7 @@ def start_unified_watcher(
             "record_turn": record_turn,
             "protected_channels": protected_channels,
             "detached_channels": detached_channels,
+            "tty_processes": tty_processes,
             "stop_event": _watcher_stop,
         },
         daemon=True,
