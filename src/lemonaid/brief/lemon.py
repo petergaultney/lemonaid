@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from ..inbox import self_session
-from ..inbox.channel import channel_id, full_channel_id
+from ..inbox.channel import channel_id
 from ..log import get_logger
 from . import attached, identity, store
 
@@ -25,7 +25,9 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
         return channel_id("claude", session_id)
 
     if session_id := os.environ.get("CODEX_THREAD_ID"):
-        return full_channel_id("codex", session_id)
+        from ..codex import channels
+
+        return channels.for_session(conn, session_id)
 
     if pane_id := os.environ.get("TMUX_PANE"):
         where = self_session.pane_location(pane_id)

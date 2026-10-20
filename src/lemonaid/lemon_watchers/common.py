@@ -178,6 +178,10 @@ def _pane_format(spec: str) -> str | None:
     return result.stdout.strip() or None
 
 
+def get_tmux_pane_tty() -> str | None:
+    return _pane_format("#{pane_tty}")
+
+
 def get_tmux_session_name() -> str | None:
     """Get the tmux session name if running in tmux."""
     return _pane_format("#{session_name}")

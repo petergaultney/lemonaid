@@ -700,8 +700,14 @@ The inbox repairs saved Codex locations at startup and every ten seconds when
 open rollout files identify one live terminal for the thread. Clicking also
 checks that mapping before switching. An author and reviewer sharing a directory
 are resolved by their separate threads, and repair preserves names, messages,
-read state and timestamps. Unavailable process information or ambiguous locations
-do not change saved rows.
+read state and timestamps. Notifications reporting a transient Codex ID update
+the attached lemon instead of creating another ungrouped row. Startup and
+periodic repair archive existing duplicate rows without moving brief attachments
+or changing waiter subscriptions. Real new sessions and explicit handoffs keep
+their own channels, even when they reuse a reconciled alias's pane. Pending
+handoff channels stay outside automatic reconciliation until transfer finishes.
+Linked windows count as one physical pane. Unavailable process information or
+ambiguous ownership leaves saved rows unchanged.
 
 Jumps log the channel, resolved session and pane, and whether tmux accepted the
 switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). The client listing immediately

@@ -7,6 +7,7 @@ from collections import abc
 from typing import Any, Literal
 
 from . import cmux, tmux, wezterm
+from .codex import channels as codex_channels
 from .codex import processes
 from .config import Config, load_config
 from .inbox import db
@@ -233,11 +234,13 @@ def repair_tmux_locations(
         locations = codex_tmux_locations()
     if locations is None:
         return 0
-    repaired = 0
+    repaired = codex_channels.repair_duplicates(conn, locations)
     for notification in db.get_active(conn, switch_source="tmux"):
         if not notification.channel.startswith("codex:"):
             continue
-        matches = locations.get(notification.channel.removeprefix("codex:"), [])
+        matches = locations.get(
+            codex_channels.owner_id(notification.channel, notification.metadata, locations), []
+        )
         if len(matches) == 1 and db.repair_location(conn, notification, matches[0]):
             repaired += 1
             _log.info(
@@ -254,7 +257,9 @@ def refresh_notification_location(notification: db.Notification) -> db.Notificat
     locations = codex_tmux_locations()
     if locations is None:
         return notification
-    matches = locations.get(notification.channel.removeprefix("codex:"), [])
+    matches = locations.get(
+        codex_channels.owner_id(notification.channel, notification.metadata, locations), []
+    )
     if len(matches) != 1:
         return notification
     with db.connect() as conn:
@@ -274,13 +279,14 @@ def _handle_tmux(
     channel = metadata.get("channel", "")
     if channel.startswith("codex:"):
         locations = codex_tmux_locations()
-        if locations is not None and channel.removeprefix("codex:") in locations:
-            matches = locations[channel.removeprefix("codex:")]
+        owner = codex_channels.owner_id(channel, metadata, locations or {})
+        if locations is not None and owner in locations:
+            matches = locations[owner]
             if len(matches) != 1:
                 _log.warning("not switching to %s: no unique terminal owns its thread", channel)
                 return False
             with db.connect() as conn:
-                repair_tmux_locations(conn, {channel.removeprefix("codex:"): matches})
+                repair_tmux_locations(conn, {owner: matches})
             metadata.update(matches[0])
 
     try:

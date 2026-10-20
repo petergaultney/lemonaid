@@ -16,6 +16,7 @@ from ..lemon_watchers import (
     get_cmux_surface,
     get_git_branch,
     get_name_from_cwd,
+    get_tmux_pane_tty,
     get_tmux_session_name,
     get_tmux_session_order,
     get_tmux_socket,
@@ -23,7 +24,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import hosting, permissions
+from . import channels, hosting, permissions, processes
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -128,6 +129,7 @@ def handle_notification(
     Reads JSON from stdin (as provided by Codex notify) and adds
     a notification to the lemonaid inbox.
     """
+    explicit_session_id = session_id
     if stdin_data is None:
         stdin_data = sys.stdin.read()
         # Codex notify passes a single JSON argument, not stdin.
@@ -224,7 +226,10 @@ def handle_notification(
 
     # Under the app-server daemon, the tty found is the daemon's, not this
     # session's pane; recording it would put every Codex session in one pane.
-    tty = None if hosting.under_app_server() else get_tty()
+    hosted = hosting.under_app_server()
+    tty = None if hosted else get_tty()
+    if not tty and not hosted and switch_source == "tmux":
+        tty = get_tmux_pane_tty()
     if tty:
         metadata["tty"] = tty
         surface = get_cmux_surface()
@@ -244,6 +249,24 @@ def handle_notification(
             if pane := os.environ.get("TMUX_PANE"):
                 metadata["tmux_pane_identity"] = [pane, session_order[1]]
 
+    if (
+        not session_path_obj
+        and not explicit_session_id
+        and tty
+        and switch_source == "tmux"
+        and not os.environ.get("LEMONAID_HANDOFF_TOKEN")
+    ):
+        owners = processes.thread_ttys()
+        candidates = [thread for thread, ttys in (owners or {}).items() if tty in ttys]
+        if len(candidates) == 1 and (owned_path := find_session_path(candidates[0])):
+            session_id = candidates[0]
+            metadata["session_id"] = session_id
+            metadata["session_path"] = str(owned_path)
+            if notification_type == "PermissionRequest" and permissions.automatically_reviewed(
+                owned_path, data.get("turn_id", ""), data.get("tool_name", "")
+            ):
+                return
+
     try:
         channel = full_channel_id("codex", session_id)
     except UnidentifiedSession:
@@ -252,6 +275,8 @@ def handle_notification(
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
     with db.connect() as conn:
+        if not os.environ.get("LEMONAID_HANDOFF_TOKEN") and tty and switch_source == "tmux":
+            channel = channels.attached_channel(conn, session_id or "", metadata) or channel
         db.add(
             conn,
             channel=channel,
@@ -267,7 +292,13 @@ def handle_notification(
         handoff_transfer.reclaim(conn, channel)
         pending = messages.service.has_pending(conn, channel)
 
-    _log.info("added: channel=%s, type=%s", channel, notification_type)
+    _log.info(
+        "added: channel=%s, type=%s payload_thread=%s owner_thread=%s",
+        channel,
+        notification_type,
+        payload_session_id,
+        session_id,
+    )
     if pending:
         messages.service.ensure_running()  # messages that waited while this lemon was archived
 
@@ -281,6 +312,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
+        channel = channels.for_session(conn, session_id)
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
             print(
@@ -332,6 +364,7 @@ def handle_tool_used(stdin_data: str | None = None) -> None:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
+        channel = channels.for_session(conn, session_id)
         row = conn.execute(
             "SELECT id, metadata FROM notifications WHERE channel = ?", (channel,)
         ).fetchone()

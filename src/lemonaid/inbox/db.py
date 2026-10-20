@@ -1133,7 +1133,7 @@ def add_notification(
 def repair_location(
     conn: sqlite3.Connection, notification: Notification, location: dict[str, Any]
 ) -> bool:
-    """Replace only location fields, if this row has not changed since it was read."""
+    """Replace verified terminal ownership fields if the row has not changed."""
     row = conn.execute(
         "SELECT metadata FROM notifications WHERE id = ? AND channel = ?",
         (notification.id, notification.channel),
