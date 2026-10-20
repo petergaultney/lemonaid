@@ -6,12 +6,12 @@ import time
 from pathlib import Path
 
 from .. import brief
-from ..brief import handoff_clear
+from ..brief.handoff import clear as handoff_clear
 from ..inbox import db
 from ..inbox.channel import channel_id
+from ..launch.restart import native
 from ..lemon_watchers import get_tty
 from ..log import get_logger
-from ..launch.restart import native
 from ..watch import codex_scout, own_edits, push_scout
 from . import session_brief, session_gate, stop_check
 

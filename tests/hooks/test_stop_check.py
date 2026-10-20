@@ -8,8 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, handoff_state, identity
+from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
+from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.claude import install_hooks
 from lemonaid.hooks import stop_check
 from lemonaid.inbox import db

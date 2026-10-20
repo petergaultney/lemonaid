@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from lemonaid.brief import attached, handoff_state, store
+from lemonaid.brief import attached, store
+from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.inbox import db, pins
 
 

@@ -18,7 +18,6 @@ from . import (
     dismiss,
     docs_cli,
     family,
-    handoff_cli,
     lemon,
     lemons_cli,
     popup,
@@ -29,6 +28,7 @@ from . import (
     target,
     write_cli,
 )
+from .handoff import cli as handoff_cli
 
 
 def _file_target(

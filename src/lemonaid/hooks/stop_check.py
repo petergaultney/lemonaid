@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from .. import brief
-from ..brief import handoff_state
+from ..brief.handoff import state as handoff_state
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession
 from ..log import get_logger

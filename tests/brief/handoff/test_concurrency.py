@@ -3,7 +3,10 @@
 import threading
 import time
 
-from lemonaid.brief import handoff_coordinator, handoff_launch, handoff_state, handoff_tmux
+from lemonaid.brief.handoff import coordinator as handoff_coordinator
+from lemonaid.brief.handoff import launch as handoff_launch
+from lemonaid.brief.handoff import pane as handoff_tmux
+from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.inbox import db
 
 from .shared import requested

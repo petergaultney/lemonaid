@@ -9,21 +9,17 @@ import subprocess
 import sys
 import time
 
-from ..config import load_config
-from ..inbox import db
-from ..inbox.channel import channel_id, full_channel_id
-from ..messages import to_brief
-from ..resume import build_resume_command
-from . import (
-    attached,
-    handoff_coordinator,
-    handoff_launch,
-    handoff_shell,
-    handoff_state,
-    handoff_tmux,
-    lemon,
-    store,
-)
+from ...config import load_config
+from ...inbox import db
+from ...inbox.channel import channel_id, full_channel_id
+from ...messages import to_brief
+from ...resume import build_resume_command
+from .. import attached, lemon, store
+from . import coordinator as handoff_coordinator
+from . import launch as handoff_launch
+from . import pane as handoff_tmux
+from . import shell as handoff_shell
+from . import state as handoff_state
 
 _DEADLINE_SECONDS = 600
 

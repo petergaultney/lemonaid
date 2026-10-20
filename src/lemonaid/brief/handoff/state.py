@@ -7,8 +7,9 @@ import sqlite3
 import time
 from pathlib import Path
 
-from ..launch.restart import gates
-from . import check, handoff_claude
+from ...launch.restart import gates
+from .. import check
+from . import claude as handoff_claude
 
 _PHRASE = re.compile(r"^lemonaid handoff (ready|accept) ([0-9a-f]{24})$")
 
@@ -144,7 +145,7 @@ def ready(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[bool, str]:
         elif row["source"].startswith("codex:"):
             # Imported here to avoid a module cycle: handoff_codex also reads
             # typed handoff phrases through handoff_state.
-            from . import handoff_codex
+            from . import codex as handoff_codex
 
             reply_has_marker = handoff_codex.has_ready_marker(conn, row)
         else:

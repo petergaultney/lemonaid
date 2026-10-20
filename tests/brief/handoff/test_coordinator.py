@@ -7,14 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from lemonaid.brief import (
-    attached,
-    handoff_cli,
-    handoff_coordinator,
-    handoff_launch,
-    handoff_state,
-    handoff_tmux,
-)
+from lemonaid.brief import attached
+from lemonaid.brief.handoff import cli as handoff_cli
+from lemonaid.brief.handoff import coordinator as handoff_coordinator
+from lemonaid.brief.handoff import launch as handoff_launch
+from lemonaid.brief.handoff import pane as handoff_tmux
+from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.config import Config, TmuxSessionConfig
 from lemonaid.inbox import db
 

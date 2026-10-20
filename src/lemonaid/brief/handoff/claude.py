@@ -1,9 +1,9 @@
 """Read a handoff marker from the outgoing Claude session's final reply."""
 
-from .. import auto_read
-from ..claude import watcher
-from ..inbox import db
-from ..lemon_watchers import read_jsonl_tail
+from ... import auto_read
+from ...claude import watcher
+from ...inbox import db
+from ...lemon_watchers import read_jsonl_tail
 
 
 def has_ready_marker(conn, row) -> bool:

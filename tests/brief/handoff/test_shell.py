@@ -10,7 +10,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from lemonaid.brief import handoff_cli, handoff_shell, handoff_state
+from lemonaid.brief.handoff import cli as handoff_cli
+from lemonaid.brief.handoff import shell as handoff_shell
+from lemonaid.brief.handoff import state as handoff_state
 
 
 def test_source_job_signal_requires_same_pid_group_tty_and_start(monkeypatch):

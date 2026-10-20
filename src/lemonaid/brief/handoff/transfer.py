@@ -4,8 +4,8 @@ import json
 import sqlite3
 import time
 
-from ..inbox import db
-from . import handoff_state
+from ...inbox import db
+from . import state as handoff_state
 
 
 def _move_manual_state(conn: sqlite3.Connection, source: str, target: str) -> None:

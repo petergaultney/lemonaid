@@ -16,7 +16,7 @@ _SRC = Path(__file__).parent.parent / "src" / "lemonaid"
 _ALLOWED: set[str] = {
     "brief/children_cli.py",
     "brief/dismiss.py",
-    "brief/handoff_tmux.py",
+    "brief/handoff/pane.py",
     "brief/popup.py",
     "brief/session.py",
     "brief/sidebar.py",

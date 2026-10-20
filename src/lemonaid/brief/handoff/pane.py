@@ -4,12 +4,12 @@ import shlex
 import time
 from pathlib import Path
 
-from .. import tmux
-from ..config import BackendConfig, load_config
-from ..inbox import db
-from ..launch import command
-from ..resume import build_resume_command
-from ..tmux import submit
+from ... import tmux
+from ...config import BackendConfig, load_config
+from ...inbox import db
+from ...launch import command
+from ...resume import build_resume_command
+from ...tmux import submit
 
 
 def _tmux(*args: str) -> str:

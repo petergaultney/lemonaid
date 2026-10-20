@@ -4,7 +4,9 @@ import time
 
 import pytest
 
-from lemonaid.brief import attached, handoff_state, handoff_transfer
+from lemonaid.brief import attached
+from lemonaid.brief.handoff import state as handoff_state
+from lemonaid.brief.handoff import transfer as handoff_transfer
 from lemonaid.inbox import db, pins
 
 from .shared import requested

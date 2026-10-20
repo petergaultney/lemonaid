@@ -3,9 +3,9 @@
 import shlex
 from pathlib import Path
 
-from ..config import load_config
-from ..launch import command
-from . import handoff_launch
+from ...config import load_config
+from ...launch import command
+from . import launch as handoff_launch
 
 
 def build(row) -> dict:

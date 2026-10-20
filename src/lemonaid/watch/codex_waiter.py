@@ -8,7 +8,8 @@ import time
 import typing as ty
 from pathlib import Path
 
-from ..brief import attached, handoff_state, identity, status
+from ..brief import attached, identity, status
+from ..brief.handoff import state as handoff_state
 from ..codex import channels, processes, utils
 from ..inbox import db
 from ..log import LOG_PATH, get_logger

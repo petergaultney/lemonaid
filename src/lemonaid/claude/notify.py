@@ -29,7 +29,8 @@ import typing as ty
 from pathlib import Path
 
 from .. import auto_read, daily_date
-from ..brief import handoff_state, handoff_transfer
+from ..brief.handoff import state as handoff_state
+from ..brief.handoff import transfer as handoff_transfer
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id

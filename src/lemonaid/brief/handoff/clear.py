@@ -9,8 +9,10 @@ import sqlite3
 import time
 from pathlib import Path
 
-from ..inbox import db
-from . import attached, handoff_state, handoff_transfer
+from ...inbox import db
+from .. import attached
+from . import state as handoff_state
+from . import transfer as handoff_transfer
 
 _RECENT_SECONDS = 60
 

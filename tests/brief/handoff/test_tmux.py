@@ -3,7 +3,7 @@
 import subprocess
 from unittest.mock import Mock
 
-from lemonaid.brief import handoff_tmux
+from lemonaid.brief.handoff import pane as handoff_tmux
 
 from .shared import requested
 

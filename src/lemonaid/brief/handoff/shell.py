@@ -8,8 +8,10 @@ import termios
 import time
 from contextlib import suppress
 
-from ..inbox import db, self_session
-from . import attached, handoff_coordinator, handoff_state
+from ...inbox import db, self_session
+from .. import attached
+from . import coordinator as handoff_coordinator
+from . import state as handoff_state
 
 
 def channel_on_tty(conn, tty: str) -> str:

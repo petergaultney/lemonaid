@@ -5,8 +5,9 @@ import time
 
 import pytest
 
-from lemonaid.brief import attached, handoff_state, identity
+from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
+from lemonaid.brief.handoff import state as handoff_state
 from lemonaid.claude import notify, session_end
 from lemonaid.hooks import session_start
 from lemonaid.inbox import db, pins

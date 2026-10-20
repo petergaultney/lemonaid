@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lemonaid.brief import handoff_shell
+from lemonaid.brief.handoff import shell as handoff_shell
 from lemonaid.inbox import db
 
 
@@ -213,7 +213,7 @@ def test_bare_cli_handoff_runs_in_same_terminal_and_recovers(
     target = tmp_path / "target.py"
     target.write_text(
         "import os, sys, tty\n"
-        "from lemonaid.brief import handoff_coordinator, handoff_state\n"
+        "from lemonaid.brief.handoff import coordinator as handoff_coordinator, state as handoff_state\n"
         "from lemonaid.inbox import db\n"
         f"open({str(target_started)!r}, 'w').write('started')\n"
         "tty.setraw(0)\n"
@@ -235,7 +235,7 @@ def test_bare_cli_handoff_runs_in_same_terminal_and_recovers(
     driver.write_text(
         "import argparse, os, shlex, subprocess, sys\n"
         "from unittest.mock import Mock\n"
-        "from lemonaid.brief import attached, handoff_cli, handoff_launch, handoff_shell, store\n"
+        "from lemonaid.brief import attached, store\nfrom lemonaid.brief.handoff import cli as handoff_cli, launch as handoff_launch, shell as handoff_shell\n"
         "from lemonaid.inbox import db\n"
         "from lemonaid.resume import build_resume_command\n"
         "tty = os.ttyname(0)\n"
@@ -339,7 +339,8 @@ def test_bare_cli_handoff_runs_in_same_terminal_and_recovers(
         ), "the handoff did not resume the native child process group member"
         assert source_resumed.exists() is (not target_accepts)
         with db.connect(db_path) as conn:
-            from lemonaid.brief import attached, handoff_state
+            from lemonaid.brief import attached
+            from lemonaid.brief.handoff import state as handoff_state
 
             handoff = conn.execute("SELECT token FROM brief_handoffs").fetchone()
             assert handoff is not None

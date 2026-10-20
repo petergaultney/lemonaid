@@ -5,7 +5,10 @@ import time
 
 import pytest
 
-from lemonaid.brief import attached, handoff_claude, handoff_codex, handoff_state
+from lemonaid.brief import attached
+from lemonaid.brief.handoff import claude as handoff_claude
+from lemonaid.brief.handoff import codex as handoff_codex
+from lemonaid.brief.handoff import state as handoff_state
 
 
 def test_codex_user_phrase_is_detected_from_transcript(setup, monkeypatch, tmp_path):

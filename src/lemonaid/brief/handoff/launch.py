@@ -3,11 +3,12 @@
 import shlex
 from pathlib import Path
 
-from ..config import load_config
-from ..inbox import db
-from ..launch import command, resolve
-from ..resume import build_resume_command
-from . import handoff_executable, handoff_tmux
+from ...config import load_config
+from ...inbox import db
+from ...launch import command, resolve
+from ...resume import build_resume_command
+from . import executable as handoff_executable
+from . import pane as handoff_tmux
 
 
 def configured_line(harness: str, fallback: str = "") -> str:
