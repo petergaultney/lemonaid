@@ -99,6 +99,11 @@ why and offers to copy the command.
 
 ### Search mode
 
+After Enter successfully switches or resumes a session, search closes and the full inbox returns. Set
+`[inbox] close_search_on_switch = false` in [config](config.md#inbox) to keep
+the query and results. Failed switches and resumes leave search open. The
+new-session resume shortcut keeps search open.
+
 Press `/` from the inbox to filter session and attached brief names, messages, channels, directories, and branches. Matching inbox rows keep their order and formatting; nonmatches disappear as you type. Inbox matches fill the list first. When space remains, archived matches appear below a divider; the bottom line counts both sections even when the archive is hidden. Enter or Down moves from the search box to the inbox matches, and Down from the last inbox match moves to the archive when shown. Enter switches an inbox session or resumes an archived one. Escape restores the full inbox.
 
 ### Snoozed mode

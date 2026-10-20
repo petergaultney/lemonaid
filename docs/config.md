@@ -489,6 +489,7 @@ vaults = ["~/notes", "~/work/kb"]
 | Key | Default | Description |
 |-----|---------|-------------|
 | `auto_read` | `[]` | Regexes; a finished turn whose final message matches one leaves its session read. |
+| `close_search_on_switch` | `true` | Clear inbox search and restore the full list after Enter successfully switches or resumes a session. Set to `false` to keep the query and search results. Failed switches and resumes keep search open. |
 | `day_starts` | `"06:00"` | Local time a lemon's day starts; its first turn at or after it is told the date. |
 | `snooze_day_starts` | `"09:00"` | Local time a snooze of a day or more ends; not related to `day_starts`. |
 | `snooze_presets` | `["30m", "3h", "1d", "4d"]` | The snooze picker's presets, in the `s` key's syntax. |

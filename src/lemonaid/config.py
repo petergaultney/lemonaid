@@ -225,6 +225,7 @@ class BriefConfig:
 class InboxConfig:
     """Configuration for the inbox rows themselves."""
 
+    close_search_on_switch: bool = True
     # A completed turn whose final message matches one of these, from its
     # start, leaves its session read instead of unread.
     auto_read: tuple[re.Pattern[str], ...] = ()
@@ -609,6 +610,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
 
     inbox_data = data.get("inbox", {})
     inbox = InboxConfig(
+        close_search_on_switch=inbox_data.get("close_search_on_switch", True),
         auto_read=auto_read.compile_patterns(inbox_data.get("auto_read")),
         day_starts=_local_time("day_starts", inbox_data.get("day_starts"), InboxConfig.day_starts),
         snooze_day_starts=_local_time(

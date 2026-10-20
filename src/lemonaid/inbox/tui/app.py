@@ -552,6 +552,9 @@ class LemonaidApp(App):
         if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):
             return False
 
+        if self._search_mode and self.config.inbox.close_search_on_switch:
+            self._stop_search()
+
         # We already know where a successful in-app switch went. Reflect that
         # immediately instead of waiting for the next tmux poll; the periodic
         # lookup remains authoritative for switches made outside lemonaid.
@@ -584,9 +587,7 @@ class LemonaidApp(App):
 
     def _back_to_inbox(self, notification: db.Notification) -> None:
         """A session resumed from history that never stopped: show it in the inbox."""
-        if self._search_mode:
-            self._stop_search()
-        else:
+        if not self._search_mode:
             self._set_history_mode(False)
         self._refresh_notifications()
         self.notify(f"{notification.name or notification.channel} is running - back in the inbox")
@@ -605,8 +606,11 @@ class LemonaidApp(App):
             os.ttyname(0) if mode == "exec" and navigation.is_inside_tmux() and os.isatty(0) else ""
         )
         done = self.query_one(HistoryTable).resume(mode, here_tty)
-        if done and done.kind == "started" and not is_follow_enabled():
-            self._hide_scratch_pane()
+        if done and done.kind == "started":
+            if self._search_mode and self.config.inbox.close_search_on_switch:
+                self._stop_search()
+            if not is_follow_enabled():
+                self._hide_scratch_pane()
 
     def action_copy_resume(self) -> None:
         """Copy the resume command for the selected history session."""
