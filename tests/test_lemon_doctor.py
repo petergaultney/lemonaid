@@ -121,3 +121,16 @@ def test_an_unknown_name_is_skipped_and_the_rest_reported(capsys):
 def test_relative_scopes_need_self(capsys):
     assert _doctor("--children") == 2
     assert "add --self" in capsys.readouterr().err
+
+
+def test_doctor_imports_without_prior_ui_imports():
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import lemonaid.lemon_facts.cli"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr

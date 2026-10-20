@@ -114,7 +114,7 @@ class InboxList(Vertical):
 
             self.run_worker(load, thread=True, group="stalls")
 
-    def _revive_deaf(self, active: view.Active) -> None:
+    def _revive_deaf(self, active: "view.Active") -> None:
         for channel in self.revival.due(active.deaf, time.monotonic()):
             if (brief_path := active.briefs.get(channel)) is None:
                 continue
