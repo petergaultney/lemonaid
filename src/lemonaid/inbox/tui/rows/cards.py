@@ -9,7 +9,7 @@ from rich.text import Text
 from .. import utils
 from ..tables import layout
 from ..utils import ATTENTION_COLOR, HERE_BAR, HERE_BLOCK, PIN_MARK
-from . import brief_cards, card_context, context_reading
+from . import brief_cards, card_context, card_frame, context_reading
 
 _CONSOLE = Console()  # for measuring wraps only; nothing is printed through it
 
@@ -65,6 +65,7 @@ def as_card(
     age_inline: bool = False,
     neutral_timing: bool = False,
     rail: str = "",
+    end_rail: bool = False,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -107,10 +108,8 @@ def as_card(
 
     edge = Text(layout.INDENT)
 
-    # The current session's bar runs down the card's right edge, which every
-    # card keeps free for it, so a card doesn't shift as it gains or loses the
-    # bar. The left edge is left to a group's rail: the two side by side read as
-    # one rail.
+    # Every card reserves the right edge; the frame's left and bottom edges
+    # occupy the existing gutter and separator without moving content.
     width -= len(HERE_BAR)
 
     # A card in an open group gives up its first column to an unbroken rail in
@@ -258,22 +257,12 @@ def as_card(
         # The message is the only field with the vertical space spent on it: it
         # is unbounded, and the one an ellipsis costs you most.
         *(edge + line for line in _wrapped(message, body, message_lines)),
-        # Separates this card from the next, and carries the bar when there is
-        # one: the blank line is part of the card's own cell, so it takes the row
-        # cursor's background with the rest, and an edge stopping short of it
-        # reads as one that ran out rather than one that ends the card.
+        # The separator belongs to this card, including at the end of a group.
         Text(""),
     ]
-    if is_here:
-        lines = [
-            Text.assemble(
-                line, " " * max(0, width - line.cell_len), (HERE_BAR, utils.here_bar_style())
-            )
-            for line in lines
-        ]
-    if rail:
-        # Added last, as a span, so no status fill, dimming or base style reaches it.
-        lines = [Text.assemble((layout.GROUP_RAIL, rail)) + line for line in lines]
+    lines = card_frame.finished(
+        lines, width, utils.here_bar_style() if is_here else "", rail, end_rail
+    )
     # Model and pin live in the first two lines rather than a second table
     # column. That gives the message every column below them instead of making
     # a short label reserve a blank strip down the entire card.

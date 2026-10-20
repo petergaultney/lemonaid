@@ -203,7 +203,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
     ]
     context = as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")[1]
 
-    assert context.endswith(HERE_BAR)
+    assert context.endswith("\u2590")
     assert HERE_BLOCK not in context
 
 
@@ -232,11 +232,10 @@ def test_a_focused_card_carries_the_bar_down_every_line():
         return as_card(cells, 44, 1, 1, 2)[0].plain.split("\n")
 
     focused = card_for(True)
-    assert all(line.endswith(HERE_BAR) and len(line) == 44 for line in focused)
+    assert all(line.endswith("\u2590") and len(line) == 44 for line in focused[:-1])
 
-    # Including the blank line that separates it from the next card, which
-    # takes the row cursor's background along with the rest of the cell.
-    assert focused[-1] == " " * 43 + HERE_BAR
+    # The bottom edge uses the separator already allocated to this card.
+    assert focused[-1] == "\u2586" * 44
 
     plain = card_for(False)
     assert not any(HERE_BAR in line for line in plain)
@@ -313,8 +312,8 @@ def test_marking_a_card_does_not_move_anything_in_it():
 
     assert marked[0].index("a-name") == plain[0].index("a-name")
     assert marked[1].index("15:24") == plain[1].index("15:24")
-    assert marked[0][1:].rstrip(HERE_BAR).rstrip() == plain[0][1:].rstrip()
-    assert marked[1][-1] == HERE_BAR
+    assert marked[0][1:].rstrip("\u2590").rstrip() == plain[0][1:].rstrip()
+    assert marked[1][-1] == "\u2590"
     assert HERE_BAR not in plain[1]
 
 
@@ -375,7 +374,7 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
 
 
 def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout():
-    """The number gives way to a blank; the dot and title remain where they were."""
+    """The number gives way to the frame; the dot and title remain where they were."""
     from rich.text import Text
 
     from lemonaid.inbox.tui.rows.cards import as_card
@@ -395,7 +394,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
 
     marked, plain = headline(True, 0), headline(False, 1)
 
-    assert marked[0] == " " and marked.endswith(HERE_BAR)
+    assert marked[0] == HERE_BAR and marked.endswith("\u2590")
     assert plain[0] == "2"
     assert marked.index("●") == plain.index("●") == 2
     assert marked.index("a-session") == plain.index("a-session")

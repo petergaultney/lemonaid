@@ -1,5 +1,6 @@
 """The inbox's table, which switches to a session on the first click."""
 
+from rich.segment import Segment
 from rich.style import Style
 from textual import events
 from textual.coordinate import Coordinate
@@ -45,6 +46,22 @@ class ClickToActTable(StableTable):
         # Fills a whole row, padding included, which a cell's own style can't.
         # Keyed by row key; set it before the cell updates that repaint the rows.
         self.row_backgrounds: dict[str, Style] = {}
+        self.card_row_keys: set[str] = set()
+
+    def _render_line_in_row(
+        self,
+        row_key: RowKey,
+        line_no: int,
+        base_style: Style,
+        cursor_location: Coordinate,
+        hover_location: Coordinate,
+    ) -> tuple[list[list[Segment]], list[list[Segment]]]:
+        row = self.rows.get(row_key)
+        if str(row_key.value) in self.card_row_keys and row and line_no == row.height - 1:
+            cursor_location = hover_location = Coordinate(-2, -2)
+        return super()._render_line_in_row(
+            row_key, line_no, base_style, cursor_location, hover_location
+        )
 
     def _get_row_style(self, row_index: int, base_style: Style) -> Style:
         style = super()._get_row_style(row_index, base_style)

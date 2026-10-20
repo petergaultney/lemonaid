@@ -18,7 +18,6 @@ from lemonaid.inbox.tui.tables import layout, table_layout
 from lemonaid.inbox.tui.utils import (
     ATTENTION_COLOR,
     FIELD_STYLES,
-    HERE_BAR,
     PIN_MARK,
     backend_cell,
     jump_gutter,
@@ -291,9 +290,9 @@ def test_bar_mode_does_not_paint_over_the_selected_green_edge():
     console = Console(color_system="truecolor")
 
     bar = body.plain.index("\n") - 1
-    assert body.plain[bar] == HERE_BAR
+    assert body.plain[bar] == "\u2590"
     assert body.get_style_at_offset(console, bar).bgcolor is None
-    assert body.get_style_at_offset(console, 0).bgcolor.name == ATTENTION_COLOR
+    assert body.get_style_at_offset(console, 1).bgcolor.name == ATTENTION_COLOR
 
 
 def _brief_cells(unread: bool = False, here: bool = False) -> list[Text]:
@@ -344,9 +343,10 @@ def test_idle_brief_lines_keep_the_current_session_edge_and_age():
     )
     lines = body.plain.splitlines()
 
-    assert all(line.endswith(HERE_BAR) for line in lines)
-    assert lines[2][:-1].rstrip() == " idle 1h"
-    assert lines[3][:-1].rstrip() == " review"
+    assert all(line.endswith("\u2590") for line in lines[:-1])
+    assert lines[-1] == "\u2586" * 40
+    assert lines[2][1:-1].rstrip() == "idle 1h"
+    assert lines[3][1:-1].rstrip() == "review"
     assert "●" in lines[0]
 
 
@@ -448,7 +448,7 @@ def test_card_emoji_sits_on_the_second_line_before_the_pin():
 
     assert emoji not in headline
     assert "a name" in headline
-    assert context.endswith(f"{emoji} {PIN_MARK}{HERE_BAR}")
+    assert context.endswith(f"{emoji} {PIN_MARK}\u2590")
     assert body.get_style_at_offset(console, 2).bgcolor.name == ATTENTION_COLOR
     emoji_start = body.plain.index(emoji)
     assert body.get_style_at_offset(console, emoji_start).bgcolor is None

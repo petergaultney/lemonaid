@@ -78,6 +78,8 @@ def sync_rows(
                     age_inline,
                     neutral_timing,
                     (rails_by_row or {}).get(key, ""),
+                    row_index + 1 == len(rows)
+                    or rows[row_index + 1][0] not in (rails_by_row or {}),
                 )
                 if carded
                 else brief_rows.styled(
@@ -89,13 +91,14 @@ def sync_rows(
                     gutter_width,
                 ),
             )
-            for key, cells in rows
+            for row_index, (key, cells) in enumerate(rows)
             if key not in headers
         ]
     )
     shaped = [(key, headers[key][0]) if key in headers else next(shapes) for key, _ in rows]
 
     if isinstance(table, ClickToActTable):
+        table.card_row_keys = {key for key, _ in rows if carded and key not in headers}
         table.row_backgrounds = {
             key: fill
             for key, _ in rows
