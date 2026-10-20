@@ -12,6 +12,7 @@ from . import (
     doc_events,
     failure_state,
     file_events,
+    github_failures,
     own_edits,
     own_pushes,
     path_presence,
@@ -40,19 +41,21 @@ def _repo_poller(
     [repo] = spec.target
     stem = repo_events.state_stem(directory, repo, me)
     failed = failure_state.path(root, spec, "github")
+    retry_at = 0.0
 
     def poll() -> None:
+        nonlocal retry_at
+        if time.monotonic() < retry_at:
+            return
+
         if (prs := repo_activity.fetch(repo)) is None:
-            _log.warning("Cannot reach GitHub for %s", repo)
-            failure_state.report(
-                failed,
-                f"Cannot reach GitHub for {repo} after repeated attempts",
-                deliver,
-                threshold=3,
+            _log.warning("Cannot read GitHub for %s", repo)
+            retry_at = time.monotonic() + github_failures.failed(
+                root, failed, repo, deliver, spec.interval
             )
             return
 
-        failure_state.clear(failed)
+        github_failures.recovered(root, failed)
         repo_events.poll(
             stem,
             repo,
@@ -141,13 +144,14 @@ def open_poller(
     trusted = watch_config.logins_on(load_config().watch.pr.trusted_commenters, pr_url.HOST)
     if writer:
         own_pushes.register(own_edits.root(), writer)
-    head, closed = spec.head, False
+    head, closed, retry_at = spec.head, False, 0.0
     failed = failure_state.path(root, spec, "github")
 
     def pr() -> None:
-        nonlocal head, closed
-        if closed:
+        nonlocal head, closed, retry_at
+        if closed or time.monotonic() < retry_at:
             return
+
         snapshot = pr_activity.fetch(
             repo,
             int(number),
@@ -156,15 +160,13 @@ def open_poller(
             skip_resolved=spec.skip_resolved,
         )
         if snapshot is None:
-            _log.warning("Cannot reach GitHub for %s#%s", repo, number)
-            failure_state.report(
-                failed,
-                f"Cannot reach GitHub for {repo}#{number} after repeated attempts",
-                deliver,
-                threshold=3,
+            _log.warning("Cannot read GitHub for %s#%s", repo, number)
+            retry_at = time.monotonic() + github_failures.failed(
+                root, failed, f"{repo}#{number}", deliver, spec.interval
             )
             return
-        failure_state.clear(failed)
+
+        github_failures.recovered(root, failed)
         pr_events.poll(
             stem,
             int(number),

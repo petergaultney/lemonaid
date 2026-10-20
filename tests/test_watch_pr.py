@@ -12,6 +12,7 @@ import pytest
 
 from lemonaid.watch import (
     delivery,
+    github_api,
     lemon_signature,
     merge_health,
     pr_activity,
@@ -359,7 +360,7 @@ def test_a_gh_timeout_is_retried_on_the_next_poll(stem, fake_gh, monkeypatch):
             raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
         return run(argv, **kwargs)
 
-    monkeypatch.setattr(pr_activity.subprocess, "run", slow_once)
+    monkeypatch.setattr(github_api.subprocess, "run", slow_once)
     _seen_nothing(stem)
     sent = []
     pr_wait.wait(
@@ -374,7 +375,7 @@ def test_a_missing_gh_still_ends_the_wait(monkeypatch):
     def missing(argv, **kwargs):
         raise FileNotFoundError(argv[0])
 
-    monkeypatch.setattr(pr_activity.subprocess, "run", missing)
+    monkeypatch.setattr(github_api.subprocess, "run", missing)
 
     with pytest.raises(FileNotFoundError):
         pr_activity.fetch("o/r", 90, ())

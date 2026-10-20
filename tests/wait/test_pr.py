@@ -1,7 +1,7 @@
 import time
 
 from lemonaid.messages import store
-from lemonaid.watch import pr_activity
+from lemonaid.watch import github_api, pr_activity
 
 from . import shared
 
@@ -59,6 +59,26 @@ def test_already_passed_ci_is_a_first_wait_baseline(tmp_path, monkeypatch):
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1 and "CI passed" not in sent[0]
+    finally:
+        stop.set()
+        thread.join(5)
+
+
+def test_two_paused_pr_scouts_deliver_one_quota_notice(tmp_path, monkeypatch):
+    monkeypatch.setattr(github_api, "_JITTER", 0)
+    github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
+    monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: None)
+    text = (
+        shared.BRIEF
+        + "- `lemonaid watch pr --wait 12 --repo o/r --interval .01`\n"
+        + "- `lemonaid watch pr --wait 13 --repo o/r --interval .01`\n"
+    )
+    sent = []
+    _path, _inbox, _root, stop, thread, errors = shared.start(tmp_path, text, sent.append)
+    try:
+        thread.join(5)
+        assert not thread.is_alive() and not errors
+        assert len(sent) == 1 and sent[0].count("quota is used up until") == 1
     finally:
         stop.set()
         thread.join(5)

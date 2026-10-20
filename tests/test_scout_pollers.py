@@ -1,7 +1,14 @@
 import os
+import threading
 import time
 
-from lemonaid.watch import pr_activity, scout_pollers, subscriptions
+from lemonaid.watch import (
+    github_api,
+    github_failures,
+    pr_activity,
+    scout_pollers,
+    subscriptions,
+)
 
 
 def test_a_settled_doc_reports_current_unanswered_threads_without_an_extra_delay(tmp_path):
@@ -40,6 +47,7 @@ def test_an_already_closed_pr_is_silent_and_stops_being_polled(tmp_path, monkeyp
 def test_github_failure_is_reported_once_across_rearms_and_again_after_recovery(
     tmp_path, monkeypatch
 ):
+    monkeypatch.setattr(github_failures, "_retry_delay", lambda attempts, interval: 0)
     snapshot = pr_activity.Snapshot("b" * 40, "OPEN", False, "", [], "main", "MERGEABLE", [])
     state = [None]
     monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: state[0])
@@ -101,3 +109,70 @@ def test_a_comment_is_reported_at_the_settle_and_the_body_edit_after_the_quiet_p
     poll()
     poll()
     assert len(sent) == 2 and "body of" in sent[1]
+
+
+def test_a_failed_read_waits_longer_each_time_before_the_next(tmp_path, monkeypatch):
+    fetched = []
+    monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: fetched.append(1))
+    delays = []
+
+    def delay(attempts, interval):
+        delays.append(attempts)
+        return 0 if attempts < 2 else 3600
+
+    monkeypatch.setattr(github_failures, "_retry_delay", delay)
+    spec = subscriptions.Subscription("pr", ("o/r", "12"))
+    poll = scout_pollers.open_poller(spec, tmp_path, "", lambda message: True, ())
+    for _ in range(4):
+        poll()
+    assert len(fetched) == 2
+    assert delays == [1, 2]
+
+
+def test_a_quota_pause_is_told_once_per_lemon_and_never_as_unreachable(tmp_path, monkeypatch):
+    monkeypatch.setattr(github_api, "_JITTER", 0)
+    monkeypatch.setattr(github_failures, "_retry_delay", lambda attempts, interval: 0)
+    github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
+    monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: None)
+    sent = []
+    for number in ("12", "13"):
+        spec = subscriptions.Subscription("pr", ("o/r", number))
+        poll = scout_pollers.open_poller(spec, tmp_path, "", sent.append, ())
+        for _ in range(3):
+            poll()
+    assert len(sent) == 1
+    assert "quota is used up until" in sent[0]
+
+
+def test_concurrent_scouts_tell_a_lemon_about_one_pause_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(github_api, "_JITTER", 0)
+    github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
+    sent, second = [], threading.Event()
+
+    def deliver(message):
+        sent.append(message)
+        second.wait(0.5)  # a second scout may try to deliver while this one waits
+        return True
+
+    def scout(number):
+        failure = tmp_path / "failures" / f"{number}.json"
+        if number == "13":
+            second.set()
+        github_failures.failed(tmp_path, failure, f"o/r#{number}", deliver, 60)
+
+    threads = [threading.Thread(target=scout, args=(n,)) for n in ("12", "13")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(5)
+    assert len(sent) == 1
+
+
+def test_a_read_that_succeeds_during_a_pause_keeps_the_pause_notice(tmp_path, monkeypatch):
+    monkeypatch.setattr(github_api, "_JITTER", 0)
+    github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
+    sent = []
+    github_failures.failed(tmp_path, tmp_path / "failures" / "12.json", "o/r#12", sent.append, 60)
+    github_failures.recovered(tmp_path, tmp_path / "failures" / "13.json")
+    github_failures.failed(tmp_path, tmp_path / "failures" / "14.json", "o/r#14", sent.append, 60)
+    assert len(sent) == 1

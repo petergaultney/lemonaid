@@ -8,12 +8,10 @@ including other lemons' and unsigned 🍋 ones, is someone else's. Bots, pending
 the watcher explicitly skips them.
 """
 
-import json
-import subprocess
 import typing as ty
 from collections import abc
 
-from . import pr_comments
+from . import github_api, pr_comments
 
 _ROLLUP = """
       statusCheckRollup { contexts(first: 100, after: $after) {
@@ -107,37 +105,20 @@ def _contexts(commit: dict) -> dict:
 
 def _repository(repo: str, number: int, query: str, after: str, oid: str) -> dict | None:
     owner, _, name = repo.partition("/")
-    try:
-        r = subprocess.run(
-            [
-                "gh",
-                "api",
-                "graphql",
-                "-F",
-                f"owner={owner}",
-                "-F",
-                f"name={name}",
-                "-F",
-                f"number={number}",
-                *(["-f", f"after={after}"] if after else []),
-                *(["-f", f"oid={oid}"] if oid else []),
-                "-f",
-                f"query={query}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        return None
-
-    if r.returncode != 0:
-        return None
-
-    try:
-        return json.loads(r.stdout)["data"]["repository"]
-    except (ValueError, KeyError, TypeError):
-        return None
+    data = github_api.graphql(
+        [
+            "-F",
+            f"owner={owner}",
+            "-F",
+            f"name={name}",
+            "-F",
+            f"number={number}",
+            *(["-f", f"after={after}"] if after else []),
+            *(["-f", f"oid={oid}"] if oid else []),
+        ],
+        query,
+    )
+    return (data or {}).get("repository")
 
 
 def fetch(
@@ -148,7 +129,7 @@ def fetch(
     skip_outdated: bool = False,
     skip_resolved: bool = False,
 ) -> Snapshot | None:
-    """None when gh fails - a transient failure must not end the wait.
+    """None when gh fails or GitHub reads are paused - a transient failure must not end the wait.
 
     Comments signed with one of `signatures` are left out as the watching lemon's own.
     """

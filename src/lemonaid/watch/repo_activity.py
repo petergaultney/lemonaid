@@ -1,8 +1,8 @@
 """One GraphQL read of a repo's pull requests: every open one, and the most recently closed."""
 
-import json
-import subprocess
 import typing as ty
+
+from . import github_api
 
 _FIELDS = """number title isDraft state headRefName headRefOid author { login }
   labels(first: 30) { nodes { name } }"""
@@ -53,36 +53,19 @@ def _pull_request(node: dict) -> PullRequest:
 
 
 def _read(owner: str, name: str, after: str) -> dict | None:
-    try:
-        r = subprocess.run(
-            [
-                "gh",
-                "api",
-                "graphql",
-                "-f",
-                f"owner={owner}",
-                "-f",
-                f"name={name}",
-                "-F",
-                f"first={'false' if after else 'true'}",
-                *(["-f", f"after={after}"] if after else []),
-                "-f",
-                f"query={_QUERY}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        return None
-
-    if r.returncode != 0:
-        return None
-
-    try:
-        return json.loads(r.stdout)["data"]["repository"]
-    except (ValueError, KeyError, TypeError):
-        return None
+    data = github_api.graphql(
+        [
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"name={name}",
+            "-F",
+            f"first={'false' if after else 'true'}",
+            *(["-f", f"after={after}"] if after else []),
+        ],
+        _QUERY,
+    )
+    return (data or {}).get("repository")
 
 
 def parse(pages: list[dict]) -> list[PullRequest]:

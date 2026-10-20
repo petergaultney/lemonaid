@@ -22,7 +22,8 @@ def _load(path: Path) -> dict:
 
 def report(
     path: Path, message: str, deliver: abc.Callable[[str], object], threshold: int = 1
-) -> None:
+) -> int:
+    """The consecutive failures so far, this one included."""
     saved = _load(path)
     attempts = int(saved.get("attempts", 0)) + 1
     previous = str(saved.get("reported", ""))
@@ -30,6 +31,7 @@ def report(
     if attempts >= threshold and previous != message:
         deliver(message)
         cursors.write_json(path, {"attempts": attempts, "reported": message})
+    return attempts
 
 
 def clear(path: Path) -> None:
