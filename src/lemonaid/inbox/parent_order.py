@@ -20,6 +20,15 @@ def channels(conn: sqlite3.Connection) -> dict[str, str]:
     }
 
 
+def counts(children: abc.Iterable[str], parents: abc.Mapping[str, str]) -> dict[str, int]:
+    found: dict[str, int] = {}
+    for child in set(children):
+        parent = parents.get(child, "")
+        if parent and parent != child:
+            found[parent] = found.get(parent, 0) + 1
+    return found
+
+
 def ordered(
     rows: abc.Sequence[db.Notification], parents: abc.Mapping[str, str]
 ) -> list[db.Notification]:

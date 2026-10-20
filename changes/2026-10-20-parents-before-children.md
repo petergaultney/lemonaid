@@ -2,4 +2,5 @@
 
 #### Fixed
 
-- **Visible parents sort before their children within an inbox group.** A dim downward arrow and count beside the parent's emoji and pin shows its visible direct children in that group; siblings, pins, and explicit arranger order keep their existing precedence.
+- **Visible parents sort before their children within an inbox group.** Siblings, pins, and explicit arranger order keep their existing precedence.
+- **Parent indicators show visible and total active direct children.** Moving the cursor marks its visible children and parent with down/up arrows beside the emoji and pin; the `?` help explains the arrows and counts.

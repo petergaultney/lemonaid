@@ -6,29 +6,11 @@ from collections import abc
 from textual.widgets import DataTable
 
 from ....config import Config
-from ... import sections
-from ..rows import row_parts, table_rows
+from ... import parent_order, sections
+from ..rows import family_highlight, row_parts, table_rows
 from ..tables import layout
 from ..utils import GUTTER_WIDTH
 from . import group_headers, inbox_draw, inbox_entries, inbox_frame
-
-
-def _child_counts(
-    rows: abc.Sequence[sections.Row], parents: abc.Mapping[str, str]
-) -> dict[str, int]:
-    grouped: dict[int, dict[str, str]] = {}
-    for row in rows:
-        group = sections.row_group_id(row.key)
-        if group is not None:
-            grouped.setdefault(group, {})[row.notification.channel] = row.key
-    counts: dict[str, int] = {}
-    for members in grouped.values():
-        for child in members:
-            parent = parents.get(child, "")
-            if parent in members and parent != child:
-                key = members[parent]
-                counts[key] = counts.get(key, 0) + 1
-    return counts
 
 
 def draw(
@@ -42,6 +24,8 @@ def draw(
     config: Config,
     card_width: int,
     card_shape: abc.Callable[[int], tuple[int, int]],
+    families: family_highlight.Highlighter | None = None,
+    visible_counts: abc.Mapping[str, int] | None = None,
 ) -> bool:
     """Bring *table* in line with *entries*; whether it was rebuilt rather than updated.
 
@@ -51,7 +35,16 @@ def draw(
     """
     card_briefs = frame.active.cards
     drawn = [e for e in entries if isinstance(e, sections.Row)]
-    child_counts = _child_counts(drawn, frame.parents)
+    visible = (
+        visible_counts
+        if visible_counts is not None
+        else parent_order.counts((e.notification.channel for e in drawn), frame.parents)
+    )
+    child_counts = {
+        e.key: (visible.get(e.notification.channel, 0), frame.child_totals[e.notification.channel])
+        for e in drawn
+        if frame.child_totals.get(e.notification.channel)
+    }
     numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
     briefs = (
         {
@@ -123,4 +116,5 @@ def draw(
             if (group := sections.row_group_id(e.key)) is not None and f"group:{group}" in headers
         },
         children_by_row=child_counts,
+        families=families,
     )

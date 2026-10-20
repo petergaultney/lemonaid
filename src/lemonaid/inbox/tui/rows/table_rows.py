@@ -11,7 +11,7 @@ from ..tables import layout
 from ..tables.scroll_position import preserve_scroll
 from ..tables.table import ClickToActTable
 from ..utils import same_cell
-from . import brief_cards, brief_rows, card_context, cards, parent_markers
+from . import brief_cards, brief_rows, card_context, cards, family_highlight, parent_markers
 
 
 def without_marker(cells: list[Text]) -> list[Text]:
@@ -45,7 +45,8 @@ def sync_rows(
     neutral_timing: bool = False,
     headers: abc.Mapping[str, tuple[list[Text], Style | None]] | None = None,
     rails_by_row: abc.Mapping[str, str] | None = None,
-    children_by_row: abc.Mapping[str, int] | None = None,
+    children_by_row: abc.Mapping[str, tuple[int, int]] | None = None,
+    families: family_highlight.Highlighter | None = None,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -63,45 +64,62 @@ def sync_rows(
     carded = card_width > 0
     headers = headers or {}
     children_by_row = children_by_row or {}
-    marker_width = max((len(str(n)) + 2 for n in children_by_row.values() if n), default=0)
-    shapes = iter(
-        [
-            (
-                key,
-                cards.as_card(
-                    cells,
-                    card_width,
-                    *shape,
-                    gutter_width,
-                    unread_style,
-                    (emojis_by_row or {}).get(key, ""),
-                    (briefs_by_row or {}).get(key),
-                    now,
-                    (contexts_by_row or {}).get(key),
-                    age_inline,
-                    neutral_timing,
-                    (rails_by_row or {}).get(key, ""),
-                    row_index + 1 == len(rows)
-                    or rows[row_index + 1][0] not in (rails_by_row or {}),
-                    children_by_row.get(key, 0),
-                )
-                if carded
-                else brief_rows.styled(
-                    parent_markers.columns(
-                        cells, children_by_row.get(key, 0), marker_width, gutter_width
-                    ),
-                    (briefs_by_row or {}).get(key),
-                    layout.UNREAD_CELL,
-                    layout.BACKEND_CELL,
-                    layout.NAME_CELL,
-                    gutter_width,
-                ),
-            )
-            for row_index, (key, cells) in enumerate(rows)
-            if key not in headers
-        ]
+    marker_width = max(
+        (2 * len(str(total)) + 3 for _, total in children_by_row.values()), default=0
     )
-    shaped = [(key, headers[key][0]) if key in headers else next(shapes) for key, _ in rows]
+    if families is not None:
+        marker_width += 2
+    raw = dict(rows)
+    end_rails = {
+        key
+        for i, (key, _) in enumerate(rows)
+        if i + 1 == len(rows) or rows[i + 1][0] not in (rails_by_row or {})
+    }
+
+    def render(key: str, family: str) -> list[Text]:
+        cells = raw[key]
+        visible, total = children_by_row.get(key, (0, 0))
+        role = family if families is not None else None
+        if carded:
+            return cards.as_card(
+                cells,
+                card_width,
+                *shape,
+                gutter_width,
+                unread_style,
+                (emojis_by_row or {}).get(key, ""),
+                (briefs_by_row or {}).get(key),
+                now,
+                (contexts_by_row or {}).get(key),
+                age_inline,
+                neutral_timing,
+                (rails_by_row or {}).get(key, ""),
+                key in end_rails,
+                total,
+                visible,
+                role,
+            )
+
+        painted = brief_rows.styled(
+            parent_markers.columns(cells, total, marker_width, gutter_width, visible, role),
+            (briefs_by_row or {}).get(key),
+            layout.UNREAD_CELL,
+            layout.BACKEND_CELL,
+            layout.NAME_CELL,
+            gutter_width,
+        )
+        if role:
+            painted[layout.NAME_CELL].stylize("bold not dim", gutter_width, gutter_width + 1)
+        return painted
+
+    if families is not None:
+        families.bind(table, (key for key, _ in rows if key not in headers), render)
+    shaped = [
+        (key, headers[key][0])
+        if key in headers
+        else (key, render(key, families.roles.get(key, "") if families is not None else ""))
+        for key, _ in rows
+    ]
 
     if isinstance(table, ClickToActTable):
         table.card_row_keys = {key for key, _ in rows if carded and key not in headers}

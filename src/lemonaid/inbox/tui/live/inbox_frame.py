@@ -27,6 +27,7 @@ class Frame:
     numbers: dict[str, tuple[pr_numbers.PR, ...]]
     matching_ids: set[int] | None  # None outside a search
     parents: dict[str, str] = dataclasses.field(default_factory=dict)
+    child_totals: dict[str, int] = dataclasses.field(default_factory=dict)
 
 
 def _brief_names(conn: sqlite3.Connection, shared: abc.Set[str]) -> dict[str, str]:
@@ -133,6 +134,8 @@ def load(
     else:
         other = []
 
+    parents = parent_order.channels(conn)
+    totals = parent_order.counts((n.channel for n in db.get_active(conn)), parents)
     return Frame(
         active,
         pinned,
@@ -146,5 +149,6 @@ def load(
         other,
         pr_numbers.rows(conn, [*active.rows, *other], config.places, pr_cache),
         matching_ids,
-        parent_order.channels(conn),
+        parents,
+        totals,
     )

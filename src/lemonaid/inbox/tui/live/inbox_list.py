@@ -10,6 +10,7 @@ import time
 from collections import abc
 from pathlib import Path
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Static
@@ -18,8 +19,8 @@ from ....config import PlaceRoot
 from ....log import get_logger
 from ....stalls import inbox as stalls_inbox
 from ....stalls import pulls as stalls_pulls
-from ... import db, presence, scout_revival, sections, unarchive, view
-from ..rows import pr_numbers, row_parts
+from ... import db, parent_order, presence, scout_revival, sections, unarchive, view
+from ..rows import family_highlight, pr_numbers, row_parts
 from ..tables import cursor_target, layout, row_keys
 from ..tables.scroll_position import StableTable
 from ..tables.table import ClickToActTable
@@ -70,6 +71,7 @@ class InboxList(Vertical):
             frozenset()
         )  # rows the last refresh kept out of the fold
         self.drawn: list[db.Notification | None] = []  # the main table's rows; None for a header
+        self.families = family_highlight.Highlighter()
         self.headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
         self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
@@ -82,6 +84,10 @@ class InboxList(Vertical):
         yield Static("", id="fold_label")
         yield Static("", id="other_sources_label")
         yield StableTable(id="other_sources_table", show_header=False)
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        if isinstance(event.widget, DataTable):
+            self.families.highlight(row_keys.at_cursor(event.widget) or "")
 
     def on_unmount(self) -> None:
         self.arrangement.close()
@@ -235,6 +241,20 @@ class InboxList(Vertical):
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
         self._marked_header = current_row if current_row in self.headers else ""
+        chrome = 3 + bool(folded)
+        show_other = bool(other_notifications) and (
+            height - chrome - min(len(other_notifications), 8) >= _MIN_MAIN_ROWS
+        )
+        visible_channels = {
+            **{e.key: e.notification.channel for e in drawn},
+            **{str(n.id): n.channel for n in other_notifications if show_other},
+        }
+        self.families.prepare(
+            visible_channels,
+            frame.parents,
+            row_keys.at_cursor(other if focused_on_other else main) or "",
+        )
+        visible_counts = parent_order.counts(visible_channels.values(), frame.parents)
         rebuilt = inbox_main_table.draw(
             main,
             entries,
@@ -246,6 +266,8 @@ class InboxList(Vertical):
             self.config,
             card_width,
             card_shape,
+            self.families,
+            visible_counts,
         )
 
         fold_label.display = bool(all_folded) and search_text is None
@@ -267,11 +289,6 @@ class InboxList(Vertical):
             ),
         )
 
-        # The non-switchable table hides if the terminal is too short: the main table gets priority.
-        chrome = 3 + bool(folded)  # header, other_label, the status/footer row, the fold line
-        show_other = bool(other_notifications) and (
-            height - chrome - min(len(other_notifications), 8) >= _MIN_MAIN_ROWS
-        )
         if show_other:
             inbox_draw.other_table(
                 self.query_one("#other_sources_label", Static),
@@ -283,6 +300,8 @@ class InboxList(Vertical):
                 self.config,
                 card_width,
                 card_shape(0),
+                self.families,
+                visible_counts,
             )
         else:
             if other.row_count:
@@ -311,6 +330,7 @@ class InboxList(Vertical):
                 row=cursor_target.after_rebuild(main, current_row, current_key, current_index),
                 scroll=False,
             )
+        self.families.highlight(row_keys.at_cursor(other if other.has_focus else main) or "")
         return inbox_draw.Drawn(
             unread_count,
             len(active.rows) - unread_count,

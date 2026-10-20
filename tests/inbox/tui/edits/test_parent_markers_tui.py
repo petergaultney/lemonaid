@@ -16,7 +16,7 @@ from .shared import channels, keep_sessions, run, session  # noqa: F401
 
 @pytest.mark.parametrize("size", [(120, 40), (44, 60)])
 @pytest.mark.parametrize("shared_group", [True, False])
-def test_parent_marker_counts_visible_children_in_each_group(size, shared_group):
+def test_parent_marker_counts_children_across_groups(size, shared_group):
     Path(os.environ["LEMONAID_CONFIG"]).write_text("[tui]\nbrief_status = true\n")
     with db.connect() as conn:
         parent = session(conn, "parent", "blocked")
@@ -36,7 +36,8 @@ def test_parent_marker_counts_visible_children_in_each_group(size, shared_group)
             cells = table.get_row(key)
             cell = next((c for c in cells if "parent" in c.plain), None)
             if cell is not None:
-                count = 1 if shared_group else (0 if not parents else 2)
+                count = 2
+                assert "\u21932" in cell.plain
                 assert "parent \u2193" not in cell.plain
                 assert ("\u2193" in cell.plain) == bool(count)
                 if count:
@@ -70,13 +71,13 @@ def test_parent_marker_updates_as_children_are_folded_and_restored(size):
                 if "parent" in cell.plain
             )
 
-        assert "\u2193" not in parent_text()
+        assert "\u21930/1" in parent_text()
         await pilot.press("w")
         await pilot.pause()
         assert "\u21931" in parent_text()
         await pilot.press("w")
         await pilot.pause()
-        assert "\u2193" not in parent_text()
+        assert "\u21930/1" in parent_text()
 
     run(steps, size)
 
@@ -110,7 +111,8 @@ def test_parent_marker_stays_with_emoji_and_pin_when_names_are_truncated(size, d
             ) in lines[1]
             assert all(cell_len(line) <= size[0] for line in lines)
         else:
-            assert (f"\u21931 {decoration} " if decoration else "\u21931 ") in parent.plain
+            prefix = parent.plain.split(decoration if decoration else "parent", 1)[0]
+            assert prefix.rstrip().endswith("\u21931")
             assert parent.plain.index("\u2193") < parent.plain.index("parent")
 
     run(steps, size)

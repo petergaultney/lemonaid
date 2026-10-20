@@ -173,3 +173,26 @@ def test_status_text_survives_a_hint_toggle():
         return str(app.query_one("#status", Static).render())
 
     assert _run(steps) == "7 unread, 3 read"
+
+
+def test_final_family_legend_entry_is_reachable_in_short_wide_help():
+    async def steps(app, pilot):
+        await pilot.press("question_mark")
+        await pilot.pause()
+        reference = app.screen
+        assert reference.wide
+        scroll = reference.query_one(VerticalScroll)
+        final_entry = next(
+            widget
+            for widget in reference.query(Static)
+            if "Arrows follow the cursor" in str(widget.render())
+        )
+        assert final_entry.region.bottom > scroll.content_region.bottom
+        for _ in range(6):
+            await pilot.press("pagedown")
+            await pilot.pause()
+        assert scroll.scroll_offset.y > 0
+        assert scroll.content_region.contains_region(final_entry.region)
+        assert reference.region.contains_region(final_entry.region)
+
+    _run(steps, size=(120, 20))

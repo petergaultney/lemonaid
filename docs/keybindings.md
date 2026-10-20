@@ -79,6 +79,12 @@ switched to. In history and the snoozed list the two keys move within that list.
 search box or a dialog, `Ctrl`+`a`/`Ctrl`+`e` and `Home`/`End` move the text cursor as
 usual, and a brief view leaves them to its own scrolling.
 
+### Family indicators
+
+Press `?` for the indicator legend alongside the keys. Use Up/Down or PageUp/PageDown to scroll the reference in either layout. Bright `↑` marks the highlighted row's visible parent; bright `↓` marks its visible direct children. These arrows follow the cursor without activating a session, including across groups and the other-terminals list. A group header clears the relationship arrows.
+
+The dim count beside the emoji and pin describes the row's own children: `↓3` means three active direct children, all shown; `↓1/3` means one shown out of three active. Hidden and folded children count toward the total; archived and snoozed sessions do not. Duplicate group rows count once.
+
 ### History mode
 
 When a session has an attached brief, its status appears after its name.

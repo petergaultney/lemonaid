@@ -9,7 +9,7 @@ from textual.widgets import DataTable, Static
 from .... import resume
 from ....config import Config
 from ... import db
-from ..rows import inbox_rows, row_parts, table_rows
+from ..rows import family_highlight, inbox_rows, row_parts, table_rows
 from . import inbox_frame
 
 
@@ -94,6 +94,8 @@ def other_table(
     config: Config,
     card_width: int,
     card_shape: tuple[int, int],
+    families: family_highlight.Highlighter | None = None,
+    visible_counts: abc.Mapping[str, int] | None = None,
 ) -> None:
     """Show the sessions switchable only from another terminal, always dimmed."""
     label.update("── non-switchable ──")
@@ -115,6 +117,12 @@ def other_table(
         ],
         card_width,
         card_shape,
+        children_by_row={
+            str(n.id): ((visible_counts or {}).get(n.channel, 0), frame.child_totals[n.channel])
+            for n in rows
+            if frame.child_totals.get(n.channel)
+        },
+        families=families,
         contexts_by_row={
             str(n.id): parts.context_parts(n, False, areas.get(n.channel, "")) for n in rows
         },

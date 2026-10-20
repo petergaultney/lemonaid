@@ -15,6 +15,7 @@ from textual.widget import Widget
 from textual.widgets import Label, Static
 
 from ...config import KeybindingsConfig
+from . import indicator_help
 
 # Description per keybinding field, in the order they are shown. Fields absent
 # from here are not user-facing keys and are left out.
@@ -117,7 +118,7 @@ def help_lines(kb: KeybindingsConfig) -> list[tuple[str, list[tuple[str, str]]]]
             [(_keys(kb, field), description) for field, description in entries if _keys(kb, field)],
         )
         for title, entries in _SECTIONS
-    ]
+    ] + indicator_help.sections()
 
 
 def _close_hint(kb: KeybindingsConfig) -> str:
@@ -173,8 +174,8 @@ class HelpScreen(ModalScreen[None]):
         border: thick $primary;
     }
 
-    /* A pane wider than it is tall has the room to lay the sections out side by
-       side, which is what keeps a short one from scrolling. */
+    /* Wide panes use two columns; the shared scroll area keeps both reachable
+       when the reference is taller than the pane. */
     HelpScreen.-wide > Vertical {
         max-width: 100%;
     }
@@ -225,14 +226,14 @@ class HelpScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         sections = [(title, rows) for title, rows in help_lines(self.keybindings) if rows]
         with Vertical():
-            yield Label("Keys", classes="title")
-            if self.wide:
-                with Horizontal(classes="columns"):
-                    for half in _halves(sections):
-                        with Vertical(classes="column"):
-                            yield from _section_widgets(half)
-            else:
-                with VerticalScroll():
+            yield Label("Keys and indicators", classes="title")
+            with VerticalScroll():
+                if self.wide:
+                    with Horizontal(classes="columns"):
+                        for half in _halves(sections):
+                            with Vertical(classes="column"):
+                                yield from _section_widgets(half)
+                else:
                     yield from _section_widgets(sections)
             yield Label("q, Esc, or ? to close", classes="hint")
 

@@ -979,10 +979,15 @@ class LemonaidApp(App):
         if not self.is_running:
             return  # queued highlights can arrive after shutdown removes the tables
 
+        inbox = self.query_one(InboxList)
+        key = str(event.row_key.value) if event.row_key else ""
+        active = inbox.other if inbox.other.has_focus else inbox.main
+        if event.data_table is active:
+            inbox.families.highlight(key)
+        elif event.data_table.id not in {"main_table", "other_sources_table"}:
+            inbox.families.highlight("")
         if event.data_table.id == "main_table":
-            self.query_one(InboxList).mark_header(
-                str(event.row_key.value) if event.row_key else "", self._content.card_width()
-            )
+            inbox.mark_header(key, self._content.card_width())
         self._refresh_resume_binding()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
