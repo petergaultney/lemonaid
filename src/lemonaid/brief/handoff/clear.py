@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from ...inbox import db
+from ...launch.restart import state as restart_state
 from .. import attached
 from . import state as handoff_state
 from . import transfer as handoff_transfer
@@ -19,14 +20,14 @@ _RECENT_SECONDS = 60
 
 def cleared(
     conn: sqlite3.Connection, channel: str, tty: str, now: float
-) -> tuple[str, Path] | None:
+) -> tuple[str, Path, float] | None:
     """The channel that `/clear` last ended on *tty* and its brief, if it has one.
 
     Only the last clear on the terminal counts, even when its row is archived: an older
     clear ended an earlier session.
     """
     row = conn.execute(
-        """SELECT channel, status FROM notifications
+        """SELECT channel, status, json_extract(metadata, '$.exited_at') AS cleared_at FROM notifications
            WHERE channel LIKE 'claude:%' AND channel != ?
              AND json_extract(metadata, '$.exit_reason') = 'clear'
              AND json_extract(metadata, '$.tty') = ?
@@ -38,7 +39,7 @@ def cleared(
         return None
 
     path = attached.by_channel(conn, [row["channel"]]).get(row["channel"])
-    return (row["channel"], path) if path else None
+    return (row["channel"], path, row["cleared_at"]) if path else None
 
 
 def _other_pane(old: db.Notification, new: db.Notification) -> bool:
@@ -47,7 +48,19 @@ def _other_pane(old: db.Notification, new: db.Notification) -> bool:
     return None not in recorded and recorded[0] != recorded[1]
 
 
-def carry(conn: sqlite3.Connection, source: str, path: Path, target: str) -> bool:
+def carry(
+    conn: sqlite3.Connection, source: str, path: Path, target: str, tty: str, cleared_at: float
+) -> bool:
+    """Transfer only the selected clear event, outside any restart reservation."""
+    with restart_state.barrier(source, exclusive=True):
+        if restart_state.blocked(source):
+            return False
+        return _carry(conn, source, path, target, tty, cleared_at)
+
+
+def _carry(
+    conn: sqlite3.Connection, source: str, path: Path, target: str, tty: str, cleared_at: float
+) -> bool:
     """Move *path* and the inbox name from *source* to *target*; whether it moved.
 
     A brief waiting on *target*'s window claims it first. Nothing moves when a handoff
@@ -67,6 +80,8 @@ def carry(conn: sqlite3.Connection, source: str, path: Path, target: str) -> boo
             or holder["channel"] != source
             or old is None
             or new is None
+            or new.metadata.get("tty") != tty
+            or cleared(conn, target, tty, time.time()) != (source, path, cleared_at)
             or attached.by_channel(conn, [target])
             or _other_pane(old, new)
             or handoff_state.pending_source(conn, path, source, time.time())

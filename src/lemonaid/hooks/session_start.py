@@ -33,14 +33,14 @@ def _carry_across_clear(session_id: str) -> str:
         if found is None:
             return ""
 
-        source, path = found
+        source, path, cleared_at = found
         deadline = time.monotonic() + _ROW_WAIT_SECONDS
         while (
             db.get_by_channel(conn, channel, unread_only=False) is None
             and time.monotonic() < deadline
         ):
             time.sleep(0.1)
-        if not handoff_clear.carry(conn, source, path, channel):
+        if not handoff_clear.carry(conn, source, path, channel, tty, cleared_at):
             _log.warning("kept %s on %s after /clear; %s took no brief", path, source, channel)
             return ""
 

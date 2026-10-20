@@ -751,6 +751,11 @@ register within the three seconds. Then the old row
 keeps the brief, and `brief detach --channel <old channel>` and `brief attach --self`
 move it by hand. `--channel` accepts the whole session ID or its first 8 characters.
 
+The transfer rechecks the same recent clear event and both terminal records inside
+its transaction. Archiving or resuming the source while registration is pending
+cancels the transfer. An active restart reservation also leaves its source brief
+and manual state in place.
+
 ### Children and their cleanup
 
 `brief children --self` lists each of your children, with its own children (its reviewers)
