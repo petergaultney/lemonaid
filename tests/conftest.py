@@ -13,7 +13,7 @@ from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
-from lemonaid.watch import push_scout  # noqa: E402
+from lemonaid.watch import codex_waiter, push_scout  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
 # reverts them all, which once pointed a test's migration at the live database and
@@ -140,6 +140,7 @@ def _no_detached_push_scout(monkeypatch, tmp_path):
     """
     monkeypatch.setattr(session_socket, "claude_dir", lambda: tmp_path / "claude-home")
     monkeypatch.setattr(push_scout, "_spawn", lambda entry: None)
+    monkeypatch.setattr(codex_waiter, "_spawn", lambda channel, thread: None)
 
 
 @pytest.fixture(autouse=True)

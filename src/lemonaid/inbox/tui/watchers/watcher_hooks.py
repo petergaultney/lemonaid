@@ -9,6 +9,7 @@ from .... import claude, codex, handlers, openclaw, opencode
 from ....brief import attached
 from ....config import Config
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes
+from ....watch import codex_waiter
 from ... import db, teardown_evidence
 from ..rows import brief_cards
 
@@ -184,8 +185,17 @@ def start(
         now = time.monotonic()
         if last_repair is None or now - last_repair >= 10:
             last_repair = now
-            with db.connect() as conn:
-                handlers.repair_tmux_locations(conn)
+            locations = handlers.codex_tmux_locations()
+            if locations is not None:
+                with db.connect() as conn:
+                    handlers.repair_tmux_locations(conn, locations)
+                    codex_waiter.restore(
+                        conn,
+                        {
+                            thread: {match["tty"] for match in matches}
+                            for thread, matches in locations.items()
+                        },
+                    )
         return active_sessions()
 
     start_unified_watcher(

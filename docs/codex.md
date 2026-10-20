@@ -54,6 +54,15 @@ and a valid brief, and a SessionStart hook that asks it to arm
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 
+Stop checks resolve an attached transient notification channel from verified terminal
+ownership even before the first turn-complete notification records its root thread.
+Codex treats a blocking Stop response as a request to continue the turn. Lemonaid also
+recovers missed or failed rearms: at inbox startup and every ten seconds, it starts a
+detached unified watcher for a live, idle Codex lemon with subscriptions and no watcher.
+The watcher uses the persistent root thread for delivery and preserves the attached
+brief's channel. It skips dead, unknown, archived, mid-turn and pending-handoff sessions.
+This restores the watcher directly; no prompt or keystroke to the lemon is required.
+
 ### 3. Allow brief and message commands under the automatic approval reviewer
 
 With `approvals_reviewer = "auto_review"` in `~/.codex/config.toml`, Codex can reject these commands because they write outside the project workspace. Add these rules to `~/.codex/rules/default.rules` if Codex lemons use briefs and lemon-to-lemon messages:

@@ -28,6 +28,14 @@ check_imports()
 """
 
 
+def test_tui_imports_without_prior_cli_imports(tmp_path):
+    run(
+        tmp_path,
+        "import lemonaid.inbox.tui\n"
+        "assert lemonaid.inbox.tui.LemonaidApp.__name__ == 'LemonaidApp'\n",
+    )
+
+
 def test_tui_loads_and_mounts_after_cli_startup(tmp_path):
     run(
         tmp_path,

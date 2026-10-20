@@ -12,7 +12,7 @@ def _matches(row: db.Notification, thread: str, location: dict[str, Any]) -> boo
     if recorded == thread:
         return True
     canonical = row.metadata.get("session_id")
-    rollout = utils.extract_session_id_from_filename(row.metadata.get("session_path", ""))
+    rollout = utils.extract_session_id_from_filename(row.metadata.get("session_path") or "")
     # A reconciled alias belongs to its root, even after another root takes its pane.
     if canonical and canonical == rollout and canonical != recorded and canonical != thread:
         return False
@@ -113,7 +113,7 @@ def for_session(conn: sqlite3.Connection, thread: str) -> str:
         if row.channel in attached
         and row.channel.startswith("codex:")
         and row.metadata.get("session_id") == thread
-        and utils.extract_session_id_from_filename(row.metadata.get("session_path", "")) == thread
+        and utils.extract_session_id_from_filename(row.metadata.get("session_path") or "") == thread
         and utils.find_session_path(row.channel.removeprefix("codex:")) is None
     ]
     return matches[0] if len(matches) == 1 else channel
@@ -126,6 +126,9 @@ def owner_id(
     if recorded in locations:
         return recorded
     owner = metadata.get("session_id")
-    if owner and utils.extract_session_id_from_filename(metadata.get("session_path", "")) == owner:
+    if (
+        owner
+        and utils.extract_session_id_from_filename(metadata.get("session_path") or "") == owner
+    ):
         return owner
     return recorded

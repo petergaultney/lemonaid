@@ -36,7 +36,18 @@ def _channel(harness: str, session_id: str | None) -> str:
     if harness == "codex":
         full_channel_id(harness, session_id)  # Keep rejecting unidentified hooks.
         with db.connect() as conn:
-            return channels.for_session(conn, session_id)
+            brief.attached.claim_pending(conn)
+            channel = channels.for_session(conn, session_id)
+            if not brief.attached.by_channel(conn, [channel]).get(channel):
+                # Stop precedes the first turn-complete notification. An attached
+                # transient row may not have acquired its root metadata yet.
+                from .. import handlers
+
+                locations = handlers.codex_tmux_locations()
+                if locations and session_id in locations:
+                    handlers.repair_tmux_locations(conn, {session_id: locations[session_id]})
+                    channel = channels.for_session(conn, session_id)
+            return channel
     return (
         channel_id("claude", session_id)
         if harness == "claude"

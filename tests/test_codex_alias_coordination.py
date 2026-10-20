@@ -1,6 +1,7 @@
 """A persistent thread and its attached notification alias share coordination state."""
 
 import argparse
+import json
 
 import pytest
 
@@ -12,6 +13,7 @@ from lemonaid.messages import store as messages
 from lemonaid.watch import (
     batch_wait,
     brief_record,
+    codex_waiter,
     cursors,
     delivery,
     registry,
@@ -27,6 +29,7 @@ from tests.test_codex_duplicate_channels import (
 )
 
 setup = test_codex_duplicate_channels.setup
+_REAL_SPAWN = codex_waiter._spawn
 
 
 @pytest.fixture
@@ -172,3 +175,125 @@ def test_explicit_raw_channel_names_alias_for_brief_tell_and_doctor(alias, monke
         argparse.Namespace(parent=False, child="", target=raw, message="alias target", channel="")
     )
     assert "alias target" in messages.peek_next(messages.inbox_for_id(lemon_id))[1]
+
+
+def test_stop_before_first_notify_resolves_unbound_alias_and_blocks(setup, monkeypatch, capsys):
+    from lemonaid import handlers
+
+    with db.connect() as conn:
+        row = _row(conn, _TRANSIENT, _LOCATION, attach=True)
+        path = attached.by_channel(conn, [row.channel])[row.channel]
+        identity.ensure(conn, path)
+    with path.open("a") as stream:
+        stream.write("\n## Watching\n- `lemonaid watch file --wait /tmp/task`\n")
+    monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {_ROOT: [_LOCATION]})
+    waiter_check.handle(json.dumps({"session_id": _ROOT}), grace=0, harness="codex")
+    result = json.loads(capsys.readouterr().out)
+    assert result["decision"] == "block"
+    assert "No unified watcher is armed" in result["reason"]
+    with db.connect() as conn:
+        assert db.get(conn, row.id).metadata["session_id"] == _ROOT
+        assert attached.by_channel(conn, [row.channel])[row.channel] == path
+
+
+def test_inbox_restores_deaf_alias_watcher_using_real_root(alias, monkeypatch):
+    from lemonaid.messages import recipient
+    from lemonaid.watch import codex_waiter
+
+    channel, _, lemon_id = alias
+    started = []
+    monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
+    monkeypatch.setattr(codex_waiter, "ensure", lambda *args: started.append(args))
+    with db.connect() as conn:
+        codex_waiter.restore(conn)
+    assert started == [(channel, _ROOT, lemon_id)]
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "armed",
+        "dead",
+        "unknown",
+        "archived",
+        "unsubscribed",
+        "mid-turn",
+        "handoff",
+        "unverified",
+        "reused-tty",
+    ],
+)
+def test_inbox_does_not_restore_other_codex_sessions(alias, monkeypatch, state):
+    import time
+
+    from lemonaid.messages import recipient
+    from lemonaid.watch import codex_waiter
+
+    channel, path, _ = alias
+    monkeypatch.setattr(
+        recipient, "harness_alive", lambda row: {"dead": False, "unknown": None}.get(state, True)
+    )
+    monkeypatch.setattr(wait_state, "is_armed", lambda lemon_id: state == "armed")
+    monkeypatch.setattr(codex_waiter, "ensure", lambda *args: pytest.fail("unwanted watcher"))
+    if state == "unsubscribed":
+        path.write_text(path.read_text().split("## Watching")[0])
+    with db.connect() as conn:
+        if state == "archived":
+            db.archive_channel(conn, channel, "test")
+        if state == "mid-turn":
+            db.record_turn(conn, channel, time.time())
+        if state == "reused-tty":
+            from lemonaid.codex import processes
+
+            monkeypatch.setattr(processes, "thread_ttys", lambda: {"stranger": {_LOCATION["tty"]}})
+        if state == "unverified":
+            row = db.get_by_channel(conn, channel, unread_only=False)
+            db.repair_location(conn, row, {"session_path": None})
+        if state == "handoff":
+            from lemonaid.brief import handoff_state
+
+            handoff_state.request(
+                conn, path, channel, "claude", "shared", "2", "@1", "%2", "codex", time.time() + 60
+            )
+        codex_waiter.restore(conn)
+
+
+def test_detached_recovery_actually_arms_alias_inbox(alias, monkeypatch, tmp_path):
+    import os
+    import subprocess
+
+    channel, path, lemon_id = alias
+    target = tmp_path / "watched.txt"
+    target.write_text("unchanged")
+    path.write_text(
+        path.read_text().split("## Watching")[0]
+        + f"## Watching\n- `lemonaid watch file --wait {target}`\n"
+    )
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake = fake_bin / "codex"
+    fake.write_text("#!/bin/sh\nexit 0\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake_bin) + os.pathsep + os.environ["PATH"])
+    started = []
+    real_popen = subprocess.Popen
+
+    def launch(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        started.append(process)
+        return process
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    try:
+        _REAL_SPAWN(channel, _ROOT)
+        assert wait_state.is_armed(lemon_id, grace=5)
+        assert waiter.is_armed(messages.inbox_for_id(lemon_id), grace=1)
+        assert registry.mine(channel, "wait")
+    finally:
+        for process in started:
+            process.terminate()
+            process.wait(timeout=5)
+    assert not wait_state.is_armed(lemon_id)
