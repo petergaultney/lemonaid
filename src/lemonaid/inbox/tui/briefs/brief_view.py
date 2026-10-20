@@ -469,7 +469,7 @@ class BriefView(scroll_position.StableScroll):
             selected = widget.item.choice == choice
             widget.select(selected)
             if selected and scroll:
-                widget.query_one(".item-title").scroll_visible(animate=False)
+                widget.call_after_refresh(widget.scroll_title)
         for hint in self.query(".brief-question-keys").results(Static):
             hint.update(self._selection_hint())
 
