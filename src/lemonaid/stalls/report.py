@@ -2,10 +2,11 @@
 
 import dataclasses
 from collections import abc
+from pathlib import Path
 
 from ..brief import status as brief_status
-from ..watch import pr_activity, relay_comments
-from . import move, pulls
+from ..watch import pr_activity
+from . import doc_authors, move, pulls
 
 # A brief on an open PR with one of these says why nothing is moving.
 _EXPLAINED = frozenset({"blocked", "merge", "review", "running"})
@@ -22,25 +23,27 @@ class Stall:
         return f"stuck {brief_status.age(self.idle).removesuffix(' ago')}: {self.what}"
 
 
-def _last_writers(pull: pulls.Pull) -> tuple[bool, bool]:
+def _last_writers(
+    pull: pulls.Pull, last_authors: abc.Callable[[Path], abc.Set[str]]
+) -> tuple[bool, bool]:
     """Whether the author, and whether the reviewer, wrote last in some thread of the doc."""
     if pull.doc is None:
         return False, False
 
-    try:
-        last = set(relay_comments.last_authors(pull.doc.read_text()))
-    except (OSError, UnicodeError):
-        return False, False
-
+    last = last_authors(pull.doc)
     return (
         pull.author is not None and f"Author ({pull.author.name})" in last,
         pull.reviewer is not None and f"Reviewer ({pull.reviewer.name})" in last,
     )
 
 
-def _owed(pull: pulls.Pull, snap: pr_activity.Snapshot) -> list[tuple[pulls.Lemon, str]]:
+def _owed(
+    pull: pulls.Pull,
+    snap: pr_activity.Snapshot,
+    last_authors: abc.Callable[[Path], abc.Set[str]],
+) -> list[tuple[pulls.Lemon, str]]:
     """The lemons that owe a move on *pull*, each with the move."""
-    author_last, reviewer_last = _last_writers(pull)
+    author_last, reviewer_last = _last_writers(pull, last_authors)
     number = pull.key[1]
     mover = move.whose(
         snap,
@@ -69,8 +72,12 @@ def find(
     snapshots: abc.Mapping[pulls.Key, pr_activity.Snapshot | None],
     now: float,
     minutes: float,
+    last_authors: abc.Callable[[Path], abc.Set[str]] = doc_authors.read,
 ) -> list[Stall]:
-    """The stalls among *found*; a PR with no snapshot yet is never one."""
+    """The stalls among *found*; a PR with no snapshot yet is never one.
+
+    *last_authors* names who wrote last in each thread of a review doc.
+    """
     stalls = []
     for pull in found:
         snap = snapshots.get(pull.key)
@@ -82,7 +89,7 @@ def find(
 
         stalls += [
             Stall(lemon.channel, what, now - lemon.since)
-            for lemon, what in _owed(pull, snap)
+            for lemon, what in _owed(pull, snap, last_authors)
             if not lemon.mid_turn and now - lemon.since > minutes * 60
         ]
     return stalls

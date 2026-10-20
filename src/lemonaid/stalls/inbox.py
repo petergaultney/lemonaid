@@ -9,7 +9,7 @@ from .. import brief
 from ..config import Config
 from ..inbox import view
 from ..watch import pr_activity
-from . import cache, pulls, report
+from . import cache, doc_authors, pulls, report
 
 _RECOMPUTE_SECONDS = 30.0
 
@@ -36,6 +36,7 @@ class Tracker:
 
     def __init__(self) -> None:
         self._cache = cache.Cache()
+        self._doc_authors = doc_authors.Cache()
         self._pulls: list[pulls.Pull] = []
         self._at = float("-inf")
 
@@ -51,7 +52,13 @@ class Tracker:
             self._at = now
             self._pulls = pulls.find(lemons(conn, active), config.brief.vaults)
 
-        found = report.find(self._pulls, self._cache.snapshots(), now, config.inbox.stall_minutes)
+        found = report.find(
+            self._pulls,
+            self._cache.snapshots(),
+            now,
+            config.inbox.stall_minutes,
+            self._doc_authors.read,
+        )
         stuck = {stall.channel: stall.line for stall in reversed(found)}
         return dataclasses.replace(
             active,
