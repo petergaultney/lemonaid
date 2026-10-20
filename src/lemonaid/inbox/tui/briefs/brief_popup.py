@@ -3,12 +3,13 @@
 from collections import abc
 
 from textual import events
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.screen import ModalScreen
 
 from ....brief import pr, target
 from ....config import Config
 from .. import utils
+from ..crash_logging import CrashLoggedApp
 from .brief_view import BriefView
 
 
@@ -17,7 +18,7 @@ def _pressed(event: events.Key) -> str:
     return event.character if event.character and event.character.isprintable() else event.key
 
 
-class BriefPopup(App[None]):
+class BriefPopup(CrashLoggedApp[None]):
     BINDINGS = [("q", "quit", "Close"), ("escape", "quit", "Close")]
 
     def __init__(

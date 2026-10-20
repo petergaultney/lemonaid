@@ -28,7 +28,7 @@ import lemonaid.watch.cli
 import lemonaid.watch.wait_cli
 import lemonaid.wezterm.cli
 
-from . import claude, for_lemons, go, inbox
+from . import claude, errors, for_lemons, go, inbox
 from .config import ensure_config_exists, get_config_path
 from .launch import passthrough
 
@@ -176,15 +176,8 @@ def main() -> None:
             args.func(args)
         else:
             parser.print_help()
-    except Exception:
-        import time
-        import traceback
-
-        # Log to file since Claude Code may hide stderr
-        with open("/tmp/lemonaid-errors.log", "a") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] {' '.join(sys.argv)}\n")
-            f.write(traceback.format_exc())
-            f.write("\n")
+    except Exception as error:
+        errors.record(error, " ".join(sys.argv))
         raise
 
 

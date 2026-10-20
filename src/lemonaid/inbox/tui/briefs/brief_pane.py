@@ -66,7 +66,7 @@ class BriefPane(BriefView):
             return
 
         if self.target is None:
-            focused = self.app.focused
+            focused = self.screen.focused
             self._saved_focus = focused.id if focused and focused.id else "main_table"
             self._saved_subtitle = self.app.sub_title
 
@@ -88,7 +88,8 @@ class BriefPane(BriefView):
         self.targets.clear()
         self.screen.query_one(ContentSwitcher).current = "inbox_content"
         self.app.sub_title = self._saved_subtitle
-        self.screen.query_one(f"#{self._saved_focus}").focus()
+        previous = self.screen.query(f"#{self._saved_focus}")
+        (previous.first() if previous else self._main()).focus()
         self.app.refresh_bindings()
         return True
 

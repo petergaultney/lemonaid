@@ -6,7 +6,7 @@ from collections import abc
 from pathlib import Path
 
 from textual import events
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.timer import Timer
@@ -38,6 +38,7 @@ from ...tmux.scratch import (
 from .. import db, sections, undo
 from . import bindings, claude_patch, error_screen, styles, utils
 from .briefs.brief_pane import BriefPane
+from .crash_logging import CrashLoggedApp
 from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
 from .help_screen import HelpScreen
 from .inbox_content import InboxContent
@@ -64,7 +65,7 @@ _log = get_logger("tui")
 _W = ty.TypeVar("_W", bound=Widget)
 
 
-class LemonaidApp(App):
+class LemonaidApp(CrashLoggedApp):
     """Lemonaid TUI - attention inbox for your lemons."""
 
     CSS = styles.CSS

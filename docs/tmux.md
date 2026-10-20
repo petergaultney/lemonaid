@@ -559,6 +559,11 @@ Groups hash too, then move off any look-alike among the current groups, and `lem
 
 ## Surviving a crash
 
+An uncaught inbox or brief-popup error saves its full traceback, lemonaid version,
+and Python version to `~/.local/state/lemonaid/logs/errors.log` before the TUI exits.
+CLI errors use the same file. `LEMONAID_STATE_DIR` overrides the state directory,
+including for sandbox runs.
+
 When tmux dies the sessions go with it. The inbox does not - it holds every
 active lemon, its working directory, and (once recorded) which tmux session and
 window it was running in.
