@@ -78,7 +78,8 @@ def _resolve_session_path(
 
     if session_id:
         path = find_session_path(session_id)
-        if path:
+        # A full thread ID must not borrow a sibling's rollout in the same cwd.
+        if path or len(session_id) >= 36:
             return path
 
     if cwd:

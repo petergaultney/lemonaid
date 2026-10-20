@@ -260,4 +260,12 @@ def _handle_tmux(
         on_resume(tty)
         return True
 
-    return tmux.navigation.switch_to_pane(session, pane_id)
+    switched = tmux.navigation.switch_to_pane(session, pane_id)
+    _log.info(
+        "tmux jump channel=%s session=%s pane=%s switched=%s",
+        metadata.get("channel"),
+        session,
+        pane_id,
+        switched,
+    )
+    return switched

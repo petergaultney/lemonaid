@@ -47,3 +47,19 @@ def test_shared_source_window_requires_explicit_client(server, clients):
         go._client(server, "", source_pane)
     explicit = _query(server, "list-clients", "-F", "#{client_name}").splitlines()[0]
     assert go._client(server, explicit, source_pane) == explicit
+
+
+def test_inbox_jump_without_tty_returns_to_author_from_reviewer(server, clients, monkeypatch):
+    from lemonaid import handlers
+    from lemonaid.config import Config
+
+    author = _record(server, "source:0")
+    pane = author.metadata["tmux_pane_identity"][0]
+    reviewer = _query(server, "new-window", "-P", "-F", "#{pane_id}", "-t", "source")
+    clients("source")
+    assert _query(server, "list-clients", "-F", "#{pane_id}") == reviewer
+    monkeypatch.setenv("TMUX", f"{server[2]},0,0")
+    metadata = {k: v for k, v in author.metadata.items() if k != "tty"}
+
+    assert handlers.handle_notification(metadata, Config(), switch_source="tmux")
+    assert _query(server, "list-clients", "-F", "#{pane_id}") == pane

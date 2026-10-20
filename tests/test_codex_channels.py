@@ -421,3 +421,19 @@ def test_a_spawned_thread_on_its_own_channel_stays_there(tmp_path):
             (f"codex:{root}", "read"),
             (f"codex:{subagent}", "archived"),
         ]
+
+
+def test_notification_with_missing_rollout_does_not_update_sibling(tmp_path, monkeypatch):
+    sibling = _rollout(tmp_path, _THREAD_A, cwd="/work/shared")
+    monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: sibling)
+    _notify(_THREAD_A, "/work/shared")
+    with db.connect() as conn:
+        original = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
+
+    _notify(_THREAD_B, "/work/shared")
+
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False) == original
+        other = db.get_by_channel(conn, f"codex:{_THREAD_B}", unread_only=False)
+        assert other is not None
+        assert "session_path" not in other.metadata

@@ -88,3 +88,52 @@ def test_unknown_location_neither_switches_nor_resumes(monkeypatch, unavailable)
         Config(),
         switch_source="tmux",
     )
+
+
+def test_recorded_pane_still_switches_after_hook_loses_tty(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 0, stdout="%3|/dev/ttys081|original|100|10|$3"
+        ),
+    )
+    monkeypatch.setattr(
+        handlers.tmux.navigation, "switch_to_pane", lambda *args: calls.append(args) is None
+    )
+    monkeypatch.setattr(handlers.tmux.recreate, "recreate", lambda *args: pytest.fail("resume"))
+
+    assert handlers.handle_notification(
+        {
+            "tmux_session": "original",
+            "tmux_session_order": [100, 10, 3],
+            "tmux_pane_identity": ["%3", 10],
+        },
+        Config(),
+        switch_source="tmux",
+    )
+    assert calls == [("original", "%3")]
+
+
+@pytest.mark.parametrize(
+    "live",
+    [
+        "%9|/dev/ttys081|original|100|10|$3",
+        "%3|/dev/ttys081|original|100|20|$3",
+        "%3|/dev/ttys081|replacement|200|10|$4",
+    ],
+)
+def test_missing_tty_does_not_allow_replacement_identity(monkeypatch, live):
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(argv, 0, stdout=live),
+    )
+    assert handlers.tmux.recorded_pane.locate(
+        {
+            "tmux_session": "original",
+            "tmux_session_order": [100, 10, 3],
+            "tmux_pane_identity": ["%3", 10],
+        }
+    ) == (None, None)

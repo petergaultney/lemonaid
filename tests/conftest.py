@@ -31,6 +31,22 @@ for _name, _path in (
 os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _private_tmux_directory():
+    # kill-server leaves its socket behind. Keep named test servers out of the
+    # user's socket directory, with a short path for Unix socket length limits.
+    previous = os.environ.get("TMUX_TMPDIR")
+    with tempfile.TemporaryDirectory(prefix="lma-tmux-", dir="/tmp") as directory:
+        os.environ["TMUX_TMPDIR"] = directory
+        try:
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop("TMUX_TMPDIR", None)
+            else:
+                os.environ["TMUX_TMPDIR"] = previous
+
+
 @pytest.fixture(autouse=True)
 def _no_real_tmux(monkeypatch):
     """Point every un-stubbed `tmux` call at a socket that does not exist.

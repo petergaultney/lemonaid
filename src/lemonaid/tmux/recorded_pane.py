@@ -18,7 +18,7 @@ def locate(metadata: dict[str, ty.Any]) -> tuple[str | None, str | None]:
         raise navigation.TmuxUnavailable("Recorded tmux server is not the current server")
 
     tty = metadata.get("tty")
-    if not tty:
+    if not tty and not metadata.get("tmux_pane_identity"):
         return None, None
 
     if not has_identity(metadata):
@@ -44,7 +44,7 @@ def locate(metadata: dict[str, ty.Any]) -> tuple[str | None, str | None]:
     matches: set[tuple[str, str]] = set()
     for line in result.stdout.splitlines():
         parts = line.split("|")
-        if len(parts) != 6 or parts[1] != tty:
+        if len(parts) != 6 or (tty and parts[1] != tty):
             continue
 
         pane, _, session, created, started, session_id = parts

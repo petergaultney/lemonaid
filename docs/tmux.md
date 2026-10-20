@@ -691,8 +691,14 @@ lived in it.
 ### Switching doesn't work
 
 1. Make sure you're running inside tmux (`echo $TMUX` should show something)
-2. Check that the notification has TTY metadata: `lemonaid inbox list --json | jq`
+2. Check the saved location: `lemonaid inbox list --json | jq`. A recorded pane
+   identity still resolves when a later hook omits the TTY; a TTY alone cannot
+   override a mismatched recorded identity.
 3. Test manually: `tmux switch-client -t %5` (replace %5 with actual pane ID)
+
+Jumps log the channel, resolved session and pane, and whether tmux accepted the
+switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). Refusals and resume failures
+are logged there too.
 
 ### The sidebar stays behind when you switch windows
 
