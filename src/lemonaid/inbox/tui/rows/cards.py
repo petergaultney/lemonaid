@@ -9,7 +9,7 @@ from rich.text import Text
 from .. import utils
 from ..tables import layout
 from ..utils import ATTENTION_COLOR, HERE_BAR, HERE_BLOCK, PIN_MARK
-from . import brief_cards, card_context, card_frame, context_reading
+from . import brief_cards, card_context, card_frame, context_reading, parent_markers
 
 _CONSOLE = Console()  # for measuring wraps only; nothing is printed through it
 
@@ -66,6 +66,7 @@ def as_card(
     neutral_timing: bool = False,
     rail: str = "",
     end_rail: bool = False,
+    children: int = 0,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -151,10 +152,7 @@ def as_card(
     if card_brief and card_brief.shown == "idle" and not marker.plain:
         backend.stylize("dim")
         reading.stylize("dim")
-    markers = Text(emoji)
-    if pin.plain:
-        markers += Text(" ") if emoji else Text("")
-        markers += pin
+    markers = parent_markers.indicators(children, emoji, pin)
     context = card_context.fitted(
         context_parts
         if context_parts is not None

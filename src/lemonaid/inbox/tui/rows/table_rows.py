@@ -11,7 +11,7 @@ from ..tables import layout
 from ..tables.scroll_position import preserve_scroll
 from ..tables.table import ClickToActTable
 from ..utils import same_cell
-from . import brief_cards, brief_rows, card_context, cards
+from . import brief_cards, brief_rows, card_context, cards, parent_markers
 
 
 def without_marker(cells: list[Text]) -> list[Text]:
@@ -45,6 +45,7 @@ def sync_rows(
     neutral_timing: bool = False,
     headers: abc.Mapping[str, tuple[list[Text], Style | None]] | None = None,
     rails_by_row: abc.Mapping[str, str] | None = None,
+    children_by_row: abc.Mapping[str, int] | None = None,
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -61,6 +62,8 @@ def sync_rows(
     """
     carded = card_width > 0
     headers = headers or {}
+    children_by_row = children_by_row or {}
+    marker_width = max((len(str(n)) + 2 for n in children_by_row.values() if n), default=0)
     shapes = iter(
         [
             (
@@ -80,10 +83,13 @@ def sync_rows(
                     (rails_by_row or {}).get(key, ""),
                     row_index + 1 == len(rows)
                     or rows[row_index + 1][0] not in (rails_by_row or {}),
+                    children_by_row.get(key, 0),
                 )
                 if carded
                 else brief_rows.styled(
-                    cells,
+                    parent_markers.columns(
+                        cells, children_by_row.get(key, 0), marker_width, gutter_width
+                    ),
                     (briefs_by_row or {}).get(key),
                     layout.UNREAD_CELL,
                     layout.BACKEND_CELL,

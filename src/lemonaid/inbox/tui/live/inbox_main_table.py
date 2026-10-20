@@ -13,6 +13,24 @@ from ..utils import GUTTER_WIDTH
 from . import group_headers, inbox_draw, inbox_entries, inbox_frame
 
 
+def _child_counts(
+    rows: abc.Sequence[sections.Row], parents: abc.Mapping[str, str]
+) -> dict[str, int]:
+    grouped: dict[int, dict[str, str]] = {}
+    for row in rows:
+        group = sections.row_group_id(row.key)
+        if group is not None:
+            grouped.setdefault(group, {})[row.notification.channel] = row.key
+    counts: dict[str, int] = {}
+    for members in grouped.values():
+        for child in members:
+            parent = parents.get(child, "")
+            if parent in members and parent != child:
+                key = members[parent]
+                counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def draw(
     table: DataTable,
     entries: list[inbox_entries.Entry],
@@ -33,6 +51,7 @@ def draw(
     """
     card_briefs = frame.active.cards
     drawn = [e for e in entries if isinstance(e, sections.Row)]
+    child_counts = _child_counts(drawn, frame.parents)
     numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
     briefs = (
         {
@@ -103,4 +122,5 @@ def draw(
             for e in drawn
             if (group := sections.row_group_id(e.key)) is not None and f"group:{group}" in headers
         },
+        children_by_row=child_counts,
     )
