@@ -7,7 +7,8 @@
 
 `--since` defaults to the highest `v*` tag. The version is that tag's raised by the
 highest bump among the files added to changes/ between the two revisions, and the notes
-are those files' entries in date order. `latest` prints the highest `v*` tag's version,
+group those files' entries by heading, in date order within each section.
+`latest` prints the highest `v*` tag's version,
 or the highest below a version. Changes nothing. Exits 2 when no change files were added
 and 1 when one is malformed. The release workflow (.github/workflows/release.yml) runs it.
 """

@@ -78,6 +78,34 @@ def test_release_notes_join_the_entries_in_date_order():
     assert changefiles.release_notes(changes) == "- **A fix.**\n\n- **A feature.**\n"
 
 
+def test_release_notes_group_repeated_sections_in_stable_order():
+    changes = {
+        "2026-10-14-later-fix.md": "# Patch\n\n#### Fixed\n\n- Later fix.\n",
+        "2026-10-12-first-fix.md": (
+            "# Minor\n\n#### Fixed\n\n- First fix.\n  More detail.\n\n"
+            "#### Added\n\n- New feature.\n\n#### Changed\n\n- New behavior.\n"
+        ),
+    }
+    assert changefiles.release_notes(changes) == (
+        "#### Added\n\n- New feature.\n\n#### Changed\n\n- New behavior.\n\n"
+        "#### Fixed\n\n- First fix.\n  More detail.\n\n- Later fix.\n"
+    )
+
+
+def test_release_notes_preserve_unheaded_entries_and_other_sections():
+    changes = {
+        "2026-10-12-small-fix.md": (
+            "# Patch\n\nIntro.\n\n#### Custom\n\n- Custom entry.\n\n"
+            "#### Security\n\n- Security entry.\n"
+        ),
+        "2026-10-14-later-fix.md": "# Patch\n\n#### Custom\n\n- Another entry.\n",
+    }
+    assert changefiles.release_notes(changes) == (
+        "Intro.\n\n#### Security\n\n- Security entry.\n\n"
+        "#### Custom\n\n- Custom entry.\n\n- Another entry.\n"
+    )
+
+
 def test_pyproject_version_reads_only_the_top_level_line():
     assert changefiles.pyproject_version('[project]\nversion = "0.115.3"\n') == "0.115.3"
     assert changefiles.pyproject_version('[project]\ndynamic = ["version"]\n') is None

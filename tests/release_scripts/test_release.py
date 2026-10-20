@@ -64,6 +64,23 @@ def test_since_and_until_pick_another_range(repo: Path, capsys):
     assert _run(repo, capsys, "version") == (0, "0.116.0\n")
 
 
+def test_notes_merge_sections_from_every_commit_in_the_range(repo: Path, capsys):
+    _commit(
+        repo,
+        {"changes/2026-10-12-first-fix.md": "# Patch\n\n#### Fixed\n\n- First fix.\n"},
+        "first",
+    )
+    _commit(
+        repo,
+        {"changes/2026-10-14-last-fix.md": "# Patch\n\n#### Fixed\n\n- Last fix.\n"},
+        "last",
+    )
+    assert _run(repo, capsys, "notes", "--since", "v0.115.3", "--until", "HEAD") == (
+        0,
+        "#### Fixed\n\n- First fix.\n\n- Last fix.\n",
+    )
+
+
 def test_nothing_added_exits_2(repo: Path, capsys):
     _commit(repo, {"changes/README.md": "edited\n"}, "docs")
     assert _run(repo, capsys, "version") == (2, "")

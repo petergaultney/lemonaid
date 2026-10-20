@@ -110,8 +110,32 @@ def next_version(changes: abc.Mapping[str, str], previous: str) -> str:
 
 
 def release_notes(changes: abc.Mapping[str, str]) -> str:
-    """The entries of `changes` in date order. Raises MalformedChange or NothingToRelease."""
-    return "\n".join(entry for _, entry in _parse_all(changes))
+    """Group entries by heading, preserving date order within each section."""
+    sections: dict[str, list[str]] = {}
+    for _, entry in _parse_all(changes):
+        heading = ""
+        lines: list[str] = []
+        for line in entry.splitlines():
+            match = re.fullmatch(r"#### ([^#].*?)\s*", line)
+            if match:
+                if text := "\n".join(lines).strip():
+                    sections.setdefault(heading, []).append(text)
+                heading, lines = match.group(1), []
+            else:
+                lines.append(line)
+        if text := "\n".join(lines).strip():
+            sections.setdefault(heading, []).append(text)
+
+    order = ["", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
+    order.extend(heading for heading in sections if heading not in order)
+    return (
+        "\n\n".join(
+            (f"#### {heading}\n\n" if heading else "") + "\n\n".join(sections[heading])
+            for heading in order
+            if heading in sections
+        )
+        + "\n"
+    )
 
 
 def pyproject_version(pyproject: str) -> str | None:

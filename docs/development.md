@@ -42,15 +42,22 @@ workflow (`.github/workflows/changes.yml`, `scripts/check-change-file.py`) enfor
 
 A release is made of the change files added since the previous `v*` tag. Its version is
 that tag's raised by the highest bump among them, and its notes are their entries in
-date order. `scripts/release.py version` and `scripts/release.py notes` print both and
-change nothing. Files keep their dated names after a release.
+date order within each change type, with one heading per type. `scripts/release.py version`
+and `scripts/release.py notes` print both and change nothing. Files keep their dated
+names after a release.
 
 `.github/workflows/release.yml` releases daily at 13:00 UTC, and on demand: run it from
 the Actions tab or with `gh workflow run release.yml` to release mid-day. A run takes the
-newest main commit whose `test` workflow passed and, if change files were added since the
+latest main commit only if its `test` workflow passed and, if change files were added since the
 highest tag, pushes the next version's tag to that commit. It builds from the tag,
 publishes to PyPI as `lemonaid-inbox`, and creates a GitHub Release with the notes. It
 never commits to main or opens a PR.
+
+The planner polls pending tests every 30 seconds for up to 15 minutes. Missing or
+unsuccessful tests, a timeout, or main advancing during planning (including while waiting)
+defer the run without tagging. A warning and the run summary explain why; rerun after the
+latest commit passes. The summary names the commit selected for a new release. Merges
+after that selection belong to the next release.
 
 `pyproject.toml` has no version: `hatch-vcs` takes it from the nearest `v*` tag, so a
 build from a later commit is a dev version such as `0.116.1.dev3+g1a2b3c4`, and a tree

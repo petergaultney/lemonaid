@@ -2,7 +2,7 @@ name: release
 
 # Daily, and on demand from the Actions tab or `gh workflow run release.yml`. A run first
 # finishes the highest v* tag if it has no published GitHub Release (an earlier run failed
-# partway). Otherwise it takes the newest main commit whose tests passed and, if change
+# partway). Otherwise it requires the latest main commit's tests to pass and, if change
 # files were added since the highest tag and its workflow files match main's, tags that
 # commit with the next version. The tagged build is published to PyPI as lemonaid-inbox
 # and given a GitHub Release whose notes are those files. It never commits to main.
@@ -22,9 +22,10 @@ jobs:
   plan:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write # to push the tag
-      actions: read # to find the newest commit whose tests passed
+      actions: read # to check the latest main commit's tests
     outputs:
       release: ${{ steps.plan.outputs.release }}
       version: ${{ steps.plan.outputs.version }}
@@ -35,6 +36,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - id: plan
+        timeout-minutes: 17
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -42,6 +44,7 @@ jobs:
           published=$(gh release view "v$latest" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft | not' 2>/dev/null || echo false)
           if [ "$published" != "true" ]; then
             echo "v$latest is tagged but has no published Release: finishing it"
+            echo "Finishing existing tag v$latest. Main commits after that tag belong to a later release." >> "$GITHUB_STEP_SUMMARY"
             {
               echo "release=true"
               echo "version=$latest"
@@ -50,9 +53,27 @@ jobs:
             exit 0
           fi
 
-          sha=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow test --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
-          if [ -z "$sha" ]; then
-            echo "no main commit has passed the test workflow"
+          git fetch origin main
+          sha=$(git rev-parse FETCH_HEAD)
+          deadline=$((SECONDS + 900))
+          while true; do
+            test_status=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow test --branch main --event push --commit "$sha" --limit 1 --json status,conclusion --jq '.[0] | if . == null then "missing" elif .status == "completed" then .conclusion else .status end')
+            case "$test_status" in
+              queued|in_progress|waiting|pending|requested)
+                if [ "$SECONDS" -ge "$deadline" ]; then
+                  test_status="timed out after 15 minutes ($test_status)"
+                  break
+                fi
+                echo "Waiting for test workflow on $sha: $test_status"
+                sleep 30
+                ;;
+              *) break ;;
+            esac
+          done
+          if [ "$test_status" != "success" ]; then
+            message="Release deferred: latest main commit $sha has test status '$test_status'. Rerun after its test workflow succeeds."
+            echo "::warning::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -77,8 +98,18 @@ jobs:
           fi
           [ "$status" -eq 0 ] || exit "$status"
 
+          current=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$current" != "$sha" ]; then
+            message="Release deferred: main advanced from $sha to $current during planning. Rerun to include the new changes."
+            echo "::warning::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Fails, rather than moving it, if the tag already exists.
           git push origin "$sha:refs/tags/v$version"
+          echo "Releasing main commit $sha as v$version. Later merges belong to the next release." >> "$GITHUB_STEP_SUMMARY"
           {
             echo "release=true"
             echo "version=$version"
