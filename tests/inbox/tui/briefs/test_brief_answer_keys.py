@@ -207,7 +207,7 @@ def test_rebound_keys_work_and_help_names_the_live_config():
 def test_answer_key_conflicts_are_reported_and_defaults_are_clear(tmp_path, capsys):
     assert keys.conflicts(config.KeybindingsConfig()) == []
     file = tmp_path / "config.toml"
-    file.write_text('[tui.keybindings]\nanswer_archive = "a"\nanswers_expand = "d"\n')
+    file.write_text('[tui.keybindings]\nanswer_archive = "a"\nanswers_expand = "D"\n')
     cfg = config.load_config(file)
     assert cfg.tui.keybindings.answer_archive == "a"
     warning = capsys.readouterr().err
