@@ -1,3 +1,7 @@
+---
+created-at: 2026-10-15T13:11:26-04:00
+created-by: TestyJob
+---
 # Restart one lemon
 
 `lemonaid lemon restart <lemon>` stops a live harness and runs its configured
