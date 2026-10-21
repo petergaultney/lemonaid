@@ -40,6 +40,12 @@ def parse(name: str, text: str) -> tuple[Bump, str]:
     if not is_change_file_name(name):
         raise MalformedChange(f"{name}: not named `YYYY-MM-DD-two-to-six-word-title.md`")
 
+    if text.startswith("---\n"):
+        _, boundary, text = text[4:].partition("\n---\n")
+        if not boundary:
+            raise MalformedChange(f"{name}: unclosed YAML frontmatter")
+        text = text.lstrip("\n")
+
     first, _, rest = text.partition("\n")
     heading = _BUMP_HEADING.match(first)
     if not heading:

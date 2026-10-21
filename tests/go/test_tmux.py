@@ -65,7 +65,7 @@ def test_inbox_jump_without_tty_returns_to_author_from_reviewer(server, clients,
     assert _query(server, "list-clients", "-F", "#{pane_id}") == pane
 
 
-def test_click_handler_repairs_author_row_pointing_to_live_reviewer(server, clients, monkeypatch):
+def test_background_repair_precedes_author_click(server, clients, monkeypatch):
     from lemonaid import handlers
     from lemonaid.codex import processes
     from lemonaid.config import Config
@@ -80,8 +80,12 @@ def test_click_handler_repairs_author_row_pointing_to_live_reviewer(server, clie
     monkeypatch.setenv("TMUX", f"{server[2]},0,0")
     monkeypatch.setattr(processes, "thread_ttys", lambda: {"author": {author.metadata["tty"]}})
 
+    with db.connect() as conn:
+        assert handlers.repair_tmux_locations(conn) == 1
+        fixed = db.get_by_channel(conn, "codex:author", unread_only=False)
+    monkeypatch.setattr(processes, "thread_ttys", lambda: pytest.fail("click must not scan"))
     assert handlers.handle_notification(
-        {**reviewer.metadata, "channel": "codex:author"}, Config(), switch_source="tmux"
+        {**fixed.metadata, "channel": "codex:author"}, Config(), switch_source="tmux"
     )
     assert (
         _query(server, "list-clients", "-F", "#{pane_id}")
@@ -113,6 +117,9 @@ def test_linked_physical_pane_with_verified_owner_remains_switchable(
     monkeypatch.setenv("TMUX", f"{server[2]},0,0")
     monkeypatch.setattr(processes, "thread_ttys", lambda: {"real": {row.metadata["tty"]}})
     assert len(handlers.codex_tmux_locations()["real"]) == 1
+    with db.connect() as conn:
+        assert handlers.repair_tmux_locations(conn) == 1
+        row = db.get(conn, row.id)
     assert handlers.handle_notification(
         {**row.metadata, "channel": row.channel}, Config(), switch_source="tmux"
     )
@@ -121,3 +128,75 @@ def test_linked_physical_pane_with_verified_owner_remains_switchable(
     )
     with db.connect() as conn:
         assert handlers.repair_tmux_locations(conn) == 0
+
+
+def test_codex_click_uses_only_tmux_and_never_repairs_db(server, clients, monkeypatch):
+    import subprocess
+
+    from lemonaid import handlers
+    from lemonaid.config import Config
+    from lemonaid.inbox import db
+    from lemonaid.inbox.tui.watchers import focus
+
+    row = _record(server, "source:0")
+    target = row.metadata["tmux_pane_identity"][0]
+    _query(server, "new-window", "-t", "source")
+    clients("source")
+    monkeypatch.setenv("TMUX", f"{server[2]},0,0")
+    run = subprocess.run
+    calls = []
+
+    def tmux_only(argv, **kwargs):
+        assert argv[0] == "tmux", f"unexpected click subprocess: {argv}"
+        calls.append(argv)
+        return run(argv, **kwargs)
+
+    def no_db(*args, **kwargs):
+        pytest.fail("switch handler must not open or repair the inbox database")
+
+    with monkeypatch.context() as click:
+        click.setattr(subprocess, "run", tmux_only)
+        click.setattr(db, "connect", no_db)
+        click.setattr(handlers, "codex_tmux_locations", no_db)
+        assert not focus.is_behind_scratch(row, target)
+        assert handlers.handle_notification(
+            {**row.metadata, "channel": row.channel}, Config(), switch_source="tmux"
+        )
+    assert calls
+    assert _query(server, "list-clients", "-F", "#{pane_id}") == target
+
+
+def test_codex_row_activation_latency(server, clients, monkeypatch):
+    import asyncio
+    import statistics
+    import time
+
+    from textual.widgets.data_table import RowKey
+
+    from lemonaid.inbox.tui.app import LemonaidApp
+    from lemonaid.inbox.tui.watchers import watcher_hooks
+
+    row = _record(server, "source:0")
+    target = row.metadata["tmux_pane_identity"][0]
+    other = _query(server, "new-window", "-P", "-F", "#{pane_id}", "-t", "source")
+    clients("source")
+    monkeypatch.setenv("TMUX", f"{server[2]},0,0")
+    monkeypatch.setattr(watcher_hooks, "start", lambda *args, **kwargs: None)
+    monkeypatch.setattr("lemonaid.inbox.tui.app.detect_terminal_switch_source", lambda: "tmux")
+
+    async def measure():
+        app = LemonaidApp()
+        samples = []
+        async with app.run_test(size=(120, 35)) as pilot:
+            await pilot.pause()
+            for _ in range(10):
+                _query(server, "switch-client", "-t", other)
+                start = time.perf_counter()
+                app._activate_row("main_table", RowKey(str(row.id)))
+                samples.append((time.perf_counter() - start) * 1000)
+                assert _query(server, "list-clients", "-F", "#{pane_id}") == target
+            print(
+                f"ROW_ACTIVATION_MS median={statistics.median(samples):.1f} max={max(samples):.1f} n={len(samples)}"
+            )
+
+    asyncio.run(measure())

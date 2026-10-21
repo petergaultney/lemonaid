@@ -64,7 +64,7 @@ def test_concurrent_location_update_is_not_overwritten():
 
 
 @pytest.mark.parametrize("matches", [[], [_AUTHOR, _REVIEWER]])
-def test_ambiguous_or_absent_thread_is_not_repaired_or_switched(monkeypatch, matches):
+def test_ambiguous_or_absent_thread_is_not_repaired(monkeypatch, matches):
     monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {"author": matches})
     monkeypatch.setattr(
         handlers.tmux.navigation, "switch_to_pane", lambda *args: pytest.fail("wrong pane")
@@ -73,9 +73,6 @@ def test_ambiguous_or_absent_thread_is_not_repaired_or_switched(monkeypatch, mat
     with db.connect() as conn:
         row = _add(conn, "codex:author", _REVIEWER)
         assert handlers.repair_tmux_locations(conn, {"author": matches}) == 0
-    assert not handlers.handle_notification(
-        {**row.metadata, "channel": row.channel}, Config(), switch_source="tmux"
-    )
     with db.connect() as conn:
         assert db.get(conn, row.id) == row
 
@@ -103,13 +100,15 @@ def test_watcher_repairs_on_startup_and_periodically(monkeypatch):
         assert db.get(conn, row.id).metadata["tty"] == _AUTHOR["tty"]
 
 
-def test_selected_row_click_does_not_suppress_a_wrong_saved_tty(monkeypatch):
+def test_selected_row_click_uses_saved_tty_without_process_scan_or_repair(monkeypatch):
     from lemonaid.inbox.tui.watchers import focus
 
-    monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {"author": [_AUTHOR]})
+    monkeypatch.setattr(
+        handlers, "codex_tmux_locations", lambda: pytest.fail("click must not scan")
+    )
     monkeypatch.setattr(focus, "behind_scratch", lambda *args: _REVIEWER["tty"])
     with db.connect() as conn:
         row = _add(conn, "codex:author", _REVIEWER)
-    assert not focus.is_behind_scratch(row, "%scratch")
+    assert focus.is_behind_scratch(row, "%scratch")
     with db.connect() as conn:
-        assert db.get(conn, row.id).metadata["tty"] == _AUTHOR["tty"]
+        assert db.get(conn, row.id).metadata["tty"] == _REVIEWER["tty"]

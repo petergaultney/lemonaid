@@ -53,3 +53,24 @@ def test_a_resolved_tty_never_consults_cwd(monkeypatch):
 
     assert handlers._handle_tmux({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is True
     assert calls == ["tty", "switch:feat"]
+
+
+def test_codex_cwd_fallback_refuses_two_panes_without_process_inspection(monkeypatch):
+    import subprocess
+
+    def tmux_only(argv, **kwargs):
+        assert argv[0] == "tmux"
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="/work/feat|/dev/author|shared|%1\n/work/feat|/dev/reviewer|shared|%2\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", tmux_only)
+    monkeypatch.setattr(
+        handlers.watcher,
+        "process_on_tty",
+        lambda *args: (_ for _ in ()).throw(AssertionError("click must not inspect processes")),
+    )
+    assert not handlers._handle_tmux({"channel": "codex:author", "cwd": "/work/feat"}, Config())

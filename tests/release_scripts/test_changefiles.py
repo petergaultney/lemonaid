@@ -32,6 +32,18 @@ def test_parse_reads_the_bump_heading_and_the_entry():
     )
 
 
+def test_creation_frontmatter_is_not_part_of_the_bump_or_release_notes():
+    text = "---\ncreated-at: 2026-10-21T10:34:59-04:00\ncreated-by: CrazyOwn\n---\n\n" + _PATCH
+    changes = {"2026-10-21-fast-inbox-clicks.md": text}
+    assert changefiles.next_version(changes, "0.115.3") == "0.115.4"
+    assert changefiles.release_notes(changes) == "- **A fix.**\n"
+
+
+def test_unclosed_frontmatter_is_rejected():
+    with pytest.raises(changefiles.MalformedChange, match="unclosed YAML"):
+        changefiles.parse("2026-10-21-fast-inbox-clicks.md", "---\ncreated-by: CrazyOwn\n" + _PATCH)
+
+
 @pytest.mark.parametrize(
     "text", ["- no heading\n", "# Minor\n\n", "# 0.116.0\n\n- versioned\n", "\n# Patch\n- late\n"]
 )

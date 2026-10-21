@@ -201,18 +201,6 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
     return None, None
 
 
-class _Unknown(Exception):
-    """`ps` could not say what runs on a pane's tty."""
-
-
-def _runs(tty: str, harness: str) -> bool:
-    found = watcher.process_on_tty(tty, harness)
-    if found is None:
-        raise _Unknown(tty)
-
-    return found
-
-
 def codex_tmux_locations() -> dict[str, list[dict[str, Any]]] | None:
     threads = processes.thread_ttys()
     if threads is None:
@@ -251,22 +239,6 @@ def repair_tmux_locations(
     return repaired
 
 
-def refresh_notification_location(notification: db.Notification) -> db.Notification:
-    if notification.switch_source != "tmux" or not notification.channel.startswith("codex:"):
-        return notification
-    locations = codex_tmux_locations()
-    if locations is None:
-        return notification
-    matches = locations.get(
-        codex_channels.owner_id(notification.channel, notification.metadata, locations), []
-    )
-    if len(matches) != 1:
-        return notification
-    with db.connect() as conn:
-        db.repair_location(conn, notification, matches[0])
-        return db.get(conn, notification.id) or notification
-
-
 def _handle_tmux(
     metadata: dict[str, Any] | None,
     config: Config,
@@ -275,19 +247,6 @@ def _handle_tmux(
     """Handle notification by switching to its pane, or recreating a dead session."""
     if metadata is None:
         return False
-
-    channel = metadata.get("channel", "")
-    if channel.startswith("codex:"):
-        locations = codex_tmux_locations()
-        owner = codex_channels.owner_id(channel, metadata, locations or {})
-        if locations is not None and owner in locations:
-            matches = locations[owner]
-            if len(matches) != 1:
-                _log.warning("not switching to %s: no unique terminal owns its thread", channel)
-                return False
-            with db.connect() as conn:
-                repair_tmux_locations(conn, {owner: matches})
-            metadata.update(matches[0])
 
     try:
         session, pane_id = tmux.recorded_pane.locate(metadata)
@@ -300,16 +259,9 @@ def _handle_tmux(
     if (session is None or pane_id is None) and not tmux.recorded_pane.has_identity(metadata):
         cwd = metadata.get("cwd")
         if cwd:
-            harness = watcher.harness_process(metadata.get("channel", ""))
-            try:
-                session, pane_id = tmux.navigation.get_pane_for_cwd(
-                    cwd, lambda pane_tty: _runs(pane_tty, harness)
-                )
-            except _Unknown:
-                # Either answer could be wrong: a switch may land on a stranger,
-                # and a recreate may start a second copy of a live session.
-                _log.warning("not switching to %s: could not tell which pane runs %s", cwd, harness)
-                return False
+            # Require a unique pane from tmux's inventory; never inspect the
+            # machine's processes while the person waits for a jump.
+            session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, lambda _tty: True)
 
     if session == tmux.navigation.AMBIGUOUS:
         # One of the matches is the right session, so recreating would add a

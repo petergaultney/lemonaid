@@ -701,18 +701,18 @@ lived in it.
    override a mismatched recorded identity.
 3. Test manually: `tmux switch-client -t %5` (replace %5 with actual pane ID)
 
-The inbox repairs saved Codex locations at startup and every ten seconds when
-open rollout files identify one live terminal for the thread. Clicking also
-checks that mapping before switching. An author and reviewer sharing a directory
-are resolved by their separate threads, and repair preserves names, messages,
-read state and timestamps. Notifications reporting a transient Codex ID update
-the attached lemon instead of creating another ungrouped row. Startup and
-periodic repair archive existing duplicate rows without moving brief attachments
-or changing waiter subscriptions. Real new sessions and explicit handoffs keep
-their own channels, even when they reuse a reconciled alias's pane. Pending
-handoff channels stay outside automatic reconciliation until transfer finishes.
-Linked windows count as one physical pane. Unavailable process information or
-ambiguous ownership leaves saved rows unchanged.
+The inbox repairs saved Codex locations in the background at startup and every
+ten seconds when open rollout files identify one live terminal for the thread.
+Clicks use the recorded pane identity and tmux directly, without process scans
+or location repair. An author and reviewer sharing a directory are repaired by
+their separate threads, preserving names, messages, read state and timestamps.
+Notifications without a rollout, including automatic recaps, are ignored before
+they can create a row. Background repair archives existing duplicate rows without
+moving brief attachments or changing waiter subscriptions. Real new sessions and
+explicit handoffs keep their own channels, even when they reuse a reconciled
+alias's pane. Pending handoff channels stay outside automatic reconciliation
+until transfer finishes. Linked windows count as one physical pane. Unavailable
+process information or ambiguous ownership leaves saved rows unchanged.
 
 An attached Codex alias also keeps the same inbox, watcher registry and watch
 cursors. Unified and direct watchers find its brief through the persistent

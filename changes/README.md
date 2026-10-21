@@ -7,8 +7,8 @@ Each PR adds one file here describing what it changed for someone using lemonaid
 Name it `YYYY-MM-DD-two-to-six-word-title.md`: the date the work started, then a short
 title in lowercase kebab-case, such as `2026-10-14-changes-directory-release.md`.
 
-Its first line names the kind of release the change needs, and the rest is the changelog
-entry, in `CHANGES.md`'s style but with no version heading:
+After any YAML frontmatter, the first line names the kind of release the change needs,
+and the rest is the changelog entry, in `CHANGES.md`'s style but with no version heading:
 
 ```markdown
 # Patch

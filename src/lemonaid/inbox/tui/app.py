@@ -559,9 +559,6 @@ class LemonaidApp(CrashLoggedApp):
         # We already know where a successful in-app switch went. Reflect that
         # immediately instead of waiting for the next tmux poll; the periodic
         # lookup remains authoritative for switches made outside lemonaid.
-        if notification.channel.startswith("codex:"):
-            with db.connect() as conn:
-                notification = db.get(conn, notification.id) or notification
         tty = notification.metadata.get("tty")
         if isinstance(tty, str) and tty:
             self._attention.note(tty)
