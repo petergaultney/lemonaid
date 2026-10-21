@@ -74,15 +74,15 @@ def test_cursor_marks_relatives_without_refresh_or_rebuild(size, monkeypatch):
         }
         _move(table, "parent")
         await pilot.pause()
-        assert _relation(_row(table, "child")[1], "\u2193")
-        assert _relation(_row(table, "sibling")[1], "\u2193")
-        assert not _relation(_row(table, "grandkid")[1], "\u2193")
+        assert _relation(_row(table, "child")[1], "\u2191")
+        assert _relation(_row(table, "sibling")[1], "\u2191")
+        assert not _relation(_row(table, "grandkid")[1], "\u2191")
         assert (
             len(
                 [
                     key
                     for key in table.rows
-                    if any(_relation(c, "\u2193") for c in table.get_row(key))
+                    if any(_relation(c, "\u2191") for c in table.get_row(key))
                 ]
             )
             == 3
@@ -90,15 +90,15 @@ def test_cursor_marks_relatives_without_refresh_or_rebuild(size, monkeypatch):
         assert _row(table, "unrelated")[0] not in changed
         _move(table, "child")
         await pilot.pause()
-        assert "\u2191" in _row(table, "parent")[1].plain
-        assert _relation(_row(table, "grandkid")[1], "\u2193")
-        assert not _relation(_row(table, "sibling")[1], "\u2193")
+        assert _relation(_row(table, "parent")[1], "\u2193")
+        assert _relation(_row(table, "grandkid")[1], "\u2191")
+        assert not _relation(_row(table, "sibling")[1], "\u2191")
         for name, position in positions.items():
             assert _row(table, name)[1].plain.index(name) == position
         _move(table, "unrelated")
         await pilot.pause()
         assert not any(
-            _relation(cell, "\u2193") or _relation(cell, "\u2191")
+            _relation(cell, "\u2191") or _relation(cell, "\u2193")
             for key in table.rows
             for cell in table.get_row(key)
         )
@@ -126,14 +126,14 @@ def test_highlight_tracks_relatives_across_the_two_inbox_tables(size, monkeypatc
         main.focus()
         _move(main, "parent")
         await pilot.pause()
-        assert _relation(_row(other, "child")[1], "\u2193")
+        assert _relation(_row(other, "child")[1], "\u2191")
         other.focus()
         await pilot.pause()
-        assert "\u2191" in _row(main, "parent")[1].plain
-        assert not _relation(_row(other, "child")[1], "\u2193")
+        assert _relation(_row(main, "parent")[1], "\u2193")
+        assert not _relation(_row(other, "child")[1], "\u2191")
         app._refresh_notifications()
         await pilot.pause()
-        assert "\u2191" in _row(main, "parent")[1].plain
+        assert _relation(_row(main, "parent")[1], "\u2193")
 
     run(steps, size)
 
@@ -154,23 +154,23 @@ def test_relationship_marks_survive_refresh_folding_and_search(size):
         assert "\u21930/1" in _row(table, "parent")[1].plain
         await pilot.press("w")
         await pilot.pause()
-        assert _relation(_row(table, "child")[1], "\u2193")
+        assert _relation(_row(table, "child")[1], "\u2191")
         app._refresh_notifications()
         await pilot.pause()
-        assert _relation(_row(table, "child")[1], "\u2193")
+        assert _relation(_row(table, "child")[1], "\u2191")
         app._content.searching = True
         app._content.filter_text = "parent"
         app._refresh_notifications()
         await pilot.pause()
         assert "\u21930/1" in _row(table, "parent")[1].plain
-        assert not any(_relation(c, "\u2193") for key in table.rows for c in table.get_row(key))
+        assert not any(_relation(c, "\u2191") for key in table.rows for c in table.get_row(key))
         app._content.searching = False
         app._content.filter_text = ""
         app._refresh_notifications()
         await pilot.pause()
-        assert _relation(_row(table, "child")[1], "\u2193")
+        assert _relation(_row(table, "child")[1], "\u2191")
         table.move_cursor(row=0)
         await pilot.pause()
-        assert not _relation(_row(table, "child")[1], "\u2193")
+        assert not _relation(_row(table, "child")[1], "\u2191")
 
     run(steps, size)

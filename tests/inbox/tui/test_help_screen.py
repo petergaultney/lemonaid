@@ -81,8 +81,8 @@ def test_family_indicators_explain_arrows_counts_and_visibility():
     sections = dict(help_lines(KeybindingsConfig(quit="", group_tree="")))
     legend = dict(sections["Family indicators"])
 
-    assert "Parent of the row under the cursor" in legend["\u2191 (bright)"]
-    assert "Direct child of the row under the cursor" in legend["\u2193 (bright)"]
+    assert "Parent of the row under the cursor" in legend["\u2193 (bright)"]
+    assert "Direct child of the row under the cursor" in legend["\u2191 (bright)"]
     assert "One shown out of three active" in legend["\u21931/3 (dim)"]
     assert "hidden rows stay hidden" in legend["Visibility"]
     assert "exclude archived/snoozed" in legend["Totals"]

@@ -10,11 +10,11 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
             [
                 (
                     f"{parent_markers.PARENT} (bright)",
-                    "Parent of the row under the cursor, when shown",
+                    "Parent of the row under the cursor; points down toward its child",
                 ),
                 (
                     f"{parent_markers.CHILD} (bright)",
-                    "Direct child of the row under the cursor, when shown",
+                    "Direct child of the row under the cursor; points up toward its parent",
                 ),
                 ("\u21933 (dim)", "Three active direct children, all shown"),
                 ("\u21931/3 (dim)", "One shown out of three active direct children"),

@@ -4,8 +4,8 @@ from rich.text import Text
 
 from ..tables import layout
 
-PARENT = "\u2191"
-CHILD = "\u2193"
+PARENT = "\u2193"
+CHILD = "\u2191"
 
 
 def _label(children: int, visible: int | None) -> Text:
