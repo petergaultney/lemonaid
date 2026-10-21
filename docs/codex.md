@@ -67,6 +67,12 @@ When a notification reports an ID without a rollout, Lemonaid first identifies t
 root process on the hook's own TTY. This keeps routing independent of a slow
 machine-wide process scan; the broader probe remains a fallback when the local
 probe is unavailable. Shared app-server and subagent rollouts remain excluded.
+An ID missing from the session files is not necessarily fabricated by a notify
+wrapper: Codex can run a thread without saving its rollout. Such notifications
+retain their reported `thread_id` for diagnostics, while `session_id` identifies
+the verified persistent owner. Existing unattached duplicate rows are archived
+at startup and during refresh; brief attachments and their waiter channels stay
+in place.
 
 ### 3. Allow brief and message commands under the automatic approval reviewer
 

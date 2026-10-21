@@ -1,10 +1,13 @@
 import json
+import subprocess
 
 import pytest
 
 from lemonaid.brief import attached, store
 from lemonaid.codex import channels, notify, processes, utils
 from lemonaid.inbox import db
+
+_scoped_thread_ttys = processes.thread_ttys_for_tty
 
 _ROOT = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 _TRANSIENT = "01999a7c-3b84-7d02-8e67-0c9f4a1b2c22"
@@ -299,3 +302,48 @@ def test_transient_notify_joins_attached_owner_when_global_probe_is_unavailable(
         assert db.get(conn, author.id).metadata["session_id"] == _ROOT
         assert db.get(conn, reviewer.id) == before
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
+
+
+def test_runtime_only_thread_routes_past_guardian_and_repairs_existing_stray(setup, monkeypatch):
+    # Codex 0.163 logs a real session_loop for the notify ID without saving a
+    # rollout. Its CLI still has the persistent root and guardian rollouts open.
+    guardian = setup.with_name("rollout-2026-10-20-guardian.jsonl")
+    guardian.write_text(
+        json.dumps(
+            {
+                "type": "session_meta",
+                "payload": {
+                    "id": "guardian",
+                    "parent_thread_id": _ROOT,
+                    "thread_source": "guardian_review",
+                },
+            }
+        )
+        + "\n"
+    )
+
+    def run(argv, **kwargs):
+        output = (
+            "11 author /bin/codex --no-daemon\n"
+            if argv[0] == "ps"
+            else f"p11\nn{setup}\nn{guardian}\n"
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(processes.subprocess, "run", run)
+    monkeypatch.setattr(processes, "thread_ttys_for_tty", _scoped_thread_ttys)
+    monkeypatch.setattr(processes, "thread_ttys", lambda: pytest.fail("global probe must not run"))
+    with db.connect() as conn:
+        author = _row(conn, _ROOT, _LOCATION, attach=True)
+        stray = _row(conn, _TRANSIENT, _LOCATION)
+        briefs = [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
+    notify.handle_notification(
+        json.dumps({"type": "agent-turn-complete", "thread-id": _TRANSIENT, "cwd": "/work/shared"})
+    )
+    with db.connect() as conn:
+        assert db.get(conn, author.id).metadata["session_id"] == _ROOT
+        assert db.get(conn, author.id).metadata["thread_id"] == _TRANSIENT
+        assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 1
+        assert db.get(conn, stray.id).is_archived
+        assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 0
+        assert briefs == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
