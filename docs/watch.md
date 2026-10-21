@@ -525,6 +525,12 @@ below). A Claude lemon without a scout runs the command with `run_in_background`
 command refuses to start if Codex delivery is unavailable. Do not start another watcher
 while `--status` says one is running.
 
+A standalone `watch pr --wait` refuses to start (exit 3) while the lemon's unified
+watcher runs. It still records its line under `## Waiters`, so the unified watcher
+picks the PR up. The two share the PR's cursors, so whichever reports an event first
+marks it seen, and the other never reports it. A `--once` waiter left beside a push
+scout would wait forever.
+
 The unified command accepts:
 
 | Flag | Meaning |

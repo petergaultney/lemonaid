@@ -18,7 +18,9 @@ Lemon-ID (or `--me` without a brief), so a waiter started later reports what cha
 the last one reported, and a first waiter starts from the PR as it is now. `--head`
 overrides the saved head; with your own push recorded by lemonaid's hooks, it isn't needed.
 
-One waiter per (PR, lemon) may run; a second exits at once, naming the first.
+One waiter per (PR, lemon) may run; a second exits at once, naming the first. So does
+one started while the lemon's unified watcher (`watch --self`, or its push scout) runs: the
+unified watcher shares the cursors and watches the brief's waiters, this one included.
 
     lemonaid watch pr --wait <number|url> [--repo owner/name] [--interval 60]
     lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
@@ -43,6 +45,7 @@ from . import (
     pr_activity,
     pr_wait,
     registry,
+    wait_state,
     waiter_lock,
 )
 
@@ -131,6 +134,15 @@ def run(a: argparse.Namespace, repo: str) -> int:
         print(f"not started: could not record waiter: {error}")
         lock.close()
         return 2
+
+    unified = wait_state.lock_path(state_dir.parent.name)
+    if not a.state_dir and waiter_lock.held(unified):
+        print(
+            f"not started: your unified watcher ({waiter_lock.lock_holder(unified)}) watches PR #{pr}"
+            " with the same cursors and reports what this waiter would; it would never see an event"
+        )
+        lock.close()
+        return 3
 
     writer = own_edits.writer_from_env(os.environ, a.codex_thread)
     if writer:

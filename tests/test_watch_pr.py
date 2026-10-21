@@ -11,6 +11,7 @@ import sys
 import pytest
 
 from lemonaid.watch import (
+    cursors,
     delivery,
     github_api,
     lemon_signature,
@@ -18,6 +19,8 @@ from lemonaid.watch import (
     pr_activity,
     pr_comments,
     pr_wait,
+    wait_state,
+    waiter_lock,
 )
 
 _HEAD = "a" * 40
@@ -667,3 +670,25 @@ def test_a_push_the_lemon_made_itself_is_not_reported(stem):
     )
 
     assert sent == [f"PR #90 head moved {'b' * 10} -> {'c' * 10}"]
+
+
+def test_cli_refuses_to_wait_beside_the_unified_watcher_sharing_its_cursors(tmp_path, fake_gh):
+    _write_snapshot(fake_gh, _HEAD)
+    unified = wait_state.lock_path(cursors.owner("Author (X)"))
+    unified.parent.mkdir(parents=True)
+    lock = waiter_lock.acquire(unified)
+
+    result = subprocess.run(
+        [
+            *(sys.executable, "-m", "lemonaid", "watch", "pr", "--wait", "90", "--repo", "o/r"),
+            *("--comments", "--ci", "--once", "--me", "Author (X)", "--interval", "0.05"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    lock.close()
+
+    assert result.returncode == 3
+    assert result.stdout.startswith("not started: your unified watcher (pid ")
