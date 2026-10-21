@@ -10,7 +10,7 @@ from collections import abc
 
 from ..inbox import status_since
 from ..lineage import links
-from . import attached, child_place, layout, lemon, pr_table, status
+from . import attached, child_place, layout, lemon, names, pr_table, status
 
 
 @dataclasses.dataclass(frozen=True)
@@ -48,7 +48,7 @@ def _prs(text: str) -> tuple[str, ...]:
 
 
 def _label(child: Child) -> str:
-    return f"{child.name} ({child.lemon_id.rsplit('.', 1)[-1]})"
+    return f"{child.name} ({names.split_id(child.lemon_id)[0] or child.lemon_id})"
 
 
 def _descendants(child: Child) -> abc.Iterator[Child]:

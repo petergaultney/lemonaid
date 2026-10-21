@@ -5,6 +5,7 @@ import time
 from collections import abc
 from pathlib import Path
 
+from ..brief import identity
 from ..config import load_config
 from ..messages import store
 from . import delivery, doc_version, notes, scouts, subscription_state
@@ -100,7 +101,7 @@ def wait(
                 pending = [p for p in pending if p.source != "brief"]
                 pending.append(scouts.Pending("brief", problem))
                 since = time.monotonic()
-            wordy = inbox.name.rsplit(".", 1)[-1]
+            wordy = identity.brief_name(inbox.name) or inbox.name
             signatures = tuple(
                 f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead")
             )

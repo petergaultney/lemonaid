@@ -199,7 +199,7 @@ def test_a_message_that_will_not_be_read_is_logged_as_a_dead_letter(started):
 
     assert _tell("claude:finished") == 1
     entries = [json.loads(line) for line in dead_letters.path().read_text().splitlines()]
-    assert [(e["to"].split(".")[0], e["state"]) for e in entries] == [("recipient", "dead")]
+    assert [(e["to"].split(".")[1], e["state"]) for e in entries] == [("recipient", "dead")]
     assert entries[0]["from"].startswith("claude:sender")
     assert "was marked done" in entries[0]["said"]
 

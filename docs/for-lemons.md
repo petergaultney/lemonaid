@@ -789,9 +789,11 @@ your user's Approve on GitHub; name the PR under `Needs`. It sorts and reminds l
 Use `running` when nothing waits on your user but you are minding a pipeline run or another long
 process; name it and its tmux `session:window` under `Running`, whose first line its card shows.
 
-New briefs include a readable slug and a name, such as
-`Lemon-ID: mc-tars-no-mops-leases.SkullHen`, generated from the brief filename
-and two random bytes. The slug omits the leading date and is trimmed to about
+New briefs include a name and a readable slug, such as
+`Lemon-ID: SkullHen.mc-tars-no-mops-leases`, generated from two random bytes and
+the brief filename. Older briefs put the slug first
+(`mc-tars-no-mops-leases.SkullHen`) and keep it; lemonaid reads both, telling them
+apart because a slug is always lowercase letters, digits and `-`, and a name never is. The slug omits the leading date and is trimmed to about
 40 characters at a hyphen boundary. `[brief] name` in the config replaces the
 WordyBin with whatever a command prints; see `docs/config.md`.
 

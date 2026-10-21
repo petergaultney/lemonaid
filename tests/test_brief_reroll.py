@@ -57,7 +57,7 @@ def test_reroll_carries_the_inbox_links_and_brief_to_the_new_id():
 
     rerolled = _reroll("center", "quickodd")
 
-    assert rerolled == reroll.Rerolled("center.BloodKeg", "center.QuickOdd")
+    assert rerolled == reroll.Rerolled("center.BloodKeg", "QuickOdd.center")
     new_inbox = message_store.inbox_for_id(rerolled.new_id)
     assert [p.read_text().endswith("pending\n") for p in new_inbox.glob("*.md")] == [True]
     assert len(list((new_inbox / "done").glob("*.md"))) == 1
@@ -136,7 +136,7 @@ def test_a_failed_brief_rewrite_leaves_everything_as_it_was(monkeypatch):
     inbox = message_store.inbox_for_id(old)
     assert len(list(inbox.glob("*.md"))) == 1
     assert not (inbox / message_store.FORWARD).exists()
-    assert not message_store.inbox_for_id("center.QuickOdd").exists()
+    assert not message_store.inbox_for_id("QuickOdd.center").exists()
     with db.connect() as conn:
         assert lemon.brief_of(conn, old) is not None
         assert lemon.current(conn, old) == old
@@ -153,7 +153,7 @@ def test_the_old_waiter_exits_asking_to_rearm(capsys, monkeypatch):
     with pytest.raises(SystemExit, match="1"):
         _run("inbox", "watch", "--self", "--channel", "claude:center")
 
-    assert "Lemon-ID changed to center.QuickOdd; rearm" in capsys.readouterr().err
+    assert "Lemon-ID changed to QuickOdd.center; rearm" in capsys.readouterr().err
 
 
 def test_cli_prints_old_and_new_signing_names(capsys):
@@ -162,7 +162,7 @@ def test_cli_prints_old_and_new_signing_names(capsys):
     _run("id", "--channel", "claude:center", "--set", "QuickOdd", "--json")
 
     result = json.loads(capsys.readouterr().out)
-    assert result["lemon_id"] == "center.QuickOdd"
+    assert result["lemon_id"] == "QuickOdd.center"
     assert result["old_lemon_id"] == "center.BloodKeg"
     assert (result["signing_name"], result["old_signing_name"]) == ("QuickOdd", "BloodKeg")
 
@@ -176,7 +176,7 @@ def test_a_failed_forward_write_puts_the_inbox_back(monkeypatch):
         _reroll("center", "QuickOdd")
 
     assert len(list(message_store.inbox_for_id(old).glob("*.md"))) == 1
-    assert not message_store.inbox_for_id("center.QuickOdd").exists()
+    assert not message_store.inbox_for_id("QuickOdd.center").exists()
     assert identity.from_path(store.briefs_dir() / "center.md") == old
 
 
@@ -186,7 +186,7 @@ def test_a_new_brief_cannot_take_an_old_id(monkeypatch):
     squatter = store.briefs_dir() / "squatter.md"
     squatter.write_text("# squatter\n\nLemon-ID: center.BloodKeg\n")
 
-    with db.connect() as conn, pytest.raises(ValueError, match="old ID of center.QuickOdd"):
+    with db.connect() as conn, pytest.raises(ValueError, match="old ID of QuickOdd.center"):
         identity.ensure(conn, squatter)
 
     words = iter((b"\xbd\xbb", b"\0\0"))  # SkullHen, then a free one
@@ -222,4 +222,4 @@ def test_reroll_takes_the_first_free_pair_of_name_words():
             words=name_words.parse("audit,ink,web"),
         )
 
-    assert rerolled.new_id == "center.AuditWeb"
+    assert rerolled.new_id == "AuditWeb.center"

@@ -129,7 +129,7 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
     except ValueError as error:
         parent = owner
         problems.append(str(error))
-    me = f"Author ({parent.rsplit('.', 1)[-1]})"
+    me = f"Author ({identity.brief_name(parent) or parent})"
     specs: dict[tuple[str, tuple[str, ...]], Subscription] = {}
     for command in waiters.commands(text):
         try:

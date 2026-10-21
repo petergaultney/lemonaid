@@ -26,7 +26,7 @@ def test_new_brief_stores_a_slugged_id():
     assert "Brief-ID: " in path.read_text()
     lemon_id = identity.from_path(path)
     assert identity.valid(lemon_id)
-    slug, word = lemon_id.split(".", 1)
+    word, slug = lemon_id.split(".", 1)
     assert slug == "a-lemon"
     assert len(wordybin.decode(word)) == 2
     assert wordybin.encode(wordybin.decode(word)) == word
@@ -36,10 +36,10 @@ def test_new_id_uses_filename_slug_without_date_and_trims_at_hyphen(monkeypatch)
     monkeypatch.setattr(store.os, "urandom", lambda size: bytes.fromhex("bdbb"))
     assert (
         store.new_lemon_id(store.briefs_dir() / "2026-09-25-mc-tars-no-mops-leases.md")
-        == "mc-tars-no-mops-leases.SkullHen"
+        == "SkullHen.mc-tars-no-mops-leases"
     )
     long_name = "2026-09-25-one-two-three-four-five-six-seven-eight-nine-ten-eleven.md"
-    slug = store.new_lemon_id(store.briefs_dir() / long_name).split(".", 1)[0]
+    slug = store.new_lemon_id(store.briefs_dir() / long_name).split(".", 1)[1]
     assert slug == "one-two-three-four-five-six-seven-eight"
 
 
@@ -52,8 +52,8 @@ def test_new_brief_regenerates_id_on_registry_collision(monkeypatch):
         identity.ensure(conn, first, regenerate_on_collision=True)
         identity.ensure(conn, second, regenerate_on_collision=True)
 
-    assert identity.from_path(first) == "same-slug.SkullHen"
-    expected_second = "same-slug." + wordybin.encode(b"\0\0")
+    assert identity.from_path(first) == "SkullHen.same-slug"
+    expected_second = wordybin.encode(b"\0\0") + ".same-slug"
     assert identity.from_path(second) == expected_second
     with db.connect() as conn:
         rows = conn.execute("SELECT lemon_id FROM lemon_identities").fetchall()

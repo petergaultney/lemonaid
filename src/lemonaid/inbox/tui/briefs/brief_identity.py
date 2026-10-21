@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from ....brief import links, render
+from ....brief import links, names, render
 
 _CONSOLE = Console()  # for measuring wraps only; nothing is printed through it
 
@@ -25,8 +25,12 @@ def _parent(section: render.Section) -> Text:
 def id_text(brief_id: str, label: str = "") -> Text:
     line = Text(label, style="dim")
     start = len(line)
-    description, separator, name = brief_id.rpartition(".")
-    if separator and name:
+    name, description = names.split_id(brief_id)
+    if name and brief_id.startswith(f"{name}."):
+        line.append(name, style="bold")
+        line.append(".", style="dim")
+        line.append(description, style="dim")
+    elif name:
         line.append(description, style="dim")
         line.append(".", style="dim")
         line.append(name, style="bold")

@@ -115,7 +115,7 @@ def new_lemon_id(
     words: name_words.Words = name_words.NONE,
 ) -> str:
     """Give a brief a short name plus a new name from `names`, none of those in *held*."""
-    return f"{lemon_id_slug(path)}.{names.new(held, words)}"
+    return names.join_id(names.new(held, words), lemon_id_slug(path))
 
 
 def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str]) -> Path:

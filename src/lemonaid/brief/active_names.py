@@ -12,6 +12,7 @@ from collections import abc, defaultdict
 from pathlib import Path
 
 from ..config import load_config
+from . import names
 
 _DAY = 24 * 60 * 60
 _BRIEFS = """
@@ -62,8 +63,8 @@ def holders(
         *((i, i) for i in active),
         *((row["lemon_id"], row["old_id"]) for row in aliases if row["lemon_id"] in active),
     ]:
-        if "." in lemon_id:
-            held[lemon_id.rsplit(".", 1)[1].lower()].add(owner)
+        if name := names.split_id(lemon_id)[0]:
+            held[name.lower()].add(owner)
 
     return dict(held)
 
@@ -87,10 +88,11 @@ def holding(conn: sqlite3.Connection, name: str) -> set[str]:
 
 def sharing(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     """The other active Lemon-IDs that hold *lemon_id*'s name."""
-    if "." not in lemon_id:
+    name = names.split_id(lemon_id)[0]
+    if not name:
         return []
 
-    return sorted(holding(conn, lemon_id.rsplit(".", 1)[1]) - {lemon_id})
+    return sorted(holding(conn, name) - {lemon_id})
 
 
 def warning(lemon_id: str, others: abc.Sequence[str]) -> str:
@@ -98,7 +100,7 @@ def warning(lemon_id: str, others: abc.Sequence[str]) -> str:
     if not others:
         return ""
 
-    name = lemon_id.rsplit(".", 1)[1]
+    name = names.split_id(lemon_id)[0]
     return (
         f"{name} is also the name of {', '.join(others)}, so replies signed {name} are"
         f" ambiguous. `lemonaid brief id --self --reroll` gives {lemon_id} a new name."

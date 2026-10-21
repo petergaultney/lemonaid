@@ -47,7 +47,7 @@ def test_children_take_the_parent_s_words_in_order_skipping_held_names(capsys):
 
 
 def test_name_words_override_the_parent_s_line(capsys):
-    assert _run(capsys, "--name-words", "spark,tea", "One")["lemon_id"].endswith(".SparkTea")
+    assert _run(capsys, "--name-words", "spark,tea", "One")["lemon_id"].startswith("SparkTea.")
 
 
 def test_a_malformed_name_word_is_an_error_before_any_brief_is_written(capsys):
@@ -61,7 +61,7 @@ def test_when_every_pair_is_held_the_child_gets_a_random_name(capsys):
     _run(capsys, "--name-words", "spark,tea", "One")
     second = _run(capsys, "--name-words", "spark,tea", "Two")
 
-    assert not second["lemon_id"].endswith(".SparkTea")
+    assert not second["lemon_id"].startswith("SparkTea.")
     assert "Every name the name words make is taken" in second["stderr"]
     assert len(identity.brief_name(second["lemon_id"])) == 8
 
@@ -71,4 +71,4 @@ def test_a_name_an_active_lemon_holds_only_as_an_alias_is_skipped(capsys):
         conn.execute("INSERT INTO lemon_aliases VALUES ('hq.SparkTea', ?)", (_PARENT,))
         conn.commit()
 
-    assert _run(capsys, "--name-words", "spark,tea,ink", "One")["lemon_id"].endswith(".SparkInk")
+    assert _run(capsys, "--name-words", "spark,tea,ink", "One")["lemon_id"].startswith("SparkInk.")

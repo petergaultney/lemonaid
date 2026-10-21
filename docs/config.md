@@ -460,13 +460,14 @@ number, and the first word printed must be a pull-request URL. With `gh`:
 pr_url = "gh pr view {ref} --json url --jq .url"
 ```
 
-`name` names new lemons: the part of a Lemon-ID after the dot, and the name a
+`name` names new lemons: the part of a Lemon-ID before the dot, and the name a
 lemon signs with. It runs in the caller's directory each time lemonaid needs a
 name, including again when the one printed belongs to another lemon, so it
 should print a different name each run. The first word printed is the name; it
-must be letters, digits, `_` and `-` only. A non-zero exit, nothing printed,
+must be letters, digits, `_` and `-` only. A first letter in lowercase is capitalized, and a
+name with no letter to capitalize is refused, so a name never looks like a slug. A non-zero exit, nothing printed,
 another character, or more than 5 seconds stops the brief from being created.
-With `name` set, `brief id --set` takes any such name as written. Name words
+With `name` set, `brief id --set` takes any such name, capitalized the same way. Name words
 (`--name-words`, or a parent's `Name words:` line) come before `name`; it runs when
 they give no free name.
 

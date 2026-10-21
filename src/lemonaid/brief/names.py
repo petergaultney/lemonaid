@@ -22,6 +22,7 @@ _TIMEOUT_SECONDS = 5
 _ATTEMPTS = 20
 # No dot, which splits a Lemon-ID's slug from its name, and nothing a shell quotes.
 _NAME = re.compile(r"[\w-]+")
+_SLUG = re.compile(r"[a-z0-9-]+")
 
 
 def _command() -> str:
@@ -32,7 +33,11 @@ def _checked(name: str, source: str) -> str:
     if not _NAME.fullmatch(name):
         raise ValueError(f"{source} gave {name!r}; a name is letters, digits, _ and - only")
 
-    return name
+    capitalized = name[:1].upper() + name[1:]
+    if _SLUG.fullmatch(capitalized):
+        raise ValueError(f"{source} gave {name!r}; a name needs a capital letter or _")
+
+    return capitalized
 
 
 def _from_command(command: str) -> str:
@@ -84,3 +89,22 @@ def chosen(name: str) -> str:
         return shaped
 
     raise ValueError(f"{name!r} is not a five-letter word and a three-letter word, like AuditInk")
+
+
+def split_id(brief_id: str) -> tuple[str, str]:
+    """A Brief-ID's name and description; the name is "" for an older ID without one.
+
+    New IDs put the name first (`SkullHen.mc-tars`), older ones last
+    (`mc-tars.SkullHen`). A description is a lowercase slug and a name never
+    is, which tells the two orders apart.
+    """
+    name, dot, description = brief_id.partition(".")
+    if dot and _SLUG.fullmatch(description) and not _SLUG.fullmatch(name):
+        return name, description
+
+    description, dot, name = brief_id.rpartition(".")
+    return (name, description) if dot else ("", brief_id)
+
+
+def join_id(name: str, description: str) -> str:
+    return f"{name}.{description}"

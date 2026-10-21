@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 
 from .. import groups
-from . import active_names, name_words, store
+from . import active_names, name_words, names, store
 
 _LINE = re.compile(r"(?:Brief-ID|Lemon-ID): (.+)")
 
@@ -30,12 +30,12 @@ def valid(lemon_id: str) -> bool:
 
 def brief_name(brief_id: str) -> str:
     """The name half of *brief_id*, or "" for an older brief ID without one."""
-    return brief_id.rsplit(".", 1)[1] if "." in brief_id else ""
+    return names.split_id(brief_id)[0]
 
 
 def brief_description(brief_id: str) -> str:
-    """The description half of *brief_id*, before its name, if present."""
-    return brief_id.rsplit(".", 1)[0] if brief_name(brief_id) else brief_id
+    """The description half of *brief_id*, or all of an older brief ID without a name."""
+    return names.split_id(brief_id)[1]
 
 
 def wordybin(lemon_id: str) -> str:
@@ -45,12 +45,15 @@ def wordybin(lemon_id: str) -> str:
 
 def markdown_id(brief_id: str) -> str:
     """Markdown for a brief ID, with its name bold and its description dimmed."""
-    name = brief_name(brief_id)
+    name, description = names.split_id(brief_id)
     if not name:
         return f"`{brief_id}`"
 
     escaped_name = re.sub(r"([\\`*_{}\[\]()#+.!|>-])", r"\\\1", name)
-    return f"`{brief_description(brief_id)}`.**{escaped_name}**"
+    if brief_id.startswith(f"{name}."):
+        return f"**{escaped_name}**.`{description}`"
+
+    return f"`{description}`.**{escaped_name}**"
 
 
 def by_channel(conn: sqlite3.Connection) -> dict[str, str]:

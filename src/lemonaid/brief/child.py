@@ -17,7 +17,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home, obsidian, pr_url
-from . import doc_table
+from . import doc_table, identity
 
 PACKAGED_DIR = Path(__file__).parent / "templates"
 
@@ -102,7 +102,7 @@ def render(
         "title": title,
         "date": today.isoformat(),
         "lemon_id": lemon_id,
-        "wordybin": lemon_id.rsplit(".", 1)[-1],
+        "wordybin": identity.brief_name(lemon_id) or lemon_id,
         "parent_id": parent_id,
         "tell": _tell(parent_id, values.get("author", "")),
         **values,

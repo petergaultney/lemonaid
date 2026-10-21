@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lineage import links
-from . import lemon, render, status
+from . import identity, lemon, render, status
 
 
 def _session_row(conn: sqlite3.Connection, path: Path | None) -> db.Notification | None:
@@ -33,7 +33,7 @@ def _child(conn: sqlite3.Connection, lemon_id: str) -> render.Child | None:
 
     return render.Child(
         state,
-        (row.name if row else "") or current.split(".", 1)[0],
+        (row.name if row else "") or identity.brief_description(current),
         current,
     )
 

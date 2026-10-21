@@ -102,7 +102,7 @@ def test_a_child_carries_its_place_session_prs_and_reviewer(tmp_path, promoted):
     assert [c.lemon_id for c in child.children] == [reviewer]
     assert child.held_by == (
         "status merge",
-        f"reviewer work ({reviewer.rsplit('.', 1)[-1]}) is without a status",
+        f"reviewer work ({reviewer.split('.', 1)[0]}) is without a status",
     )
 
 

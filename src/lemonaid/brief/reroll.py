@@ -22,26 +22,33 @@ class Rerolled:
     new_id: str
 
 
-def _taken(conn: sqlite3.Connection, lemon_id: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM lemon_identities WHERE lemon_id = ?"
-        " UNION SELECT 1 FROM lemon_aliases WHERE old_id = ?",
-        (lemon_id, lemon_id),
-    ).fetchone()
-    return row is not None or messages.store.inbox_for_id(lemon_id).exists()
+def _taken(conn: sqlite3.Connection, name: str, slug: str) -> bool:
+    """Whether a lemon has, or had, *name* and *slug* as its Lemon-ID, in either order."""
+    for lemon_id in (names.join_id(name, slug), f"{slug}.{name}"):
+        row = conn.execute(
+            "SELECT 1 FROM lemon_identities WHERE lemon_id = ?"
+            " UNION SELECT 1 FROM lemon_aliases WHERE old_id = ?",
+            (lemon_id, lemon_id),
+        ).fetchone()
+        if row is not None or messages.store.inbox_for_id(lemon_id).exists():
+            return True
+
+    return False
 
 
 def _new_id(
     conn: sqlite3.Connection, path: Path, old_id: str, chosen: str, words: name_words.Words
 ) -> str:
-    slug = old_id.rsplit(".", 1)[0] if "." in old_id else store.lemon_id_slug(path)
+    old_name, old_description = names.split_id(old_id)
+    slug = old_description if old_name else store.lemon_id_slug(path)
     held = active_names.held(conn, path) | {identity.brief_name(old_id).lower()}
     if chosen:
-        new_id = f"{slug}.{names.chosen(chosen)}"
-        if new_id == old_id:
+        name = names.chosen(chosen)
+        if name == old_name:
             raise ValueError(f"{old_id} already has that name")
 
-        if _taken(conn, new_id):
+        new_id = names.join_id(name, slug)
+        if _taken(conn, name, slug):
             raise ValueError(f"{new_id} is, or was, another lemon's Lemon-ID")
 
         if identity.brief_name(new_id).lower() in held:
@@ -50,11 +57,11 @@ def _new_id(
         return new_id
 
     for _ in range(_ATTEMPTS):
-        new_id = f"{slug}.{names.new(held, words)}"
-        if not _taken(conn, new_id):
-            return new_id
+        name = names.new(held, words)
+        if not _taken(conn, name, slug):
+            return names.join_id(name, slug)
 
-        held.add(identity.brief_name(new_id).lower())
+        held.add(name.lower())
 
     raise ValueError(f"No free name for {slug} after {_ATTEMPTS} tries")
 

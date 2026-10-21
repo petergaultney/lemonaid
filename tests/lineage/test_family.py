@@ -39,7 +39,9 @@ def test_a_brief_shows_its_parent_and_its_childrens_status(capsys):
     [section] = family.added(_shown("child")).sections
 
     assert (section.parent, section.parent_name) == (parent, "")
-    assert section.children == (render.Child("blocked", grandchild.split(".")[0], grandchild),)
+    assert section.children == (
+        render.Child("blocked", identity.brief_description(grandchild), grandchild),
+    )
 
 
 def test_a_child_is_named_for_its_session_when_it_has_one(capsys):

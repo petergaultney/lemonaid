@@ -127,7 +127,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     )
 
     text = Path(result["path"]).read_text()
-    wordybin = result["lemon_id"].rsplit(".", 1)[1]
+    wordybin = identity.brief_name(result["lemon_id"])
     assert Path(result["path"]).name.endswith("-review-widgets-12.md")
     assert hidden.is_hidden(text)
     assert pr_numbers.brief_numbers(text) == (pr_numbers.PR("12", _PR),)

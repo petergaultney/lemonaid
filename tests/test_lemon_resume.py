@@ -92,7 +92,7 @@ def test_an_idle_codex_without_a_waiter_is_prompted(capsys, started, monkeypatch
 
     assert _resume("codex:idle") == 0
     assert len(started) == 1
-    assert "prompted recipient." in capsys.readouterr().out
+    assert ".recipient, which was idle" in capsys.readouterr().out
 
 
 def test_a_lemon_asking_its_user_is_not_typed_into(capsys, started, monkeypatch):

@@ -72,3 +72,14 @@ def test_docs_watch_enum_selects_the_document_events(tmp_path):
         )
         spec = next(spec for spec in subscriptions.read(text, tmp_path) if spec.kind == "doc")
         assert spec.edits is (mode is doc_table.Watch.ALL_EDITS)
+
+
+def test_the_default_identity_is_the_brief_name_in_either_order(tmp_path):
+    pr = "https://github.com/o/r/pull/12"
+    table = (
+        f"## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n| Work | [r#12]({pr}) | |\n"
+    )
+    for brief_id in ("SkullHen.center", "center.SkullHen"):
+        text = f"# Task\n\nBrief-ID: {brief_id}\n\n{table}"
+        [spec] = [s for s in subscriptions.report(text, tmp_path).specs if s.kind == "pr"]
+        assert spec.me == "Author (SkullHen)"
