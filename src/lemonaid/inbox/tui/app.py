@@ -1,6 +1,7 @@
 """Main Lemonaid TUI application."""
 
 import os
+import time
 import typing as ty
 from collections import abc
 from pathlib import Path
@@ -47,7 +48,7 @@ from .live.inbox_list import InboxList
 from .notes import NotesPanel
 from .rows import brief_cards, row_parts
 from .status_notice import StatusLine
-from .switching import history_resume, inbox_switch
+from .switching import double_activate, history_resume, inbox_switch
 from .tables import row_keys, table_nav
 from .tables.scroll_position import StableTable
 from .tables.table import ClickToActTable
@@ -78,6 +79,8 @@ class LemonaidApp(CrashLoggedApp):
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
+        self._last_activation: double_activate.Activation | None = None
+        self._focus_gained = 0.0  # monotonic seconds
         self._undo_stack = undo.Stack()
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
@@ -266,10 +269,15 @@ class LemonaidApp(CrashLoggedApp):
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""
         self._attention.input_at = 0.0
+        if self._user_changed_focus():
+            self._focus_gained = time.monotonic()
+            self._last_activation = None
         self._refresh_notifications()
         self._recheck_pane_focus()
 
     def on_app_blur(self) -> None:
+        if self._user_changed_focus():
+            self._last_activation = None
         self._recheck_pane_focus()
 
     def _recheck_pane_focus(self) -> None:
@@ -288,6 +296,12 @@ class LemonaidApp(CrashLoggedApp):
         # A probe still running when a newer one starts can finish last.
         self.call_from_thread(
             lambda: generation == self._probe_generation and self._set_input_active(active)
+        )
+
+    def _user_changed_focus(self) -> bool:
+        """False for the blur and focus a keep-focus show causes in this pane itself."""
+        return not double_activate.is_own_focus_cycle(
+            self._last_activation, time.monotonic(), self.config.tui.double_activate_ms
         )
 
     def _update_input_indicator(self) -> None:
@@ -588,8 +602,45 @@ class LemonaidApp(CrashLoggedApp):
         self._undo_stack.push(entry)
         self.notify(f"{entry.description} — press {utils.undo_key(self.config)} to undo")
 
-    def _switch_to_notification(self, notification: db.Notification) -> bool:
-        if not inbox_switch.switch_to(self, notification, self.config, self._archive_notification):
+    def _double_activate(self) -> bool:
+        """Whether a single activation should only show the lemon: tmux follow mode, opted in."""
+        return (
+            self.config.tui.double_activate_focus
+            and self._scratch_mode
+            and is_follow_enabled()
+            and self._mode is None
+        )
+
+    def _activate_lemon(self, notification: db.Notification) -> None:
+        if not self._double_activate():
+            self._switch_to_notification(notification)
+            return
+
+        key, previous, now = str(notification.id), self._last_activation, time.monotonic()
+        window_ms = self.config.tui.double_activate_ms
+        # A click that focused the inbox pane is never a second activation.
+        just_focused = now - self._focus_gained <= window_ms / 1000
+        # A lemon already shown beside the inbox takes focus however long ago it was shown.
+        if double_activate.is_double(previous, key, now, window_ms) or (
+            not just_focused
+            and focus.is_behind_scratch(notification, os.environ.get("TMUX_PANE", ""))
+        ):
+            self._last_activation = None
+            self._switch_to_notification(notification)
+        elif self._switch_to_notification(notification, keep_focus=True):
+            # Stamped once the switch is done: its tmux calls can outlast the window,
+            # and the second click is only handled after they finish.
+            self._last_activation = (key, time.monotonic())
+
+    def _switch_to_notification(
+        self, notification: db.Notification, *, keep_focus: bool = False
+    ) -> bool:
+        # A lemon that cannot just be shown (its pane is gone) takes the full path, errors and all.
+        if not (
+            keep_focus and double_activate.show_keeping_focus(notification, self.config)
+        ) and not inbox_switch.switch_to(
+            self, notification, self.config, self._archive_notification
+        ):
             return False
 
         if self._search_mode and self.config.inbox.close_search_on_switch:
@@ -1040,6 +1091,7 @@ class LemonaidApp(CrashLoggedApp):
         # pane behind it. An external jump can leave the cursor on another lemon.
         if not (
             event.data_table.id == "main_table"
+            and not self._double_activate()
             and self.has_class("-input-active")
             and focus.is_behind_scratch(
                 row_keys.notification(str(row_keys.key_id(event.row_key) or "")),
@@ -1058,7 +1110,7 @@ class LemonaidApp(CrashLoggedApp):
             if (group_id := sections.group_id(str(row_key.value))) is not None:
                 inbox_groups.toggle_group(self._content.inbox, group_id)
             elif notification := row_keys.notification(str(row_keys.key_id(row_key) or "")):
-                self._switch_to_notification(notification)
+                self._activate_lemon(notification)
 
 
 def main() -> None:

@@ -6,7 +6,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox. On a group's header, collapse the group or open it |
+| `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox. On a group's header, collapse the group or open it. With `[tui] double_activate_focus`, one activation only shows the lemon and a second within `double_activate_ms` takes focus (see [config.md](config.md)) |
 | `1`-`9`, `0` | Switch to that session in the list, counting from the top; group headers aren't counted |
 | `u` | Jump directly to earliest unread session |
 | `Ctrl`+`a` / `Home` | Move to the top row of the list, pins included |

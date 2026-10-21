@@ -97,6 +97,15 @@ def handle_notification(
     return False
 
 
+def show_tmux_keeping_focus(
+    metadata: dict[str, Any], config: Config, switch_source: str | None
+) -> bool:
+    """`handle_notification` for an existing tmux pane, leaving focus where it is."""
+    return tmux.keep_focus.show(
+        metadata, lambda: handle_notification(metadata, config, switch_source=switch_source)
+    )
+
+
 def _handle_cmux(metadata: dict[str, Any] | None, config: Config) -> bool:
     """Handle notification by focusing its cmux surface, or resuming a session that has none."""
     if metadata is None:

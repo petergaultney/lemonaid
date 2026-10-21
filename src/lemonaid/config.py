@@ -192,6 +192,10 @@ class TuiConfig:
     # Fades the whole inbox while its tmux pane is not selected: "off", "dim" (the
     # terminal's faint attribute) or a percentage that blends colours toward the background.
     unfocused_dim: str = "off"
+    # A single activation of a lemon row shows it without taking focus from the
+    # inbox; a second within `double_activate_ms` takes focus.
+    double_activate_focus: bool = False
+    double_activate_ms: int = 400
     # A Markdown file shown under the sessions when they are cards. None shows nothing.
     notes: Path | None = None
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
@@ -618,6 +622,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
         ],
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
+        double_activate_focus=tui_data.get("double_activate_focus", False),
+        double_activate_ms=tui_data.get("double_activate_ms", 400),
         notes=_notes(tui_data.get("notes")),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),
