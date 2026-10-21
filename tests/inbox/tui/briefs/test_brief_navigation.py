@@ -150,18 +150,18 @@ def test_m_and_M_mark_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
             await pilot.pause()
             assert dots(app) == [False]
 
-            await pilot.press("M")
+            await pilot.press("alt+m")
             await pilot.pause()
             assert unread(rows[1]) and not unread(rows[0])
             assert dots(app) == [True]
             assert app._get_current_row_key() == str(rows[1].id)
 
-            await pilot.press("m")
+            await pilot.press("M")
             await pilot.pause()
             assert not unread(rows[1])
             assert dots(app) == [False]
 
-            await pilot.press("z")
+            await pilot.press("Z")
             await pilot.pause()
             assert unread(rows[1])
             assert dots(app) == [True]
@@ -196,7 +196,7 @@ def test_r_renames_the_row_whose_brief_is_shown(monkeypatch, tmp_path):
             assert "renamed" in headlines(app)[0]
             assert state["shown"].lemon.name == "renamed"
 
-            await pilot.press("z")
+            await pilot.press("Z")
             await pilot.pause()
             assert "lemon-1" in headlines(app)[0]
 

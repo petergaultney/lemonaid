@@ -368,7 +368,7 @@ Bind it for use from anywhere:
 bind-key L run-shell 'lemonaid tmux scratch --flip'
 ```
 
-`f` does the same from inside `lma`. The pane moves in whatever window it currently occupies, so the binding works from any window rather than only the one you can see it in.
+`F` does the same from inside `lma`. The pane moves in whatever window it currently occupies, so the binding works from any window rather than only the one you can see it in.
 
 Each edge keeps its own size - `scratch_height` in rows for the top, `scratch_width` in columns for the left - so flipping back and forth doesn't lose the size you chose for either.
 

@@ -82,7 +82,7 @@ def test_the_first_question_starts_selected_and_the_keys_move_and_ask():
             await pilot.press("]", "]")
             assert "- ▶ rename the flag" in _needs(app)  # an aside has no entry to land on
 
-            await pilot.press("d")
+            await pilot.press("D")
             await pilot.press("[", "a")
             assert isinstance(app.screen, AnswerScreen)
             app.screen.query_one(Input).value = "exponential, capped at 5"
@@ -159,7 +159,7 @@ def test_without_questions_the_keys_do_nothing_and_no_hint_shows():
         app = _popup(path)
         async with app.run_test(size=(100, 40)) as pilot:
             await pilot.pause()
-            await pilot.press("]", "d", "a", "Y")
+            await pilot.press("]", "D", "a", "Y")
             await pilot.pause()
             assert not isinstance(app.screen, AnswerScreen)
             assert not app.query(".brief-question-keys")
@@ -183,7 +183,7 @@ def test_the_keys_come_from_config_and_the_hint_names_them():
             await pilot.press(")")
             assert "- ▶ rename the flag" in _needs(app)
             hint = app.query_one(".brief-question-keys")
-            assert "( ) question · a answer · ctrl+y yes · d more detail" in str(hint.render())
+            assert "( ) question · a answer · ctrl+y yes · D more detail" in str(hint.render())
 
     asyncio.run(run())
 
@@ -219,16 +219,38 @@ def test_the_key_that_opened_the_popup_closes_it():
     assert asyncio.run(run()) is False
 
 
+def _popup_running_after(path: Path, key: str, cfg: config_mod.Config | None = None) -> bool:
+    async def run() -> bool:
+        app = _popup(path, cfg)
+        async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press(key)
+            await pilot.pause()
+            return app.is_running
+
+    return asyncio.run(run())
+
+
+def test_the_popup_closes_on_the_configured_quit_key_and_escape():
+    path, _ = _attached_brief()
+    custom = config_mod.Config()
+    custom.tui.keybindings.quit = "x"
+
+    assert _popup_running_after(path, "q") is False
+    assert _popup_running_after(path, "escape") is False
+    assert _popup_running_after(path, "x", custom) is False
+    assert _popup_running_after(path, "q", custom) is True
+
+
 def test_a_key_bound_twice_in_one_view_is_reported(tmp_path, capsys):
-    (tmp_path / "c.toml").write_text('[tui.keybindings]\nup_down = "ad"\nquestion_next = ")"\n')
+    (tmp_path / "c.toml").write_text('[tui.keybindings]\nup_down = "aD"\nquestion_next = ")"\n')
 
     cfg = config_mod.load_config(tmp_path / "c.toml")
 
     assert cfg.tui.keybindings.question_next == ")"
     err = capsys.readouterr().err
     assert "in the brief view, 'a' is bound to up and answer" in err
-    assert "in the brief view, 'd' is bound to down and more_detail" in err
-    assert "in the inbox view, 'a' is bound to up and archive" in err
+    assert "in the brief view, 'D' is bound to down and more_detail" in err
 
 
 def test_the_defaults_collide_with_no_common_up_down_choice():

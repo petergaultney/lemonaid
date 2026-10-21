@@ -5,6 +5,7 @@ from collections import abc
 
 from textual.binding import Binding
 
+from ... import keys
 from ...config import Config, KeybindingsConfig
 from .utils import JUMP_DIGITS
 
@@ -38,7 +39,7 @@ def _hidden(key: str, action: str, label: str) -> Binding:
 def _bindings(config: Config) -> abc.Iterator[Binding]:
     kb = config.tui.keybindings
     yield from build_bindings(kb.quit, "quit", "Quit")
-    yield _hidden("escape", "quit", "Quit")
+    yield _hidden("escape", "back", "Quit")
 
     # Enter always selects through DataTable; these are additional keys.
     yield from build_bindings(kb.select, "select", "Switch")
@@ -47,7 +48,10 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.refresh, "refresh", "Refresh", show=False)
     yield from build_bindings(kb.jump_unread, "jump_unread", "Jump Unread")
     yield from build_bindings(kb.mark_read, "mark_read", "Mark Read")
-    yield from build_bindings(kb.mark_unread, "mark_unread", "Mark Unread")
+    if keys.key_names(kb.mark_unread) == [kb.mark_unread] and len(kb.mark_unread) > 1:
+        yield Binding(kb.mark_unread, "mark_unread", "Mark Unread")
+    else:
+        yield from build_bindings(kb.mark_unread, "mark_unread", "Mark Unread")
     yield from build_bindings(kb.hide, "hide", "Hide/show", show=False)
     yield from build_bindings(kb.archive, "archive", "Archive")
     yield from build_bindings(kb.rename, "rename", "Rename")
@@ -99,7 +103,7 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     if kb.search:
         yield _hidden("slash" if kb.search == "/" else kb.search, "filter_history", "Search")
 
-    yield _hidden("P", "patch_claude", "Patch Claude")
+    yield _hidden("ctrl+t", "patch_claude", "Patch Claude")
 
     # Key hints share the bottom row with the status text, so they're a toggle
     # rather than a permanent fixture. Hidden from the footer it controls.
@@ -165,6 +169,7 @@ def set_footer(
 _WHILE_BRIEF_SHOWN = frozenset(
     {
         "quit",
+        "back",
         "brief",
         "refresh",
         "help",

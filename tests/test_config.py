@@ -14,8 +14,8 @@ def test_keybindings_defaults():
     assert kb.quit == "q"
     assert kb.refresh == "g"
     assert kb.jump_unread == "u"
-    assert kb.mark_read == "m"
-    assert kb.archive == "a"
+    assert kb.mark_read == "M"
+    assert kb.archive == "A"
     assert kb.rename == "r"
     assert kb.history == "h"
     assert kb.copy_resume == "c"
@@ -42,8 +42,8 @@ def test_parse_keybindings_partial_override():
     # Defaults preserved
     assert kb.refresh == "g"
     assert kb.jump_unread == "u"
-    assert kb.mark_read == "m"
-    assert kb.archive == "a"
+    assert kb.mark_read == "M"
+    assert kb.archive == "A"
     assert kb.rename == "r"
 
 

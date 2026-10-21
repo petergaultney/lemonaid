@@ -36,7 +36,7 @@ def test_c_on_a_header_saves_and_draws_the_color_and_z_undoes_it(work):
         await pilot.press("ctrl+u", *"teal", "enter")
         await pilot.pause()
         drawn, saved = _drawn(app), _saved()
-        await pilot.press("z")
+        await pilot.press("Z")
         await pilot.pause()
         return drawn, saved, _drawn(app)
 

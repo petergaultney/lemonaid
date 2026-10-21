@@ -464,6 +464,14 @@ class LemonaidApp(CrashLoggedApp):
         inbox.fold_open = not inbox.fold_open
         self._refresh_notifications()
 
+    def action_back(self) -> None:
+        """Escape: leave history for the inbox, otherwise whatever quit does."""
+        if self._mode is view_modes.HISTORY and self._brief_target is None:
+            self._set_mode(view_modes.HISTORY, False)
+            return
+
+        self.action_quit()
+
     def action_quit(self) -> None:
         """Quit the app, or just hide the pane in scratch mode.
 

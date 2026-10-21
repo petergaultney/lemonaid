@@ -227,4 +227,4 @@ def jump_gutter(row_index: int, is_here: bool = False) -> Text:
 
 def undo_key(config: Config) -> str:
     keys = config.tui.keybindings.undo
-    return keys[0] if keys else "z"
+    return keys[0] if keys else "Z"

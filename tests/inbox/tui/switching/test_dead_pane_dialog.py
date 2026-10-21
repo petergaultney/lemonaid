@@ -5,6 +5,7 @@ import asyncio
 from textual.containers import Vertical
 from textual.widgets import Label
 
+from lemonaid import config as config_mod
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.switching.resume_error import ResumeErrorScreen
@@ -46,8 +47,8 @@ def _select_then_press(monkeypatch, key: str) -> tuple[type, str]:
         return shown, db.get(conn, notification.id).status
 
 
-def test_a_archives_the_row(monkeypatch):
-    assert _select_then_press(monkeypatch, "a") == (ResumeErrorScreen, "archived")
+def test_capital_a_archives_the_row(monkeypatch):
+    assert _select_then_press(monkeypatch, "A") == (ResumeErrorScreen, "archived")
 
 
 def test_escape_closes_without_archiving(monkeypatch):
@@ -129,3 +130,12 @@ def test_resume_error_wraps_and_scrolls_long_instructions():
             await pilot.press("escape")
 
     asyncio.run(run())
+
+
+def test_the_accept_key_is_configurable(monkeypatch):
+    cfg = config_mod.Config()
+    cfg.tui.keybindings.dialog_accept = "a"
+    monkeypatch.setattr("lemonaid.inbox.tui.app.load_config", lambda: cfg)
+
+    assert _select_then_press(monkeypatch, "a") == (ResumeErrorScreen, "archived")
+    assert _select_then_press(monkeypatch, "A") == (ResumeErrorScreen, "unread")

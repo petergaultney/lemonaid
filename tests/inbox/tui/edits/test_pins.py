@@ -299,7 +299,7 @@ def test_the_keys_are_bound(monkeypatch):
         app = LemonaidApp()
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
-            for key in ("p", "shift+up", "shift+down"):
+            for key in ("P", "shift+up", "shift+down"):
                 await pilot.press(key)
                 await pilot.pause()
 

@@ -4,6 +4,19 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 
 ## Default Keybindings
 
+**Every default key that changes something immediately is a capital letter.** Typing
+lowercase into the inbox, say because you thought a lemon pane had focus, never archives,
+marks read, pins, undoes or touches tmux. Keys that only open a
+dialog or a view (`r`, `s`, `a` in a brief view, `/`, `b`, `h`, `S`, `N`, `w`) stay lowercase or
+as they were, and `Escape` cancels them without a change.
+`Escape` backs out of a dialog, a search or a view (history included) with nothing changed. The exceptions to "capital" are keys with no capital form: `Enter`, the digits, `Shift`+arrows, `Ctrl`+`s`, `Ctrl`+`t` and `+`.
+
+Defaults that changed from earlier releases: `m` mark read is `M`,
+`M` mark unread is `Alt`+`m`, `a` archive is `A`, `z` undo is `Z`,
+`p` pin is `P`, `f` flip is `F`, the brief view's `d` more
+detail is `D`, and the Claude patch key `P` is `Ctrl`+`t`. In the error dialogs that offer an action (archive, copy the resume command), `a` is now `A`; set `dialog_accept` to change it.
+Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
+
 | Key | Action |
 |-----|--------|
 | `Enter` | Open notification (switches to that session). A click does the same, except clicking the selected row for the lemon already behind the focused scratch pane keeps focus in the inbox. On a group's header, collapse the group or open it. With `[tui] double_activate_focus`, one activation only shows the lemon and a second within `double_activate_ms` takes focus (see [config.md](config.md)) |
@@ -11,18 +24,18 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `u` | Jump directly to earliest unread session |
 | `Ctrl`+`a` / `Home` | Move to the top row of the list, pins included |
 | `Ctrl`+`e` / `End` | Move to the bottom row of the list (see below) |
-| `m` | Mark as read |
-| `M` | Mark as unread again |
+| `M` | Mark as read |
+| `Alt`+`m` | Mark as unread again |
 | `H` | Hide/unhide the lemon via its attached brief; `/` search includes hidden lemons |
-| `a` | Archive (remove from list) |
+| `A` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
 | `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
-| `p` | Pin the session below any other pins, or unpin it |
+| `P` | Pin the session below any other pins, or unpin it |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |
-| `z` | Undo the last inbox change |
+| `Z` | Undo the last inbox change |
 | `r` | Rename session (clear to revert to auto-name); on a group's header, rename the group |
 | `Tab` | Collapse or open the group of the row under the cursor, its header or one of its lemons |
 | `G` | Name a new group of the session, its children and theirs ([groups.md](groups.md#editing-in-the-inbox)) |
@@ -31,7 +44,7 @@ All keybindings in the `lma` TUI are configurable via `~/.config/lemonaid/config
 | `b` | Show the session's brief in the left sidebar when available, otherwise a popup (see below) |
 | `R` | Resume the selected detached session when available |
 | `Ctrl`+`s` | Save scratch pane size explicitly (follow mode; also available with autosave) |
-| `f` | Move the scratch pane between top and left |
+| `F` | Move the scratch pane between top and left |
 | `h` | Toggle history view |
 | `/` | Search inbox and archived sessions as you type; in history, filter archived sessions |
 | `g` | Refresh |
@@ -117,7 +130,7 @@ Press `/` from the inbox to filter session and attached brief names, messages, c
 | Key | Action |
 |-----|--------|
 | `Enter` | Wake the selected session now (returns it to the inbox) |
-| `S` / `q` | Back to the inbox |
+| `S` / `q` / `Escape` | Back to the inbox |
 
 The inbox tables, brief views and optional notes panel keep the content you are reading in place during
 background updates, without briefly displaying another scroll position. Changes
@@ -132,7 +145,7 @@ When the scratch pane follows on the left, `b` shows the selected lemon's brief
 in place of the inbox without leaving the inbox pane. Up/down arrows (or the configured
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
-the lemon's name means its inbox entry is unread; `m`, `M`, `r` and `z` mark it read,
+the lemon's name means its inbox entry is unread; `M`, `Alt`+`m`, `r` and `Z` mark it read,
 mark it unread, rename it, and undo, as in the list. `q` or `Escape` restores the inbox. `prefix+b` toggles
 the brief from the lemon pane, and switching windows or sessions restores the inbox.
 `prefix+l` focuses the scratch pane and keeps the brief; use the mouse wheel to scroll
@@ -179,7 +192,7 @@ An entry whose heading matches no Needs bullet appears as a warning in the brief
 | `]` | Select the next question |
 | `a` | Answer it: type one line, Enter sends it, Escape cancels |
 | `Y` | Send `Yes, approved` for the selected question immediately |
-| `d` | Ask the lemon for more detail |
+| `D` | Ask the lemon for more detail |
 
 An answer goes to the brief's lemon the way `lemonaid tell` sends it, as
 `Answer to <label>: <text>`, from your `$USER`. When the brief's Status is `blocked`,
@@ -202,7 +215,7 @@ visible for cleanup. This also applies to `lemonaid brief show`; use `lemonaid b
 
 ## Snooze
 
-`s` holds a session out of the inbox until a time you pick. Type a duration
+`S` holds a session out of the inbox until a time you pick. Type a duration
 straight away (`45m`, `2h`, `3d`, `1w`, or `morning`; a bare number means
 minutes) and press Enter. Days and weeks count mornings: `1d` wakes at the next
 09:00, `3d` at the third. With the box empty, Enter takes the highlighted
@@ -245,7 +258,7 @@ Set `jump_by_number = false` to leave the digits unbound.
 
 ## Undo
 
-`z` reverses the last change you made to the inbox, and keeps going back through
+`Z` reverses the last change you made to the inbox, and keeps going back through
 earlier ones. Actions that only change a session's state are undoable — archive,
 mark-read, snooze, rename, and group edits. Actions that reach outside the inbox are not:
 hiding edits a brief (press `H` again to reverse it), while switching to a
@@ -267,14 +280,14 @@ quit = "q"
 select = ""  # additional keys for select (Enter always works)
 refresh = "g"
 jump_unread = "u"
-mark_read = "m"
-mark_unread = "M"
-archive = "a"
+mark_read = "M"
+mark_unread = "alt+m"  # a key name, not a set of characters
+archive = "A"
 hide = "H"  # hide/unhide through the attached brief
 snooze = "s"
 snoozed_list = "S"
 usage_view = "U"
-pin = "p"
+pin = "P"
 group_tree = "G"  # make a group of the session's tree
 group_add = "+"  # put the session in a group
 group_remove = "-"  # take it out of its group; on a header, delete the group
@@ -283,7 +296,7 @@ move_pin_up = "shift+up"
 move_pin_down = "shift+down"
 first = "ctrl+a"  # the top row; Home always works too
 last = "ctrl+e"  # the bottom row; End always works too
-undo = "z"
+undo = "Z"
 rename = "r"
 brief = "b"  # show the session's brief
 brief_key = ""  # a second key for brief, as a key name
@@ -293,15 +306,16 @@ search = "/"  # search inbox and archive sessions; filter in history
 copy_resume = "c"  # copy resume command (history)
 tmux_resume = "T"  # spawn tmux session from history
 resume_detached = "R"  # resume a detached inbox row
+dialog_accept = "A"  # accept the offer an error dialog makes (archive, copy the resume command)
 save_size = "ctrl+s"  # save scratch pane size explicitly (also with autosave)
-flip_position = "f"  # move the scratch pane between top and left
+flip_position = "F"  # move the scratch pane between top and left
 fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
 notes = "N"  # show or hide your notes (needs [tui] notes)
 question_previous = "["  # in a brief view, the previous question
 question_next = "]"  # in a brief view, the next question
 answer = "a"  # in a brief view, answer the selected question
 answer_yes = "Y"  # in a brief view, send "Yes, approved" immediately
-more_detail = "d"  # in a brief view, ask for more detail on it
+more_detail = "D"  # in a brief view, ask for more detail on it
 jump_by_number = true  # digits 1-9,0 switch to that row
 up_down = ""  # arrow key alternatives (see below)
 ```
@@ -315,7 +329,7 @@ select = "o"
 
 ### Keys given by name
 
-`brief_key`, `group_key`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
+`brief_key`, `group_key`, `dialog_accept`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
 `answer_yes` and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
@@ -323,7 +337,7 @@ name, not a set of one-character alternatives. Set any of them to `""` to leave 
 
 Loading the config warns on stderr when one key is bound to two actions in the inbox list
 or in the brief view, the `up_down` keys and arrows included. The question keys act only in
-a brief view, so `a` answers there and archives in the list.
+a brief view, so `a` answers there and `A` archives in the list.
 
 `group_key` defaults to `Tab`. Set `brief_key = "tab"` and `group_key = ""` instead,
 and a tmux binding which opens the scratch pane can be followed by Tab to reach the
@@ -360,4 +374,4 @@ Leave empty (the default) to use only arrow keys.
 - `Enter` - built into the DataTable widget
 - `Escape` - always bound to quit (in addition to configured quit key)
 - `Home` / `End` - the top and bottom of the list, alongside `first` and `last`
-- `P` - patch Claude binary (only shown when Claude is unpatched)
+- `Ctrl`+`t` - patch Claude binary (only acts when Claude is unpatched)

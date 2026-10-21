@@ -82,7 +82,7 @@ def test_plus_puts_a_lemon_in_a_picked_group_and_z_takes_it_out(inbox):
         await pilot.press("enter")
         await pilot.pause()
         added = _groups(), _under_cursor(app)
-        await pilot.press("z")
+        await pilot.press("Z")
         await pilot.pause()
         return added
 
@@ -129,7 +129,7 @@ def test_minus_on_a_header_deletes_the_group_and_z_brings_it_back(inbox):
         await pilot.press("minus")
         await pilot.pause()
         deleted = _groups()
-        await pilot.press("z")
+        await pilot.press("Z")
         await pilot.pause()
         return deleted
 
@@ -162,12 +162,12 @@ def test_an_undo_refused_for_a_taken_name_can_be_tried_again(inbox):
         await pilot.pause()
         with db.connect() as conn:
             groups.store.create(conn, "Work")
-        await pilot.press("z")
+        await pilot.press("Z")
         await pilot.pause()
         refused = _groups()
         with db.connect() as conn:
             groups.store.delete(conn, groups.store.find(conn, "Work"))
-        await pilot.press("z")
+        await pilot.press("Z")
         await pilot.pause()
         return refused
 

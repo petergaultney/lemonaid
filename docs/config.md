@@ -65,7 +65,7 @@ See [wezterm.md](wezterm.md).
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `scratch_position` | `"left"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `f` in `lma`; that choice is remembered per tmux server. |
+| `scratch_position` | `"left"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `F` in `lma`; that choice is remembered per tmux server. |
 | `scratch_height` | `"10"` | Height of the scratch pane on top, in rows. |
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `autosave_scratch_size` | `false` | In follow mode, save settled scratch pane resizes automatically. Ctrl+s remains available to save explicitly. Restart the scratch inbox after changing this setting. See [tmux.md](tmux.md#saving-the-pane-size). |
@@ -495,7 +495,7 @@ vaults = ["~/notes", "~/work/kb"]
 | `close_search_on_switch` | `true` | Clear inbox search and restore the full list after Enter successfully switches or resumes a session. Set to `false` to keep the query and search results. Failed switches and resumes keep search open. |
 | `day_starts` | `"06:00"` | Local time a lemon's day starts; its first turn at or after it is told the date. |
 | `snooze_day_starts` | `"09:00"` | Local time a snooze of a day or more ends; not related to `day_starts`. |
-| `snooze_presets` | `["30m", "3h", "1d", "4d"]` | The snooze picker's presets, in the `s` key's syntax. |
+| `snooze_presets` | `["30m", "3h", "1d", "4d"]` | The snooze picker's presets, in the `S` key's syntax. |
 | `arrange` | `""` | A program `lma` keeps running to order its list and choose what folds; see [arrange.md](arrange.md). |
 | `ungrouped_first` | `true` | Show ungrouped lemons above group headings, after ungrouped pins. Set `false` to put them below groups. |
 | `arrange_may_fold_unread` | `false` | Let the arranger fold unread sessions, which otherwise stay in the list. |

@@ -75,14 +75,14 @@ Collapse, order and saved colors are stored in this machine's database and survi
 | `-` | Take the lemon out of the group it's drawn under | Delete the group |
 | `r` | Rename the session | Rename the group |
 | `C` | Save a color for the group it's drawn under | Save a color for the group |
-| `z` | Undo the last change, a group edit included | |
+| `Z` | Undo the last change, a group edit included | |
 
 - **`G` asks for the group's name first,** offering the lemon's session name, with commas made spaces. Enter puts the lemon and its tree in the group of that name, making it if there's none; a name already taken means that group, never a near copy of it. Escape changes nothing.
 - **`+` lists the groups with members that the lemon isn't in.** Typing narrows the list, and a name no group has adds `New group: <name>` at the bottom. Enter takes the highlighted line. Naming a group the lemon is already in says so and changes nothing.
 - **The cursor stays on the lemon** wherever an edit moves it: into a group, out of one, or into a collapsed group, where it stays drawn until the cursor leaves it.
 - **`C` asks for a color,** offering the saved one: `#rrggbb`, `#rgb`, `rgb(r, g, b)` or a CSS name such as `teal`. Enter saves it and the group is redrawn in it; an empty box clears the saved color, so the config's or the automatic one applies again.
 - **`-` acts at once, without asking,** and says what it did. A lemon in two groups is drawn under each, so the row you're on says which group it leaves. Deleting a group leaves its lemons as they were.
-- **`z` undoes each of these,** a deleted group coming back with its name, place, collapse, saved color and members. It refuses, changing nothing, once the group has changed since, by another inbox edit or `lemonaid group`, and drops that edit from the undo list. When the group's old name has been taken, it keeps the edit, so `z` works again once the name is free.
+- **`Z` undoes each of these,** a deleted group coming back with its name, place, collapse, saved color and members. It refuses, changing nothing, once the group has changed since, by another inbox edit or `lemonaid group`, and drops that edit from the undo list. When the group's old name has been taken, it keeps the edit, so `Z` works again once the name is free.
 - **Each edit rewrites the `Groups:` line** of the briefs it touches, as the CLI does. A brief it couldn't write is named in a warning.
 - **A lemon needs a brief to be in a group,** since membership is kept by Lemon-ID; the keys say so on a session without one. They do nothing in the brief view, history or the snoozed list.
 

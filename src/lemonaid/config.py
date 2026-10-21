@@ -114,22 +114,22 @@ class KeybindingsConfig:
     select: str = ""  # Additional keys for selecting (Enter always works)
     refresh: str = "g"
     jump_unread: str = "u"
-    mark_read: str = "m"
-    mark_unread: str = "M"
+    mark_read: str = "M"
+    mark_unread: str = "alt+m"  # one key name, like move_pin_up
     hide: str = "H"  # Toggle Hidden: yes in the selected lemon's brief
-    archive: str = "a"
+    archive: str = "A"
     rename: str = "r"
     snooze: str = "s"  # Snooze a session out of the inbox for a while
     snoozed_list: str = "S"  # Toggle the snoozed-sessions view
     usage_view: str = "U"  # Toggle the usage-pace view
-    undo: str = "z"  # Undo the last inbox state change
+    undo: str = "Z"  # Undo the last inbox state change
     history: str = "h"  # Toggle history view
     search: str = "/"  # Search the inbox, or filter history
     copy_resume: str = "c"  # Copy resume command to clipboard
     resume_detached: str = "R"  # Resume a detached session from the inbox
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     brief: str = "b"  # Show the session's brief in a tmux popup
-    pin: str = "p"  # Pin a session to a fixed place in the list, or unpin it
+    pin: str = "P"  # Pin a session to a fixed place in the list, or unpin it
     group_tree: str = "G"  # Make a group of the selected lemon, its children and theirs
     group_add: str = "+"  # Put the selected lemon in a group, picked or new
     group_remove: str = "-"  # Take a lemon out of its group; on a header, delete the group
@@ -142,8 +142,9 @@ class KeybindingsConfig:
     move_pin_down: str = "shift+down"
     first: str = "ctrl+a"  # The top row of the list; Home always works too
     last: str = "ctrl+e"  # The bottom row of the list; End always works too
+    dialog_accept: str = "A"  # Accept the offer an error dialog makes (archive, copy)
     save_size: str = "ctrl+s"  # Save the scratch pane size (follow mode only)
-    flip_position: str = "f"  # Move the scratch pane between top and left
+    flip_position: str = "F"  # Move the scratch pane between top and left
     fold: str = "w"  # Show or hide the sessions folded at the bottom of the list
     notes: str = "N"  # Show or hide the [tui] notes file under the sessions
     # In a brief view, the questions under what a lemon needs from you.
@@ -151,7 +152,7 @@ class KeybindingsConfig:
     question_next: str = "]"
     answer: str = "a"  # Type an answer, sent to the lemon with `lemonaid tell`
     answer_yes: str = "Y"  # Immediately answer the selected question "Yes, approved"
-    more_detail: str = "d"  # Ask the lemon to rewrite the selected question
+    more_detail: str = "D"  # Ask the lemon to rewrite the selected question
     # Digits 1-9 then 0 switch to that row of the list, counting from the top.
     jump_by_number: bool = True
     up_down: str = ""  # 2-char string: up, down (e.g., "kj" for vim)

@@ -19,7 +19,7 @@ def _pressed(event: events.Key) -> str:
 
 
 class BriefPopup(CrashLoggedApp[None]):
-    BINDINGS = [("q", "quit", "Close"), ("escape", "quit", "Close")]
+    BINDINGS = [("escape", "quit", "Close")]
 
     def __init__(
         self, found: target.Target, config: Config, dismiss: abc.Iterable[tuple[str, str]] = ()
@@ -29,6 +29,8 @@ class BriefPopup(CrashLoggedApp[None]):
         self._config = config
         self._dismiss = frozenset(dismiss)
         self._last_key = ""
+        for key in config.tui.keybindings.quit:
+            self.bind(key, "quit", description="Close")
         if config.tui.transparent:
             self.ansi_color = True
 

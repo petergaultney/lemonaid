@@ -32,7 +32,7 @@ Stop a waiter with `lemonaid watch stop --self`. Never kill waiters by pattern: 
 
 Use a command where one exists. For a brief attached to the wrong lemon, see [A brief attached to the wrong thread](hq.md#a-brief-attached-to-the-wrong-thread); for a Codex session with no tty, see [Codex through the shared daemon](hq.md#codex-through-the-shared-daemon). For the rest, the database is `~/.local/share/lemonaid/lemonaid.db` (`LEMONAID_DB` replaces it). Copy it to a dated `.bak-` file first, and open it with `sqlite3 -cmd ".timeout 5000"` so a busy `lma` doesn't make the write fail.
 
-- **An archived lemon is missing from the inbox but still running.** Archiving hides a row even when its lemon is alive and pinned. Pressing `z` in the same `lma` session undoes it; later, set the lemon's newest row back:
+- **An archived lemon is missing from the inbox but still running.** Archiving hides a row even when its lemon is alive and pinned. Pressing `Z` in the same `lma` session undoes it; later, set the lemon's newest row back:
 
   ```sql
   update notifications set status = 'read'

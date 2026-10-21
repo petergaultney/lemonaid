@@ -17,7 +17,7 @@ class ErrorScreen(ModalScreen[bool]):
     A toast is easy to miss, and in a narrow scratch pane it may not show at
     all, which leaves a keypress that apparently did nothing.
 
-    With an *offer*, `a` dismisses it with True, for the caller to act on.
+    With an *offer*, the `dialog_accept` key dismisses it with True, for the caller to act on.
     """
 
     CSS = """
@@ -62,6 +62,13 @@ class ErrorScreen(ModalScreen[bool]):
         self._offer = offer
         self._details = details
 
+    @property
+    def accept_key(self) -> str:
+        return self.app.config.tui.keybindings.dialog_accept  # type: ignore[attr-defined]
+
+    def accepts(self, event: events.Key) -> bool:
+        return bool(self.accept_key) and self.accept_key in (event.key, event.character)
+
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(self._title, classes="title")
@@ -69,7 +76,7 @@ class ErrorScreen(ModalScreen[bool]):
             if self._details:
                 yield Label(self._details, classes="details")
             yield Label(
-                f"Press a to {self._offer}, any other key to close"
+                f"Press {self.accept_key} to {self._offer}, any other key to close"
                 if self._offer
                 else "Press any key to close",
                 classes="hint",
@@ -77,7 +84,7 @@ class ErrorScreen(ModalScreen[bool]):
 
     def on_key(self, event: events.Key) -> None:
         event.stop()
-        self.dismiss(bool(self._offer) and event.key == "a")
+        self.dismiss(bool(self._offer) and self.accepts(event))
 
     def on_click(self) -> None:
         self.dismiss(False)

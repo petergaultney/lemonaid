@@ -24,7 +24,8 @@ class ResumeErrorScreen(ErrorScreen):
 
     def on_mount(self) -> None:
         self.query_one(".hint", Label).update(
-            (f"Press a to {self._offer}; " if self._offer else "") + "Escape or Enter closes"
+            (f"Press {self.accept_key} to {self._offer}; " if self._offer else "")
+            + "Escape or Enter closes"
         )
 
     def on_key(self, event: events.Key) -> None:
@@ -32,7 +33,7 @@ class ResumeErrorScreen(ErrorScreen):
         event.prevent_default()
         if event.key in {"escape", "enter", "q"}:
             self.dismiss(False)
-        elif self._offer and event.key == "a":
+        elif self._offer and self.accepts(event):
             self.dismiss(True)
         elif event.key in {"up", "down", "pageup", "pagedown"}:
             amount = {"up": -1, "down": 1, "pageup": -10, "pagedown": 10}[event.key]

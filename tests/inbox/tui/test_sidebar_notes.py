@@ -121,7 +121,7 @@ def test_the_cards_give_up_the_rows_the_notes_take(notes):
 
 
 def test_the_notes_key_is_checked_for_conflicts():
-    assert any("notes" in warning for warning in keys.conflicts(KeybindingsConfig(notes="a")))
+    assert any("notes" in warning for warning in keys.conflicts(KeybindingsConfig(notes="A")))
 
 
 def _drawn_heights(tui: app.LemonaidApp) -> list[int]:

@@ -15,6 +15,7 @@ from textual.widget import Widget
 from textual.widgets import Label, Static
 
 from ...config import KeybindingsConfig
+from ...keys import key_names
 from . import indicator_help
 
 # Description per keybinding field, in the order they are shown. Fields absent
@@ -90,10 +91,17 @@ def _key_display(value: str, field: str) -> str:
     if field == "group_key":
         return value.capitalize()
 
-    if field in ("move_pin_up", "move_pin_down", "first", "last", "search", "save_size"):
-        return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+")
+    if field in (
+        "move_pin_up",
+        "move_pin_down",
+        "first",
+        "last",
+        "search",
+        "save_size",
+    ):
+        return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+").replace("alt+", "Alt+")
 
-    return " / ".join(value)
+    return " / ".join(key.replace("alt+", "Alt+") for key in key_names(value))
 
 
 def _keys(kb: KeybindingsConfig, field: str) -> str:

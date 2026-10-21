@@ -85,7 +85,7 @@ lemonaid inbox emojis                          # taken ones
 lemonaid inbox emoji --self 🍋
 ```
 
-Pin it by selecting its row in `lma` and pressing `p`. `Shift`+`↑` and `Shift`+`↓` order pins. A pinned lemon stays above everything and, in a [group](groups.md), heads it.
+Pin it by selecting its row in `lma` and pressing `P`. `Shift`+`↑` and `Shift`+`↓` order pins. A pinned lemon stays above everything and, in a [group](groups.md), heads it.
 
 Pins belong to a channel, such as `claude:ac7a8776`, not to the lemon's brief. A resumed session, a new Codex thread, or a `lemonaid brief handoff` to another harness can put the lemon on a different channel from the one you pinned. After any resume or restart, look at the HQ's row and pin it again if the pin is gone. This is a known gap: nothing carries a pin across a channel change.
 
@@ -190,7 +190,7 @@ Pin the new channel.
 
 ### An archived HQ
 
-Archiving a row (`a`) removes it from the inbox, and there is no command that unarchives. Press `z` in the same `lma` session to undo the archive. Otherwise press `h` in `lma` to open history, find the session, and resume it, which starts it again, or search with `/`. Then re-attach its brief if it was detached, and pin it. This is a known gap. Prefer snoozing (`lemonaid inbox snooze --self`) to archiving an HQ.
+Archiving a row (`A`) removes it from the inbox, and there is no command that unarchives. Press `Z` in the same `lma` session to undo the archive. Otherwise press `h` in `lma` to open history, find the session, and resume it, which starts it again, or search with `/`. Then re-attach its brief if it was detached, and pin it. This is a known gap. Prefer snoozing (`lemonaid inbox snooze --self`) to archiving an HQ.
 
 ### A misspelled config key
 

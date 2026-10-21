@@ -5,8 +5,8 @@ from lemonaid.config import KeybindingsConfig
 
 
 def test_hide_conflicts_with_archive():
-    assert keys.conflicts(KeybindingsConfig(hide="a")) == [
-        "in the inbox view, 'a' is bound to archive and hide"
+    assert keys.conflicts(KeybindingsConfig(hide="A")) == [
+        "in the inbox view, 'A' is bound to archive and hide"
     ]
 
 

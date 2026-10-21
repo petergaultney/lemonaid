@@ -23,6 +23,11 @@ def _name(key: str) -> str:
         return key
 
 
+def key_names(value: str) -> list[str]:
+    """A binding value's keys: one named key (`alt+m`), else one key per character."""
+    return [value] if len(value) > 1 and "+" in value else list(value)
+
+
 def _shared(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
     """Actions bound in both the inbox list and the scratch pane's brief view."""
     up, down = kb.up_down if len(kb.up_down) == 2 else ("", "")
@@ -30,7 +35,7 @@ def _shared(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "quit": kb.quit,
         "refresh": kb.refresh,
         "mark_read": kb.mark_read,
-        "mark_unread": kb.mark_unread,
+        "mark_unread": key_names(kb.mark_unread),
         "rename": kb.rename,
         "undo": kb.undo,
         "brief": [*kb.brief, kb.brief_key],
@@ -69,7 +74,7 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "fold": kb.fold,
         "notes": kb.notes,
         "search": [kb.search],
-        "patch_claude": ["P"],
+        "patch_claude": ["ctrl+t"],
         **({f"jump_to_{d}": [d] for d in _JUMP_DIGITS} if kb.jump_by_number else {}),
     }
 
