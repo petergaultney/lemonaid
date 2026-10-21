@@ -1,6 +1,7 @@
 name: release
 
-# Daily, and on demand from the Actions tab or `gh workflow run release.yml`. A run first
+# Daily at 01:07 UTC (9:07 PM Eastern during daylight time, 8:07 PM in winter, since cron runs in
+# UTC by default), and on demand from the Actions tab or `gh workflow run release.yml`. A run first
 # finishes the highest v* tag if it has no published GitHub Release (an earlier run failed
 # partway). Otherwise it requires the latest main commit's tests to pass and, if change
 # files were added since the highest tag and its workflow files match main's, tags that
@@ -8,7 +9,7 @@ name: release
 # and given a GitHub Release whose notes are those files. It never commits to main.
 on:
   schedule:
-    - cron: "0 13 * * *"
+    - cron: "7 1 * * *"
   workflow_dispatch:
 
 permissions:

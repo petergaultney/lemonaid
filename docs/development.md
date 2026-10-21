@@ -46,8 +46,9 @@ date order within each change type, with one heading per type. `scripts/release.
 and `scripts/release.py notes` print both and change nothing. Files keep their dated
 names after a release.
 
-`.github/workflows/release.yml` releases daily at 13:00 UTC, and on demand: run it from
-the Actions tab or with `gh workflow run release.yml` to release mid-day. A run takes the
+`.github/workflows/release.yml` releases daily at 01:07 UTC (9:07 PM Eastern in daylight
+time, 8:07 PM in winter), and on demand: run it from the Actions tab or with
+`gh workflow run release.yml` to release sooner. A run takes the
 latest main commit only if its `test` workflow passed and, if change files were added since the
 highest tag, pushes the next version's tag to that commit. It builds from the tag,
 publishes to PyPI as `lemonaid-inbox`, and creates a GitHub Release with the notes. It
