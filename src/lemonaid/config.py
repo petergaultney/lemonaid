@@ -231,6 +231,9 @@ class BriefConfig:
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
     # `obsidian://` link.
     vaults: tuple[Path, ...] = ()
+    # Who a new top-level brief names in `responsible-parties`. Unset is the
+    # account's full name; a child copies its parent's.
+    responsible_parties: tuple[str, ...] = ()
 
 
 @dataclass
@@ -644,6 +647,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         name=brief_data.get("name", ""),
         name_idle_days=_idle_days(brief_data.get("name_idle_days", 14)),
         vaults=_vaults(brief_data.get("vaults")),
+        responsible_parties=tuple(str(p) for p in brief_data.get("responsible_parties", ())),
     )
 
     inbox_data = data.get("inbox", {})

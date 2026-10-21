@@ -6,6 +6,7 @@ The new lemon joins its parent's groups. The parent passes the printed path as `
 import argparse
 import datetime
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -13,7 +14,17 @@ from .. import groups, home
 from ..config import load_config
 from ..inbox import db
 from ..watch import children_waiter
-from . import child, created, identity, lemon, name_words_cli, store
+from . import child, created, frontmatter, identity, lemon, name_words_cli, store
+
+
+def _responsible(conn: sqlite3.Connection, parent_id: str) -> tuple[str, ...]:
+    """The parent brief's `responsible-parties`, or none when it has no such list."""
+    path = lemon.brief_of(conn, parent_id)
+    try:
+        found = frontmatter.fields(path.read_text()).get("responsible-parties") if path else None
+    except (OSError, ValueError):
+        found = None
+    return tuple(str(p) for p in found) if isinstance(found, list) else ()
 
 
 def _parent(target: str) -> tuple[str, str]:
@@ -49,6 +60,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
 
     with db.connect() as conn:
         stamp = created.now(created.by(conn))
+        responsible = _responsible(conn, parent[0])
         words = (
             name_words_cli.given(args)
             if args.name_words
@@ -67,7 +79,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         body, title, planned, parent, today, values, area, values.get("output_doc", ""), stamp
     )  # fails before any file
     try:
-        path = store.create_named(name, today, lambda _: text)
+        path = store.create_named(name, today, lambda _: text, responsible)
     except FileExistsError as e:
         raise child.Problem(f"{e.filename} already exists") from None
 

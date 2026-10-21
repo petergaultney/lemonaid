@@ -42,7 +42,7 @@ def _section(args: argparse.Namespace) -> None:
 
 def _migrate(args: argparse.Namespace) -> None:
     if not args.all:
-        verbs_cli.edited(args, migrate.layout)
+        verbs_cli.edited(args, migrate.layout, convert=True)
         return
     if args.use_self or args.session or args.channel or args.id is not None:
         command.finish(args, {}, "Use --all or a single target, not both")
@@ -60,7 +60,7 @@ def _migrate(args: argparse.Namespace) -> None:
         error = store.outside_error(path)
         if not error:
             error = (
-                verbs_cli.edit(path, migrate.layout, preserve_existing=True)
+                verbs_cli.edit(path, migrate.layout, preserve_existing=True, convert=True)
                 if path.is_file()
                 else f"No brief at {path}"
             )
@@ -96,7 +96,7 @@ def add_parsers(parsers: argparse._SubParsersAction) -> None:
     parser = command.parser(
         parsers,
         "migrate",
-        "Promote legacy Next, PRs, Docs and Done headings",
+        "Move header lines into frontmatter and promote legacy Next, PRs, Docs and Done headings",
         target_required=False,
     )
     parser.add_argument(

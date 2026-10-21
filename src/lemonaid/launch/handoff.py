@@ -40,7 +40,7 @@ def session_title(given: Handoff) -> str:
     if given.name or not given.brief:
         return given.name
 
-    for line in given.brief.read_text().splitlines():
+    for line in brief.frontmatter.split(given.brief.read_text())[1].splitlines():
         if line.startswith("# "):
             return _TRAILING_BRIEF.sub("", line[2:].strip())
 

@@ -23,7 +23,7 @@ def _legacy(name: str):
 def test_new_brief_stores_a_slugged_id():
     path = store.create("A lemon", datetime.date(2026, 9, 25))
 
-    assert "Brief-ID: " in path.read_text()
+    assert "\nbrief-id: " in path.read_text()
     lemon_id = identity.from_path(path)
     assert identity.valid(lemon_id)
     word, slug = lemon_id.split(".", 1)

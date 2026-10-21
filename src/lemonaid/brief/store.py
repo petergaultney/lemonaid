@@ -17,7 +17,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home
-from . import name_words, names
+from . import frontmatter, frontmatter_edit, name_words, names, responsible
 
 # The statuses a lemon sets. Without one, the inbox shows the lemon's own state
 # (active, idle, deaf or dead); see docs/brief-status.md.
@@ -118,13 +118,25 @@ def new_lemon_id(
     return names.join_id(names.new(held, words), lemon_id_slug(path))
 
 
-def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str]) -> Path:
-    """A new brief `<date>-<name>.md` holding *text* of its path. Never overwrites."""
+def create_named(
+    name: str,
+    today: datetime.date,
+    text: abc.Callable[[Path], str],
+    responsible_parties: abc.Sequence[str] = (),
+) -> Path:
+    """A new brief `<date>-<name>.md` holding *text* of its path. Never overwrites.
+
+    *text* is written with header lines; they go into the new brief's frontmatter.
+    """
     with home.guard.operation():
         directory = briefs_dir()
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{today.isoformat()}-{name}.md"
-        content = text(path)  # a failure here leaves no empty file
+        content = frontmatter_edit.carried(
+            text(path),
+            "",
+            frontmatter_edit.Defaults(today, tuple(responsible_parties) or responsible.default()),
+        )  # a failure here leaves no empty file
         with path.open("x") as f:
             f.write(content)
 
@@ -135,18 +147,21 @@ def create(
     title: str,
     today: datetime.date,
     words: name_words.Words = name_words.NONE,
-    created: str = "",
+    created: abc.Callable[[str], str] = lambda lemon_id: "",
 ) -> Path:
-    """A new brief from the template, named `<date>-<slug>.md`, with a *created* header line. Never overwrites."""
-    return create_named(
-        slug(title),
-        today,
-        lambda path: _TEMPLATE.format(
-            title=title.strip(),
-            lemon_id=new_lemon_id(path, words=words),
-            created=f"{created}\n\n" if created else "",
-        ),
-    )
+    """A new brief from the template, named `<date>-<slug>.md`. Never overwrites.
+
+    *created* gives the `created:` line for the new brief's Lemon-ID.
+    """
+
+    def text(path: Path) -> str:
+        lemon_id = new_lemon_id(path, words=words)
+        line = created(lemon_id)
+        return _TEMPLATE.format(
+            title=title.strip(), lemon_id=lemon_id, created=f"{line}\n\n" if line else ""
+        )
+
+    return create_named(slug(title), today, text)
 
 
 class ChangedUnderneath(Exception):
@@ -166,20 +181,52 @@ def _replace(path: Path, text: str) -> None:
         raise
 
 
-def edit(path: Path, change: abc.Callable[[str], str]) -> None:
+def _defaults(path: Path) -> frontmatter_edit.Defaults:
+    """What a brief's new block says about its creation: its filename's date, else its mtime's."""
+    return frontmatter_edit.Defaults(
+        frontmatter_edit.created_on(path.name) or datetime.date.fromtimestamp(path.stat().st_mtime),
+        responsible.default(),
+    )
+
+
+def edit(
+    path: Path,
+    change: abc.Callable[[str], str],
+    editor: str = "",
+    *,
+    migrate: bool = True,
+    convert: bool = False,
+) -> None:
     """Apply *change* to the file's text, re-applying it if the file is saved meanwhile.
 
     The brief is often open in an editor. Reading it again just before the
     write narrows the window in which someone else's save is lost to the
     rename itself; the edits here touch one section, so re-applying them to
     the newer text keeps both.
+
+    *change* sees the brief with header lines (see `frontmatter`), and its result
+    goes back into frontmatter, so a brief without a block gets one here unless
+    *migrate* is false; *convert* gives it one even when *change* changes nothing.
+    *editor* joins the block's `contributors`. Raises ValueError for
+    a block that isn't valid YAML.
     """
     with home.guard.operation():
         for _ in range(_EDIT_ATTEMPTS):
             before = path.read_text()
-            after = change(before)
-            if after == before:
+            frontmatter.fields(before)
+            shown = frontmatter.legacy(before)
+            changed = change(shown)
+            if changed == shown and not (convert and not frontmatter.has_block(before)):
                 return  # a rewrite would move the mtime that says when the brief last changed
+
+            if not migrate and not frontmatter.has_block(before):
+                after = changed
+            else:
+                after = frontmatter_edit.with_editor(
+                    frontmatter_edit.carried(changed, before, _defaults(path)), editor
+                )
+            if after == before:
+                return
 
             if path.read_text() == before:
                 _replace(path, after)

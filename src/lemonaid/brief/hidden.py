@@ -2,14 +2,14 @@
 
 import re
 
-from . import store
+from . import frontmatter, store
 
 _LINE = re.compile(r"hidden:\s*(.*)", re.IGNORECASE)
 _ON = ("yes", "true")
 
 
 def is_hidden(text: str) -> bool:
-    lines = text.splitlines()
+    lines = frontmatter.legacy(text).splitlines()
     return any(
         (found := _LINE.fullmatch(line.strip())) and found.group(1).strip().lower() in _ON
         for line in lines[: store.header_end(lines)]

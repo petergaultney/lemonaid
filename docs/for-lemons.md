@@ -554,7 +554,37 @@ lemonaid brief handoff ready TOKEN              # outgoing lemon's explicit ackn
 lemonaid brief handoff accept TOKEN             # incoming lemon's explicit acknowledgement
 ```
 
-**Type and created lines.** Every brief `brief new` writes (`--self`, `--child`, any template) gets `type: Brief` (the OKF `type` key) and `created: { at: <ISO 8601 datetime with UTC offset, to the second>, by: <WordyBin> }` under its `Brief-ID:`. `by` is the lemon running the command, left out when it has no named brief; for `--child` that is the caller, not necessarily `--parent`. They are header lines like `Parent:`, not YAML frontmatter, because lemonaid reads a brief's title from its first line. No verb changes them, and briefs made earlier lack both.
+**Frontmatter.** A brief keeps its metadata in a YAML frontmatter block at the top of the file, above the `# Title`:
+
+```yaml
+---
+type: Brief
+created: { at: 2026-10-21T15:24:10-04:00, by: PriceHum }
+responsible-parties:
+  - Sam Smith
+contributors:
+  - PriceHum
+brief-id: brief-yaml-frontmatter.PriceHum
+parent: lemonaid-plan-manager.BlessBar
+status: blocked
+area: apps/unified-asset
+output-doc: /Users/sam/notes/reviews/r-12.md
+groups:
+  - lemonaid
+hidden: true
+name-words:
+  - audit
+  - check
+---
+```
+
+- `type` is always `Brief`. `created.at` is when `brief new` made it; `created.by` is the WordyBin of the lemon that ran it, or the new brief's own name for a lemon making its own brief. A brief converted from header lines takes the date in its filename.
+- `responsible-parties` names who asked for the work: a child copies its parent's list, and a top-level brief takes `[brief] responsible_parties`, else the account's full name.
+- `contributors` starts with the creator; each lemon whose `lemonaid brief` verb changes the brief is added once. A brief's older `edited-by` key is read the same way and renamed `contributors` when a verb next changes the brief.
+- `brief-id`, `parent`, `status`, `area`, `output-doc`, `groups`, `hidden` and `name-words` are what the `Brief-ID:`, `Parent:`, `Status:`, `Area:`, `Output-Doc:`, `Groups:`, `Hidden: yes` and `Name words:` header lines used to say. Only the keys with a value are written. `parent` holds the parent's Brief-ID alone.
+- Change them with the verbs (`brief status`, `brief hide`, `group ...`, `brief now` for `Parent:` and `Area:`), or edit the block by hand and run `lemonaid brief check`. Don't add header lines to a brief that has a block: `check` reports them, and the block's value wins.
+- Briefs made before this keep their header lines and work as before. The first time a verb changes one, its header lines move into a new block; `lemonaid brief migrate --self` (or `--all`) does it on purpose. Registering an old brief's Brief-ID doesn't convert it.
+- Any other key, a comment, or a person's formatting in the block is left as written.
 
 Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
@@ -749,15 +779,14 @@ lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12
     --output-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
 ```
 
-The file has the title, its own `Lemon-ID:`, `type: Brief` and `created:` (see Type and created lines), and `Parent: <your Lemon-ID>
-(<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
+The file has frontmatter (see Frontmatter) with its own `brief-id`, `created`, and `parent: <your Lemon-ID>`, then the title and the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief), or `parent` for your own parent.
-`--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is
+`--area apps/unified-asset` sets `area`, naming the part of the project the work is
 in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A worker
-without one can add the line itself, anywhere above its brief's first `##` heading.
+without one can add an `Area:` line through `brief now`, or the key by hand.
 `--output-doc <path>` (any template) names the document the work produces. It fills the
-`$output_doc*` placeholders and is recorded as an `Output-Doc: <absolute path>` header line, beside
-`Parent:`, that `lemonaid.brief.output_doc.of_brief` reads back. `--review-doc` is the old name: it
+`$output_doc*` placeholders and is recorded as `output-doc: <absolute path>` in the frontmatter, which
+`lemonaid.brief.output_doc.of_brief` reads back. `--review-doc` is the old name: it
 still works and warns; templates must use `$output_doc*` now.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 
@@ -817,7 +846,7 @@ brief is not archived, or for `[brief] name_idle_days` (default 14) after its br
 or its sessions last changed. An alias holds its name for as long as its lemon does.
 
 A lead can name its children from words that fit its work. List them, best first,
-on a `Name words:` line in the lead's brief header (`Name words: audit check ink web`);
+under `name-words` in the lead's brief frontmatter (a list: `audit`, `check`, `ink`, `web`; an older brief's `Name words:` line also works);
 `brief new --child` reads the parent's line. `--name-words audit,check,ink` on
 `brief new` or `brief id --reroll` gives words for that one brief instead. Any
 five-letter word and three-letter word make a name (`AuditInk`); they need not be

@@ -9,6 +9,8 @@ from . import (
     check_identity,
     check_layout,
     doc_table,
+    frontmatter,
+    frontmatter_check,
     identity,
     name_words,
     now,
@@ -21,6 +23,7 @@ from . import (
 
 
 def question_problems(text: str) -> list[str]:
+    text = frontmatter.legacy(text)
     parts = status.split(text)
     found = now.parse(parts.now)
     return [
@@ -31,12 +34,17 @@ def question_problems(text: str) -> list[str]:
 
 def structure(text: str) -> list[str]:
     """Everything wrong with *text* as a brief that the text alone can show."""
+    found = frontmatter_check.problems(text)
+    text = frontmatter.legacy(text)
     lines = text.splitlines()
     headings = check_layout.headings(lines)
     titles = [heading for level, heading in headings if level == 1]
     section_names = [heading for level, heading in headings if level == 2]
     lowered = [heading.lower() for heading in section_names]
-    problems = [] if len(titles) == 1 else [f"{len(titles)} `# ` title lines; a brief has one"]
+    problems = [
+        *found,
+        *([] if len(titles) == 1 else [f"{len(titles)} `# ` title lines; a brief has one"]),
+    ]
     problems.extend(
         f"`## {name}` appears {lowered.count(name.lower())} times"
         for name in dict.fromkeys(section_names)
@@ -75,6 +83,7 @@ def structure(text: str) -> list[str]:
 
 def warnings(text: str) -> list[str]:
     """Advice that does not make a brief invalid or refuse edits."""
+    text = frontmatter.legacy(text)
     lines = text.splitlines()
     parts = status.split(text)
     headings = [heading.lower() for level, heading in check_layout.headings(lines) if level == 2]
@@ -95,7 +104,7 @@ def warnings(text: str) -> list[str]:
 
 def has_parent_line(text: str) -> bool:
     in_fence = False
-    for line in text.splitlines():
+    for line in frontmatter.legacy(text).splitlines():
         if re.match(r"(```|~~~)", line):
             in_fence = not in_fence
         elif not in_fence and line.startswith("Parent:"):

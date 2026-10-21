@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 
 from .. import groups
-from . import active_names, name_words, names, store
+from . import active_names, frontmatter, name_words, names, store
 
 _LINE = re.compile(r"(?:Brief-ID|Lemon-ID): (.+)")
 
@@ -78,7 +78,7 @@ def known(conn: sqlite3.Connection) -> frozenset[str]:
 
 
 def read(text: str) -> str:
-    header = text.split("\n## ", 1)[0]
+    header = frontmatter.legacy(text).split("\n## ", 1)[0]
     lines = [line for line in header.splitlines() if line.startswith(("Brief-ID:", "Lemon-ID:"))]
     if not lines:
         return ""
@@ -200,11 +200,12 @@ def ensure(
                 groups.store.replace_memberships(conn, lemon_id, names)
 
         if not in_file:
-            store.edit(path, lambda text: _with_id(text, lemon_id))
+            store.edit(path, lambda text: _with_id(text, lemon_id), migrate=False)
         elif in_file != lemon_id:
             store.edit(
                 path,
                 lambda text: _replace_header_id(text, in_file, lemon_id),
+                migrate=False,
             )
 
         conn.commit()

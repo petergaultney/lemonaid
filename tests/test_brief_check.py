@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, check, identity, now_edit, store, write_cli
+from lemonaid.brief import attached, check, frontmatter, identity, now_edit, store, write_cli
 from lemonaid.inbox import db
 
 _BRIEF = """\
@@ -190,7 +190,7 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
     assert _run(capsys, "status", "--channel", "codex:t1", "running")["error"] is None
     assert _run(capsys, "bullet", "add", "--channel", "codex:t1", "Next", "review")["error"] is None
     assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")["error"] is None
-    assert "Status: running" in path.read_text()
+    assert "Status: running" in frontmatter.legacy(path.read_text())
     assert check.structure(path.read_text()) == [
         "`### old decision` in ## Questions has no matching bullet under ### Needs"
     ]
@@ -256,7 +256,8 @@ def test_a_brief_that_already_fails_takes_only_the_edit_that_fixes_it(capsys):
 
     assert "is not one word of" in refused["error"]
     assert fixed["error"] is None
-    assert "Status: done\n" in path.read_text() and "- more" not in path.read_text()
+    assert "Status: done\n" in frontmatter.legacy(path.read_text())
+    assert "- more" not in path.read_text()
 
 
 def test_now_lays_out_progress_and_preserves_omitted_prs(capsys):

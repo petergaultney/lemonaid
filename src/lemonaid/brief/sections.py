@@ -4,7 +4,7 @@ import dataclasses
 import re
 from collections import abc
 
-from . import layout
+from . import frontmatter, layout
 
 PROMOTED = ("next", "prs", "docs", "done")
 _HEADING = re.compile(r"(?P<marks>#{1,6})\s+(?P<name>.+?)\s*#*\s*")
@@ -22,8 +22,14 @@ class Heading:
 
 
 def unfenced_lines(text: str) -> abc.Iterator[tuple[int, str]]:
+    """Each line outside code fences and outside the frontmatter block, with its index."""
+    block, _ = frontmatter.split(text)
+    skip = len(block) + 2 if block is not None else 0
     fence = ""
     for i, line in enumerate(text.splitlines()):
+        if i < skip:
+            continue
+
         if match := _FENCE.match(line):
             marks = match["marks"]
             if not fence:

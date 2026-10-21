@@ -12,6 +12,8 @@ from collections import abc
 
 import wordybin
 
+from . import frontmatter
+
 _NAME = re.compile(r"(?P<five>[A-Za-z]{5})(?P<three>[A-Za-z]{3})")
 _WORD = re.compile(r"[A-Za-z]{5}|[A-Za-z]{3}")
 _LINE = re.compile(r"Name words:(?P<words>.*)", re.IGNORECASE)
@@ -50,7 +52,7 @@ def parse(text: str) -> Words:
 
 def read(text: str) -> Words | None:
     """The words on the `Name words:` line in *text*'s header, or None when it has none."""
-    for line in text.splitlines():
+    for line in frontmatter.legacy(text).splitlines():
         if _SECTION.match(line) and not line.startswith("# "):
             return None
 

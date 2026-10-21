@@ -119,8 +119,13 @@ def _cmd_new(args: argparse.Namespace) -> None:
     try:
         words = name_words_cli.given(args)
         with db.connect() as conn:
-            stamp = created.now(created.by(conn))
-        path = store.create(args.title, datetime.date.today(), words, stamp)
+            caller = created.by(conn)
+        path = store.create(
+            args.title,
+            datetime.date.today(),
+            words,
+            lambda lemon_id: created.now(caller or identity.brief_name(lemon_id)),
+        )
     except FileExistsError as e:
         command.finish(args, {}, f"{e.filename} already exists; attach it instead")
         return

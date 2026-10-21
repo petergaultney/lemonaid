@@ -8,7 +8,17 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, identity, render, session, status, store, target, write_cli
+from lemonaid.brief import (
+    attached,
+    frontmatter,
+    identity,
+    render,
+    session,
+    status,
+    store,
+    target,
+    write_cli,
+)
 from lemonaid.inbox import db, self_session
 
 
@@ -238,7 +248,7 @@ def test_now_and_status_edit_the_attached_brief(capsys):
     _run(capsys, "now", "--channel", "codex:t1", "- Done: the parser.")
     _run(capsys, "status", "--channel", "codex:t1", "done")
 
-    text = _brief("task").read_text()
+    text = frontmatter.legacy(_brief("task").read_text())
     assert "Status: done\n" in text
     assert "## Now\n\n- Done: the parser.\n" in text
 
@@ -279,7 +289,7 @@ def test_status_then_now_sets_state_and_notes(capsys):
     _run(capsys, "status", "--channel", "codex:t1", "blocked")
     _run(capsys, "now", "--channel", "codex:t1", "- Waiting on: review\n- Note: PR #9")
 
-    text = _brief("task").read_text()
+    text = frontmatter.legacy(_brief("task").read_text())
     assert "Status: blocked\n" in text
     assert "## Now\n\n- Waiting on: review\n- Note: PR #9\n" in text
 
@@ -377,4 +387,4 @@ def test_status_accepts_merge_alert_review_and_running(capsys, state):
 
     _run(capsys, "status", "--channel", "codex:t1", state)
 
-    assert f"Status: {state}\n" in _brief("task").read_text()
+    assert f"Status: {state}\n" in frontmatter.legacy(_brief("task").read_text())

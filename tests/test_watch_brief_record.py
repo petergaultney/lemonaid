@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from lemonaid.brief import attached, store, waiters
+from lemonaid.brief import attached, frontmatter, store, waiters
 from lemonaid.inbox import db
 from lemonaid.watch import brief_record, briefs_cli, delivery, doc_cli, file_cli, pr_cli
 
@@ -116,7 +116,7 @@ def test_cli_registers_before_waiting_and_keeps_entry_after_one_shot(
     text = brief.read_text()
     import re
 
-    brief.write_text(re.sub(r"Brief-ID: .*", "Brief-ID: watching.QuickOdd", text))
+    brief.write_text(re.sub(r"(?m)^brief-id: .*", "brief-id: watching.QuickOdd", text))
 
     def done(*unused, **unused_keywords):
         assert len(waiters.commands(brief.read_text())) == 1
@@ -207,7 +207,7 @@ def test_upsert_does_not_match_command_prefixes_or_code_examples():
 def test_existing_brief_problems_do_not_block_a_watch(brief, tmp_path):
     store.edit(brief, lambda s: store.with_status(s, "nonsense"))
     assert brief_record.record(args("doc", tmp_path), "doc") == ""
-    assert "Status: nonsense" in brief.read_text()
+    assert frontmatter.fields(brief.read_text())["status"] == "nonsense"
     assert len(waiters.commands(brief.read_text())) == 1
 
 

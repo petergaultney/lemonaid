@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from . import frontmatter
+
 _LINE = re.compile(r"Output-Doc:\s*(?P<path>.+?)\s*")
 _FENCE = re.compile(r"(```|~~~)")
 
@@ -10,7 +12,7 @@ _FENCE = re.compile(r"(```|~~~)")
 def read(text: str) -> Path | None:
     """The path on *text*'s header `Output-Doc:` line, or None without one."""
     in_fence = False
-    for line in text.splitlines():
+    for line in frontmatter.legacy(text).splitlines():
         if _FENCE.match(line):
             in_fence = not in_fence
         elif line.startswith("## "):

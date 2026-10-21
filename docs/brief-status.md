@@ -1,6 +1,6 @@
 # Brief status: what a lemon sets and what lemonaid derives
 
-A brief's `Status:` line is for states that need the lemon's judgment. Whether the
+A brief's `Status:` line (`status` in its frontmatter) is for states that need the lemon's judgment. Whether the
 lemon is busy or idle is something lemonaid can see for itself, so it no longer
 asks lemons to write it down.
 

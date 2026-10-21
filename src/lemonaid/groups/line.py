@@ -8,6 +8,8 @@ group name can't contain one.
 import re
 from collections import abc
 
+from ..brief import frontmatter
+
 _LINE = re.compile(r"Groups:(?P<names>.*)")
 _SECTION = re.compile(r"#{1,2}\s")
 _FENCE = re.compile(r"(```|~~~)")
@@ -42,7 +44,7 @@ def render(names: abc.Iterable[str]) -> str:
 
 def read(text: str) -> tuple[str, ...] | None:
     """The names on *text*'s `Groups:` line, or None when it has no line."""
-    lines = text.splitlines()
+    lines = frontmatter.legacy(text).splitlines()
     at = _line_index(lines)
     if at is None:
         return None

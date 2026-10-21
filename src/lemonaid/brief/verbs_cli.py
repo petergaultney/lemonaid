@@ -19,6 +19,7 @@ from ..inbox import db
 from . import (
     check,
     command,
+    created,
     hidden,
     links,
     now_edit,
@@ -30,7 +31,13 @@ from . import (
 )
 
 
-def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: bool = False) -> str:
+def edit(
+    path: Path,
+    change: abc.Callable[[str], str],
+    *,
+    preserve_existing: bool = False,
+    convert: bool = False,
+) -> str:
     """An error, or "" once *change* is written."""
 
     def checked(before: str) -> str:
@@ -52,18 +59,22 @@ def edit(path: Path, change: abc.Callable[[str], str], *, preserve_existing: boo
 
         return after
 
+    with db.connect() as conn:
+        editor = created.by(conn)
     try:
-        store.edit(path.resolve(), checked)
+        store.edit(path.resolve(), checked, editor, convert=convert)
     except (store.ChangedUnderneath, ValueError) as e:
         return str(e)
 
     return ""
 
 
-def edited(args: argparse.Namespace, change: abc.Callable[[str], str]) -> None:
+def edited(
+    args: argparse.Namespace, change: abc.Callable[[str], str], *, convert: bool = False
+) -> None:
     path, error = command.own_brief(args)
     if path:
-        error = edit(path, change)
+        error = edit(path, change, convert=convert)
     command.finish(args, {"path": str(path) if path else None}, error, str(path))
 
 

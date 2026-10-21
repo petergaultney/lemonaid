@@ -11,7 +11,16 @@ from pathlib import Path
 import pytest
 
 from lemonaid import groups, obsidian
-from lemonaid.brief import attached, child, hidden, identity, output_doc, status, write_cli
+from lemonaid.brief import (
+    attached,
+    child,
+    frontmatter,
+    hidden,
+    identity,
+    output_doc,
+    status,
+    write_cli,
+)
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.rows import pr_numbers
 
@@ -56,12 +65,12 @@ def test_a_child_brief_has_the_header_and_canonical_sections(capsys, parent):
     path = Path(result["path"])
     text = path.read_text()
     assert path.name == f"{datetime.date.today().isoformat()}-fix-the-widget.md"
-    assert re.fullmatch(
-        rf"# Fix the widget\n\nBrief-ID: {re.escape(result['lemon_id'])}\n\n"
-        r"type: Brief\n\ncreated: \{ at: \S+ \}\n\n"
-        rf"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Now\n(?s:.*)",
-        text,
-    )
+    found = frontmatter.fields(text)
+    assert found["type"] == "Brief"
+    assert isinstance(found["created"]["at"], datetime.datetime)
+    assert found["responsible-parties"]
+    assert (found["brief-id"], found["parent"]) == (result["lemon_id"], _PARENT)
+    assert frontmatter.split(text)[1].startswith("# Fix the widget\n\n## Now\n")
     assert (
         text.index("## Now")
         < text.index("## Questions")
@@ -80,7 +89,7 @@ def test_area_goes_in_the_header_where_the_card_reads_it(capsys, parent):
     result = _run(capsys, "--child", "--parent", _PARENT, "--area", "apps/web", "Fix the widget")
 
     text = Path(result["path"]).read_text()
-    assert f"{datetime.date.today().isoformat()}\n\nArea: apps/web\n\n## Now\n" in text
+    assert frontmatter.fields(text)["area"] == "apps/web"
     assert status.split(text).area == "apps/web"
 
 
@@ -213,7 +222,7 @@ def test_an_output_doc_is_recorded_beside_the_parent_line(capsys, parent):
     result = _run(capsys, "--child", "--parent", _PARENT, "--output-doc", "/tmp/doc.md", "Write it")
 
     text = Path(result["path"]).read_text()
-    assert "\nOutput-Doc: /tmp/doc.md\n" in text
+    assert frontmatter.fields(text)["output-doc"] == "/tmp/doc.md"
     assert output_doc.of_brief(Path(result["path"])) == Path("/tmp/doc.md")
 
 
@@ -269,3 +278,28 @@ def test_a_caller_with_an_unnamed_legacy_id_leaves_created_by_out(
     text = Path(result["path"]).read_text()
     assert "created: { at: " in text
     assert ", by:" not in text
+
+
+def test_a_child_names_its_parents_responsible_parties(capsys, parent):
+    parent.write_text(
+        "---\ntype: Brief\nresponsible-parties:\n  - Sam Smith\n"
+        f"brief-id: {_PARENT}\n---\n# hq\n\n## Now\n"
+    )
+
+    result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
+
+    assert frontmatter.fields(Path(result["path"]).read_text())["responsible-parties"] == [
+        "Sam Smith"
+    ]
+
+
+def test_the_review_template_hides_its_lemon_in_the_frontmatter(capsys, parent, tmp_path):
+    result = _run(
+        capsys,
+        *("--child", "--parent", _PARENT, "--template", "review", "--pr", _PR),
+        *("--output-doc", str(tmp_path / "review.md"), "Review it"),
+    )
+
+    text = Path(result["path"]).read_text()
+    assert frontmatter.fields(text)["hidden"] is True
+    assert hidden.is_hidden(text)

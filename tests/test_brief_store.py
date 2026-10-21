@@ -5,7 +5,8 @@ import os
 
 import pytest
 
-from lemonaid.brief import store
+from lemonaid.brief import frontmatter, store
+from lemonaid.config import get_config_path
 
 _BRIEF = """\
 # the task
@@ -95,9 +96,10 @@ def test_new_briefs_are_dated_and_named_after_the_work():
 
     assert path.name == "2026-09-24-lemonaid-session-briefs.md"
     assert path.parent == store.briefs_dir().resolve()
-    assert text.startswith("# Lemonaid: session briefs!\n\nBrief-ID: ")
-    assert "\n\ntype: Brief\n\n" in text
-    assert "Status:" not in text
+    assert text.startswith("---\ntype: Brief\ncreated: { at: 2026-09-24 }\n")
+    assert frontmatter.fields(text)["brief-id"].endswith(".lemonaid-session-briefs")
+    assert "\n---\n# Lemonaid: session briefs!\n\n## Now\n" in text
+    assert "status" not in frontmatter.fields(text)
     assert [line for line in text.splitlines() if line.startswith("## ")] == [
         "## Now",
         "## Questions",
@@ -141,7 +143,7 @@ def test_a_concurrent_save_survives_the_edit(tmp_path):
 
     assert len(calls) == 2
     assert "Edited in Obsidian." in path.read_text()
-    assert "Status: done" in path.read_text()
+    assert frontmatter.fields(path.read_text())["status"] == "done"
 
 
 def test_an_edit_keeps_the_mode_and_leaves_no_temp_file(tmp_path):
@@ -180,13 +182,74 @@ def test_an_edit_that_changes_nothing_leaves_the_file_alone(tmp_path):
 
 def test_new_briefs_keep_created_lines_through_status_and_now_edits():
     stamp = "created: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }"
-    text = store.create("Stamped", datetime.date(2026, 10, 21), created=stamp).read_text()
+    path = store.create("Stamped", datetime.date(2026, 10, 21), created=lambda _: stamp)
 
-    assert "Brief-ID: " in text
-    assert "\n\ncreated: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }\n\n## Now\n" in text
-    for edited in (
-        store.with_status(text, "blocked"),
-        store.with_status(store.with_status(text, "blocked"), store.CLEAR),
-        store.with_now(text, "- Working."),
+    assert stamp in frontmatter.split(path.read_text())[0]
+    assert frontmatter.fields(path.read_text())["contributors"] == ["LemonAce"]
+    for change in (
+        lambda text: store.with_status(text, "blocked"),
+        lambda text: store.with_status(text, store.CLEAR),
+        lambda text: store.with_now(text, "- Working."),
     ):
-        assert stamp in edited.splitlines()
+        store.edit(path, change)
+        assert stamp in frontmatter.split(path.read_text())[0]
+
+
+def test_the_first_write_to_a_legacy_brief_gives_it_frontmatter(tmp_path):
+    path = tmp_path / "2026-10-02-task.md"
+    path.write_text("# task\n\nBrief-ID: task.SkullHen\n\nStatus: working\n\n## Now\n- Starting.\n")
+
+    store.edit(path, lambda text: store.with_status(text, "blocked"))
+
+    found = frontmatter.fields(path.read_text())
+    assert (found["type"], found["brief-id"], found["status"]) == (
+        "Brief",
+        "task.SkullHen",
+        "blocked",
+    )
+    assert found["created"] == {"at": datetime.date(2026, 10, 2)}
+    assert frontmatter.split(path.read_text())[1] == "# task\n\n## Now\n- Starting.\n"
+
+
+def test_an_edit_that_changes_nothing_leaves_a_legacy_brief_legacy(tmp_path):
+    path = tmp_path / "brief.md"
+    path.write_text(_BRIEF)
+
+    store.edit(path, lambda text: text)
+    assert path.read_text() == _BRIEF
+
+    store.edit(path, lambda text: text, convert=True)
+    assert frontmatter.has_block(path.read_text())
+
+
+def test_backfilling_an_id_does_not_convert_the_brief(tmp_path):
+    path = tmp_path / "brief.md"
+    path.write_text("# task\n\nStatus: working\n")
+
+    store.edit(
+        path,
+        lambda text: text.replace("# task\n", "# task\n\nBrief-ID: t.SkullHen\n"),
+        migrate=False,
+    )
+
+    assert path.read_text().startswith("# task\n\nBrief-ID: t.SkullHen\n")
+
+
+def test_an_editor_is_added_to_contributors(tmp_path):
+    path = store.create(
+        "Edited",
+        datetime.date(2026, 10, 21),
+        created=lambda _: "created: { at: 2026-10-21, by: BlessBar }",
+    )
+
+    store.edit(path, lambda text: store.with_status(text, "done"), "PriceHum")
+
+    assert frontmatter.fields(path.read_text())["contributors"] == ["BlessBar", "PriceHum"]
+
+
+def test_a_new_brief_names_the_configured_responsible_parties():
+    get_config_path().write_text('[brief]\nresponsible_parties = ["Sam Smith", "Pat Lee"]\n')
+
+    path = store.create("Owned", datetime.date(2026, 10, 21))
+
+    assert frontmatter.fields(path.read_text())["responsible-parties"] == ["Sam Smith", "Pat Lee"]

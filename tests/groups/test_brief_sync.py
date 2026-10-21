@@ -56,7 +56,7 @@ def test_check_reports_a_line_a_hand_edit_dropped(capsys):
     one = lemon("one")
     run(capsys, "group", "create", "A", one, "--json")
     path = store.briefs_dir() / "one.md"
-    path.write_text(groups.line.written(path.read_text(), []))
+    store.edit(path, lambda text: groups.line.written(text, []))
 
     with db.connect() as conn:
         assert check.groups_line(conn, path.read_text()) == [
@@ -67,7 +67,7 @@ def test_check_reports_a_line_a_hand_edit_dropped(capsys):
 def test_sync_sets_groups_from_the_line(capsys):
     one = lemon("one")
     path = store.briefs_dir() / "one.md"
-    path.write_text(groups.line.written(path.read_text(), ["From", "File"]))
+    store.edit(path, lambda text: groups.line.written(text, ["From", "File"]))
 
     synced = run(capsys, "group", "sync", one, "--json")
 
@@ -78,7 +78,7 @@ def test_sync_leaves_groups_alone_when_the_brief_has_no_line(capsys):
     one = lemon("one")
     run(capsys, "group", "create", "Kept", one, "--json")
     path = store.briefs_dir() / "one.md"
-    path.write_text(groups.line.written(path.read_text(), []))
+    store.edit(path, lambda text: groups.line.written(text, []))
 
     synced = run(capsys, "group", "sync", one, "--json")
 

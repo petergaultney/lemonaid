@@ -5,6 +5,7 @@ description = "Attention inbox for managing notifications from lemons and other 
 readme = "docs/pypi.md"
 requires-python = ">=3.11"
 dependencies = [
+    "pyyaml>=6",
     "textual>=0.89.0",
     "wordybin==0.2.0",
 ]

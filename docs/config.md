@@ -437,6 +437,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `name` | `""` | Shell command that prints a new lemon's name; unset uses a random two-word WordyBin. |
 | `name_idle_days` | `14` | Days a lemon's brief can sit idle, with no live session, before a new lemon may take its name; `0` never frees one. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
+| `responsible_parties` | `[]` | Who a new top-level brief's `responsible-parties` names; unset is the account's full name. A child copies its parent's. |
 
 The brief popup and sidebar run `pr_state` for each `PR #N` or pull-request URL
 in a brief (up to three), in the lemon's place, so a bare number resolves against
