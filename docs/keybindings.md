@@ -370,7 +370,6 @@ select = "o"
 ### Keys given by name
 
 `brief_key`, `group_key`, `dialog_accept`, `move_pin_up`, `move_pin_down`, `first`, `last`, `question_previous`, `question_next`, `answer`,
-`answer_yes` and `more_detail` name one key each, written the way Textual writes it - `"tab"`,
 `answer_yes`, `more_detail`, `answer_archive`, `answer_archive_all` and `answers_expand` name one key each, written the way Textual writes it - `"tab"`,
 `"shift+up"`, `"ctrl+k"`, `"K"` - or as the character itself (`"("` is
 `"left_parenthesis"`). They are the exception to the rule below: their value is a single key
