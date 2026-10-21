@@ -5,6 +5,8 @@ match, because one of them is the one wanted - adding a third to a directory
 that already has two is the opposite of resolving it.
 """
 
+import pytest
+
 from lemonaid import handlers
 from lemonaid.config import Config
 from lemonaid.tmux import navigation
@@ -55,22 +57,60 @@ def test_a_resolved_tty_never_consults_cwd(monkeypatch):
     assert calls == ["tty", "switch:feat"]
 
 
-def test_codex_cwd_fallback_refuses_two_panes_without_process_inspection(monkeypatch):
+@pytest.mark.parametrize(
+    "panes",
+    [
+        "/work/feat|/dev/shell|shared|%1\n",
+        "/work/feat|/dev/author|shared|%1\n/work/feat|/dev/reviewer|shared|%2\n",
+    ],
+)
+def test_identityless_codex_never_selects_cwd_or_inspects_processes(monkeypatch, panes):
     import subprocess
 
     def tmux_only(argv, **kwargs):
         assert argv[0] == "tmux"
-        return subprocess.CompletedProcess(
-            argv,
-            0,
-            stdout="/work/feat|/dev/author|shared|%1\n/work/feat|/dev/reviewer|shared|%2\n",
-            stderr="",
-        )
+        return subprocess.CompletedProcess(argv, 0, stdout=panes, stderr="")
 
     monkeypatch.setattr(subprocess, "run", tmux_only)
     monkeypatch.setattr(
         handlers.watcher,
         "process_on_tty",
-        lambda *args: (_ for _ in ()).throw(AssertionError("click must not inspect processes")),
+        lambda *args: pytest.fail("click must not inspect processes"),
+    )
+    monkeypatch.setattr(
+        handlers.tmux.navigation,
+        "get_pane_for_cwd",
+        lambda *args: pytest.fail("cwd cannot identify Codex"),
+    )
+    monkeypatch.setattr(
+        handlers.tmux.recreate, "recreate", lambda *args: pytest.fail("must refuse")
     )
     assert not handlers._handle_tmux({"channel": "codex:author", "cwd": "/work/feat"}, Config())
+
+
+def test_claude_cwd_fallback_still_excludes_same_directory_shell(monkeypatch):
+    import subprocess
+
+    switched = []
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="/work/feat|/dev/agent|shared|%1\n/work/feat|/dev/shell|shared|%2\n",
+            stderr="",
+        ),
+    )
+    monkeypatch.setattr(
+        handlers.watcher,
+        "process_on_tty",
+        lambda tty, harness: tty == "/dev/agent" and harness == "claude",
+    )
+    monkeypatch.setattr(
+        handlers.tmux.navigation,
+        "switch_to_pane",
+        lambda session, pane: switched.append((session, pane)) or True,
+    )
+    assert handlers._handle_tmux({"channel": "claude:author", "cwd": "/work/feat"}, Config())
+    assert switched == [("shared", "%1")]

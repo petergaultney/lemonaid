@@ -703,8 +703,11 @@ lived in it.
 
 The inbox repairs saved Codex locations in the background at startup and every
 ten seconds when open rollout files identify one live terminal for the thread.
-Clicks use the recorded pane identity and tmux directly, without process scans
-or location repair. An author and reviewer sharing a directory are repaired by
+Codex clicks use the recorded pane identity and tmux directly, without process
+scans or location repair. Without a recorded pane or usable TTY, a Codex click
+is refused; cwd alone cannot identify it. Other backends keep their existing
+process-aware directory fallback. Until background repair corrects an old row,
+clicks and the attention marker trust its saved pane and TTY. An author and reviewer sharing a directory are repaired by
 their separate threads, preserving names, messages, read state and timestamps.
 Notifications without a rollout, including automatic recaps, are ignored before
 they can create a row. Background repair archives existing duplicate rows without

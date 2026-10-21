@@ -201,6 +201,17 @@ def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
     return None, None
 
 
+class _Unknown(Exception):
+    """`ps` could not say what runs on a pane's tty."""
+
+
+def _runs(tty: str, harness: str) -> bool:
+    found = watcher.process_on_tty(tty, harness)
+    if found is None:
+        raise _Unknown(tty)
+    return found
+
+
 def codex_tmux_locations() -> dict[str, list[dict[str, Any]]] | None:
     threads = processes.thread_ttys()
     if threads is None:
@@ -257,11 +268,20 @@ def _handle_tmux(
     # Directory lookup is only for rows without a recorded identity; it cannot
     # override evidence that a known pane is gone.
     if (session is None or pane_id is None) and not tmux.recorded_pane.has_identity(metadata):
+        channel = metadata.get("channel", "")
+        if channel.startswith("codex:"):
+            _log.warning("not switching to %s: no recorded pane identifies its terminal", channel)
+            return False
         cwd = metadata.get("cwd")
         if cwd:
-            # Require a unique pane from tmux's inventory; never inspect the
-            # machine's processes while the person waits for a jump.
-            session, pane_id = tmux.navigation.get_pane_for_cwd(cwd, lambda _tty: True)
+            harness = watcher.harness_process(channel)
+            try:
+                session, pane_id = tmux.navigation.get_pane_for_cwd(
+                    cwd, lambda pane_tty: _runs(pane_tty, harness)
+                )
+            except _Unknown:
+                _log.warning("not switching to %s: could not identify its harness", cwd)
+                return False
 
     if session == tmux.navigation.AMBIGUOUS:
         # One of the matches is the right session, so recreating would add a

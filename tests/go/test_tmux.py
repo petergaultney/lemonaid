@@ -166,10 +166,8 @@ def test_codex_click_uses_only_tmux_and_never_repairs_db(server, clients, monkey
     assert _query(server, "list-clients", "-F", "#{pane_id}") == target
 
 
-def test_codex_row_activation_latency(server, clients, monkeypatch):
+def test_codex_row_activation_switches_recorded_pane(server, clients, monkeypatch):
     import asyncio
-    import statistics
-    import time
 
     from textual.widgets.data_table import RowKey
 
@@ -186,17 +184,10 @@ def test_codex_row_activation_latency(server, clients, monkeypatch):
 
     async def measure():
         app = LemonaidApp()
-        samples = []
         async with app.run_test(size=(120, 35)) as pilot:
             await pilot.pause()
-            for _ in range(10):
-                _query(server, "switch-client", "-t", other)
-                start = time.perf_counter()
-                app._activate_row("main_table", RowKey(str(row.id)))
-                samples.append((time.perf_counter() - start) * 1000)
-                assert _query(server, "list-clients", "-F", "#{pane_id}") == target
-            print(
-                f"ROW_ACTIVATION_MS median={statistics.median(samples):.1f} max={max(samples):.1f} n={len(samples)}"
-            )
+            _query(server, "switch-client", "-t", other)
+            app._activate_row("main_table", RowKey(str(row.id)))
+            assert _query(server, "list-clients", "-F", "#{pane_id}") == target
 
     asyncio.run(measure())

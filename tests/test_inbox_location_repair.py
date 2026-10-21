@@ -112,3 +112,9 @@ def test_selected_row_click_uses_saved_tty_without_process_scan_or_repair(monkey
     assert focus.is_behind_scratch(row, "%scratch")
     with db.connect() as conn:
         assert db.get(conn, row.id).metadata["tty"] == _REVIEWER["tty"]
+
+    with db.connect() as conn:
+        assert handlers.repair_tmux_locations(conn, {"author": [_AUTHOR]}) == 1
+        fixed = db.get(conn, row.id)
+    assert fixed.metadata["tty"] == _AUTHOR["tty"]
+    assert not focus.is_behind_scratch(fixed, "%scratch")
