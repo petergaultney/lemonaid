@@ -11,7 +11,9 @@ from collections import abc
 _LINE = re.compile(r"Groups:(?P<names>.*)")
 _SECTION = re.compile(r"#{1,2}\s")
 _FENCE = re.compile(r"(```|~~~)")
-_ANCHOR = re.compile(r"(Status|Parent|Output-Doc|Area|Brief-ID|Lemon-ID):", re.IGNORECASE)
+_ANCHOR = re.compile(
+    r"(Status|Parent|Output-Doc|Area|Brief-ID|Lemon-ID|type|created):", re.IGNORECASE
+)
 
 
 def _header_end(lines: abc.Sequence[str]) -> int:

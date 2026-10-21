@@ -37,7 +37,9 @@ _TEMPLATE = """\
 
 Brief-ID: {lemon_id}
 
-## Now
+type: Brief
+
+{created}## Now
 
 - Starting.
 
@@ -129,13 +131,20 @@ def create_named(name: str, today: datetime.date, text: abc.Callable[[Path], str
     return path.resolve()
 
 
-def create(title: str, today: datetime.date, words: name_words.Words = name_words.NONE) -> Path:
-    """A new brief from the template, named `<date>-<slug>.md`. Never overwrites."""
+def create(
+    title: str,
+    today: datetime.date,
+    words: name_words.Words = name_words.NONE,
+    created: str = "",
+) -> Path:
+    """A new brief from the template, named `<date>-<slug>.md`, with a *created* header line. Never overwrites."""
     return create_named(
         slug(title),
         today,
         lambda path: _TEMPLATE.format(
-            title=title.strip(), lemon_id=new_lemon_id(path, words=words)
+            title=title.strip(),
+            lemon_id=new_lemon_id(path, words=words),
+            created=f"{created}\n\n" if created else "",
         ),
     )
 

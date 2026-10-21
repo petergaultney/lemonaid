@@ -13,7 +13,7 @@ from .. import groups, home
 from ..config import load_config
 from ..inbox import db
 from ..watch import children_waiter
-from . import child, identity, lemon, name_words_cli, store
+from . import child, created, identity, lemon, name_words_cli, store
 
 
 def _parent(target: str) -> tuple[str, str]:
@@ -48,6 +48,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         raise child.Problem(f"--parent {args.parent}: {cause}") from None
 
     with db.connect() as conn:
+        stamp = created.now(created.by(conn))
         words = (
             name_words_cli.given(args)
             if args.name_words
@@ -63,7 +64,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         raise child.Problem(str(e)) from None
     area = args.area.strip()
     text = child.render(
-        body, title, planned, parent, today, values, area, values.get("output_doc", "")
+        body, title, planned, parent, today, values, area, values.get("output_doc", ""), stamp
     )  # fails before any file
     try:
         path = store.create_named(name, today, lambda _: text)
@@ -77,7 +78,15 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             store.edit(
                 path,
                 lambda _: child.render(
-                    body, title, lemon_id, parent, today, values, area, values.get("output_doc", "")
+                    body,
+                    title,
+                    lemon_id,
+                    parent,
+                    today,
+                    values,
+                    area,
+                    values.get("output_doc", ""),
+                    stamp,
                 ),
             )
         with db.connect() as conn:

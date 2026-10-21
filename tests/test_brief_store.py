@@ -96,6 +96,7 @@ def test_new_briefs_are_dated_and_named_after_the_work():
     assert path.name == "2026-09-24-lemonaid-session-briefs.md"
     assert path.parent == store.briefs_dir().resolve()
     assert text.startswith("# Lemonaid: session briefs!\n\nBrief-ID: ")
+    assert "\n\ntype: Brief\n\n" in text
     assert "Status:" not in text
     assert [line for line in text.splitlines() if line.startswith("## ")] == [
         "## Now",
@@ -175,3 +176,17 @@ def test_an_edit_that_changes_nothing_leaves_the_file_alone(tmp_path):
     store.edit(path, lambda text: text)
 
     assert path.stat().st_mtime == 1000
+
+
+def test_new_briefs_keep_created_lines_through_status_and_now_edits():
+    stamp = "created: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }"
+    text = store.create("Stamped", datetime.date(2026, 10, 21), created=stamp).read_text()
+
+    assert "Brief-ID: " in text
+    assert "\n\ncreated: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }\n\n## Now\n" in text
+    for edited in (
+        store.with_status(text, "blocked"),
+        store.with_status(store.with_status(text, "blocked"), store.CLEAR),
+        store.with_now(text, "- Working."),
+    ):
+        assert stamp in edited.splitlines()

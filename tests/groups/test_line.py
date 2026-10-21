@@ -25,3 +25,9 @@ def test_a_groups_line_below_the_header_or_in_a_fence_is_not_the_line():
     text = BRIEF + "\n## Notes\n\nGroups: not this\n\n```\nGroups: nor this\n```\n"
 
     assert line.read(text) is None
+
+
+def test_the_groups_line_goes_after_the_created_lines():
+    text = "# t\n\nBrief-ID: t.AbcDef\n\ncreated: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }\n\n## Now\n"
+
+    assert line.written(text, ["Widgets"]) == text.replace("\n## Now", "Groups: Widgets\n\n## Now")

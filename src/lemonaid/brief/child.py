@@ -2,7 +2,7 @@
 
 A template contains optional header fields and brief sections, with `$name` placeholders
 (Python's `string.Template`; `$$` is a literal `$`). Lemonaid writes the header
-above it: the title, `Brief-ID:`, `Parent:`, `Output-Doc:` when `--output-doc` gives one,
+above it: the title, `Brief-ID:`, `type: Brief`, `created:`, `Parent:`, `Output-Doc:` when `--output-doc` gives one,
 and `Area:` when `--area` gives one.
 Packaged templates put the worker sections before the task sections.
 
@@ -94,6 +94,7 @@ def render(
     values: abc.Mapping[str, str],
     area: str = "",
     output_doc: str = "",
+    created: str = "",
 ) -> str:
     """The whole brief: lemonaid's header, then *body* filled in. *parent* is (Lemon-ID, tmux session)."""
     parent_id, parent_session = parent
@@ -126,6 +127,9 @@ def render(
             "",
             f"Brief-ID: {lemon_id}",
             "",
+            "type: Brief",
+            "",
+            *([created, ""] if created else []),
             f"Parent: {parent_id}{where}, {today.isoformat()}",
             "",
             *([f"Output-Doc: {output_doc}", ""] if output_doc else []),

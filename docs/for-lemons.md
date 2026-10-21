@@ -531,6 +531,8 @@ lemonaid brief handoff ready TOKEN              # outgoing lemon's explicit ackn
 lemonaid brief handoff accept TOKEN             # incoming lemon's explicit acknowledgement
 ```
 
+**Type and created lines.** Every brief `brief new` writes (`--self`, `--child`, any template) gets `type: Brief` (the OKF `type` key) and `created: { at: <ISO 8601 datetime with UTC offset, to the second>, by: <WordyBin> }` under its `Brief-ID:`. `by` is the lemon running the command, left out when it has no named brief; for `--child` that is the caller, not necessarily `--parent`. They are header lines like `Parent:`, not YAML frontmatter, because lemonaid reads a brief's title from its first line. No verb changes them, and briefs made earlier lack both.
+
 Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
 ### Harness handoff
@@ -724,7 +726,7 @@ lemonaid brief new --child --template review --pr https://github.com/o/r/pull/12
     --output-doc ~/notes/reviews/r-12.md --slug review-r-12 "Review r#12: the thing"
 ```
 
-The file has the title, its own `Lemon-ID:`, and `Parent: <your Lemon-ID>
+The file has the title, its own `Lemon-ID:`, `type: Brief` and `created:` (see Type and created lines), and `Parent: <your Lemon-ID>
 (<your tmux session>), <date>`, then the template's sections. It has no `## Now`; the child
 writes that. `--parent` names a parent other than yourself (a Lemon-ID, channel, or brief), or `parent` for your own parent.
 `--area apps/unified-asset` adds an `Area:` line naming the part of the project the work is

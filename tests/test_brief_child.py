@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import datetime
 import json
+import re
 import shlex
 from pathlib import Path
 
@@ -32,6 +33,12 @@ def _run(capsys, *argv: str, err: list[str] | None = None) -> dict:
     return json.loads(out)
 
 
+@pytest.fixture(autouse=True)
+def _no_caller(monkeypatch):
+    for name in ("LEMONAID_CHANNEL", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "TMUX_PANE"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def parent(monkeypatch, tmp_path):
     """A parent brief registered under `_PARENT`, the way `brief id` leaves one."""
@@ -49,9 +56,11 @@ def test_a_child_brief_has_the_header_and_canonical_sections(capsys, parent):
     path = Path(result["path"])
     text = path.read_text()
     assert path.name == f"{datetime.date.today().isoformat()}-fix-the-widget.md"
-    assert text.startswith(
-        f"# Fix the widget\n\nBrief-ID: {result['lemon_id']}\n\n"
-        f"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Now\n"
+    assert re.fullmatch(
+        rf"# Fix the widget\n\nBrief-ID: {re.escape(result['lemon_id'])}\n\n"
+        r"type: Brief\n\ncreated: \{ at: \S+ \}\n\n"
+        rf"Parent: {_PARENT}, {datetime.date.today().isoformat()}\n\n## Now\n(?s:.*)",
+        text,
     )
     assert (
         text.index("## Now")
@@ -220,3 +229,43 @@ def test_review_doc_still_works_but_warns(capsys, parent):
 
 def test_a_brief_without_an_output_doc_reads_as_none():
     assert output_doc.read("# T\n\nParent: x\n\n## Goal\n\nOutput-Doc: /ignored\n") is None
+
+
+def test_a_child_brief_records_when_and_by_whom_it_was_created(capsys, parent, monkeypatch):
+    with db.connect() as conn:
+        attached.attach(conn, "claude:creator", parent)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:creator")
+
+    result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
+
+    text = Path(result["path"]).read_text()
+    assert re.search(
+        r"^created: \{ at: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d, by: BlessBar \}$",
+        text,
+        re.MULTILINE,
+    )
+
+
+def test_a_child_brief_from_a_caller_without_a_brief_has_no_created_by(capsys, parent):
+    result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
+
+    text = Path(result["path"]).read_text()
+    assert "created: { at: " in text
+    assert ", by:" not in text
+
+
+def test_a_caller_with_an_unnamed_legacy_id_leaves_created_by_out(
+    capsys, parent, tmp_path, monkeypatch
+):
+    legacy = tmp_path / "briefs" / "2026-09-02-old.md"
+    legacy.write_text("# old\n\nLemon-ID: old-task\n")
+    with db.connect() as conn:
+        identity.ensure(conn, legacy)
+        attached.attach(conn, "claude:legacy", legacy)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:legacy")
+
+    result = _run(capsys, "--child", "--parent", _PARENT, "Fix the widget")
+
+    text = Path(result["path"]).read_text()
+    assert "created: { at: " in text
+    assert ", by:" not in text

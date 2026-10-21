@@ -201,3 +201,17 @@ def test_replacing_progress_requires_each_persons_needs_heading():
     out = now_edit.replace_progress(brief, "### Needs Sam\n\n- changed", replace_all=True)
     assert "### Needs Ben" not in out
     assert "### Needs Sam\n\n- changed" in out
+
+
+def test_created_lines_survive_now_edits():
+    stamped = _BRIEF.replace(
+        "Lemon-ID: task.QuickOdd\n",
+        "Lemon-ID: task.QuickOdd\n\ncreated: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }\n",
+    )
+
+    edited = now_edit.add(stamped, "Next", "- more")
+    replaced = now_edit.replace_progress(edited, "### Next\n\n- only this", replace_all=True)
+
+    assert check.structure(edited) == check.structure(stamped)
+    for text in (edited, replaced):
+        assert "\ncreated: { at: 2026-10-21T08:15:00-04:00, by: LemonAce }\n" in text
