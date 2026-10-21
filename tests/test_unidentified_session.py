@@ -40,6 +40,15 @@ def test_codex_drops_a_payload_with_no_session(tmp_path, monkeypatch):
 def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch):
     monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
 
+    path = tmp_path / "rollout.jsonl"
+    path.write_text(
+        json.dumps(
+            {"type": "session_meta", "payload": {"id": "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"}}
+        )
+        + "\n"
+    )
+    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+
     codex_notify.handle_notification(
         json.dumps(
             {

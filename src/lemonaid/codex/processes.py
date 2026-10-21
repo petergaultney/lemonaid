@@ -69,35 +69,3 @@ def _open_paths(listing: str) -> dict[str, set[str]]:
         elif pid and line.startswith("n") and "/rollout-" in line and line.endswith(".jsonl"):
             paths[pid].add(line[1:])
     return paths
-
-
-def thread_ttys_for_tty(tty: str) -> dict[str, set[str]] | None:
-    """Inspect only this terminal so notify does not depend on a machine-wide ps."""
-    try:
-        listing = subprocess.run(
-            ["ps", "-t", tty.removeprefix("/dev/"), "-o", "pid=,tty=,args="],
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
-        if listing.returncode not in (0, 1) or listing.stderr.strip():
-            return None
-        pids = []
-        for line in listing.stdout.splitlines():
-            fields = line.split(maxsplit=2)
-            if len(fields) == 3 and Path(fields[2].split()[0]).name.startswith("codex"):
-                pids.append(fields[0])
-        if not pids:
-            return {}
-        files = subprocess.run(
-            ["lsof", "-a", "-c", "codex", "-p", ",".join(pids), "-Fpn"],
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
-        if files.returncode not in (0, 1) or files.stderr.strip():
-            return None
-        return _owners(_open_paths(files.stdout), listing.stdout)
-    except (OSError, subprocess.SubprocessError) as error:
-        _log.debug("could not inspect Codex terminal %s: %s", tty, error)
-        return None

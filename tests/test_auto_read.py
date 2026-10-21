@@ -27,6 +27,13 @@ def quiet_config():
         f.write("[inbox]\nauto_read = ['^\\(quiet\\)', '^\\(fyi\\)']\n")
 
 
+@pytest.fixture(autouse=True)
+def _persistent_notify_thread(tmp_path, monkeypatch):
+    path = tmp_path / "rollout.jsonl"
+    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": _THREAD}}) + "\n")
+    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+
+
 def _status(channel: str) -> str:
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)

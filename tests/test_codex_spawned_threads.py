@@ -6,7 +6,9 @@ tty, and the watcher archives the older of two sessions on one tty: the parent.
 
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
@@ -23,7 +25,10 @@ _GUARDIAN = "03c0e8ca-e160-75d2-8612-69cbd966da4d"
 
 
 def _write_session(root: Path, thread_id: str, **meta: object) -> Path:
-    path = root / f"rollout-2026-09-28T12-00-00-{thread_id}.jsonl"
+    day = datetime.fromtimestamp((UUID(thread_id).int >> 80) / 1000, UTC)
+    directory = root / day.strftime("%Y/%m/%d")
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"rollout-2026-09-28T12-00-00-{thread_id}.jsonl"
     payload = {"id": thread_id, "session_id": _PARENT, "cwd": _CWD, **meta}
     path.write_text(json.dumps({"type": "session_meta", "payload": payload}) + "\n")
     return path
@@ -97,8 +102,8 @@ def test_spawned_threads_leave_the_open_parent_in_the_inbox(sessions, monkeypatc
 
 def test_the_cwd_fallback_skips_a_newer_spawned_thread(sessions):
     """A notification without a thread id is resolved by cwd, to the newest rollout there."""
-    parent = next(sessions.glob(f"*{_PARENT}.jsonl"))
-    for path in sessions.iterdir():
+    parent = next(sessions.rglob(f"*{_PARENT}.jsonl"))
+    for path in sessions.rglob("*.jsonl"):
         mtime = 1000.0 if path == parent else 2000.0
         os.utime(path, (mtime, mtime))
 

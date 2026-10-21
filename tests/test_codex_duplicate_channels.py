@@ -1,13 +1,10 @@
 import json
-import subprocess
 
 import pytest
 
 from lemonaid.brief import attached, store
-from lemonaid.codex import channels, notify, processes, utils
+from lemonaid.codex import channels, notify, utils
 from lemonaid.inbox import db
-
-_scoped_thread_ttys = processes.thread_ttys_for_tty
 
 _ROOT = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 _TRANSIENT = "01999a7c-3b84-7d02-8e67-0c9f4a1b2c22"
@@ -38,9 +35,6 @@ def setup(monkeypatch, tmp_path):
     monkeypatch.setattr(notify, "get_tmux_session_order", lambda: (20, 10, 1))
     monkeypatch.setattr(notify, "get_tmux_socket", lambda: "/tmp/server")
     monkeypatch.setenv("TMUX_PANE", "%2")
-    monkeypatch.setattr(
-        processes, "thread_ttys", lambda: {_ROOT: {"/dev/author"}, _REVIEWER: {"/dev/reviewer"}}
-    )
     monkeypatch.setattr(notify, "get_git_branch", lambda cwd: None)
     return rollout
 
@@ -63,27 +57,6 @@ def _row(conn, thread, location, *, attach=False):
     return row
 
 
-def test_transient_notification_updates_attached_owner_not_reviewer(setup):
-    with db.connect() as conn:
-        author = _row(conn, _ROOT, _LOCATION, attach=True)
-        reviewer = _row(
-            conn,
-            _REVIEWER,
-            {**_LOCATION, "tty": "/dev/reviewer", "tmux_pane_identity": ["%4", 10]},
-            attach=True,
-        )
-        briefs = [tuple(r) for r in conn.execute("select * from session_briefs")]
-    notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
-    with db.connect() as conn:
-        assert db.get_by_channel(conn, f"codex:{_TRANSIENT}", unread_only=False) is None
-        row = db.get(conn, author.id)
-        assert row.name == author.name
-        assert row.metadata["session_id"] == _ROOT
-        assert row.metadata["session_path"] == str(setup)
-        assert db.get(conn, reviewer.id).metadata == reviewer.metadata
-        assert briefs == [tuple(r) for r in conn.execute("select * from session_briefs")]
-
-
 def test_existing_duplicate_is_archived_without_moving_attachment(setup):
     with db.connect() as conn:
         author = _row(conn, _ROOT, _LOCATION, attach=True)
@@ -101,6 +74,7 @@ def test_attached_transient_channel_stays_attached_when_owner_notifies(setup):
     with db.connect() as conn:
         row = _row(conn, _TRANSIENT, _LOCATION, attach=True)
         briefs = [tuple(r) for r in conn.execute("select * from session_briefs")]
+        channels.repair_duplicates(conn, {_ROOT: [_LOCATION]})
     notify.handle_notification(json.dumps({"thread-id": _ROOT, "cwd": "/work/shared"}))
     with db.connect() as conn:
         assert db.get(conn, row.id).metadata["session_id"] == _ROOT
@@ -163,7 +137,7 @@ def test_real_new_thread_is_not_archived_as_duplicate(setup, monkeypatch, tmp_pa
         assert not db.get(conn, newcomer.id).is_archived
 
 
-def test_handoff_token_does_not_redirect_a_fresh_target(setup, monkeypatch):
+def test_handoff_token_does_not_allow_a_rolloutless_notification(setup, monkeypatch):
     with db.connect() as conn:
         _row(conn, _ROOT, _LOCATION, attach=True)
     calls = []
@@ -172,7 +146,7 @@ def test_handoff_token_does_not_redirect_a_fresh_target(setup, monkeypatch):
         notify.handoff_state, "bind_target", lambda conn, token, channel: calls.append(channel)
     )
     notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
-    assert calls == [f"codex:{_TRANSIENT}"]
+    assert calls == []
 
 
 def test_snoozed_attachment_does_not_get_a_second_channel(setup):
@@ -191,7 +165,7 @@ def test_missing_hook_tty_uses_its_own_tmux_pane_for_owner_resolution(setup, mon
     monkeypatch.setattr(notify, "get_tmux_pane_tty", lambda: "/dev/author")
     with db.connect() as conn:
         row = _row(conn, _ROOT, _LOCATION, attach=True)
-    notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
+    notify.handle_notification(json.dumps({"thread-id": _ROOT, "cwd": "/work/shared"}))
     with db.connect() as conn:
         assert db.get_by_channel(conn, f"codex:{_TRANSIENT}", unread_only=False) is None
         assert db.get(conn, row.id).metadata["tty"] == "/dev/author"
@@ -279,71 +253,43 @@ def test_reconciliation_leaves_pending_handoff_channels_alone(setup, phase):
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
 
 
-def test_transient_notify_joins_attached_owner_when_global_probe_is_unavailable(setup, monkeypatch):
-    # BasicEel: the global ps of every Codex PID timed out; the hook's own
-    # terminal still identifies exactly one root, distinct from its reviewer.
-    monkeypatch.setattr(processes, "thread_ttys", lambda: pytest.fail("global ps must not run"))
-    monkeypatch.setattr(
-        processes, "thread_ttys_for_tty", lambda tty: {_ROOT: {tty}} if tty == "/dev/author" else {}
-    )
+@pytest.mark.parametrize("surface", ["tmux", "wezterm", "cmux", "unknown"])
+@pytest.mark.parametrize("thread", [_TRANSIENT, "short-id"])
+def test_no_rollout_drops_before_db_or_terminal_inspection(setup, monkeypatch, surface, thread):
+    # Recaps must not even update the parent's timestamp/unread state, much less
+    # create a row that the periodic repair would archive after it flashes.
+    monkeypatch.setattr(notify, "detect_terminal_switch_source", lambda: surface)
     with db.connect() as conn:
         author = _row(conn, _ROOT, _LOCATION, attach=True)
-        reviewer = _row(
-            conn,
-            _REVIEWER,
-            {**_LOCATION, "tty": "/dev/reviewer", "tmux_pane_identity": ["%4", 10]},
-            attach=True,
+        author = db.get(conn, author.id)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("rolloutless notify must return before DB or terminal inspection")
+
+    with monkeypatch.context() as gate:
+        gate.setattr(db, "connect", forbidden)
+        gate.setattr(notify, "get_tty", forbidden)
+        gate.setattr(notify, "find_latest_session_for_cwd", forbidden)
+        notify.handle_notification(
+            json.dumps({"type": "agent-turn-complete", "thread-id": thread, "cwd": "/work/shared"})
         )
+    with db.connect() as conn:
+        assert db.get(conn, author.id) == author
+        assert db.get_by_channel(conn, f"codex:{thread}", unread_only=False) is None
+
+
+@pytest.mark.parametrize("surface", ["tmux", "wezterm", "cmux"])
+def test_persistent_thread_keeps_its_row_after_terminal_move(setup, monkeypatch, surface):
+    monkeypatch.setattr(notify, "detect_terminal_switch_source", lambda: surface)
+    monkeypatch.setattr(notify, "get_tty", lambda: "/dev/new-terminal")
+    with db.connect() as conn:
+        author = _row(conn, _ROOT, _LOCATION, attach=True)
+        reviewer = _row(conn, _REVIEWER, _LOCATION, attach=True)
         before = db.get(conn, reviewer.id)
         attachments = [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
-    notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
+    notify.handle_notification(json.dumps({"thread-id": _ROOT, "cwd": "/work/shared"}))
     with db.connect() as conn:
-        assert db.get_by_channel(conn, f"codex:{_TRANSIENT}", unread_only=False) is None
         assert db.get(conn, author.id).metadata["session_id"] == _ROOT
+        assert db.get(conn, author.id).metadata["tty"] == "/dev/new-terminal"
         assert db.get(conn, reviewer.id) == before
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
-
-
-def test_runtime_only_thread_routes_past_guardian_and_repairs_existing_stray(setup, monkeypatch):
-    # Codex 0.163 logs a real session_loop for the notify ID without saving a
-    # rollout. Its CLI still has the persistent root and guardian rollouts open.
-    guardian = setup.with_name("rollout-2026-10-20-guardian.jsonl")
-    guardian.write_text(
-        json.dumps(
-            {
-                "type": "session_meta",
-                "payload": {
-                    "id": "guardian",
-                    "parent_thread_id": _ROOT,
-                    "thread_source": "guardian_review",
-                },
-            }
-        )
-        + "\n"
-    )
-
-    def run(argv, **kwargs):
-        output = (
-            "11 author /bin/codex --no-daemon\n"
-            if argv[0] == "ps"
-            else f"p11\nn{setup}\nn{guardian}\n"
-        )
-        return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
-
-    monkeypatch.setattr(processes.subprocess, "run", run)
-    monkeypatch.setattr(processes, "thread_ttys_for_tty", _scoped_thread_ttys)
-    monkeypatch.setattr(processes, "thread_ttys", lambda: pytest.fail("global probe must not run"))
-    with db.connect() as conn:
-        author = _row(conn, _ROOT, _LOCATION, attach=True)
-        stray = _row(conn, _TRANSIENT, _LOCATION)
-        briefs = [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
-    notify.handle_notification(
-        json.dumps({"type": "agent-turn-complete", "thread-id": _TRANSIENT, "cwd": "/work/shared"})
-    )
-    with db.connect() as conn:
-        assert db.get(conn, author.id).metadata["session_id"] == _ROOT
-        assert db.get(conn, author.id).metadata["thread_id"] == _TRANSIENT
-        assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 1
-        assert db.get(conn, stray.id).is_archived
-        assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 0
-        assert briefs == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]

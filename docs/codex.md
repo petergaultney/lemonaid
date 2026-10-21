@@ -63,16 +63,18 @@ The watcher uses the persistent root thread for delivery and preserves the attac
 brief's channel. It skips dead, unknown, archived, mid-turn and pending-handoff sessions.
 This restores the watcher directly; no prompt or keystroke to the lemon is required.
 
-When a notification reports an ID without a rollout, Lemonaid first identifies the
-root process on the hook's own TTY. This keeps routing independent of a slow
-machine-wide process scan; the broader probe remains a fallback when the local
-probe is unavailable. Shared app-server and subagent rollouts remain excluded.
-An ID missing from the session files is not necessarily fabricated by a notify
-wrapper: Codex can run a thread without saving its rollout. Such notifications
-retain their reported `thread_id` for diagnostics, while `session_id` identifies
-the verified persistent owner. Existing unattached duplicate rows are archived
-at startup and during refresh; brief attachments and their waiter channels stay
-in place.
+Codex 0.163's automatic recaps run in temporary threads that send ordinary
+turn-complete notifications but never save a rollout. Lemonaid logs and ignores
+any notification whose thread has no rollout before opening the inbox database,
+so recap rows never appear and recaps do not change the lemon's unread state.
+UUIDv7 thread IDs give the creation date; lookup checks that date's directory
+under `~/.codex/sessions/` and the adjacent days. Notifications with a thread ID
+never fall back to another conversation in the same directory. Rollouts with a
+`parent_thread_id` are also ignored.
+
+Notification identity does not depend on a terminal or multiplexer. Existing
+unattached duplicates are cleaned up at startup and during refresh, preserving
+brief attachments and waiter channels.
 
 ### 3. Allow brief and message commands under the automatic approval reviewer
 

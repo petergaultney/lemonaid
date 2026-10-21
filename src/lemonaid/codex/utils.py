@@ -2,7 +2,9 @@
 
 import json
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import UUID
 
 
 def get_sessions_root() -> Path:
@@ -56,6 +58,24 @@ def find_session_path(session_id: str) -> Path | None:
 
     root = get_sessions_root()
     if not root.exists():
+        return None
+
+    try:
+        thread = UUID(session_id)
+    except ValueError:
+        thread = None
+    if thread is not None and thread.version == 7:
+        # UUIDv7's first 48 bits are Unix milliseconds. Adjacent UTC days
+        # cover Codex's local-date directory at either side of midnight.
+        try:
+            day = datetime.fromtimestamp((thread.int >> 80) / 1000, UTC).date()
+        except (ValueError, OverflowError, OSError):
+            return None
+        for offset in (0, -1, 1):
+            directory = root / (day + timedelta(days=offset)).strftime("%Y/%m/%d")
+            for path in directory.glob(f"rollout-*-{session_id}.jsonl"):
+                if path.is_file():
+                    return path
         return None
 
     pattern = f"*{session_id}.jsonl"

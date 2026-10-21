@@ -11,9 +11,15 @@ _THREAD = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 
 
 @pytest.fixture(autouse=True)
-def _no_rollouts(monkeypatch, tmp_path):
+def _notification_rollouts(monkeypatch, tmp_path):
     monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: None)
-    monkeypatch.setattr(notify, "find_session_path", lambda session_id: None)
+
+    def rollout(session_id):
+        path = tmp_path / f"rollout-{session_id}.jsonl"
+        path.write_text(json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n")
+        return path
+
+    monkeypatch.setattr(notify, "find_session_path", rollout)
     monkeypatch.setattr(watcher, "get_sessions_root", lambda: tmp_path / "no-sessions")
     monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path / "sessions")
     monkeypatch.delenv("TMUX_PANE", raising=False)

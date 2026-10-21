@@ -24,7 +24,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, hosting, permissions, processes
+from . import channels, hosting, permissions
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -72,15 +72,12 @@ def _extract_session_id(data: dict, session_path: Path | None) -> str | None:
 def _resolve_session_path(
     session_id: str | None, cwd: str | None, session_path: str | None
 ) -> Path | None:
+    if session_id:
+        return find_session_path(session_id)
+
     if session_path:
         path = Path(session_path).expanduser()
         if path.exists():
-            return path
-
-    if session_id:
-        path = find_session_path(session_id)
-        # A full thread ID must not borrow a sibling's rollout in the same cwd.
-        if path or len(session_id) >= 36:
             return path
 
     if cwd:
@@ -129,7 +126,6 @@ def handle_notification(
     Reads JSON from stdin (as provided by Codex notify) and adds
     a notification to the lemonaid inbox.
     """
-    explicit_session_id = session_id
     if stdin_data is None:
         stdin_data = sys.stdin.read()
         # Codex notify passes a single JSON argument, not stdin.
@@ -149,8 +145,11 @@ def handle_notification(
     session_path_obj = _resolve_session_path(
         session_id or payload_session_id, resolved_cwd, session_path
     )
-    meta = read_session_meta(session_path_obj) if session_path_obj else None
-    if session_path_obj and meta is None:
+    if session_path_obj is None:
+        _log.info("ignored a thread with no rollout: thread=%s", session_id or payload_session_id)
+        return
+    meta = read_session_meta(session_path_obj)
+    if meta is None:
         # Codex writes session_meta when a thread starts, so this is a damaged
         # rollout - and possibly a subagent's, which must not get a row.
         _log.warning("ignored a thread whose rollout has no session_meta: %s", session_path_obj)
@@ -249,33 +248,6 @@ def handle_notification(
             if pane := os.environ.get("TMUX_PANE"):
                 metadata["tmux_pane_identity"] = [pane, session_order[1]]
 
-    if (
-        not session_path_obj
-        and not explicit_session_id
-        and tty
-        and switch_source == "tmux"
-        and not os.environ.get("LEMONAID_HANDOFF_TOKEN")
-    ):
-        owners = processes.thread_ttys_for_tty(tty)
-        if not owners:
-            owners = processes.thread_ttys()
-        candidates = [thread for thread, ttys in (owners or {}).items() if tty in ttys]
-        if len(candidates) == 1 and (owned_path := find_session_path(candidates[0])):
-            session_id = candidates[0]
-            metadata["session_id"] = session_id
-            metadata["session_path"] = str(owned_path)
-            if notification_type == "PermissionRequest" and permissions.automatically_reviewed(
-                owned_path, data.get("turn_id", ""), data.get("tool_name", "")
-            ):
-                return
-        else:
-            _log.warning(
-                "unresolved Codex notification thread=%s tty=%s owners=%s",
-                payload_session_id,
-                tty,
-                "unknown" if owners is None else len(candidates),
-            )
-
     try:
         channel = full_channel_id("codex", session_id)
     except UnidentifiedSession:
@@ -284,8 +256,8 @@ def handle_notification(
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
     with db.connect() as conn:
-        if not os.environ.get("LEMONAID_HANDOFF_TOKEN") and tty and switch_source == "tmux":
-            channel = channels.attached_channel(conn, session_id or "", metadata) or channel
+        if not os.environ.get("LEMONAID_HANDOFF_TOKEN"):
+            channel = channels.for_session(conn, session_id or "")
         db.add(
             conn,
             channel=channel,

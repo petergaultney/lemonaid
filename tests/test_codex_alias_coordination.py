@@ -204,6 +204,7 @@ def test_inbox_restores_deaf_alias_watcher_using_real_root(alias, monkeypatch):
     started = []
     monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
     monkeypatch.setattr(codex_waiter, "ensure", lambda *args: started.append(args))
+    monkeypatch.setattr(codex_waiter.processes, "thread_ttys", lambda: {_ROOT: {_LOCATION["tty"]}})
     with db.connect() as conn:
         codex_waiter.restore(conn)
     assert started == [(channel, _ROOT, lemon_id)]

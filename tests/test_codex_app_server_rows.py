@@ -26,6 +26,13 @@ _THREAD = "01a0ee30-a636-7e50-9119-c4e7e5cc8af9"
 _CWD = "/work/review"
 
 
+@pytest.fixture(autouse=True)
+def _persistent_notify_thread(tmp_path, monkeypatch):
+    path = tmp_path / "rollout.jsonl"
+    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": _THREAD}}) + "\n")
+    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+
+
 def _process_tree(monkeypatch, chain: list[str]) -> None:
     """`ps` answers for a hook whose ancestors are *chain*, nearest first, then pid 1."""
     pids = {

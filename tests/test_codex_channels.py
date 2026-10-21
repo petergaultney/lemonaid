@@ -19,9 +19,15 @@ _THREAD_C = "01999a7d-0000-7000-8000-000000000033"
 
 
 @pytest.fixture(autouse=True)
-def _no_rollouts(monkeypatch, tmp_path):
+def _notification_rollouts(monkeypatch, tmp_path):
     monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: None)
-    monkeypatch.setattr(notify, "find_session_path", lambda session_id: None)
+
+    def rollout(session_id):
+        path = tmp_path / f"rollout-{session_id}.jsonl"
+        path.write_text(json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n")
+        return path
+
+    monkeypatch.setattr(notify, "find_session_path", rollout)
     monkeypatch.setattr(watcher, "get_sessions_root", lambda: tmp_path / "no-sessions")
     monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path / "sessions")
     monkeypatch.delenv("TMUX_PANE", raising=False)
@@ -430,10 +436,10 @@ def test_notification_with_missing_rollout_does_not_update_sibling(tmp_path, mon
     with db.connect() as conn:
         original = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
 
+    monkeypatch.setattr(notify, "find_session_path", lambda sid: None)
     _notify(_THREAD_B, "/work/shared")
 
     with db.connect() as conn:
         assert db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False) == original
         other = db.get_by_channel(conn, f"codex:{_THREAD_B}", unread_only=False)
-        assert other is not None
-        assert "session_path" not in other.metadata
+        assert other is None

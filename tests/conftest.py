@@ -63,7 +63,6 @@ def _no_real_tmux(monkeypatch):
 @pytest.fixture(autouse=True)
 def _no_live_codex_threads(monkeypatch):
     monkeypatch.setattr(codex_processes, "thread_ttys", lambda: None)
-    monkeypatch.setattr(codex_processes, "thread_ttys_for_tty", lambda tty: None)
 
 
 @pytest.fixture(autouse=True)
