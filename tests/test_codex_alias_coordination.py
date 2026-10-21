@@ -137,7 +137,7 @@ def test_stop_self_finds_waiter_registered_before_alias_fix(alias):
 
 
 def test_handoff_reads_alias_owner_transcript(alias, setup, monkeypatch):
-    from lemonaid.brief import handoff_codex
+    from lemonaid.brief.handoff import codex as handoff_codex
 
     channel, _, _ = alias
     looked_up = []
@@ -251,7 +251,7 @@ def test_inbox_does_not_restore_other_codex_sessions(alias, monkeypatch, state):
             row = db.get_by_channel(conn, channel, unread_only=False)
             db.repair_location(conn, row, {"session_path": None})
         if state == "handoff":
-            from lemonaid.brief import handoff_state
+            from lemonaid.brief.handoff import state as handoff_state
 
             handoff_state.request(
                 conn, path, channel, "claude", "shared", "2", "@1", "%2", "codex", time.time() + 60

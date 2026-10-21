@@ -221,7 +221,7 @@ def test_real_restart_does_not_take_a_reconciled_alias(setup, monkeypatch, tmp_p
 
 @pytest.mark.parametrize("phase", ["requested", "prepared", "launched", "transferred"])
 def test_reconciliation_leaves_pending_handoff_channels_alone(setup, phase):
-    from lemonaid.brief import handoff_state
+    from lemonaid.brief.handoff import state as handoff_state
 
     with db.connect() as conn:
         old = _row(conn, _TRANSIENT, _LOCATION, attach=True)
