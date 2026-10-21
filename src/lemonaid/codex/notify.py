@@ -256,7 +256,9 @@ def handle_notification(
         and switch_source == "tmux"
         and not os.environ.get("LEMONAID_HANDOFF_TOKEN")
     ):
-        owners = processes.thread_ttys()
+        owners = processes.thread_ttys_for_tty(tty)
+        if not owners:
+            owners = processes.thread_ttys()
         candidates = [thread for thread, ttys in (owners or {}).items() if tty in ttys]
         if len(candidates) == 1 and (owned_path := find_session_path(candidates[0])):
             session_id = candidates[0]
@@ -266,6 +268,13 @@ def handle_notification(
                 owned_path, data.get("turn_id", ""), data.get("tool_name", "")
             ):
                 return
+        else:
+            _log.warning(
+                "unresolved Codex notification thread=%s tty=%s owners=%s",
+                payload_session_id,
+                tty,
+                "unknown" if owners is None else len(candidates),
+            )
 
     try:
         channel = full_channel_id("codex", session_id)

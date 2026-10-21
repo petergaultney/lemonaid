@@ -274,3 +274,28 @@ def test_reconciliation_leaves_pending_handoff_channels_alone(setup, phase):
         assert channels.repair_duplicates(conn, {_ROOT: [_LOCATION]}) == 0
         assert before == [tuple(r) for r in conn.execute("SELECT * FROM notifications")]
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
+
+
+def test_transient_notify_joins_attached_owner_when_global_probe_is_unavailable(setup, monkeypatch):
+    # BasicEel: the global ps of every Codex PID timed out; the hook's own
+    # terminal still identifies exactly one root, distinct from its reviewer.
+    monkeypatch.setattr(processes, "thread_ttys", lambda: pytest.fail("global ps must not run"))
+    monkeypatch.setattr(
+        processes, "thread_ttys_for_tty", lambda tty: {_ROOT: {tty}} if tty == "/dev/author" else {}
+    )
+    with db.connect() as conn:
+        author = _row(conn, _ROOT, _LOCATION, attach=True)
+        reviewer = _row(
+            conn,
+            _REVIEWER,
+            {**_LOCATION, "tty": "/dev/reviewer", "tmux_pane_identity": ["%4", 10]},
+            attach=True,
+        )
+        before = db.get(conn, reviewer.id)
+        attachments = [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
+    notify.handle_notification(json.dumps({"thread-id": _TRANSIENT, "cwd": "/work/shared"}))
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, f"codex:{_TRANSIENT}", unread_only=False) is None
+        assert db.get(conn, author.id).metadata["session_id"] == _ROOT
+        assert db.get(conn, reviewer.id) == before
+        assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]

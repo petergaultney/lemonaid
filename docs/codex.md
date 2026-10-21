@@ -63,6 +63,11 @@ The watcher uses the persistent root thread for delivery and preserves the attac
 brief's channel. It skips dead, unknown, archived, mid-turn and pending-handoff sessions.
 This restores the watcher directly; no prompt or keystroke to the lemon is required.
 
+When a notification reports an ID without a rollout, Lemonaid first identifies the
+root process on the hook's own TTY. This keeps routing independent of a slow
+machine-wide process scan; the broader probe remains a fallback when the local
+probe is unavailable. Shared app-server and subagent rollouts remain excluded.
+
 ### 3. Allow brief and message commands under the automatic approval reviewer
 
 With `approvals_reviewer = "auto_review"` in `~/.codex/config.toml`, Codex can reject these commands because they write outside the project workspace. Add these rules to `~/.codex/rules/default.rules` if Codex lemons use briefs and lemon-to-lemon messages:
