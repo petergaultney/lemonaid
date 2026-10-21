@@ -37,7 +37,7 @@ _SECTION = re.compile(
 HARNESSES = ("claude", "codex")
 
 
-def _for_harness(text: str, harness: str) -> str:
+def for_harness(text: str, harness: str) -> str:
     def keep(m: re.Match[str]) -> str:
         if m["harness"] not in HARNESSES:
             raise Problem(f"unknown harness {m['harness']!r} in a section marker")
@@ -69,12 +69,12 @@ def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harnes
     if replacement.exists():
         return Rendered(
             name,
-            _for_harness(replacement.read_text(), harness),
+            for_harness(replacement.read_text(), harness),
             f"{replacement} (replaces packaged)",
         )
 
     if not overlay.exists():
-        return Rendered(name, _for_harness(packaged.read_text(), harness), "packaged")
+        return Rendered(name, for_harness(packaged.read_text(), harness), "packaged")
 
     added = overlay.read_text()
     if added.startswith("---\n"):
@@ -85,6 +85,6 @@ def render(packaged_dir: pathlib.Path, user_dir: pathlib.Path, name: str, harnes
 
     return Rendered(
         name,
-        _for_harness(f"{packaged.read_text().rstrip()}\n\n{added.strip()}\n", harness),
+        for_harness(f"{packaged.read_text().rstrip()}\n\n{added.strip()}\n", harness),
         f"packaged + {overlay}",
     )

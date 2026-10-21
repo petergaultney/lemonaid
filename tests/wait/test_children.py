@@ -29,3 +29,29 @@ def test_children_keep_the_default_legacy_cursor_between_waiters(tmp_path):
     finally:
         stop.set()
         thread.join(5)
+
+
+def test_a_note_for_a_child_done_rides_in_the_batch(tmp_path):
+    briefs = tmp_path / "briefs"
+    briefs.mkdir()
+    parent = briefs / "brief.md"
+    parent.write_text(shared.BRIEF)
+    child = briefs / "child.md"
+    child.write_text("# child\n")
+    with db.connect() as conn:
+        owner = identity.ensure(conn, parent)
+        links.set_parent(conn, identity.ensure(conn, child), owner)
+    briefs_events.open_watch(tmp_path / "cursors" / "briefs", owner, "", 0)
+    child.write_text(child.read_text() + "\nStatus: done\n")
+    text = shared.BRIEF + "- `lemonaid watch briefs --children --self --interval .01 --quiet 0`\n"
+    sent = []
+    _path, _inbox, _root, stop, thread, errors = shared.start(
+        tmp_path, text, sent.append, notes={"child.done": "Toss its place."}
+    )
+    try:
+        thread.join(5)
+        assert not thread.is_alive() and not errors
+        assert sent[0].endswith("Your notes for these events:\n- child.done: Toss its place.")
+    finally:
+        stop.set()
+        thread.join(5)

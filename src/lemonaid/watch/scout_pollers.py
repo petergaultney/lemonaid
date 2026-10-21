@@ -13,6 +13,7 @@ from . import (
     failure_state,
     file_events,
     github_failures,
+    notes,
     own_edits,
     own_pushes,
     path_presence,
@@ -76,6 +77,7 @@ def open_poller(
     writer: str,
     deliver: abc.Callable[[str], bool],
     signatures: tuple[str, ...],
+    notes: notes.Reader = notes.none,
 ) -> abc.Callable[[], object]:
     directory = spec.state_dir or root / spec.kind
     directory.mkdir(parents=True, exist_ok=True)
@@ -134,6 +136,7 @@ def open_poller(
             spec.orphans,
             spec.lemons,
             spec.needs,
+            notes,
         )
         return lambda: briefs_events.poll(watch, deliver)
 

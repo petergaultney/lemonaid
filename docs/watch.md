@@ -350,6 +350,9 @@ waiter is running for it. Any form counts, including `--orphans`, `--to` and `--
 lemon started it, so one `--orphans` waiter is enough and no second one is needed. The hook
 does not check which statuses the waiter wakes on.
 
+A report can end with your own [event notes](event-notes.md), one for each kind of event in it,
+such as `child.done` for a child entering `done`.
+
 ### Also watching briefs no live lemon owns
 
 `--orphans` adds every attached brief that has no parent link, or whose parent's session is

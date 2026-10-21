@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 from ..log import get_logger
-from . import delivery, doc_version, failure_state, own_edits, scout_pollers, subscriptions
+from . import delivery, doc_version, failure_state, notes, own_edits, scout_pollers, subscriptions
 
 _log = get_logger("watch.scouts")
 
@@ -29,9 +29,10 @@ class Scout:
         writer: str,
         output: "queue.Queue[Pending]",
         signatures: tuple[str, ...],
+        notes: notes.Reader,
     ):
         self.spec, self.root, self.writer = spec, root, writer
-        self.output, self.signatures = output, signatures
+        self.output, self.signatures, self.notes = output, signatures, notes
         self.stopped = threading.Event()
         self.ready = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True)
@@ -54,7 +55,7 @@ class Scout:
             while not self.stopped.is_set():
                 try:
                     poll = poll or scout_pollers.open_poller(
-                        self.spec, self.root, self.writer, self.deliver, self.signatures
+                        self.spec, self.root, self.writer, self.deliver, self.signatures, self.notes
                     )
                     poll()
                     failure_state.clear(failed)

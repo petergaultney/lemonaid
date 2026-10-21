@@ -28,6 +28,10 @@ per skill in `~/.lemons/skills/<name>/`:
 Having both is an error. Rerun `lemonaid skills install` after editing either; install
 reports which source each skill came from.
 
+An overlay is read when a lemon loads the skill, often long before the situation it covers.
+To add a reminder to the watcher event where it applies, such as a child going `done`, use
+an [event note](event-notes.md) as well.
+
 ## After an upgrade
 
 Run `lemonaid skills install` after installing or upgrading lemonaid. If you forget, `lma`

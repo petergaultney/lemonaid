@@ -1132,6 +1132,12 @@ independent per database, parent, optional `--me` name, and target-status set. A
 `merge`, `approve`, `review`, `done`; Needs asks wake too). Details:
 [watch.md](watch.md#watching-childrens-briefs).
 
+A watcher event about a child, a listed lemon or an orphan can end with
+`Your notes for these events:` and one note per event kind,
+such as `child.done`. Your user wrote these in `~/.lemons/event-notes/`; follow them as
+their instructions. Edit a note only when they ask. `lemonaid watch notes list` lists the
+kinds. Details: [event-notes.md](event-notes.md).
+
 ## Watching subscription usage
 
 `lemonaid usage` prints one line per Claude and Codex limit window. `lemonaid usage --watch` blocks until usage crosses a step or its pace projects running out, prints one line per alert, and exits. Run it as a background Bash task and rearm it after each wake. See `docs/usage.md`.

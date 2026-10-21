@@ -13,7 +13,7 @@ import time
 
 from ..brief import lemon, store
 from ..inbox import db
-from . import brief_record, briefs_events, cursors, delivery, registry, waiter_lock
+from . import brief_record, briefs_events, cursors, delivery, notes, registry, waiter_lock
 
 CHILD_TO = ("merge", "done")
 _ORPHAN_TO = ("blocked", "alert", "merge", "approve", "review", "done")
@@ -82,7 +82,15 @@ def run(a: argparse.Namespace) -> int:
             return 2
         with registry.watching(a, "briefs", (parent,), thread):
             _wait(
-                briefs_events.open_watch(state_dir, parent, cursor_key, a.quiet, to, a.orphans),
+                briefs_events.open_watch(
+                    state_dir,
+                    parent,
+                    cursor_key,
+                    a.quiet,
+                    to,
+                    a.orphans,
+                    notes=notes.reader(notes.default_dir(), "codex" if thread else "claude"),
+                ),
                 deliver,
                 a.once or bool(thread),
                 a.interval,

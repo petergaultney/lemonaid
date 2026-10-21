@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..config import load_config
 from ..messages import store
-from . import delivery, doc_version, scouts, subscription_state
+from . import delivery, doc_version, notes, scouts, subscription_state
 
 
 def _messages(inbox: Path) -> list[tuple[Path, str]]:
@@ -26,6 +26,7 @@ def _reconcile(
     writer: str,
     output: "queue.Queue[scouts.Pending]",
     signatures: tuple[str, ...],
+    notes: notes.Reader,
 ) -> list[scouts.Pending]:
     for key in list(running):
         if key not in specs or running[key].spec != specs[key]:
@@ -35,7 +36,7 @@ def _reconcile(
             pending = [p for p in pending if p.source != retired.spec.source]
     for key, spec in specs.items():
         if key not in running:
-            scout = scouts.Scout(spec, root, writer, output, signatures)
+            scout = scouts.Scout(spec, root, writer, output, signatures, notes)
             running[key] = scout
             scout.thread.start()
     return pending
@@ -82,6 +83,7 @@ def wait(
     *,
     interval: float = 0.5,
     quiet: float = 2,
+    notes: notes.Reader = notes.none,
 ) -> None:
     vaults = tuple(load_config().brief.vaults)
     output: queue.Queue[scouts.Pending] = queue.Queue()
@@ -102,7 +104,7 @@ def wait(
             signatures = tuple(
                 f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead")
             )
-            pending = _reconcile(running, specs, pending, root, writer, output, signatures)
+            pending = _reconcile(running, specs, pending, root, writer, output, signatures, notes)
             if _collect(output, running, pending):
                 since = time.monotonic()
             with store.receive_lock(inbox, wait=False) as held:

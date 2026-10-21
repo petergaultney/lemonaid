@@ -16,6 +16,7 @@ from . import (
     batch_wait,
     cursors,
     delivery,
+    notes,
     own_edits,
     pr_poller,
     push_path,
@@ -140,6 +141,7 @@ def run(args: argparse.Namespace) -> int:
                     still,
                     interval=args.interval,
                     quiet=args.quiet,
+                    notes=notes.reader(notes.default_dir(), "codex" if thread else "claude"),
                 )
                 if session is None:
                     break

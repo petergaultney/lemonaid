@@ -13,7 +13,7 @@ from ..brief import lemon, lemon_table, status, store
 from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
-from . import briefs_orphans, delivery, lemon_liveness, needs_text
+from . import briefs_orphans, delivery, kinds, lemon_liveness, needs_text, notes
 
 _log = get_logger("watch.briefs")
 
@@ -30,6 +30,7 @@ class _Seen:
     marks: dict[str, _Mark]
     explicit: dict[str, lemon_table.Row]  # watched lemons whose row sets their wake statuses
     problems: dict[str, lemon_liveness.Problem | None]
+    origins: dict[str, str]  # Lemon-ID to its key in kinds.ORIGINS
 
 
 def _resolve(
@@ -48,13 +49,16 @@ def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
         explicit = _resolve(conn, rows)
-        watched = links.children_of(conn, lemon.current(conn, parent))
-        watched += [lemon_id for lemon_id in explicit if lemon_id not in watched]
+        origins = dict.fromkeys(links.children_of(conn, lemon.current(conn, parent)), "child")
+        origins |= {lemon_id: "watched" for lemon_id in explicit if lemon_id not in origins}
         if orphans:
-            watched += briefs_orphans.find(
-                conn, {lemon.current(conn, parent), *watched}, briefs_orphans.live_sessions
+            origins |= dict.fromkeys(
+                briefs_orphans.find(
+                    conn, {lemon.current(conn, parent), *origins}, briefs_orphans.live_sessions
+                ),
+                "orphan",
             )
-        for child in watched:
+        for child in origins:
             path = lemon.brief_of(conn, child)
             if path is None:
                 continue
@@ -67,7 +71,7 @@ def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -
                 continue
             found[child] = _Mark(status.split(text).status, needs_text.needs(text), str(path))
         problems = lemon_liveness.probe(conn, {child: mark.status for child, mark in found.items()})
-        return _Seen(found, explicit, problems)
+        return _Seen(found, explicit, problems, origins)
 
 
 def state_stem(
@@ -113,6 +117,7 @@ class BriefsWatch:
     orphans: bool = False
     rows: tuple[lemon_table.Row, ...] = ()
     needs: bool = False  # a changed Needs wakes, as it does with `orphans`
+    read_notes: notes.Reader = notes.none
 
 
 def open_watch(
@@ -124,6 +129,7 @@ def open_watch(
     orphans: bool = False,
     rows: tuple[lemon_table.Row, ...] = (),
     needs: bool = False,
+    notes: notes.Reader = notes.none,
 ) -> BriefsWatch:
     state_dir.mkdir(parents=True, exist_ok=True)
     stem = state_stem(state_dir, parent, me, to, orphans)
@@ -146,6 +152,7 @@ def open_watch(
         orphans,
         rows,
         needs,
+        notes,
     )
 
 
@@ -161,6 +168,21 @@ def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
         else ""
     )
     return f"{child}: {state}{ask} ({current.path})"
+
+
+def _kinds(origin: str, previous: _Mark | None, current: _Mark) -> list[str]:
+    return [
+        *(
+            [kinds.status(origin, current.status)]
+            if not previous or previous.status != current.status
+            else []
+        ),
+        *(
+            [kinds.needs(origin)]
+            if current.needs and (not previous or previous.needs != current.needs)
+            else []
+        ),
+    ]
 
 
 def _absorbed(
@@ -209,6 +231,14 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
     if not changed and not stopped:
         return False
 
+    present = [
+        *(
+            kind
+            for child, mark in changed.items()
+            for kind in _kinds(seen.origins[child], w.reported.get(child), mark)
+        ),
+        *(kinds.problem(seen.origins[child], problem.kind) for child, problem in stopped.items()),
+    ]
     deliver(
         "\n".join(
             [
@@ -218,6 +248,7 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
                     f" ({current[child].path})"
                     for child, problem in stopped.items()
                 ),
+                *filter(None, [notes.appendix(present, w.read_notes())]),
             ]
         )
     )
