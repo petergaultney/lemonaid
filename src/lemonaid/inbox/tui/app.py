@@ -36,7 +36,7 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import db, sections, undo
-from . import bindings, claude_patch, error_screen, styles, utils
+from . import bindings, claude_patch, error_screen, styles, unfocused_dim, utils
 from .briefs.brief_pane import BriefPane
 from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
 from .help_screen import HelpScreen
@@ -79,6 +79,11 @@ class LemonaidApp(App):
         self._undo_stack = undo.Stack()
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
+        self._dim = unfocused_dim.Dim(
+            unfocused_dim.strength(self.config.tui.unfocused_dim), enabled=False
+        )
+        self._probe_generation = 0
+        self._filters.append(self._dim)
         self._exec_on_exit: tuple[str, list[str]] | None = None
         self._keys_shown = True
         self._hint_timer: Timer | None = None
@@ -252,12 +257,46 @@ class LemonaidApp(App):
         """Refresh when the app regains focus."""
         self._attention.input_at = 0.0
         self._refresh_notifications()
+        self._recheck_pane_focus()
+
+    def on_app_blur(self) -> None:
+        self._recheck_pane_focus()
+
+    def _recheck_pane_focus(self) -> None:
+        """Ask tmux off the event loop, so the dim follows a pane switch at once."""
+        pane = os.environ.get("TMUX_PANE")
+        if self._scratch_mode and pane and self.config.tui.unfocused_dim != "off":
+            self._probe_generation += 1
+            generation = self._probe_generation
+            self.run_worker(
+                lambda: self._apply_probe(generation, focus.pane_receives_keys(pane)),
+                thread=True,
+                group="pane-focus",
+            )
+
+    def _apply_probe(self, generation: int, active: bool | None) -> None:
+        # A probe still running when a newer one starts can finish last.
+        self.call_from_thread(
+            lambda: generation == self._probe_generation and self._set_input_active(active)
+        )
 
     def _update_input_indicator(self) -> None:
         pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
-        if pane and (active := self._attention.has_keys(pane)) is not None:
-            self.set_class(active, "-input-active")
-            self.set_class(not active, "-input-inactive")
+        if pane:
+            self._set_input_active(self._attention.has_keys(pane))
+
+    def _set_input_active(self, active: bool | None) -> None:
+        if active is None:
+            return
+
+        self.set_class(active, "-input-active")
+        self.set_class(not active, "-input-inactive")
+        dim = self.config.tui.unfocused_dim != "off" and not active
+        if dim != self._dim.enabled:
+            self._dim.enabled = dim
+            for widget in (self.screen, *self.screen.walk_children(with_self=False)):
+                widget._styles_cache.clear()
+                widget.refresh()
 
     def on_resize(self, event: events.Resize) -> None:
         # self.size still reports the old width while this event is being handled,

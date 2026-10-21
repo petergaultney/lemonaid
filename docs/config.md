@@ -190,6 +190,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `inactive_row_color` | *(unset)* | The selected inbox row background while the scratch pane is not receiving keys. By default, the selected row's colour blended 70% toward the background. Has no effect outside scratch mode, where the pane cannot be asked. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
+| `unfocused_dim` | `"off"` | Fades the whole inbox while its tmux pane is not selected (the same signal as `focus_color`). `"dim"` adds the terminal's faint attribute. A number from 1 to 99 (`unfocused_dim = 30`) instead blends each foreground colour that percent toward the background, so `30` is light and `60` strong. Backgrounds are never painted, so hues, `transparent` and RGB colours stay as they are; with `transparent = true` the blend goes toward black. Off by default so existing setups look the same. Scratch pane only; no effect outside tmux. |
 | `notes` | *(unset)* | A Markdown file to show under the sessions when they are cards (see below). |
 
 With `brief_status = true`, a card whose session has an attached brief is drawn

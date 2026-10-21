@@ -188,6 +188,9 @@ class TuiConfig:
     fold_statuses: list[str] = field(default_factory=list)
     # The scratch pane's title bar and bottom edge while it will receive keys.
     focus_color: str = "#2bd9cf"
+    # Fades the whole inbox while its tmux pane is not selected: "off", "dim" (the
+    # terminal's faint attribute) or a percentage that blends colours toward the background.
+    unfocused_dim: str = "off"
     # A Markdown file shown under the sessions when they are cards. None shows nothing.
     notes: Path | None = None
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
@@ -412,6 +415,26 @@ def _card_fields(raw: object) -> tuple[str, ...]:
     return tuple(dict.fromkeys(name for name in raw if name in CARD_FIELDS))
 
 
+def _unfocused_dim(raw: object) -> str:
+    """`off`, `dim`, or a percentage from 1 to 99 as a string."""
+    if raw in ("off", "dim"):
+        return raw
+
+    if isinstance(raw, int | float | str) and not isinstance(raw, bool):
+        try:
+            percent = float(raw)
+        except ValueError:
+            percent = 0.0
+        if 0 < percent < 100:
+            return f"{percent:g}"
+
+    print(
+        f'Warning: [tui] unfocused_dim must be "off", "dim" or a percentage from 1 to 99, not {raw!r}',
+        file=sys.stderr,
+    )
+    return "off"
+
+
 def _notes(raw: object) -> Path | None:
     """`[tui] notes`, reporting anything that is not a path."""
     if raw is None or raw == "":
@@ -590,6 +613,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
             for status in tui_data.get("fold_statuses", [])
         ],
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
+        unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         notes=_notes(tui_data.get("notes")),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),

@@ -160,6 +160,7 @@ restore the inbox; switching to another window or session also restores it. `pre
 focuses the pane and keeps the brief. Use the mouse wheel to scroll a visible brief. The inbox
 title and bottom edge turn teal (`[tui] focus_color`) when its tmux pane is selected
 to receive keys; this reflects tmux focus, not whether the terminal app is frontmost.
+With `[tui] unfocused_dim` set (see [config.md](config.md)) the whole inbox also fades while its pane is not selected.
 
 When the scratch pane is on top, parked, or not following, the brief opens as a popup over
 the client that pressed the key. Pressing the same key again closes it.
