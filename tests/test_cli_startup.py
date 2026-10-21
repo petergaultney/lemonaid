@@ -103,6 +103,14 @@ getattr(importlib.import_module(module), function)()
     ids=lambda words: " ".join(words),
 )
 def test_notification_hooks_write_without_textual(tmp_path, command):
+    setup = ""
+    if command == ("codex", "notify"):
+        sessions = tmp_path / ".codex" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "rollout-test-lazy-imports.jsonl").write_text(
+            json.dumps({"type": "session_meta", "payload": {"id": "test-lazy-imports"}}) + "\n"
+        )
+        setup = f"import os\nos.environ['HOME'] = {str(tmp_path)!r}\n"
     payload = json.dumps(
         {
             "session_id": "test-lazy-imports",
@@ -112,7 +120,8 @@ def test_notification_hooks_write_without_textual(tmp_path, command):
     )
     run(
         tmp_path,
-        f"""
+        setup
+        + f"""
 import sys
 import lemonaid.cli
 from lemonaid.messages import service
