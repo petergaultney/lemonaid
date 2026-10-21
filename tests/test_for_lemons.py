@@ -53,3 +53,10 @@ def test_the_guide_covers_every_place_verb():
 
     for verb in ("place open", "place list", "place toss", "place hooks"):
         assert verb in text
+
+
+def test_the_guide_does_not_say_json_implies_yes():
+    path = for_lemons.guide_path()
+
+    assert path is not None
+    assert "`--json` implies `--yes`" not in path.read_text()

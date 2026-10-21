@@ -160,7 +160,14 @@ and terminals. A session without a managed directory is an ordinary target.
 lemonaid place toss                 # current tmux workspace, with confirmation
 lemonaid place toss <session>       # exact workspace name, from anywhere
 lemonaid place toss <session> --yes # unattended callers must name it
+lemonaid place toss <session> --dry-run  # preview only; closes nothing
 ```
+
+A toss closes the tmux windows (or the whole session) in the place, ends the lemons running
+there, and releases the directory. **`--yes` skips the confirmation and tears down
+immediately; `--json --yes` does too.** `--json` alone also previews, but exits 2 with an error saying `--yes` is needed to tear down. `--dry-run` lists what would close
+and every reason a real toss would be refused, and exits 0 when it would proceed, 1 when
+it would be refused; add `--json` for machine-readable output.
 
 A named tmux session wins over a same-named managed directory. Inside tmux,
 interactive bare `toss` selects the current session regardless of the caller's
@@ -250,14 +257,14 @@ so a job visiting a protected directory can close while the directory stays.
 An editable lemonaid install's source directory cannot be released. Unfinished
 work reported by an `inspect` hook still refuses cleanup unless `--force` is
 supplied. `--force` does not override protection or shared-directory retention.
-`--yes` skips confirmation; `--json` implies it. JSON's `session` names the closed
+`--yes` skips confirmation. `--json` without `--yes` previews, closes nothing and exits 2. JSON's `session` names the closed
 workspace and `released` lists its optional directory cleanup.
 
 The interactive confirmation names affected lemons whose attached brief says
 `merge`, `approve`, `blocked`, or `alert`, with each name and status in the
 inbox's status text color. This includes Codex daemon rows in directories being
 released. Pressing Enter declines the toss; type `y` or `yes` to confirm.
-`--yes` and `--json` still skip the confirmation.
+`--yes` skips the confirmation (so does `--json --yes`).
 
 ### Which inbox rows are archived
 
@@ -289,7 +296,7 @@ cleanup to the watcher.
 1. Work out the place, which windows sit in it, and whether its session is dedicated to it;
    select the workspace and optional directory cleanup, refusing protected sessions.
 2. Ask `inspect` about the place; refuse if it reports anything (`--force` overrides).
-3. Show the set and confirm (`--yes` skips).
+3. Show the set and confirm (`--yes` skips). `--dry-run`, and `--json` without `--yes`, stop here after steps 1 and 2 plus a read-only check of attached clients, printing the set and any refusal.
 4. Switch every client attached to a closing session to another one — that client's last
    session, else wherever you came from, else one that wants attention in the inbox, else the
    most recently active. A client looking at a window that closes on its own is moved to

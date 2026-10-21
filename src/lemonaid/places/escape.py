@@ -124,6 +124,34 @@ def _switch_all(moves: abc.Sequence[tuple[str, str]], session: str) -> str:
     return ""
 
 
+def _plan_moves(session: str) -> tuple[list[tuple[str, str]], str]:
+    """(client, destination) for every client attached to *session*, or why that can't be done."""
+    try:
+        clients = _attached_clients(session)
+    except ClientsUnknown as e:
+        return [], f"Could not tell who is attached to '{session}' ({e}); nothing was torn down"
+
+    if not clients:
+        return [], ""
+
+    live = _live_sessions_by_recency(session)
+    fallback = _escape_target(session)
+    moves = [(client, last if last in live else fallback) for client, last in clients]
+    stranded = [client for client, target in moves if not target]
+    if stranded:
+        return [], (
+            f"Nowhere to switch {', '.join(stranded)} to - refusing to kill '{session}' "
+            "and detach it"
+        )
+
+    return moves, ""
+
+
+def preview(session: str) -> tuple[list[tuple[str, str]], str]:
+    """What `evacuate` would do, without switching anyone: (client, destination) moves, or an error."""
+    return _plan_moves(session)
+
+
 def evacuate(session: str) -> str:
     """Switch every client attached to *session* elsewhere, or say why not.
 
@@ -131,22 +159,8 @@ def evacuate(session: str) -> str:
     and otherwise to the shared `_escape_target`. Either every client is moved
     or none is. Returns an error message, or "".
     """
-    try:
-        clients = _attached_clients(session)
-    except ClientsUnknown as e:
-        return f"Could not tell who is attached to '{session}' ({e}); nothing was torn down"
-
-    if not clients:
-        return ""
-
-    live = _live_sessions_by_recency(session)
-    fallback = _escape_target(session)
-    moves = [(client, last if last in live else fallback) for client, last in clients]
-    stranded = [client for client, target in moves if not target]
-    if stranded:
-        return (
-            f"Nowhere to switch {', '.join(stranded)} to - refusing to kill '{session}' "
-            "and detach it"
-        )
+    moves, error = _plan_moves(session)
+    if error:
+        return error
 
     return _switch_all(moves, session)

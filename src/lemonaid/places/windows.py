@@ -38,6 +38,25 @@ def _survivor(session: str, doomed: abc.Container[str]) -> str:
     return next((w for w in listed if w not in doomed), "")
 
 
+def plan_client_moves(doomed: abc.Collection[str]) -> tuple[list[tuple[str, str]], str]:
+    """(client, surviving window) for each client looking at a doomed window, or an error."""
+    listed = query("list-clients", "-F", "#{client_name}\t#{client_session}\t#{window_id}")
+    if listed is None:
+        return [], "Could not tell who is looking at the closing windows; nothing was closed."
+
+    moves = []
+    for client, session, window in (line.split("\t") for line in listed):
+        if window not in doomed:
+            continue
+
+        if not (target := _survivor(session, doomed)):
+            return [], f"Nowhere in '{session}' to move {client} to; nothing was closed."
+
+        moves.append((client, target))
+
+    return moves, ""
+
+
 def move_clients_off(doomed: abc.Collection[str]) -> str:
     """Point each client looking at a doomed window at another window of its session.
 
@@ -45,24 +64,17 @@ def move_clients_off(doomed: abc.Collection[str]) -> str:
     change: the client stays where it is and sees the doomed window vanish from
     under it. Returns an error message, or "".
     """
-    listed = query("list-clients", "-F", "#{client_name}\t#{client_session}\t#{window_id}")
-    if listed is None:
-        return "Could not tell who is looking at the closing windows; nothing was closed."
+    moves, error = plan_client_moves(doomed)
+    if error:
+        return error
 
-    for client, session, window in (line.split("\t") for line in listed):
-        if window not in doomed:
-            continue
-
-        target = _survivor(session, doomed)
-        if not target:
-            return f"Nowhere in '{session}' to move {client} to; nothing was closed."
-
+    for client, target in moves:
         try:
             tmux.run(
                 ["switch-client", "-c", client, "-t", target], check=True, timeout=_TIMEOUT_SECONDS
             )
         except (OSError, subprocess.SubprocessError) as e:
-            return f"Could not move {client} off {window}: {e}; nothing was closed."
+            return f"Could not move {client} off its closing window: {e}; nothing was closed."
 
     return ""
 

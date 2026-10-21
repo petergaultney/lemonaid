@@ -89,7 +89,9 @@ def test_unattended_toss_reports_why_cleanup_was_skipped(
     monkeypatch.setattr(toss_cli, "load_config", lambda: cfg)
     tossed = []
     monkeypatch.setattr(toss_cli.teardown, "toss", lambda *args: tossed.append(args))
-    toss_cli.cmd_toss(argparse.Namespace(key="feat", yes=True, json=as_json, force=False))
+    toss_cli.cmd_toss(
+        argparse.Namespace(key="feat", yes=True, json=as_json, force=False, dry_run=False)
+    )
     output = capsys.readouterr()
     assert tossed[0][0] == "feat"
     assert tossed[0][1] == []
@@ -134,7 +136,9 @@ def test_two_roots_cleanup_on_a_private_tmux_server(monkeypatch, tmp_path):
         monkeypatch.setattr(
             toss_cli.teardown, "toss", lambda name, places, partial: released.extend(places)
         )
-        toss_cli.cmd_toss(argparse.Namespace(key="feat", yes=True, json=True, force=False))
+        toss_cli.cmd_toss(
+            argparse.Namespace(key="feat", yes=True, json=True, force=False, dry_run=False)
+        )
         assert [place.directory for place in released] == [directory]
     finally:
         tmux("kill-server")

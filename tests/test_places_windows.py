@@ -121,3 +121,13 @@ def test_ttys_of_a_window_tmux_will_not_describe_are_none(monkeypatch):
     monkeypatch.setattr(windows.subprocess, "run", _run)
 
     assert windows.ttys(["@4"]) == set()
+
+
+def test_planning_client_moves_switches_nobody(monkeypatch):
+    calls = _tmux_answers(
+        monkeypatch,
+        {"list-clients": "/dev/ttys001\tkatamari\t@4\n", "list-windows": "@1\n@4\n"},
+    )
+
+    assert windows.plan_client_moves(["@4"]) == ([("/dev/ttys001", "@1")], "")
+    assert not [c for c in calls if c[1] == "switch-client"]

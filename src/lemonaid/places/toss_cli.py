@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from . import ownership, self_install, target, teardown, toss_warning
+from . import ownership, self_install, target, teardown, toss_preview, toss_warning
 
 
 def _label(place: ownership.Place) -> str:
@@ -113,8 +113,21 @@ def _confirmed(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> bo
 def cmd_toss(args: argparse.Namespace) -> None:
     """Tear down a tmux session and the places it occupies."""
     config = load_config()
-    unattended = args.yes or args.json
+    unattended = args.yes or args.json  # --json has no terminal to prompt on
     doomed, why_not = target.resolve_toss_target(config, args.key, unattended=unattended)
+    if args.dry_run or (args.json and not args.yes):
+        toss_preview.show(
+            toss_preview.build(
+                doomed,
+                why_not,
+                self_install.editable_install_refusal(doomed) if doomed else "",
+                args.force,
+            ),
+            args.json,
+            lambda d: _describe(d, {}),
+            json_needs_yes=not args.dry_run,
+        )
+
     if doomed is None:
         print(why_not, file=sys.stderr)
         sys.exit(1)
@@ -133,8 +146,7 @@ def cmd_toss(args: argparse.Namespace) -> None:
         print("Pass --force to tear it down anyway.", file=sys.stderr)
         sys.exit(1)
 
-    # --json implies --yes: there is no terminal to prompt on.
-    if not (args.yes or args.json) and not _confirmed(doomed, concerns):
+    if not args.yes and not _confirmed(doomed, concerns):
         print("Nothing was torn down.", file=sys.stderr)
         sys.exit(1)
 
@@ -177,9 +189,17 @@ def cmd_toss(args: argparse.Namespace) -> None:
 def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "toss",
-        help="Close a single-purpose workspace with optional directory cleanup",
-        description="Close a one-off tmux workspace and release its associated directories "
-        "through configured destroy hooks. Hybrid workspaces with lemons in unrelated "
+        help="Close a single-purpose workspace and release its directories (--dry-run previews)",
+        description="Tear down a one-off place: close the tmux windows (or the whole session) "
+        "sitting in it, end the lemons running there, and release its directory (worktree) "
+        "through the root's destroy hook.\n\n"
+        "Nothing is torn down until you confirm. Interactively you are asked. --yes skips the "
+        "question and tears down immediately; so does --json --yes. --json alone, and --dry-run, "
+        "only preview: they print what would close and what would refuse, and close nothing. "
+        "--dry-run exits 0 when a real toss would proceed and 1 when it would be refused. "
+        "--json alone also previews but exits 2 with an error, because it was asked to tear "
+        "down without --yes.\n\n"
+        "Hybrid workspaces with lemons in unrelated "
         "places are refused, even with --force. With no identifiable lemons, directory "
         "cleanup requires consistent pane directories. A named tmux session is selected before a "
         "same-named directory. With no name, an interactive toss targets the current "
@@ -192,9 +212,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "Teardown switches clients elsewhere first and runs detached, logging to "
         "~/.local/state/lemonaid/reap.log.",
         epilog="Examples:\n"
-        "  place toss feat/thing --json   # what an agent should use: names the place\n"
-        "  place toss                     # the place the current directory is in\n"
-        "  place list --json              # which session sits in which place",
+        "  place toss feat/thing --dry-run        # preview; closes nothing\n"
+        "  place toss feat/thing --json           # JSON preview; closes nothing\n"
+        "  place toss feat/thing --json --yes     # what an agent uses to tear down\n"
+        "  place toss                             # the place the current directory is in\n"
+        "  place list --json                      # which session sits in which place",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -206,7 +228,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Don't ask for confirmation. Still refuses if there is unpushed work.",
+        help="Don't ask for confirmation: tear down immediately. "
+        "Still refuses if there is unpushed work.",
     )
     parser.add_argument(
         "-f",
@@ -216,6 +239,15 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "Does not override protection.",
     )
     parser.add_argument(
-        "--json", action="store_true", help="Print the result as JSON (implies --yes)"
+        "--dry-run",
+        action="store_true",
+        help="List what would close and every reason it would be refused; close nothing. "
+        "Exit 0 if a real toss would proceed, 1 if not. Combine with --json for JSON.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print JSON. Alone it previews and exits 2 (error: needs --yes); "
+        "with --yes it tears down and reports the result; with --dry-run it previews, exit 0.",
     )
     parser.set_defaults(func=cmd_toss)

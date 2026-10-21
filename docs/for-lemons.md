@@ -424,8 +424,19 @@ cleanup candidates to an identified root; ambiguous matches stay unreleased. `--
 stderr when JSON output is not requested.
 
 ```bash
-lemonaid place toss <key> --json
+lemonaid place toss <key> --dry-run --json   # preview: closes nothing
+lemonaid place toss <key> --json --yes       # tear down
 ```
+
+**`--json` alone previews and exits 2** (`error: ... Pass --yes to tear down`), closing nothing; its JSON is the same as `--dry-run --json`'s. An unattended teardown needs `--yes`, with or without `--json`; an interactive toss asks instead. A toss
+closes the tmux windows (or the whole session) sitting in the place, ends the lemons running
+there, and releases the directory (worktree and branch, per the root's `destroy` hook).
+`--dry-run` (with or without `--json`) lists exactly that and every reason a real toss would
+be refused (unfinished work, an editable-install source, a client with nowhere to switch to,
+a protected or hybrid workspace), closes nothing, and exits 0 when a real toss would proceed
+and 1 when it would be refused, and its output reminds you that `--yes` applies it. Its JSON has the toss fields below plus `dry_run`,
+`would_proceed`, `refusals`, `warnings` (lemons awaiting action, clients that would move) and
+`clients`.
 
 For a managed place, its directory is released, and the tmux session sitting in it
 closes too when that session is *dedicated* to the place: named for it (what `place open`
@@ -456,9 +467,9 @@ the current directory is in, and refuses when that directory is not a listed pla
 every root, or under a root with no `list` hook). It never falls back to the tmux session
 you are in. Under `--yes` or `--json` it also refuses to close the session the command runs
 in, or one it cannot tell apart from it (no `TMUX_PANE`): a lemon tearing down its own
-session names it, `place toss <key> --json`.
+session names it, `place toss <key> --json --yes`.
 
-**`--json` implies `--yes`**, so it does not prompt. It still refuses when the root's
+**`--json --yes` does not prompt** (`--json` alone previews). It still refuses when the root's
 `inspect` command reports uncommitted or unpushed work; `--force` overrides that. **Do not
 pass `--force` on a user's behalf without being asked to** — it is the difference between
 tearing down unattended and discarding work.

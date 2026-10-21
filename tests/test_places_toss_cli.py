@@ -11,12 +11,12 @@ import json
 import pytest
 
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
-from lemonaid.places import ownership, self_install, target, toss_cli
+from lemonaid.places import ownership, self_install, target, toss_cli, toss_preview
 
 
 def _args(**kwargs) -> argparse.Namespace:
     return argparse.Namespace(
-        **{"key": None, "yes": False, "force": False, "json": False, **kwargs}
+        **{"key": None, "yes": False, "force": False, "json": False, "dry_run": False, **kwargs}
     )
 
 
@@ -40,6 +40,11 @@ def _target(
 
 def _pane(session: str, window: str, pane: str) -> ownership.Pane:
     return ownership.Pane(session, window, pane, None)
+
+
+def _no_escape_plan(monkeypatch) -> None:
+    monkeypatch.setattr(toss_preview.escape, "preview", lambda session: ([], ""))
+    monkeypatch.setattr(toss_preview.windows, "plan_client_moves", lambda doomed: ([], ""))
 
 
 def _resolves_to(monkeypatch, doomed: target.TossTarget | None, why_not: str = "") -> list:
@@ -151,8 +156,7 @@ def test_yes_skips_the_prompt(monkeypatch, tmp_path):
     assert len(tossed) == 1
 
 
-def test_json_implies_yes(monkeypatch, tmp_path):
-    """There is no terminal to prompt on."""
+def test_json_with_yes_tears_down_without_prompting(monkeypatch, tmp_path):
     doomed = _target("work", [_place(tmp_path, "feat")])
     tossed = _resolves_to(monkeypatch, doomed)
 
@@ -161,16 +165,117 @@ def test_json_implies_yes(monkeypatch, tmp_path):
 
     monkeypatch.setattr("builtins.input", _no_input)
 
-    toss_cli.cmd_toss(_args(json=True))
+    toss_cli.cmd_toss(_args(json=True, yes=True))
 
     assert len(tossed) == 1
+
+
+def test_json_alone_closes_nothing_and_errors(monkeypatch, tmp_path, capsys):
+    tossed = _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    _no_escape_plan(monkeypatch)
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(json=True))
+
+    captured = capsys.readouterr()
+    reported = json.loads(captured.out)
+    assert not tossed
+    assert stop.value.code == 2
+    assert "Pass --yes to tear down" in captured.err
+    assert reported["dry_run"] is True
+    assert reported["would_proceed"] is True
+    assert reported["session"] == "work"
+    assert reported["closed_windows"] == ["@1", "@2"]
+
+
+def test_dry_run_closes_nothing_and_says_what_would_close(monkeypatch, tmp_path, capsys):
+    tossed = _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    _no_escape_plan(monkeypatch)
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True))
+
+    out = capsys.readouterr().out
+    assert not tossed
+    assert stop.value.code == 0
+    assert "session 'work' closes (2 windows)" in out
+    assert "A real toss would proceed." in out
+    assert "run it again with --yes" in out
+
+
+def test_dry_run_with_yes_still_closes_nothing(monkeypatch, tmp_path):
+    tossed = _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    _no_escape_plan(monkeypatch)
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(dry_run=True, yes=True))
+
+    assert not tossed
+
+
+def test_dry_run_reports_unfinished_work_as_a_refusal(monkeypatch, tmp_path, capsys):
+    place = _place(tmp_path, "feat")
+    tossed = _resolves_to(monkeypatch, _target("work", [place]))
+    _no_escape_plan(monkeypatch)
+    monkeypatch.setattr(toss_cli.teardown, "concerns", lambda p: ["3 unpushed commits"])
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    reported = json.loads(capsys.readouterr().out)
+    assert not tossed
+    assert stop.value.code == 1
+    assert reported["would_proceed"] is False
+    assert "3 unpushed commits" in reported["refusals"][0]
+
+
+def test_dry_run_with_force_does_not_refuse_unfinished_work(monkeypatch, tmp_path, capsys):
+    _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    _no_escape_plan(monkeypatch)
+    monkeypatch.setattr(toss_cli.teardown, "concerns", lambda p: ["3 unpushed commits"])
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, force=True))
+
+    assert stop.value.code == 0
+
+
+def test_dry_run_reports_attached_clients_and_a_stranded_one(monkeypatch, tmp_path, capsys):
+    _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    monkeypatch.setattr(toss_preview.escape, "preview", lambda session: ([("c1", "other")], ""))
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    reported = json.loads(capsys.readouterr().out)
+    assert reported["clients"] == [{"client": "c1", "moves_to": "other"}]
+
+    monkeypatch.setattr(
+        toss_preview.escape, "preview", lambda session: ([], "Nowhere to switch c1 to")
+    )
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    assert stop.value.code == 1
+    assert json.loads(capsys.readouterr().out)["refusals"] == ["Nowhere to switch c1 to"]
+
+
+def test_dry_run_of_an_unresolvable_target_is_a_refusal(monkeypatch, capsys):
+    _resolves_to(monkeypatch, None, "No such place")
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True))
+
+    assert stop.value.code == 1
+    assert "refused: No such place" in capsys.readouterr().out
 
 
 def test_json_reports_what_closed(monkeypatch, tmp_path, capsys):
     doomed = _target("work", [_place(tmp_path, "feat")])
     _resolves_to(monkeypatch, doomed)
 
-    toss_cli.cmd_toss(_args(json=True))
+    toss_cli.cmd_toss(_args(json=True, yes=True))
 
     reported = json.loads(capsys.readouterr().out)
     assert reported == {
@@ -200,7 +305,7 @@ def test_session_only_confirmation_says_work_was_not_inspected(monkeypatch, caps
 def test_session_only_json_reports_no_released_place(monkeypatch, capsys):
     _resolves_to(monkeypatch, _target("notes", []))
 
-    toss_cli.cmd_toss(_args(key="notes", json=True))
+    toss_cli.cmd_toss(_args(key="notes", json=True, yes=True))
 
     reported = json.loads(capsys.readouterr().out)
     assert reported["place"] is None
@@ -212,7 +317,7 @@ def test_json_lists_windows_closed_on_their_own(monkeypatch, tmp_path, capsys):
     partial = {"@4": [_pane("katamari", "@4", "%4")], "@7": [_pane("katamari", "@7", "%7")]}
     tossed = _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))
 
-    toss_cli.cmd_toss(_args(json=True))
+    toss_cli.cmd_toss(_args(json=True, yes=True))
 
     reported = json.loads(capsys.readouterr().out)
     assert reported["session"] == ""
@@ -241,7 +346,7 @@ def test_windows_closing_in_a_surviving_session_are_shown_with_their_session(
 def test_json_for_a_place_with_no_session_closes_nothing(monkeypatch, tmp_path, capsys):
     _resolves_to(monkeypatch, _target("", [_place(tmp_path, "idle")]))
 
-    toss_cli.cmd_toss(_args(json=True))
+    toss_cli.cmd_toss(_args(json=True, yes=True))
 
     reported = json.loads(capsys.readouterr().out)
     assert reported["session_closed"] is False
@@ -313,15 +418,15 @@ def test_unrelated_or_non_editable_install_allows_release(monkeypatch, tmp_path,
     assert len(tossed) == 1
 
 
-@pytest.mark.parametrize("flag", ["force", "json"])
-def test_flags_do_not_bypass_editable_install_refusal(monkeypatch, tmp_path, capsys, flag):
+@pytest.mark.parametrize("flags", [{"force": True}, {"json": True, "yes": True}])
+def test_flags_do_not_bypass_editable_install_refusal(monkeypatch, tmp_path, capsys, flags):
     place = _place(tmp_path, "checkout")
     doomed = _target("work", [place])
     tossed = _resolves_to(monkeypatch, doomed)
     monkeypatch.setattr(self_install, "editable_install_source", lambda: place.directory)
 
     with pytest.raises(SystemExit):
-        toss_cli.cmd_toss(_args(**{flag: True}))
+        toss_cli.cmd_toss(_args(**flags))
 
     assert not tossed
     assert "installed lemonaid is editable" in capsys.readouterr().err
@@ -404,7 +509,7 @@ def test_a_plan_that_changed_during_the_prompt_tears_nothing_down(monkeypatch, t
     assert "The layout changed" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("flags", [{"json": True}, {"yes": True}, {}])
+@pytest.mark.parametrize("flags", [{"json": True, "yes": True}, {"yes": True}, {}])
 def test_skipping_the_prompt_resolves_unattended(monkeypatch, tmp_path, flags):
     """Either flag means no one is at a prompt, which tightens a bare toss of your own session."""
     seen = {}
@@ -439,3 +544,60 @@ def test_duplicate_keys_across_roots_preserve_each_inspect_result(monkeypatch, t
     lines = toss_cli._describe(doomed, {})
     assert f"  feat ({first})" in lines
     assert f"  feat ({second})" in lines
+
+
+def _no_window_plan(monkeypatch, moves=(), error="") -> None:
+    monkeypatch.setattr(
+        toss_preview.windows, "plan_client_moves", lambda doomed: (list(moves), error)
+    )
+
+
+def test_dry_run_of_a_partial_only_toss_reports_window_clients(monkeypatch, tmp_path, capsys):
+    partial = {"@4": [_pane("katamari", "@4", "%4")]}
+    _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))
+    _no_window_plan(monkeypatch, [("c1", "@1")])
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    assert stop.value.code == 0
+    assert json.loads(capsys.readouterr().out)["clients"] == [{"client": "c1", "moves_to": "@1"}]
+
+
+def test_dry_run_refuses_when_window_clients_cannot_be_planned(monkeypatch, tmp_path, capsys):
+    partial = {"@4": [_pane("katamari", "@4", "%4")]}
+    _resolves_to(monkeypatch, _target("", [_place(tmp_path, "feat")], partial))
+    _no_window_plan(monkeypatch, error="Could not tell who is looking")
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    assert stop.value.code == 1
+    assert json.loads(capsys.readouterr().out)["refusals"] == ["Could not tell who is looking"]
+
+
+def test_dry_run_of_a_mixed_toss_combines_both_plans(monkeypatch, tmp_path, capsys):
+    partial = {"@9": [_pane("other", "@9", "%9")]}
+    _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")], partial))
+    monkeypatch.setattr(toss_preview.escape, "preview", lambda s: ([("c1", "other")], ""))
+    _no_window_plan(monkeypatch, [("c2", "@1")])
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    clients = json.loads(capsys.readouterr().out)["clients"]
+    assert [c["client"] for c in clients] == ["c1", "c2"]
+
+
+def test_dry_run_json_succeeds_and_reminds_that_yes_applies_it(monkeypatch, tmp_path, capsys):
+    tossed = _resolves_to(monkeypatch, _target("work", [_place(tmp_path, "feat")]))
+    _no_escape_plan(monkeypatch)
+
+    with pytest.raises(SystemExit) as stop:
+        toss_cli.cmd_toss(_args(dry_run=True, json=True))
+
+    captured = capsys.readouterr()
+    assert not tossed
+    assert stop.value.code == 0
+    assert "--yes" in json.loads(captured.out)["hint"]
+    assert "run it again with --yes" in captured.err
