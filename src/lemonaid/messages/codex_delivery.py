@@ -76,7 +76,9 @@ def deliver_next(
     only if it yields True, and otherwise the file stays pending and this returns None.
     The thread's first message of a day ends with `daily_date`'s line.
     """
-    with state.admission(full_channel_id("codex", thread)) as allowed:
+    with db.connect() as conn:
+        channel = channels.for_session(conn, thread)
+    with state.admission(channel) as allowed:
         if not allowed:
             return None
 

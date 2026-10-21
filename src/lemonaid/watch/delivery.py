@@ -14,7 +14,8 @@ import shutil
 import subprocess
 import typing as ty
 
-from ..inbox.channel import full_channel_id
+from ..codex import channels
+from ..inbox import db
 from ..launch.restart import gates
 from ..log import get_logger
 
@@ -75,7 +76,7 @@ def codex_thread(arg: str | None) -> tuple[str, str]:
 def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
     """Queues `<kind> event: <message>. <instruction>` into a Codex thread."""
 
-    def deliver(message: str) -> None:
+    def queue(message: str) -> None:
         try:
             subprocess.run(
                 [
@@ -93,7 +94,12 @@ def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
 
         _log.info("queued a %s event into Codex thread %s", kind, thread)
 
-    return gates.deliver(full_channel_id("codex", thread), deliver)
+    def deliver(message: str) -> None:
+        with db.connect() as conn:
+            channel = channels.for_session(conn, thread)
+        gates.deliver(channel, queue)(message)
+
+    return deliver
 
 
 def openclaw_setup_problem(cli: str) -> str:

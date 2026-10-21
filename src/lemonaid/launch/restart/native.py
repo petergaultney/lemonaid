@@ -5,8 +5,9 @@ import os
 import subprocess
 from pathlib import Path
 
+from ...codex import channels
 from ...inbox import db
-from ...inbox.channel import channel_id, full_channel_id
+from ...inbox.channel import channel_id
 from ...log import get_logger
 from ...messages import recipient
 from . import process, state
@@ -16,13 +17,16 @@ def _observe(data: dict, harness: str) -> None:
     session = data.get("session_id") or data.get("thread_id") or data.get("thread-id")
     if not isinstance(session, str) or not session:
         return
-    target = (
-        channel_id(harness, session) if harness == "claude" else full_channel_id(harness, session)
-    )
     ancestors = process.ancestry(os.getppid())
     source = next((entry for entry in ancestors if recipient.is_harness(entry.executable)), None)
     if source is None or (Path(source.executable).name == "codex") != (harness == "codex"):
         return
+    with db.connect() as conn:
+        target = (
+            channel_id(harness, session)
+            if harness == "claude"
+            else channels.for_session(conn, session)
+        )
     state.write(
         "native-" + state.key(target) + ".json",
         {"session_id": session, "identity": dataclasses.asdict(source)},
