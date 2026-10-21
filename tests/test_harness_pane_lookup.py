@@ -1,13 +1,12 @@
-"""A row with no tty is found by the harness running on a pane's tty, not by the pane's title.
+"""Codex uses saved locations; other harnesses retain process-aware cwd lookup.
 
-A Codex session hosted on the app-server daemon records no tty, so its row is
-resolved from its directory. The pane titles there name neither agent: Codex
-started as `tmux new-window ... codex` reports the shell (`python3.14` under
-xonsh), and Claude reports its version. A worktree commonly holds both, the
-author in one window and its reviewer in another.
+Without a saved pane or usable TTY, Codex refuses without scanning processes.
+Claude can still distinguish its process from shells and reviewers in one cwd.
 """
 
 import subprocess
+
+import pytest
 
 from lemonaid import handlers
 from lemonaid.config import Config
@@ -24,11 +23,15 @@ _PROCESSES = {
 }
 
 
-def _machine(monkeypatch, processes: dict[str, list[str] | str]) -> list[tuple[str, str]]:
+def _machine(
+    monkeypatch, processes: dict[str, list[str] | str], *, allow_ps=True
+) -> list[tuple[str, str]]:
     def _run(argv, **kwargs):
         if argv[:2] == ["tmux", "list-panes"]:
             out = "\n".join(_PANES) + "\n"
         elif argv[:2] == ["ps", "-t"]:
+            if not allow_ps:
+                pytest.fail("identity-less Codex click must not inspect processes")
             found = processes.get(argv[2])
             if found is None:
                 raise subprocess.TimeoutExpired(argv, 2)
@@ -55,11 +58,11 @@ def _machine(monkeypatch, processes: dict[str, list[str] | str]) -> list[tuple[s
     return switched
 
 
-def test_a_codex_row_switches_to_the_pane_running_codex(monkeypatch):
-    switched = _machine(monkeypatch, _PROCESSES)
+def test_identityless_codex_refuses_instead_of_discovering_its_harness(monkeypatch):
+    switched = _machine(monkeypatch, _PROCESSES, allow_ps=False)
 
-    assert handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
-    assert switched == [("feat", "%4")]
+    assert not handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
+    assert switched == []
 
 
 def test_a_claude_row_switches_to_the_pane_running_claude(monkeypatch):
@@ -69,23 +72,23 @@ def test_a_claude_row_switches_to_the_pane_running_claude(monkeypatch):
     assert switched == [("feat", "%2")]
 
 
-def test_with_no_codex_running_there_the_session_is_recreated(monkeypatch):
-    switched = _machine(monkeypatch, {**_PROCESSES, "ttys004": ["/usr/local/bin/python"]})
+def test_identityless_codex_does_not_recreate_over_an_unverified_directory(monkeypatch):
+    switched = _machine(
+        monkeypatch, {**_PROCESSES, "ttys004": ["/usr/local/bin/python"]}, allow_ps=False
+    )
 
     handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
 
-    assert switched == [("recreated", "")]
+    assert switched == []
 
 
-def test_a_directory_named_after_the_harness_does_not_count(monkeypatch):
-    """ps reports each executable's path, and a worktree may well be called `codex-fix`."""
+def test_a_directory_named_after_claude_does_not_count_as_its_process(monkeypatch):
     switched = _machine(
         monkeypatch,
-        {**_PROCESSES, "ttys002": ["/work/codex-fix/.venv/bin/python", "claude"]},
+        {**_PROCESSES, "ttys004": ["/work/claude-fix/.venv/bin/python", "codex"]},
     )
-
-    assert handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
-    assert switched == [("feat", "%4")]
+    assert handlers._handle_tmux({"channel": "claude:abc", "cwd": "/work/feat"}, Config())
+    assert switched == [("feat", "%2")]
 
 
 def test_two_codex_panes_in_one_session_are_not_guessed_between(monkeypatch):
@@ -100,7 +103,7 @@ def test_a_pane_ps_cannot_read_stops_the_switch(monkeypatch):
     """Unknown is neither a match to switch to nor an absence to recreate over."""
     switched = _machine(monkeypatch, {k: v for k, v in _PROCESSES.items() if k != "ttys002"})
 
-    assert not handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
+    assert not handlers._handle_tmux({"channel": "claude:abc", "cwd": "/work/feat"}, Config())
     assert switched == []
 
 
@@ -110,5 +113,5 @@ def test_a_ps_error_stops_the_switch(monkeypatch):
         monkeypatch, {**_PROCESSES, "ttys002": "ps: /dev/ttys002: No such file or directory"}
     )
 
-    assert not handlers._handle_tmux({"channel": "codex:0199", "cwd": "/work/feat"}, Config())
+    assert not handlers._handle_tmux({"channel": "claude:abc", "cwd": "/work/feat"}, Config())
     assert switched == []

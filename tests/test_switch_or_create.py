@@ -73,10 +73,16 @@ def test_recreating_resumes_the_rows_own_session(monkeypatch, tmp_path):
 
 def test_a_codex_row_uses_its_backend_resume_command(monkeypatch, tmp_path):
     _no_pane(monkeypatch)
+    monkeypatch.setattr(handlers.tmux.recorded_pane, "locate", lambda metadata: (None, None))
     resumed = _resumes_into(monkeypatch)
 
     handlers.handle_notification(
-        {"channel": "codex:0199", "session_id": "0199", "cwd": str(tmp_path)},
+        {
+            "channel": "codex:0199",
+            "session_id": "0199",
+            "cwd": str(tmp_path),
+            "tmux_pane_identity": ["%99", 1],
+        },
         _CONFIG,
         switch_source="tmux",
     )
@@ -146,9 +152,15 @@ def test_auto_session_name_falls_back_to_one_component(tmp_path):
 
 def test_missing_codex_directory_passes_explicit_working_directory(monkeypatch, tmp_path):
     _no_pane(monkeypatch)
+    monkeypatch.setattr(handlers.tmux.recorded_pane, "locate", lambda metadata: (None, None))
     resumed = _resumes_into(monkeypatch)
     assert handlers.handle_notification(
-        {"channel": "codex:id", "session_id": "id", "cwd": str(tmp_path / "gone")},
+        {
+            "channel": "codex:id",
+            "session_id": "id",
+            "cwd": str(tmp_path / "gone"),
+            "tmux_pane_identity": ["%99", 1],
+        },
         _CONFIG,
         switch_source="tmux",
     )
