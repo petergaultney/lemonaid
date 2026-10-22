@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from lemonaid.brief import child_cli, cli, lemon, write_cli
+from lemonaid.codex import utils
 from lemonaid.inbox import db, decorate_cli
 
 THREAD = "01a0d8ce-0000-7000-8000-000000000001"
@@ -56,6 +57,30 @@ def test_brief_verbs_find_the_codex_thread_without_tmux(capsys):
     assert added["error"] is None
     assert "lemonaid inbox watch" in brief.read_text()
     assert checked["error"] is None and checked["path"] == str(brief)
+
+
+def _rollout(tmp_path, monkeypatch, **meta) -> None:
+    path = tmp_path / f"rollout-2026-10-22T09-00-00-{THREAD}.jsonl"
+    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": THREAD, **meta}}) + "\n")
+    monkeypatch.setattr(utils, "find_session_path", lambda thread: path)
+
+
+def test_a_started_thread_with_no_inbox_row_yet_can_attach(capsys, tmp_path, monkeypatch):
+    _rollout(tmp_path, monkeypatch)
+
+    attached = _run(capsys, write_cli.add_parsers, "attach", "--self", str(_brief()))
+
+    assert attached["error"] is None and attached["channel"] == CHANNEL
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, CHANNEL, unread_only=False) is None
+
+
+def test_a_spawned_thread_with_no_inbox_row_gets_no_brief(capsys, tmp_path, monkeypatch):
+    _rollout(tmp_path, monkeypatch, parent_thread_id="01a0d8ce-0000-7000-8000-0000000000ff")
+
+    refused = _run(capsys, write_cli.add_parsers, "attach", "--self", str(_brief()))
+
+    assert refused["error"] == f"No inbox session on channel {CHANNEL!r}"
 
 
 def test_a_thread_with_no_inbox_row_gets_no_brief(capsys):
