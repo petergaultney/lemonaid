@@ -102,11 +102,11 @@ it's missing, switches to its session only if there isn't one, and neither case 
 You never have to know which situation you're in. (`place new` is a hidden alias, since
 naming it after creation misdescribes the common case.)
 
-Choose a named lemon with `--preset NAME`, or an executable or legacy template with `--harness NAME`. Select its session layout separately with `--shape NAME`, and put any harness arguments after `--`:
+Choose a named lemon with `--preset NAME`. (`--harness NAME` still selects an old template or a bare executable.) Select its session layout separately with `--shape NAME`, and put any harness arguments after `--`:
 
 ```bash
 lemonaid place open feat/thing --preset sonnet --shape work --prompt 'read .z/brief.md and do what it says' -- --model opus
-lemonaid place open feat/thing --harness codex --dry-run --json -- --no-daemon
+lemonaid place open feat/thing --preset codex --dry-run --json -- --no-daemon
 ```
 
 The defaults and legacy behavior are described in [the configuration reference](config.md#independent-session-shapes-and-lemon-presets). Dry-run prints the resolved lemon command and shape using the current directory, without running directory hooks or creating a session.
@@ -125,7 +125,7 @@ unsetting a variable is spelled differently in each shell, and so does a compoun
 harness. Nothing but the launch line reads it. These
 options only affect creation; if the place already has a session, `open` keeps
 its idempotent behavior and switches to that session without injecting a new
-prompt. See [the configuration reference](config.md#tmux-sessiontemplates).
+prompt. See [the configuration reference](config.md#independent-session-shapes-and-lemon-presets).
 
 `place acquire` is the same acquisition without the session, printing the directory — so
 `cd $(lemonaid place acquire feat/thing)` works. It exists for callers that aren't tmux

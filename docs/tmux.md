@@ -378,13 +378,29 @@ The `--height` CLI flag overrides the config for a single invocation:
 lemonaid tmux scratch --height 15
 ```
 
-## Session Templates
+## Session shapes and presets
 
-Create tmux sessions with a predefined window layout using `lemonaid tmux new`.
+A shape lists the windows of a new session, and a preset chooses the lemon that runs in one of them. Define both in `~/.config/lemonaid/config.toml`:
 
-### Configuration
+```toml
+[tmux-session.shapes.work]
+windows = ["emacsclient -nw .", "", ""]
+lemon_window = 1
 
-Add templates to `~/.config/lemonaid/config.toml`:
+[launch]
+default = "claude"
+shape = "work"
+
+[launch.presets.claude]
+harness = "claude"
+args = ["--remote-control"]
+```
+
+Each entry in `windows` creates a window, and an empty string is a shell. `lemon_window` is the 0-based window that gets the lemon. Start one with `lemonaid place open feat/thing --preset claude --shape work`, or in an existing session with `lemonaid lemon start SESSION:WINDOW --preset claude`. See [the configuration reference](config.md#independent-session-shapes-and-lemon-presets).
+
+### Legacy templates and `tmux new`
+
+`lemonaid tmux new` creates a session from a `[tmux-session.templates]` entry; it does not read shapes or presets yet. The same entries still work as `place open --harness NAME`, the old form of `--preset`.
 
 ```toml
 [tmux-session.templates]
@@ -393,19 +409,10 @@ claude = [
     "claude",
     "",
 ]
-codex = [
-    "emacsclient -nw .",
-    "codex",
-    "",
-]
 default = "claude"
 ```
 
-Each entry in the list creates a window. Empty string means just a shell.
-`default`, used when no template is named, can be a list of its own or the name of another
-template. Templates are also selected as harnesses by `place open --harness`.
-
-### Usage
+Each entry in the list creates a window, and an empty string is a shell. `default`, used when no template is named, can be a list of its own or the name of another template.
 
 ```bash
 # Create session with auto-derived name from directory path

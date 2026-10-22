@@ -83,7 +83,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Briefs**: `b` on a session shows its brief name, `Brief-ID`, parent, `Status:`, what it needs from you, and the rest of `## Now` beside the lemon or in a tmux popup, without switching to it, with the live state of any PR the brief names when `[brief] pr_state` is configured. The name (`SkullHen` in `SkullHen.mc-tars`) is bold in brief IDs and children; `[tui] brief_names_in_inbox = true` also shows it after the session name in the inbox. `lemonaid brief show` prints the same from anywhere, including a worker's `## Executive Summary of Results`. Questions a brief explains under `## Questions` show under what the lemon needs, and `a` answers one or `D` asks for more detail, sent to the lemon's inbox
 - **Harness handoff**: Move an attached brief from Claude to Codex, or back, with `lemonaid brief handoff --to <harness>`. A handoff to the lemon's own harness gives it a fresh session in the same pane, and so does `/clear` in a Claude lemon. In tmux, the target replaces the old harness in the same pane after readiness; a failed cutover resumes the old session there. After Ctrl-Z returns control to an interactive shell, run the same command there; Lemonaid finds the stopped harness on the controlling TTY, waits for its handoff brief, and starts the replacement in that terminal. It refuses to guess when TTY matches are ambiguous. Without a live tmux pane, pass `--brief FILE` to select an attached source explicitly and use the manually staged status/start-command flow. The old session stays available by its original ID.
 - **[Lemon messages](docs/messages.md)**: Each brief carries a stable ID for its file inbox. Send Markdown by ID, channel, or brief name with `lemonaid tell`; receive one with `lemonaid inbox next --self` or wait with `lemonaid inbox watch --self`. Codex lemons get messages queued into their threads by a self-starting delivery service; an optional Stop hook keeps each Claude lemon's waiter armed
-- **Starting lemons from config**: `lemonaid lemon start SESSION:WINDOW` runs a template's harness line in another window of a session, with a brief, parent, and name, and never over a live process. Codex starts past its trust and update prompts.
+- **Starting lemons from config**: `lemonaid lemon start SESSION:WINDOW` runs a preset's lemon command in another window of a session, with a brief, parent, and name, and never over a live process. Codex starts past its trust and update prompts.
 - **Child briefs from templates**: `lemonaid brief new --child` writes a brief for a lemon not started yet, with its parent filled in, ready for `place open --brief` or `lemon start --brief`. `--template review` writes a PR reviewer's brief with its waiters; your own templates go in `~/.lemons/brief-templates/`
 - **[Starting your HQ](docs/hq.md)**: A guide to setting up a pinned lemon that watches your other lemons: hooks, adopting running lemons, its waiters, recovering after a restart, and a starter prompt
 - **[Parent links](docs/lineage.md)**: Record which lemon handed another its work, by Lemon-ID, with `place open --parent self` or `lemonaid lemon parent`. `lemon children` lists a parent's children with their brief status, and `tell --parent` and `tell --child` message along the links
@@ -110,7 +110,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 ### Assorted helpers
 - **Claude statusline**: Colorful statusline showing time, elapsed, git branch, context %, vim mode
 - **[Lemon presets and session shapes](docs/config.md#independent-session-shapes-and-lemon-presets)**: Choose a window layout independently of a lemon's harness and model, append startup flags, and inspect the resolved launch before starting it
-- **`tmux` session templates**: Spin up new named workspaces with a predefined window layout
+- **`tmux` session shapes**: Spin up new named workspaces with a predefined window layout; `tmux new` still reads the older templates
 - **`tmux` window status formatting**: An optional `tmux` integration to keep your status bar sane
 
 ## Installation
@@ -223,7 +223,7 @@ Features: idle/permission notifications via plugin hooks, auto-dismiss via sessi
 
 ## Terminal Setup
 
-- **`tmux`** (3.0 or later; follow mode needs 3.6): See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session templates, and window colors
+- **`tmux`** (3.0 or later; follow mode needs 3.6): See [docs/tmux.md](docs/tmux.md) for pane switching, back navigation, session shapes, and window colors
 - **WezTerm**: See [docs/wezterm.md](docs/wezterm.md) for workspace/pane switching setup
 - **cmux**: Switching to a session's workspace and surface, and resuming a dead one, needs no cmux configuration; see [docs/cmux.md](docs/cmux.md#setup) for the hooks and for running `lma` in the Dock
 
@@ -295,7 +295,7 @@ For JSON output and programmatic access (useful for lemons), see [docs/for-lemon
 Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/config.md) for the full reference.
 
 - [docs/keybindings.md](docs/keybindings.md) - Customize TUI keybindings
-- [docs/tmux.md](docs/tmux.md) - tmux integration and session templates
+- [docs/tmux.md](docs/tmux.md) - tmux integration and session shapes
 - [docs/wezterm.md](docs/wezterm.md) - WezTerm integration
 - [docs/vault-links.md](docs/vault-links.md) - Clickable vault paths in iTerm2 and WezTerm
 - [docs/cmux.md](docs/cmux.md) - cmux integration
@@ -309,5 +309,5 @@ Config file: `~/.config/lemonaid/config.toml` — see [docs/config.md](docs/conf
 - **opencode**: OpenCode integration with plugin events and live activity watching
 - **brief** and **messages**: attached briefs, their popup and sidebar views, and the per-lemon file inboxes behind `lemonaid tell`
 - **places**: per-repo hooks that create and remove directories, and the tmux sessions opened in them
-- **tmux** / **wezterm**: pane switching, the scratch pane and follow mode, session templates
+- **tmux** / **wezterm**: pane switching, the scratch pane and follow mode, session shapes
 - **cmux**: switching to a session's workspace and surface

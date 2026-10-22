@@ -46,6 +46,22 @@ lemonaid claude patch
 
 The TUI will show the warning again when an update invalidates the patch.
 
+To re-apply it on every launch, run `lemonaid claude patch` (a no-op when already patched) from a wrapper script that then becomes `claude`, and use that as the preset's `harness`:
+
+```sh
+#!/bin/sh
+# ~/.local/bin/claude-patched
+lemonaid claude patch && exec claude "$@"
+```
+
+```toml
+[launch.presets.claude]
+harness = "claude-patched"
+args = ["--remote-control"]
+```
+
+A preset's `harness` is one executable, so it cannot hold the `&&` itself. A wrapper is not recognized as Claude by `brief handoff --to` or by lemonaid's automatic `--name`; see the limits in [the configuration reference](config.md#independent-session-shapes-and-lemon-presets).
+
 ## Technical details
 
 ### How the pattern is found

@@ -70,9 +70,9 @@ See [wezterm.md](wezterm.md).
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `autosave_scratch_size` | `false` | In follow mode, save settled scratch pane resizes automatically. Ctrl+s remains available to save explicitly. Restart the scratch inbox after changing this setting. See [tmux.md](tmux.md#saving-the-pane-size). |
 | `follow_scratch` | `false` | Bootstrap follow mode for new tmux servers. When the scratch pane is first toggled on a server, this determines whether follow is enabled by default. See [tmux.md](tmux.md#follow-mode). |
-| `resume_window` | `0` | 0-based index into the template window list: which window to replace with the resume command when spawning a tmux session from history (`T`). Set to `1` if your lemon is in the second tab. |
+| `resume_window` | `0` | Legacy; shapes use `lemon_window` instead. 0-based index into a template's window list: which window to replace with the resume command when spawning a tmux session from history (`T`). |
 | `codex_writable_roots` | `[]` | Directories a Codex lemon may write, in addition to the lemonaid database and state directories, which are always included. Set it to wherever your lemons write documents outside their workspace, such as a review-docs folder. Passed as `sandbox_workspace_write.writable_roots`, so it takes effect only when your `codex` template runs the `workspace-write` sandbox, and it replaces any `writable_roots` in Codex's own config. `~` is expanded. |
-| `harness_window` | `resume_window` | 0-based template window whose command accepts `place open --prompt`. Set it separately only when new-session prompts and resumed sessions belong in different windows. |
+| `harness_window` | `resume_window` | Legacy; shapes use `lemon_window` instead. 0-based template window whose command accepts `place open --prompt`. |
 
 ### Independent session shapes and lemon presets
 
@@ -104,11 +104,13 @@ args = ["--no-daemon", "-c", 'model_reasoning_effort="low"']
 
 `windows` is a nonempty array of shell commands; an empty string opens a shell. `lemon_window` is a zero-based index, defaulting to `0`, whose command is replaced by the selected lemon. New shapes use that slot for restored sessions too, independently of the legacy `resume_window` and `harness_window` settings.
 
+Presets and shapes are the way to configure launches. A shape says where the lemon goes, a preset says what runs, and `[launch] default` and `shape` pick both when you name neither. Add a preset for each model or effort level you use, and pick it per launch with `--preset`.
+
 Each preset's `harness` is one executable name or path, and `args` is an array of individual argument strings, defaulting to `[]`. Optional `description` and `tags` help callers scan names; they do not change launch behavior. Presets do not inherit from other presets or select a shape.
 
 ```bash
 lemonaid place open feat/thing --preset sonnet --shape solo -- --model opus
-lemonaid lemon start work:4 --harness codex --shape work -- --no-daemon -m custom
+lemonaid lemon start work:4 --preset codex-low --shape work -- --no-daemon -m custom
 lemonaid lemon presets --json
 lemonaid lemon presets show codex-low --shape solo --directory /path/to/work --json -- -c 'model_reasoning_effort="high"'
 lemonaid place open feat/thing --preset sonnet --shape work --dry-run --json
@@ -124,11 +126,27 @@ Repeatable `--lemon-arg=TOKEN` is also available before the separator. Use the e
 
 `lemon presets show` prints the resolved shape, zero-based lemon slot, window commands and environment, including Codex startup overrides. `--directory` sets the directory used to resolve those overrides. Both start commands accept `--dry-run` to inspect the same resolution without acquiring a directory, attaching a brief or querying tmux. Their previews use the current directory, explicitly marked in the output; use `presets show --directory` to inspect another directory. A brief's default prompt is included without attaching it.
 
+A preset's `harness` is a single executable, so it cannot be a compound command such as `lemonaid claude patch && claude ...`. If an old template began that way, put the compound in a small wrapper script on your `PATH`, and point the Claude presets at it:
+
+```sh
+#!/bin/sh
+# ~/.local/bin/claude-patched
+lemonaid claude patch && exec claude "$@"
+```
+
+```toml
+[launch.presets.claude]
+harness = "claude-patched"
+args = ["--remote-control", "--thinking-display", "summarized"]
+```
+
+A wrapper has two costs. `brief handoff --to NAME` recognizes a preset only when its `harness` has the basename `claude` or `codex`, so a handoff to a preset that uses `claude-patched` fails. Lemonaid also adds Claude's `--name` flag only to a launch whose executable is `claude`, so a wrapped launch is not named from its title. Use the wrapper only for presets you don't hand off to, and add `--name` in `args` if you want one.
+
 Existing configuration and `--harness` names keep working. No configuration migrates automatically: add independent shapes and presets when desired, and keep old entries for callers that still use them. `lemon presets` includes legacy entries with `legacy: true`. Resume still uses the backend's `resume_command` to reopen its recorded session; `brief handoff --to NAME` can select a preset that runs Claude or Codex. The handoff records the named lemon separately from its backend so the replacement can claim and accept the brief.
 
 ### `[tmux-session.templates]`
 
-See [tmux.md](tmux.md).
+The old way to configure launches, kept for existing configs. New configs use [shapes and presets](#independent-session-shapes-and-lemon-presets) instead. See [tmux.md](tmux.md).
 
 Name each template after the harness its `harness_window` starts, such as `claude` and
 `codex`. `place open` and `lemon start` take that name as `--harness`: `place open feat/thing

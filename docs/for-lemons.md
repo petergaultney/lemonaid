@@ -257,7 +257,7 @@ to set a place up for them to attach to later.
 ```bash
 lemonaid place open <key> --json           # acquire if needed, then open a session
 lemonaid place open <key> --detach --json  # ... without stealing the terminal
-lemonaid place open <key> --harness codex --prompt 'read .z/brief.md' --json
+lemonaid place open <key> --preset codex --prompt 'read .z/brief.md' --json
 ```
 
 Idempotent: the directory is acquired only if it doesn't exist, its session is switched to
@@ -279,7 +279,7 @@ Select session shape separately with `--shape NAME`, or `[launch] shape`. New `[
 lemonaid lemon presets --json
 lemonaid lemon presets show sonnet --shape work --directory /path/to/work --json -- --model opus
 lemonaid place open feat/thing --preset sonnet --shape work --brief <file> --parent self --detach --json -- --model opus
-lemonaid place open feat/thing --harness codex --shape work --dry-run --json -- --no-daemon -m custom
+lemonaid place open feat/thing --preset codex --shape work --dry-run --json -- --no-daemon -m custom
 ```
 
 Put all lemonaid options before `--`; every token after it passes to the harness, appended after preset defaults. Tokens preserve their order and boundaries, including repeated options, empty strings and flags such as `--json` that also name lemonaid options. The harness decides their meaning and precedence. Repeatable `--lemon-arg=TOKEN` remains available before the separator, with `=` required for tokens starting with `-`; those arguments precede the passthrough tail when both forms are used. Presets optionally include a `description` and `tags` for scanning. The list includes legacy templates marked `legacy: true`; `--preset` disambiguates a new preset from a legacy template of the same name.
@@ -324,7 +324,7 @@ To start a lemon in a window of a session that already exists (a reviewer in win
 lemon whose window died), use `lemon start` rather than typing a launch line into a pane:
 
 ```bash
-lemonaid lemon start <session>:4 --harness codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
+lemonaid lemon start <session>:4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
     --brief <file> --parent parent --name 'REVIEW #12 thing' --json
 ```
 

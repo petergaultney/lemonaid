@@ -34,21 +34,29 @@ Add the `notify` line at the very top of `~/.codex/config.toml`, and allow the `
 
 Set `daemon_auto_start = false` under `[features]` in `~/.codex/config.toml`, and start Codex lemons with `codex --no-daemon`. See [the shared-daemon problem](#codex-through-the-shared-daemon).
 
-### Templates
+### Presets and shapes
 
-`lemon start` and `place open` run a command from `[tmux-session.templates]` in `~/.config/lemonaid/config.toml`. Name each template for its harness, and point `default` at the one you use most:
+`lemon start` and `place open` run a lemon preset inside a session shape, both set in `~/.config/lemonaid/config.toml`. A preset names an executable and its default arguments, a shape lists the session's windows, and `[launch]` picks the defaults:
 
 ```toml
-[tmux-session]
-resume_window = 1
+[tmux-session.shapes.work]
+windows = ["emacsclient -nw .", "", ""]
+lemon_window = 1
 
-[tmux-session.templates]
-claude = ["emacsclient -nw .", "claude", ""]
-codex = ["emacsclient -nw .", "codex --no-daemon", ""]
+[launch]
 default = "claude"
+shape = "work"
+
+[launch.presets.claude]
+harness = "claude"
+args = ["--remote-control", "--thinking-display", "summarized"]
+
+[launch.presets.codex]
+harness = "codex"
+args = ["--no-daemon"]
 ```
 
-Each list is a window layout (swap `emacsclient -nw .` for your editor, or an empty string for a plain shell), and `resume_window` is the 0-based index of the window that holds the harness. See [config](config.md#tmux-sessiontemplates) and [tmux](tmux.md).
+Swap `emacsclient -nw .` for your editor, or an empty string for a plain shell. `lemon_window` is the 0-based index of the window that holds the lemon. Choose another lemon with `--preset codex`, and add one-off arguments after `--`. See [config](config.md#independent-session-shapes-and-lemon-presets) and [places](places.md).
 
 ### The sidebar
 
@@ -70,7 +78,7 @@ This installs the `brief`, `watch-doc`, `watch-pr` and `watch-briefs` skills for
 
 ## 2. Creating the HQ
 
-Start a lemon in a tmux window in a directory you want to treat as home. In that window (or with `lemonaid lemon start SESSION:WINDOW --harness claude`), give it a brief of its own:
+Start a lemon in a tmux window in a directory you want to treat as home. In that window (or with `lemonaid lemon start SESSION:WINDOW --preset claude`), give it a brief of its own:
 
 ```bash
 lemonaid brief new --self "HQ"
