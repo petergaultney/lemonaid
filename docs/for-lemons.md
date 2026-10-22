@@ -1085,6 +1085,11 @@ pattern matches every lemon's waiter on the machine.
 waiter or push scout into the installed lemonaid without dropping what it has detected; you
 need not rearm it. A new lemonaid version does this for every older waiter by itself.
 
+After upgrading onto the first lemonaid that has `watch restart`, watchers and push scouts
+started before it don't know the signal. `lemonaid watch restart --all` lists them with their
+pids; stop each by pid with a plain `kill <pid>`, never by pattern, then rearm it. Steps:
+[watch.md](watch.md#restarting-watchers-after-an-upgrade).
+
 A waiter stopped by SIGTERM prints who stopped it and the command that rearms it, then exits
 143 (Claude Code reports the task as exit 144). Who is the lemon and pid that ran `watch stop`,
 or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness. If you didn't

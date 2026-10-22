@@ -36,7 +36,14 @@ def run(a: argparse.Namespace) -> int:
     for waiter in sent:
         print(f"Asked {', '.join(waiter.targets)}'s watcher (pid {waiter.pid}) to restart")
     if skipped := [w for w in chosen if w not in sent]:
-        print(f"{len(skipped)} older watchers don't restart on request; stop and rearm them")
+        print(f"{len(skipped)} older watchers don't restart on request:")
+        for waiter in skipped:
+            print(
+                f"  {', '.join(waiter.targets)}  {waiter.kind}  pid {waiter.pid}  channel {waiter.channel or '-'}  {waiter.command}"
+            )
+        print(
+            "Stop each by its pid (`kill <pid>`, never a pattern) and start it again; see docs/watch.md"
+        )
     if not chosen:
         print("No running watch --self waiter matches")
     return 0

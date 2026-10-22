@@ -615,6 +615,29 @@ another one. An editable install keeps one version, so after editing its source 
 `lemonaid watch restart --all`. Waiters from a lemonaid without this command don't
 know the signal and are never sent it; stop and rearm those once.
 
+### Restarting watchers after an upgrade
+
+A lemonaid that has `watch restart` restarts its older watchers by itself the first time
+any lemonaid command runs after the upgrade. The first upgrade onto such a version is the
+exception: watchers started before it don't know the signal, so you restart them once by hand.
+
+1. Run `lemonaid watch restart --all`. It prints each watcher it asked, and lists the ones it
+   could not signal with their Lemon-ID, kind, pid, channel and rearm command.
+2. Stop each listed watcher by its pid with a plain `kill <pid>`. Never kill by pattern:
+   a pattern matches every lemon's waiter on the machine, and `lemonaid watch stop --self`
+   only knows waiters started by a lemonaid new enough to register them.
+3. Start a fresh one for the same lemon, with the listed channel, so it watches that lemon's
+   session and not yours: `lemonaid watch --self --push --channel <channel>` for a push
+   scout. Older commands in the listing carry no `--channel`, so add it yourself.
+
+One-shot Codex waiters (`watch --self --codex-thread`) exit after their next batch and the
+lemon rearms them on the new code, so they need no step.
+
+To confirm a watcher runs the new version, run `lemonaid watch restart --all` again. It
+prints no "older watchers" list once every watcher takes the signal. The registry file
+`$LEMONAID_STATE_DIR/waiters/<pid>.json` (default `~/.local/state/lemonaid/waiters/`)
+of a restarted watcher also records the new `version`.
+
 ### Cursors, delivery and recovery
 
 - **First arm:** take the source's current state as seen, including already completed CI. Unanswered document comments are the exception: they are reported on first arm.

@@ -14,8 +14,15 @@ from lemonaid.inbox import db
 from lemonaid.watch import batch_wait, registry, restart, restart_cli, wait_cli, wait_state
 
 
-def _waiter(pid: int, version: str = "1.0", restartable: bool = True, lemon: str = "a.Bee"):
-    return registry.Waiter(pid, "codex:a", "wait", (lemon,), "", "/", "", version, restartable)
+def _waiter(
+    pid: int,
+    version: str = "1.0",
+    restartable: bool = True,
+    lemon: str = "a.Bee",
+    channel: str = "codex:a",
+    command: str = "",
+):
+    return registry.Waiter(pid, channel, "wait", (lemon,), command, "/", "", version, restartable)
 
 
 def test_the_signal_is_noted_only_while_listening():
@@ -149,7 +156,16 @@ def test_an_idle_wait_stops_for_a_restart(tmp_path):
 
 
 def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
-    waiters = [_waiter(1, lemon="a.Bee"), _waiter(2, lemon="b.Cow", restartable=False)]
+    waiters = [
+        _waiter(1, lemon="a.Bee"),
+        _waiter(
+            2,
+            lemon="b.Cow",
+            restartable=False,
+            channel="claude:old",
+            command="lemonaid watch --self --push",
+        ),
+    ]
     monkeypatch.setattr(registry, "running", lambda: iter(waiters))
     monkeypatch.setattr(registry, "current", lambda waiter: True)
     monkeypatch.setattr(restart.os, "kill", lambda pid, sig: None)
@@ -164,4 +180,5 @@ def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
     assert run("--all") == 0
     out = capsys.readouterr().out
     assert "pid 1" in out and "1 older watchers" in out
+    assert "b.Cow  wait  pid 2  channel claude:old  lemonaid watch --self --push" in out
     assert run() == 2
