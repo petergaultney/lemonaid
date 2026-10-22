@@ -10,7 +10,7 @@ from .. import brief, launch
 from ..config import Config, PlaceRoot, load_config
 from ..launch import options
 from ..watch import children_waiter
-from . import lifecycle, ownership, toss_cli
+from . import audit, lifecycle, log_cli, ownership, toss_cli
 
 
 def root_or_exit(config: Config, directory: str | Path) -> PlaceRoot:
@@ -86,6 +86,15 @@ def cmd_open(args: argparse.Namespace) -> None:
     )
 
     session, error = opened.session, opened.error
+    audit.record(
+        "open",
+        "failed" if error else "created" if opened.created else "reused",
+        key=args.key,
+        directory=str(directory) if directory else "",
+        session=session or "",
+        flags=[f"--{f}" for f, on in (("detach", args.detach), ("json", args.json)) if on],
+        reason=error or "",
+    )
     if session and not error and (given.brief or prompt):
         index, window_id = _harness_window(config, args.harness, session)
         if warning := launch.handoff.complete(given, session, index, window_id):
@@ -334,6 +343,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.set_defaults(func=cmd_list)
 
     toss_cli.add_parser(place_subparsers)
+    log_cli.add_parser(place_subparsers)
 
     hooks_parser = place_subparsers.add_parser(
         "hooks",

@@ -426,6 +426,7 @@ stderr when JSON output is not requested.
 ```bash
 lemonaid place toss <key> --dry-run --json   # preview: closes nothing
 lemonaid place toss <key> --json --yes       # tear down
+lemonaid place log <key> --json              # who opened or tossed it, and the outcome
 ```
 
 **`--json` alone previews and exits 2** (`error: ... Pass --yes to tear down`), closing nothing; its JSON is the same as `--dry-run --json`'s. An unattended teardown needs `--yes`, with or without `--json`; an interactive toss asks instead. A toss

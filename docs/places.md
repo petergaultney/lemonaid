@@ -94,6 +94,7 @@ lemonaid place acquire <key>   # just the directory, no session
 lemonaid place list            # every directory each root reports
 lemonaid place toss [<key>]    # close a workspace, with optional directory cleanup
 lemonaid place hooks           # show what's configured
+lemonaid place log [<key>]     # who opened or tossed places
 ```
 
 `place open` is idempotent, in the same spirit as `wt co`: it acquires the directory only if
@@ -238,6 +239,23 @@ close this workspace? [y/N]
 
 A successful lookup may report a directory that is already gone. Its workspace
 can still close, and no destroy hook runs for the missing directory.
+
+### Audit log
+
+`place open` and every `place toss` (real teardowns, `--dry-run` and bare `--json` previews, refusals, and declined confirmations) append one JSON line to `~/.local/state/lemonaid/logs/places.log` (`$LEMONAID_STATE_DIR` overrides the state directory). Fields:
+
+- `at`: ISO 8601 time with UTC offset.
+- `action`: `open` or `toss`.
+- `outcome`: `created`, `reused`, `failed` (open); `tearing-down` (teardown was started; it finishes in the background, see `reap.log`), `failed`, `refused`, `declined`, `dry-run`, `preview` (toss).
+- `key`, `dir`, `session`: the place key, its directory and the tmux session, when known.
+- `flags`: the flags used, from `--yes`, `--json`, `--force`, `--dry-run` (and `--detach` for open).
+- `reason`: the refusal or error text, else empty.
+- `who`: the caller's Brief-ID when its pane or environment identifies a lemon, else the parent process name (`claude`, `codex`, a shell), else `unknown`.
+- `pid`, `parent`, `tty`: the caller's process ID, parent process name and terminal.
+
+The file rotates to `places.log.1` once it passes about 1 MB, replacing the older rotation. The caller lookup only reads the lemonaid database, so logging never registers or changes a brief. Only the fields above are written; hook command output and environment variables are not.
+
+`lemonaid place log [<key>] [-n N] [--json]` prints the last N events (default 20, 0 for all) across both files, oldest first, limited to a key or session name when given.
 
 ### Protection and flags
 

@@ -601,3 +601,39 @@ def test_dry_run_json_succeeds_and_reminds_that_yes_applies_it(monkeypatch, tmp_
     assert stop.value.code == 0
     assert "--yes" in json.loads(captured.out)["hint"]
     assert "run it again with --yes" in captured.err
+
+
+def test_a_toss_is_audited_with_its_flags_and_outcome(monkeypatch, tmp_path):
+    doomed = _target("work", [_place(tmp_path, "feat")])
+    _resolves_to(monkeypatch, doomed)
+    recorded: list = []
+    monkeypatch.setattr(toss_cli.audit, "record", lambda *a, **kw: recorded.append((a, kw)))
+
+    toss_cli.cmd_toss(_args(yes=True))
+
+    [(action, outcome), kw] = [recorded[0][0], recorded[0][1]]
+    assert (action, outcome) == ("toss", "tearing-down")
+    assert len(recorded) == 1
+    assert kw["key"] == "feat" and kw["session"] == "work" and kw["flags"] == ["--yes"]
+
+
+def test_a_refused_toss_is_audited_with_its_reason(monkeypatch):
+    _resolves_to(monkeypatch, None, "no such place")
+    recorded: list = []
+    monkeypatch.setattr(toss_cli.audit, "record", lambda *a, **kw: recorded.append((a, kw)))
+
+    with pytest.raises(SystemExit):
+        toss_cli.cmd_toss(_args(key="x", yes=True))
+
+    assert recorded == [
+        (
+            ("toss", "refused"),
+            {
+                "key": "x",
+                "directory": "",
+                "session": "",
+                "flags": ["--yes"],
+                "reason": "no such place",
+            },
+        )
+    ]

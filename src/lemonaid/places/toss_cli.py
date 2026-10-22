@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from ..config import load_config
-from . import ownership, self_install, target, teardown, toss_preview, toss_warning
+from . import audit, ownership, self_install, target, teardown, toss_preview, toss_warning
 
 
 def _label(place: ownership.Place) -> str:
@@ -110,35 +110,67 @@ def _confirmed(doomed: target.TossTarget, concerns: dict[Path, list[str]]) -> bo
         return False
 
 
+def _flags(args: argparse.Namespace) -> list[str]:
+    return [
+        f"--{name}"
+        for name in ("yes", "json", "force", "dry-run")
+        if getattr(args, name.replace("-", "_"))
+    ]
+
+
+def _audit(
+    args: argparse.Namespace, doomed: target.TossTarget | None, outcome: str, reason: str = ""
+) -> None:
+    audit.record(
+        "toss",
+        outcome,
+        key=(doomed.place.key if doomed and doomed.place else "") or args.key or "",
+        directory=str(doomed.place.directory) if doomed and doomed.place else "",
+        session=doomed.session if doomed else "",
+        flags=_flags(args),
+        reason=reason,
+    )
+
+
 def cmd_toss(args: argparse.Namespace) -> None:
     """Tear down a tmux session and the places it occupies."""
     config = load_config()
     unattended = args.yes or args.json  # --json has no terminal to prompt on
     doomed, why_not = target.resolve_toss_target(config, args.key, unattended=unattended)
     if args.dry_run or (args.json and not args.yes):
+        preview = toss_preview.build(
+            doomed,
+            why_not,
+            self_install.editable_install_refusal(doomed) if doomed else "",
+            args.force,
+        )
+        _audit(args, doomed, "dry-run" if args.dry_run else "preview", "; ".join(preview.refusals))
         toss_preview.show(
-            toss_preview.build(
-                doomed,
-                why_not,
-                self_install.editable_install_refusal(doomed) if doomed else "",
-                args.force,
-            ),
+            preview,
             args.json,
             lambda d: _describe(d, {}),
             json_needs_yes=not args.dry_run,
         )
 
     if doomed is None:
+        _audit(args, doomed, "refused", why_not)
         print(why_not, file=sys.stderr)
         sys.exit(1)
 
     if refusal := self_install.editable_install_refusal(doomed):
+        _audit(args, doomed, "refused", refusal)
         print(refusal, file=sys.stderr)
         sys.exit(1)
 
     concerns = {place.directory: teardown.concerns(place) for place in doomed.places}
 
     if any(concerns.values()) and not args.force:
+        _audit(
+            args,
+            doomed,
+            "refused",
+            "; ".join(f"{_label(p)}: {r}" for p in doomed.places for r in concerns[p.directory]),
+        )
         print("There is unfinished work here:", file=sys.stderr)
         for place in doomed.places:
             for reason in concerns[place.directory]:
@@ -147,19 +179,26 @@ def cmd_toss(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if not args.yes and not _confirmed(doomed, concerns):
+        _audit(args, doomed, "declined")
         print("Nothing was torn down.", file=sys.stderr)
         sys.exit(1)
 
     # The prompt may have sat for a while; what was confirmed has to still be true.
     if changed := target.changed_since(config, args.key, doomed, unattended=unattended):
+        _audit(args, doomed, "refused", changed)
         print(changed, file=sys.stderr)
         sys.exit(1)
 
     if refusal := self_install.editable_install_refusal(doomed):
+        _audit(args, doomed, "refused", refusal)
         print(refusal, file=sys.stderr)
         sys.exit(1)
 
+    # Recorded before teardown starts: a toss run from inside its own target is killed by it.
+    _audit(args, doomed, "tearing-down")
     error = teardown.toss(doomed.session, doomed.places, doomed.partial)
+    if error:
+        _audit(args, doomed, "failed", error)
 
     if args.json:
         print(
