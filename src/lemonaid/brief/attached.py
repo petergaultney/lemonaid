@@ -32,6 +32,7 @@ class Attachment:
     tmux_session: str
     tmux_window: str
     notification: db.Notification | None
+    attached_at: float = 0.0  # 0 while pending
 
 
 def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
@@ -201,6 +202,7 @@ def everything(conn: sqlite3.Connection) -> list[Attachment]:
             (found.metadata.get("tmux_session") or "") if found else "",
             str(found.metadata.get("tmux_window") or "") if found else "",
             found,
+            row["attached_at"],
         )
         for row in conn.execute("SELECT * FROM session_briefs ORDER BY attached_at").fetchall()
         for found in [db.get_by_channel(conn, row["channel"], unread_only=False)]

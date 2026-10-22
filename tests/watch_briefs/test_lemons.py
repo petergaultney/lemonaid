@@ -162,3 +162,26 @@ def test_a_newly_listed_lemon_already_in_a_wake_status_is_taken_as_seen(grove):
     _set_status(other_path, "done")
     w.rows = (lemon_table.Row(other),)
     assert _poll(w) == []
+
+
+def test_a_lemon_attached_before_its_first_turn_has_no_row_and_is_not_gone(grove):
+    child = grove[1]
+    with db.connect() as conn:
+        conn.execute("DELETE FROM notifications WHERE channel = 'codex:child'")
+        conn.commit()
+
+    with db.connect() as conn:
+        assert lemon_liveness.probe(conn, {child: ""})[child] is None
+
+
+def test_a_lemon_still_without_a_row_after_the_grace_is_gone(grove, monkeypatch):
+    child = grove[1]
+    with db.connect() as conn:
+        conn.execute("DELETE FROM notifications WHERE channel = 'codex:child'")
+        conn.commit()
+
+    monkeypatch.setattr(lemon_liveness.time, "time", lambda: 1e12)
+    with db.connect() as conn:
+        problem = lemon_liveness.probe(conn, {child: ""})[child]
+
+    assert problem and problem.detail == "its inbox session is gone"

@@ -19,6 +19,7 @@ from . import briefs_orphans, cursors
 _log = get_logger("watch.liveness")
 
 _DEAF_SETTLE = 60.0  # a lemon is briefly deaf between finishing a turn and rearming its waiter
+_ROW_GRACE = 600.0  # a Codex lemon has no inbox row until its first turn ends
 
 
 @dataclasses.dataclass(frozen=True)
@@ -39,6 +40,9 @@ def _problem(
 ) -> Problem | None:
     row = entry.notification
     if row is None:
+        if time.time() - entry.attached_at < _ROW_GRACE:
+            return None
+
         return Problem("gone", "", "its inbox session is gone")
 
     running = sessions(row.metadata.get("tmux_socket") or "") if entry.tmux_session else None
