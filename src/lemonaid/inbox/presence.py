@@ -8,12 +8,12 @@ A Claude lemon is deaf for a moment each time its inbox waiter delivers a
 message and before it rearms one, so `deaf` waits until it has lasted.
 """
 
-import subprocess
 import threading
 import typing as ty
 from collections import abc
 
 from .. import handlers
+from ..lemon_watchers import tty_processes
 from ..log import get_logger
 from ..messages import recipient, store, waiter
 from . import db
@@ -30,18 +30,11 @@ _MARKS = {recipient.DEAF: DEAF, recipient.DEAD: DEAD}
 
 def _harness_ttys() -> frozenset[str] | None:
     """Each terminal a harness runs on, as `ps` names it, or None if `ps` could not say."""
-    try:
-        result = subprocess.run(["ps", "-A", "-o", "tty=,comm="], capture_output=True, text=True)
-    except OSError:
+    listed = tty_processes.listing("comm")
+    if listed is None:
         return None
 
-    if result.returncode != 0:
-        return None
-
-    listed = (line.split(maxsplit=1) for line in result.stdout.splitlines())
-    return frozenset(
-        parts[0] for parts in listed if len(parts) == 2 and recipient.is_harness(parts[1].strip())
-    )
+    return frozenset(tty for tty, command in listed if recipient.is_harness(command))
 
 
 def _alive(row: db.Notification, ttys: frozenset[str] | None, listed_at: float) -> bool | None:

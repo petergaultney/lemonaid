@@ -1,6 +1,8 @@
 """The archiver judges every tty from one process listing."""
 
+import os
 import subprocess
+import sys
 
 import pytest
 
@@ -64,3 +66,51 @@ def test_by_tty_says_nothing_when_ps_cannot(monkeypatch, run):
     monkeypatch.setattr(subprocess, "run", run)
 
     assert tty_processes.by_tty() is None
+
+
+def test_by_tty_names_macos_device_numbers_from_dev(monkeypatch):
+    out = "   ??  /sbin/launchd\n 16/1  -fish\n 16/1  claude --resume abc\n 16/9  closed since\n"
+    asked = []
+    monkeypatch.setattr(tty_processes.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **kw: asked.append(a[0]) or subprocess.CompletedProcess(a, 0, out, ""),
+    )
+    monkeypatch.setattr(tty_processes, "_terminal_names", lambda: {os.makedev(16, 1): "ttys001"})
+
+    assert tty_processes.by_tty() == {
+        "??": ["/sbin/launchd", "closed since"],
+        "ttys001": ["-fish", "claude --resume abc"],
+    }
+    assert asked == [["ps", "-A", "-o", "tdev=,args="]]
+
+
+def test_by_tty_asks_linux_ps_for_terminal_names(monkeypatch):
+    asked = []
+    monkeypatch.setattr(tty_processes.sys, "platform", "linux")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **kw: asked.append(a[0])
+        or subprocess.CompletedProcess(a, 0, "pts/3  vim\n", ""),
+    )
+
+    assert tty_processes.by_tty() == {"pts/3": ["vim"]}
+    assert asked == [["ps", "-A", "-o", "tty=,args="]]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="ps -o tdev is macOS's")
+def test_device_numbers_name_every_process_as_ps_does():
+    def column(name: str) -> dict[str, str]:
+        out = subprocess.run(["ps", "-A", "-o", f"pid=,{name}="], capture_output=True, text=True)
+        return dict(line.split() for line in out.stdout.splitlines() if line.strip())
+
+    names = tty_processes._terminal_names()
+    tdevs, ttys = column("tdev"), column("tty")
+    both = tdevs.keys() & ttys.keys()
+
+    assert both
+    assert {pid: tty_processes._tty_name(tdevs[pid], names) for pid in both} == {
+        pid: ttys[pid] for pid in both
+    }
