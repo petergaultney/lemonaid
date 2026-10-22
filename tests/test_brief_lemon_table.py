@@ -73,7 +73,7 @@ def test_report_hands_rows_to_the_briefs_subscription(tmp_path):
     reading = subscriptions.report(text, tmp_path, owner="me.WordyBin")
     (briefs,) = [s for s in reading.specs if s.kind == "briefs"]
     assert briefs.lemons == (lemon_table.Row("a.B", "why", ("done",)),)
-    assert briefs.needs
+    assert not briefs.needs
 
 
 def test_a_pipe_in_a_purpose_round_trips_through_every_edit():

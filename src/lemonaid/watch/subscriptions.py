@@ -193,7 +193,6 @@ def report(
         specs[key] = dataclasses.replace(
             specs.get(key) or Subscription("briefs", (parent,), me),
             lemons=tuple(lemon_table.rows(text)),
-            needs=True,
         )
     return Reading(tuple(specs.values()), tuple(problems))
 

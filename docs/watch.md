@@ -496,7 +496,7 @@ The rows and commands declare these sources:
 | A PR's Review cell | A local review document's unanswered comments. An explicit doc command or Docs row can also enable body edits. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
 | Inbox | Every pending message for this lemon, included in the same batch as source changes. |
-| Children | Direct children entering `merge` or `done` or changing their Needs, using the existing child cursor, and any child whose harness exits, whose session or place is gone, or that is deaf or dead (see [Watching other lemons](#watching-other-lemons)). An explicit `watch briefs` line selects other statuses or orphan behavior. |
+| Children | Direct children entering `merge` or `done`, using the existing child cursor; a child that goes `blocked` or writes a Needs ask for its user doesn't wake its parent, which a `### Lemons` row for that child can change. Also and any child whose harness exits, whose session or place is gone, or that is deaf or dead (see [Watching other lemons](#watching-other-lemons)). An explicit `watch briefs` line selects other statuses or orphan behavior. |
 | `### Lemons` | Each listed lemon, child or not, like a child: its Status and Needs changes and its liveness. A row for a child sets that child's wake statuses. |
 
 A repeated source is watched once. Explicit options are retained; a PR row forces
