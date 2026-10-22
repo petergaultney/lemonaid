@@ -112,7 +112,7 @@ setting from managed, `--settings`, project and user settings; without it, it ch
 session's launch flags and default mode for a way into bypass mode. Where a session could
 hold a message, lemonaid starts no scout and the lemon runs `lemonaid watch --self` as a
 background task, as before. See
-[watch.md](watch.md#the-claude-push-scout).
+[watch.md](watch.md#the-push-scout).
 
 A pushed batch arrives as a message from another session, not as tool output, and it
 can quote PR and document comments other people wrote. Claude frames it as input that

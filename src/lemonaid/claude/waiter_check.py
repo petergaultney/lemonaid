@@ -14,7 +14,7 @@ from ..inbox import db
 from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
 from ..log import get_logger
 from ..messages import store, waiter
-from ..watch import children_waiter, push_scout, wait_requirements, wait_state
+from ..watch import children_waiter, codex_scout, push_scout, wait_requirements, wait_state
 
 _log = get_logger("claude.waiter_check")
 
@@ -22,7 +22,10 @@ ARM = {
     "claude": "Run `lemonaid watch --self --push`, which starts lemonaid's push scout and returns; "
     "only if it prints `not started`, start `lemonaid watch --self` as a background Bash task "
     "(run_in_background, timeout: 2147483647).",
-    "codex": "Start `lemonaid watch --self --codex-thread` as an escalated exec_command session.",
+    "codex": "Run `lemonaid watch --self --push` with escalated permissions, which starts "
+    "lemonaid's push scout and returns; only if it prints `not started`, start "
+    "`lemonaid watch --self --codex-thread` as an escalated exec_command session and rearm it "
+    "after each batch.",
 }
 
 _BROKEN = (
@@ -78,11 +81,13 @@ def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_i
     required = wait_requirements.needs_unified(text, children)
     if brief.status.split(text).status == "done" and not required:
         return ""
-    if not required and harness == "codex":
-        return ""
     if lemon_id and wait_state.is_armed(lemon_id, grace):
         return ""
     if lemon_id and harness == "claude" and push_scout.ensure(session_id, lemon_id, max(grace, 3)):
+        return ""
+    if harness == "codex" and session_id and codex_scout.ensure_for(session_id, path):
+        return ""
+    if not required and harness == "codex":
         return ""
     if not required and lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
         return ""

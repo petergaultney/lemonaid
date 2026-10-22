@@ -1,4 +1,4 @@
-"""Restore subscribed Codex waiters after a missed hook or a failed rearm."""
+"""Start a Codex lemon's push scout, and restore it for a live, idle lemon that has none."""
 
 import os
 import sqlite3
@@ -11,15 +11,21 @@ from ..brief import attached, handoff_state, identity
 from ..codex import channels, processes, utils
 from ..inbox import db
 from ..log import LOG_PATH, get_logger
-from . import wait_requirements, wait_state, waiter_lock
+from . import wait_state, waiter_lock
 
 _log = get_logger("watch.codex_waiter")
+
+RETRY_SECONDS = 60.0  # between restores of one lemon, so a scout that keeps failing is not restarted every refresh
+_restored: dict[str, float] = {}
 
 
 def _spawn(channel: str, thread: str) -> None:
     with LOG_PATH.open("a") as log:
         subprocess.Popen(
-            [sys.executable, "-m", "lemonaid", "watch", "--self", "--codex-thread", thread],
+            [
+                *(sys.executable, "-m", "lemonaid", "watch", "--self", "--push", "--foreground"),
+                *("--codex-thread", thread),
+            ],
             env={
                 **os.environ,
                 "CODEX_THREAD_ID": thread,
@@ -45,7 +51,7 @@ def ensure(channel: str, thread: str, lemon_id: str) -> bool:
     try:
         if not wait_state.is_armed(lemon_id):
             _spawn(channel, thread)
-            _log.info("restoring subscribed Codex watcher channel=%s thread=%s", channel, thread)
+            _log.info("starting Codex push scout channel=%s thread=%s", channel, thread)
         armed = wait_state.is_armed(lemon_id, grace=3)
         if not armed:
             _log.warning(
@@ -59,8 +65,18 @@ def ensure(channel: str, thread: str, lemon_id: str) -> bool:
         lock.close()
 
 
+def _due(lemon_id: str) -> bool:
+    """Whether to try restoring *lemon_id* now, counting this as the attempt."""
+    now = time.monotonic()
+    if now - _restored.get(lemon_id, float("-inf")) < RETRY_SECONDS:
+        return False
+
+    _restored[lemon_id] = now
+    return True
+
+
 def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None) -> None:
-    """Called on inbox startup/refresh; require a live harness and verified alias owner."""
+    """Called on inbox startup/refresh: a scout for every live, idle Codex lemon with a brief and no watcher."""
     from ..messages import recipient, store, waiter
 
     if owners is None:
@@ -81,15 +97,14 @@ def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None)
         ):
             continue
         try:
-            text = entry.path.read_text()
-            lemon_id = identity.read(text)
+            lemon_id = identity.read(entry.path.read_text())
         except (OSError, ValueError):
             continue
         if (
-            wait_requirements.needs_unified(text, False)
-            and not wait_state.is_armed(lemon_id)
+            not wait_state.is_armed(lemon_id)
             and not waiter.is_armed(store.inbox_for_id(lemon_id))
             and not handoff_state.pending_source(conn, entry.path, entry.channel, time.time())
             and recipient.harness_alive(row) is True
+            and _due(lemon_id)
         ):
             ensure(entry.channel, thread, lemon_id)

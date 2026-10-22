@@ -12,7 +12,7 @@ Check `lemonaid watch --self --status`. If it says `push scout running`, lemonai
 <!-- /harness -->
 
 <!-- harness: codex -->
-Run `lemonaid watch --self --codex-thread` in an escalated exec_command session, and rearm after each batch.
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and queues each batch into your thread; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push` with escalated permissions, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self --codex-thread` in an escalated exec_command session and rearm it after each batch.
 <!-- /harness -->
 
 The standalone command below remains available.

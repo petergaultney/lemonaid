@@ -549,16 +549,16 @@ changes, rather than replacing that initial inspection.
 
 ```bash
 lemonaid watch --self --status
+lemonaid watch --self --push                 # start a push scout if none runs (Codex: escalated)
 lemonaid watch --self                        # Claude without a push scout: a background Bash task
-lemonaid watch --self --codex-thread         # Codex: escalated exec_command session
 ```
 
-A Claude lemon whose `--status` says `push scout running` is already watched (see
-below). A Claude lemon without a scout runs the command with `run_in_background` and
-`timeout: 2147483647`; task completion wakes the turn. For Codex, use bare
-`--codex-thread` in an escalated session so `codex queue` can write to the thread. The
-command refuses to start if Codex delivery is unavailable. Do not start another watcher
-while `--status` says one is running.
+A lemon whose `--status` says `push scout running` is already watched (see below). A
+Claude lemon whose scout can't start runs `lemonaid watch --self` with
+`run_in_background` and `timeout: 2147483647`; task completion wakes the turn. A Codex
+lemon whose scout can't start runs `lemonaid watch --self --codex-thread` in an escalated
+exec_command session; it queues one batch into the thread and exits, so it is rearmed
+after each batch. Do not start another watcher while `--status` says one is running.
 
 A standalone `watch pr --wait` refuses to start (exit 3) while the lemon's unified
 watcher runs. It still records its line under `## Waiters`, so the unified watcher
@@ -573,6 +573,7 @@ The unified command accepts:
 | `--self` | Select the attached brief and unified watcher. |
 | `--channel CHANNEL` | Override caller identity outside normal harness detection. |
 | `--status` | Check the shared lock: exit 0 when running, 1 when absent. |
+| `--push` | Start a detached push scout and return, unless a watcher already runs. |
 | `--codex-thread [THREAD_ID]` | Deliver into Codex; bare means the current thread. |
 | `--interval SECONDS` | Brief/inbox read interval, default 0.5. |
 | `--quiet SECONDS` | Batch gathering quiet period, default 2. |
@@ -609,9 +610,18 @@ threads together. A document
 still being edited holds back only its own event; other ready sources can deliver.
 
 
-### The Claude push scout
+### The push scout
 
-A Claude lemon's scout is a detached process that keeps watching instead of exiting: it writes each batch
+A lemon's scout is a detached process that keeps watching instead of exiting. A Codex
+lemon's scout queues each batch into its thread with `codex queue`, checks before each
+delivery that some Codex process (a terminal or the shared daemon) still has the thread's
+rollout open, and exits when none does or the brief is detached. When `lsof` can't be read,
+the scout counts the thread as live and keeps delivering, so a scout can outlive its session
+until `lsof` works again. See [Codex setup](codex.md) for what starts it. A Codex lemon that
+runs the one-shot `lemonaid watch --self --codex-thread` while its scout runs is told
+`push scout running; nothing to rearm`. The rest of this section describes the Claude scout.
+
+A Claude lemon's scout writes each batch
 into the Claude session through the session's inbox socket (listed in
 `~/.claude/sessions/<pid>.json`), saves cursors only once the socket has taken the batch,
 and exits when the session ends or its brief is detached. It holds the same lock as
@@ -676,7 +686,7 @@ Stop separately running watchers before switching, while preserving their declar
 ```bash
 lemonaid watch stop --self --keep-subscriptions
 lemonaid watch --self --status
-lemonaid watch --self --codex-thread          # Codex only; a Claude push scout needs no arming
+lemonaid watch --self --push                  # a running push scout needs no arming
 ```
 
 The SessionStart hook tells attached lemons to read current work and arm the unified

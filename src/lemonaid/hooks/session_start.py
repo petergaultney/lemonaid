@@ -12,7 +12,7 @@ from ..inbox import db
 from ..inbox.channel import channel_id
 from ..lemon_watchers import get_tty
 from ..log import get_logger
-from ..watch import own_edits, push_scout
+from ..watch import codex_scout, own_edits, push_scout
 from . import session_gate
 
 _log = get_logger("hooks.session_start")
@@ -92,7 +92,9 @@ def context(data: dict, harness: str) -> str:
         if cleared
         else ""
     )
-    if harness == "claude" and _pushed(path, session or ""):
+    if (harness == "claude" and _pushed(path, session or "")) or (
+        harness == "codex" and session and codex_scout.ensure_for(session, path)
+    ):
         return (
             moved + f"Your brief is {path}. Read it and the current state of your work first. "
             "lemonaid is watching for you: it reads your Watching section, PRs, Docs, children "

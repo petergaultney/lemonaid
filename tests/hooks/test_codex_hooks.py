@@ -11,7 +11,7 @@ from lemonaid.hooks import session_start
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import store, waiter
-from lemonaid.watch import own_edits, wait_state, waiter_lock
+from lemonaid.watch import codex_scout, own_edits, wait_state, waiter_lock
 
 _THREAD = "019a0000-1111-2222-3333-444444444444"
 
@@ -49,7 +49,18 @@ def test_a_codex_parent_without_a_children_waiter_is_blocked_with_the_codex_comm
 
     assert blocked is not None
     assert blocked["decision"] == "block"
-    assert "lemonaid watch --self --codex-thread" in blocked["reason"]
+    assert "lemonaid watch --self --push" in blocked["reason"]
+
+
+def test_a_codex_parent_whose_scout_starts_may_stop(capsys, monkeypatch):
+    parent = _briefed()
+    child = brief_store.briefs_dir() / "child.md"
+    child.write_text("# child\n\nStatus: working\n")
+    with db.connect() as conn:
+        links.set_parent(conn, identity.ensure(conn, child), parent)
+    monkeypatch.setattr(codex_scout, "ensure_for", lambda thread, path: thread == _THREAD)
+
+    assert _stop(capsys) is None
 
 
 @pytest.mark.parametrize("harness", ["claude", "codex"])
@@ -123,12 +134,21 @@ def test_a_claude_lemon_with_a_push_scout_is_told_what_lemonaid_does_for_it(monk
     assert "--codex-thread" not in text
 
 
-def test_the_codex_start_text_names_no_claude_mechanism():
+def test_a_codex_lemon_with_a_push_scout_is_told_what_lemonaid_does_for_it(monkeypatch):
+    _briefed()
+    monkeypatch.setattr(codex_scout, "ensure_for", lambda thread, path: thread == _THREAD)
+
+    text = session_start.context({"session_id": _THREAD}, "codex")
+
+    assert "lemonaid is watching for you" in text
+    assert "--codex-thread" not in text
+    assert "rearm" not in text
+
+
+def test_the_codex_fallback_text_names_no_claude_mechanism():
     _briefed()
 
     text = session_start.context({"session_id": _THREAD}, "codex")
 
-    assert "--codex-thread" in text
-    assert "push scout" not in text
-    assert "--push" not in text
+    assert "`lemonaid watch --self --push` with escalated permissions" in text
     assert "Bash" not in text

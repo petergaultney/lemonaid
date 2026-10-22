@@ -49,19 +49,27 @@ which can differ from a session's effective settings.
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
 waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
 (section 3 below), a Stop hook that requires the unified watcher for subscribed briefs
-and a valid brief, and a SessionStart hook that asks it to arm
-`lemonaid watch --self --codex-thread`. Codex
+and a valid brief, and a SessionStart hook. The SessionStart and Stop hooks start the
+lemon's push scout (below). Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 
 Stop checks resolve an attached transient notification channel from verified terminal
 ownership even before the first turn-complete notification records its root thread.
-Codex treats a blocking Stop response as a request to continue the turn. Lemonaid also
-recovers missed or failed rearms: at inbox startup and every ten seconds, it starts a
-detached unified watcher for a live, idle Codex lemon with subscriptions and no watcher.
-The watcher uses the persistent root thread for delivery and preserves the attached
-brief's channel. It skips dead, unknown, archived, mid-turn and pending-handoff sessions.
-This restores the watcher directly; no prompt or keystroke to the lemon is required.
+Codex treats a blocking Stop response as a request to continue the turn.
+
+A Codex lemon with a brief gets a push scout: a detached `lemonaid watch --self --push`
+that queues each batch of watch events and messages into its thread with `codex queue`
+and keeps watching, so the lemon never rearms a watcher. It runs outside the Codex
+sandbox, since `codex queue` writes `~/.codex`, and exits when no Codex process has the
+thread's rollout open or the brief is detached. The SessionStart and Stop hooks start it. The
+inbox also starts one at startup and every ten seconds for a live, idle Codex lemon with
+a brief and no watcher, at most once a minute per lemon. It uses the persistent
+root thread for delivery and preserves the attached brief's channel, and skips dead,
+unknown, archived, mid-turn and pending-handoff sessions. A lemon whose
+`lemonaid watch --self --status` says `no watcher running` can start its own with
+`lemonaid watch --self --push`, run with escalated permissions. See
+[watch.md](watch.md#the-push-scout).
 
 Codex 0.163's automatic recaps run in temporary threads that send ordinary
 turn-complete notifications but never save a rollout. Lemonaid logs and ignores
