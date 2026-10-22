@@ -11,4 +11,6 @@
 
 #### Added
 
+- **A quiet `git push` no longer wakes its own author.** lemonaid recognizes a lemon's own push only by the heads it prints, so in Claude Code the hooks remove `-q`/`--quiet` before the push runs and tell the lemon not to push quietly; a push that sends stderr to `/dev/null`, or a Codex lemon's quiet push, is refused.
+
 - **`watch pr --role author|reviewer|parent`** sets the role explicitly; otherwise it comes from a `Reviewer (` signature, a Review cell that is the brief's `Output-Doc:`, or a child authoring the PR.

@@ -168,7 +168,7 @@ rearm reports what changed in between, a push or merge included, and nothing it 
 reported. `--head`, in full or abbreviated to at least 7 digits, overrides the saved head;
 a first waiter without it takes the current head as seen. With lemonaid's hooks installed
 (`lemonaid hooks install`), a `git push` the lemon ran itself is recorded from its output,
-and a move to that head doesn't wake it (`git push -q` prints no heads, so a quiet push isn't recognized); GitHub can't say who pushed, since every lemon
+and a move to that head doesn't wake it (a Claude Code push with `-q` or `--quiet` runs with them removed, so it prints its heads; one that sends stderr to `/dev/null`, or a Codex lemon's quiet push, is refused before it runs); GitHub can't say who pushed, since every lemon
 pushes under its human's account. `--wait` and `--status` take a
 PR number or a `github.com` pull request URL. A URL names the repo itself, so `--repo` is
 unneeded, and an error if it names a different repo. For a number, `--repo owner/name` defaults

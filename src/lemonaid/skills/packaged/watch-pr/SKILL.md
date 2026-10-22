@@ -68,7 +68,7 @@ Bash(
 It prints the first event and exits, and the task's completion wakes you. Handle the event, then rearm the same way with `--head` set to the head you just handled. (`--head` is optional: the waiter remembers the head it last reported, and with lemonaid's hooks installed your own pushes don't wake you.)
 <!-- /harness -->
 
-Never push with `-q` or `--quiet`. The hooks recognize your push from the `old..new branch -> branch` line `git push` prints, and a quiet push prints none, so your own push wakes you.
+Never push with `-q` or `--quiet`, or with stderr sent to `/dev/null`. The hooks recognize your push from the `old..new branch -> branch` line `git push` prints, and a push that prints none would wake you. In Claude Code the hooks remove `-q`/`--quiet` before the push runs; otherwise they refuse it.
 
 <!-- harness: claude -->
 - Don't use `Monitor`: it expires after 30 minutes and wakes you for nothing.

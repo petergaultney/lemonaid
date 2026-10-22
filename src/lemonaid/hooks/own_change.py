@@ -5,11 +5,15 @@ its file name: an Edit's path, a patch, a shell command), that doc is hashed; on
 changed in between is recorded as the lemon's own edit (own_edits). A change during any
 other call, such as a long test run, is someone else's and still wakes the waiter.
 After a shell call that ran `git push`, each head the push printed is recorded as the
-lemon's own push (own_pushes). Attached briefs supply document subscriptions even between one-shot waits.
+lemon's own push (own_pushes). A push that would print no heads would wake the lemon's
+own waiter, so before it runs, Claude Code's is rewritten without `-q`/`--quiet` and the
+lemon told not to push quietly; one that sends stderr to /dev/null, or Codex's, is refused.
+Attached briefs supply document subscriptions even between one-shot waits.
 """
 
 import json
 import pathlib
+import re
 import sys
 import typing as ty
 from collections import abc
@@ -18,6 +22,13 @@ from ..claude import waiter_check
 from ..config import load_config
 from ..watch import own_edits, own_pushes, subscriptions
 from . import session_gate
+
+_EXEC_CALL = re.compile(r"exec_command\s*\(")
+# The call's `cmd` property, its key quoted or bare, its value any JavaScript string literal.
+_CMD_PROPERTY = re.compile(
+    r"""(?:["']cmd["']|\bcmd)\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""",
+    re.DOTALL,
+)
 
 
 def _strings(value: ty.Any) -> abc.Iterator[str]:
@@ -30,6 +41,33 @@ def _strings(value: ty.Any) -> abc.Iterator[str]:
     elif isinstance(value, list):
         for v in value:
             yield from _strings(v)
+
+
+def _unquoted(literal: str) -> str:
+    """A JavaScript string literal's text, near enough to read shell words from."""
+    if literal[0] == '"':
+        try:
+            return json.loads(literal)
+        except json.JSONDecodeError:
+            pass
+    return re.sub(r"\\(.)", lambda m: {"n": "\n", "t": "\t"}.get(m[1], m[1]), literal[1:-1])
+
+
+def _commands(tool_input: ty.Any) -> abc.Iterator[str]:
+    """The shell commands a tool call runs: Claude's `command`, Codex's `cmd`, and the
+    `cmd` of each `tools.exec_command({...})` inside Codex's wrapped `exec` script."""
+    script = tool_input
+    if isinstance(tool_input, dict):
+        yield from _strings(tool_input.get("command"))
+        yield from _strings(tool_input.get("cmd"))
+        script = tool_input.get("input")
+    for text in _strings(script):
+        if "*** Begin Patch" in text:
+            continue
+
+        for call in _EXEC_CALL.finditer(text):
+            if found := _CMD_PROPERTY.search(text, call.end()):
+                yield _unquoted(found.group(1))
 
 
 def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
@@ -66,11 +104,69 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
         )
 
 
+def refusal(data: dict) -> str:
+    """Why this tool call must not run, or "". Only commands are read, so an edit whose text
+    mentions a quiet push is not refused."""
+    if data.get("hook_event_name") != "PreToolUse" or not any(
+        own_pushes.hides_heads(c) for c in _commands(data.get("tool_input"))
+    ):
+        return ""
+
+    return (
+        "lemonaid: run this git push without -q/--quiet and without sending stderr to "
+        "/dev/null. lemonaid recognizes your own push by the refs git prints; a push that "
+        "prints none wakes your own PR watch."
+    )
+
+
+_REWRITTEN = (
+    "lemonaid removed -q/--quiet from your git push so it prints the refs it updates, which "
+    "is how lemonaid tells your own push from someone else's. Don't push quietly again."
+)
+
+
+def rewrite(data: dict, harness: str) -> dict | None:
+    """Claude Code hook output that runs a quiet push with its quiet flags removed, or None.
+
+    The permission decision keeps what would have happened anyway: `allow` only when the
+    session bypasses permissions, `ask` otherwise. Codex keeps the refusal for now.
+    """
+    tool_input = data.get("tool_input")
+    if harness != "claude" or not refusal(data) or not isinstance(tool_input, dict):
+        return None
+
+    command = tool_input.get("command")
+    if not isinstance(command, str) or (loud := own_pushes.loud(command)) is None:
+        return None
+
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": (
+                "allow" if data.get("permission_mode") == "bypassPermissions" else "ask"
+            ),
+            "updatedInput": {**tool_input, "command": loud},
+            "additionalContext": _REWRITTEN,
+        }
+    }
+
+
 def handle(harness: str) -> None:
     try:
         data = json.load(sys.stdin)
     except json.JSONDecodeError:
         return
 
-    if isinstance(data, dict):
+    if not isinstance(data, dict):
+        return
+
+    if output := rewrite(data, harness):
         record(data, harness, own_edits.root())
+        print(json.dumps(output))
+        return
+
+    if reason := refusal(data):
+        print(reason, file=sys.stderr)
+        sys.exit(2)
+
+    record(data, harness, own_edits.root())
