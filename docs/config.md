@@ -668,6 +668,21 @@ trusted_commenters = ["github.com/alice"]
 `--no-skip-outdated` and `--no-skip-resolved` override it to false for one wait.
 These filters do not affect submitted review bodies or PR conversation comments.
 
+## `[watch]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `github_debounce` | `600` | Seconds GitHub reads must keep failing, with none succeeding, before a lemon is told once that GitHub can't be reached. |
+
+## `[watch.roles.<role>]`
+
+`lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer` or `parent` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed` and `ci-passed`. An unknown role or kind is a warning, and the default list stands.
+
+```toml
+[watch.roles.parent]
+wake = ["state", "conflict"]
+```
+
 ## `[messages]`
 
 ```toml

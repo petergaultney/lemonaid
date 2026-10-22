@@ -11,8 +11,9 @@ where the next move is a teammate's.
   review    the next move is a teammate's approving review, not the user's
   approve   you reviewed a teammate's PR and recommend the user approve it; a review of a
             lemon's PR sets no status while the PR waits on its author or merge
-  merge     only the user's merge remains: the PR is approved, CI is green, it has no
-            conflicts and it is out of draft; check `gh pr view <n> --json mergeable`
+  merge     only the user's merge remains: the PR is approved, has no failed CI (green
+            isn't waited for), no conflicts, and is out of draft; check
+            `gh pr view <n> --json mergeable`
   running   nobody's move; you are minding a long pipeline or process, named under
             `### Running` in `## Now` (your own test suite is not one)
   done      nothing is left: the PR is merged or closed, or the output accepted, and no

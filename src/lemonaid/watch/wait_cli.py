@@ -19,6 +19,7 @@ from . import (
     notes,
     own_edits,
     pr_poller,
+    pr_roles,
     push_path,
     push_scout,
     registry,
@@ -67,7 +68,7 @@ def run(args: argparse.Namespace) -> int:
         if channel.startswith("claude:"):
             found = push_path.gather(lemon_id, channel.removeprefix("claude:"))
             lines.insert(0 if push_path.path_of(found).loud else 1, push_path.status_line(found))
-        print("\n".join(lines))
+        print("\n".join([*lines, *pr_roles.status(path, lemon_id)]))
         return 0 if running else 1
     if args.push and thread:
         print(f"not started: {push_scout.FLAG} is for Claude; drop --codex-thread")

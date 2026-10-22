@@ -8,25 +8,16 @@ is reported by the next one.
 
 import hashlib
 import pathlib
-import sys
 import time
 import typing as ty
 from collections import abc
 
-from . import delivery, pr_activity, pr_events
+from . import delivery, pr_activity, pr_events, roles
 
 
 def state_stem(state_dir: pathlib.Path, repo: str, pr: int, me: str) -> pathlib.Path:
     key = f"{repo}#{pr}" + (f"\0{me}" if me else "")
     return state_dir / hashlib.sha1(key.encode()).hexdigest()[:16]
-
-
-def _ci_hint(pr: int, snap: pr_activity.Snapshot) -> str:
-    """Said once at arm time when checks are pending but a passing run would not wake us."""
-    if snap.state != "OPEN" or not any(c.outcome == "pending" for c in snap.checks):
-        return ""
-
-    return f"PR #{pr} has checks pending; add --ci to be woken when CI passes"
 
 
 def wait(
@@ -42,6 +33,7 @@ def wait(
     ci: bool = False,
     own_head: ty.Callable[[str], bool] = lambda head: False,
     trusted: abc.Set[str] = frozenset(),
+    wake: abc.Set[str] = frozenset(roles.KINDS),
 ) -> None:
     """With `comments`, also reports a conflict with the base and failed CI (see merge_health).
 
@@ -53,7 +45,6 @@ def wait(
     Raises `delivery.Failed` with the event unrecorded if `deliver` fails.
     """
     first = True
-    armed, hint = False, ""
     while True:
         if not first:
             time.sleep(interval)
@@ -62,24 +53,18 @@ def wait(
         if snap is None:
             continue
 
-        if not armed:
-            armed = True
-            hint = _ci_hint(pr, snap) if not ci else ""
-            if hint:
-                print(hint, file=sys.stderr, flush=True)
         changed = pr_events.poll(
             stem,
             pr,
             snap,
-            lambda message, hint=hint: deliver("; ".join([hint, message]) if hint else message),
+            deliver,
             head=head,
             comments=comments,
             ci=ci,
             own_head=own_head,
             trusted=trusted,
+            wake=wake,
         )
         head = ""
-        if changed:
-            hint = ""
         if changed and once:
             return

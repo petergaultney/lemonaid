@@ -176,8 +176,9 @@ def test_ci_is_reported_once_every_check_has_finished(stem):
 
     assert len(sent) == 1
     assert sent[0].endswith(
-        f"PR #90 CI failed at {'a' * 10}: lint: read `gh pr checks 90`,"
-        " fix it and push (or rerun a flaky job), then tell your reviewer"
+        f"PR #90 CI failed at {'a' * 10}: lint: clear a `merge` status,"
+        " read `gh pr checks 90`, fix it and push (or rerun a flaky job),"
+        " then tell your reviewer"
     )
     assert (
         merge_health.events(
@@ -192,8 +193,8 @@ def test_optional_failure_counts_even_when_required_checks_pass():
 
     messages, _ = merge_health.events(90, _snap(checks=checks), merge_health.Seen("", ""))
     assert len(messages) == 1
-    assert "CI failed" in messages[0]
-    assert "flaky" in messages[0]
+    assert messages[0].kind == "ci-failed"
+    assert "flaky" in messages[0].text
 
 
 def test_a_reviewer_is_not_woken_for_conflicts_or_ci(stem):

@@ -10,9 +10,12 @@ def _comments_line(visibility: str, *comments: pr_comments.Comment, trusted=froz
     snap = pr_activity.Snapshot(
         _HEAD, "OPEN", False, "", list(comments), "main", "MERGEABLE", [], visibility
     )
-    return pr_events.events(
-        12, snap, _HEAD, "OPEN", (False, ""), list(comments), lambda head: False, trusted
-    )
+    return [
+        event.text
+        for event in pr_events.events(
+            12, snap, _HEAD, "OPEN", (False, ""), list(comments), lambda head: False, trusted
+        )
+    ]
 
 
 def _comment(author: str, association: str) -> pr_comments.Comment:

@@ -27,7 +27,7 @@ Set `Status:` only when one of the words below applies, and leave it out otherwi
 | `review` | A teammate's approving review on GitHub comes next, rather than your user's or a lemon's. Name the teammate and PR under `### Needs <who>`. |
 | `blocked` | Your user can act now: a decision, answer, review, trial, or text to post. Name the move under `### Needs <who>`. Asking your user in your final message counts too. |
 | `alert` | Your user's move is needed and harm grows while it waits. Keep this rare; importance alone does not qualify. Say what is getting worse under `### Needs <who>`. |
-| `merge` | Only your user's merge remains: reviewer approved, CI green, out of draft, and no conflicts. Check `gh pr view <n> --json mergeable` says `MERGEABLE` every time you set this. |
+| `merge` | Only your user's merge remains: reviewer approved, no failed CI, out of draft, and no conflicts. Don't wait for CI to go green; your user sees it. Check `gh pr view <n> --json mergeable` says `MERGEABLE` every time you set this. |
 | `approve` | You reviewed a teammate's PR and recommend your user's approval on GitHub. Name the PR and review doc under `### Needs <who>`. A review of a lemon's PR sets no status while it waits on its author or merge. |
 | `done` | Your PR merged or closed, or your output was accepted, and no work or waiter remains. |
 
@@ -35,7 +35,7 @@ When another lemon, CI, a background run, or a reply comes next, set no status a
 
 If your user's move is parked behind something they cannot act on yet, clear your status. Name that prerequisite and the move that follows it under `### Waiting on`, then set `blocked` when they can act. When several lemons wait on the same user move, only the lemon owning the ask uses `blocked` or `merge`; the others wait on it.
 
-Before asking your user to review a PR, check mergeability and green CI too. Conflicts and failed checks are yours to handle. If a `merge` PR gains a conflict, failed CI, or a new finding, clear the status while you fix it. Status does not authorize merging; follow your user's review and merge policy.
+Before asking your user to review a PR, check mergeability and that CI hasn't failed. Conflicts and failed checks are yours to handle. If a `merge` PR gains a conflict, failed CI, or a new finding, clear the status while you fix it. Status does not authorize merging; follow your user's review and merge policy.
 
 ## Lay out the brief
 

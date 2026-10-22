@@ -9,7 +9,7 @@ from lemonaid.watch import pr_activity, pr_comments, subscriptions
 from . import shared
 
 
-@pytest.mark.parametrize("event", ["ci", "comment"])
+@pytest.mark.parametrize("event", ["ci-failed", "comment"])
 def test_pr_table_stays_subscribed_after_a_progress_update(tmp_path, monkeypatch, event):
     path = tmp_path / "brief.md"
     path.write_text(shared.BRIEF)
@@ -50,8 +50,8 @@ def test_pr_table_stays_subscribed_after_a_progress_update(tmp_path, monkeypatch
         run("now", "- Reviewer cleared the PR. CI running.")
         assert "\n## PRs\n" in path.read_text()
         assert not path.read_text().split("## Watching", 1)[1].strip()
-        if event == "ci":
-            current[0] = snapshot._replace(checks=[pr_activity.Check("test", False, "passed")])
+        if event == "ci-failed":
+            current[0] = snapshot._replace(checks=[pr_activity.Check("test", False, "failed")])
         else:
             current[0] = snapshot._replace(
                 comments=[pr_comments.Comment("new", "conversation", "sam", "Please fix", "OWNER")]
@@ -59,7 +59,7 @@ def test_pr_table_stays_subscribed_after_a_progress_update(tmp_path, monkeypatch
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1
-        assert ("CI passed" if event == "ci" else "Please fix") in sent[0]
+        assert ("CI failed" if event == "ci-failed" else "Please fix") in sent[0]
     finally:
         stop.set()
         thread.join(5)

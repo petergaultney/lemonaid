@@ -34,3 +34,25 @@ def test_invalid_filter_warns_and_includes_threads(tmp_path, capsys, key):
 
     assert getattr(filters, key) is False
     assert f"[watch.pr] {key} must be a boolean" in capsys.readouterr().err
+
+
+def test_roles_and_debounce_load_from_toml(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[watch]\ngithub_debounce = 60\n\n[watch.roles.parent]\nwake = ["state", "head"]\n'
+    )
+
+    watch = config.load_config(path).watch
+
+    assert watch.github_debounce == 60
+    assert watch.roles == {"parent": frozenset({"state", "head"})}
+
+
+def test_an_unknown_role_or_kind_warns_and_keeps_the_default(tmp_path, capsys):
+    path = tmp_path / "config.toml"
+    path.write_text('[watch.roles.lead]\nwake = []\n\n[watch.roles.parent]\nwake = ["pushes"]\n')
+
+    assert config.load_config(path).watch.roles == {}
+    err = capsys.readouterr().err
+    assert "[watch.roles.lead] is ignored" in err
+    assert "[watch.roles.parent] wake must be a list" in err

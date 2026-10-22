@@ -66,6 +66,7 @@ def test_already_passed_ci_is_a_first_wait_baseline(tmp_path, monkeypatch):
 
 def test_two_paused_pr_scouts_deliver_one_quota_notice(tmp_path, monkeypatch):
     monkeypatch.setattr(github_api, "_JITTER", 0)
+    (tmp_path / "config.toml").write_text("[watch]\ngithub_debounce = 0\n")
     github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
     monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: None)
     text = (

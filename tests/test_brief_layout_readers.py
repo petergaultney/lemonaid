@@ -155,7 +155,7 @@ def test_table_and_watcher_readers_keep_all_subscriptions(brief, tmp_path):
     reading = subscriptions.report(text, tmp_path)
     assert not reading.problems
     specs = {spec.key: spec for spec in reading.specs}
-    assert specs[("pr", ("o/r", "12"))].ci
+    assert not specs[("pr", ("o/r", "12"))].ci
     assert specs[("pr", ("o/r", "12"))].comments
     assert specs[("doc", (str(doc),))].edits
     assert specs[("briefs", ("task.IndexElf",))].lemons == tuple(lemon_table.rows(text))

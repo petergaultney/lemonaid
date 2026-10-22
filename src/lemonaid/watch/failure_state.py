@@ -34,5 +34,13 @@ def report(
     return attempts
 
 
+def count(path: Path) -> int:
+    """The consecutive failures so far, this one included, without reporting any."""
+    saved = _load(path)
+    attempts = int(saved.get("attempts", 0)) + 1
+    cursors.write_json(path, {**saved, "attempts": attempts})
+    return attempts
+
+
 def clear(path: Path) -> None:
     path.unlink(missing_ok=True)

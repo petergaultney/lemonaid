@@ -1,6 +1,7 @@
 """Watch every readable source, retaining the list across an incomplete brief write."""
 
 import json
+from collections import abc
 from pathlib import Path
 
 from . import cursors, subscriptions
@@ -14,7 +15,12 @@ def reported(root: Path) -> set[str]:
 
 
 def read(
-    path: Path, root: Path, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ()
+    path: Path,
+    root: Path,
+    cwd: Path,
+    owner: str = "",
+    vaults: tuple[Path, ...] = (),
+    children_prs: abc.Set[tuple[str, ...]] = frozenset(),
 ) -> tuple[list[subscriptions.Subscription], str]:
     saved = root / "subscriptions.md"
     text = path.read_text()
@@ -33,7 +39,7 @@ def read(
             )
         ]
     else:
-        reading = subscriptions.report(text, cwd, owner, vaults)
+        reading = subscriptions.report(text, cwd, owner, vaults, children_prs)
         specs, problems = list(reading.specs), list(reading.problems)
         if not saved.exists() or saved.read_text() != text:
             cursors.write_text(saved, text)

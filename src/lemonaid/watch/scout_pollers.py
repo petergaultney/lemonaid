@@ -23,6 +23,7 @@ from . import (
     pr_wait,
     repo_activity,
     repo_events,
+    roles,
     subscriptions,
 )
 
@@ -39,6 +40,7 @@ def _repo_poller(
     directory: Path,
     me: str,
     deliver: abc.Callable[[str], bool],
+    debounce: float,
 ) -> abc.Callable[[], object]:
     [repo] = spec.target
     stem = repo_events.state_stem(directory, repo, me)
@@ -53,7 +55,7 @@ def _repo_poller(
         if (prs := repo_activity.fetch(repo)) is None:
             _log.warning("Cannot read GitHub for %s", repo)
             retry_at = time.monotonic() + github_failures.failed(
-                root, failed, repo, deliver, spec.interval
+                root, failed, repo, deliver, spec.interval, debounce
             )
             return
 
@@ -140,12 +142,14 @@ def open_poller(
         )
         return lambda: briefs_events.poll(watch, deliver)
 
+    settings = load_config().watch
     if spec.kind == "repo":
-        return _repo_poller(spec, root, directory, me, deliver)
+        return _repo_poller(spec, root, directory, me, deliver, settings.github_debounce)
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)
-    trusted = watch_config.logins_on(load_config().watch.pr.trusted_commenters, pr_url.HOST)
+    trusted = watch_config.logins_on(settings.pr.trusted_commenters, pr_url.HOST)
+    wake = roles.wake(spec.role or roles.AUTHOR, settings.roles)
     if writer:
         own_pushes.register(own_edits.root(), writer)
     head, closed, retry_at = spec.head, False, 0.0
@@ -168,7 +172,7 @@ def open_poller(
         if snapshot is None:
             _log.warning("Cannot read GitHub for %s#%s", repo, number)
             retry_at = time.monotonic() + github_failures.failed(
-                root, failed, f"{repo}#{number}", deliver, spec.interval
+                root, failed, f"{repo}#{number}", deliver, spec.interval, settings.github_debounce
             )
             return
 
@@ -183,6 +187,7 @@ def open_poller(
             ci=spec.ci,
             own_head=lambda value: own_pushes.is_own(own_edits.root(), writer, value),
             trusted=trusted,
+            wake=wake,
         )
         head = ""
         closed = snapshot.state != "OPEN"
