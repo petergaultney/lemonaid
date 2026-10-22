@@ -31,7 +31,13 @@ from . import (
 # writes from one comment arrives as one event; body edits wait the doc's full quiet period.
 _THREAD_SETTLE = 3.0
 
+
 _log = get_logger("watch.scouts")
+
+
+def _credible_age(mtime: float) -> float:
+    """Seconds since *mtime*, or 0 for a future one (clock skew), so it is timed from now."""
+    return max(0.0, time.time() - mtime)
 
 
 def _repo_poller(
@@ -99,22 +105,24 @@ def open_poller(
         watch.all_threads = True
         watch.settled_quiet = spec.quiet
         try:
-            fingerprint = path.read_text()
-            age = max(0, time.time() - path.stat().st_mtime)
+            fingerprint, mtime = path.read_text(), path.stat().st_mtime
         except FileNotFoundError:
-            fingerprint, age = "", spec.quiet
-        since = time.monotonic() - age
+            fingerprint, mtime = "", 0.0
+        since = time.monotonic() - _credible_age(mtime)
 
         def doc() -> None:
-            nonlocal fingerprint, since
+            nonlocal fingerprint, mtime, since
             try:
-                current = path.read_text()
+                current, modified = path.read_text(), path.stat().st_mtime
             except FileNotFoundError:
                 doc_events.poll(watch, deliver)
                 return
             path_presence.observe(watch.presence)
             if current != fingerprint:
-                fingerprint, since = current, time.monotonic()
+                # A change whose mtime did not advance (a restored file) counts from now.
+                age = _credible_age(modified) if modified > mtime else 0.0
+                fingerprint, since = current, time.monotonic() - age
+            mtime = modified
             still_for = time.monotonic() - since
             if still_for < _THREAD_SETTLE:
                 return

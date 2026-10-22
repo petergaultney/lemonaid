@@ -167,6 +167,66 @@ def test_a_comment_is_reported_at_the_settle_and_the_body_edit_after_the_quiet_p
     assert len(sent) == 2 and "body of" in sent[1]
 
 
+def test_a_comment_settled_since_its_last_write_is_reported_though_it_changed_since_the_last_read(
+    tmp_path,
+):
+    doc = tmp_path / "review.md"
+    doc.write_text("Body\n")
+    os.utime(doc, (time.time() - 60, time.time() - 60))
+    spec = subscriptions.Subscription("doc", (str(doc),), "Author (IndexElf)", quiet=20)
+    sent = []
+    poll = scout_pollers.open_poller(
+        spec, tmp_path / "cursors", "", lambda message: sent.append(message) or True, ()
+    )
+    poll()
+    doc.write_text('Body\n{{authorId="human" author="Human">>question<<}}\n')
+    os.utime(doc, (time.time() - 5, time.time() - 5))  # written between reads, settled since
+
+    poll()
+
+    assert len(sent) == 1 and "question" in sent[0]
+
+
+def test_a_future_dated_doc_reports_its_comment_once_it_is_seen_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setattr(scout_pollers, "_THREAD_SETTLE", 0.1)
+    doc = tmp_path / "review.md"
+    doc.write_text('{{authorId="human" author="Human">>question<<}}')
+    os.utime(doc, (time.time() + 3600, time.time() + 3600))
+    spec = subscriptions.Subscription("doc", (str(doc),), "Author (IndexElf)", quiet=20)
+    sent = []
+    poll = scout_pollers.open_poller(
+        spec, tmp_path / "cursors", "", lambda message: sent.append(message) or True, ()
+    )
+    poll()
+    assert sent == []
+
+    time.sleep(0.15)
+    poll()
+    assert len(sent) == 1 and "question" in sent[0]
+
+
+def test_a_change_that_keeps_an_old_mtime_waits_out_the_settle(tmp_path, monkeypatch):
+    monkeypatch.setattr(scout_pollers, "_THREAD_SETTLE", 0.1)
+    doc = tmp_path / "review.md"
+    doc.write_text("Before\n")
+    old = time.time() - 60
+    os.utime(doc, (old, old))
+    spec = subscriptions.Subscription("doc", (str(doc),), "Author (IndexElf)", quiet=20)
+    sent = []
+    poll = scout_pollers.open_poller(
+        spec, tmp_path / "cursors", "", lambda message: sent.append(message) or True, ()
+    )
+    poll()
+    doc.write_text('Before\n{{authorId="human" author="Human">>question<<}}\n')
+    os.utime(doc, (old, old))
+    poll()
+    assert sent == []
+
+    time.sleep(0.15)
+    poll()
+    assert len(sent) == 1 and "question" in sent[0]
+
+
 def test_a_failed_read_waits_longer_each_time_before_the_next(tmp_path, monkeypatch):
     fetched = []
     monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: fetched.append(1))

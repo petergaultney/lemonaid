@@ -3,7 +3,7 @@
 `lemonaid watch doc` blocks until someone responds to a Markdown document through
 Relay Comments (inline CriticMarkup blocks written by an Obsidian plugin), and
 then wakes the lemon that wrote it. It uses no model turns while it waits: it reads the file
-every 15 seconds.
+every second.
 
 ```bash
 lemonaid watch doc --wait <doc> --me "Author (MotorHoe)" --legacy Claude --once
@@ -605,7 +605,9 @@ with the watcher armed; it does not need repeated model turns to poll.
 batch gathering after the last event (default 2 seconds). Individual watch commands
 keep their source polling and quiet options. Documents wait for their own quiet
 period, normally 20 seconds, before reporting a body edit. A new comment waits only
-until the file has been unchanged for 3 seconds, and the event lists all unanswered
+until the file has been unchanged for 3 seconds (timed from its last write when its
+modification time is plausible, otherwise from when the change was seen; read every
+second), and the event lists all unanswered
 threads together. A document
 still being edited holds back only its own event; other ready sources can deliver.
 

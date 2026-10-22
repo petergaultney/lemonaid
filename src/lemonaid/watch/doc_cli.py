@@ -249,7 +249,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         default=True,
         help="also report body edits outside comment threads (default: on)",
     )
-    ap.add_argument("--interval", type=float, default=15.0, help="seconds between reads")
+    ap.add_argument("--interval", type=float, default=1.0, help="seconds between reads")
     ap.add_argument(
         "--quiet",
         type=float,
