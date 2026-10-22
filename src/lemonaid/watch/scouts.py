@@ -3,6 +3,7 @@
 import dataclasses
 import queue
 import threading
+import time
 from pathlib import Path
 
 from ..log import get_logger
@@ -17,6 +18,7 @@ class Pending:
     message: str
     owner: "Scout | None" = None
     doc_version: int = 0
+    detected: float = dataclasses.field(default_factory=time.time)
     acknowledged: threading.Event = dataclasses.field(default_factory=threading.Event)
     delivered: bool = False
 

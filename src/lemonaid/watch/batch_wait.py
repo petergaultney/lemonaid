@@ -7,10 +7,13 @@ from pathlib import Path
 
 from ..brief import identity
 from ..config import load_config
+from ..log import get_logger
 from ..messages import store
 from . import delivery, doc_version, notes, pr_roles, scouts, subscription_state
 
 _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
+
+_log = get_logger("watch.batch_wait")
 
 
 def _messages(inbox: Path) -> list[tuple[Path, str]]:
@@ -60,6 +63,7 @@ def _collect(
             event.acknowledged.set()
             continue
 
+        _log.info("detected [%s]", event.source)
         pending.append(event)
         arrived = True
     for event in list(pending):
@@ -68,6 +72,11 @@ def _collect(
             and event.owner.spec.kind == "doc"
             and doc_version.of(Path(event.owner.spec.target[0])) != event.doc_version
         ):
+            _log.info(
+                "discarded [%s] detected %.1fs ago: the doc changed before delivery",
+                event.source,
+                time.time() - event.detected,
+            )
             event.owner.stop()
             event.acknowledged.set()
             event.owner.thread.join(timeout=1)
@@ -137,6 +146,19 @@ def wait(
                     for s in running.values()
                 )
                 if (pending or messages) and armed and time.monotonic() - since >= quiet:
+                    _log.info(
+                        "delivering to %s: %s",
+                        inbox.name,
+                        ", ".join(
+                            [
+                                *(f"[{p.source}] {time.time() - p.detected:.1f}s" for p in pending),
+                                *(
+                                    f"[inbox] {time.time() - m.stat().st_mtime:.1f}s"
+                                    for m, _ in messages
+                                ),
+                            ]
+                        ),
+                    )
                     deliver(
                         "\n\n".join(
                             [

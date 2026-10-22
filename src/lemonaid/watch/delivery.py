@@ -14,6 +14,10 @@ import shutil
 import subprocess
 import typing as ty
 
+from ..log import get_logger
+
+_log = get_logger("watch.delivery")
+
 Deliver = ty.Callable[[str], None]
 
 
@@ -84,6 +88,8 @@ def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
             )
         except subprocess.CalledProcessError as e:
             raise Failed(f"codex queue failed ({e})") from e
+
+        _log.info("queued a %s event into Codex thread %s", kind, thread)
 
     return deliver
 
