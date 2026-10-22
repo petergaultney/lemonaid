@@ -43,4 +43,4 @@ def save(brief: Path, entries: list[str]) -> None:
             + "\n"
         )
 
-    store.edit(path, prepend)
+    store.edit(path, prepend, migrate=False)

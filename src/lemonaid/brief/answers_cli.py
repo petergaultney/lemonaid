@@ -33,7 +33,7 @@ def _archive(args: argparse.Namespace) -> None:
             return after
 
         try:
-            store.edit(path.resolve(), change)
+            error = verbs_cli.edit(path.resolve(), change)
         except (OSError, ValueError, store.ChangedUnderneath) as cause:
             error = str(cause)
     command.finish(

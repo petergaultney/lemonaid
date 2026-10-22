@@ -2,7 +2,16 @@ import json
 
 import pytest
 
-from lemonaid.brief import answer_archive, check, sections, store
+from lemonaid.brief import answer_archive, check, created, frontmatter, sections, store
+
+
+def test_archive_keeps_json_and_records_brief_contributor(brief, run, monkeypatch):
+    monkeypatch.setattr(created, "by", lambda conn: "AuthorElm")
+    run("answer", "--self", "Why?", "Keep it")
+    monkeypatch.setattr(created, "by", lambda conn: "EditorOak")
+    run("answers", "archive", "--self")
+    assert len(json.loads(answer_archive.path_for(brief).read_text())) == 1
+    assert "EditorOak" in frontmatter.fields(brief.read_text())["contributors"]
 
 
 def test_archive_top_then_all_and_expand_without_restoring(brief, run, capsys):
