@@ -33,9 +33,9 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
-| `P` | Pin the session below any other pins, or unpin it |
+| `P` | Pin the session below any other pins, or unpin it (`lemonaid inbox pin`, `inbox unpin`) |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |
-| `Z` | Undo the last inbox change |
+| `Z` | Undo the last inbox change (`lemonaid inbox unarchive` restores an archived session from a script) |
 | `r` | Rename session (clear to revert to auto-name); on a group's header, rename the group |
 | `Tab` | Collapse or open the group of the row under the cursor, its header or one of its lemons |
 | `G` | Name a new group of the session, its children and theirs ([groups.md](groups.md#editing-in-the-inbox)) |

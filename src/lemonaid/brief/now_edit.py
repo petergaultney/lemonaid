@@ -75,7 +75,7 @@ def replace_progress(text: str, body: str, replace_all: bool = False) -> str:
     if carried:
         raise EditError(
             f"{', '.join(carried)} must stay outside ## Now in this layout, even with --replace-all. "
-            f"Edit it with `lemonaid brief section set --self \"{carried[0]}\" -`. "
+            f'Edit it with `lemonaid brief section set --self "{carried[0]}" -`. '
             "To edit only ## Now, omit Next, PRs, Docs and Done headings from the new body."
         )
     now = layout.parse(body)

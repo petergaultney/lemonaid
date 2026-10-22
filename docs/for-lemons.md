@@ -89,6 +89,17 @@ lemonaid inbox rename --self --clear         # back to the backend's name
 `emoji` take `--json` and print `{"channel", "name"}` or `{"channel", "emoji"}`, plus
 `"error"`.
 
+### Pinning, ordering pins and unarchiving
+
+```bash
+lemonaid inbox pin --lemon hq.LemonAce                # pin below any other pins; already pinned is a no-op
+lemonaid inbox pin --lemon hq.LemonAce --move top     # up, down, top or bottom, like Shift+Up/Down
+lemonaid inbox unpin --lemon hq.LemonAce
+lemonaid inbox unarchive --lemon hq.LemonAce          # an archived row returns unread
+```
+
+All three take the targets of `rename` (`--self`, `--id`, `--channel`, `--lemon`) and `--json`. `--move up` and `down` trade places with the neighbouring pin as the inbox lists pins now, and refuse at the end of the list or for a snoozed pin. Archiving drops a pin, so `pin` refuses an archived row, and `unarchive` does not bring the pin back. `unarchive` changes only the inbox row: it does not restart the harness or re-attach a brief, the watcher archives it again if its pane is gone, and it refuses a row that is not archived. A `brief handoff`, `/clear` and `brief attach` onto a new channel carry the pin.
+
 ### Snoozing yourself
 
 `inbox snooze` holds your row out of the user's active inbox until a time, as the TUI's `S`

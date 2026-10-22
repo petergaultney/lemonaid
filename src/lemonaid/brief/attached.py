@@ -19,7 +19,7 @@ import time
 from collections import abc
 from pathlib import Path
 
-from ..inbox import db
+from ..inbox import db, pins
 from . import pending_gate, session
 
 _PENDING_DAYS = 15
@@ -35,7 +35,10 @@ class Attachment:
 
 
 def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
-    """Attach *path* to *channel*. Returns the channel it moved from, or ""."""
+    """Attach *path* to *channel*, which takes over the pin of the channel it moved from.
+
+    Returns the channel it moved from, or "".
+    """
     previous = conn.execute(
         "SELECT channel FROM session_briefs WHERE path = ? AND channel != ?",
         (str(path), channel),
@@ -47,6 +50,9 @@ def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
         (channel, str(path), time.time()),
     )
     conn.commit()
+    if previous:
+        pins.carry(conn, previous["channel"], channel)
+
     return previous["channel"] if previous else ""
 
 

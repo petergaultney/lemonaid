@@ -64,3 +64,25 @@ def swap(conn: sqlite3.Connection, channel: str, other: str) -> None:
         [(positions[other], channel), (positions[channel], other)],
     )
     conn.commit()
+
+
+def move_to_edge(conn: sqlite3.Connection, channel: str, *, top: bool) -> None:
+    """Put a pinned channel above or below every other pin, leaving the rest alone."""
+    positions = pinned_positions(conn)
+    others = [p for c, p in positions.items() if c != channel]
+    if channel not in positions or not others:
+        return
+
+    edge = min(others) - _SPACING if top else max(others) + _SPACING
+    conn.execute("UPDATE pins SET position = ? WHERE channel = ?", (edge, channel))
+    conn.commit()
+
+
+def carry(conn: sqlite3.Connection, source: str, target: str) -> bool:
+    """Move *source*'s pin to *target*, which keeps a pin of its own. True if one moved."""
+    if not is_pinned(conn, source) or is_pinned(conn, target):
+        return False
+
+    conn.execute("UPDATE pins SET channel = ? WHERE channel = ?", (target, source))
+    conn.commit()
+    return True
