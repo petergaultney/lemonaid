@@ -8,7 +8,9 @@ from pathlib import Path
 from ..brief import identity
 from ..config import load_config
 from ..messages import store
-from . import delivery, doc_version, notes, scouts, subscription_state
+from . import delivery, doc_version, notes, pr_roles, scouts, subscription_state
+
+_CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 
 
 def _messages(inbox: Path) -> list[tuple[Path, str]]:
@@ -96,9 +98,18 @@ def wait(
     running: dict[tuple, scouts.Scout] = {}
     pending: list[scouts.Pending] = []
     since, last_messages = 0.0, ()
+    children: frozenset[tuple[str, ...]] = frozenset()
+    children_at = -_CHILDREN_EVERY
     try:
         while still_attached():
-            listed, problem = subscription_state.read(path, root, Path.cwd(), inbox.name, vaults)
+            if time.monotonic() - children_at >= _CHILDREN_EVERY:
+                children, children_at = (
+                    pr_roles.children_author(inbox.name, Path.cwd(), vaults),
+                    time.monotonic(),
+                )
+            listed, problem = subscription_state.read(
+                path, root, Path.cwd(), inbox.name, vaults, children
+            )
             specs = {s.key: s for s in listed}
             if not problem:
                 pending = [p for p in pending if p.source != "brief"]

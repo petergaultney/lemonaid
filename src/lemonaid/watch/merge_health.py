@@ -14,7 +14,7 @@ import json
 import pathlib
 import typing as ty
 
-from . import cursors, pr_activity
+from . import cursors, pr_activity, roles
 
 
 class Seen(ty.NamedTuple):
@@ -64,7 +64,7 @@ def events(
     *,
     comments: bool = True,
     ci: bool = False,
-) -> tuple[list[str], Seen]:
+) -> tuple[list[roles.Event], Seen]:
     """Events to report for this snapshot, and what has now been seen."""
     if snap.state != "OPEN":
         return [], seen
@@ -76,23 +76,34 @@ def events(
     return [
         *(
             [
-                f"PR #{pr} conflicts with {snap.base} at {snap.head[:10]}: rebase onto origin/{snap.base}"
-                " (if its base PR just merged, rebase only your commits, as watch-pr's stacked-PR step says),"
-                f" run the tests, push --force-with-lease, check `gh pr view {pr} --json mergeable` is MERGEABLE,"
-                " then tell your reviewer"
+                roles.Event(
+                    roles.CONFLICT,
+                    f"PR #{pr} conflicts with {snap.base} at {snap.head[:10]}: rebase onto origin/{snap.base}"
+                    " (if its base PR just merged, rebase only your commits, as watch-pr's stacked-PR step says),"
+                    f" run the tests, push --force-with-lease, check `gh pr view {pr} --json mergeable` is MERGEABLE,"
+                    " then tell your reviewer",
+                )
             ]
             if conflict
             else []
         ),
         *(
             [
-                f"PR #{pr} CI failed at {snap.head[:10]}: {', '.join(failed[:5])}: read `gh pr checks {pr}`,"
-                " fix it and push (or rerun a flaky job), then tell your reviewer"
+                roles.Event(
+                    roles.CI_FAILED,
+                    f"PR #{pr} CI failed at {snap.head[:10]}: {', '.join(failed[:5])}: clear a `merge` status,"
+                    f" read `gh pr checks {pr}`, fix it and push (or rerun a flaky job),"
+                    " then tell your reviewer",
+                )
             ]
             if failed
             else []
         ),
-        *([f"PR #{pr} CI passed at {snap.head[:10]}"] if passed else []),
+        *(
+            [roles.Event(roles.CI_PASSED, f"PR #{pr} CI passed at {snap.head[:10]}")]
+            if passed
+            else []
+        ),
     ], Seen(
         {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head)
         if comments

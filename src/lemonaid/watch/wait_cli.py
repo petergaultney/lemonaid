@@ -61,7 +61,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"not started: {error}")
         return 2
     if args.status:
-        return wait_status.report(lemon_id, channel, thread)
+        return wait_status.report(lemon_id, channel, thread, path)
     if thread and not args.push and push_scout.running(lemon_id):
         print("push scout running; nothing to rearm")
         return 0

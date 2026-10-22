@@ -15,7 +15,8 @@ def test_subscription_parser_deduplicates_tables_and_requires_no_shell(tmp_path)
     text += f'- `lemonaid watch pr --wait {pr} --me "Reviewer (IndexElf)"`\n'
     specs = subscriptions.read(text, tmp_path)
     prs = [s for s in specs if s.kind == "pr"]
-    assert len(prs) == 1 and prs[0].comments and prs[0].ci
+    assert len(prs) == 1 and prs[0].comments and not prs[0].ci
+    assert prs[0].role == "reviewer"
     assert prs[0].me == "Reviewer (IndexElf)"
     reading = subscriptions.report(shared.BRIEF + "- `sh arbitrary-script`\n", tmp_path)
     assert reading.problems
@@ -83,3 +84,44 @@ def test_the_default_identity_is_the_brief_name_in_either_order(tmp_path):
         text = f"# Task\n\nBrief-ID: {brief_id}\n\n{table}"
         [spec] = [s for s in subscriptions.report(text, tmp_path).specs if s.kind == "pr"]
         assert spec.me == "Author (SkullHen)"
+
+
+def _with_pr_row(text, pr, review=""):
+    return text.replace(
+        "## Watching",
+        f"## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n| Work | [r#12]({pr}) | {review} |\n\n## Watching",
+    )
+
+
+def test_a_pr_row_is_the_authors_unless_a_child_authors_it(tmp_path):
+    pr = "https://github.com/o/r/pull/12"
+    text = _with_pr_row(shared.BRIEF, pr)
+
+    [mine] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
+    [childs] = [
+        s
+        for s in subscriptions.report(text, tmp_path, children_prs={("o/r", "12")}).specs
+        if s.kind == "pr"
+    ]
+
+    assert (mine.role, mine.ci) == ("author", False)
+    assert childs.role == "parent"
+
+
+def test_a_pr_row_whose_review_doc_is_the_briefs_output_is_the_reviewers(tmp_path):
+    doc = tmp_path / "docket.md"
+    text = _with_pr_row(shared.BRIEF, "https://github.com/o/r/pull/12", f"[doc]({doc})")
+    text = text.replace("\n\n", f"\n\nOutput-Doc: {doc}\n\n", 1)
+
+    [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
+
+    assert spec.role == "reviewer"
+
+
+def test_an_explicit_role_wins(tmp_path):
+    pr = "https://github.com/o/r/pull/12"
+    text = shared.BRIEF + f'- `lemonaid watch pr --wait {pr} --me "Reviewer (X)" --role parent`\n'
+
+    [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
+
+    assert spec.role == "parent"

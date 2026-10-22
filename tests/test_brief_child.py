@@ -143,7 +143,7 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     assert f"[widgets#12]({_PR})" in text
     assert "[widgets-12](obsidian://open?vault=notes&file=reviews%2Fwidgets-12)" in text
     assert f"`lemonaid tell {_PARENT}` and `lemonaid tell widget.QuickOdd`" in text
-    assert f"--wait {_PR} --comments --ci --me 'Reviewer ({wordybin})'" in text
+    assert f"--wait {_PR} --role reviewer --me 'Reviewer ({wordybin})'" in text
     assert f"--wait {doc} --me 'Reviewer ({wordybin})'" in text
     assert "lemonaid watch --self" in text
     assert "`git range-diff origin/<base> <reviewed sha> HEAD`" in text

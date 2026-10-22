@@ -216,8 +216,40 @@ The event names the result and head. Results are remembered per head and watcher
 identity, including failures already reported by `--comments`, so rearming with
 `--head` does not repeat a handled completion. A new push is reported normally; rearm
 with `--ci` to wait for that head's checks. Remove `--ci` after handling the result.
-A waiter armed without `--ci` while checks on the head are still pending prints a
-one-line hint to stderr, and repeats it at the start of its first event.
+An author doesn't need `--ci`: it marks its PR ready once its reviewer clears it, without
+waiting for CI, and a failure wakes it through `--comments` to clear a `merge` status.
+
+### Roles
+
+Under `lemonaid watch --self`, each PR wakes the lemon only for the events its role on that
+PR needs. An event that doesn't wake it is still recorded, and is listed at the start of the
+next event that does (`Seen without waking you: ...`).
+
+| Event (kind) | author | reviewer | parent |
+|---|---|---|---|
+| merged, closed or reopened (`state`) | wakes | wakes | wakes |
+| a push the lemon didn't make (`head`) | wakes | wakes | |
+| marked ready for review (`ready`) | | | |
+| back in draft (`draft`) | wakes | | |
+| review decision changed (`decision`) | wakes | | |
+| new comments (`comments`) | wakes | | |
+| conflict with the base (`conflict`) | wakes | | |
+| CI failed (`ci-failed`) | wakes | | |
+| CI passed, only with `--ci` (`ci-passed`) | wakes | | |
+
+The parent hears that its child's PR is ready to merge or done through the child's Status, so
+it needs the PR itself only when it merges or closes. The role comes from the brief, first
+match wins:
+
+1. `--role author|reviewer|parent` on the PR's `watch pr` line.
+2. A `--me` signature starting `Reviewer (`, or a `### PRs` row whose Review document is the
+   brief's own `Output-Doc:`: reviewer.
+3. A PR that one of the lemon's children authors (by these same rules): parent.
+4. Anything else: author.
+
+`lemonaid watch --self --status` prints each PR's role. `[watch.roles.<role>] wake` in the
+config replaces a role's list; see [config](config.md#watch). A standalone `watch pr` wakes for
+every event unless given `--role`.
 
 ## Watching a repo for PRs
 
@@ -460,7 +492,7 @@ The rows and commands declare these sources:
 | Source | What the unified watcher watches |
 |---|---|
 | `## Watching` | Supported `watch pr`, `doc`, `file` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
-| `### PRs` | Each PR with both comments and CI enabled, regardless of whether an explicit watch line omitted those flags. |
+| `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. Passing CI is reported only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
 | A PR's Review cell | A local review document's unanswered comments. An explicit doc command or Docs row can also enable body edits. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
 | Inbox | Every pending message for this lemon, included in the same batch as source changes. |
@@ -468,7 +500,7 @@ The rows and commands declare these sources:
 | `### Lemons` | Each listed lemon, child or not, like a child: its Status and Needs changes and its liveness. A row for a child sets that child's wake statuses. |
 
 A repeated source is watched once. Explicit options are retained; a PR row forces
-comments and CI on, and a Docs row with `All edits` enables edits. A closed or merged PR
+comments on, and a Docs row with `All edits` enables edits. A closed or merged PR
 is silent on first subscription; an existing subscription reports its closure once
 and stops polling it.
 
@@ -655,7 +687,7 @@ of a restarted watcher also records the new `version`.
 - **Successful delivery:** advance event cursors and move delivered inbox messages to `done/` only after delivery succeeds. Source detector threads wait for that acknowledgement.
 - **Failed delivery:** keep inbox messages and event cursors pending so the next arm can deliver them. No event is acknowledged merely because it was detected.
 - **Brief edits:** add or remove subscriptions without restarting. Each invalid line or table error is reported once while valid sources keep running; an incomplete brief write retains the previous readable list. Custom shell commands are not executed.
-- **Source failures:** persist the reported failure across rearms and clear it when the source recovers. GitHub failures are reported after three in a row, rather than every failed fetch, and each one doubles the wait before that subscription's next read, up to 10 minutes. When GitHub refuses a read for quota, or reports fewer than 100 points left, every GitHub read on the machine pauses until the reset GitHub names, recorded in `$LEMONAID_STATE_DIR/github/paused-until.json`. Each lemon is told once, with the resume time, and no "Cannot reach GitHub" notice is sent for it.
+- **Source failures:** persist the reported failure across rearms and clear it when the source recovers. Each failed GitHub read doubles the wait before that subscription's next read, up to 10 minutes. When GitHub refuses a read for quota, or reports fewer than 100 points left, every GitHub read on the machine pauses until the reset GitHub names, recorded in `$LEMONAID_STATE_DIR/github/paused-until.json`. A lemon hears about an outage or pause once, covering all its GitHub subscriptions, and only after reads have failed for `[watch] github_debounce` (10 minutes by default) with none succeeding; a read that succeeds ends the outage, so a shorter one wakes nobody.
 - **Shared PR reads:** unified watchers on one machine share their PR reads. The watcher holding `$LEMONAID_STATE_DIR/github/pr-poller.lock` checks every PR a scout watched in the last 5 minutes once a minute, in one small query, and re-reads a PR in full only when it changed, has checks running, or was last read 15 minutes ago. Scouts read its snapshots from `$LEMONAID_STATE_DIR/github/pr/`, and read GitHub themselves when a snapshot is missing or over 3 minutes old. If that watcher exits, another takes the lock within a minute. Standalone `watch pr` and `watch repo` waiters still read GitHub directly.
 - **Document changes during batching:** discard a stale pending doc event and reread it. Missing or deleted documents do not kill the whole watcher.
 - **Own changes:** installed own-change hooks suppress recorded edits and pushes by this lemon. Attached Docs and Watching documents are considered between arms too. Tool input must name the edited file. SessionStart and the unified command maintain the cheap per-session shell gate; unbriefed sessions without doc registrations or pushes skip Python.

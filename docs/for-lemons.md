@@ -529,7 +529,7 @@ lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one b
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
 lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in PRs (new sections use ##)
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
-lemonaid brief waiter add --self "lemonaid watch pr --wait https://github.com/owner/repo/pull/12 --comments --ci --once"  # a bullet in ## Watching
+lemonaid brief waiter add --self "lemonaid watch pr --wait https://github.com/owner/repo/pull/12 --comments --once"  # a bullet in ## Watching
 lemonaid brief waiter add --self "lemonaid watch repo --wait owner/repo --label needs-review --once"  # every PR in a repo, not one
 lemonaid brief waiter set --self "wait 12" --head e4f5a6b  # seed a standalone waiter; unified waits prefer their saved head
 lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
@@ -1167,8 +1167,16 @@ comment from someone else, conflict with the base, or failed CI (the last three 
 Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, and pass that
 signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. A waiter reports only what changes after it starts, never what is already true, so read the PR (`gh pr view`, `gh pr checks`) before your first one. Your waiter remembers the head it last reported, so a push made while none ran still wakes you; `--head` set to the head you just handled overrides it, and with `lemonaid hooks install` your own pushes never wake you. Never push with `-q` or `--quiet`: the hooks recognize your push by the heads `git push` prints, and a quiet push prints none.
 
-Add `--ci` to report CI completion on the current head, passing or failing, with or
-without `--comments`. It waits for all checks to finish and reports a failure once per head.
+Under `watch --self`, a PR wakes you only for the events your role on it needs: an author
+for everything but ready-for-review and passing CI, a reviewer for pushes and merge or close,
+a parent for merge or close only. The role comes from `--role`, a `Reviewer (` signature, a
+Review cell that is your `Output-Doc:`, or a child authoring the PR, else author; `watch --self
+--status` prints it. Events that don't wake you are listed at the start of the next one
+that does. Details: [watch.md](watch.md#roles).
+
+An author marks its PR ready once its reviewer clears it, and sets `merge` without waiting for
+CI; a failure wakes it to clear `merge`. Add `--ci` only to wait for a result you need, to report CI completion on the current
+head, passing or failing, with or without `--comments`. It waits for all checks to finish and reports a failure once per head.
 A pass is reported once the same set of checks has passed on two polls in a row (one
 `--interval` after they finish), and again if the set later changes on that head.
 No checks is not a completion. A CI result that finished before your first waiter started
@@ -1232,7 +1240,7 @@ scout and returns; a Codex lemon runs it with escalated permissions. If that pri
 Bash task, and a Codex lemon runs `lemonaid watch --self --codex-thread` as an escalated
 exec_command session.
 
-The watcher rereads Watching commands, PRs (comments and CI), local PR Review documents,
+The watcher rereads Watching commands, PRs (comments and failed CI), local PR Review documents,
 Docs rows, inbox and direct children. Without a scout, it delivers one batch and exits;
 handle every source, then rearm. First subscriptions take current state as seen except unanswered document
 threads. Saved cursors bridge rearms and advance only after delivery succeeds.

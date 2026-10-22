@@ -45,6 +45,7 @@ from . import (
     pr_activity,
     pr_wait,
     registry,
+    roles,
     wait_state,
     waiter_lock,
 )
@@ -148,7 +149,8 @@ def run(a: argparse.Namespace, repo: str) -> int:
     if writer:
         own_pushes.register(own_edits.root(), writer)
     try:
-        filters = config.load_config().watch.pr
+        settings = config.load_config().watch
+        filters = settings.pr
         with registry.watching(a, "pr", (f"{repo}#{pr}",), a.codex_thread, repo):
             pr_wait.wait(
                 lambda: pr_activity.fetch(
@@ -172,6 +174,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
                 ci=a.ci,
                 own_head=lambda head: own_pushes.is_own(own_edits.root(), writer, head),
                 trusted=watch_config.logins_on(filters.trusted_commenters, pr_url.HOST),
+                wake=roles.wake(a.role, settings.roles) if a.role else frozenset(roles.KINDS),
             )
     except KeyboardInterrupt:
         pass
@@ -231,6 +234,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     ap.add_argument(
         "--ci", action="store_true", help="also report completed CI, passing or failing"
+    )
+    ap.add_argument(
+        "--role",
+        choices=roles.ROLES,
+        default="",
+        help="wake only for the events this role needs (default: every event; under watch --self,"
+        " worked out from the brief)",
     )
     for kind in ("outdated", "resolved"):
         ap.add_argument(

@@ -44,26 +44,82 @@ def test_an_already_closed_pr_is_silent_and_stops_being_polled(tmp_path, monkeyp
     assert sent == []
 
 
-def test_github_failure_is_reported_once_across_rearms_and_again_after_recovery(
+def test_an_outage_is_told_once_per_lemon_after_the_debounce_and_again_after_recovery(
     tmp_path, monkeypatch
 ):
+    clock = [1000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    sent = []
+
+    def fail(number, at):
+        clock[0] = 1000.0 + at
+        failure = tmp_path / "failures" / f"{number}.json"
+        github_failures.failed(tmp_path, failure, f"o/r#{number}", sent.append, 60, 600)
+
+    fail("12", 0)
+    fail("13", 599)
+    assert sent == []
+
+    fail("13", 600)
+    fail("12", 700)
+    assert len(sent) == 1 and "Cannot reach GitHub for o/r#13" in sent[0]
+
+    github_failures.recovered(tmp_path, tmp_path / "failures" / "13.json")
+    fail("12", 900)
+    assert len(sent) == 1
+
+    fail("12", 1500)
+    assert len(sent) == 2
+
+
+def test_a_long_pause_is_reported_at_the_debounce_not_after_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(github_api, "_JITTER", 0)
+    clock = [1000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    github_api._pause(github_api.Pause(1000.0 + 3600, "quota"))
+    failure = tmp_path / "failures" / "12.json"
+    sent = []
+
+    assert github_failures.failed(tmp_path, failure, "o/r#12", sent.append, 60, 600) == 600
+    assert sent == []
+
+    clock[0] += 600
+    assert github_failures.failed(tmp_path, failure, "o/r#12", sent.append, 60, 600) == 3000
+    assert len(sent) == 1 and "quota is used up" in sent[0]
+
+
+def test_a_read_that_succeeds_while_the_notice_is_delivered_leaves_the_next_outage_reportable(
+    tmp_path,
+):
+    sent = []
+
+    def deliver(message):
+        sent.append(message)
+        github_failures.recovered(tmp_path, tmp_path / "failures" / "13.json")
+
+    github_failures.failed(tmp_path, tmp_path / "failures" / "12.json", "o/r#12", deliver, 60, 0)
+    assert not (tmp_path / "failures" / "github-outage.json").exists()
+
+    github_failures.failed(
+        tmp_path, tmp_path / "failures" / "12.json", "o/r#12", sent.append, 60, 0
+    )
+    assert len(sent) == 2
+
+
+def test_an_outage_shorter_than_the_debounce_wakes_nobody(tmp_path, monkeypatch):
     monkeypatch.setattr(github_failures, "_retry_delay", lambda attempts, interval: 0)
     snapshot = pr_activity.Snapshot("b" * 40, "OPEN", False, "", [], "main", "MERGEABLE", [])
     state = [None]
     monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: state[0])
-    spec = subscriptions.Subscription("pr", ("o/r", "12"), comments=True, ci=True)
+    spec = subscriptions.Subscription("pr", ("o/r", "12"), comments=True)
     sent = []
-    for _ in range(2):
-        poll = scout_pollers.open_poller(spec, tmp_path, "", sent.append, ())
-        for _ in range(3):
-            poll()
-    assert len(sent) == 1
+    poll = scout_pollers.open_poller(spec, tmp_path, "", sent.append, ())
+    for _ in range(5):
+        poll()
     state[0] = snapshot
     poll()
-    state[0] = None
-    for _ in range(3):
-        poll()
-    assert len(sent) == 2
+    assert sent == []
+    assert not (tmp_path / "failures" / "github-outage.json").exists()
 
 
 def test_a_body_event_names_the_quiet_period_enforced_by_its_scout(tmp_path):
@@ -131,15 +187,12 @@ def test_a_failed_read_waits_longer_each_time_before_the_next(tmp_path, monkeypa
 
 def test_a_quota_pause_is_told_once_per_lemon_and_never_as_unreachable(tmp_path, monkeypatch):
     monkeypatch.setattr(github_api, "_JITTER", 0)
-    monkeypatch.setattr(github_failures, "_retry_delay", lambda attempts, interval: 0)
     github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
-    monkeypatch.setattr(pr_activity, "fetch", lambda *args, **kwargs: None)
     sent = []
     for number in ("12", "13"):
-        spec = subscriptions.Subscription("pr", ("o/r", number))
-        poll = scout_pollers.open_poller(spec, tmp_path, "", sent.append, ())
         for _ in range(3):
-            poll()
+            failure = tmp_path / "failures" / f"{number}.json"
+            github_failures.failed(tmp_path, failure, f"o/r#{number}", sent.append, 60, 0)
     assert len(sent) == 1
     assert "quota is used up until" in sent[0]
 
@@ -158,7 +211,7 @@ def test_concurrent_scouts_tell_a_lemon_about_one_pause_once(tmp_path, monkeypat
         failure = tmp_path / "failures" / f"{number}.json"
         if number == "13":
             second.set()
-        github_failures.failed(tmp_path, failure, f"o/r#{number}", deliver, 60)
+        github_failures.failed(tmp_path, failure, f"o/r#{number}", deliver, 60, 0)
 
     threads = [threading.Thread(target=scout, args=(n,)) for n in ("12", "13")]
     for thread in threads:
@@ -172,7 +225,11 @@ def test_a_read_that_succeeds_during_a_pause_keeps_the_pause_notice(tmp_path, mo
     monkeypatch.setattr(github_api, "_JITTER", 0)
     github_api._pause(github_api.Pause(time.time() + 3600, "quota"))
     sent = []
-    github_failures.failed(tmp_path, tmp_path / "failures" / "12.json", "o/r#12", sent.append, 60)
+    github_failures.failed(
+        tmp_path, tmp_path / "failures" / "12.json", "o/r#12", sent.append, 60, 0
+    )
     github_failures.recovered(tmp_path, tmp_path / "failures" / "13.json")
-    github_failures.failed(tmp_path, tmp_path / "failures" / "14.json", "o/r#14", sent.append, 60)
+    github_failures.failed(
+        tmp_path, tmp_path / "failures" / "14.json", "o/r#14", sent.append, 60, 0
+    )
     assert len(sent) == 1

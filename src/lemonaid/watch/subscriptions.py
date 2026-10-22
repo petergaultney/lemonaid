@@ -4,10 +4,11 @@ import argparse
 import dataclasses
 import re
 import shlex
+from collections import abc
 from pathlib import Path
 
-from ..brief import doc_table, identity, lemon_table, pr_table, sections, waiters
-from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli
+from ..brief import doc_table, identity, lemon_table, output_doc, pr_table, sections, waiters
+from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
 
 
 class Problem(ValueError):
@@ -45,6 +46,7 @@ class Subscription:
     state_dir: Path | None = None
     lemons: tuple[lemon_table.Row, ...] = ()
     needs: bool = False
+    role: str = ""  # a PR's, see watch/roles.py
 
     @property
     def source(self) -> str:
@@ -105,6 +107,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
             "skip_resolved",
             "pushes",
             "state_dir",
+            "role",
         )
         if hasattr(args, name) and getattr(args, name) is not None
     }
@@ -122,7 +125,14 @@ class Reading:
     problems: tuple[str, ...]
 
 
-def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ()) -> Reading:
+def report(
+    text: str,
+    cwd: Path,
+    owner: str = "",
+    vaults: tuple[Path, ...] = (),
+    children_prs: abc.Set[tuple[str, ...]] = frozenset(),
+) -> Reading:
+    """*children_prs* are the PRs this lemon's children author, which make it their parent."""
     problems = []
     try:
         parent = identity.read(text) or owner
@@ -131,6 +141,7 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
         problems.append(str(error))
     me = f"Author ({identity.brief_name(parent) or parent})"
     specs: dict[tuple[str, tuple[str, ...]], Subscription] = {}
+    reviews: dict[tuple[str, ...], Path] = {}
     for command in waiters.commands(text):
         try:
             spec = _parse(command, parent, me, cwd)
@@ -148,8 +159,10 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
                 if found := pr_table.target(row.pr):
                     key = ("pr", found)
                     old = specs.get(key, Subscription("pr", found, me, interval=60))
-                    specs[key] = dataclasses.replace(old, comments=True, ci=True)
+                    specs[key] = dataclasses.replace(old, comments=True)
                 if path := doc_table.path_of(row.review, vaults):
+                    if found:
+                        reviews[found] = path.resolve()
                     key = ("doc", (str(path.resolve()),))
                     specs.setdefault(key, Subscription("doc", key[1], me, quiet=20))
         elif section.heading.lower() == "docs":
@@ -162,6 +175,19 @@ def report(text: str, cwd: Path, owner: str = "", vaults: tuple[Path, ...] = ())
         specs[key] = dataclasses.replace(
             old, edits=old.edits or row.watch == doc_table.Watch.ALL_EDITS
         )
+    output = output_doc.read(text)
+    for key, spec in specs.items():
+        if spec.kind == "pr":
+            review = reviews.get(spec.target)
+            specs[key] = dataclasses.replace(
+                spec,
+                role=roles.derive(
+                    spec.role,
+                    spec.me,
+                    review is not None and output is not None and review == output.resolve(),
+                    spec.target in children_prs,
+                ),
+            )
     if parent:
         key = ("briefs", (parent,))
         specs[key] = dataclasses.replace(

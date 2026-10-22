@@ -24,7 +24,8 @@ The standalone commands below remain available.
 A PR number or URL. If omitted, infer it from the current branch (`gh pr view --json number`).
 
 - `--comments --me "<your signature>"`: also wake on new comments from anyone but you, and, as the PR's author, when it starts conflicting with its base or its CI fails. Use it on every PR you open. `<your signature>` is the one you sign Relay Comments with, e.g. `Author (MotorHoe)`.
-- `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`; it does not require `--comments`.
+- `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`; it does not require `--comments`. An author doesn't need it: mark your PR ready once your reviewer clears it, without waiting for CI, and a failure wakes you through `--comments`.
+- `--role author|reviewer|parent`: wake only for the events that role needs. Under `lemonaid watch --self` the role is worked out from your brief; `watch --self --status` prints it.
 - `--legacy <name>`: another signature whose comments count as yours, e.g. one you signed with before (repeatable).
 - Without `--comments` or `--ci`: pushes, merge/close, draft/ready, and review decision only, e.g. when you reviewed someone else's PR. Conflicts and CI are the author's to fix, so a reviewer isn't woken for them.
 
@@ -42,7 +43,7 @@ Keep the entry across one-shot events while you handle them and rearm. When the 
 
 Use local tests during active development when their feedback helps you make the next change. After a small tweak whose behavior you understand, you may choose to push and let CI validate it instead of running the suite locally and then waiting for the same checks again. Use your judgment about the change and the CI coverage.
 
-When relying on CI, check `gh pr checks <number>` first: a CI result that has already finished is never reported. If CI is still running, add `--ci` to your next waiter alongside `--comments` and keep it on each rearm until CI finishes on the head you need validated. A push or comment can wake you before CI completes; handle that event and rearm with `--ci` still present. Once you handle the CI result, rearm without `--ci` for the usual comment and failure watch. If the waiter prints `has checks pending; add --ci` at startup or in its first event, you armed without `--ci` while CI is running: stop it and rearm with `--ci`, since a passing run never wakes a waiter without it.
+Passing CI wakes nobody by default. With `--comments`, a CI failure wakes the author: clear a `merge` status, fix it, and push. The PR stays ready for review on GitHub, which shows the failure. Add `--ci` only when you must have a particular result, after checking `gh pr checks <number>` first, since a CI result that has already finished is never reported; keep it on each rearm until CI finishes on that head, then rearm without it.
 
 CI completion waits for every check on the current head to finish. Every check counts, including checks that are not required for merging. No checks is not a completion. A completion is remembered once per head and watcher identity, so rearming with `--head` does not repeat it, even when switching between `--comments` and `--ci`.
 
@@ -84,10 +85,10 @@ The waiter makes one GraphQL call a minute, for the repo of the current director
 ## When woken
 
 - **Head moved:** record the old SHA from the event, then `git fetch origin && git log <old>..<new> --stat` and `gh pr diff <number>`. Report what changed. If you were watching for something specific, re-evaluate it against the new state. If you are on the PR's branch, `git pull --ff-only`; never switch branches to get there.
-- **Ready for review:** someone wants it reviewed now. Keep `--comments` if it's yours, and rearm.
+- **Ready for review:** someone wants it reviewed now. Keep `--comments` if it's yours, and rearm. Under `watch --self` this wakes nobody.
 - **Conflicts with its base:** reported once per head, when GitHub says `CONFLICTING`. Rebase onto `origin/<base>` (if the base PR just merged, see the stacked-PR step below), run the tests, push with `--force-with-lease`, check that `gh pr view <n> --json mergeable` says `MERGEABLE`, tell your reviewer, and rearm.
 - **CI passed (`--ci`):** the current head has finished CI successfully. Continue the review or merge-readiness work, then rearm without `--ci`.
-- **CI failed:** reported once per head, after every check on it has finished. Every check counts, including checks that are not required for merging. Read `gh pr checks <n>` and the failed job's log. Fix it and push, or rerun a flaky job (`gh run rerun <run-id> --failed`), tell your reviewer when it's green, and rearm.
+- **CI failed:** reported once per head, after every check on it has finished. Every check counts, including checks that are not required for merging. Read `gh pr checks <n>` and the failed job's log. Clear a `merge` status (the PR stays ready for review on GitHub), fix it and push, or rerun a flaky job (`gh run rerun <run-id> --failed`), tell your reviewer, and rearm.
 - **Stacked PR, base merged:** GitHub retargets your PR to the base's own base. If that merge was a squash, your branch still carries the base's original commits and usually conflicts. Rebase only your own commits (`git rebase --onto origin/main <base's last commit> <your branch>`), run the tests, push with `--force-with-lease`, check it's `MERGEABLE`, and rearm.
 - **Back in draft:** more work is wanted before review. Look for what in the PR's comments; if nothing says, ask in your final message. Rearm.
 - **Review decision `APPROVED`:** report it and rearm. Don't merge unless you were told to.

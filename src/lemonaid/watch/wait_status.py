@@ -1,12 +1,13 @@
 """`lemonaid watch --self --status`: whether a watcher runs, and how batches reach the lemon."""
 
 import os
+from pathlib import Path
 
-from . import codex_scout, push_path, push_scout, wait_state
+from . import codex_scout, pr_roles, push_path, push_scout, wait_state
 
 
-def report(lemon_id: str, channel: str, thread: str) -> int:
-    """0 when a watcher runs."""
+def report(lemon_id: str, channel: str, thread: str, brief: Path) -> int:
+    """0 when a watcher runs. Also names the role each PR in *brief* wakes the lemon as."""
     running = wait_state.is_armed(lemon_id)
     lines = [
         ("push scout running" if push_scout.running(lemon_id) else "watcher running")
@@ -19,5 +20,5 @@ def report(lemon_id: str, channel: str, thread: str) -> int:
     elif channel.startswith("codex:"):
         own = thread or os.environ.get("CODEX_THREAD_ID", "") or channel.removeprefix("codex:")
         lines.append(codex_scout.status_line(own))
-    print("\n".join(lines))
+    print("\n".join([*lines, *pr_roles.status(brief, lemon_id)]))
     return 0 if running else 1
