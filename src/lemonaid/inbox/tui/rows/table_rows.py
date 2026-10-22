@@ -47,6 +47,7 @@ def sync_rows(
     rails_by_row: abc.Mapping[str, str] | None = None,
     children_by_row: abc.Mapping[str, tuple[int, int]] | None = None,
     families: family_highlight.Highlighter | None = None,
+    leads: abc.Set[str] = frozenset(),
 ) -> bool:
     """Bring a DataTable in line with `rows`, in place where possible.
 
@@ -68,6 +69,8 @@ def sync_rows(
         (2 * len(str(total)) + 3 for _, total in children_by_row.values()), default=0
     )
     if families is not None:
+        marker_width += 2
+    if leads:
         marker_width += 2
     raw = dict(rows)
     end_rails = {
@@ -98,10 +101,13 @@ def sync_rows(
                 total,
                 visible,
                 role,
+                key in leads,
             )
 
         painted = brief_rows.styled(
-            parent_markers.columns(cells, total, marker_width, gutter_width, visible, role),
+            parent_markers.columns(
+                cells, total, marker_width, gutter_width, visible, role, key in leads
+            ),
             (briefs_by_row or {}).get(key),
             layout.UNREAD_CELL,
             layout.BACKEND_CELL,

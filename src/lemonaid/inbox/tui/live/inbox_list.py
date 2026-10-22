@@ -235,6 +235,7 @@ class InboxList(Vertical):
             group_order,
             ungrouped_first=self.config.inbox.ungrouped_first,
             parents_first=self.arrangement.parents_first,
+            lead_first=self.config.tui.group_lead_first,
         )
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]

@@ -69,6 +69,7 @@ def as_card(
     children: int = 0,
     visible_children: int | None = None,
     family: str | None = None,
+    lead: bool = False,
 ) -> list[Text]:
     """Fold a column row into the cells of a card.
 
@@ -154,7 +155,7 @@ def as_card(
     if card_brief and card_brief.shown == "idle" and not marker.plain:
         backend.stylize("dim")
         reading.stylize("dim")
-    markers = parent_markers.indicators(children, emoji, pin, visible_children, family)
+    markers = parent_markers.indicators(children, emoji, pin, visible_children, family, lead)
     context = card_context.fitted(
         context_parts
         if context_parts is not None

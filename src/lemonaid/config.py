@@ -188,6 +188,8 @@ class TuiConfig:
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
+    # A group's lead (the member with the most descendants in it) sorts first among the group's rows.
+    group_lead_first: bool = True
     # The scratch pane's title bar and bottom edge while it will receive keys.
     focus_color: str = "#2bd9cf"
     # Fades the whole inbox while its tmux pane is not selected: "off", "dim" (the
@@ -621,6 +623,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
             {"waiting": "idle", "working": "active"}.get(status, status)
             for status in tui_data.get("fold_statuses", [])
         ],
+        group_lead_first=tui_data.get("group_lead_first", True),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),

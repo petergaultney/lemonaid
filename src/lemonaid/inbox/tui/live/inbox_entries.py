@@ -18,6 +18,7 @@ def entries(
     *,
     ungrouped_first: bool = True,
     parents_first: bool = True,
+    lead_first: bool = False,
 ) -> tuple[list[Entry], list[db.Notification], list[db.Notification]]:
     """The main table's entries, the rows still folded away, and the other-terminal rows.
 
@@ -45,6 +46,8 @@ def entries(
             group_order=group_order,
             ungrouped_first=ungrouped_first,
             parents=frame.parents if parents_first else {},
+            lead_first=lead_first,
+            current=frame.active.rows,
         )
         return (
             laid_out,
@@ -65,5 +68,7 @@ def entries(
         group_order=group_order,
         ungrouped_first=ungrouped_first,
         parents=frame.parents if parents_first else {},
+        lead_first=lead_first,
+        current=frame.active.rows,
     )
     return laid_out, folded, frame.other

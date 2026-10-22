@@ -6,6 +6,7 @@ from ..tables import layout
 
 PARENT = "\u2193"
 CHILD = "\u2191"
+LEAD = "\u265b"  # ♛, the member with the most descendants in the group the row is drawn under
 
 
 def _label(children: int, visible: int | None) -> Text:
@@ -14,7 +15,12 @@ def _label(children: int, visible: int | None) -> Text:
 
 
 def indicators(
-    children: int, emoji: str, pin: Text, visible: int | None = None, family: str | None = None
+    children: int,
+    emoji: str,
+    pin: Text,
+    visible: int | None = None,
+    family: str | None = None,
+    lead: bool = False,
 ) -> Text:
     relationship = (
         Text({"parent": PARENT, "child": CHILD}.get(family, " "), style="bold not dim")
@@ -22,7 +28,15 @@ def indicators(
         else Text()
     )
     return Text(" ").join(
-        part for part in (relationship, _label(children, visible), Text(emoji), pin) if part.plain
+        part
+        for part in (
+            relationship,
+            Text(LEAD if lead else ""),
+            _label(children, visible),
+            Text(emoji),
+            pin,
+        )
+        if part.plain
     )
 
 
@@ -33,12 +47,13 @@ def columns(
     gutter: int,
     visible: int | None = None,
     family: str | None = None,
+    lead: bool = False,
 ) -> list[Text]:
     if not width:
         return cells
 
     name = cells[layout.NAME_CELL]
-    marker = indicators(children, "", Text(), visible, family)
+    marker = indicators(children, "", Text(), visible, family, lead)
     return [
         name[:gutter] + marker + Text(" " * max(0, width - marker.cell_len)) + name[gutter:]
         if i == layout.NAME_CELL

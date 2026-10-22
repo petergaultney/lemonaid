@@ -117,4 +117,5 @@ def draw(
         },
         children_by_row=child_counts,
         families=families,
+        leads={e.key for e in drawn if e.lead},
     )

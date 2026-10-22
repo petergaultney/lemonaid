@@ -18,6 +18,10 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
                 ),
                 ("\u21933 (dim)", "Three active direct children, all shown"),
                 ("\u21931/3 (dim)", "One shown out of three active direct children"),
+                (
+                    parent_markers.LEAD,
+                    "Lead of its group: the member with the most descendants in it, sorted first (tui.group_lead_first)",
+                ),
                 ("Scope", "Across groups and both inbox tables; each child counts once"),
                 ("Visibility", "Only shown relatives get arrows; hidden rows stay hidden"),
                 ("Totals", "Include hidden/folded; exclude archived/snoozed"),

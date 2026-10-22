@@ -13,7 +13,7 @@ import dataclasses
 from collections import abc
 
 from .. import groups
-from . import db, order, parent_order
+from . import db, group_lead, order, parent_order
 
 
 @dataclasses.dataclass(frozen=True)
@@ -39,6 +39,7 @@ class Header:
 class Row:
     key: str  # the notification id, then `@<group id>` for a row inside a group
     notification: db.Notification
+    lead: bool = False  # the lead of the group this row is drawn under
 
 
 def _band(rows: abc.Sequence[db.Notification], statuses: abc.Mapping[str, str]) -> str:
@@ -81,6 +82,8 @@ def layout(
     group_order: abc.Sequence[db.Notification] = (),
     ungrouped_first: bool = True,
     parents: abc.Mapping[str, str] | None = None,
+    lead_first: bool = False,
+    current: abc.Sequence[db.Notification] = (),
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
@@ -90,6 +93,10 @@ def layout(
     *kept* holds row keys drawn even inside a collapsed group or folded; a *deaf* lemon's
     rows are always drawn. *group_order* keeps group members in their order before
     folding, so pulling a focused row out of the fold doesn't move it in its group.
+    With *lead_first*, a group's lead (see `group_lead.find`) sorts first in that group,
+    above any pinned or deaf rows, and a drawn member pulls its ancestors in that group into
+    the drawing unless the group is collapsed. It is a lead only in that group. *current* is every
+    current session, so hiding or searching members away doesn't change who leads.
     """
     every = [*shown, *folded]
     positions = {n.id: i for i, n in enumerate(group_order)}
@@ -103,7 +110,19 @@ def layout(
 
     def drawn(group: groups.store.Group) -> list[Header | Row]:
         rows = grouped[group.name]
-        visible = [
+        lead = (
+            group_lead.find(
+                sorted(
+                    (n for n in current if group.name in memberships.get(n.channel, ())),
+                    key=lambda n: positions.get(n.id, len(positions)),
+                )
+                or rows,
+                parents or {},
+            )
+            if lead_first
+            else ""
+        )
+        shown_rows = [
             n
             for n in rows
             if n.channel in pinned
@@ -111,8 +130,31 @@ def layout(
             or f"{n.id}@{group.group_id}" in kept
             or (not group.collapsed and (fold_open or n.id not in folded_ids))
         ]
-        leading = [n for n in visible if n.channel in pinned or n.channel in deaf]
-        ordinary = [n for n in visible if n.channel not in pinned and n.channel not in deaf]
+        drawn_above = {
+            above
+            for n in shown_rows
+            for above in group_lead.ancestors(n.channel, parents or {})
+            if lead_first and not group.collapsed
+        }
+        visible = [
+            *(n for n in rows if n in shown_rows or n.channel in drawn_above),
+            *(
+                n  # members the inbox hid away entirely come back for a drawn descendant
+                for n in sorted(current, key=lambda n: positions.get(n.id, len(positions)))
+                if n.channel in drawn_above
+                and group.name in memberships.get(n.channel, ())
+                and n.id not in {r.id for r in rows}
+            ),
+        ]
+        pins = [n for n in visible if n.channel in pinned or n.channel in deaf]
+        ordinary = parent_order.ordered(
+            [n for n in visible if n.channel not in pinned and n.channel not in deaf],
+            parents or {},
+        )
+        # the lead goes above the pins, whichever list it was in
+        ordered = [n for n in visible if n.channel == lead] + [
+            n for n in [*pins, *ordinary] if n.channel != lead
+        ]
         return [
             Header(
                 group,
@@ -122,11 +164,7 @@ def layout(
                 sum(n.id not in folded_ids for n in rows),
                 len(visible),
             ),
-            *(Row(f"{n.id}@{group.group_id}", n) for n in leading),
-            *(
-                Row(f"{n.id}@{group.group_id}", n)
-                for n in parent_order.ordered(ordinary, parents or {})
-            ),
+            *(Row(f"{n.id}@{group.group_id}", n, n.channel == lead) for n in ordered),
         ]
 
     def shows_a_row(group: groups.store.Group) -> bool:
