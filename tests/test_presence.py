@@ -183,3 +183,26 @@ def test_deaf_waits_until_it_has_lasted(monkeypatch):
     assert _MARKS(probe, [row], ids, 1000.0) == {}
     assert _MARKS(probe, [row], ids, 1014.0) == {}
     assert _MARKS(probe, [row], ids, 1015.0) == {"claude:a": "deaf"}
+
+
+def test_a_background_probe_answers_from_the_previous_listing_while_ps_runs(monkeypatch):
+    listing, listed = threading.Event(), threading.Event()
+
+    def harness_ttys():
+        listing.set()
+        listed.wait(5)
+        return frozenset()
+
+    monkeypatch.setattr(presence, "_harness_ttys", harness_ttys)
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: [])
+    row = _row("codex:b", "ttys002", created_at=10.0)
+    probe, ids = presence.Probe(background=True), {row.channel: "lemon-b.QuickOdd"}
+
+    assert _MARKS(probe, [row], ids, 1000.0) == {row.channel: "deaf"}  # not known to be dead yet
+    assert listing.wait(5)
+    listed.set()
+    for thread in threading.enumerate():
+        if thread.name == "presence":
+            thread.join(5)
+
+    assert _MARKS(probe, [row], ids, 1001.0) == {row.channel: "dead"}

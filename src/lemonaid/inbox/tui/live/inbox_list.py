@@ -58,7 +58,7 @@ class InboxList(Vertical):
         self._brief_cache = lists.brief_cache
         self.undo_stack = lists.undo_stack
         self.redraw = redraw
-        self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS)
+        self.presence = presence.Probe(presence.DEAF_AFTER_SECONDS, background=True)
         self.pr_numbers = pr_numbers.Cache()
         self.stalls = stalls_inbox.Tracker()
         self.revival = scout_revival.Revival()
