@@ -9,6 +9,7 @@ the same Lemon-ID refuses to start.
 import contextlib
 import logging
 import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -57,8 +58,16 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
     return deliver
 
 
+def _announced_marker(session_id: str) -> pathlib.Path:
+    return pathlib.Path(_log_path()).parent / "announced" / session_id
+
+
 def announce(entry: session_socket.Session) -> None:
-    """Tell the lemon its scout is delivering."""
+    """Tell the lemon its scout is delivering, once per session; a restarted scout stays quiet."""
+    marker = _announced_marker(entry.session_id)
+    if marker.exists():
+        return
+
     try:
         session_socket.send(
             entry,
@@ -67,6 +76,10 @@ def announce(entry: session_socket.Session) -> None:
         )
     except session_socket.Refused as error:
         _log.warning("could not announce the scout to %s: %s", entry.session_id, error)
+        return
+
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
 
 
 def not_pushing(session_id: str, lemon_id: str) -> str:

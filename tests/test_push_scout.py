@@ -111,6 +111,17 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     assert not wait_state.is_armed(_LEMON)
 
 
+def test_a_replacement_scout_does_not_announce_again():
+    sock, received = _listener()
+    entry = session_socket.Session(os.getpid(), _SESSION, os.getcwd(), sock)
+    push_scout.announce(entry)
+    push_scout.announce(entry)
+    _until(lambda: received)
+    time.sleep(0.2)
+
+    assert len(received) == 1
+
+
 def test_a_refused_push_leaves_the_message_for_the_next_waiter(capsys):
     inbox = _briefed()
     _session(os.path.join(tempfile.mkdtemp(dir="/tmp"), "gone.sock"))
