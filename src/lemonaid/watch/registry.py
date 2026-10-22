@@ -38,11 +38,17 @@ class Waiter:
     command: str  # the command that rearms it
     cwd: str
     repo: str = ""
+    version: str = ""  # lemonaid's, when the waiter started
+    restartable: bool = False  # whether it restarts on `restart.SIGNAL`, which kills others
+
+
+def root() -> pathlib.Path:
+    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
+    return pathlib.Path(state).expanduser()
 
 
 def _registry() -> pathlib.Path:
-    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
-    return pathlib.Path(state).expanduser() / "waiters"
+    return root() / "waiters"
 
 
 def entry(pid: int) -> pathlib.Path:
@@ -99,11 +105,26 @@ def _reports_termination(message: abc.Callable[[], str]) -> abc.Iterator[None]:
 
 @contextlib.contextmanager
 def registered(
-    kind: str, targets: abc.Iterable[str], channel: str, command: str, repo: str = ""
+    kind: str,
+    targets: abc.Iterable[str],
+    channel: str,
+    command: str,
+    repo: str = "",
+    *,
+    version: str = "",
+    restartable: bool = False,
 ) -> abc.Iterator[Waiter]:
     """Lists this process as a running waiter until the block exits."""
     waiter = Waiter(
-        os.getpid(), channel, kind, tuple(targets), command, str(pathlib.Path.cwd()), repo
+        os.getpid(),
+        channel,
+        kind,
+        tuple(targets),
+        command,
+        str(pathlib.Path.cwd()),
+        repo,
+        version,
+        restartable,
     )
     _registry().mkdir(parents=True, exist_ok=True)
     path = entry(waiter.pid)
@@ -144,7 +165,7 @@ def _alive(pid: str) -> bool:
     return True
 
 
-def _running() -> abc.Iterator[Waiter]:
+def running() -> abc.Iterator[Waiter]:
     for path in sorted(_registry().glob("*.json")):
         if not waiter_lock.held(path):
             if not _alive(path.stem):
@@ -154,6 +175,12 @@ def _running() -> abc.Iterator[Waiter]:
 
         if waiter := _read(path):
             yield waiter
+
+
+def current(waiter: Waiter) -> bool:
+    """Whether *waiter*'s process still runs and holds the entry it was read from."""
+    path = entry(waiter.pid)
+    return waiter_lock.held(path) and _read(path) == waiter
 
 
 def _matches(waiter: Waiter, target: str) -> bool:
@@ -177,7 +204,7 @@ def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
         owner = resolved(channel)
         return [
             waiter
-            for waiter in _running()
+            for waiter in running()
             if resolved(waiter.channel) == owner
             and kind in ("", waiter.kind)
             and _matches(waiter, target)
@@ -186,7 +213,7 @@ def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
 
 def running_for(kind: str, target: str) -> list[Waiter]:
     """Running waiters of `kind` watching `target`, whichever lemon started them."""
-    return [w for w in _running() if w.kind == kind and target in w.targets]
+    return [w for w in running() if w.kind == kind and target in w.targets]
 
 
 def watching(

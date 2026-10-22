@@ -22,6 +22,7 @@ from . import (
     push_path,
     push_scout,
     registry,
+    restart,
     wait_state,
     waiter_lock,
 )
@@ -115,8 +116,10 @@ def run(args: argparse.Namespace) -> int:
         else own_edits.writer_from_env(os.environ, thread)
     )
     session_gate.mark(own_edits.root(), writer, path)
+    restarting = False
     try:
         with (
+            restart.listening(),
             waiter.armed(inbox),
             registry.registered(
                 "wait",
@@ -125,14 +128,18 @@ def run(args: argparse.Namespace) -> int:
                 "lemonaid watch --self"
                 + (" --codex-thread" if thread else "")
                 + (f" {push_scout.FLAG}" if session else ""),
+                version=restart.version(),
+                restartable=True,
             ),
-            push_scout.logged(lemon_id, session) if session else contextlib.nullcontext(),
+            push_scout.logged(lemon_id, session, lambda: restarting)
+            if session
+            else contextlib.nullcontext(),
         ):
             if session:
                 push_scout.announce(session)
             pr_poller.ensure_running()
-            while still():
-                batch_wait.wait(
+            while still() and not restarting:
+                restarting = batch_wait.wait(
                     path,
                     inbox,
                     cursors.root() / lemon_id,
@@ -142,6 +149,7 @@ def run(args: argparse.Namespace) -> int:
                     interval=args.interval,
                     quiet=args.quiet,
                     notes=notes.reader(notes.default_dir(), "codex" if thread else "claude"),
+                    restart_requested=restart.requested,
                 )
                 if session is None:
                     break
@@ -156,6 +164,8 @@ def run(args: argparse.Namespace) -> int:
     finally:
         wait_state.clear_delivery(lemon_id)
         lock.close()
+    if restarting:
+        restart.restart()
     return 0
 
 

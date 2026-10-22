@@ -186,6 +186,16 @@ def test_a_scout_whose_session_ends_logs_a_normal_exit(caplog):
     assert "exited normally" in message and "session ended" in message and _LEMON in message
 
 
+def test_a_scout_restarting_on_request_logs_a_normal_exit(caplog):
+    entry = session_socket.Session(os.getpid(), _SESSION, "", "")
+    with caplog.at_level(logging.INFO), push_scout.logged(_LEMON, entry, lambda: True):
+        pass
+
+    [(level, message)] = _exits(caplog)
+    assert level == "INFO"
+    assert "exited normally" in message and "restarting on request" in message
+
+
 def test_watch_stop_is_a_normal_exit_and_a_stray_sigterm_is_not(caplog):
     entry = session_socket.Session(os.getpid(), _SESSION, "", "")
     with caplog.at_level(logging.INFO):

@@ -92,10 +92,15 @@ def running(lemon_id: str, session_id: str = "") -> bool:
 
 
 @contextlib.contextmanager
-def logged(lemon_id: str, entry: session_socket.Session) -> abc.Iterator[None]:
+def logged(
+    lemon_id: str,
+    entry: session_socket.Session,
+    restarting: abc.Callable[[], bool] = lambda: False,
+) -> abc.Iterator[None]:
     """One line when the scout starts and one when it exits, saying whether the exit was normal.
 
-    Normal: its session ended, its brief was detached, or `lemonaid watch stop` stopped it.
+    Normal: its session ended, its brief was detached, it is restarting on request (see
+    `restart`), or `lemonaid watch stop` stopped it.
     A scout killed outright logs only its start line.
     """
     fields = f"lemon={lemon_id} session={entry.session_id} pid={os.getpid()}"
@@ -114,7 +119,14 @@ def logged(lemon_id: str, entry: session_socket.Session) -> abc.Iterator[None]:
         _exit(fields, f"{type(error).__name__}: {error}", False)
         raise
     else:
-        _exit(fields, "brief detached" if session_socket.alive(entry) else "session ended", True)
+        reason = (
+            "restarting on request"
+            if restarting()
+            else "brief detached"
+            if session_socket.alive(entry)
+            else "session ended"
+        )
+        _exit(fields, reason, True)
 
 
 def _exit(fields: str, reason: str, normal: bool) -> None:

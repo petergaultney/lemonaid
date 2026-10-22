@@ -84,7 +84,12 @@ def wait(
     interval: float = 0.5,
     quiet: float = 2,
     notes: notes.Reader = notes.none,
-) -> None:
+    restart_requested: abc.Callable[[], bool] = lambda: False,
+) -> bool:
+    """Deliver one batch; True instead when a restart was requested while nothing was pending.
+
+    Undelivered inbox messages stay on disk for the restarted waiter.
+    """
     vaults = tuple(load_config().brief.vaults)
     output: queue.Queue[scouts.Pending] = queue.Queue()
     running: dict[tuple, scouts.Scout] = {}
@@ -107,6 +112,9 @@ def wait(
             pending = _reconcile(running, specs, pending, root, writer, output, signatures, notes)
             if _collect(output, running, pending):
                 since = time.monotonic()
+            if not pending and restart_requested():
+                return True
+
             with store.receive_lock(inbox, wait=False) as held:
                 messages = _messages(inbox) if held else []
                 names = tuple(p.name for p, _ in messages)
@@ -138,8 +146,9 @@ def wait(
                     deadline = time.monotonic() + 35
                     for scout in running.values():
                         scout.thread.join(timeout=max(0, deadline - time.monotonic()))
-                    return
+                    return False
             time.sleep(interval)
+        return False
     finally:
         for scout in running.values():
             scout.stop()

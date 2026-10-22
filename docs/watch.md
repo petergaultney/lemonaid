@@ -603,6 +603,18 @@ its session ending, its brief being detached, or `lemonaid watch stop`. A refuse
 a crash, or a SIGTERM that `watch stop` didn't send is abnormal and logged as a warning.
 A start line with no exit line is a scout that was killed outright.
 
+`lemonaid watch restart` restarts running `watch --self` waiters, push scouts
+included, into the installed lemonaid: name lemons by Lemon-ID, or pass `--self` or
+`--all`. Each waiter records its lemonaid version in the registry and restarts on
+`SIGUSR1` once nothing it has detected is waiting to be delivered: it leaves its
+loop (a scout logs `exited normally` with reason `restarting on request`) and
+re-execs itself with the same arguments. Inbox messages it hadn't delivered stay in
+the inbox for the new process. Nothing polls for this: the first lemonaid command of
+a new version records that version and sends the signal to every waiter started by
+another one. An editable install keeps one version, so after editing its source run
+`lemonaid watch restart --all`. Waiters from a lemonaid without this command don't
+know the signal and are never sent it; stop and rearm those once.
+
 ### Cursors, delivery and recovery
 
 - **First arm:** take the source's current state as seen, including already completed CI. Unanswered document comments are the exception: they are reported on first arm.

@@ -25,6 +25,7 @@ import lemonaid.terminal.cli
 import lemonaid.tmux.cli
 import lemonaid.usage.cli
 import lemonaid.watch.cli
+import lemonaid.watch.restart
 import lemonaid.watch.wait_cli
 import lemonaid.wezterm.cli
 
@@ -168,6 +169,7 @@ def main() -> None:
 
     args = passthrough.parse_args(parser, sys.argv[1:])
     args.invocation = ["lemonaid", *sys.argv[1:]]
+    lemonaid.watch.restart.after_upgrade()
 
     try:
         if args.command is None:

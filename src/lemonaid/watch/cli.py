@@ -10,6 +10,7 @@ from . import (
     openclaw_cli,
     pr_cli,
     repo_cli,
+    restart_cli,
     stop_cli,
     wait_cli,
 )
@@ -29,3 +30,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     briefs_cli.add_parser(watch_subparsers)
     notes_cli.add_parser(watch_subparsers)
     stop_cli.add_parser(watch_subparsers)
+    restart_cli.add_parser(watch_subparsers)
