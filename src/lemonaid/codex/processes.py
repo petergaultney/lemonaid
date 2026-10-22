@@ -12,17 +12,42 @@ _log = get_logger("codex.processes")
 _TIMEOUT = 1
 
 
+def _lsof() -> str | None:
+    """`lsof` of every Codex process's open files, or None if it can't be read."""
+    files = subprocess.run(
+        ["lsof", "-c", "codex", "-Fpn"],
+        capture_output=True,
+        text=True,
+        timeout=_TIMEOUT,
+    )
+    return None if files.returncode not in (0, 1) or files.stderr.strip() else files.stdout
+
+
+def open_threads() -> set[str] | None:
+    """Threads whose rollout any Codex process has open, the shared daemon included."""
+    try:
+        listing = _lsof()
+    except (OSError, subprocess.SubprocessError) as error:
+        _log.debug("could not inspect Codex processes: %s", error)
+        return None
+
+    if listing is None:
+        return None
+
+    return {
+        thread
+        for paths in _open_paths(listing).values()
+        for path in paths
+        if (thread := utils.extract_session_id_from_filename(Path(path).name))
+    }
+
+
 def thread_ttys() -> dict[str, set[str]] | None:
     try:
-        files = subprocess.run(
-            ["lsof", "-c", "codex", "-Fpn"],
-            capture_output=True,
-            text=True,
-            timeout=_TIMEOUT,
-        )
-        if files.returncode not in (0, 1) or files.stderr.strip():
+        listing = _lsof()
+        if listing is None:
             return None
-        paths = _open_paths(files.stdout)
+        paths = _open_paths(listing)
         if not paths:
             return {}
         processes = subprocess.run(

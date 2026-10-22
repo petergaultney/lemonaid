@@ -17,9 +17,9 @@ CLAUDE_REMINDER = (
 )
 
 CODEX_REMINDER = (
-    "Your children's status changes arrive with your other watch events: run "
-    "`lemonaid watch --self --codex-thread` as an escalated `exec_command` session, "
-    "and rearm it after each event."
+    "Your children's status changes arrive with your other watch events. Check "
+    "`lemonaid watch --self --status`: `push scout running` needs nothing more, and "
+    "`no watcher running` means run `lemonaid watch --self --push` with escalated permissions."
 )
 
 

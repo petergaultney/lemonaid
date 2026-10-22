@@ -6,6 +6,7 @@ import pytest
 from lemonaid.codex import processes
 
 _thread_ttys = processes.thread_ttys
+_open_threads = processes.open_threads
 
 
 def _rollout(tmp_path, name, **meta):
@@ -51,3 +52,26 @@ def test_failed_probe_is_unknown(monkeypatch):
         subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("denied"))
     )
     assert _thread_ttys() is None
+
+
+@pytest.mark.parametrize(
+    "process", ["11 ?? /bin/codex", "11 ttys001 /bin/codex app-server --listen stdio://"]
+)
+def test_a_rollout_open_only_in_the_daemon_is_still_an_open_thread(tmp_path, monkeypatch, process):
+    path = _rollout(tmp_path, "01a16433-b2ad-7421-ac7f-60d55c49edfd")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 0, stdout=f"p11\nn{path}\n" if argv[0] == "lsof" else process, stderr=""
+        ),
+    )
+    assert _thread_ttys() == {}
+    assert _open_threads() == {"01a16433-b2ad-7421-ac7f-60d55c49edfd"}
+
+
+def test_a_failed_open_threads_probe_is_unknown(monkeypatch):
+    monkeypatch.setattr(
+        subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("denied"))
+    )
+    assert _open_threads() is None

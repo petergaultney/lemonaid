@@ -14,16 +14,17 @@ from ..inbox import db
 from ..messages import store, waiter
 from . import (
     batch_wait,
+    codex_scout,
     cursors,
     delivery,
     notes,
     own_edits,
     pr_poller,
-    push_path,
     push_scout,
     registry,
     restart,
     wait_state,
+    wait_status,
     waiter_lock,
 )
 
@@ -38,6 +39,8 @@ def _attached(path: Path, channel: str) -> bool:
 
 def run(args: argparse.Namespace) -> int:
     thread, problem = delivery.codex_thread(args.codex_thread)
+    if args.push and not thread:  # `watch --self --push` run by a Codex lemon itself
+        thread = os.environ.get("CODEX_THREAD_ID", "")
     if problem:
         print(f"not started: {problem}")
         return 2
@@ -58,25 +61,23 @@ def run(args: argparse.Namespace) -> int:
         print(f"not started: {error}")
         return 2
     if args.status:
-        running = wait_state.is_armed(lemon_id)
-        lines = [
-            ("push scout running" if push_scout.running(lemon_id) else "watcher running")
-            if running
-            else "no watcher running"
-        ]
-        if channel.startswith("claude:"):
-            found = push_path.gather(lemon_id, channel.removeprefix("claude:"))
-            lines.insert(0 if push_path.path_of(found).loud else 1, push_path.status_line(found))
-        print("\n".join(lines))
-        return 0 if running else 1
-    if args.push and thread:
-        print(f"not started: {push_scout.FLAG} is for Claude; drop --codex-thread")
-        return 2
+        return wait_status.report(lemon_id, channel, thread)
+    if thread and not args.push and push_scout.running(lemon_id):
+        print("push scout running; nothing to rearm")
+        return 0
     if args.push and not args.foreground:
-        return push_scout.start(channel.removeprefix("claude:"), lemon_id)
+        return (
+            codex_scout.start(channel, thread, lemon_id)
+            if thread
+            else push_scout.start(channel.removeprefix("claude:"), lemon_id)
+        )
 
-    session = push_scout.session(channel.removeprefix("claude:"), wait=30) if args.push else None
-    if args.push and (problem := push_scout.problem(session)):
+    session = (
+        push_scout.session(channel.removeprefix("claude:"), wait=30)
+        if args.push and not thread
+        else None
+    )
+    if args.push and not thread and (problem := push_scout.problem(session)):
         print(f"not started: {problem}")
         return 2
     if thread and (problem := delivery.codex_setup_problem()):
@@ -92,6 +93,8 @@ def run(args: argparse.Namespace) -> int:
     output = (
         push_scout.to_session(session)
         if session
+        else codex_scout.to_thread(thread)
+        if thread and args.push
         else delivery.to_codex(
             thread,
             "lemonaid watch",
@@ -103,12 +106,18 @@ def run(args: argparse.Namespace) -> int:
     wait_state.clear_delivery(lemon_id)
 
     def deliver(message: str) -> None:
-        if thread:
+        if thread and not args.push:
             wait_state.mark_delivering(lemon_id)
         output(message)
 
+    thread_alive = codex_scout.liveness(thread) if thread and args.push else lambda: True
+
     def still() -> bool:
-        return _attached(path, channel) and (session is None or session_socket.alive(session))
+        return (
+            _attached(path, channel)
+            and (session is None or session_socket.alive(session))
+            and thread_alive()
+        )
 
     writer = (
         own_edits.claude_writer(session.session_id)
@@ -127,7 +136,7 @@ def run(args: argparse.Namespace) -> int:
                 channel,
                 "lemonaid watch --self"
                 + (" --codex-thread" if thread else "")
-                + (f" {push_scout.FLAG}" if session else ""),
+                + (f" {push_scout.FLAG}" if args.push else ""),
                 version=restart.version(),
                 restartable=True,
             ),
@@ -151,7 +160,7 @@ def run(args: argparse.Namespace) -> int:
                     notes=notes.reader(notes.default_dir(), "codex" if thread else "claude"),
                     restart_requested=restart.requested,
                 )
-                if session is None:
+                if not args.push:
                     break
     except waiter.AlreadyArmed as error:
         print(f"not started: {error}")
@@ -197,8 +206,8 @@ def add_arguments(parser: argparse.ArgumentParser, *, require_self: bool = False
         push_scout.FLAG,
         dest="push",
         action="store_true",
-        help="Claude only: start a detached scout that pushes each batch into this session "
-        "through its inbox socket, unless a watcher already runs",
+        help="start a detached scout that pushes each batch into this session (Claude: its "
+        "inbox socket; Codex: `codex queue`), unless a watcher already runs",
     )
     parser.add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
     delivery.add_codex_thread_argument(parser)

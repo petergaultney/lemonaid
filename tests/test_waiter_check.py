@@ -306,5 +306,5 @@ def test_the_reminder_names_only_the_calling_harnesss_mechanism(monkeypatch):
     assert "--codex-thread" not in claude
     assert "push scout running" in claude
     assert "## Waiters" not in claude + codex
-    assert "--codex-thread" in codex
-    assert "push scout" not in codex
+    assert "--codex-thread" not in codex
+    assert "escalated" in codex and "escalated" not in claude

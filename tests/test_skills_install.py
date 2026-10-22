@@ -192,8 +192,6 @@ def test_each_harness_text_names_only_its_own_watch_mechanism(homes):
             assert "don't start `lemonaid watch --self`" not in text
         assert "--codex-thread" not in claude
         assert "codex queue" not in claude
-        assert "push scout" not in codex
-        assert "--push" not in codex
         assert "run_in_background" not in codex
         assert "background Bash" not in codex
 
@@ -204,7 +202,8 @@ def test_each_harness_gets_its_own_attached_brief_guidance(homes):
     assert "`lemonaid watch --self --status`" in claude
     assert "`lemonaid watch --self --push`" in claude
     assert "lemonaid brief pr add" in claude
-    assert "Run `lemonaid watch --self --codex-thread` in an escalated exec_command" in codex
+    assert "run `lemonaid watch --self --push` with escalated permissions" in codex
+    assert "queues each batch into your thread" in codex
     assert "lemonaid brief pr add" not in codex
 
 
