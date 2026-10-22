@@ -1,11 +1,15 @@
 """The own-change hook: any tool call's change to a watched doc, and any push, is the lemon's own."""
 
+import io
+import json
+
 import pytest
 
 from lemonaid.hooks import own_change
 from lemonaid.watch import doc_events, own_edits, own_pushes
 
 _SESSION = "11111111-2222-3333-4444-555555555555"
+_QUIET = "git" + " push -q"  # split, so a session running the hook can edit this file
 _PUSH_OUTPUT = (
     "To github.com:o/r.git\n"
     "   1a2b3c4..5d6e7f8  lemonaid/x -> lemonaid/x\n"
@@ -187,3 +191,122 @@ def test_a_doc_in_the_attached_brief_is_recorded_between_waits(
     assert _poll_twice(rearmed) == []
     doc.write_text(doc.read_text() + "Someone else's.\n")
     assert len(_poll_twice(rearmed)) == 1
+
+
+@pytest.mark.parametrize(
+    ("command", "hidden"),
+    [
+        ("git push origin b", False),
+        ("rg '" + _QUIET + "' docs", False),
+        ("echo 'unbalanced", False),
+        (_QUIET.replace("-q", "origin b &") + ">/dev/null", True),
+        ("git push --force-with-lease origin b 2>&1 | grep -- '->'", False),
+        ("git push origin b && rm -q x", False),
+        ("git push origin b; ls 2>/dev/null", False),
+        ("git push -q origin b", True),
+        ("git -C /x push -qu origin b", True),
+        ("git push origin --quiet", True),
+        ("git push origin b 2>/dev/null", True),
+        ("git push origin b >/dev/null 2>&1", True),
+    ],
+)
+def test_a_push_hides_its_heads_when_quiet_or_stderr_is_discarded(command, hidden):
+    assert own_pushes.hides_heads(command) is hidden
+
+
+def test_a_quiet_codex_push_is_refused_before_it_runs(monkeypatch, capsys, tmp_path):
+    event = {"session_id": _SESSION, "tool_input": {"command": "git push -q origin b"}}
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({**event, "hook_event_name": "PreToolUse"}))
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        own_change.handle("codex")
+
+    assert stopped.value.code == 2
+    assert "without -q" in capsys.readouterr().err
+    assert own_change.refusal({**event, "hook_event_name": "PostToolUse"}) == ""
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"file_path": "/x/notes.md", "old_string": "a", "new_string": f"Never run {_QUIET}"},
+        {"patch": f"*** Update File: notes.md\n+{_QUIET} origin b\n"},
+        {"command": f"rg '{_QUIET}' docs"},
+        {
+            "file_path": "/x/notes.md",
+            "old_string": "a",
+            "new_string": f'Codex runs tools.exec_command({{cmd: "{_QUIET} origin b"}})',
+        },
+    ],
+)
+def test_text_that_only_mentions_a_quiet_push_is_not_refused(tool_input):
+    event = {"session_id": _SESSION, "hook_event_name": "PreToolUse", "tool_input": tool_input}
+
+    assert own_change.refusal(event) == ""
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"command": f"{_QUIET} origin b"},
+        {"cmd": f"{_QUIET} origin b"},
+        {"input": f'const r = await tools.exec_command({{"cmd":"{_QUIET} origin b"}});'},
+        f'tools.exec_command({{"cmd":"cd /x && {_QUIET} origin b"}})',
+        f'tools.exec_command({{cmd: "{_QUIET} origin b"}})',
+        f'tools.exec_command({{"workdir":"/tmp","cmd":"{_QUIET} origin b"}})',
+        f"tools.exec_command({{ workdir: '/tmp', cmd: '{_QUIET} origin b' }})",
+        f"await tools.exec_command({{\n  cmd: `{_QUIET} origin b`,\n}})",
+    ],
+)
+def test_a_quiet_push_is_refused_in_every_harness_payload(tool_input):
+    event = {"session_id": _SESSION, "hook_event_name": "PreToolUse", "tool_input": tool_input}
+
+    assert "without -q" in own_change.refusal(event)
+
+
+@pytest.mark.parametrize(("mode", "decision"), [("bypassPermissions", "allow"), ("default", "ask")])
+def test_a_quiet_claude_push_runs_with_its_heads_printed(monkeypatch, capsys, mode, decision):
+    tool_input = {"command": f"{_QUIET}u origin b && echo done", "description": "Push"}
+    event = {
+        "session_id": _SESSION,
+        "hook_event_name": "PreToolUse",
+        "permission_mode": mode,
+        "tool_input": tool_input,
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+
+    own_change.handle("claude")
+
+    output = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert output["permissionDecision"] == decision
+    assert output["updatedInput"] == {
+        "command": "git push -u origin b && echo done",
+        "description": "Push",
+    }
+    assert "Don't push quietly" in output["additionalContext"]
+
+
+def test_a_claude_push_with_stderr_discarded_is_still_refused():
+    command = _QUIET.replace(" -q", "") + " origin b 2>/dev" + "/null"
+    event = {
+        "session_id": _SESSION,
+        "hook_event_name": "PreToolUse",
+        "tool_input": {"command": command},
+    }
+
+    assert own_change.rewrite(event, "claude") is None
+    assert own_change.refusal(event)
+
+
+@pytest.mark.parametrize(
+    ("command", "rewritten"),
+    [
+        (_QUIET + ' "/tmp/remote  repo.git" HEAD', 'git push "/tmp/remote  repo.git" HEAD'),
+        (_QUIET + " origin HEAD --push-option='note -q text'", None),
+        (_QUIET + "u origin b; ls -q", "git push -u origin b; ls -q"),
+    ],
+)
+def test_a_rewrite_changes_nothing_but_the_quiet_flag_or_is_not_made(command, rewritten):
+    assert own_pushes.loud(command) == rewritten
