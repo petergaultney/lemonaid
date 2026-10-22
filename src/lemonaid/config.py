@@ -197,6 +197,8 @@ class TuiConfig:
     # inbox; a second within `double_activate_ms` takes focus.
     double_activate_focus: bool = False
     double_activate_ms: int = 400
+    # The status line shows the longest the event loop was blocked in the last minute.
+    show_loop_stalls: bool = False
     # A Markdown file shown under the sessions when they are cards. None shows nothing.
     notes: Path | None = None
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
@@ -625,6 +627,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),
         double_activate_ms=tui_data.get("double_activate_ms", 400),
+        show_loop_stalls=tui_data.get("show_loop_stalls", False),
         notes=_notes(tui_data.get("notes")),
         keybindings=keybindings,
         backend_labels=tui_data.get("backend_labels", {}),

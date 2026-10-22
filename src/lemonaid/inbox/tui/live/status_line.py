@@ -12,6 +12,7 @@ def inbox_status(
     drifted_dimension: str,
     save_size_key: str,
     arrange_error: str,
+    loop_stall_ms: int = 0,
 ) -> str:
     """`search_matches` is (inbox, archive) while searching; `drifted_dimension` is empty
     unless the scratch pane's size has drifted from the saved one.
@@ -33,5 +34,8 @@ def inbox_status(
 
     if arrange_error:
         text += f"  |  [bold red]arrange:[/] {escape(arrange_error)}"
+
+    if loop_stall_ms:
+        text += f"  |  [bold red]loop stall:[/] {loop_stall_ms} ms"
 
     return text
