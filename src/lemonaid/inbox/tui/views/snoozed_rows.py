@@ -36,7 +36,7 @@ def fill(
 ) -> None:
     """Bring *table* in line with what is snoozed, keeping the cursor's place."""
     current_row = table.cursor_coordinate.row if table.row_count > 0 else 0
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         notifications = db.get_snoozed(conn)
         brief_paths = attached.by_channel(conn, [n.channel for n in notifications])
     areas = {

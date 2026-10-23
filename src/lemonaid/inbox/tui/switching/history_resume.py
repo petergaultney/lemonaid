@@ -39,7 +39,7 @@ def run(notification: db.Notification, config: Config, mode: Mode, here_tty: str
     # A session that never stopped needs returning to the inbox, not a
     # second copy of itself started next to the one already running.
     if mode != "copy" and unarchive.running(notification):
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             unarchive.restore(conn, notification.channel)
         return Outcome("running")
 
@@ -62,11 +62,11 @@ def run(notification: db.Notification, config: Config, mode: Mode, here_tty: str
 
     # Before the row is unread, or the watcher judges it by its dead pane.
     if mode == "exec" and argv and here_tty:
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             resume_archived.recorded_here(conn, notification.channel, here_tty)
 
     # Unarchive so the session appears in the main inbox immediately
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         conn.execute(
             "UPDATE notifications SET status = 'unread', read_at = NULL, created_at = ? WHERE id = ?",
             (time.time(), notification.id),

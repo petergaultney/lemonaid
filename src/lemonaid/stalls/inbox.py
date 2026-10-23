@@ -32,7 +32,9 @@ def lemons(conn: sqlite3.Connection, active: "view.Active") -> list[pulls.Lemon]
 
 
 class Tracker:
-    """Mutated only on the UI thread. `fetch` is what a worker runs for each key `due` names."""
+    """`fetch` is what a worker runs for each key `due` names. `mark` runs on the UI thread
+    and the inbox's refresh worker; each of its changes is a single assignment.
+    """
 
     def __init__(self) -> None:
         self._cache = cache.Cache()

@@ -15,7 +15,7 @@ def read(path: Path) -> frozenset[str]:
 class Cache:
     """`read`, done again only when a doc's size or mtime changes; the inbox asks every refresh.
 
-    Mutated only on the UI thread.
+    Used by the UI thread and the inbox's refresh worker; each change is one dict operation.
     """
 
     def __init__(self) -> None:

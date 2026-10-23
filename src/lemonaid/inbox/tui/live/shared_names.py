@@ -12,7 +12,7 @@ _SECONDS = 60.0
 
 
 class Cache:
-    """Mutated only on the UI thread."""
+    """Used by the UI thread and the inbox's refresh worker; each change is a single assignment."""
 
     def __init__(self) -> None:
         self._at = -math.inf

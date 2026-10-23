@@ -19,7 +19,7 @@ def upgrade(mtimes: dict[str, float]) -> bool:
     alone would leave it there. *mtimes* remembers each transcript's
     modification time across calls, so an unchanged one is not read again.
     """
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         candidates = [
             (
                 n.id,
@@ -57,7 +57,7 @@ def upgrade(mtimes: dict[str, float]) -> bool:
         if not resolved:
             continue
 
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             if db.refresh_auto_name(conn, notification_id, resolved.name, resolved.source):
                 upgraded = True
                 _log.info(

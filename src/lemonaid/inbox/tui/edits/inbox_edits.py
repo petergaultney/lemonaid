@@ -16,7 +16,7 @@ def _label(n: db.Notification) -> str:
 
 
 def mark_read(notification_id: int) -> undo.Entry | None:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         n = db.get(conn, notification_id)
         if not n:
             return None
@@ -29,7 +29,7 @@ def mark_read(notification_id: int) -> undo.Entry | None:
 
 
 def mark_unread(notification_id: int) -> undo.Entry | None:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         n = db.get(conn, notification_id)
         if not n or n.is_unread:
             return None
@@ -42,7 +42,7 @@ def mark_unread(notification_id: int) -> undo.Entry | None:
 
 
 def archive(notification_id: int) -> undo.Entry | None:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         n = db.get(conn, notification_id)
         if not n:
             return None
@@ -59,7 +59,7 @@ def archive(notification_id: int) -> undo.Entry | None:
 
 def wake(notification_id: int) -> undo.Entry | None:
     """Return a snoozed session to the inbox."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         n = db.get(conn, notification_id)
         if not n:
             return None
@@ -74,7 +74,7 @@ def wake(notification_id: int) -> undo.Entry | None:
 
 
 def snooze(n: db.Notification, until: float) -> undo.Entry:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         entry = undo.capture(
             conn,
             "snooze",
@@ -89,7 +89,7 @@ def snooze(n: db.Notification, until: float) -> undo.Entry:
 
 def rename(n: db.Notification, new_name: str) -> undo.Entry:
     """An empty or blank name clears the row's own name."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         entry = undo.capture(conn, "rename", f'Renamed "{_label(n)}"', [n.id])
         db.update_name(conn, n.id, new_name.strip() or None)
 
@@ -99,7 +99,7 @@ def rename(n: db.Notification, new_name: str) -> undo.Entry:
 def undo_latest(stack: undo.Stack, entry: undo.Entry) -> list[str] | str:
     """Reverse *entry*, the newest on *stack*: the Groups: lines it left unwritten, or why it can't."""
     try:
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             unwritten = groups.editing.undo(conn, entry.group_change) if entry.group_change else []
             restored = undo.restore(conn, entry)
     except groups.store.GroupError as error:

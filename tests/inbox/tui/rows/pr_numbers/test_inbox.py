@@ -54,7 +54,10 @@ def test_hook_number_reaches_both_layouts_without_blocking(monkeypatch, tmp_path
             assert len(calls) == 1
             assert calls[0] != ui_thread
             release.set()
-            await pilot.pause()
+            for _ in range(20):  # the next periodic refresh draws what the lookup stored
+                await pilot.pause(0.1)
+                if all("#123" in str(table.get_row_at(i)) for i in range(2)):
+                    break
             for i in range(2):
                 assert "#123" in " ".join(cell.plain for cell in table.get_row_at(i))
             assert len(calls) == 1

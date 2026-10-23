@@ -61,7 +61,7 @@ def load(text: str, searching_from: str | None, searching: bool) -> list[db.Noti
     """Archived sessions matching *text*; while searching, those switchable from
     `searching_from` that the search found in the archive.
     """
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         if not searching:
             return db.get_history(conn, search=text)
 
@@ -81,7 +81,7 @@ def fill(
 ) -> None:
     """Redraw *table* with the sessions that can be resumed, keeping the cursor's place."""
     notifications = [n for n in notifications if resume.has_resume_command(config, n.channel)]
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         brief_paths = attached.by_channel(conn, [n.channel for n in notifications])
 
     current_row = table.cursor_coordinate.row if table.row_count > 0 else 0

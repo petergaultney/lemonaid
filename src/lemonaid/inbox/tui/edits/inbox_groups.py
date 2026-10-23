@@ -23,7 +23,7 @@ def selected_group(inbox: InboxList) -> groups.store.Group | None:
     if found is None:
         return None
 
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         return _by_id(conn, found)
 
 
@@ -33,7 +33,7 @@ def toggle_group(inbox: InboxList, group_id: int, from_row: str = "") -> None:
     Collapsing from one of its lemons keeps that lemon drawn, under the
     cursor, until the cursor moves off it.
     """
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         group = _by_id(conn, group_id)
         if group is None:
             return
@@ -72,7 +72,7 @@ def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
     if not 0 <= neighbour < len(on_screen):
         return ""
 
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         other = _by_id(conn, on_screen[neighbour])
         if other is None:
             return ""
@@ -85,7 +85,7 @@ def move_group(inbox: InboxList, group: groups.store.Group, offset: int) -> str:
 
 
 def delete_group(inbox: InboxList, group: groups.store.Group) -> None:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         edit = groups.editing.delete(conn, group)
     group_dialogs.edited(inbox, edit)
 
@@ -94,7 +94,7 @@ def group_remove(
     inbox: InboxList, group_id: int, notification: db.Notification, lemon_id: str
 ) -> None:
     """Take the lemon out of the group it's drawn in."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         group = _by_id(conn, group_id)
         if group is None:
             return
@@ -108,7 +108,7 @@ def group_remove(
 
 def lemon(inbox: InboxList, notification: db.Notification) -> tuple[db.Notification, str] | None:
     """The row's notification and the ID to group it by: its brief's Lemon-ID, else its channel."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         try:
             return notification, brief.lemon.lemon_id(conn, notification.channel)
         except (LookupError, ValueError, brief.store.ChangedUnderneath):
@@ -163,7 +163,7 @@ def recolor_at_cursor(inbox: InboxList) -> None:
     if group_id is None:
         return
 
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         group = _by_id(conn, group_id)
     if group:
         group_dialogs.recolor(inbox, group)
