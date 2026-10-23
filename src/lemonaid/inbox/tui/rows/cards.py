@@ -221,12 +221,17 @@ def as_card(
                 3,
             )
 
-    # What the lemon needs from you sits right under who it is, in the attention
-    # colour whatever the state: a waiting card dims everything else, not this.
+    # What the lemon needs from you sits right under who it is, in its status's
+    # colour: a waiting card dims everything else, not this.
     brief_lines = (
         [
             *(
-                [Text(card_brief.needs_line, style=utils.unread_marker_style())]
+                [
+                    Text(
+                        card_brief.needs_line,
+                        style=brief_cards.needs_style(card_brief.status and card_brief.shown),
+                    )
+                ]
                 if card_brief.needs_line
                 else []
             ),

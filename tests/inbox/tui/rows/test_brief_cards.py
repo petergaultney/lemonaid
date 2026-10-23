@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lemonaid.inbox.tui.rows.brief_cards import BriefCache, CardBrief
+from lemonaid.inbox.tui.rows.brief_cards import BriefCache, CardBrief, needs_style
 
 
 def test_cache_reads_attached_brief_and_reloads_after_edit(tmp_path: Path) -> None:
@@ -152,3 +152,9 @@ def test_a_stuck_line_adds_a_card_line_unless_the_brief_is_done() -> None:
     assert CardBrief("", "", 0.0, stuck=line).stuck_line == line
     assert CardBrief("", "", 0.0, stuck=line).extra_lines(True) == plain.extra_lines(True) + 1
     assert CardBrief("done", "", 0.0, stuck=line).stuck_line == ""
+
+
+def test_needs_line_takes_its_status_colour() -> None:
+    assert needs_style("blocked") == "bold #e3cf65"
+    assert needs_style("merge") == "bold #4fb35a"
+    assert needs_style("") == "bold #e3cf65"

@@ -28,6 +28,10 @@ def status_text_style(state: str, default: str = "") -> str:
     return colors.status_text_style(state, default, light=utils.light_theme())
 
 
+def needs_style(state: str) -> str:
+    return status_text_style(state, utils.unread_marker_style())
+
+
 def running_text() -> str:
     """The running process's colour as text, for the theme the app is drawing."""
     return RUNNING_TEXT_COLOR_LIGHT if utils.light_theme() else RUNNING_TEXT_COLOR
