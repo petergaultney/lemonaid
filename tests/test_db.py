@@ -1,6 +1,8 @@
 """Tests for lemonaid.inbox.db module."""
 
+import sqlite3
 import tempfile
+import time
 from pathlib import Path
 
 from lemonaid.inbox import db
@@ -395,3 +397,21 @@ def test_a_prompt_asks_only_while_it_can_still_be_answered(tmp_path):
         assert db.get(conn, row.id).asks
         db.snooze(conn, row.id, row.created_at + 3600)
         assert not db.get(conn, row.id).asks
+
+
+def test_a_new_process_connects_while_another_holds_a_write_lock(tmp_path):
+    path = tmp_path / "busy.db"
+    with db.connect(path):
+        pass
+    db._initialized_dbs.discard(path)  # as in a newly started process
+    writer = sqlite3.connect(path)
+    writer.execute("BEGIN IMMEDIATE")  # another process mid-write
+    try:
+        started = time.monotonic()
+        with db.connect(path) as conn:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] > 0
+
+        assert time.monotonic() - started < 1
+    finally:
+        writer.rollback()
+        writer.close()

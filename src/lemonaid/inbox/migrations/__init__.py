@@ -77,7 +77,13 @@ def run_migrations(conn: sqlite3.Connection) -> list[str]:
     inside one exclusive transaction. Reading it outside, both connections saw
     the same pending migration and both applied it, and the second failed on a
     column the first had already renamed.
+
+    A connection that already sees the latest version, the usual case, takes no lock:
+    dozens of waiters restarting together otherwise queue on it past the busy timeout.
     """
+    if get_current_version(conn) >= max((v for v, _, _ in discover_migrations()), default=0):
+        return []
+
     with _exclusive(conn):
         current_version = get_current_version(conn)
         applied = []
