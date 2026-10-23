@@ -1,5 +1,6 @@
 import os
 import tempfile
+import types
 from pathlib import Path
 
 # Set before lemonaid is imported, since its log handler opens the file at import.
@@ -8,7 +9,7 @@ os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 
 import pytest  # noqa: E402
 
-from lemonaid.claude import session_socket  # noqa: E402
+from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
@@ -30,6 +31,16 @@ for _name, _path in (
 ):
     os.environ[_name] = str(_LAST_RESORT / _path)
 os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
+
+
+@pytest.fixture(autouse=True)
+def _not_a_print_session(monkeypatch):
+    """Hooks under test must register whatever `claude -p` is running the suite."""
+    monkeypatch.setattr(
+        notify,
+        "print_mode",
+        types.SimpleNamespace(is_print_session=lambda: False, PrintSession=print_mode.PrintSession),
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
