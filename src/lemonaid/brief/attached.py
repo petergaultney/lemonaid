@@ -150,14 +150,19 @@ def claim_pending(conn: sqlite3.Connection) -> None:
     which lemon gets a brief never depends on when someone happened to look.
     A brief attached by channel since it started waiting stops waiting, and so
     does one that has waited `_PENDING_DAYS`.
+
+    Every scout poll and inbox refresh calls this, so it takes the write lock only
+    when there is something to write.
     """
-    conn.execute(
-        "DELETE FROM pending_briefs WHERE requested_at < ? OR EXISTS (SELECT 1 FROM "
+    stale = (
+        "FROM pending_briefs WHERE requested_at < ? OR EXISTS (SELECT 1 FROM "
         "session_briefs s WHERE s.path = pending_briefs.path "
-        "AND s.attached_at > pending_briefs.requested_at)",
-        (time.time() - _PENDING_DAYS * 86400,),
+        "AND s.attached_at > pending_briefs.requested_at)"
     )
-    conn.commit()
+    cutoff = (time.time() - _PENDING_DAYS * 86400,)
+    if conn.execute(f"SELECT 1 {stale} LIMIT 1", cutoff).fetchone():
+        conn.execute(f"DELETE {stale}", cutoff)
+        conn.commit()
     pending = conn.execute("SELECT * FROM pending_briefs").fetchall()
     if not pending or not pending_gate.due(conn, time.time()):
         return
