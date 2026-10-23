@@ -11,6 +11,7 @@ _ROOT = Path(__file__).parent.parent
 
 _NAME = re.compile("|".join(("pe" + "ter", "gault" + "ney")), re.IGNORECASE)
 _OWNER = "pe" + "tergault" + "ney"
+_RESPONSIBLE_PARTY = "Pe" + "ter Gault" + "ney"
 _OWNER_URL = re.compile(
     rf"(?:github\.com|githubusercontent\.com)/{_OWNER}/|(?<![\w/.~-]){_OWNER}/lemonaid\b"
 )
@@ -23,12 +24,20 @@ _ALLOWED: dict[str, tuple[int, str]] = {
 
 
 def _hits(text: str) -> list[int]:
-    """1-based line numbers naming the maintainer, other than as the GitHub owner in a URL."""
-    return [
-        number
-        for number, line in enumerate(text.splitlines(), 1)
-        if _NAME.search(_OWNER_URL.sub("", line))
-    ]
+    """Line numbers naming the maintainer outside URLs and required document ownership."""
+    hits = []
+    frontmatter = text.startswith("---\n")
+    responsible = False
+    for number, line in enumerate(text.splitlines(), 1):
+        if number > 1 and line == "---":
+            frontmatter = False
+        if responsible and line == f"  - {_RESPONSIBLE_PARTY}":
+            responsible = False
+            continue
+        responsible = frontmatter and line == "responsible-parties:"
+        if _NAME.search(_OWNER_URL.sub("", line)):
+            hits.append(number)
+    return hits
 
 
 def _tracked_text() -> list[tuple[str, str]]:
@@ -63,6 +72,21 @@ def test_hits_does_not_exempt_a_home_directory():
 
 def test_hits_matches_case_insensitively():
     assert _hits("GAULT" + "NEY\n") == [1]
+
+
+def test_required_frontmatter_owner_does_not_exempt_other_fields_or_body():
+    text = (
+        f"---\nresponsible-parties:\n  - {_RESPONSIBLE_PARTY}\n"
+        f"created-by: {_RESPONSIBLE_PARTY}\n---\nNeeds {_RESPONSIBLE_PARTY}\n"
+    )
+    assert _hits(text) == [4, 6]
+
+
+def test_owner_exception_requires_initial_frontmatter_and_first_list_entry():
+    assert _hits(f"# Body\nresponsible-parties:\n  - {_RESPONSIBLE_PARTY}\n") == [3]
+    assert _hits(
+        f"---\nresponsible-parties:\n  - Someone Else\n  - {_RESPONSIBLE_PARTY}\n---\n"
+    ) == [4]
 
 
 def _hit_counts() -> dict[str, int]:
