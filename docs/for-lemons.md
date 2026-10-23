@@ -767,6 +767,36 @@ lemonaid group add "Inbox work" <lemon> --tree    # a lemon and its descendants
 Lemonaid keeps a `Groups:` line in each member brief's header. Change groups with `lemonaid
 group`, not by editing the line: `brief check` reports a line that disagrees with the database.
 
+### The grove
+
+The grove (`Space` in `lma`, `docs/grove.md`) draws each group as a block and each session as a
+tree, at places that stay put. It is beta: its commands, their JSON and the layout files may
+change between releases, so read them fresh each time and don't write tools that depend on
+their shape. To see it, or help the person arrange it:
+
+```bash
+lemonaid grove show --json             # blocks, plots, trees, letters, lemons
+lemonaid grove show --plain 2          # block 2 drawn as text
+lemonaid grove move 2 40 10            # move block 2's corner; resize, reshape, clear-open too
+```
+
+Propose a layout and wait for the person's agreement before moving blocks: they find lemons
+by where blocks are.
+
+To move a block where the person asks:
+
+1. Read every plot from `show --json`. The grove is 210 columns by 60 rows; a plot's `x` and
+   `y` are its top-left corner, and `w` and `h` its size. "Above oria" means a `y + h` short
+   of oria's `y`, within oria's columns.
+2. Find room. Nothing stops a block landing on another; overlapping blocks draw over each
+   other, so leave a gap of a column or two. When the room is too small, `resize` the block
+   or move whatever stands there, and say which you chose.
+3. Copy `~/.local/state/lemonaid/grove.json` aside, run `move` and `resize`, and check the
+   result with `show --plain --width 210 --height 60` before reporting.
+
+An open grove reads the layout again on its next refresh, within a few seconds, so nothing
+needs restarting.
+
 ### Child briefs
 
 A parent writes its child's brief with `brief new --child`, which attaches it to no one and

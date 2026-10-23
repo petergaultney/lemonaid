@@ -38,7 +38,7 @@ def test_separators_use_normal_background_and_only_continue_rails_within_a_group
                             Text("12:00"),
                             Text(""),
                             Text("CC"),
-                            jump_gutter(index, key == marked) + Text(f"task-{key}"),
+                            jump_gutter(str(index + 1), key == marked) + Text(f"task-{key}"),
                             Text(""),
                             Text("~/w"),
                             Text(f"message-{key}"),

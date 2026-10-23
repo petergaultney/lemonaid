@@ -32,7 +32,7 @@ def test_a_lemon_in_two_groups_is_one_search_match():
 @pytest.mark.parametrize("size", [(120, 40), (44, 60)])
 def test_search_keeps_headings_and_configured_ungrouped_position(enabled, size):
     Path(os.environ["LEMONAID_CONFIG"]).write_text(
-        f"[inbox]\nungrouped_first = {str(enabled).lower()}\n" '[tui]\nfold_statuses = ["idle"]\n'
+        f'[inbox]\nungrouped_first = {str(enabled).lower()}\n[tui]\nfold_statuses = ["idle"]\n'
     )
     with db.connect() as conn:
         member = session(conn, "needle-member", "")

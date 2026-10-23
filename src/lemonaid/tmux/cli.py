@@ -8,8 +8,8 @@ from ..codex import daemon_setup
 from ..config import BackendConfig, load_config
 from ..inbox import doctor
 from ..restore import cli as restore_cli
+from . import popup_cli, scratch
 from . import restart as tmux_restart
-from . import scratch
 from .navigation import go_back, swap_back_location
 from .scratch import ensure_scratch, set_follow, toggle_scratch
 from .session import auto_session_name, create_session
@@ -315,5 +315,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     )
+
+    popup_cli.add_parsers(tmux_subparsers)
 
     tmux_parser.set_defaults(func=lambda a: tmux_parser.print_help())

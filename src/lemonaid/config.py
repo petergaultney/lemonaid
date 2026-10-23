@@ -83,6 +83,7 @@ class TmuxSessionConfig:
     # When true, the scratch pane follows across window/session switches.
     follow_scratch: bool = False
     autosave_scratch_size: bool = False
+    popup_margin: int = 3  # cells a fast popup, such as the grove's, leaves clear on every side
 
     def get_template(self, name: str) -> list[str] | None:
         """Get a template by name."""
@@ -138,6 +139,7 @@ class KeybindingsConfig:
     # single-character alternatives, so that they can be a named key or carry a modifier.
     brief_key: str = ""  # A second key for brief
     group_key: str = "tab"  # Open or collapse the group of the row under the cursor
+    grove: str = "space"  # Open the grove map, and close it again
     move_pin_up: str = "shift+up"
     move_pin_down: str = "shift+down"
     first: str = "ctrl+a"  # The top row of the list; Home always works too
@@ -203,6 +205,9 @@ class TuiConfig:
     show_loop_stalls: bool = False
     # A Markdown file shown under the sessions when they are cards. None shows nothing.
     notes: Path | None = None
+    # How far an arrow key moves the grove view, in screen columns across and rows down.
+    grove_pan_columns: int = 2
+    grove_pan_rows: int = 1
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -588,6 +593,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         scratch_width=tmux_session_data.get("scratch_width", tmux_session_defaults.scratch_width),
         follow_scratch=tmux_session_data.get("follow_scratch", False),
         autosave_scratch_size=tmux_session_data.get("autosave_scratch_size", False),
+        popup_margin=max(0, int(tmux_session_data.get("popup_margin", 3))),
     )
 
     tmux_window_data = data.get("tmux-window", {})
@@ -630,6 +636,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
         ],
         group_lead_first=tui_data.get("group_lead_first", True),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
+        grove_pan_columns=max(1, int(tui_data.get("grove_pan_columns", 2))),
+        grove_pan_rows=max(1, int(tui_data.get("grove_pan_rows", 1))),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),
         double_activate_ms=tui_data.get("double_activate_ms", 400),

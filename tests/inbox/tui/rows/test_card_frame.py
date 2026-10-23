@@ -21,11 +21,11 @@ from lemonaid.inbox.tui.utils import HERE_BAR, jump_gutter
 def test_frame_preserves_geometry_and_colors(width, rail, status, light, monkeypatch):
     monkeypatch.setattr(utils, "_light_theme", light)
     cells = [Text("12:00"), Text(""), Text("CC"), Text(""), Text(""), Text("~/w"), Text("msg")]
-    cells[3] = jump_gutter(0, True) + Text("task")
+    cells[3] = jump_gutter("1", True) + Text("task")
     (marked,) = cards.as_card(
         cells, width, gutter_width=2, rail=rail, card_brief=CardBrief(status, "", 0)
     )
-    cells[3] = jump_gutter(0, False) + Text("task")
+    cells[3] = jump_gutter("1", False) + Text("task")
     (plain,) = cards.as_card(
         cells, width, gutter_width=2, rail=rail, card_brief=CardBrief(status, "", 0)
     )
@@ -67,7 +67,7 @@ def test_rendered_frame_stays_in_its_row_before_a_header(width, position):
                         Text("12:00"),
                         Text(""),
                         Text("CC"),
-                        jump_gutter(index, index == position) + Text("task"),
+                        jump_gutter(str(index + 1), index == position) + Text("task"),
                         Text(""),
                         Text("~/w"),
                         Text("message"),

@@ -106,6 +106,15 @@ def _client(command: list[str], explicit: str, source_pane: str) -> str:
     return rows[0][0]
 
 
+def jump_tmux(found: db.Notification, client: str) -> None:
+    """Switch tmux client *client* to the pane *found* runs in, as `lemonaid go --client` does.
+
+    Raises LookupError when the pane is gone or ambiguous, or the client isn't attached.
+    """
+    command = navigation.server_args(found.metadata.get("tmux_socket"))
+    _tmux(command, "switch-client", "-c", _client(command, client, ""), "-t", _pane(command, found))
+
+
 def _jump_cmux(found: db.Notification) -> None:
     """Focus the surface the inbox would switch to, but never resume a lemon that has none."""
     try:

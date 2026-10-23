@@ -108,8 +108,7 @@ def test_moving_a_watched_doc_does_not_make_the_card_dead(monkeypatch, tmp_path)
     brief = tmp_path / "briefs" / "brief.md"
     brief.parent.mkdir()
     brief.write_text(
-        f"# Worker\n\n## Docs\n\n| Doc | Watch |\n|---|---|\n"
-        f"| [Design]({doc}) | Relay comments |\n"
+        f"# Worker\n\n## Docs\n\n| Doc | Watch |\n|---|---|\n| [Design]({doc}) | Relay comments |\n"
     )
     probe, cache = presence.Probe(), brief_cards.BriefCache()
     with db.connect() as conn:

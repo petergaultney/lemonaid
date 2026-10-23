@@ -92,8 +92,9 @@ def test_by_tty_asks_linux_ps_for_terminal_names(monkeypatch):
     monkeypatch.setattr(
         subprocess,
         "run",
-        lambda *a, **kw: asked.append(a[0])
-        or subprocess.CompletedProcess(a, 0, "pts/3  vim\n", ""),
+        lambda *a, **kw: (
+            asked.append(a[0]) or subprocess.CompletedProcess(a, 0, "pts/3  vim\n", "")
+        ),
     )
 
     assert tty_processes.by_tty() == {"pts/3": ["vim"]}

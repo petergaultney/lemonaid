@@ -156,7 +156,7 @@ JUMP_GUTTER_STYLE = "bright_black"
 # A bar down the left edge rather than a glyph or a fill. It marks the row
 # without tinting the text, which leaves the field colours and the row cursor's
 # own background to say what they already say.
-GUTTER_WIDTH = 2  # "<digit> ", or the bar and a space
+GUTTER_WIDTH = 2  # the narrowest gutter: a one-character key, or the bar, and a space
 # Two marks for the same thing, because the two layouts give it different room.
 # A column row is one line tall, so it spends its single cell on a full block to
 # be visible at that size. A card draws a half block instead, which reads as an
@@ -198,15 +198,11 @@ def backend_cell(label: Text, is_pinned: bool, *, stacked: bool = False) -> Text
     return cell
 
 
-def jump_digit(row_index: int) -> str:
-    """The digit that jumps to `row_index`, or "" past the tenth row."""
-    return JUMP_DIGITS[row_index] if row_index < len(JUMP_DIGITS) else ""
+def jump_gutter(key: str, is_here: bool = False, width: int = GUTTER_WIDTH) -> Text:
+    """The grove key that prefixes a session's name, as `5s`, padded to *width* so names stay
+    aligned.
 
-
-def jump_gutter(row_index: int, is_here: bool = False) -> Text:
-    """The number that prefixes a session's name, padded so names stay aligned.
-
-    The focused session takes the marker instead of its digit: it is the one row
+    The focused session takes the marker instead of its key: it is the one row
     you have no reason to jump to, so the slot is free to say where you are.
 
     The style is a span rather than the Text's own: concatenating takes the left
@@ -214,12 +210,11 @@ def jump_gutter(row_index: int, is_here: bool = False) -> Text:
     run on under the name that follows it.
     """
     if is_here:
-        gutter = Text(f"{HERE_BLOCK} ")
+        gutter = Text(HERE_BLOCK.ljust(width))
         gutter.stylize(here_bar_style(), 0, len(HERE_BLOCK))
         return gutter
 
-    digit = jump_digit(row_index)
-    text = f"{digit} " if digit else "  "
+    text = key.ljust(width)
     gutter = Text(text)
     gutter.stylize(JUMP_GUTTER_STYLE, 0, len(text))
     return gutter

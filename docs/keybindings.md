@@ -31,6 +31,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
 | `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
+| `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
 | `P` | Pin the session below any other pins, or unpin it (`lemonaid inbox pin`, `inbox unpin`) |
@@ -49,7 +50,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `/` | Search inbox and archived sessions as you type; in history, filter archived sessions |
 | `g` | Refresh |
 | `?` | Toggle the key hints (see below) |
-| `q` / `Escape` | Quit |
+| `q` / `Escape` | Quit. In the scratch pane, `Escape` only backs out of a view, search or brief; `q` hides the pane |
 | `↑` / `↓` | Navigate list |
 
 `H` writes `Hidden: yes` using the same checked edit as `lemonaid brief hide`,
@@ -237,22 +238,21 @@ A lemon can snooze its own row with `lemonaid inbox snooze --self 2h` (or
 lemon's turn ends, since the lemon sets it mid-turn; a permission prompt or a
 question still wakes it. See `docs/for-lemons.md`.
 
-## Jump by number
+## Jump by grove key
 
-The first ten rows carry a number, shown before the session name. Pressing that
-digit switches to the row, exactly as selecting it would.
+Every row shows its lemon's key in [the grove](grove.md) before the session name, as `5s`: the
+group's block digit, then its tree's letter, then a capital (`5S`) for the tree's second lemon
+or a number (`2d3`) on a tree of three or more. Each group header shows its block's digit.
+A lemon keeps its key as the list reorders, and `l` is always a group's lead.
 
-The number is the row's position, so it renumbers whenever the list reorders —
-it is a shortcut for the row in front of you, not a name a session keeps. Past
-the tenth row there is no digit; scroll instead. Supporting more would mean
-waiting after each keypress to tell `1` from `12`, and that delay would be paid
-on every jump.
+Typing a digit opens a bar at the bottom that takes the rest of the key, listing the block's
+trees, and switches to the lemon it names, exactly as selecting it would. `Escape` cancels.
 
-History is not numbered either. There Enter resumes rather than switches, and
-a resume is too costly to hang on one unconfirmed keystroke.
+History has no keys. There Enter resumes rather than switches, and a resume is
+too costly to hang on a key or two.
 
-The non-switchable table is not numbered. Those sessions belong to terminals
-this one cannot switch to, so a number would name a row it cannot act on.
+The non-switchable table has no keys. Those sessions belong to terminals this
+one cannot switch to, so a key would name a row it cannot act on.
 
 Set `jump_by_number = false` to leave the digits unbound.
 
@@ -316,7 +316,7 @@ question_next = "]"  # in a brief view, the next question
 answer = "a"  # in a brief view, answer the selected question
 answer_yes = "Y"  # in a brief view, send "Yes, approved" immediately
 more_detail = "D"  # in a brief view, ask for more detail on it
-jump_by_number = true  # digits 1-9,0 switch to that row
+jump_by_number = true  # a digit starts a grove key, as 5s
 up_down = ""  # arrow key alternatives (see below)
 ```
 

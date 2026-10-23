@@ -72,6 +72,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),
             ("usage_view", "Show usage pace for each limit window"),
+            ("grove", "Open the grove: groups as blocks, sessions as trees; again to close"),
             ("notes", "Show or hide your notes (tui.notes)"),
             ("flip_position", "Move the scratch pane between top and left"),
             ("save_size", "Save pane size explicitly (also available with autosave)"),
@@ -88,7 +89,7 @@ def _key_display(value: str, field: str) -> str:
     Most fields hold a set of single-character alternatives; the pin-move fields
     hold one key name, which may carry a modifier.
     """
-    if field == "group_key":
+    if field in ("group_key", "grove"):
         return value.capitalize()
 
     if field in (

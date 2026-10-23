@@ -23,7 +23,7 @@ def _row(
         Text("12:30", style="#888888"),
         Text("●", style=f"bold {ATTENTION_COLOR}") if unread else Text(""),
         Text("Opus 5.5", style="#d88760"),
-        jump_gutter(0, here) + Text("task", style="#00ffff"),
+        jump_gutter("1", here) + Text("task", style="#00ffff"),
         Text("branch", style="#ff0066"),
         Text("~/work", style="#9966ff"),
         Text("message"),

@@ -1,0 +1,66 @@
+import re
+
+from lemonaid.grove.draw import block_scene, canvas
+from lemonaid.grove.layout import arrange
+from lemonaid.grove.tui.frame import Grove, clamp_pan, render
+from lemonaid.grove.tui.keys import Where
+
+from .shared import NOW, block, lemon, tree
+
+BLOCKS = (
+    block("oria", "1", tree("oria-hq", lead=True), tree("tars/slow-first-queries")),
+    block("relay", "2", tree("git-sync-wedge", lemon("claude:wedge", "CraneFly", "blocked"))),
+)
+GROVE = Grove(BLOCKS, arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)[0])
+
+
+def screen_text(where: Where) -> str:
+    return "\n".join(canvas.plain_lines(render(GROVE, where, 160, 48, phase=0.5)))
+
+
+def test_zoomed_out_shows_every_block_sign():
+    shown = screen_text(Where())
+    assert "1 ORIA" in shown and "2 RELAY" in shown
+
+
+def test_the_grove_view_tags_each_tree_with_its_whole_key_and_a_block_with_its_letter():
+    letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
+    whole = re.compile(rf"(^|\s)2{letter}(\s|$)", re.MULTILINE)
+    assert whole.search(screen_text(Where()))
+    assert not whole.search(screen_text(Where(block="2", digits="2")))
+
+
+def test_zoomed_in_lists_brief_ids():
+    assert "CraneFly" in screen_text(Where(block="2", digits="2"))
+
+
+def test_a_search_with_one_block_of_matches_zooms_to_it():
+    shown = screen_text(Where(search="crane"))
+    assert "CraneFly" in shown and "1 match in 1 block" in shown
+
+
+def test_a_zoomed_block_that_is_gone_draws_the_overview():
+    assert "1 ORIA" in screen_text(Where(block="9", digits="9"))
+
+
+def test_a_pane_too_small_to_draw_says_so():
+    shown = "\n".join(canvas.plain_lines(render(GROVE, Where(block="1", digits="1"), 69, 6, 0.0)))
+    assert "needs" in shown
+
+
+def test_a_scene_drawn_directly_on_a_tiny_canvas_says_so():
+    picture = canvas.blank(69, 6)
+    block_scene.zoomed(picture, BLOCKS[0], GROVE.arrangement, 0.0)
+    assert "needs" in canvas.plain_lines(picture)[0]
+
+
+def test_a_grove_too_big_for_the_screen_pans_and_says_so():
+    small = canvas.plain_lines(render(GROVE, Where(), 100, 30, 0.5))
+    assert "arrows pan" in small[0]
+    assert "arrows pan" not in canvas.plain_lines(render(GROVE, Where(), 400, 120, 0.5))[0]
+
+
+def test_a_pan_stops_at_the_groves_edge():
+    far = clamp_pan(GROVE, Where(pan=(9999, 9999)), 100, 30)
+    assert 0 < far.pan[0] < 210 and 0 < far.pan[1] < 60
+    assert clamp_pan(GROVE, Where(pan=(40, 8)), 400, 120).pan == (0, 0)

@@ -47,21 +47,22 @@ def style(header: sections.Header) -> Style:
     return _fill(header) + Style(bold=True, underline=True)
 
 
-def label(header: sections.Header, width: int = 0, selected: bool = False) -> Text:
+def label(header: sections.Header, width: int = 0, selected: bool = False, digit: str = "") -> Text:
     """Arrow, name and count, padded to *width* so the fill and rule reach the edge.
 
     The arrow, the count and the rule across the rest of the line take the
     group's color, above its cards' rail; the count keeps a status fill's text
     color. Under the cursor the arrow turns into a block of that color, in
     place, and a white block ends the line, since the table's cursor color is
-    lost under a status fill.
+    lost under a status fill. *digit*, the group's block in the grove, comes before its name.
     """
     color = header.group.color
+    called = f"{digit} {header.group.name}" if digit else header.group.name
     filled = _fill(header).bgcolor is not None
     name = (
-        Text(f" {header.group.name} ", style=Style(color="#000000", bgcolor=color, dim=False))
+        Text(f" {called} ", style=Style(color="#000000", bgcolor=color, dim=False))
         if header.group.collapsed
-        else Text(header.group.name, style=Style(color=color))
+        else Text(called, style=Style(color=color))
     )
     arrow = "▸" if header.group.collapsed else "▾"
     text = Text.assemble(
@@ -88,14 +89,19 @@ def label(header: sections.Header, width: int = 0, selected: bool = False) -> Te
 
 
 def cells(
-    header: sections.Header, card_width: int, columns: int, name_cell: int, selected: bool = False
+    header: sections.Header,
+    card_width: int,
+    columns: int,
+    name_cell: int,
+    selected: bool = False,
+    digit: str = "",
 ) -> list[Text]:
     """The header as a card (one cell *card_width* wide) or as a row of *columns* cells."""
     if card_width:
-        return [label(header, card_width, selected)]
+        return [label(header, card_width, selected, digit)]
 
     return [
-        label(header, selected=selected)
+        label(header, selected=selected, digit=digit)
         if i == name_cell
         else Text("", style=Style(color=header.group.color, underline=True))
         for i in range(columns)

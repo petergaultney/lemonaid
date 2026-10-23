@@ -100,7 +100,8 @@ def context_parts(
 
 def active_row(
     n: db.Notification,
-    row_index: int,
+    key: str,
+    gutter: int,
     is_here: bool,
     is_pinned: bool,
     emojis: abc.Mapping[str, str],
@@ -113,15 +114,15 @@ def active_row(
 ) -> tuple[str, list[Text]]:
     """The main-table row for a session, keyed by notification id.
 
-    `row_index` is the session's position in the list, which is what its jump
-    digit names - so a row's number changes when the list reorders.
+    `key` is its grove key, which stays the same as the list reorders, in a gutter
+    `gutter` columns wide.
     """
     is_unread = n.is_unread
     return str(n.id), [
         row_cells.time_cell(n.created_at, is_unread, neutral_timing=tui.project_name_colors),
         Text("●", style=utils.unread_marker_style()) if is_unread else Text(""),
         backend_cell(backend, is_pinned),
-        jump_gutter(row_index, is_here)
+        jump_gutter(key, is_here, gutter)
         + row_cells.name_cell(n, emojis, wordybin, is_unread, prs)
         + detached,
         styled_cell(n.metadata.get("git_branch", ""), is_unread, "branch"),
