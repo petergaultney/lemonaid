@@ -127,8 +127,8 @@ _REWRITTEN = (
 def rewrite(data: dict, harness: str) -> dict | None:
     """Claude Code hook output that runs a quiet push with its quiet flags removed, or None.
 
-    The permission decision keeps what would have happened anyway: `allow` only when the
-    session bypasses permissions, `ask` otherwise. Codex keeps the refusal for now.
+    No permission decision is returned, so the rewritten command goes through the session's
+    normal permission check. Codex keeps the refusal for now.
     """
     tool_input = data.get("tool_input")
     if harness != "claude" or not refusal(data) or not isinstance(tool_input, dict):
@@ -141,9 +141,6 @@ def rewrite(data: dict, harness: str) -> dict | None:
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": (
-                "allow" if data.get("permission_mode") == "bypassPermissions" else "ask"
-            ),
             "updatedInput": {**tool_input, "command": loud},
             "additionalContext": _REWRITTEN,
         }

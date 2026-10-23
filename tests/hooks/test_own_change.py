@@ -266,8 +266,8 @@ def test_a_quiet_push_is_refused_in_every_harness_payload(tool_input):
     assert "without -q" in own_change.refusal(event)
 
 
-@pytest.mark.parametrize(("mode", "decision"), [("bypassPermissions", "allow"), ("default", "ask")])
-def test_a_quiet_claude_push_runs_with_its_heads_printed(monkeypatch, capsys, mode, decision):
+@pytest.mark.parametrize("mode", ["bypassPermissions", "auto", "acceptEdits", "default"])
+def test_a_quiet_claude_push_runs_with_its_heads_printed(monkeypatch, capsys, mode):
     tool_input = {"command": f"{_QUIET}u origin b && echo done", "description": "Push"}
     event = {
         "session_id": _SESSION,
@@ -280,7 +280,7 @@ def test_a_quiet_claude_push_runs_with_its_heads_printed(monkeypatch, capsys, mo
     own_change.handle("claude")
 
     output = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
-    assert output["permissionDecision"] == decision
+    assert "permissionDecision" not in output
     assert output["updatedInput"] == {
         "command": "git push -u origin b && echo done",
         "description": "Push",
