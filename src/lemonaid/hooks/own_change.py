@@ -16,7 +16,7 @@ from collections import abc
 
 from ..config import load_config
 from ..watch import own_edits, own_pushes, subscriptions
-from . import session_gate, stop_check
+from . import session_brief, session_gate
 
 
 def _strings(value: ty.Any) -> abc.Iterator[str]:
@@ -40,7 +40,7 @@ def record(data: dict, harness: str, own_root: pathlib.Path) -> None:
     call = str(data.get("tool_use_id") or "tool")  # without an ID, calls are assumed sequential
     named = "\n".join(_strings(data.get("tool_input")))
     docs = set(own_edits.watched(own_root, writer))
-    path = stop_check.attached_brief(data, harness)
+    path = session_brief.attached(data, harness)
     session_gate.mark(own_root, writer, path)
     if path:
         for spec in subscriptions.read(

@@ -9,12 +9,12 @@ from pathlib import Path
 
 from .. import brief
 from ..brief import handoff_state
-from ..codex import channels
 from ..inbox import db
-from ..inbox.channel import UnidentifiedSession, channel_id, full_channel_id
+from ..inbox.channel import UnidentifiedSession
 from ..log import get_logger
 from ..messages import store, waiter
 from ..watch import children_waiter, codex_scout, push_scout, wait_requirements, wait_state
+from . import session_brief
 
 _log = get_logger("hooks.stop_check")
 
@@ -32,43 +32,6 @@ _BROKEN = (
     "`lemonaid brief check --self` finds {brief} broken:\n{problems}\n"
     "Fix it (the `lemonaid brief bullet` and `brief pr` verbs keep the layout), then end your turn."
 )
-
-
-def _channel(harness: str, session_id: str | None) -> str:
-    """Raises `UnidentifiedSession` without a session ID."""
-    if harness == "codex":
-        full_channel_id(harness, session_id)  # Keep rejecting unidentified hooks.
-        with db.connect() as conn:
-            brief.attached.claim_pending(conn)
-            channel = channels.for_session(conn, session_id)
-            if not brief.attached.by_channel(conn, [channel]).get(channel):
-                # Stop precedes the first turn-complete notification. An attached
-                # transient row may not have acquired its root metadata yet.
-                from .. import handlers
-
-                locations = handlers.codex_tmux_locations()
-                if locations and session_id in locations:
-                    handlers.repair_tmux_locations(conn, {session_id: locations[session_id]})
-                    channel = channels.for_session(conn, session_id)
-            return channel
-    return (
-        channel_id("claude", session_id)
-        if harness == "claude"
-        else full_channel_id(harness, session_id)
-    )
-
-
-def attached_brief(data: dict, harness: str = "claude") -> Path | None:
-    """The brief attached to the hook's session, if its file exists."""
-    try:
-        channel = _channel(harness, data.get("session_id"))
-    except UnidentifiedSession:
-        return None
-
-    with db.connect() as conn:
-        brief.attached.claim_pending(conn)
-        path = brief.attached.by_channel(conn, [channel]).get(channel)
-    return path if path is not None and path.is_file() else None
 
 
 def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_id: str) -> str:
@@ -112,13 +75,13 @@ def _broken(path: Path, text: str) -> str:
 
 def reason_to_block(data: dict, grace: float, harness: str = "claude") -> str:
     """The reason to block this Stop, or "" to let it through."""
-    path = attached_brief(data, harness)
+    path = session_brief.attached(data, harness)
     if path is None:
         return ""
 
     text = path.read_text()
     try:
-        channel = _channel(harness, data.get("session_id"))
+        channel = session_brief.channel(harness, data.get("session_id"))
     except UnidentifiedSession:
         channel = ""
     with db.connect() as conn:

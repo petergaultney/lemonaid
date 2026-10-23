@@ -12,7 +12,7 @@ from ..inbox.channel import channel_id
 from ..lemon_watchers import get_tty
 from ..log import get_logger
 from ..watch import codex_scout, own_edits, push_scout
-from . import session_gate, stop_check
+from . import session_brief, session_gate, stop_check
 
 _log = get_logger("hooks.session_start")
 
@@ -80,7 +80,7 @@ def context(data: dict, harness: str) -> str:
         if harness == "claude" and session and data.get("source") == "clear"
         else ""
     )
-    path = stop_check.attached_brief(data, harness)
+    path = session_brief.attached(data, harness)
     if session:
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)
     if path is None:

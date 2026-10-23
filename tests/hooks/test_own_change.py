@@ -176,7 +176,7 @@ def test_a_doc_in_the_attached_brief_is_recorded_between_waits(
         brief.write_text(
             f"# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n- `lemonaid watch doc --wait {doc}`\n"
         )
-    monkeypatch.setattr(own_change.stop_check, "attached_brief", lambda *args: brief)
+    monkeypatch.setattr(own_change.session_brief, "attached", lambda *args: brief)
     _tool_call(
         tmp_path,
         harness,

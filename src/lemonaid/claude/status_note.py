@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from .. import brief
-from ..hooks import stop_check
+from ..hooks import session_brief
 from ..log import get_logger
 from ..tmux import navigation
 
@@ -52,7 +52,7 @@ def note(data: dict) -> str:
     seen.parent.mkdir(parents=True, exist_ok=True)
     seen.write_text(prompt_id)
 
-    path = stop_check.attached_brief(data)
+    path = session_brief.attached(data)
     return brief.nudge.note(path.read_text()) if path else ""
 
 
