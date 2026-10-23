@@ -10,7 +10,8 @@ import pytest
 
 from lemonaid.brief import attached, handoff_state, identity
 from lemonaid.brief import store as brief_store
-from lemonaid.claude import install_hooks, waiter_check
+from lemonaid.claude import install_hooks
+from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import cli, store, waiter
@@ -36,7 +37,7 @@ def _briefed(status: str = "working") -> Path:
 
 
 def _stop(capsys, **extra) -> dict | None:
-    waiter_check.handle(json.dumps({"session_id": _SESSION, **extra}), grace=0.0)
+    stop_check.handle(json.dumps({"session_id": _SESSION, **extra}), grace=0.0)
     out = capsys.readouterr().out
     return json.loads(out) if out else None
 

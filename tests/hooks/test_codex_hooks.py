@@ -6,8 +6,7 @@ import pytest
 
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
-from lemonaid.claude import waiter_check
-from lemonaid.hooks import session_start
+from lemonaid.hooks import session_start, stop_check
 from lemonaid.inbox import db
 from lemonaid.lineage import links
 from lemonaid.messages import store, waiter
@@ -27,7 +26,7 @@ def _briefed(name: str = "lemon", channel: str = f"codex:{_THREAD}", body: str =
 
 
 def _stop(capsys) -> dict | None:
-    waiter_check.handle(json.dumps({"session_id": _THREAD}), grace=0.0, harness="codex")
+    stop_check.handle(json.dumps({"session_id": _THREAD}), grace=0.0, harness="codex")
     out = capsys.readouterr().out
     return json.loads(out) if out else None
 
@@ -98,7 +97,7 @@ def test_unified_waiter_satisfies_parent_stop_check(monkeypatch, harness):
         links.set_parent(conn, identity.ensure(conn, child), parent)
     wait_state.lock_path(parent).parent.mkdir(parents=True)
     with waiter_lock.acquire(wait_state.lock_path(parent)):
-        assert waiter_check.reason_to_block({"session_id": session}, 0, harness) == ""
+        assert stop_check.reason_to_block({"session_id": session}, 0, harness) == ""
 
 
 def test_done_sessions_still_get_wait_guidance():
@@ -118,7 +117,7 @@ def test_inbox_only_is_not_enough_for_a_brief_with_pr_subscriptions(capsys, harn
         body="\n## Watching\n\n- `lemonaid watch pr --wait https://github.com/o/r/pull/12`\n",
     )
     with waiter.armed(store.inbox_for_id(lemon_id)):
-        reason = waiter_check.reason_to_block({"session_id": session}, 0, harness)
+        reason = stop_check.reason_to_block({"session_id": session}, 0, harness)
     assert "lemonaid watch --self" in reason
     assert "--keep-subscriptions" in reason
 

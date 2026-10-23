@@ -16,7 +16,7 @@ from ..log import get_logger
 from ..messages import store, waiter
 from ..watch import children_waiter, codex_scout, push_scout, wait_requirements, wait_state
 
-_log = get_logger("claude.waiter_check")
+_log = get_logger("hooks.stop_check")
 
 ARM = {
     "claude": "Run `lemonaid watch --self --push`, which starts lemonaid's push scout and returns; "

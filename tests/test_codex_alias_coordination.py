@@ -6,7 +6,7 @@ import json
 import pytest
 
 from lemonaid.brief import attached, identity, waiters
-from lemonaid.claude import waiter_check
+from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.messages import codex_delivery, service, waiter
 from lemonaid.messages import store as messages
@@ -122,11 +122,11 @@ def test_alias_inbox_delivery_queues_real_thread(alias, monkeypatch):
 
 def test_stop_hook_finds_alias_and_requires_its_unified_watcher(alias, monkeypatch):
     channel, path, lemon_id = alias
-    assert waiter_check.attached_brief({"session_id": _ROOT}, "codex") == path
-    reason = waiter_check.reason_to_block({"session_id": _ROOT}, 0, "codex")
+    assert stop_check.attached_brief({"session_id": _ROOT}, "codex") == path
+    reason = stop_check.reason_to_block({"session_id": _ROOT}, 0, "codex")
     assert f"No unified watcher is armed for {lemon_id}" in reason
     monkeypatch.setattr(wait_state, "is_armed", lambda owner, grace: owner == lemon_id)
-    assert waiter_check.reason_to_block({"session_id": _ROOT}, 0, "codex") == ""
+    assert stop_check.reason_to_block({"session_id": _ROOT}, 0, "codex") == ""
 
 
 def test_stop_self_finds_waiter_registered_before_alias_fix(alias):
@@ -187,7 +187,7 @@ def test_stop_before_first_notify_resolves_unbound_alias_and_blocks(setup, monke
     with path.open("a") as stream:
         stream.write("\n## Watching\n- `lemonaid watch file --wait /tmp/task`\n")
     monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {_ROOT: [_LOCATION]})
-    waiter_check.handle(json.dumps({"session_id": _ROOT}), grace=0, harness="codex")
+    stop_check.handle(json.dumps({"session_id": _ROOT}), grace=0, harness="codex")
     result = json.loads(capsys.readouterr().out)
     assert result["decision"] == "block"
     assert "No unified watcher is armed" in result["reason"]

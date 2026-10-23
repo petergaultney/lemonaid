@@ -5,7 +5,7 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
 
 - PreToolUse and PostToolUse on every tool: own_change, so a lemon's own edits and pushes
   don't wake its waiters;
-- Stop: block ending a turn while the attached brief's waiters aren't armed (waiter_check);
+- Stop: block ending a turn while the attached brief's waiters aren't armed (stop_check);
   for a Claude lemon, it first starts the push scout when the session can take one;
 - SessionStart: start a Claude lemon's push scout, or remind a lemon with an attached brief
   which waiters to arm.

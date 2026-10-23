@@ -2,8 +2,8 @@
 
 import argparse
 
-from ..hooks import install
-from . import install_hooks, session_end, status_note, waiter_check
+from ..hooks import install, stop_check
+from . import install_hooks, session_end, status_note
 from .bootstrap import run_bootstrap
 from .install_hooks import install_session_start, uninstall_session_start
 from .notify import (
@@ -79,7 +79,7 @@ def cmd_status_note(args: argparse.Namespace) -> None:
 
 def cmd_waiter_check(args: argparse.Namespace) -> None:
     """Handle the Stop hook that keeps a briefed lemon's inbox waiter armed."""
-    waiter_check.handle()
+    stop_check.handle()
 
 
 def cmd_dismiss(args: argparse.Namespace) -> None:

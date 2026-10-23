@@ -16,9 +16,9 @@ import time
 from pathlib import Path
 
 from .. import brief
+from ..hooks import stop_check
 from ..log import get_logger
 from ..tmux import navigation
-from . import waiter_check
 
 _log = get_logger("claude.status_note")
 
@@ -52,7 +52,7 @@ def note(data: dict) -> str:
     seen.parent.mkdir(parents=True, exist_ok=True)
     seen.write_text(prompt_id)
 
-    path = waiter_check.attached_brief(data)
+    path = stop_check.attached_brief(data)
     return brief.nudge.note(path.read_text()) if path else ""
 
 

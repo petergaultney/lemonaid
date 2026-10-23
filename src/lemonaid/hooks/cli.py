@@ -3,8 +3,7 @@
 import argparse
 import sys
 
-from ..claude import waiter_check
-from . import install, own_change, session_start
+from . import install, own_change, session_start, stop_check
 
 
 def _install(a: argparse.Namespace) -> None:
@@ -54,7 +53,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
             "stop",
             "Stop: start a Claude lemon's push scout, or block ending a turn while the attached "
             "brief's waiters aren't armed",
-            lambda a: waiter_check.handle(harness=a.harness),
+            lambda a: stop_check.handle(harness=a.harness),
         ),
         (
             "session-start",

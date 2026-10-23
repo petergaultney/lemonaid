@@ -7,13 +7,12 @@ from pathlib import Path
 
 from .. import brief
 from ..brief import handoff_clear
-from ..claude import waiter_check
 from ..inbox import db
 from ..inbox.channel import channel_id
 from ..lemon_watchers import get_tty
 from ..log import get_logger
 from ..watch import codex_scout, own_edits, push_scout
-from . import session_gate
+from . import session_gate, stop_check
 
 _log = get_logger("hooks.session_start")
 
@@ -81,7 +80,7 @@ def context(data: dict, harness: str) -> str:
         if harness == "claude" and session and data.get("source") == "clear"
         else ""
     )
-    path = waiter_check.attached_brief(data, harness)
+    path = stop_check.attached_brief(data, harness)
     if session:
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)
     if path is None:
@@ -107,7 +106,7 @@ def context(data: dict, harness: str) -> str:
         moved
         + _not_pushing(path, session or "", harness)
         + f"Your brief is {path}. Read it and the current state of your work first. "
-        f"Check `lemonaid watch --self --status`; if none is running, {waiter_check.ARM[harness]} "
+        f"Check `lemonaid watch --self --status`; if none is running, {stop_check.ARM[harness]} "
         "It reads your Watching section, PRs, Docs, children and inbox, reports every pending "
         "change together, and exits. Handle the whole batch and rearm it before ending that turn. "
         "Keep document rows watched while this session exists, including when its Status is done."

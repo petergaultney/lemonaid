@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 
 from lemonaid.brief import attached, store
-from lemonaid.claude import inbound, session_socket, waiter_check
+from lemonaid.claude import inbound, session_socket
+from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.messages import store as messages
 from lemonaid.watch import push_scout, registry, stop_sender, wait_cli, wait_state, waiter_lock
@@ -157,7 +158,7 @@ def test_the_stop_check_starts_a_scout_instead_of_asking_for_a_background_task(m
     _briefed()
     monkeypatch.setattr(push_scout, "ensure", lambda session_id, lemon_id, grace: True)
 
-    waiter_check.handle(json.dumps({"session_id": _SESSION}), grace=0.0)
+    stop_check.handle(json.dumps({"session_id": _SESSION}), grace=0.0)
 
     assert capsys.readouterr().out == ""
 
