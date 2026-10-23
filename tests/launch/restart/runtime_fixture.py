@@ -87,8 +87,20 @@ def runtime(tmp_path, monkeypatch, request):
         monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
         Path(os.environ["CODEX_HOME"]).mkdir()
     monkeypatch.delenv("CLAUDE_CODE_USE_BEDROCK", raising=False)
+    # Exercise SessionStart's real native observation without its automatic scout.
+    # This fixture tests the coordinator leaving watcher startup to the resumed lemon;
+    # automatic SessionStart startup is covered by the hook/scout tests separately.
     monkeypatch.setenv(
-        "TEST_HOOK", f"{sys.executable} -m lemonaid hooks session-start --harness codex"
+        "TEST_HOOK",
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                "from unittest.mock import patch; from lemonaid.hooks import session_start\n"
+                "with patch.object(session_start.codex_scout, 'ensure_for', return_value=False):\n"
+                "    session_start.handle('codex')",
+            ]
+        ),
     )
     monkeypatch.setenv("TEST_SESSION", shared.SESSION)
     monkeypatch.setenv("TEST_STARTED", str(tmp_path / "started"))
