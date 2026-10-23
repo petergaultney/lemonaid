@@ -43,7 +43,7 @@ def notification(key: str | None) -> db.Notification | None:
     if not key:
         return None
 
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         return db.get(conn, int(key))
 
 
@@ -54,7 +54,7 @@ def channels(table: DataTable) -> list[str]:
     list the user is looking at even when the watcher has changed the
     inbox since the last refresh.
     """
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         return [
             n.channel
             if (found := key_id(at_row(table, row))) is not None and (n := db.get(conn, found))

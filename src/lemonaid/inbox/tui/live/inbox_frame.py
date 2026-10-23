@@ -13,6 +13,19 @@ from ..watchers import focus
 
 
 @dataclasses.dataclass(frozen=True)
+class Request:
+    """What one load reads, taken from the UI before it starts; `seq` orders them."""
+
+    seq: int
+    focused: frozenset[str]
+    env_filter: str | None
+    search_text: str | None  # None outside a search
+    current_key: str | None
+    other_key: str | None
+    unfolded_ids: frozenset[str]
+
+
+@dataclasses.dataclass(frozen=True)
 class Frame:
     active: "view.Active"
     pinned: frozenset[str]
@@ -28,6 +41,8 @@ class Frame:
     matching_ids: set[int] | None  # None outside a search
     parents: dict[str, str] = dataclasses.field(default_factory=dict)
     child_totals: dict[str, int] = dataclasses.field(default_factory=dict)
+    request: int = 0  # the `Request.seq` it was loaded for
+    search_text: str | None = None
 
 
 def _brief_names(conn: sqlite3.Connection, shared: abc.Set[str]) -> dict[str, str]:

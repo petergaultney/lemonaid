@@ -6,6 +6,8 @@ when the app asks it to.
 """
 
 import contextlib
+import dataclasses
+import threading
 import time
 from collections import abc
 from pathlib import Path
@@ -84,6 +86,9 @@ class InboxList(Vertical):
         # The row a group was collapsed from, drawn until the cursor leaves it.
         self.kept: frozenset[str] = frozenset()
         self._restore_checked: frozenset[str] = frozenset()
+        self._load_lock = threading.Lock()
+        self._requested = 0
+        self._drawn = 0  # the request of the frame drawn last
 
     def compose(self) -> ComposeResult:
         yield ClickToActTable(id="main_table")
@@ -158,6 +163,61 @@ class InboxList(Vertical):
 
         return focus.first_row(entries, frame.focused_channels)
 
+    def request(
+        self, focused: frozenset[str], env_filter: str | None, search_text: str | None
+    ) -> inbox_frame.Request:
+        """What the next load should read, taken on the UI thread.
+
+        `search_text` is None outside a search.
+        """
+        self._refresh_pr_numbers()
+        self._refresh_stalls()
+        other = self.other
+        current_key = row_keys.notification_at_cursor(self.main)
+        other_key = row_keys.notification_at_cursor(other) if self.app.focused is other else None
+        self._requested += 1
+        request = inbox_frame.Request(
+            self._requested,
+            focused,
+            env_filter,
+            search_text,
+            None if current_key == self.dismissed_key else current_key,
+            None if other_key == self.dismissed_key else other_key,
+            self._unfolded_ids,
+        )
+        self.dismissed_key = None
+        return request
+
+    def load(self, request: inbox_frame.Request) -> inbox_frame.Frame:
+        """Read *request*'s frame from the database; safe off the UI thread, one at a time."""
+        with self._load_lock, db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
+            if request.focused != self._restore_checked:
+                self._restore_checked = (
+                    request.focused
+                )  # asked once per change of focus: it can cost a ps
+                unarchive.restore_focused(conn, request.focused)
+            frame = inbox_frame.load(
+                conn,
+                self.config,
+                self._brief_cache,
+                self.presence,
+                self.pr_numbers,
+                self.stalls,
+                env_filter=request.env_filter,
+                focused=request.focused,
+                search_text=request.search_text,
+                current_key=request.current_key,
+                other_key=request.other_key,
+                unfolded_ids=request.unfolded_ids,
+                shared_names=(
+                    self.shared_names.names(conn, self.config.brief.name_idle_days, time.time())
+                    if self.config.tui.brief_names_in_inbox
+                    else frozenset()
+                ),
+                now=time.time(),
+            )
+        return dataclasses.replace(frame, request=request.seq, search_text=request.search_text)
+
     def refresh_list(
         self,
         *,
@@ -172,18 +232,47 @@ class InboxList(Vertical):
         card_shape: abc.Callable[[int], tuple[int, int]],
         stay_on_unread: bool = False,
     ) -> inbox_draw.Drawn:
-        """Redraw both tables from the database.
+        """Redraw both tables from the database, now, on the UI thread."""
+        drawn = self.draw(
+            self.load(self.request(focused, env_filter, search_text)),
+            detached=detached,
+            cards=cards,
+            width=width,
+            height=height,
+            card_width=card_width,
+            card_shape=card_shape,
+            stay_on_unread=stay_on_unread,
+        )
+        assert drawn is not None, "a frame requested last is drawn"
+        return drawn
 
-        `search_text` is None outside a search, `card_shape` sizes cards for a
-        given number of extra brief lines, and `width` and `height` are the pane's.
+    def draw(
+        self,
+        frame: inbox_frame.Frame,
+        *,
+        detached: abc.Set[str],
+        cards: bool,
+        width: int,
+        height: int,
+        card_width: int,
+        card_shape: abc.Callable[[int], tuple[int, int]],
+        stay_on_unread: bool = False,
+    ) -> inbox_draw.Drawn | None:
+        """Draw *frame*, or None when a later request has been drawn already.
+
+        `card_shape` sizes cards for a given number of extra brief lines, and
+        `width` and `height` are the pane's.
         """
-        self._refresh_pr_numbers()
-        self._refresh_stalls()
+        if frame.request < self._drawn:
+            return None
+
+        self._drawn = frame.request
+        self.last_frame = frame
+        self.grove = inbox_keys.grove(frame, self.config)
         main = self.main
         other = self.other
         fold_label = self.query_one("#fold_label", Static)
-
-        # Remember current selection (both key and index) for both tables
+        search_text = frame.search_text
         current_key = row_keys.notification_at_cursor(main)
         current_row = row_keys.at_cursor(main)  # a header's, or a lemon's under its group
         self.kept = self.kept if current_row in self.kept else frozenset()
@@ -192,34 +281,6 @@ class InboxList(Vertical):
         focused_on_other = self.app.focused is other
         other_key = row_keys.notification_at_cursor(other) if focused_on_other else None
 
-        with db.connect() as conn:
-            if focused != self._restore_checked:
-                self._restore_checked = focused  # asked once per change of focus: it can cost a ps
-                unarchive.restore_focused(conn, focused)
-            frame = inbox_frame.load(
-                conn,
-                self.config,
-                self._brief_cache,
-                self.presence,
-                self.pr_numbers,
-                self.stalls,
-                env_filter=env_filter,
-                focused=focused,
-                search_text=search_text,
-                current_key=None if current_key == self.dismissed_key else current_key,
-                other_key=None if other_key == self.dismissed_key else other_key,
-                unfolded_ids=self._unfolded_ids,
-                shared_names=(
-                    self.shared_names.names(conn, self.config.brief.name_idle_days, time.time())
-                    if self.config.tui.brief_names_in_inbox
-                    else frozenset()
-                ),
-                now=time.time(),
-            )
-
-        self.dismissed_key = None
-        self.last_frame = frame
-        self.grove = inbox_keys.grove(frame, self.config)
         active = frame.active
         self._revive_deaf(active)
         shown, folded, self.fold_name, group_order = self.arrangement.arranged(

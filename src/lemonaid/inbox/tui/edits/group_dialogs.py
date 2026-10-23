@@ -36,7 +36,7 @@ def rename(inbox: InboxList, group: groups.store.Group, title: str) -> None:
             return
 
         try:
-            with db.connect() as conn:
+            with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
                 edit = groups.editing.rename(conn, group, name)
         except groups.store.GroupError as error:
             inbox.notify(str(error), severity="warning")
@@ -56,7 +56,7 @@ def recolor(inbox: InboxList, group: groups.store.Group) -> None:
             if groups.color.parsed(wanted) == group.saved_color:
                 return
 
-            with db.connect() as conn:
+            with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
                 edit = groups.editing.recolor(conn, group, wanted)
         except groups.store.GroupError as error:
             inbox.notify(str(error), severity="warning")
@@ -83,7 +83,7 @@ def group_tree(inbox: InboxList, notification: db.Notification, lemon_id: str) -
             return
 
         try:
-            with db.connect() as conn:
+            with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
                 edit = groups.editing.group_tree(conn, lemon_id, name, lemon_name)
         except groups.store.GroupError as error:
             inbox.notify(str(error), severity="warning")
@@ -105,7 +105,7 @@ def group_tree(inbox: InboxList, notification: db.Notification, lemon_id: str) -
 def group_add(inbox: InboxList, notification: db.Notification, lemon_id: str) -> None:
     """Put the lemon in a group picked from a list, or a new one."""
     name = notification.name or notification.channel
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         names = [
             g.name for g in groups.store.all_groups(conn) if g.members and lemon_id not in g.members
         ]
@@ -115,7 +115,7 @@ def group_add(inbox: InboxList, notification: db.Notification, lemon_id: str) ->
             return
 
         try:
-            with db.connect() as conn:
+            with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
                 edit = groups.editing.add(conn, group_name, lemon_id, name)
         except groups.store.GroupError as error:
             inbox.notify(str(error), severity="warning")

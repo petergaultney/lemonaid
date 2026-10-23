@@ -11,7 +11,7 @@ _log = get_logger("tui")
 
 def toggle_pin(inbox: InboxList, channel: str) -> None:
     """Hold the session at its place in the list, or release it."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         now_pinned = pins.toggle(conn, channel)
 
     _log.info("pin: %s -> %s", channel, now_pinned)
@@ -26,7 +26,7 @@ def move_pin(inbox: InboxList, channel: str, row_channels: abc.Sequence[str], of
     table, so a pinned session that is currently snoozed keeps its position
     and returns between the same two rows it sat between before.
     """
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         if not pins.is_pinned(conn, channel):
             return False
 
