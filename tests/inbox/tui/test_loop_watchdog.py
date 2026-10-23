@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 import time
 
 from lemonaid.inbox.tui import loop_watchdog
@@ -62,3 +63,46 @@ def test_a_long_block_is_logged_with_its_stack_before_it_ends(caplog):
 
     (during,) = [r.getMessage() for r in caplog.records if "so far" in r.getMessage()]
     assert "in _block_the_loop" in during
+
+
+def _idle_for_a_while() -> None:
+    async def run() -> None:
+        watchdog = loop_watchdog.Watchdog(0.1)
+        watchdog.start()
+        await asyncio.sleep(1.3)
+        watchdog.stop()
+
+    asyncio.run(run())
+
+
+def _selector_frame():
+    """A frame from a module named `selectors`, where an idle loop waits."""
+    scope = {"__name__": "selectors", "sys": sys}
+    exec("def select():\n    return sys._getframe()\n", scope)
+    return scope["select"]()
+
+
+def test_a_loop_kept_busy_by_short_blocks_is_logged(caplog):
+    caplog.set_level(logging.WARNING)
+    watchdog = loop_watchdog.Watchdog(0.1)
+    busy = sys._getframe()  # anywhere but the selector counts as busy
+    for _ in range(7):
+        watchdog._sample_busy(busy)
+    for _ in range(2):
+        watchdog._sample_busy(_selector_frame())
+    watchdog._window -= loop_watchdog._BUSY_WINDOW_SECONDS
+
+    watchdog._sample_busy(busy)
+
+    (logged,) = [r.getMessage() for r in caplog.records if "loop busy" in r.getMessage()]
+    assert logged.startswith("loop busy 80% over")
+    assert "test_a_loop_kept_busy_by_short_blocks_is_logged" in logged
+
+
+def test_an_idle_loop_is_not_logged_as_busy(caplog, monkeypatch):
+    monkeypatch.setattr(loop_watchdog, "_BUSY_WINDOW_SECONDS", 1.0)
+    caplog.set_level(logging.WARNING)
+
+    _idle_for_a_while()
+
+    assert "loop busy" not in caplog.text
