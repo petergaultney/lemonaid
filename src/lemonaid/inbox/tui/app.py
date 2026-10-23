@@ -39,7 +39,16 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import db, sections, undo
-from . import bindings, claude_patch, error_screen, loop_watchdog, styles, unfocused_dim, utils
+from . import (
+    bindings,
+    claude_patch,
+    error_screen,
+    input_watchdog,
+    loop_watchdog,
+    styles,
+    unfocused_dim,
+    utils,
+)
 from .briefs.brief_pane import BriefPane
 from .crash_logging import CrashLoggedApp
 from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
@@ -62,6 +71,7 @@ from .views.usage_view import UsageHeader
 from .watchers import focus, session_names, watcher_hooks
 
 _LOOP_STALL_SECONDS = 0.1
+_INPUT_STALL_SECONDS = 2.0
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
 _log = get_logger("tui")
@@ -88,6 +98,7 @@ class LemonaidApp(CrashLoggedApp):
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
         self._loop_watchdog = loop_watchdog.Watchdog(_LOOP_STALL_SECONDS)
+        self._input_watchdog = input_watchdog.Watchdog(self, _INPUT_STALL_SECONDS)
         self._dim = unfocused_dim.Dim(
             unfocused_dim.strength(self.config.tui.unfocused_dim), enabled=False
         )
@@ -205,6 +216,7 @@ class LemonaidApp(CrashLoggedApp):
 
     def on_mount(self) -> None:
         self._loop_watchdog.start()
+        self._input_watchdog.start()
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
         if (
@@ -255,6 +267,7 @@ class LemonaidApp(CrashLoggedApp):
         """Stop the DB-mutating watcher before this app's resources disappear."""
         stop_unified_watcher()
         self._loop_watchdog.stop()
+        self._input_watchdog.stop()
 
     def _refresh_skills(self) -> None:
         """Bring installed skills up to date after an upgrade, saying so only when it did something."""

@@ -53,3 +53,12 @@ def test_a_stall_the_thread_never_sampled_is_still_recorded(caplog):
 
     assert 0.11 < asyncio.run(run()) < 0.2
     assert "an unsampled call" in caplog.text
+
+
+def test_a_long_block_is_logged_with_its_stack_before_it_ends(caplog):
+    caplog.set_level(logging.WARNING)
+
+    _watch(1.3)
+
+    (during,) = [r.getMessage() for r in caplog.records if "so far" in r.getMessage()]
+    assert "in _block_the_loop" in during
