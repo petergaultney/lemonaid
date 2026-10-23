@@ -5,6 +5,7 @@ import contextlib
 import functools
 import os
 import sys
+from collections import abc
 from pathlib import Path
 
 from ..brief import attached, identity, lemon
@@ -31,11 +32,16 @@ from . import (
 )
 
 
-def _attached(path: Path, channel: str) -> bool:
+def _attached(path: Path, channel: str, harness_alive: abc.Callable[[], bool]) -> bool:
+    """An archived inbox row ends the watch unless the lemon's harness is known to run.
+
+    The inbox archives a row when the lemon's process exits, and a resumed lemon's row
+    stays archived until its first turn ends.
+    """
     with db.connect() as conn:
         session = db.get_by_channel(conn, channel, unread_only=False)
         return attached.by_channel(conn, [channel]).get(channel) == path and (
-            session is None or not session.is_archived
+            session is None or not session.is_archived or harness_alive()
         )
 
 
@@ -115,12 +121,28 @@ def run(args: argparse.Namespace) -> int:
 
     thread_alive = codex_scout.liveness(thread) if thread and args.push else lambda: True
 
+    harness_alive = (
+        (lambda: session_socket.alive(session))
+        if session
+        else thread_alive
+        if thread and args.push
+        else lambda: False
+    )
+
     def still() -> bool:
         return (
-            _attached(path, channel)
+            _attached(path, channel, harness_alive)
             and (session is None or session_socket.alive(session))
             and thread_alive()
         )
+
+    if not still():
+        lock.close()
+        print(
+            f"not watching: {path.name} is not attached to {channel}, or its session has ended",
+            file=sys.stderr,
+        )
+        return 0
 
     writer = (
         own_edits.claude_writer(session.session_id)
