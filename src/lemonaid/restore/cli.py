@@ -8,8 +8,9 @@ from collections import abc
 
 from ..brief import attached
 from ..config import load_config
-from ..inbox import db
+from ..inbox import db, unarchive
 from ..tmux import inspect as tmux_inspect
+from ..tmux import navigation as tmux_navigation
 from ..tmux import restore as tmux_restore
 from . import prompt, report
 
@@ -58,6 +59,21 @@ def _unplaced(
     ]
 
 
+def _record_new_panes(placed: abc.Sequence[report.Placed]) -> None:
+    """Point each restored lemon's row at the pane it was just started in.
+
+    The row still names its pane on the server that died, so the inbox's watcher
+    would find that pane gone and archive the lemon restore has just resumed.
+    """
+    socket = tmux_navigation.current_socket()
+    panes = tmux_navigation.locations_by_tty(socket) or {}
+    ttys = {f"{location.session}:{location.window}": tty for tty, location in panes.items()}
+    with db.connect() as conn:
+        for lemon in placed:
+            if tty := ttys.get(lemon.where):
+                unarchive.moved(conn, lemon.channel, tty, socket, panes[tty])
+
+
 def cmd_tmux(args: argparse.Namespace) -> None:
     """Rebuild the tmux layout the inbox describes, and wait for its lemons to start working."""
     config = load_config()
@@ -77,6 +93,7 @@ def cmd_tmux(args: argparse.Namespace) -> None:
 
     started = time.time()
     done = tmux_restore.restore(plans)
+    _record_new_panes(done.placed)
     results = [
         *(
             report.wait(
