@@ -763,3 +763,25 @@ set -as terminal-features ',xterm*:hyperlinks'
 ```
 
 Reload your tmux config and reattach the client. The terminal itself must support OSC 8 links; a hook without the optional URL field shows a plain number. [tmux's hyperlink feature](https://github.com/tmux/tmux/blob/master/tty-features.c) controls forwarding these links to the terminal.
+
+## Fast popups
+
+`lemonaid tmux popup NAME` shows an app in a popup over the current client, a few cells in from
+each edge (`popup_margin` in `[tmux-session]`, default 3). The grove is one.
+
+Starting Python for every popup is slow, so the app runs all the time in a hidden session,
+`_lma_NAME`, and the popup attaches to that session, showing what the app has already drawn.
+The app closes the popup by detaching it and keeps running for the next one. The resident
+carries the caller's `LEMONAID_*` settings, and is restarted when a later caller's settings or
+the installed build differ.
+
+For a key that never starts Python, add what `lemonaid tmux popup NAME --binding KEY` prints to
+your tmux.conf. It is plain tmux commands: it closes the popup on any other client, records the
+client in `@lemonaid_popup_client` on the resident's session and opens the popup, closes the popup when pressed inside it, and runs
+`lemonaid tmux popup NAME` only when the resident isn't running.
+
+An app is a module named `lemonaid.NAME.popup_app` with `run(opener, rename_session, hide)`,
+which runs for as long as its session lives: `opener()` is the tmux client the popup was last
+opened over, `rename_session(old, new)` renames a tmux session, and `hide()` closes the popup.
+The app never imports lemonaid's tmux code.
+

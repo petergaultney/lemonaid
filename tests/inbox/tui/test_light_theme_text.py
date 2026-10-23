@@ -35,7 +35,7 @@ def _cells(unread: bool = True) -> list[Text]:
         Text("12:30"),
         Text("●" if unread else ""),
         Text("CC"),
-        jump_gutter(0, False) + Text("task"),
+        jump_gutter("0a", False) + Text("task"),
         Text("branch"),
         Text("~/work"),
         Text("message"),

@@ -7,6 +7,7 @@ import pytest
 from textual.widgets import DataTable
 
 from lemonaid import groups
+from lemonaid.grove.source import inbox_keys
 from lemonaid.inbox import db, pins
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.tables import row_keys
@@ -156,15 +157,18 @@ def test_row_actions_on_a_header_do_nothing():
 
 
 @pytest.mark.usefixtures("inbox")
-def test_jump_digits_count_lemons_not_headers(monkeypatch):
+def test_a_grove_key_names_a_lemon_by_its_group_not_its_row(monkeypatch):
     switched: list[str] = []
     monkeypatch.setattr(
         LemonaidApp, "_switch_to_notification", lambda self, n: switched.append(n.channel)
     )
 
     async def steps(app, pilot):
-        await pilot.press("2")
-        await pilot.pause()
+        key = inbox_keys.names(app._content.inbox.grove)["claude:lead"]
+        assert key.startswith("1")  # Work, the first group drawn
+        for character in key:
+            await pilot.press(character)
+            await pilot.pause()
 
     run(steps)
 

@@ -97,7 +97,7 @@ def as_card(
     marker = cells[layout.UNREAD_CELL]
     dot = Text("●", style=utils.unread_marker_style()) if marker.plain else Text(" ")
 
-    # The first cell is one stable navigation slot: a jump digit, or blank for
+    # The first cell is one stable navigation slot: a grove key, or blank for
     # the current session, which has no reason to be jumped to. Read titles
     # start in the fourth cell; an unread dot, with breathing room on both
     # sides, nudges the title one cell right as part of the attention signal.
@@ -105,7 +105,8 @@ def as_card(
     is_here = name.plain.startswith(HERE_BLOCK)
     selector = Text(layout.INDENT)
     if gutter_width:
-        selector = Text(layout.INDENT) if is_here else name[: len(layout.INDENT)]
+        slot = max(len(layout.INDENT), gutter_width - 1)
+        selector = Text(" " * slot) if is_here else name[:slot]
         name = name[gutter_width:]
     if emoji and name.plain.startswith(f"{emoji} "):
         name = name[len(emoji) + 1 :]

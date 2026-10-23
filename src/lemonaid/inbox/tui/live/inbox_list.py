@@ -16,6 +16,8 @@ from textual.containers import Vertical
 from textual.widgets import DataTable, Static
 
 from ....config import PlaceRoot
+from ....grove.source import inbox_keys
+from ....grove.tui.frame import Grove
 from ....log import get_logger
 from ....stalls import inbox as stalls_inbox
 from ....stalls import pulls as stalls_pulls
@@ -65,6 +67,10 @@ class InboxList(Vertical):
         self.shared_names = shared_names.Cache()
         self.arrangement = inbox_arrange.Arrangement(lists.config)
         self.dismissed_key: str | None = None
+        self.last_frame: inbox_frame.Frame | None = (
+            None  # what the last refresh read, for the grove
+        )
+        self.grove: Grove | None = None  # the grove of that refresh, for its keys
         self.fold_open = False
         self.fold_name = ""  # the arranger's name for the folded group
         self._unfolded_ids: frozenset[str] = (
@@ -212,6 +218,8 @@ class InboxList(Vertical):
             )
 
         self.dismissed_key = None
+        self.last_frame = frame
+        self.grove = inbox_keys.grove(frame, self.config)
         active = frame.active
         self._revive_deaf(active)
         shown, folded, self.fold_name, group_order = self.arrangement.arranged(
@@ -269,6 +277,8 @@ class InboxList(Vertical):
             card_shape,
             self.families,
             visible_counts,
+            inbox_keys.names(self.grove),
+            inbox_keys.digits(self.grove),
         )
 
         fold_label.display = bool(all_folded) and search_text is None
@@ -357,6 +367,9 @@ class InboxList(Vertical):
                 len(table.columns),
                 layout.NAME_CELL,
                 changed == wanted,
+                inbox_keys.digits(self.grove).get(self.headers[changed].group.name, "")
+                if self.grove
+                else "",
             )
             with contextlib.suppress(Exception):  # the row may be gone before a refresh
                 row = table.get_row_index(changed)

@@ -11,6 +11,7 @@ import lemonaid.brief.cli
 import lemonaid.claude.cli
 import lemonaid.codex.cli
 import lemonaid.groups.cli
+import lemonaid.grove.cli
 import lemonaid.home.cli
 import lemonaid.hooks.cli
 import lemonaid.inbox.cli
@@ -141,6 +142,7 @@ def main() -> None:
     go.setup_parser(subparsers)
     lemonaid.lineage.cli.setup_parser(subparsers)
     lemonaid.groups.cli.setup_parser(subparsers)
+    lemonaid.grove.cli.setup_parser(subparsers)
     lemonaid.home.cli.setup_parser(subparsers)
     lemonaid.hooks.cli.setup_parser(subparsers)
     lemonaid.claude.cli.setup_parser(subparsers)

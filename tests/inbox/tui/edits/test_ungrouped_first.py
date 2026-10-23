@@ -53,7 +53,7 @@ def test_ungrouped_order_and_cursor(size, enabled):
 @pytest.mark.parametrize("enabled", [True, False])
 def test_fold_expand_keeps_grouped_rows_in_place(enabled):
     Path(os.environ["LEMONAID_CONFIG"]).write_text(
-        f"[inbox]\nungrouped_first = {str(enabled).lower()}\n" '[tui]\nfold_statuses = ["idle"]\n'
+        f'[inbox]\nungrouped_first = {str(enabled).lower()}\n[tui]\nfold_statuses = ["idle"]\n'
     )
     with db.connect() as conn:
         group = groups.store.create(conn, "Work")

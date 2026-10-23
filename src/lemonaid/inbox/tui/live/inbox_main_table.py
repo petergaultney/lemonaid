@@ -26,12 +26,15 @@ def draw(
     card_shape: abc.Callable[[int], tuple[int, int]],
     families: family_highlight.Highlighter | None = None,
     visible_counts: abc.Mapping[str, int] | None = None,
+    keys: abc.Mapping[str, str] | None = None,
+    digits: abc.Mapping[str, str] | None = None,
 ) -> bool:
     """Bring *table* in line with *entries*; whether it was rebuilt rather than updated.
 
     `headers` are the group headers among the entries by key, `marked_header`
-    the one drawn with the cursor's marker, and `card_shape` sizes cards for a
-    given number of extra brief lines.
+    the one drawn with the cursor's marker, `card_shape` sizes cards for a
+    given number of extra brief lines, `keys` gives each lemon's grove key by channel, and
+    `digits` each group's block digit by name.
     """
     card_briefs = frame.active.cards
     drawn = [e for e in entries if isinstance(e, sections.Row)]
@@ -45,7 +48,8 @@ def draw(
         for e in drawn
         if frame.child_totals.get(e.notification.channel)
     }
-    numbers_by_key = {e.key: i for i, e in enumerate(drawn)}  # jump digits skip headers
+    keys = keys or {}
+    gutter = max([GUTTER_WIDTH, *(len(keys.get(e.notification.channel, "")) + 1 for e in drawn)])
     briefs = (
         {
             e.key: card_briefs[e.notification.channel]
@@ -65,7 +69,12 @@ def draw(
     header_cells = {
         key: (
             group_headers.cells(
-                header, card_width, len(table.columns), layout.NAME_CELL, key == marked_header
+                header,
+                card_width,
+                len(table.columns),
+                layout.NAME_CELL,
+                key == marked_header,
+                (digits or {}).get(header.group.name, ""),
             ),
             group_headers.background(header),
         )
@@ -80,7 +89,8 @@ def draw(
                 e.key,
                 inbox_draw.active_row(
                     e.notification,
-                    numbers_by_key[e.key],
+                    keys.get(e.notification.channel, ""),
+                    gutter,
                     frame,
                     detached,
                     areas.get(e.notification.channel, ""),
@@ -92,7 +102,7 @@ def draw(
         ],
         card_width,
         card_shape(extra_lines),
-        GUTTER_WIDTH,
+        gutter,
         config.tui.card_unread_style,
         {e.key: frame.emojis.get(e.notification.channel, "") for e in drawn},
         briefs,

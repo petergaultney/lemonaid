@@ -19,13 +19,15 @@ from ... import brief
 from ...claude import patch_status
 from ...claude.patcher import find_binary
 from ...config import load_config
+from ...grove import popup_app
+from ...grove.source import inbox_keys, inbox_screen
 from ...lemon_watchers import (
     detect_terminal_switch_source,
     stop_unified_watcher,
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import navigation, scratch_autosave
+from ...tmux import fast_popup, navigation, rename, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -52,7 +54,7 @@ from .switching import double_activate, history_resume, inbox_switch
 from .tables import row_keys, table_nav
 from .tables.scroll_position import StableTable
 from .tables.table import ClickToActTable
-from .utils import JUMP_DIGITS, set_terminal_title
+from .utils import set_terminal_title
 from .views import usage_view, view_modes
 from .views.history_table import HistoryTable
 from .views.snoozed_table import SnoozedTable
@@ -213,6 +215,12 @@ class LemonaidApp(CrashLoggedApp):
             scratch_autosave.install_guards()
             self._size_observer = scratch_autosave.Observer()
             self.set_interval(0.25, self._size_observer.poll)
+        if os.environ.get("TMUX"):
+            self.run_worker(
+                lambda: fast_popup.warm("grove", self.config.tmux_session.popup_margin),
+                thread=True,
+                group="grove-popup",
+            )
         self._refresh_usage()
         self.set_interval(self.config.usage.poll_seconds, self._refresh_usage)
         utils.use_light_theme(not self.current_theme.dark)
@@ -472,9 +480,19 @@ class LemonaidApp(CrashLoggedApp):
         self._refresh_notifications()
 
     def action_back(self) -> None:
-        """Escape: leave history for the inbox, otherwise whatever quit does."""
+        """Escape: leave history for the inbox, otherwise whatever quit does, except that
+        it never hides the scratch pane: an Escape meant for a view that just closed would.
+        """
         if self._mode is view_modes.HISTORY and self._brief_target is None:
             self._set_mode(view_modes.HISTORY, False)
+            return
+
+        nothing_open = (
+            self._brief_target is None
+            and self._mode not in (view_modes.SNOOZED, view_modes.USAGE)
+            and not self._search_mode
+        )
+        if self._scratch_mode and nothing_open:
             return
 
         self.action_quit()
@@ -511,6 +529,31 @@ class LemonaidApp(CrashLoggedApp):
 
     def action_toggle_history(self) -> None:
         self._toggle_mode(view_modes.HISTORY)
+
+    def action_grove(self) -> None:
+        if os.environ.get("TMUX") and popup_app.wants_popup(self.size.width, self.size.height):
+            fast_popup.show("grove", self.config.tmux_session.popup_margin, popup_app.TITLE)
+            return
+
+        inbox = self.query_one(InboxList)
+        self.push_screen(
+            inbox_screen.for_inbox(lambda: inbox.last_frame, self.config, rename.session),
+            self._grove_chose,
+        )
+
+    def _grove_chose(self, channel: str | None) -> None:
+        if not channel:
+            return
+
+        frame = self.query_one(InboxList).last_frame
+        notification = (
+            next((n for n in frame.active.rows if n.channel == channel), None) if frame else None
+        )
+        if notification is None:
+            with db.connect() as conn:
+                notification = db.get_by_channel(conn, channel, unread_only=False)
+        if notification is not None:
+            self._activate_lemon(notification)
 
     def action_toggle_usage(self) -> None:
         self._toggle_mode(view_modes.USAGE)
@@ -1025,20 +1068,15 @@ class LemonaidApp(CrashLoggedApp):
             self.notify("No unread notifications", severity="information")
 
     def action_jump_to_number(self, digit: str) -> None:
-        """Switch to the numbered session, as though it had been selected by hand.
+        """Start a grove key with its block's digit, then switch to the lemon it names.
 
         Inbox only. In history Enter resumes rather than switches, and a resume
-        is too costly to hang on a single unconfirmed keystroke. The lower table
-        is unnumbered for the same reason in reverse: nothing there can be
-        switched to at all.
+        is too costly to hang on a key or two. The lower table has no keys for
+        the same reason in reverse: nothing there can be switched to at all.
         """
         inbox = self._content.inbox
-        if (
-            self._mode is not view_modes.HISTORY
-            and inbox.display
-            and inbox.move_to_lemon(JUMP_DIGITS.find(digit))
-        ):
-            self.action_select()
+        if self._mode is not view_modes.HISTORY and inbox.display and inbox.grove:
+            self.push_screen(inbox_keys.jump_bar(inbox.grove, digit), self._grove_chose)
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""

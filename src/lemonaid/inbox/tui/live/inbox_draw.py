@@ -62,7 +62,8 @@ def fold_label(
 
 def active_row(
     n: db.Notification,
-    row_index: int,
+    key: str,
+    gutter: int,
     frame: inbox_frame.Frame,
     detached: abc.Set[str],
     area: str,
@@ -71,7 +72,8 @@ def active_row(
 ) -> list[Text]:
     return inbox_rows.active_row(
         n,
-        row_index,
+        key,
+        gutter,
         n.channel in frame.focused_channels,
         n.channel in frame.pinned,
         frame.emojis,

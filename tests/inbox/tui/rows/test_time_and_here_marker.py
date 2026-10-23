@@ -50,12 +50,12 @@ def test_an_old_date_goes_grey():
 
 
 def test_the_gutter_numbers_a_row_you_can_jump_to():
-    assert jump_gutter(0).plain == "1 "
+    assert jump_gutter("1").plain == "1 "
 
 
 def test_the_focused_row_is_marked_instead_of_numbered():
     """One row is one line tall, so its mark is the heavier glyph."""
-    gutter = jump_gutter(0, is_here=True)
+    gutter = jump_gutter("1", is_here=True)
     assert "1" not in gutter.plain
     assert gutter.plain == f"{HERE_BLOCK} "
     assert gutter.spans[0].style == here_bar_style()
@@ -69,11 +69,11 @@ def test_the_here_mark_takes_the_themes_text_color_rather_than_a_hue(monkeypatch
     monkeypatch.setattr(utils, "_light_theme", True)
 
     assert dark == "#f2f2f2"
-    assert jump_gutter(0, is_here=True).spans[0].style == "#1c1c1c"
+    assert jump_gutter("1", is_here=True).spans[0].style == "#1c1c1c"
 
 
 def test_the_focused_gutter_is_the_width_of_the_digit_it_replaces():
-    assert len(jump_gutter(0, is_here=True).plain) == len(jump_gutter(0).plain)
+    assert len(jump_gutter("1", is_here=True).plain) == len(jump_gutter("1").plain)
 
 
 def test_the_gutter_style_does_not_run_on_into_the_name():
@@ -84,13 +84,13 @@ def test_the_gutter_style_does_not_run_on_into_the_name():
     """
     from lemonaid.inbox.tui.utils import styled_cell
 
-    combined = jump_gutter(0, is_here=True) + styled_cell("a-name", False, "name")
+    combined = jump_gutter("1", is_here=True) + styled_cell("a-name", False, "name")
     assert combined.style == ""
     assert combined.spans[0].end == 1
 
 
 def test_the_marker_keeps_the_name_column_aligned():
-    assert len(jump_gutter(0, is_here=True).plain) == len(jump_gutter(0).plain)
+    assert len(jump_gutter("1", is_here=True).plain) == len(jump_gutter("1").plain)
 
 
 def test_the_cursor_does_not_repaint_the_row_it_marks():
@@ -195,7 +195,7 @@ def test_a_card_draws_a_thin_rule_where_a_row_fills_its_gutter():
         Text("09:00"),
         Text(""),
         Text("CC"),
-        jump_gutter(0, True) + styled_cell("a-session", False, "name"),
+        jump_gutter("1", True) + styled_cell("a-session", False, "name"),
         Text(""),
         Text("~/w/x"),
         Text("a message"),
@@ -223,7 +223,7 @@ def test_a_focused_card_carries_the_bar_down_every_line():
             Text("09:00"),
             Text("●"),
             Text("CC"),
-            jump_gutter(0, is_here) + styled_cell("a-session", False, "name"),
+            jump_gutter("1", is_here) + styled_cell("a-session", False, "name"),
             Text("a-branch"),
             Text("~/w/x"),
             Text("a message"),
@@ -253,7 +253,7 @@ def test_a_marked_card_keeps_its_name_on_the_same_column():
             Text("09:00"),
             Text(""),
             Text("CC"),
-            jump_gutter(0, is_here) + styled_cell("a-session", False, "name"),
+            jump_gutter("1", is_here) + styled_cell("a-session", False, "name"),
             Text(""),
             Text("~/w/x"),
             Text("a message"),
@@ -275,7 +275,7 @@ def test_an_unmarked_card_still_ends_in_a_genuinely_empty_line():
         Text("09:00"),
         Text(""),
         Text("CC"),
-        jump_gutter(0, False) + styled_cell("a-session", False, "name"),
+        jump_gutter("1", False) + styled_cell("a-session", False, "name"),
         Text(""),
         Text("~/w/x"),
         Text("a message"),
@@ -301,7 +301,7 @@ def test_marking_a_card_does_not_move_anything_in_it():
             Text("15:24"),
             Text(""),
             Text("CC"),
-            jump_gutter(row, is_here) + styled_cell("a-name", False, "name"),
+            jump_gutter(str(row + 1), is_here) + styled_cell("a-name", False, "name"),
             Text(""),
             Text("~/w"),
             Text("msg"),
@@ -333,7 +333,7 @@ def test_an_unmarked_card_keeps_its_jump_digit():
             Text("15:24"),
             Text(""),
             Text("CC"),
-            jump_gutter(row, is_here) + styled_cell("a-name", False, "name"),
+            jump_gutter(str(row + 1), is_here) + styled_cell("a-name", False, "name"),
             Text(""),
             Text("~/w"),
             Text("msg"),
@@ -362,7 +362,8 @@ def test_a_marked_card_truncates_rather_than_wrapping_past_the_pane():
             Text("09:59:08"),
             Text(""),
             Text("CC"),
-            jump_gutter(row, is_here) + styled_cell("a-long-session-name-here", False, "name"),
+            jump_gutter(str(row + 1), is_here)
+            + styled_cell("a-long-session-name-here", False, "name"),
             Text("a-branch-that-is-long"),
             Text("~/w/d/main"),
             Text("a message"),
@@ -385,7 +386,7 @@ def test_a_marked_card_replaces_its_jump_digit_without_moving_the_unread_layout(
             Text("13:06:01"),
             Text("●"),
             Text("CC"),
-            jump_gutter(row, is_here) + styled_cell("a-session", False, "name"),
+            jump_gutter(str(row + 1), is_here) + styled_cell("a-session", False, "name"),
             Text(""),
             Text("~/w/x"),
             Text("a msg"),

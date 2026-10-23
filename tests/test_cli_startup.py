@@ -46,7 +46,7 @@ def test_every_command_help_avoids_textual(tmp_path, command):
         f"""
 import sys
 import lemonaid.cli
-sys.argv = {['lemonaid', *command, '--help']!r}
+sys.argv = {["lemonaid", *command, "--help"]!r}
 try:
     lemonaid.cli.main()
 except SystemExit as error:
@@ -129,7 +129,7 @@ from lemonaid.inbox import db
 
 # Delivery is a detached process; keep this check inside its isolated interpreter.
 service.ensure_running = lambda: None
-sys.argv = {['lemonaid', *command]!r}
+sys.argv = {["lemonaid", *command]!r}
 lemonaid.cli.main()
 with db.connect() as conn:
     assert conn.execute('SELECT count(*) FROM notifications').fetchone()[0] == 1
@@ -170,7 +170,7 @@ from lemonaid.inbox import db
 Path('task.md').write_text('# Task\\n\\n## Now\\n\\nTesting CLI startup.\\n')
 with db.connect() as conn:
     db.add(conn, channel='test:existing', message='Existing notification')
-sys.argv = {['lemonaid', *command]!r}
+sys.argv = {["lemonaid", *command]!r}
 lemonaid.cli.main()
 """
         + _NO_TEXTUAL,

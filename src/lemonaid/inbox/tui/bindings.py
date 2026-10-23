@@ -58,6 +58,8 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.snooze, "snooze", "Snooze")
     yield from build_bindings(kb.snoozed_list, "toggle_snoozed", "Snoozed")
     yield from build_bindings(kb.usage_view, "toggle_usage", "Usage")
+    if kb.grove:
+        yield Binding(kb.grove, "grove", "Grove", show=False)
     yield from build_bindings(kb.undo, "undo", "Undo")
     yield from build_bindings(kb.history, "toggle_history", "History")
     yield from build_bindings(kb.copy_resume, "copy_resume", "Copy", show=False)

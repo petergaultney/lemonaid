@@ -87,7 +87,7 @@ def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
                 view.update_brief(found)
                 durations.append(time.perf_counter() - start)
             print(
-                f"100 children (40 visible done, 50 archived): redraw median={statistics.median(durations)*1000:.2f}ms, max={max(durations)*1000:.2f}ms, n=30"
+                f"100 children (40 visible done, 50 archived): redraw median={statistics.median(durations) * 1000:.2f}ms, max={max(durations) * 1000:.2f}ms, n=30"
             )
             rebuilt = []
             for _ in range(10):
@@ -97,7 +97,7 @@ def test_a_hundred_children_redraw_without_cleanup_discovery(monkeypatch):
                 rebuilt.append(time.perf_counter() - start)
                 await pilot.pause()
             print(
-                f"100 children (40 visible done, 50 archived): forced rebuild median={statistics.median(rebuilt)*1000:.2f}ms, max={max(rebuilt)*1000:.2f}ms, n=10"
+                f"100 children (40 visible done, 50 archived): forced rebuild median={statistics.median(rebuilt) * 1000:.2f}ms, max={max(rebuilt) * 1000:.2f}ms, n=10"
             )
             view.focus()
             await pilot.press("pagedown")
