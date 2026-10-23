@@ -158,7 +158,7 @@ def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
     if db_path is None:
         db_path = get_db_path()
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30)  # many waiters may start at once
     conn.row_factory = sqlite3.Row
 
     if db_path not in _initialized_dbs:
