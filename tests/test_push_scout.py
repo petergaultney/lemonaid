@@ -5,7 +5,10 @@ import json
 import logging
 import os
 import socket
+import subprocess
+import sys
 import tempfile
+import textwrap
 import threading
 import time
 from pathlib import Path
@@ -178,6 +181,77 @@ def test_ensure_replaces_a_scout_still_bound_to_the_previous_session(monkeypatch
         push_scout.ensure("abcd1234", _LEMON, grace=0)
 
     assert [e.session_id for e in spawned] == [_SESSION]
+
+
+def _silence(lemon_id: str) -> None:
+    then = time.time() - wait_state.STALE - 1
+    for path in wait_state.lock_path(lemon_id).parent.glob("wait.*"):
+        os.utime(path, (then, then))
+
+
+def test_a_polling_scout_keeps_its_heartbeat_fresh():
+    _briefed()
+    sock, received = _listener()
+    listing = _session(sock)
+    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
+    scout.start()
+    _until(lambda: push_scout.running(_LEMON))
+    _silence(_LEMON)
+
+    _until(lambda: not wait_state.deaf(_LEMON))
+    listing.unlink()
+    scout.join(timeout=10)
+
+
+def test_ensure_replaces_a_scout_that_stopped_polling(monkeypatch):
+    _briefed()
+    _session("/tmp/unused.sock")
+    spawned: list[session_socket.Session] = []
+    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
+    stuck = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent(
+                f"""
+                import time
+                from lemonaid.watch import registry, wait_state, waiter_lock
+                lock = wait_state.lock_path({_LEMON!r})
+                lock.parent.mkdir(parents=True, exist_ok=True)
+                held = waiter_lock.acquire(lock)
+                with registry.registered("wait", ({_LEMON!r},), "claude:abcd1234", "lemonaid watch --self --push"):
+                    print("held", flush=True)
+                    time.sleep(60)
+                """
+            ),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert stuck.stdout and stuck.stdout.readline() == "held\n"
+        _silence(_LEMON)
+
+        push_scout.ensure(_SESSION, _LEMON, grace=0)
+
+        assert stuck.wait(timeout=10) != 0
+        assert [e.session_id for e in spawned] == [_SESSION]
+    finally:
+        stuck.kill()
+        stuck.wait()
+
+
+def test_status_calls_a_silent_scout_deaf(capsys):
+    _briefed()
+    _session("/tmp/unused.sock")
+    lock = wait_state.lock_path(_LEMON)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with waiter_lock.acquire(lock):
+        _silence(_LEMON)
+
+        assert wait_cli.run(argparse.Namespace(**{**vars(_args()), "status": True})) == 1
+
+    assert "watcher deaf" in capsys.readouterr().out
 
 
 def _exits(caplog) -> list[tuple[str, str]]:

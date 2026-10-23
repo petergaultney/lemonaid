@@ -18,7 +18,7 @@ from collections import abc
 from ..claude import inbound, session_socket
 from ..inbox.channel import channel_id
 from ..log import get_logger
-from . import delivery, registry, stop_sender, wait_state
+from . import deaf_waiter, delivery, registry, stop_sender, wait_state
 
 _log = get_logger("watch.push_scout")
 
@@ -179,6 +179,7 @@ def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) 
     A scout still pushing into the lemon's previous session (before `/clear` or a resume)
     exits once it notices, so this waits for its lock rather than counting it.
     """
+    deaf_waiter.clear(lemon_id, channel_id("claude", session_id))
     previous = _scout_channels(lemon_id) - {channel_id("claude", session_id)}
     deadline = time.monotonic() + (5 if previous else 0)
     while wait_state.is_armed(lemon_id) and previous and time.monotonic() < deadline:

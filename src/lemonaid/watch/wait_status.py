@@ -12,6 +12,9 @@ def report(lemon_id: str, channel: str, thread: str, brief: Path) -> int:
     lines = [
         ("push scout running" if push_scout.running(lemon_id) else "watcher running")
         if running
+        else f"watcher deaf: it holds its lock but has not polled for "
+        f"{wait_state.silent_for(lemon_id):.0f}s; `lemonaid watch --self --push` replaces it"
+        if wait_state.deaf(lemon_id)
         else "no watcher running"
     ]
     if channel.startswith("claude:"):

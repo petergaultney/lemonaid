@@ -1234,8 +1234,8 @@ Read the current state first, then check `lemonaid watch --self --status`.
 
 `push scout running` means lemonaid is watching for you and pushes each batch into your
 session (Claude) or queues it into your thread (Codex); handle each as it arrives.
-`no watcher running` means run `lemonaid watch --self --push`, which starts a detached
-scout and returns; a Codex lemon runs it with escalated permissions. If that prints
+`no watcher running`, or `watcher deaf` (a waiter that stopped polling), means run
+`lemonaid watch --self --push`, which replaces a deaf one, starts a detached scout and returns; a Codex lemon runs it with escalated permissions. If that prints
 `not started` and a reason, a Claude lemon runs `lemonaid watch --self` as a background
 Bash task, and a Codex lemon runs `lemonaid watch --self --codex-thread` as an escalated
 exec_command session.

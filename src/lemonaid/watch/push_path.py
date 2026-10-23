@@ -23,7 +23,7 @@ def gather(lemon_id: str, session_id: str) -> Facts:
     return Facts(
         entry is not None,
         inbound.session_setting(entry) if entry is not None else "",
-        push_scout.running(lemon_id, session_id),
+        push_scout.running(lemon_id, session_id) and not wait_state.deaf(lemon_id),
         wait_state.is_armed(lemon_id),
     )
 

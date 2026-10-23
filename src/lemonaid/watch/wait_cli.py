@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import functools
 import os
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from . import (
     batch_wait,
     codex_scout,
     cursors,
+    deaf_waiter,
     delivery,
     notes,
     own_edits,
@@ -62,7 +64,7 @@ def run(args: argparse.Namespace) -> int:
         return 2
     if args.status:
         return wait_status.report(lemon_id, channel, thread, path)
-    if thread and not args.push and push_scout.running(lemon_id):
+    if thread and not args.push and push_scout.running(lemon_id) and not wait_state.deaf(lemon_id):
         print("push scout running; nothing to rearm")
         return 0
     if args.push and not args.foreground:
@@ -84,6 +86,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"not started: {problem}")
         return 2
     wait_state.lock_path(lemon_id).parent.mkdir(parents=True, exist_ok=True)
+    deaf_waiter.clear(lemon_id, channel)
     lock = waiter_lock.acquire(
         wait_state.lock_path(lemon_id), grace=40 if wait_state.delivering(lemon_id) else 1
     )
@@ -159,6 +162,7 @@ def run(args: argparse.Namespace) -> int:
                     quiet=args.quiet,
                     notes=notes.reader(notes.default_dir(), "codex" if thread else "claude"),
                     restart_requested=restart.requested,
+                    beat=functools.partial(wait_state.beat, lemon_id),
                 )
                 if not args.push:
                     break

@@ -11,6 +11,8 @@ import time
 from collections import abc
 from pathlib import Path
 
+from ..watch import wait_state
+
 
 class AlreadyArmed(Exception):
     pass
@@ -49,7 +51,7 @@ def armed(inbox: Path) -> abc.Iterator[None]:
 
 def _held(inbox: Path) -> bool:
     try:
-        lock = open(_lock_file(inbox))
+        lock = _lock_file(inbox).open()
     except FileNotFoundError:
         return False
 
@@ -63,14 +65,14 @@ def _held(inbox: Path) -> bool:
 
 
 def is_armed(inbox: Path, grace: float = 0.0, interval: float = 0.1) -> bool:
-    """Whether a waiter holds the lock, waiting up to `grace` seconds for one to start.
+    """Whether a polling waiter holds the lock, waiting up to `grace` seconds for one to start.
 
     A lemon typically arms its waiter as the last act of a turn, so the process
     may still be starting when the Stop hook asks.
     """
     deadline = time.monotonic() + grace
     while True:
-        if _held(inbox):
+        if _held(inbox) and not wait_state.deaf(inbox.name):
             return True
 
         if time.monotonic() >= deadline:

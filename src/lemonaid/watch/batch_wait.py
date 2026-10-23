@@ -97,6 +97,7 @@ def wait(
     quiet: float = 2,
     notes: notes.Reader = notes.none,
     restart_requested: abc.Callable[[], bool] = lambda: False,
+    beat: abc.Callable[[], None] = lambda: None,
 ) -> bool:
     """Deliver one batch; True instead when a restart was requested while nothing was pending.
 
@@ -111,6 +112,7 @@ def wait(
     children_at = -_CHILDREN_EVERY
     try:
         while still_attached():
+            beat()
             if time.monotonic() - children_at >= _CHILDREN_EVERY:
                 children, children_at = (
                     pr_roles.children_author(inbox.name, Path.cwd(), vaults),

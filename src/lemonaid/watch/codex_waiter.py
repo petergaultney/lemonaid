@@ -11,7 +11,7 @@ from ..brief import attached, handoff_state, identity
 from ..codex import channels, processes, utils
 from ..inbox import db
 from ..log import LOG_PATH, get_logger
-from . import wait_state, waiter_lock
+from . import deaf_waiter, wait_state, waiter_lock
 
 _log = get_logger("watch.codex_waiter")
 
@@ -41,6 +41,7 @@ def _spawn(channel: str, thread: str) -> None:
 
 
 def ensure(channel: str, thread: str, lemon_id: str) -> bool:
+    deaf_waiter.clear(lemon_id, channel)
     if wait_state.is_armed(lemon_id):
         return True
     path = wait_state.lock_path(lemon_id).with_suffix(".start.lock")
