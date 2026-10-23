@@ -97,6 +97,16 @@ def blocked(channel: str) -> bool:
     return bool(operation and operation["phase"] not in TERMINAL)
 
 
+def inspection(channel: str) -> str:
+    operation = latest(channel)
+    if operation and operation["phase"] == "partial":
+        return (
+            "An interrupted restart needs inspection; use "
+            f"lemonaid lemon restart --status {operation['token']} --json"
+        )
+    return ""
+
+
 @contextlib.contextmanager
 def admission(channel: str) -> abc.Iterator[bool]:
     with barrier(channel):

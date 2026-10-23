@@ -20,7 +20,7 @@ class Identity:
 
 
 def shell(identity: Identity, argv: list[str]) -> bool:
-    name = Path(identity.executable).name
+    name = Path(identity.executable).name.removeprefix("-")
     return name in SHELLS or (
         name.startswith("python")
         and (

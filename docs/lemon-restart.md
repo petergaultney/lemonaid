@@ -1,6 +1,10 @@
 ---
-created-at: 2026-10-15T13:11:26-04:00
-created-by: TestyJob
+type: Notes
+created: { at: 2026-10-15T13:11:26-04:00, by: TestyJob }
+responsible-parties:
+  - Peter Gaultney
+contributors:
+  - TestyJob
 ---
 # Restart one lemon
 
@@ -82,7 +86,9 @@ replacement retries and no second supervisor. An interrupted worker becomes
 `partial` after its 90-second reservation expires and its worker has exited. A live
 worker keeps the channel reserved even beyond that deadline; checking status or rerunning
 the worker never repeats an uncertain signal or launch. Inspect the pane and use
-the saved command/environment for manual recovery. Autoresume refuses a partial
+the saved command/environment for manual recovery. Refusals from resume or from a
+dry-run on an archived lemon include the actual operation ID and a status command
+that works without a live inbox row. Autoresume refuses a partial
 restart until a fresh hook identifies a later live process for that session.
 
 There is no batch mode.

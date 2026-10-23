@@ -7,3 +7,5 @@
 #### Fixed
 
 - Claude `/clear` rechecks its source before transferring the brief and manual state, and leaves a restarting source alone.
+
+- Login shells such as macOS `-fish` remain eligible for same-pane restart; partial-restart refusals include the saved operation’s inspection command.

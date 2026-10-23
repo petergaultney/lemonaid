@@ -12,7 +12,7 @@ from ...launch import command
 from ...messages import recipient
 from ...restore import launch
 from ...watch import registry
-from . import native, pane, process
+from . import native, pane, process, state
 
 PROMPT = (
     "You were just restarted in the same native session. Keep your existing task and brief. "
@@ -30,7 +30,9 @@ def build(conn, target: str, config: Config, force: bool = False) -> dict:
     attached = lemon.attachment(conn, target, claim_pending=False)
     row = attached.notification
     if row is None or row.is_archived:
-        raise ValueError("The lemon has no live row; use lemon resume")
+        raise ValueError(
+            state.inspection(attached.channel) or "The lemon has no live row; use lemon resume"
+        )
     if row.channel.partition(":")[0] not in ("claude", "codex"):
         raise ValueError("Restart supports Claude and Codex sessions")
     idle(row, force)

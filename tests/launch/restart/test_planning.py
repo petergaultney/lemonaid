@@ -5,7 +5,7 @@ import pytest
 from lemonaid.claude import launch_args
 from lemonaid.config import Config
 from lemonaid.inbox import db
-from lemonaid.launch.restart import native, pane, planning, process
+from lemonaid.launch.restart import cli, native, pane, planning, process, state
 from lemonaid.restore import launch
 
 from . import shared
@@ -86,3 +86,21 @@ def test_missing_binding_refuses_before_any_signal(prepared, monkeypatch):
     monkeypatch.setattr(native, "binding", lambda *a: None)
     with db.connect() as conn, pytest.raises(ValueError, match="fresh hook"):
         planning.build(conn, shared.CHANNEL, Config(), True)
+
+
+def test_archived_partial_restart_reports_inspectable_operation(prepared, capsys):
+    import argparse
+
+    from lemonaid.messages import revive
+
+    token = state.reserve(shared.plan())
+    state.update(token, "partial", error="Unmanaged jobs remain")
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, shared.CHANNEL, unread_only=False)
+        db.archive(conn, row.id)
+    hint = revive.revive(row, prepared.cwd, True, Config(), "").why
+    assert f"--status {token} --json" in hint
+    with db.connect() as conn, pytest.raises(ValueError, match=token):
+        planning.build(conn, shared.CHANNEL, Config())
+    cli._cmd(argparse.Namespace(status=token, json=True))
+    assert token in capsys.readouterr().out

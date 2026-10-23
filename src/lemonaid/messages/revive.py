@@ -76,7 +76,7 @@ def revive(row: db.Notification, inbox: Path, dead: bool, config: Config, text: 
         if dead and native.recovery_required(row.channel):
             return Outcome(
                 FAILED,
-                "An interrupted restart needs inspection; use lemon restart --status OPERATION_ID",
+                state.inspection(row.channel),
             )
 
         return _revive(row, inbox, dead, config, text)

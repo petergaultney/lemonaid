@@ -1,11 +1,37 @@
 import contextlib
 import dataclasses
+import shutil
 import time
 from pathlib import Path
 
 import pytest
 
 from lemonaid.launch.restart import pane, process
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
+def test_captured_login_shell_can_be_replaced(server, shell):
+    binary = shutil.which(shell)
+    if not binary:
+        pytest.skip(f"{shell} unavailable")
+    pane.run(server.socket, "set-option", "-g", "default-shell", binary)
+    pane_id = pane.run(server.socket, "new-window", "-d", "-P", "-F", "#{pane_id}")
+    target = pane.by_id(server.socket, pane_id)
+    root = process.inspect(target.pid)
+    assert root is not None
+    assert process.shell(root, [])
+    replacement = pane.replace(target, root, target.cwd, "exec sleep 30", {})
+    assert replacement.pane == target.pane
+    assert replacement.pid != root.pid
+
+
+def test_login_shell_does_not_admit_other_terminal_jobs(server, monkeypatch):
+    root = dataclasses.replace(process.inspect(server.pid), executable="-fish")
+    job = dataclasses.replace(root, pid=root.pid + 1, executable="sleep")
+    monkeypatch.setattr(process, "on_tty", lambda tty: [root, job])
+    monkeypatch.setattr(pane.time, "monotonic", iter([0, 4]).__next__)
+    with pytest.raises(ValueError, match="Unmanaged jobs"):
+        pane.replace(server, root, server.cwd, "exec false", {})
 
 
 def test_dead_pane_resumes_without_k_and_preserves_window(server, monkeypatch):
