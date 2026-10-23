@@ -1,6 +1,7 @@
 """Configuration management for lemonaid."""
 
 import datetime as dt
+import functools
 import os
 import re
 import sys
@@ -324,6 +325,16 @@ class PlaceRoot:
         return bool(self.list or self.path_of)
 
 
+@functools.lru_cache(maxsize=1024)
+def _lineage(directory: str) -> frozenset[Path]:
+    """*directory*, resolved, and every directory above it.
+
+    Cached: the inbox asks for every row's directory on every refresh.
+    """
+    resolved = Path(directory).expanduser().resolve()
+    return frozenset((resolved, *resolved.parents))
+
+
 @dataclass
 class PlacesConfig:
     roots: list[PlaceRoot] = field(default_factory=list)
@@ -337,9 +348,9 @@ class PlacesConfig:
 
     def root_for(self, directory: str | Path) -> PlaceRoot | None:
         """The configured root that *directory* lives under, innermost first."""
-        resolved = Path(directory).expanduser().resolve()
+        lineage = _lineage(str(directory))
         return max(
-            (root for root in self.roots if resolved == root.path or root.path in resolved.parents),
+            (root for root in self.roots if root.path in lineage),
             key=lambda root: len(root.path.parts),
             default=None,
         )
