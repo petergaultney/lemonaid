@@ -40,6 +40,42 @@ def test_the_signal_is_noted_only_while_listening():
         signal.signal(restart.SIGNAL, signal.SIG_DFL)
 
 
+def test_a_burst_of_requests_cannot_deadlock_a_listening_watcher():
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent(
+                """
+                import sys
+                from lemonaid.watch import restart
+                with restart.listening():
+                    print("listening", flush=True)
+                    while not sys.stdin.readline():
+                        pass
+                    print(restart.requested(), flush=True)
+                """
+            ),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert child.stdin and child.stdout
+    try:
+        assert child.stdout.readline() == "listening\n"
+        for _ in range(20_000):
+            os.kill(child.pid, restart.SIGNAL)
+        child.stdin.write("\n")
+        child.stdin.close()
+
+        assert child.wait(timeout=10) == 0
+        assert child.stdout.read() == "True\n"
+    finally:
+        child.kill()
+        child.wait()
+
+
 def test_a_second_request_cannot_kill_a_restarting_watcher():
     child = subprocess.Popen(
         [

@@ -23,7 +23,7 @@ from . import registry
 _log = get_logger("watch.restart")
 
 SIGNAL = signal.SIGUSR1
-_requested = threading.Event()
+_requested = False
 
 
 def version() -> str:
@@ -32,6 +32,13 @@ def version() -> str:
         return importlib.metadata.version("lemonaid-inbox")
     except importlib.metadata.PackageNotFoundError:
         return ""
+
+
+def _note(signum: int, frame: object) -> None:
+    """A second SIGNAL can run this inside the first, so a lock here (say a
+    `threading.Event`) would deadlock the main thread for good."""
+    global _requested
+    _requested = True
 
 
 @contextlib.contextmanager
@@ -45,16 +52,17 @@ def listening() -> abc.Iterator[None]:
         yield
         return
 
-    _requested.clear()
-    previous = signal.signal(SIGNAL, lambda signum, frame: _requested.set())
+    global _requested
+    _requested = False
+    previous = signal.signal(SIGNAL, _note)
     try:
         yield
     finally:
-        signal.signal(SIGNAL, signal.SIG_IGN if _requested.is_set() else previous)
+        signal.signal(SIGNAL, signal.SIG_IGN if _requested else previous)
 
 
 def requested() -> bool:
-    return _requested.is_set()
+    return _requested
 
 
 def restart() -> None:
