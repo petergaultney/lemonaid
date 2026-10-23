@@ -103,3 +103,22 @@ def test_a_brief_attached_to_a_new_channel_takes_the_old_channels_pin(tmp_path):
 
         assert pins.is_pinned(conn, "claude:new")
         assert not pins.is_pinned(conn, "claude:old")
+
+
+def test_archive_removes_the_card_and_unarchive_restores_it(capsys):
+    _session("claude:a")
+
+    assert _run(capsys, pin_cli._cmd_archive, channel="claude:a")["archived"] is True
+    with db.connect() as conn:
+        assert db.get_active(conn) == []
+
+    assert (
+        "already archived" in _run(capsys, pin_cli._cmd_archive, True, channel="claude:a")["error"]
+    )
+    assert _run(capsys, pin_cli._cmd_unarchive, channel="claude:a")["restored"] is True
+
+
+def test_archive_refuses_an_unknown_session(capsys):
+    assert (
+        "No inbox session" in _run(capsys, pin_cli._cmd_archive, True, channel="claude:zz")["error"]
+    )

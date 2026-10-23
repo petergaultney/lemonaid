@@ -1,4 +1,4 @@
-"""`inbox pin`, `inbox unpin`, `inbox unarchive`: the `lma` keys `P` and `Z`, and pin moves, by command."""
+"""`inbox pin`, `inbox unpin`, `inbox archive`, `inbox unarchive`: the `lma` keys `P` and `Z`, and pin moves, by command."""
 
 import argparse
 import sqlite3
@@ -90,6 +90,24 @@ def _cmd_unarchive(args: argparse.Namespace) -> None:
     decorate_cli.finish(args, {"channel": channel or None, "restored": restored > 0}, error)
 
 
+def _cmd_archive(args: argparse.Namespace) -> None:
+    archived = 0
+    with db.connect() as conn:
+        channel, error = decorate_cli.target_channel(conn, args)
+        newest = db.get_by_channel(conn, channel, unread_only=False) if channel else None
+        if newest and not error:
+            if newest.is_archived:
+                error = f"{channel} is already archived"
+            else:
+                db.archive(conn, newest.id, reason="inbox-archive-command")
+                archived = 1
+
+    if not error and not args.json:
+        print(f"Archived {channel}")
+
+    decorate_cli.finish(args, {"channel": channel or None, "archived": archived > 0}, error)
+
+
 def add_parsers(inbox_subparsers: argparse._SubParsersAction) -> None:
     pin = inbox_subparsers.add_parser(
         "pin",
@@ -127,3 +145,15 @@ def add_parsers(inbox_subparsers: argparse._SubParsersAction) -> None:
     )
     decorate_cli.add_target(unarchive_parser)
     unarchive_parser.set_defaults(func=_cmd_unarchive)
+
+    archive_parser = inbox_subparsers.add_parser(
+        "archive",
+        help="Remove a session's card from the inbox",
+        description="Archives every row on the session's channel and drops its pin, like the "
+        "TUI's archive key. It does not stop the harness or touch its brief. `inbox unarchive` "
+        "restores it. Refuses a session that is already archived.",
+        epilog="Example:\n  lemonaid inbox archive --id 2306",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    decorate_cli.add_target(archive_parser)
+    archive_parser.set_defaults(func=_cmd_archive)

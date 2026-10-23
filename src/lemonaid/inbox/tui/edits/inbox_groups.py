@@ -107,15 +107,12 @@ def group_remove(
 
 
 def lemon(inbox: InboxList, notification: db.Notification) -> tuple[db.Notification, str] | None:
-    """The row's notification and Lemon-ID, when it has a brief to group it by."""
+    """The row's notification and the ID to group it by: its brief's Lemon-ID, else its channel."""
     with db.connect() as conn:
         try:
-            lemon_id = brief.lemon.lemon_id(conn, notification.channel)
+            return notification, brief.lemon.lemon_id(conn, notification.channel)
         except (LookupError, ValueError, brief.store.ChangedUnderneath):
-            inbox.notify("This session has no brief, so it can't be in a group")
-            return None
-
-    return notification, lemon_id
+            return notification, notification.channel
 
 
 def _notification_at_cursor(inbox: InboxList) -> db.Notification | None:

@@ -20,13 +20,16 @@ def _fail(args: argparse.Namespace, error: str) -> None:
 
 
 def _named(conn: sqlite3.Connection, args: argparse.Namespace, name: str) -> str:
-    """The Lemon-ID *name* means; `self` is the caller."""
+    """The Lemon-ID *name* means, or the channel of a session with no brief; `self` is the caller."""
     try:
         if name == "self":
             return brief.lemon.own_id(conn, args.channel or "")
 
         return brief.lemon.lemon_id(conn, name)
     except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
+        if db.get_by_channel(conn, name, unread_only=False):
+            return name  # a session with no brief is grouped by its channel
+
         _fail(args, str(error))
         raise
 

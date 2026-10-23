@@ -47,7 +47,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import watcher
+from . import print_mode, watcher
 
 _log = get_logger("claude.notify")
 
@@ -236,6 +236,9 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
 
     Returns (channel, session_id, name, switch_source, metadata).
     """
+    if print_mode.is_print_session():
+        raise print_mode.PrintSession("claude -p session")
+
     cwd = data.get("cwd", "unknown")
     session_id = data.get("session_id", "")
 
@@ -339,8 +342,8 @@ def handle_submit(stdin_data: str | None = None) -> None:
 
     try:
         channel, _session_id, name, switch_source, metadata = _resolve_session(data, "working")
-    except UnidentifiedSession:
-        _log.warning("dropped a working notification with no session id")
+    except UnidentifiedSession as error:
+        _log.warning("dropped a working notification: %s", error)
         return
     message = f"Working in {shorten_path(data.get('cwd', 'unknown'))}"
 
@@ -385,8 +388,8 @@ def handle_session_start(stdin_data: str | None = None) -> None:
 
     try:
         channel, _session_id, name, switch_source, metadata = _resolve_session(data, "started")
-    except UnidentifiedSession:
-        _log.warning("dropped a session-start notification with no session id")
+    except UnidentifiedSession as error:
+        _log.warning("dropped a session-start notification: %s", error)
         return
     source = data.get("source", "startup")
     metadata["session_start_source"] = source
@@ -517,8 +520,8 @@ def handle_notification(stdin_data: str | None = None) -> None:
         channel, _session_id, name, switch_source, metadata = _resolve_session(
             data, notification_type
         )
-    except UnidentifiedSession:
-        _log.warning("dropped a %s notification with no session id", notification_type)
+    except UnidentifiedSession as error:
+        _log.warning("dropped a %s notification: %s", notification_type, error)
         return
 
     if question := _question(data):

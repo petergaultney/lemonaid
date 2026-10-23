@@ -86,13 +86,20 @@ def _cards(
 
 
 def _memberships(conn: sqlite3.Connection) -> dict[str, tuple[str, ...]]:
+    """Each channel's groups: through its brief's Lemon-ID, or by its own channel when it has no brief."""
     found: dict[str, tuple[str, ...]] = {}
     for row in conn.execute(
-        "SELECT b.channel, g.name FROM session_briefs b"
+        "SELECT b.channel AS channel, g.name AS name, g.position AS position, g.group_id AS group_id"
+        " FROM session_briefs b"
         " JOIN lemon_identities i ON i.path = b.path"
         " JOIN lemon_group_members m ON m.lemon_id = i.lemon_id"
         " JOIN lemon_groups g ON g.group_id = m.group_id"
-        " ORDER BY g.position, g.group_id"
+        " UNION"
+        " SELECT m.lemon_id, g.name, g.position, g.group_id"
+        " FROM lemon_group_members m"
+        " JOIN lemon_groups g ON g.group_id = m.group_id"
+        " WHERE m.lemon_id IN (SELECT channel FROM notifications)"
+        " ORDER BY position, group_id"
     ):
         found[row["channel"]] = (*found.get(row["channel"], ()), row["name"])
     return found
