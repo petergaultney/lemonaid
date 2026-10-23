@@ -1,11 +1,13 @@
 """Running watch --self waiters restart into the installed lemonaid when asked by signal."""
 
 import argparse
+import dataclasses
 import os
 import signal
 import subprocess
 import sys
 import textwrap
+import threading
 
 import pytest
 
@@ -145,6 +147,56 @@ def test_a_new_version_asks_older_waiters_to_restart_once(monkeypatch):
 
     assert [w.pid for w in restart.after_upgrade()] == [1]
     assert restart.after_upgrade() == []
+
+
+def _with_code(pid: int, code: str, paths: tuple[str, ...], prefix: str = sys.prefix):
+    return dataclasses.replace(_waiter(pid), prefix=prefix, code=code, code_paths=paths)
+
+
+def test_an_upgrade_asks_only_waiters_of_this_install_whose_loaded_code_changed(monkeypatch):
+    code, paths = restart.fingerprint()
+    waiters = [
+        _with_code(1, code, paths),
+        _with_code(2, "changed", paths),
+        _with_code(3, "changed", paths, prefix="/elsewhere"),
+        _waiter(4),  # from a lemonaid that records no code
+    ]
+    monkeypatch.setattr(restart, "version", lambda: "2.0")
+    monkeypatch.setattr(registry, "running", lambda: iter(waiters))
+    monkeypatch.setattr(registry, "current", lambda waiter: True)
+    monkeypatch.setattr(restart.os, "kill", lambda pid, sig: None)
+
+    assert [w.pid for w in restart.after_upgrade()] == [2, 4]
+
+
+def test_commands_starting_together_after_an_upgrade_signal_each_waiter_once(monkeypatch):
+    monkeypatch.setattr(restart, "version", lambda: "2.0")
+    monkeypatch.setattr(registry, "running", lambda: iter([_waiter(1)]))
+    monkeypatch.setattr(registry, "current", lambda waiter: True)
+    killed = []
+    monkeypatch.setattr(restart.os, "kill", lambda pid, sig: killed.append(pid))
+    start = threading.Barrier(8)
+
+    def command() -> None:
+        start.wait()
+        restart.after_upgrade()
+
+    threads = [threading.Thread(target=command) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert killed == [1]
+
+
+def test_a_registered_waiter_records_its_install_and_code():
+    code = restart.fingerprint()
+    with registry.registered("wait", ("a.Bee",), "codex:a", "", restartable=True, code=code):
+        [found] = registry.running()
+
+    assert (found.prefix, found.code, found.code_paths) == (sys.prefix, *code)
+    assert "watch/restart.py" in found.code_paths
 
 
 def test_the_watcher_restarts_after_releasing_its_lock(monkeypatch):
