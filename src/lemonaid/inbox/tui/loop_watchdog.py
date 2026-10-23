@@ -5,6 +5,7 @@ import collections
 import sys
 import threading
 import time
+import traceback
 import types
 
 from ...log import get_logger
@@ -13,6 +14,7 @@ _log = get_logger("tui.loop")
 
 _BEAT_SECONDS = 0.05
 _KEPT_SECONDS = 60.0
+_DUMP_SECONDS = 1.0
 
 
 def _name(frame: types.FrameType) -> str:
@@ -49,6 +51,7 @@ class Watchdog:
         self._threshold = threshold
         self._beat = time.monotonic()
         self._sampled = (0.0, "")  # the overdue beat, and where the loop was
+        self._dumped = 0.0
         self._stalls: collections.deque[tuple[float, float]] = collections.deque()
         self._lock = threading.Lock()
         self._stopped = threading.Event()
@@ -73,10 +76,16 @@ class Watchdog:
     def _watch(self, loop_thread: int) -> None:
         while not self._stopped.wait(_BEAT_SECONDS / 2):
             beat = self._beat
-            if self._sampled[0] != beat and time.monotonic() - beat - _BEAT_SECONDS >= (
-                self._threshold / 2
-            ):
+            late = time.monotonic() - beat - _BEAT_SECONDS
+            if self._sampled[0] != beat and late >= self._threshold / 2:
                 self._sampled = (beat, _where(sys._current_frames().get(loop_thread)))
+            if self._dumped != beat and late >= _DUMP_SECONDS:
+                self._dumped = beat
+                _log.warning(
+                    "loop blocked for %.1f s so far in:\n%s",
+                    late,
+                    "".join(traceback.format_stack(sys._current_frames().get(loop_thread))),
+                )
 
     def start(self) -> None:
         """Call on the loop's own thread, which is the one watched."""
