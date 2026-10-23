@@ -62,3 +62,36 @@ def test_a_long_block_is_logged_with_its_stack_before_it_ends(caplog):
 
     (during,) = [r.getMessage() for r in caplog.records if "so far" in r.getMessage()]
     assert "in _block_the_loop" in during
+
+
+def _churn(busy: bool) -> None:
+    async def run() -> None:
+        watchdog = loop_watchdog.Watchdog(0.1)
+        watchdog.start()
+        end = time.monotonic() + 1.3
+        while time.monotonic() < end:
+            if busy:
+                _block_the_loop(0.04)  # each block is too short to log by itself
+            await asyncio.sleep(0.01)
+        watchdog.stop()
+
+    asyncio.run(run())
+
+
+def test_a_loop_kept_busy_by_short_blocks_is_logged(caplog, monkeypatch):
+    monkeypatch.setattr(loop_watchdog, "_BUSY_WINDOW_SECONDS", 1.0)
+    caplog.set_level(logging.WARNING)
+
+    _churn(busy=True)
+
+    (busy,) = [r.getMessage() for r in caplog.records if "loop busy" in r.getMessage()]
+    assert "test_loop_watchdog._block_the_loop" in busy
+
+
+def test_an_idle_loop_is_not_logged_as_busy(caplog, monkeypatch):
+    monkeypatch.setattr(loop_watchdog, "_BUSY_WINDOW_SECONDS", 1.0)
+    caplog.set_level(logging.WARNING)
+
+    _churn(busy=False)
+
+    assert "loop busy" not in caplog.text
