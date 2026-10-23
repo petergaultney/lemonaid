@@ -4,6 +4,7 @@ import os
 import sqlite3
 from pathlib import Path
 
+from .. import groups
 from ..inbox import self_session
 from ..inbox.channel import channel_id
 from ..log import get_logger
@@ -125,7 +126,12 @@ def lemon_id(conn: sqlite3.Connection, target: str) -> str:
         return current(conn, target)
 
     try:
-        return identity.ensure(conn, attachment(conn, target).path)
+        found = attachment(conn, target)
+        lemon = identity.ensure(conn, found.path)
+        if found.channel == target:
+            groups.store.rekey(conn, target, lemon)  # it was grouped by channel before its brief
+
+        return lemon
     except LookupError:
         path = store.resolve(target)
         if not store.outside_error(path) and path.is_file():

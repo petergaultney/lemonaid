@@ -168,6 +168,15 @@ def remove(conn: sqlite3.Connection, group: Group, lemon_ids: abc.Iterable[str])
     return removed
 
 
+def rekey(conn: sqlite3.Connection, old: str, new: str) -> None:
+    """Move *old*'s memberships to *new*, keeping any *new* already has."""
+    conn.execute(
+        "UPDATE OR IGNORE lemon_group_members SET lemon_id = ? WHERE lemon_id = ?", (new, old)
+    )
+    conn.execute("DELETE FROM lemon_group_members WHERE lemon_id = ?", (old,))
+    conn.commit()
+
+
 def rename(conn: sqlite3.Connection, group: Group, name: str) -> Group:
     """Refuses a name a group with members has; one with none gives its name up."""
     name = checked_name(name)
