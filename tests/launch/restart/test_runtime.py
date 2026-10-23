@@ -9,13 +9,59 @@ import pytest
 from lemonaid.config import Config
 from lemonaid.inbox import db
 from lemonaid.launch.restart import coordinator, native, pane, planning, process, state
-from lemonaid.messages import store
-from lemonaid.watch import registry
+from lemonaid.messages import store, waiter
+from lemonaid.watch import registry, wait_state
 
 from . import runtime_fixture, shared
 
 runtime = runtime_fixture.runtime
 _until = runtime_fixture._until
+
+
+def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path, monkeypatch):
+    _path, lemon_id, _original = runtime
+    inbox = store.inbox_for_id(lemon_id)
+    with (tmp_path / "scout.log").open("w") as log:
+        scout = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "lemonaid",
+                "watch",
+                "--self",
+                "--push",
+                "--foreground",
+                "--channel",
+                shared.CHANNEL,
+                "--codex-thread",
+                shared.SESSION,
+            ],
+            stdout=log,
+            stderr=log,
+        )
+        try:
+            _until(lambda: registry.mine(shared.CHANNEL))
+            assert wait_state.is_armed(lemon_id)
+            assert waiter.is_armed(inbox)
+            replace = pane.replace
+
+            def checked_replace(*args, **kwargs):
+                assert not registry.mine(shared.CHANNEL)
+                assert not wait_state.is_armed(lemon_id)
+                assert not waiter.is_armed(inbox)
+                return replace(*args, **kwargs)
+
+            monkeypatch.setattr(pane, "replace", checked_replace)
+            with db.connect() as conn:
+                plan = planning.build(conn, shared.CHANNEL, Config(), True)
+            token = state.reserve(plan)
+            coordinator.run(token)
+            assert state.get(token)["phase"] == "started"
+            assert scout.wait(timeout=5) == 143
+        finally:
+            if scout.poll() is None:
+                scout.terminate()
+                scout.wait(timeout=5)
 
 
 def test_native_resume_gets_rearm_instruction_without_rebuilding_watchers(runtime, tmp_path):
