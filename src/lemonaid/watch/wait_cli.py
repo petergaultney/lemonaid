@@ -151,6 +151,7 @@ def run(args: argparse.Namespace) -> int:
     )
     session_gate.mark(own_edits.root(), writer, path)
     restarting = False
+    code = restart.fingerprint()  # before arming: hashing the sources takes a moment
     try:
         with (
             restart.listening(),
@@ -164,6 +165,7 @@ def run(args: argparse.Namespace) -> int:
                 + (f" {push_scout.FLAG}" if args.push else ""),
                 version=restart.version(),
                 restartable=True,
+                code=code,
             ),
             push_scout.logged(lemon_id, session, lambda: restarting)
             if session

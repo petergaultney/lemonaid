@@ -662,8 +662,14 @@ included, into the installed lemonaid: name lemons by Lemon-ID, or pass `--self`
 loop (a scout logs `exited normally` with reason `restarting on request`) and
 re-execs itself with the same arguments. Inbox messages it hadn't delivered stay in
 the inbox for the new process. Nothing polls for this: the first lemonaid command of
-a new version records that version and sends the signal to every waiter started by
-another one. An editable install keeps one version, so after editing its source run
+a new version records that version and sends the signal to each waiter that runs from
+the same install (`sys.prefix`) and whose loaded lemonaid modules differ from the
+installed ones. Each waiter records a digest of the modules it imported, so an install
+that changes only, say, the TUI restarts no waiter, and a lemonaid run from a dev
+checkout never signals the installed tool's waiters. Commands that start together after
+an install take turns on a lock, so each waiter is signaled once. The digest covers only
+lemonaid's own modules, so an upgrade that changes only a dependency restarts nothing;
+run `lemonaid watch restart --all` if running waiters must load it. An editable install keeps one version, so after editing its source run
 `lemonaid watch restart --all`. Waiters from a lemonaid without this command don't
 know the signal and are never sent it; stop and rearm those once.
 

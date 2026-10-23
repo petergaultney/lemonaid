@@ -40,6 +40,9 @@ class Waiter:
     repo: str = ""
     version: str = ""  # lemonaid's, when the waiter started
     restartable: bool = False  # whether it restarts on `restart.SIGNAL`, which kills others
+    prefix: str = ""  # `sys.prefix` of the install it runs from
+    code: str = ""  # digest of the lemonaid modules it loaded (see `restart.fingerprint`)
+    code_paths: tuple[str, ...] = ()
 
 
 def root() -> pathlib.Path:
@@ -113,6 +116,7 @@ def registered(
     *,
     version: str = "",
     restartable: bool = False,
+    code: tuple[str, tuple[str, ...]] = ("", ()),
 ) -> abc.Iterator[Waiter]:
     """Lists this process as a running waiter until the block exits."""
     waiter = Waiter(
@@ -125,6 +129,8 @@ def registered(
         repo,
         version,
         restartable,
+        sys.prefix,
+        *code,
     )
     _registry().mkdir(parents=True, exist_ok=True)
     path = entry(waiter.pid)
@@ -148,7 +154,12 @@ def registered(
 def _read(path: pathlib.Path) -> Waiter | None:
     try:
         saved = json.loads(path.read_text())
-        waiter = Waiter(**{**saved, "targets": tuple(saved["targets"])})
+        known = {f.name for f in dataclasses.fields(Waiter)} - {"targets", "code_paths"}
+        waiter = Waiter(
+            **{k: v for k, v in saved.items() if k in known},
+            targets=tuple(saved["targets"]),
+            code_paths=tuple(saved.get("code_paths", ())),
+        )
     except (OSError, ValueError, TypeError, KeyError):
         return None  # gone, or its process has not written it yet
     return waiter if str(waiter.pid) == path.stem else None
