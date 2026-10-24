@@ -65,7 +65,7 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
             f"{where.block} · {block.name or 'no group'}: a tree's letter jumps, l is the lead, a capital takes the second lemon, Alt and r, s, a, p, g or c edits{more}",
             colors.TEXT,
         )
-    return "type a block number, or / to search · esc closes", colors.MUTED
+    return "type a block number, or / to search · ? keys · esc closes", colors.MUTED
 
 
 def _picked_channels(grove: Grove, where: keys.Where) -> frozenset[str]:
@@ -141,7 +141,7 @@ def render(
         _summary(grove),
         "digit zooms · letter jumps · / searches · "
         + ("arrows pan · ⇧1-8 compass · " if panning else "")
-        + "space closes",
+        + "? keys · space closes",
     )
     bars.prompt(picture, *_prompt(where, grove))
     return picture
