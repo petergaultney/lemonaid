@@ -4,9 +4,12 @@ It holds each block's plot and each tree's spot and letter, so they stay put acr
 It is per machine, like pins and group order.
 """
 
+import contextlib
+import fcntl
 import json
 import os
 import tempfile
+from collections import abc
 from pathlib import Path
 from typing import Any
 
@@ -45,3 +48,26 @@ def save(data: dict[str, Any], where: Path | None = None) -> None:
     with tempfile.NamedTemporaryFile("w", dir=target.parent, delete=False, suffix=".tmp") as out:
         json.dump(data, out, indent=1, sort_keys=True)
     os.replace(out.name, target)
+
+
+@contextlib.contextmanager
+def _locked(target: Path) -> abc.Iterator[None]:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target.with_name(target.name + ".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def update(
+    change: abc.Callable[[dict[str, Any]], dict[str, Any]], where: Path | None = None
+) -> dict[str, Any]:
+    """Save *change* of the saved layout, and return it. The inbox, the popup's grove and the
+    command line each change the layout, so each holds the others off from reading to saving.
+    """
+    target = where or path()
+    with _locked(target):
+        before = load(target)
+        after = change(before)
+        if after != before:
+            save(after, target)
+    return after

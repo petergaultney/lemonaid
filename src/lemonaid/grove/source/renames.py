@@ -15,8 +15,10 @@ def _relayout(
     old: str,
     new: str,
 ) -> None:
-    state.save(
-        functools.reduce(lambda saved, group: change(saved, group, old, new), groups, state.load())
+    state.update(
+        lambda before: functools.reduce(
+            lambda saved, group: change(saved, group, old, new), groups, before
+        )
     )
 
 

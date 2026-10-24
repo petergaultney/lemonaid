@@ -13,7 +13,7 @@ def test_the_panel_lists_every_edit_in_both_views():
     for zoomed in (False, True):
         keys = {key for key, _ in help_panel.rows(zoomed)}
         assert {f"Alt+{key[4:]}" for key in picking.ACTIONS} <= keys, keys
-        assert {"Alt+m", "?", "esc", "space"} <= keys
+        assert {"?", "esc", "space"} <= keys
 
 
 def test_question_mark_shows_the_keys_over_the_grove_and_any_key_closes_them():

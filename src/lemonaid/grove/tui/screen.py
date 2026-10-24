@@ -3,41 +3,20 @@
 import dataclasses
 import math
 from collections import abc
+from typing import Any
 
 from textual import events
 from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
-from textual.strip import Strip
-from textual.widget import Widget
 
 from ..draw import canvas
-from . import compass, help_panel, keys, picking
+from ..layout import edit, state
+from . import compass, drop, garden, help_panel, keys, picking
 from .frame import Grove, Lists, clamp_pan, render
+from .grove_map import GroveMap
 
 _PULSE_LEVELS = 8  # frames in half a pulse; the other half replays them backwards
 _TICK = 0.2
-
-
-class GroveMap(Widget):
-    DEFAULT_CSS = "GroveMap { width: 100%; height: 100%; }"
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.picture: canvas.Canvas | None = None
-
-    def render_line(self, y: int) -> Strip:
-        if self.picture is None or y >= self.picture.height:
-            return Strip.blank(self.size.width)
-
-        return Strip(canvas.line_segments(self.picture.rows[y]), self.picture.width)
-
-    def target_at(self, x: int, y: int) -> tuple[str, ...]:
-        if self.picture is None or not (
-            0 <= y < self.picture.height and 0 <= x < self.picture.width
-        ):
-            return ()
-
-        return self.picture.rows[y][x].target
 
 
 # Asks for what an edit needs and makes it, over the app, then tells the callback what happened.
@@ -84,6 +63,9 @@ class GroveScreen(ModalScreen[str]):
         self._was_open = False  # whether the last key arrived zoomed in or searching
         self._held = held
         self._lists: Lists = {} if lists is None else lists
+        self._drag: garden.Drag | None = None
+        self._dragged = False  # the mouse moved since it was pressed, so its click isn't one
+        self._drag_frame_due = False
 
     def compose(self) -> ComposeResult:
         yield GroveMap()
@@ -112,8 +94,9 @@ class GroveScreen(ModalScreen[str]):
         if level not in self._frames:
             phase = (1 - math.cos(math.pi * level / (_PULSE_LEVELS - 1))) / 2
             size = self.size
+            grove = drop.dragged(self._grove, self._drag) if self._drag else self._grove
             self._frames[level] = render(
-                self._grove, self._where, size.width, size.height, phase, self._lists
+                grove, self._where, size.width, size.height, phase, self._lists
             )
         grove_map = self.query_one(GroveMap)
         grove_map.picture = self._frames[level]
@@ -157,7 +140,7 @@ class GroveScreen(ModalScreen[str]):
         self.app.call_from_thread(self._apply, grove)
 
     def _apply(self, grove: Grove) -> None:
-        if grove != self._grove:
+        if grove != self._grove and self._drag is None:
             self._where = keys.reconcile(self._where, self._grove.blocks, grove.blocks)
             self._grove = grove
             self._redraw()
@@ -209,6 +192,11 @@ class GroveScreen(ModalScreen[str]):
     def on_key(self, event: events.Key) -> None:
         event.stop()
         event.prevent_default()
+        if self._drag:  # a key ends a drag; only esc, mid-drag, is spent putting it back
+            dragging = self._dragged
+            self._put_back("")
+            if dragging and event.key == "escape":
+                return
         if self.query(help_panel.HelpPanel):
             self.query(help_panel.HelpPanel).remove()
             return
@@ -225,6 +213,10 @@ class GroveScreen(ModalScreen[str]):
         )
 
     def on_click(self, event: events.Click) -> None:
+        if self._dragged:
+            self._dragged = False
+            return
+
         target = self.query_one(GroveMap).target_at(event.x, event.y)
         if not target:
             return
@@ -235,3 +227,70 @@ class GroveScreen(ModalScreen[str]):
             return
         if len(target) > 1:
             self._press(target[1])
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        self._dragged = False
+        self._drag = garden.grab(
+            self._grove,
+            self._where,
+            (self.size.width, self.size.height),
+            (event.x, event.y),
+            self.query_one(GroveMap).target_at(event.x, event.y),
+        )
+        if self._drag:
+            self.capture_mouse()
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        if self._drag is None:
+            return
+
+        drag = garden.follow(self._drag, (event.x, event.y))
+        if drag.moved == self._drag.moved:
+            return
+
+        self._drag, self._dragged = drag, True
+        if not self._drag_frame_due:  # a frame takes longer than the mouse takes to move
+            self._drag_frame_due = True
+            self.call_after_refresh(self._drag_frame)
+
+    def _drag_frame(self) -> None:
+        self._drag_frame_due = False
+        if self._drag is None:
+            return
+
+        note = garden.describe(self._drag, drop.refused(self._grove, self._drag))
+        self._where = dataclasses.replace(self._where, note=note)
+        self._redraw()
+
+    def _put_back(self, note: str) -> None:
+        self._drag = None
+        self.release_mouse()
+        self._where = dataclasses.replace(self._where, note=note)
+        self._redraw()
+
+    def on_mouse_up(self, _event: events.MouseUp) -> None:
+        drag = self._drag
+        if drag is None or drag.moved == (0, 0):
+            self._drag = None
+            self.release_mouse()
+            return
+
+        problem = drop.refused(self._grove, drag)
+        if problem:
+            self._put_back(f"not dropped: {problem}")
+            return
+
+        change = drop.drop(self._grove, drag)
+        self._grove = drop.dragged(self._grove, drag)
+        for spots in self._lists.values():  # its lemon list goes beside it again
+            spots.pop(drag.tree, None)
+        self._put_back("")
+        self.run_worker(lambda: self._save(change), thread=True, group="grove-garden")
+
+    def _save(self, change: abc.Callable[[dict[str, Any]], dict[str, Any]]) -> None:
+        try:
+            state.update(change)
+            note = ""
+        except edit.EditError as error:
+            note = f"not dropped: {error}"
+        self.app.call_from_thread(self._finished, note)

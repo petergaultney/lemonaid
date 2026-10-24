@@ -31,6 +31,8 @@ def test_resize_and_reshape():
         lambda s: edit.resize(s, "relay", 5, 5),
         lambda s: edit.reshape(s, "relay", 20),
         lambda s: edit.move(s, "nowhere", 1, 1),
+        lambda s: edit.reframe(s, "relay", 0, 0, 11, 9),
+        lambda s: edit.place_tree(s, "relay", "nowhere", False, 1, 1),
     ],
 )
 def test_bad_edits_are_refused(change):
@@ -51,3 +53,19 @@ def test_rename_tree_keeps_its_spot_and_letter_under_the_new_key():
     shared = edit.share_tree(SAVED, "relay", "a", "b")
     assert shared["trees"]["relay"] == {"a": {"x": 5, "y": 3}, "b": {"x": 5, "y": 3}}
     assert SAVED["trees"]["relay"] == {"a": {"x": 5, "y": 3}}
+
+
+def test_reframing_from_the_left_keeps_trees_where_they_stand_on_the_ground():
+    changed = edit.reframe(SAVED, "relay", 6, 5, 44, 12)
+    assert (changed["plots"]["relay"]["x"], changed["plots"]["relay"]["w"]) == (6, 44)
+    assert changed["trees"]["relay"]["a"] == {"x": 9, "y": 3}
+
+
+def test_placing_the_lead_moves_its_lead_spot_and_leaves_its_own():
+    saved = {**SAVED, "trees": {"relay": {"a": {"x": 5, "y": 3}, ":lead": {"x": 2, "y": 2}}}}
+    led = edit.place_tree(saved, "relay", "a", True, 20, 6)["trees"]["relay"]
+    assert led == {"a": {"x": 5, "y": 3}, ":lead": {"x": 20, "y": 6}}
+    assert edit.place_tree(saved, "relay", "a", False, 7, 4)["trees"]["relay"]["a"] == {
+        "x": 7,
+        "y": 4,
+    }
