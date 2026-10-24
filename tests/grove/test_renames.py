@@ -1,6 +1,7 @@
 from lemonaid.grove.layout import state
 from lemonaid.grove.source import renames
 from lemonaid.grove.tui.picking import Target
+from lemonaid.inbox import db
 
 
 def _renamer(calls: list[tuple[str, str]], refusal: str = ""):
@@ -49,3 +50,25 @@ def test_a_refused_rename_leaves_the_layout_as_it_was(tmp_path, monkeypatch):
 
 def test_without_a_session_renamer_a_session_is_not_renamed():
     assert "needs" in renames.apply(Target("rename", "a", ("a",), "old", "", "new", ()))
+
+
+def test_a_session_rename_renames_the_lemon_its_tag_shows(tmp_path, monkeypatch):
+    monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
+    _saved(state.path())
+    with db.connect() as conn:
+        db.add(conn, "claude:tagged", "a message", "old", {"tty": "/dev/ttys7001"})
+        found = db.get_by_channel(conn, "claude:tagged", unread_only=False)
+        db.update_name(conn, found.id, "Spatial lemon jump")
+    target = Target(
+        "rename",
+        "a",
+        ("a", "b"),
+        "old",
+        "",
+        "Lemon grove map",
+        (("claude:tagged", "1"),),
+        tagged="claude:tagged",
+    )
+    renames.apply(target, _renamer([]))
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, "claude:tagged", unread_only=False).name == "Lemon grove map"

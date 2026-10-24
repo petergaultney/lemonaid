@@ -37,6 +37,11 @@ def _session(rename: Target, rename_session: abc.Callable[[str, str], str]) -> s
     with db.connect() as conn:
         for channel, window in rename.lemons:
             db.record_location(conn, channel, new, window)
+        tagged = (
+            db.get_by_channel(conn, rename.tagged, unread_only=False) if rename.tagged else None
+        )
+        if tagged:  # the tag shows its name, which would otherwise keep the old one
+            db.update_name(conn, tagged.id, rename.name)
     _relayout(edit.rename_tree, rename.groups, rename.tree, new)
     return f"renamed session {rename.tree} to {new}"
 
