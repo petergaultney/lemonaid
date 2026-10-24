@@ -112,3 +112,9 @@ def test_a_resident_from_another_build_is_restarted(monkeypatch):
         "kill-session",
         "new-session",
     ]
+
+
+def test_starting_the_resident_installs_the_hook_that_keeps_its_popup_on_it(monkeypatch):
+    calls, _ = _fake(monkeypatch, "/dev/ttys1:160:50:main\n")
+    fast_popup.warm("grove", 1)
+    assert any(c[:3] == ("set-hook", "-g", "client-session-changed[110]") for c in calls)
