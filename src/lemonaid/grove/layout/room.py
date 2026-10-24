@@ -65,10 +65,19 @@ def grow(name: str, plots: dict[str, Any], need: tuple[int, int]) -> tuple[int, 
     """
     plot = plots[name]
     rect = (plot["x"], plot["y"], plot["w"], plot["h"])
-    others = [(d["x"], d["y"], d["w"], d["h"]) for key, d in plots.items() if key != name]
+    others = [
+        (d["x"], d["y"], d["w"], d["h"])
+        for key, d in plots.items()
+        if key != name and d.get("open_since") is None  # open ground can be built over
+    ]
+    # A tree too tall for the plot needs it taller, one too wide wider; else either will do.
+    short = [
+        *(("right", "left") if need[0] + 2 > plot["w"] else ()),
+        *(("down", "up") if need[1] + 2 > plot["h"] else ()),
+    ] or ["right", "down", "left", "up"]
     reach = {
         side: _reach(rect, others, need[0] + 2 if side in ("right", "left") else need[1] + 2, side)
-        for side in ("right", "down", "left", "up")
+        for side in short
     }
     side = max(reach, key=lambda k: reach[k])
     step = reach[side]
@@ -82,4 +91,12 @@ def grow(name: str, plots: dict[str, Any], need: tuple[int, int]) -> tuple[int, 
         w=w + step if side in ("right", "left") else w,
         h=h + step if side in ("down", "up") else h,
     )
+    grown = (plot["x"], plot["y"], plot["w"], plot["h"])
+    for key in [
+        key
+        for key, d in plots.items()
+        if d.get("open_since") is not None
+        and placement.overlaps(grown, (d["x"], d["y"], d["w"], d["h"]), 0)
+    ]:
+        del plots[key]
     return (step if side == "left" else 0, step if side == "up" else 0)

@@ -48,11 +48,21 @@ def _overlap(a: Box, b: Box) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def _crowded(boxes: abc.Mapping[str, tuple[Box, Box]]) -> set[str]:
-    """Trees whose crown meets another's crown or tag. Tags meeting tags are slid apart when
-    drawn, so they don't count.
+def _within(box: Box, bounds: Box) -> bool:
+    return (
+        bounds[0] <= box[0] and bounds[1] <= box[1] and box[2] <= bounds[2] and box[3] <= bounds[3]
+    )
+
+
+def _crowded(boxes: abc.Mapping[str, tuple[Box, Box]], bounds: Box) -> set[str]:
+    """Trees whose crown meets another's crown or tag, or that reach past *bounds*. Tags
+    meeting tags are slid apart when drawn, so they don't count.
     """
     return {
+        key
+        for key, (crown, tag) in boxes.items()
+        if not (_within(crown, bounds) and _within(tag, bounds))
+    } | {
         key
         for key, (crown, tag) in boxes.items()
         for other, (their_crown, their_tag) in boxes.items()
@@ -64,14 +74,17 @@ def _crowded(boxes: abc.Mapping[str, tuple[Box, Box]]) -> set[str]:
 
 
 def spaced(
-    block: Block, sizes: dict[str, float], spots: abc.Mapping[str, tuple[float, float]]
+    block: Block, sizes: dict[str, float], spots: abc.Mapping[str, tuple[float, float]], plot: Plot
 ) -> tuple[dict[str, float], set[str]]:
-    """*sizes*, shrunk where two trees standing at *spots* would grow into each other's crowns,
-    and the trees still crowded at their smallest.
+    """*sizes*, shrunk where two trees standing at *spots* would grow into each other's crowns
+    or past *plot*'s edge, and the trees still crowded at their smallest.
     """
+    bounds = (0, -math.inf, plot.w, plot.h)  # a crown may rise above its block's top
     fitted = dict(sizes)
     for _ in range(12):
-        crowded = _crowded({t.key: _boxes(t, fitted[t.key], *spots[t.key]) for t in block.trees})
+        crowded = _crowded(
+            {t.key: _boxes(t, fitted[t.key], *spots[t.key]) for t in block.trees}, bounds
+        )
         if not crowded or all(fitted[key] <= SMALLEST for key in crowded):
             return fitted, crowded
 
