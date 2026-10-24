@@ -19,6 +19,7 @@ import subprocess
 import sys
 
 from ..log import get_logger
+from . import popup_guard
 from .command import run
 
 SETTINGS_OPTION = "@lemonaid_popup_settings"  # the build and overrides the resident started with
@@ -109,6 +110,8 @@ def _start(name: str, settings: dict[str, str], width: int, height: int) -> None
     )
     _tmux("set-option", "-t", session, "status", "off")
     _tmux("set-option", "-t", session, SETTINGS_OPTION, stamp(settings))
+    for hook, command in popup_guard.hooks(session, OPENER_OPTION).items():
+        _tmux("set-hook", "-g", hook, command)
 
 
 def _running(name: str, settings: dict[str, str]) -> bool:
