@@ -115,7 +115,7 @@ def fingerprint() -> tuple[str, tuple[str, ...]]:
     return _digest(ordered), ordered
 
 
-def _outdated(waiter: registry.Waiter, current: str) -> bool:
+def outdated(waiter: registry.Waiter, current: str) -> bool:
     """Whether *waiter* runs from this install and loaded code that has since changed.
 
     One that records no prefix or code predates these fields and is always asked.
@@ -158,7 +158,7 @@ def after_upgrade() -> list[registry.Waiter]:
                 return []
 
             path.write_text(current)
-            sent = send(w for w in registry.running() if _outdated(w, current))
+            sent = send(w for w in registry.running() if outdated(w, current))
     except OSError as error:
         _log.warning("could not record lemonaid %s: %s", current, error)
         return []

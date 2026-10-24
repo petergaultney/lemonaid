@@ -72,3 +72,33 @@ def test_restore_starts_a_scout_for_a_brief_with_nothing_to_watch(monkeypatch):
         codex_waiter.restore(conn, {"root": {"/dev/ttys001"}})
 
     assert started == [("codex:root", "root", lemon_id)]
+
+
+def test_restore_skips_a_done_brief_and_names_the_lemons_it_started(monkeypatch):
+    ids = {}
+    for name, state in (("lead", "working"), ("finished", "done")):
+        path = brief_store.briefs_dir() / f"{name}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {name}\n\nStatus: {state}\n")
+        with db.connect() as conn:
+            db.add(conn, f"codex:{name}", "", metadata={"tty": f"/dev/{name}"})
+            attached.attach(conn, f"codex:{name}", path)
+            ids[name] = identity.ensure(conn, path)
+    started = []
+    monkeypatch.setattr(codex_waiter.utils, "find_session_path", lambda thread: "rollout.jsonl")
+    monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
+    monkeypatch.setattr(codex_waiter, "_restored", {})
+    monkeypatch.setattr(codex_waiter, "ensure", lambda *args: started.append(args[0]) or True)
+
+    with db.connect() as conn:
+        named = codex_waiter.restore(conn, {"lead": {"/dev/lead"}, "finished": {"/dev/finished"}})
+
+    assert started == ["codex:lead"]
+    assert named == codex_waiter.Restored([ids["lead"]], False)
+
+
+def test_restore_that_cannot_list_codex_processes_is_unsettled(monkeypatch):
+    monkeypatch.setattr(codex_waiter.processes, "thread_ttys", lambda: None)
+
+    with db.connect() as conn:
+        assert codex_waiter.restore(conn) == codex_waiter.Restored([], True)

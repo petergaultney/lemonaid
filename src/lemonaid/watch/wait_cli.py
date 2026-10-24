@@ -47,8 +47,8 @@ def _attached(path: Path, channel: str, harness_alive: abc.Callable[[], bool]) -
 
 def run(args: argparse.Namespace) -> int:
     thread, problem = delivery.codex_thread(args.codex_thread)
-    if args.push and not thread:  # `watch --self --push` run by a Codex lemon itself
-        thread = os.environ.get("CODEX_THREAD_ID", "")
+    if args.push and not thread and not args.channel.startswith("claude:"):
+        thread = os.environ.get("CODEX_THREAD_ID", "")  # run by a Codex lemon itself
     if problem:
         print(f"not started: {problem}")
         return 2

@@ -115,6 +115,20 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     assert not wait_state.is_armed(_LEMON)
 
 
+def test_a_claude_scout_started_from_a_codex_lemon_serves_the_claude_session(monkeypatch):
+    monkeypatch.setenv("CODEX_THREAD_ID", "calling-codex")
+    _briefed()
+    sock, received = _listener()
+    listing = _session(sock)
+    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
+    scout.start()
+
+    _until(lambda: push_scout.running(_LEMON, _SESSION))
+    _until(lambda: len(received) == 1)
+    listing.unlink()
+    scout.join(timeout=10)
+
+
 def test_a_replacement_scout_does_not_announce_again():
     sock, received = _listener()
     entry = session_socket.Session(os.getpid(), _SESSION, os.getcwd(), sock)

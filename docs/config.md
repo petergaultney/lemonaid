@@ -692,6 +692,7 @@ These filters do not affect submitted review bodies or PR conversation comments.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `github_debounce` | `600` | Seconds GitHub reads must keep failing, with none succeeding, before a lemon is told once that GitHub can't be reached. |
+| `reconcile` | `true` | Whether `lemonaid watch reconcile` runs, including the pass the first command after an install starts. `false` turns both off; scouts still start from the Stop check, SessionStart, `tell` and the inbox. See [watch](watch.md#reconciling-scouts). |
 
 ## `[watch.roles.<role>]`
 

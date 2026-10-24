@@ -19,6 +19,7 @@ class WatchConfig:
     pr: PrConfig = field(default_factory=PrConfig)
     roles: dict[str, frozenset[str]] = field(default_factory=dict)  # see watch/roles.py
     github_debounce: float = 600.0  # seconds GitHub must stay unreachable before a lemon hears
+    reconcile: bool = True  # see watch/reconcile.py
 
 
 _CASELESS_HOSTS = frozenset({"github.com"})  # hosts whose logins are unique regardless of case
@@ -72,6 +73,14 @@ def _debounce(value: object) -> float:
     return float(value)
 
 
+def _reconcile(value: object) -> bool:
+    if not isinstance(value, bool):
+        print("Warning: [watch] reconcile must be true or false", file=sys.stderr)
+        return WatchConfig.reconcile
+
+    return value
+
+
 def parse(data: dict) -> WatchConfig:
     pr = data.get("pr", {})
     values: dict[str, bool] = {}
@@ -98,4 +107,5 @@ def parse(data: dict) -> WatchConfig:
         ),
         roles=_roles(data.get("roles", {})),
         github_debounce=_debounce(data.get("github_debounce", WatchConfig.github_debounce)),
+        reconcile=_reconcile(data.get("reconcile", WatchConfig.reconcile)),
     )

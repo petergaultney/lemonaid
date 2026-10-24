@@ -9,6 +9,7 @@ from . import (
     notes_cli,
     openclaw_cli,
     pr_cli,
+    reconcile,
     repo_cli,
     restart_cli,
     stop_cli,
@@ -29,5 +30,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     file_cli.add_parser(watch_subparsers)
     briefs_cli.add_parser(watch_subparsers)
     notes_cli.add_parser(watch_subparsers)
+    reconcile.add_parser(watch_subparsers)
     stop_cli.add_parser(watch_subparsers)
     restart_cli.add_parser(watch_subparsers)

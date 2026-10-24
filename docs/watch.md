@@ -696,6 +696,33 @@ prints no "older watchers" list once every watcher takes the signal. The registr
 `$LEMONAID_STATE_DIR/waiters/<pid>.json` (default `~/.local/state/lemonaid/waiters/`)
 of a restarted watcher also records the new `version`.
 
+### Reconciling scouts
+
+`lemonaid watch reconcile` runs one pass and exits:
+
+- It asks each watcher running outdated code from this install to restart.
+- It starts a push scout for each live, idle lemon whose brief isn't `done` and that has no
+  watcher, and the Codex restore the inbox runs. A deaf watcher is replaced along the way.
+
+It prints one line per action, or `nothing to do`, and logs the same lines. A pass already
+running makes a second one return at once. After an install, lemonaid commands start a pass
+in the background until one settles every lemon for that version: a pass that could not
+start, could not tell whether a lemon runs, or could not start a scout (in a sandbox, say)
+is tried again by a later command, a minute apart at most and five times per version. A
+session that can never take a scout, such as one that would hold pushed messages, doesn't
+count against the pass. A dev checkout's editable install never
+starts one this way. Nothing in lemonaid schedules it otherwise; to keep scouts running
+while the inbox is closed, schedule it yourself, for example every five minutes:
+
+```bash
+# launchd: ~/Library/LaunchAgents/lemonaid.reconcile.plist, ProgramArguments
+# lemonaid watch reconcile, StartInterval 300
+# systemd: a user timer with OnUnitActiveSec=5min running the same command
+```
+
+`[watch] reconcile = false` in the [config](config.md#watch) turns the command and the
+install pass off.
+
 ### Cursors, delivery and recovery
 
 - **First arm:** take the source's current state as seen, including already completed CI. Unanswered document comments are the exception: they are reported on first arm.

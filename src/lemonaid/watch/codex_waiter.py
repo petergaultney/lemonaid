@@ -5,9 +5,10 @@ import sqlite3
 import subprocess
 import sys
 import time
+import typing as ty
 from pathlib import Path
 
-from ..brief import attached, handoff_state, identity
+from ..brief import attached, handoff_state, identity, status
 from ..codex import channels, processes, utils
 from ..inbox import db
 from ..log import LOG_PATH, get_logger
@@ -76,14 +77,21 @@ def _due(lemon_id: str) -> bool:
     return True
 
 
-def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None) -> None:
-    """Called on inbox startup/refresh: a scout for every live, idle Codex lemon with a brief and no watcher."""
+class Restored(ty.NamedTuple):
+    started: list[str]  # Lemon-IDs
+    unsettled: bool  # a lemon's liveness was unknown, or its scout did not start
+
+
+def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None) -> Restored:
+    """A scout for every live, idle Codex lemon whose brief isn't done and that has no watcher."""
     from ..messages import recipient, store, waiter
 
     if owners is None:
         owners = processes.thread_ttys()
     if owners is None:
-        return
+        return Restored([], True)
+
+    started, unsettled = [], False
     for entry in attached.everything(conn):
         row = entry.notification
         if not entry.channel.startswith("codex:") or row is None or row.is_archived:
@@ -98,14 +106,24 @@ def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None)
         ):
             continue
         try:
-            lemon_id = identity.read(entry.path.read_text())
+            text = entry.path.read_text()
+            lemon_id = identity.read(text)
         except (OSError, ValueError):
             continue
         if (
-            not wait_state.is_armed(lemon_id)
-            and not waiter.is_armed(store.inbox_for_id(lemon_id))
-            and not handoff_state.pending_source(conn, entry.path, entry.channel, time.time())
-            and recipient.harness_alive(row) is True
-            and _due(lemon_id)
+            status.split(text).status == "done"
+            or wait_state.is_armed(lemon_id)
+            or waiter.is_armed(store.inbox_for_id(lemon_id))
+            or handoff_state.pending_source(conn, entry.path, entry.channel, time.time())
         ):
-            ensure(entry.channel, thread, lemon_id)
+            continue
+
+        alive = recipient.harness_alive(row)
+        if alive is None:
+            unsettled = True
+        elif alive and _due(lemon_id):
+            if ensure(entry.channel, thread, lemon_id):
+                started.append(lemon_id)
+            else:
+                unsettled = True
+    return Restored(started, unsettled)
