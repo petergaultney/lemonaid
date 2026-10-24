@@ -1,0 +1,4 @@
+#!/bin/bash
+# Run as `claude`, from a link named `claude` (see stand_in.py), so lemonaid's process
+# checks see what they see for Claude Code: a `claude` command on the pane's tty.
+exec -a claude "$STAND_IN_PYTHON" -I "$(dirname "$0")/stand_in.py" "$@"

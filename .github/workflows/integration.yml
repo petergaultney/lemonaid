@@ -28,7 +28,7 @@ jobs:
       - name: Install shells and tmux dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends zsh fish libevent-dev libncurses-dev build-essential bison pkg-config
+          sudo apt-get install -y --no-install-recommends zsh fish lsof libevent-dev libncurses-dev build-essential bison pkg-config
           uv tool install --python 3.14 'xonsh[full]'
           echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
           # Fresh runners must not consume launch commands as zsh setup answers.
@@ -62,7 +62,8 @@ jobs:
         run: |
           uv run pytest -q -rs --junitxml=integration-results.xml \
             tests/test_follow_hook.py tests/scratch_autosave/ \
-            tests/test_places_open_launch.py tests/brief/handoff/test_tty_handoff.py
+            tests/test_places_open_launch.py tests/brief/handoff/test_tty_handoff.py \
+            tests/restore/test_tmux_end_to_end.py
       - name: Reject skipped integration tests
         run: |
           uv run python - <<'PY'
