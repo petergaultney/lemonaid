@@ -10,7 +10,6 @@ import asyncio
 import itertools
 
 from lemonaid.grove.source import inbox_keys
-from lemonaid.grove.tui.jump_bar import JumpBar
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.utils import jump_gutter
@@ -83,7 +82,7 @@ def test_a_digit_then_a_letter_switches_to_that_lemon(monkeypatch):
         letter = app._content.inbox.grove.arrangement.trees[("", "/tmp")].letter
         await pilot.press("0")
         await pilot.pause()
-        opened = isinstance(app.screen, JumpBar)
+        opened = app._jump_bar is not None
         await pilot.press(letter)
         await pilot.pause()
         return opened
@@ -102,7 +101,7 @@ def test_escape_closes_the_bar_without_switching(monkeypatch):
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        return isinstance(app.screen, JumpBar)
+        return app._jump_bar is not None
 
     assert not _run(steps, monkeypatch=monkeypatch)
     assert chosen == []
@@ -116,7 +115,7 @@ def test_history_has_no_keys(monkeypatch):
         await pilot.pause()
         app.action_jump_to_number("2")
         await pilot.pause()
-        return isinstance(app.screen, JumpBar)
+        return app._jump_bar is not None
 
     assert not _run(steps, monkeypatch=monkeypatch)
 
