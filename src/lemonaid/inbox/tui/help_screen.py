@@ -77,7 +77,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("flip_position", "Move the scratch pane between top and left"),
             ("save_size", "Save pane size explicitly (also available with autosave)"),
             ("refresh", "Refresh now"),
-            ("quit", "Quit"),
+            ("quit", "Quit (Q quits lma even from the scratch pane)"),
         ],
     ),
 ]
