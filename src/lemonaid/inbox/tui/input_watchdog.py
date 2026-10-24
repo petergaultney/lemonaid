@@ -90,6 +90,9 @@ class Watchdog:
     def _probe(self) -> None:
         self._ticked = time.monotonic()
         self._sent = {p: t for p, t in self._sent.items() if not (p._closing or p._closed)}
+        if not self._app._screen_stack:  # the app is shutting down
+            return
+
         for pump in dict.fromkeys(p for p in (self._app, self._app.screen, self._app.focused) if p):
             if pump not in self._sent:
                 self._sent[pump] = self._ticked
