@@ -10,7 +10,7 @@ from ...inbox import db
 from ...lemon_watchers.common import detect_terminal_switch_source
 from ..layout import view
 from ..tui.app import GroveApp
-from . import live, renames
+from . import edits, live
 
 
 def _switch_source() -> str | None:
@@ -43,7 +43,7 @@ def run(
     GroveApp(
         lambda: live.fresh(config, _switch_source()),
         refresh_every=3.0,
-        rename=functools.partial(renames.apply, rename_session=rename_session),
+        edit=functools.partial(edits.ask, config=config, rename_session=rename_session),
         choose=lambda channel: _choose(channel, opener()),
         leave=hide,
         pan=view.load,

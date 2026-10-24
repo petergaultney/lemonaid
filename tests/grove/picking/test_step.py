@@ -40,10 +40,16 @@ def test_the_letter_again_or_an_arrow_moves_on_to_each_lemon_and_round():
 
 def test_enter_asks_to_rename_the_session_from_its_current_name():
     where, _, rename = press("alt+r", "1", CORE, "enter")
-    assert rename == picking.Rename(
-        ("oria",), "core", "", "core", (("claude:a", ""), ("codex:b", ""), ("codex:c", ""))
+    assert rename == picking.Target(
+        "rename",
+        "oria",
+        ("oria",),
+        "core",
+        "",
+        "core",
+        (("claude:a", ""), ("codex:b", ""), ("codex:c", "")),
     )
-    assert where.renaming
+    assert where.editing == "rename"
 
 
 def test_enter_on_a_lemon_asks_to_rename_it_from_its_name():
@@ -56,9 +62,9 @@ def test_a_tree_that_is_not_a_tmux_session_offers_only_its_lemons():
     assert where.picked_lemon == "claude:notes"
 
 
-def test_escape_stops_renaming():
+def test_escape_stops_editing():
     where, _, _ = press("alt+r", "1", CORE, "escape")
-    assert (where.renaming, where.picked_tree) == (False, "")
+    assert (where.editing, where.picked_tree) == ("", "")
 
 
 def test_without_alt_r_a_letter_still_jumps():
@@ -85,3 +91,38 @@ def test_a_session_rename_covers_its_trees_in_every_group():
     _, _, rename = press("alt+r", "1", letter, "enter", blocks=shared, arrangement=found)
     assert rename.groups == ("a", "b")
     assert rename.lemons == (("claude:x", ""), ("claude:y", ""))
+
+
+def test_snooze_starts_on_the_whole_tree_then_each_lemon():
+    where, _, _ = press("alt+s", "1", CORE)
+    assert (where.editing, where.picked_lemon) == ("snooze", "")
+    assert press("alt+s", "1", CORE, CORE)[0].picked_lemon == "claude:a"
+
+
+def test_a_one_lemon_tree_offers_its_lemon_alone():
+    where, _, target = press("alt+a", "1", NOTES, "enter")
+    assert (target.action, target.channel) == ("archive", "claude:notes")
+
+
+def test_whole_tree_edits_carry_every_lemon_on_the_tree():
+    _, _, target = press("alt+p", "1", CORE, "enter")
+    assert (target.action, target.channel) == ("pin", "")
+    assert [channel for channel, _ in target.lemons] == ["claude:a", "codex:b", "codex:c"]
+
+
+def test_color_needs_only_a_block():
+    _, _, target = press("alt+c", "1")
+    assert (target.action, target.block, target.tree) == ("color", "oria", "")
+    zoomed, _, _ = press("1")
+    assert press("alt+c", where=zoomed)[2].block == "oria"
+
+
+def test_the_packhouse_has_no_color():
+    packhouse = (block("", "0", LOOSE),)
+    found, _ = arrange.arrange(packhouse, {"plots": {}, "trees": {}}, NOW)
+    where, _, target = press("alt+c", "0", blocks=packhouse, arrangement=found)
+    assert target is None and "no color" in where.note
+
+
+def test_alt_m_says_moving_by_hand_is_not_here_yet():
+    assert "isn't here yet" in press("alt+m")[0].note

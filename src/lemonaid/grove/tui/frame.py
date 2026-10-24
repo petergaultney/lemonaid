@@ -62,7 +62,7 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
         ]
         more = f"  (another digit: {', '.join(longer)})" if longer else ""
         return (
-            f"{where.block} · {block.name or 'no group'}: a tree's letter jumps, l is the lead, a capital takes the second lemon, Alt+r renames{more}",
+            f"{where.block} · {block.name or 'no group'}: a tree's letter jumps, l is the lead, a capital takes the second lemon, Alt and r, s, a, p, g or c edits{more}",
             colors.TEXT,
         )
     return "type a block number, or / to search · esc closes", colors.MUTED

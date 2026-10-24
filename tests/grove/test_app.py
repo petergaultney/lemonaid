@@ -27,3 +27,27 @@ def test_a_grove_that_hides_keeps_running_with_a_fresh_one_held_for_next_time():
     replaced, held, still_held = asyncio.run(run())
     assert hidden == [True]
     assert replaced and held and not still_held
+
+
+def test_an_edit_that_finishes_after_its_grove_closed_changes_no_screen():
+    pending = []
+    letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
+
+    async def run() -> bool:
+        app = GroveApp(
+            lambda: GROVE,
+            60.0,
+            lambda _app, _target, done: pending.append(done),
+            leave=lambda: None,
+        )
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.press("alt+a", "2", letter, "enter")
+            await pilot.pause()
+            await pilot.press("space")
+            await pilot.pause()
+            pending[0]("archived 1 lemon")
+            await pilot.pause()
+            return app.is_running
+
+    assert asyncio.run(run())
+    assert len(pending) == 1

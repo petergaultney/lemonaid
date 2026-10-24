@@ -1,8 +1,9 @@
-"""Renaming from the grove: Alt+r, then a tree's letter, then which of its names.
+"""Editing from the grove: Alt and a key for what to do, then a tree's letter, then which of it.
 
-The tree's letter chooses its tmux session first; the letter again, or an arrow, moves on to each
-of its lemons in turn, and Enter asks for the new name. It is slower than a key a lemon, on
-purpose: renaming is rare, and what is about to be renamed is always shown before it happens.
+The tree's letter chooses the whole tree first (for a rename, its tmux session); the letter
+again, or an arrow, moves on to each of its lemons in turn, and Enter asks what's needed and does
+it. It is slower than a key a lemon, on purpose: edits are rare, and what is about to change is
+always named on the prompt line before it does.
 """
 
 import dataclasses
@@ -12,14 +13,34 @@ from ..layout.arrange import Arrangement
 from ..model import Block, Lemon, Tree
 from . import keys
 
+ACTIONS = {
+    "alt+r": "rename",
+    "alt+s": "snooze",
+    "alt+a": "archive",
+    "alt+p": "pin",
+    "alt+g": "group",
+    "alt+c": "color",
+}
+_VERBS = {
+    "rename": "rename",
+    "snooze": "snooze",
+    "archive": "archive",
+    "pin": "pin or unpin",
+    "group": "move to another group",
+    "color": "recolor",
+}
+
 
 @dataclasses.dataclass(frozen=True)
-class Rename:
-    groups: tuple[str, ...]  # every group with a tree for the session, "" for the packhouse
-    tree: str  # the tree's key, which is its tmux session
-    channel: str  # the lemon to rename, or "" for the tree's session
-    name: str  # asked for with the current name, which the rename dialog replaces
-    lemons: tuple[tuple[str, str], ...]  # (channel, window) of each lemon in the session
+class Target:
+    action: str  # one of ACTIONS' values
+    block: str  # the group it's drawn in, "" for the packhouse
+    groups: tuple[str, ...]  # every group with a tree for the session
+    tree: str  # the tree's key, which is its tmux session, or "" for a block's color
+    channel: str  # the lemon, or "" for the whole tree (for a rename, its session)
+    name: str  # the current name, which a rename starts from
+    # (channel, window) of each lemon on the tree; for a rename, in its session in every group
+    lemons: tuple[tuple[str, str], ...]
 
 
 def _picked(where: keys.Where, blocks: abc.Sequence[Block]) -> tuple[Block, Tree] | None:
@@ -36,13 +57,37 @@ def renames_session(tree: Tree) -> bool:
     return bool(tree.lemons) and tree.lemons[0].session == tree.key
 
 
-def _choices(tree: Tree) -> list[str]:
-    """What can be renamed on *tree*, in turn: its session, "", if it is one, then each lemon."""
-    return [*([""] if renames_session(tree) else []), *(lemon.channel for lemon in tree.lemons)]
+def _choices(action: str, tree: Tree) -> list[str]:
+    """What *action* can act on, in turn: the whole tree, "", where it can, then each lemon."""
+    whole = renames_session(tree) if action == "rename" else len(tree.lemons) > 1
+    return [*([""] if whole else []), *(lemon.channel for lemon in tree.lemons)]
 
 
 def _let_go(where: keys.Where) -> keys.Where:
-    return dataclasses.replace(where, renaming=False, picked_tree="", picked_lemon="")
+    return dataclasses.replace(where, editing="", picked_tree="", picked_lemon="")
+
+
+def _target(
+    where: keys.Where, blocks: abc.Sequence[Block], block: Block, tree: Tree | None
+) -> Target:
+    if tree is None:
+        return Target(where.editing, block.name, (block.name,), "", "", block.name, ())
+
+    lemon = _lemon(tree, where.picked_lemon)
+    same = [(b, t) for b in blocks for t in b.trees if t.key == tree.key]
+    return Target(
+        where.editing,
+        block.name,
+        tuple(b.name for b, _ in same),
+        tree.key,
+        where.picked_lemon,
+        lemon.name if lemon else tree.key,
+        tuple(
+            (m.channel, m.window)
+            for t in ([t for _, t in same] if where.editing == "rename" else [tree])
+            for m in t.lemons
+        ),
+    )
 
 
 def _choose_tree(
@@ -55,81 +100,97 @@ def _choose_tree(
     tree = keys.tree_at(block, arrangement, letter)
     if tree is None:
         return dataclasses.replace(where, note=f"no tree {letter} in {block.name or 'no group'}")
-    return dataclasses.replace(where, picked_tree=tree.key, picked_lemon=_choices(tree)[0])
+    first = _choices(where.editing, tree)[0]
+    return dataclasses.replace(where, picked_tree=tree.key, picked_lemon=first)
 
 
 def _turn(where: keys.Where, tree: Tree, by: int) -> keys.Where:
-    choices = _choices(tree)
+    choices = _choices(where.editing, tree)
     at = choices.index(where.picked_lemon) if where.picked_lemon in choices else 0
     return dataclasses.replace(where, picked_lemon=choices[(at + by) % len(choices)])
 
 
-def _rename(where: keys.Where, blocks: abc.Sequence[Block], tree: Tree) -> Rename:
-    lemon = _lemon(tree, where.picked_lemon)
-    same = [(b, t) for b in blocks for t in b.trees if t.key == tree.key]
-    return Rename(
-        tuple(b.name for b, _ in same),
-        tree.key,
-        where.picked_lemon,
-        lemon.name if lemon else tree.key,
-        tuple((m.channel, m.window) for _, t in same for m in t.lemons),
-    )
+def _color(where: keys.Where, blocks: abc.Sequence[Block]) -> tuple[keys.Where, str, Target | None]:
+    block = next((b for b in blocks if b.digit == where.block), None)
+    if block is None:
+        return where, "", None
+    if not block.name:
+        return dataclasses.replace(_let_go(where), note="the packhouse has no color"), "", None
+    return where, "", _target(where, blocks, block, None)
 
 
-def _renaming_step(
+def _editing_step(
     where: keys.Where, key: str, blocks: abc.Sequence[Block], arrangement: Arrangement
-) -> tuple[keys.Where, str, Rename | None]:
+) -> tuple[keys.Where, str, Target | None]:
     if key == "escape":
         return _let_go(where), "", None
     if key.isdigit() and len(key) == 1 and not where.picked_tree:
-        found, _ = keys.step(dataclasses.replace(where, renaming=False), key, blocks, arrangement)
-        return dataclasses.replace(found, renaming=True), "", None
+        found, _ = keys.step(dataclasses.replace(where, editing=""), key, blocks, arrangement)
+        where = dataclasses.replace(found, editing=where.editing)
+        return _color(where, blocks) if where.editing == "color" else (where, "", None)
 
     found = _picked(where, blocks)
     letter = key.lower() if len(key) == 1 and key.isalpha() else ""
     if found:
         block, tree = found
-        if letter and letter == arrangement.trees[(block.name, tree.key)].letter:
-            return _turn(where, tree, 1), "", None
-        if key in ("down", "right", "tab"):
+        if (letter and letter == arrangement.trees[(block.name, tree.key)].letter) or key in (
+            "down",
+            "right",
+            "tab",
+        ):
             return _turn(where, tree, 1), "", None
         if key in ("up", "left", "shift+tab"):
             return _turn(where, tree, -1), "", None
         if key == "enter":
-            return where, "", _rename(where, blocks, tree)
-    if letter:
+            return where, "", _target(where, blocks, block, tree)
+    if letter and where.editing != "color":
         return _choose_tree(where, letter, blocks, arrangement), "", None
     return where, "", None
 
 
 def step(
     where: keys.Where, key: str, blocks: abc.Sequence[Block], arrangement: Arrangement
-) -> tuple[keys.Where, str, Rename | None]:
-    """`keys.step`, with renaming on top; also the rename Enter asked for, if it did."""
+) -> tuple[keys.Where, str, Target | None]:
+    """`keys.step`, with editing on top; also the edit Enter asked for, if it did."""
     where = dataclasses.replace(where, note="")
-    if key == "alt+r" and where.search is None:
-        return dataclasses.replace(_let_go(where), renaming=True), "", None
-    if where.renaming:
-        return _renaming_step(where, key, blocks, arrangement)
+    if key == "alt+m" and where.search is None:
+        return dataclasses.replace(where, note="moving trees by hand isn't here yet"), "", None
+    if key in ACTIONS and where.search is None:
+        where = dataclasses.replace(_let_go(where), editing=ACTIONS[key])
+        return _color(where, blocks) if where.editing == "color" else (where, "", None)
+    if where.editing:
+        return _editing_step(where, key, blocks, arrangement)
     return (*keys.step(where, key, blocks, arrangement), None)
 
 
 def prompt(where: keys.Where, blocks: abc.Sequence[Block], letter: str) -> str:
-    """The prompt line while renaming, or "" when not."""
-    if not where.renaming:
+    """The prompt line while editing, or "" when not."""
+    if not where.editing:
         return ""
 
+    verb = _VERBS[where.editing]
     found = _picked(where, blocks)
     if found is None:
-        first = "a tree's letter" if where.block else "a block number, then a tree's letter"
-        return f"rename: type {first} · esc cancels"
+        first = (
+            (
+                "a block number"
+                if where.editing == "color"
+                else "a block number, then a tree's letter"
+            )
+            if not where.block
+            else "a tree's letter"
+        )
+        return f"{verb}: type {first} · esc cancels"
 
     _, tree = found
     lemon = _lemon(tree, where.picked_lemon)
-    what = f"lemon {lemon.brief_id or lemon.name}" if lemon else f"tmux session {tree.key}"
-    more = (
-        f" · {letter} or ↑↓ for the next of {len(_choices(tree))}"
-        if len(_choices(tree)) > 1
-        else ""
+    what = (
+        f"lemon {lemon.brief_id or lemon.name}"
+        if lemon
+        else f"tmux session {tree.key}"
+        if where.editing == "rename"
+        else f"all {len(tree.lemons)} lemons on {tree.key}"
     )
-    return f"rename {what}?{more} · enter renames · esc cancels"
+    choices = _choices(where.editing, tree)
+    more = f" · {letter} or ↑↓ for the next of {len(choices)}" if len(choices) > 1 else ""
+    return f"{verb} {what}?{more} · enter {verb.split()[0]}s · esc cancels"

@@ -21,7 +21,9 @@ class Where:
     search: str | None = None  # the search text while searching
     chosen: int = 0  # which search match `enter` takes
     note: str = ""  # a word for the prompt line about the last key
-    renaming: bool = False  # Alt+r: choosing what to rename
+    editing: str = (
+        ""  # an edit begun with Alt and a key (`rename`, `snooze`...): choosing its target
+    )
     picked_tree: str = ""  # the key of the tree chosen to rename, in the zoomed block
     picked_lemon: str = ""  # the channel of one lemon on it, or "" for the tree's session
     pan: tuple[float, float] = (0.0, 0.0)  # the grove point at the overview's top left, if panned
