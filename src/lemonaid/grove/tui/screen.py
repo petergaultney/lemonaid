@@ -94,9 +94,14 @@ class GroveScreen(ModalScreen[str]):
         if level not in self._frames:
             phase = (1 - math.cos(math.pi * level / (_PULSE_LEVELS - 1))) / 2
             size = self.size
-            grove = drop.dragged(self._grove, self._drag) if self._drag else self._grove
+            drag = self._drag
             self._frames[level] = render(
-                grove, self._where, size.width, size.height, phase, self._lists
+                drop.dragged(self._grove, drag) if drag else self._grove,
+                self._where,
+                size.width,
+                size.height,
+                phase,
+                garden.loose(self._lists, drag) if drag else self._lists,
             )
         grove_map = self.query_one(GroveMap)
         grove_map.picture = self._frames[level]
@@ -277,6 +282,9 @@ class GroveScreen(ModalScreen[str]):
 
     def on_mouse_up(self, _event: events.MouseUp) -> None:
         drag = self._drag
+        if drag and drag.moved == (0, 0) and self._dragged:  # dragged away and back
+            self._put_back("")
+            return
         if drag is None or drag.moved == (0, 0):
             self._drag = None
             self.release_mouse()

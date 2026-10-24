@@ -7,7 +7,7 @@ from typing import Any
 from ..draw import canvas, scene_parts
 from ..model import Block, Plot
 from . import keys
-from .frame import Grove
+from .frame import Grove, Lists
 
 _EDGE = 1  # cells in from a block's outline that grab its edge rather than the whole block
 _SIDES = ("left", "right", "top", "bottom")
@@ -99,3 +99,13 @@ def describe(drag: Drag, problem: str) -> str:
     what = f"tree {drag.name}" if drag.tree else f"block {drag.block.digit}"
     doing = ("resizing " if drag.sides else "moving ") + what
     return f"{doing}: {problem}" if problem else f"{doing} · release to drop · esc puts it back"
+
+
+def loose(lists: Lists, drag: Drag) -> Lists:
+    """*lists* without where the dragged tree's lemon list was, so it is drawn beside the tree."""
+    if not drag.tree:
+        return lists
+
+    return {
+        view: {k: v for k, v in spots.items() if k != drag.tree} for view, spots in lists.items()
+    }

@@ -230,3 +230,66 @@ def test_every_lemons_key_typed_into_the_grove_chooses_it(before):
 
     for channel, typed in names.items():
         assert asyncio.run(run(typed)) == [channel], typed
+
+
+def test_a_dragged_trees_lemon_list_moves_with_it_and_returns_if_put_back(monkeypatch):
+    block = GROVE.blocks[0]
+    tree_ = block.trees[1]
+    letter = GROVE.arrangement.trees[(block.name, tree_.key)].letter
+    lists = {("1", *_SIZE): {tree_.key: (0, 0), block.trees[0].key: (5, 5)}}
+    drawn: list = []
+
+    def render_(*args):
+        drawn.append(args[-1])
+        return render(*args)
+
+    monkeypatch.setattr("lemonaid.grove.tui.screen.render", render_)
+
+    async def run() -> None:
+        app = GroveApp(lambda: GROVE, 60.0, None)
+        app._lists = lists
+        async with app.run_test(size=_SIZE) as pilot:
+            await pilot.press("1")
+            await pilot.pause()
+            app.screen._lists = lists
+            drag = garden.grab(GROVE, keys.Where(block="1"), _SIZE, (10, 10), ("1", letter))
+            app.screen._drag = dataclasses.replace(drag, moved=(3, 0))
+            app.screen._redraw()
+            await pilot.press("escape")
+            await pilot.pause()
+
+    asyncio.run(run())
+    loose = [d for d in drawn if d is not lists]
+    assert loose and all(d[("1", *_SIZE)].get(tree_.key) != (0, 0) for d in loose)
+    assert drawn[-1] is lists  # put back, the list is drawn where it is remembered
+
+
+def test_a_tree_dragged_away_and_back_is_drawn_from_the_remembered_lists_on_release(monkeypatch):
+    block = GROVE.blocks[0]
+    tree_ = block.trees[1]
+    letter = GROVE.arrangement.trees[(block.name, tree_.key)].letter
+    lists = {("1", *_SIZE): {tree_.key: (2, 2)}}
+    drawn: list = []
+
+    def render_(*args):
+        drawn.append(args[-1])
+        return render(*args)
+
+    monkeypatch.setattr("lemonaid.grove.tui.screen.render", render_)
+
+    async def run() -> str:
+        app = GroveApp(lambda: GROVE, 60.0, None)
+        app._lists = lists
+        async with app.run_test(size=_SIZE) as pilot:
+            await pilot.press("1")
+            await pilot.pause()
+            app.screen._lists = lists
+            drag = garden.grab(GROVE, keys.Where(block="1"), _SIZE, (10, 10), ("1", letter))
+            app.screen._drag, app.screen._dragged = dataclasses.replace(drag, moved=(3, 0)), True
+            app.screen._drag_frame()
+            app.screen._drag = drag
+            app.screen.on_mouse_up(None)
+            return app.screen._where.note
+
+    assert asyncio.run(run()) == ""
+    assert drawn[-2] is not lists and drawn[-1] is lists
