@@ -122,6 +122,13 @@ def post(conn: sqlite3.Connection, line: str) -> None:
 
 def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[str, bool]:
     """What to tell the sender about a recipient in *state*, and whether it will now read the message."""
+    state = recipient.confirmed(found.row, state)
+    if state.state == recipient.MOVED:
+        return (
+            f"queued, but {found.lemon_id} {state.detail}, so lemonaid won't start a second "
+            "copy or type into the old one. It reads the message once its inbox waiter is armed; "
+            "`lemonaid restore tmux` points its row at its pane."
+        ), False
     action = plan(
         state.state,
         found.row.channel.partition(":")[0],

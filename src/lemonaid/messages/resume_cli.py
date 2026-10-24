@@ -50,7 +50,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
         _fail(f"{lemon_id} has no session recorded, so there is nothing to resume")
 
     row, inbox = found.notification, store.inbox_for_id(lemon_id)
-    state = recipient.probe(found.channel, row, inbox)
+    state = recipient.confirmed(row, recipient.probe(found.channel, row, inbox))
     if state.state in _NOTHING_TO_DO:
         print(f"{lemon_id} is {state.state}: {state.detail}. Nothing to resume.")
         return

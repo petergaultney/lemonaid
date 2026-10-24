@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .. import handlers
 from ..inbox import db, turns
+from ..lemon_watchers import owners
 from . import waiter
 
 LISTENING = "listening"
@@ -22,6 +23,7 @@ UNKNOWN = "unknown"
 ASKING = "asking"
 DEAF = "deaf"
 DEAD = "dead"
+MOVED = "moved"  # its harness runs, but not on the terminal its row records
 
 UNREAD = frozenset({ASKING, DEAF, DEAD})
 
@@ -115,6 +117,32 @@ def classify(
         else "it is idle with no inbox waiter"
     )
     return State(DEAF, detail)
+
+
+def confirmed(row: db.Notification, state: State) -> State:
+    """*state*, checked against the lemon's own process before acting on it.
+
+    `harness_alive` judges by the row's tty, and ttys are reused: a lemon called
+    deaf may have exited with another lemon now on its terminal, and one called
+    dead may be running on a terminal its row doesn't record yet.
+    """
+    if state.state not in (DEAF, DEAD):
+        return state
+
+    running = owners.running()
+    if running is None:
+        return state
+
+    where = owners.ttys(row, running)
+    if not where:
+        return State(DEAD, "its harness is not running") if state.state == DEAF else state
+
+    if row.metadata.get("tty") not in where:
+        return State(
+            MOVED, f"it runs on {', '.join(sorted(where))}, not the terminal its row records"
+        )
+
+    return state
 
 
 def probe(channel: str, row: db.Notification | None, inbox: Path) -> State:

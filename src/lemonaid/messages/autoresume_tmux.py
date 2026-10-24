@@ -12,6 +12,7 @@ from .. import tmux
 from ..config import BackendConfig, Config
 from ..inbox import db
 from ..launch import window
+from ..lemon_watchers import owners
 from ..restore import launch
 from ..tmux import navigation, submit
 from . import wake
@@ -91,6 +92,13 @@ def prompt(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str
     pane = _pane(row)
     if not pane:
         return "its tmux pane could not be found"
+
+    # A harness on a reused tty can be another lemon, which would take the prompt as its own.
+    match owners.on_recorded_tty(row, owners.running()):
+        case False:
+            return "its recorded terminal runs another lemon now, not this one"
+        case None:
+            return "lemonaid couldn't confirm which lemon runs in its recorded terminal"
 
     if not ready_for_input(_tmux(row, "capture-pane", "-p", "-t", pane).stdout):
         return (

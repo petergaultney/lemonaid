@@ -134,3 +134,13 @@ def test_doctor_imports_without_prior_ui_imports():
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_a_harness_on_a_reused_tty_is_not_this_lemon_running(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
+    monkeypatch.setattr(cli.owners, "running", lambda: {"another-thread": {"/dev/worker"}})
+    _child("worker", "codex:worker", "Status: working")
+
+    assert _doctor("--children", "--self", "--json") == 1
+    (row,) = json.loads(capsys.readouterr().out)["lemons"]
+    assert (row["harness_running"], row["state"]) == (False, "dead")

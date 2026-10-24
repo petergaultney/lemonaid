@@ -12,6 +12,7 @@ from pathlib import Path
 from ..brief import attached, status
 from ..inbox import db
 from ..launch import window
+from ..lemon_watchers import owners
 from ..log import get_logger
 from ..messages import autoresume_tmux, recipient, resume_log, store, waiter
 from ..watch import registry
@@ -91,10 +92,19 @@ def _text(path: Path) -> str:
         return ""
 
 
-def gather(found: attached.Attachment, lemon_id: str, parent: str, window: float) -> Facts:
-    """The facts about *found*'s lemon; *window* is the start limit's, in seconds."""
+def gather(
+    found: attached.Attachment,
+    lemon_id: str,
+    parent: str,
+    window: float,
+    running: owners.Owners | None,
+) -> Facts:
+    """The facts about *found*'s lemon; *window* is the start limit's, in seconds, and
+    *running* the ttys each lemon runs on (`owners.running()`), None if unknown."""
     row, inbox, text = found.notification, store.inbox_for_id(lemon_id), _text(found.path)
     alive = recipient.harness_alive(row) if row is not None else False
+    if alive and row is not None and owners.on_recorded_tty(row, running) is False:
+        alive = False  # the harness on its tty is another lemon
     armed = waiter.is_armed(inbox)
     state = recipient.classify(found.channel, row, alive, armed, time.time())
     metadata = row.metadata if row is not None else {}

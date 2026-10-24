@@ -412,7 +412,7 @@ for a lemon that has since started.
 | Fact | Where it comes from | How it misleads |
 |---|---|---|
 | `state`, `state_detail` | The same check `tell` makes | See [messages](messages.md#will-it-be-read) |
-| `harness_running` | A `claude` or `codex` process on the terminal the lemon last reported; cmux is asked where its session is now | A reused tty can show another lemon's harness; `null` when the terminal can't be checked |
+| `harness_running` | A `claude` or `codex` process on the terminal the lemon last reported, and not another lemon's (by its Claude session file or Codex open thread); cmux is asked where its session is now | `null` when the terminal can't be checked |
 | `inbox_waiter` | The lock its `inbox watch` holds | Codex lemons don't need one |
 | `pane` | `empty prompt`, `dialog: <what>`, or `other`, from a capture of its tmux pane | `other` covers working, a draft, and a permission prompt alike |
 | `exited_at`, `exit_reason` | The `SessionEnd` hook (`claude hooks --session-end`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; missing when the hook isn't installed, for Codex, and for a session that was killed or crashed |

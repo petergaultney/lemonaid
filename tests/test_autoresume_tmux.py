@@ -38,6 +38,8 @@ def tmux(monkeypatch) -> types.SimpleNamespace:
     monkeypatch.setattr(
         autoresume_tmux.navigation, "get_pane_for_tty", lambda tty, socket: ("work", "%3")
     )
+    seen.running = {"abc12345-full": {"/dev/ttys5"}}  # whose process runs on which tty
+    monkeypatch.setattr(autoresume_tmux.owners, "running", lambda: seen.running)
     return seen
 
 
@@ -58,7 +60,9 @@ def test_start_without_a_recorded_session_says_so():
 
 
 def test_prompt_types_and_submits_in_the_recorded_pane_on_its_server(tmux):
-    assert autoresume_tmux.prompt(_row(tty="/dev/ttys5"), Config()) == ""
+    assert (
+        autoresume_tmux.prompt(_row(tty="/dev/ttys5", session_id="abc12345-full"), Config()) == ""
+    )
 
     sent = [call for call in tmux.calls if call[3] == "send-keys"]
     assert all(
@@ -68,10 +72,25 @@ def test_prompt_types_and_submits_in_the_recorded_pane_on_its_server(tmux):
     assert sent[1][6:] == ["Enter"]
 
 
+@pytest.mark.parametrize(
+    ("running", "why"),
+    [
+        pytest.param({"other-lemon": {"/dev/ttys5"}}, "runs another lemon", id="another-lemon"),
+        pytest.param(None, "couldn't confirm", id="unknown"),
+    ],
+)
+def test_prompt_never_types_into_a_terminal_this_lemon_does_not_run_in(tmux, running, why):
+    """ttys are reused: the harness on a dead lemon's old terminal can be another lemon."""
+    tmux.running = running
+
+    assert why in autoresume_tmux.prompt(_row(tty="/dev/ttys5"), Config())
+    assert not [call for call in tmux.calls if call[3] == "send-keys"]
+
+
 def test_prompt_refuses_a_pane_showing_a_dialog(tmux):
     tmux.screen = _DIALOG
 
-    why = autoresume_tmux.prompt(_row(tty="/dev/ttys5"), Config())
+    why = autoresume_tmux.prompt(_row(tty="/dev/ttys5", session_id="abc12345-full"), Config())
 
     assert "doesn't show an empty prompt" in why
     assert not [call for call in tmux.calls if call[3] == "send-keys"]
@@ -104,3 +123,13 @@ def test_ready_for_input(screen, ready):
 )
 def test_autoresume_setting(raw, expected):
     assert messages_config.parse({"autoresume": raw}).autoresume == expected
+
+
+def test_prompt_refuses_a_terminal_another_lemon_shares(tmux):
+    """A lemon suspended with ^Z keeps its tty while another runs in front of it."""
+    tmux.running = {"abc12345-full": {"/dev/ttys5"}, "in-front": {"/dev/ttys5"}}
+
+    why = autoresume_tmux.prompt(_row(tty="/dev/ttys5", session_id="abc12345-full"), Config())
+
+    assert "couldn't confirm" in why
+    assert not [call for call in tmux.calls if call[3] == "send-keys"]

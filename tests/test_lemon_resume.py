@@ -138,3 +138,23 @@ def test_the_start_limit_applies(capsys, started, monkeypatch):
     assert started == []
     assert "started too often recently" in capsys.readouterr().err
     assert _posted() == ""  # a caller retrying in a loop doesn't fill the inbox
+
+
+def test_a_lemon_whose_terminal_runs_another_lemon_is_started_not_prompted(started, monkeypatch):
+    """A Codex on its reused tty looked like this lemon idling there."""
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
+    monkeypatch.setattr(recipient.owners, "running", lambda: {"another": {"/dev/ttys900"}})
+    _attach("codex:gone", "# t\n\nStatus: working\n")
+
+    assert _resume("codex:gone") == 0
+    assert [action for action, _ in started] == ["start"]
+
+
+def test_a_lemon_running_on_another_terminal_is_not_started_again(capsys, started, monkeypatch):
+    """Its row's tty holds only a shell, but its own process runs elsewhere."""
+    monkeypatch.setattr(recipient.owners, "running", lambda: {"moved": {"/dev/ttys901"}})
+    _attach("codex:moved", "# t\n\nStatus: working\n")
+
+    assert _resume("codex:moved") == 1
+    assert started == []
+    assert "/dev/ttys901" in capsys.readouterr().err

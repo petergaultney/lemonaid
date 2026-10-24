@@ -236,3 +236,12 @@ def test_a_dead_cmux_lemon_is_started_through_cmux(capsys, monkeypatch):
 
     assert _tell("claude:incmux") == 0
     assert calls == ["cmux"]
+
+
+def test_a_lemon_running_on_another_terminal_is_not_started_again(capsys, started, monkeypatch):
+    monkeypatch.setattr(recipient.owners, "running", lambda: {"moved": {"/dev/ttys901"}})
+    _attach("codex:moved", "# t\n\nStatus: working\n")
+
+    assert _tell("codex:moved") == 1
+    assert started == []
+    assert "won't start a second copy" in capsys.readouterr().err

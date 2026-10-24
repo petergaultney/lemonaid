@@ -10,10 +10,8 @@ import sqlite3
 import typing as ty
 from collections import abc
 
-from ..claude import live_sessions
-from ..codex import channels as codex_channels
-from ..codex import processes
 from ..inbox import db
+from ..lemon_watchers import owners as lemon_owners
 from ..log import get_logger
 from . import navigation, recorded_pane
 
@@ -32,19 +30,6 @@ class Relink(ty.NamedTuple):
     location: dict[str, ty.Any] | None  # the pane to record, for RELINKED
 
 
-def _owner(row: db.Notification, owners: abc.Mapping[str, set[str]]) -> str:
-    """The id `owners` would know *row*'s lemon by."""
-    if row.channel.startswith("codex:"):
-        return codex_channels.owner_id(row.channel, row.metadata, {k: [] for k in owners})
-
-    if session_id := row.metadata.get("session_id"):
-        return session_id
-
-    prefix = row.channel.partition(":")[2]
-    matches = [owner for owner in owners if owner.startswith(prefix)] if prefix else []
-    return matches[0] if len(matches) == 1 else row.channel
-
-
 def _current(row: db.Notification, location: abc.Mapping[str, ty.Any]) -> bool:
     return all(row.metadata.get(key) == value for key, value in location.items())
 
@@ -58,8 +43,7 @@ def plan(
     tty_owners = {tty: owner for owner, ttys in owners.items() for tty in ttys}
     relinks = []
     for row in rows:
-        owner = _owner(row, owners)
-        ttys = owners.get(owner, set())
+        ttys = lemon_owners.ttys(row, owners)
         if not ttys:
             recorded = row.metadata.get("tty")
             other = tty_owners.get(recorded) if recorded else None
@@ -91,16 +75,11 @@ def survey(conn: sqlite3.Connection) -> list[Relink] | None:
         _log.warning("not relinking: cannot list tmux panes: %s", e)
         return None
 
-    claude = live_sessions.by_tty()
-    codex = processes.thread_ttys()
-    if claude is None or codex is None:
+    owners = lemon_owners.running()
+    if owners is None:
         _log.warning("not relinking: cannot tell which lemons are running")
         return None
 
-    owners = {**codex}
-    for tty, sessions in claude.items():
-        for session in sessions:
-            owners.setdefault(session, set()).add(tty)
     return plan(db.get_active(conn, switch_source="tmux"), owners, panes)
 
 

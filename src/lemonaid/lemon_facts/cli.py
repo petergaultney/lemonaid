@@ -15,6 +15,7 @@ import typing as ty
 from .. import brief
 from ..config import load_config
 from ..inbox import db
+from ..lemon_watchers import owners
 from ..lineage import links
 from ..log import get_logger
 from ..messages import recipient
@@ -129,6 +130,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
             _fail(args, str(error))
         gathered, skipped = [], []
+        running = owners.running()
         for lemon_id in ids:
             try:
                 found = brief.lemon.attachment(conn, lemon_id)
@@ -136,7 +138,9 @@ def cmd_doctor(args: argparse.Namespace) -> None:
                 skipped.append(lemon_id)  # no such lemon, cleaned up, or not started
                 continue
 
-            gathered.append(facts.gather(found, lemon_id, links.parent_of(conn, lemon_id), window))
+            gathered.append(
+                facts.gather(found, lemon_id, links.parent_of(conn, lemon_id), window, running)
+            )
 
     shown = [found for found in gathered if args.verbose or _unreachable(found)]
     if args.json:
