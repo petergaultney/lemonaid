@@ -155,6 +155,18 @@ def step(
     return where, ""
 
 
+def uses(where: Where, key: str, blocks: abc.Sequence[Block], arrangement: Arrangement) -> bool:
+    """Whether the grove has a meaning for *key* now; a key it doesn't use belongs to the inbox."""
+    if where.search is not None or key in ("escape", "slash", "/") or key.isdigit():
+        return True
+
+    if where.tree and where.number:  # the letter after a lemon's `0`
+        return len(key) == 1 and key.isalpha()
+
+    zoomed = _block(blocks, where.block)
+    return bool(zoomed and len(key) == 1 and tree_at(zoomed, arrangement, key.lower()))
+
+
 def reconcile(where: Where, before: abc.Sequence[Block], after: abc.Sequence[Block]) -> Where:
     """*where* for a refreshed grove: a zoomed block that ended or changed number is let go."""
     if not where.block:

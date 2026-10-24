@@ -22,6 +22,7 @@ from ...claude.patcher import find_binary
 from ...config import load_config
 from ...grove import popup_app
 from ...grove.source import inbox_keys, inbox_screen
+from ...grove.tui import jump_bar
 from ...lemon_watchers import (
     detect_terminal_switch_source,
     stop_unified_watcher,
@@ -88,6 +89,7 @@ class LemonaidApp(CrashLoggedApp):
     def __init__(self, scratch_mode: bool = False) -> None:
         self.config = load_config()  # before super(), which reads the CSS variables
         super().__init__()
+        self._jump_bar: jump_bar.JumpBar | None = None
         self._setup_keybindings()
         self.current_env = detect_terminal_switch_source()
         self._claude_patch_status: str | None = None
@@ -1141,7 +1143,32 @@ class LemonaidApp(CrashLoggedApp):
         """
         inbox = self._content.inbox
         if self._mode is not view_modes.HISTORY and inbox.display and inbox.grove:
-            self.push_screen(inbox_keys.jump_bar(inbox.grove, digit), self._grove_chose)
+            self._jump_bar = inbox_keys.jump_bar(inbox.grove, digit)
+            self.screen.mount(self._jump_bar)
+
+    def _close_jump_bar(self, channel: str) -> None:
+        if self._jump_bar is not None:
+            self._jump_bar.remove()
+            self._jump_bar = None
+        self._grove_chose(channel)
+
+    async def on_event(self, event: events.Event) -> None:
+        """While the jump bar is open it takes each key first, here, where keys and the mouse
+        arrive in order: one it doesn't take, and the mouse, close it and go on as usual.
+        """
+        bar = self._jump_bar
+        if bar is not None and isinstance(event, events.InputEvent) and not event.is_forwarded:
+            if isinstance(event, events.Key):
+                taken, chosen = bar.take(jump_bar.key_name(event))
+                if chosen is not None:
+                    self._close_jump_bar(chosen)
+                if taken:
+                    return
+            elif isinstance(
+                event, events.MouseDown | events.MouseScrollDown | events.MouseScrollUp
+            ):
+                self._close_jump_bar("")
+        await super().on_event(event)
 
     def action_patch_claude(self) -> None:
         """Patch Claude Code binary for faster notifications."""
