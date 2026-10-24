@@ -59,8 +59,9 @@ def test_enter_switch(monkeypatch, close, success, archived):
         app = LemonaidApp()
         app.config.inbox.close_search_on_switch = close
         async with app.run_test(size=(120, 35)) as pilot:
-            await pilot.press("/", "m", "a", "t", "c", "h", "enter", "enter")
-            await pilot.pause()
+            for key in ("/", "m", "a", "t", "c", "h", "enter", "enter"):
+                await pilot.press(key)
+                await pilot.pause()
             assert len(switched) == 1
             _assert_search(app, open=not (close and success))
 
@@ -84,8 +85,9 @@ def test_enter_resume(monkeypatch, close, kind):
         app.config.inbox.close_search_on_switch = close
         app._scratch_mode = True
         async with app.run_test(size=(120, 35)) as pilot:
-            await pilot.press("/", "m", "a", "t", "c", "h", "enter", "down", "enter")
-            await pilot.pause()
+            for key in ("/", "m", "a", "t", "c", "h", "enter", "down", "enter"):
+                await pilot.press(key)
+                await pilot.pause()
             _assert_search(app, open=not (close and kind == "started"))
 
     asyncio.run(run())
