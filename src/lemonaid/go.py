@@ -73,8 +73,6 @@ def _pane(command: list[str], found: db.Notification) -> str:
             continue
         if [int(created), int(started), int(session_id.lstrip("$"))] != list(order):
             continue
-        if float(created) > found.created_at:
-            continue
         matches.add(pane)
     if len(matches) != 1:
         raise LookupError("The lemon's recorded tmux pane is gone or ambiguous; no jump made")

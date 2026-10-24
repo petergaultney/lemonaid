@@ -7,6 +7,7 @@ from collections import abc
 
 from .... import claude, codex, handlers, openclaw, opencode
 from ....brief import attached
+from ....claude import live_sessions
 from ....config import Config
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes
 from ....watch import codex_waiter
@@ -218,4 +219,5 @@ def start(
         protected_channels=functools.partial(protected_brief_channels, brief_cache),
         detached_channels=detached_channels,
         tty_processes=tty_processes.by_tty,
+        claude_sessions=live_sessions.by_tty,
     )

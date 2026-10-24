@@ -108,16 +108,22 @@ def plan_restore(
     Sessions come back in the order tmux made them, so a listing by creation
     or index looks as it did. A session with no recorded order goes after the
     rest, by name.
+
+    A window holds one lemon. When several rows name the same window, the one
+    heard from most recently gets it: the others ran there earlier and were
+    replaced, as the watcher would have judged had the server lived.
     """
     grouped: dict[str, list[Window]] = {}
     orders: dict[str, navigation.SessionOrder] = {}
-    for notification in notifications:
+    for notification in sorted(
+        notifications, key=lambda n: max(n.created_at, n.turn_at or 0.0), reverse=True
+    ):
         name = notification.metadata.get("tmux_session")
         if not name:
             continue
 
         window = _window(notification, config, prompts)
-        if window is None:
+        if window is None or any(w.index == window.index for w in grouped.get(name, [])):
             continue
 
         grouped.setdefault(name, []).append(window)
@@ -230,6 +236,22 @@ class Restored(ty.NamedTuple):
     failed: list[report.Result]  # the lemons that should have been, and why not
 
 
+def _first_index(session: str) -> int | None:
+    try:
+        result = subprocess.run(
+            ["tmux", "display-message", "-p", "-t", f"{session}:^", "#{window_index}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_SPAWN_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        _log.warning("could not read the first window of %s: %s", session, e)
+        return None
+
+    return int(result.stdout.strip()) if result.stdout.strip().isdigit() else None
+
+
 def _start(session: str, window: Window) -> report.Placed | report.Result:
     """Type *window*'s line into its pane, which must already exist."""
     if not _run("tmux", "send-keys", "-t", f"{session}:{window.index}", window.line, "Enter"):
@@ -266,8 +288,12 @@ def _restore_session(plan: SessionPlan) -> list[report.Placed | report.Result]:
         return [_failed(plan.name, w, "could not create its session") for w in plan.windows]
 
     # tmux numbers the first window itself, so move it to the recorded index
-    # before anything else is added and the number is taken.
-    moved = _run("tmux", "move-window", "-s", f"{plan.name}:^", "-t", f"{plan.name}:{first.index}")
+    # before anything else is added and the number is taken. tmux refuses to
+    # move a window onto its own index, which is where base-index puts it when
+    # the two agree.
+    moved = _first_index(plan.name) == first.index or _run(
+        "tmux", "move-window", "-s", f"{plan.name}:^", "-t", f"{plan.name}:{first.index}"
+    )
     started = [
         _start(plan.name, first)
         if moved

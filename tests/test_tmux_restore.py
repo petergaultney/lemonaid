@@ -473,3 +473,28 @@ def test_a_harness_that_takes_no_prompt_is_resumed_without_one_and_rearmed_by_ha
     assert window.rearm == "rearm by hand"
     assert window.environment == {}
     assert "LEMONAID_PROMPT" not in window.line
+
+
+def test_a_window_named_by_several_rows_goes_to_the_most_recent_lemon():
+    older = _notification(channel="codex:old", window="0")
+    newer = _notification(channel="codex:new", window="0")
+    newer = Notification(**{**newer.__dict__, "created_at": 10.0})
+
+    [plan] = restore.plan_restore([newer, older], _CONFIG, {})
+
+    assert [(w.index, w.channel) for w in plan.windows] == [(0, "codex:new")]
+
+
+def test_a_first_window_already_at_its_index_is_started_without_moving(monkeypatch):
+    """With base-index 1, tmux makes the first window 1 itself, and refuses to move it there."""
+    argv: list[list[str]] = []
+    monkeypatch.setattr(restore, "_existing_sessions", set)
+    monkeypatch.setattr(restore, "_client_size", lambda: ("200", "50"))
+    monkeypatch.setattr(restore, "_first_index", lambda session: 1)
+    monkeypatch.setattr(restore, "_run", lambda *a: argv.append(list(a)) or "move-window" not in a)
+    [plan] = restore.plan_restore([_notification(session="hq", window="1")], _CONFIG, {})
+
+    done = restore.restore([plan])
+
+    assert [p.where for p in done.placed] == ["hq:1"]
+    assert not any("move-window" in a for a in argv)

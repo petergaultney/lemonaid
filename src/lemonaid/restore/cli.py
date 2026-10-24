@@ -11,6 +11,7 @@ from ..config import load_config
 from ..inbox import db, unarchive
 from ..tmux import inspect as tmux_inspect
 from ..tmux import navigation as tmux_navigation
+from ..tmux import relink
 from ..tmux import restore as tmux_restore
 from . import prompt, report
 
@@ -52,7 +53,8 @@ def _unplaced(
             row.name or row.channel,
             "",
             report.NOT_RESTORED,
-            "no recorded tmux window, or no way to resume it",
+            "no recorded tmux window, no way to resume it, or another lemon "
+            "was heard from more recently in its window",
         )
         for row in rows
         if row.channel not in planned
@@ -74,6 +76,19 @@ def _record_new_panes(placed: abc.Sequence[report.Placed]) -> None:
                 unarchive.moved(conn, lemon.channel, tty, socket, panes[tty])
 
 
+def _relinked(dry_run: bool) -> list[relink.Relink]:
+    """Point every active row at the pane its lemon runs in: the ones this run started, the
+    ones in sessions it skipped, and any left out whose old tty is now another lemon's.
+    """
+    with db.connect() as conn:
+        relinks = relink.survey(conn) or []
+        return (
+            [r for r in relinks if r.state in (relink.RELINKED, relink.FORGOTTEN)]
+            if dry_run
+            else relink.apply(conn, relinks)
+        )
+
+
 def cmd_tmux(args: argparse.Namespace) -> None:
     """Rebuild the tmux layout the inbox describes, and wait for its lemons to start working."""
     config = load_config()
@@ -84,10 +99,17 @@ def cmd_tmux(args: argparse.Namespace) -> None:
 
     if args.dry_run:
         if args.json:
-            print(json.dumps(tmux_restore.as_json(plans)))
+            print(
+                json.dumps(
+                    {
+                        "sessions": tmux_restore.as_json(plans),
+                        "relinked": relink.as_json(_relinked(dry_run=True)),
+                    }
+                )
+            )
             return
 
-        for line in tmux_restore.describe(plans):
+        for line in [*tmux_restore.describe(plans), *relink.describe(_relinked(dry_run=True))]:
             print(line)
         return
 
@@ -110,6 +132,7 @@ def cmd_tmux(args: argparse.Namespace) -> None:
         *done.failed,
         *_unplaced(rows, plans),
     ]
+    relinked = _relinked(dry_run=False)
 
     if args.json:
         print(
@@ -118,6 +141,7 @@ def cmd_tmux(args: argparse.Namespace) -> None:
                     "restored": done.restored,
                     "skipped": done.skipped,
                     "lemons": [r._asdict() for r in results],
+                    "relinked": relink.as_json(relinked),
                 }
             )
         )
@@ -135,6 +159,9 @@ def cmd_tmux(args: argparse.Namespace) -> None:
 
         if results:
             print("", *report.describe(results), sep="\n")
+
+        if relinked:
+            print("", *relink.describe(relinked), sep="\n")
 
         print(f"\nrestored {len(done.restored)}, skipped {len(done.skipped)} already running")
 
@@ -171,7 +198,11 @@ TMUX_DESCRIPTION = (
     "It then waits for each prompted lemon to be heard from in the inbox, and reports every "
     "lemon as working, stuck (its pane's last lines say why), exited, no brief, nothing to "
     "rearm, rearm by hand (a harness that can't be started on a prompt), or not restored. "
-    "It exits 1 if any lemon is stuck, exited, has to be rearmed by hand, or wasn't restored."
+    "It exits 1 if any lemon is stuck, exited, has to be rearmed by hand, or wasn't restored.\n\n"
+    "Last, it points every active lemon's inbox row at the pane its own Claude or Codex "
+    "process runs in, including lemons in sessions it skipped, so running it again after a "
+    "restore repairs rows without starting anything. A lemon that isn't running forgets its "
+    "recorded pane only when another running lemon's process holds that tty."
 )
 
 

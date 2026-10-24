@@ -150,7 +150,7 @@ Inside cmux, `metadata` carries `cmux_surface`, the surface the session ran in, 
 ## Restoring a lost tmux layout
 
 ```bash
-lemonaid restore tmux --dry-run --json   # what would be rebuilt, and which lemons get a prompt
+lemonaid restore tmux --dry-run --json   # {"sessions": [...], "relinked": [...]}: what would be rebuilt and repaired
 lemonaid restore tmux --json             # {"restored": [...], "skipped": [...], "lemons": [...]}
 ```
 
@@ -165,6 +165,17 @@ an empty gap rather than shifting the others down.
 
 Sessions already running are left alone, so this is safe to re-run. A session with no recorded location
 can't be placed and is skipped — check `--dry-run` before assuming a session will come back.
+
+When several rows name one window, the lemon heard from most recently gets it and the others are
+reported `not restored`.
+
+Last, restore points every active row at the pane its lemon's process runs in: the Claude process
+running that session (checked against its pid's start time), or the Codex process with that thread
+open, never a tty alone. That includes rows in sessions it skipped, so re-running it after a restore
+repairs rows without starting anything. A lemon that isn't running forgets its recorded pane only when
+another running lemon holds that tty; its session and window stay. Both JSON results list these under
+`relinked` as `{"channel", "state", "recorded", "pane"}`, with `state` `relinked` or `forgotten`;
+`--dry-run` lists what it would write. The dry run's layout is under `sessions`.
 
 ```bash
 lemonaid tmux doctor            # coverage, restorability, hook state
