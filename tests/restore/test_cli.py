@@ -1,6 +1,7 @@
 """`lemonaid restore tmux` pointing each restored lemon's row at its new pane."""
 
 import argparse
+import json
 
 import pytest
 
@@ -8,7 +9,7 @@ from lemonaid.inbox import db
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.restore import cli, report
-from lemonaid.tmux import navigation
+from lemonaid.tmux import navigation, relink
 from lemonaid.tmux import restore as tmux_restore
 
 # Two lemons in window 1 of two sessions, as restore commonly rebuilds them.
@@ -113,3 +114,71 @@ def test_a_lemon_tmux_does_not_list_keeps_its_row_as_it_was(monkeypatch, panes):
     _restore(monkeypatch, panes)
 
     assert {channel: n.metadata["tty"] for channel, n in _rows().items()} == DEAD_TTYS
+
+
+def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeypatch):
+    """A lemon left out of the restore keeps a tty from the dead server, which on the new one
+    is a restored lemon's pane; a jump would land there."""
+    _lemons_from_the_dead_server()
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "codex:crowded-out",
+            "waiting",
+            metadata={"tty": "/dev/ttys902", "tmux_session": "main", "tmux_window": "1"},
+            upsert=False,
+            switch_source="tmux",
+        )
+    monkeypatch.setattr(
+        cli.relink,
+        "survey",
+        lambda conn: relink.plan(
+            db.get_active(conn, switch_source="tmux"), {"main-session": {"/dev/ttys902"}}, {}
+        ),
+    )
+    with pytest.raises(SystemExit):  # it is reported not restored
+        _restore(monkeypatch, NEW_PANES)
+
+    with db.connect() as conn:
+        [row] = [n for n in db.get_active(conn) if n.channel == "codex:crowded-out"]
+    assert row.metadata == {"tmux_session": "main", "tmux_window": "1"}
+
+
+@pytest.mark.parametrize("as_json", [True, False], ids=["json", "text"])
+def test_a_dry_run_with_nothing_to_rebuild_still_shows_the_rows_it_would_repair(
+    monkeypatch, capsys, as_json
+):
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "codex:crowded-out",
+            "waiting",
+            metadata={"tty": "/dev/ttys902", "tmux_session": "main"},
+            switch_source="tmux",
+        )
+    monkeypatch.setattr(cli.tmux_restore, "plan_restore", lambda *_: [])
+    monkeypatch.setattr(
+        cli.relink,
+        "survey",
+        lambda conn: relink.plan(db.get_active(conn), {"other": {"/dev/ttys902"}}, {}),
+    )
+
+    cli.cmd_tmux(argparse.Namespace(dry_run=True, wait=0, json=as_json))
+
+    out = capsys.readouterr().out
+    if as_json:
+        assert json.loads(out) == {
+            "sessions": [],
+            "relinked": [
+                {
+                    "channel": "codex:crowded-out",
+                    "state": "forgotten",
+                    "recorded": "main:None (/dev/ttys902)",
+                    "pane": None,
+                }
+            ],
+        }
+    else:
+        assert "forget pane" in out and "codex:crowded-out" in out
+    with db.connect() as conn:
+        assert db.get_by_channel(conn, "codex:crowded-out").metadata["tty"] == "/dev/ttys902"

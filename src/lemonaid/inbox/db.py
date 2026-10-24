@@ -1149,3 +1149,33 @@ def repair_location(
     ).rowcount
     conn.commit()
     return bool(changed)
+
+
+def forget_pane(conn: sqlite3.Connection, notification: Notification) -> bool:
+    """Drop the row's pane on the current tmux server, if the row has not changed.
+
+    For a lemon that is not running where its row says: after tmux restarts, the
+    recorded tty can belong to some other lemon's pane. The session and window
+    stay, so a later restore can still put it back.
+    """
+    row = conn.execute(
+        "SELECT metadata FROM notifications WHERE id = ? AND channel = ?",
+        (notification.id, notification.channel),
+    ).fetchone()
+    if row is None or json.loads(row["metadata"] or "{}") != notification.metadata:
+        return False
+
+    updated = {
+        key: value
+        for key, value in notification.metadata.items()
+        if key not in ("tty", "tmux_pane_identity", "tmux_session_order")
+    }
+    if updated == notification.metadata:
+        return False
+
+    changed = conn.execute(
+        "UPDATE notifications SET metadata = ? WHERE id = ? AND channel = ? AND metadata IS ?",
+        (json.dumps(updated), notification.id, notification.channel, row["metadata"]),
+    ).rowcount
+    conn.commit()
+    return bool(changed)

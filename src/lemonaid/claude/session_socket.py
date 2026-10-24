@@ -25,6 +25,7 @@ class Session(ty.NamedTuple):
     session_id: str
     cwd: str
     socket: str
+    proc_start: str = ""  # when the process started, as Claude Code writes it (UTC)
 
 
 def claude_dir() -> Path:
@@ -40,6 +41,7 @@ def _entries() -> ty.Iterator[Session]:
                 str(data["sessionId"]),
                 str(data.get("cwd") or ""),
                 str(data.get("messagingSocketPath") or ""),
+                str(data.get("procStart") or ""),
             )
         except (OSError, ValueError, KeyError, TypeError):
             continue
@@ -72,6 +74,11 @@ def alive(entry: Session) -> bool:
     except (OSError, ValueError):
         return False
     return data.get("sessionId") == entry.session_id
+
+
+def live() -> list[Session]:
+    """Every session whose process still runs as that session."""
+    return [e for e in _entries() if alive(e)]
 
 
 def line(text: str, msg_id: str) -> bytes:
