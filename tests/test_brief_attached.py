@@ -76,6 +76,17 @@ def test_a_session_holding_two_lemons_needs_a_window(capsys):
     assert _attached_to("codex:reviewer") == _brief("review")
 
 
+def test_a_bare_window_means_a_window_of_your_own_session(capsys, monkeypatch):
+    _lemon("claude:author", "work", "2", 1)
+    _lemon("codex:reviewer", "work", "4", 2)
+    _brief("review")
+    monkeypatch.setattr(session, "current_session", lambda: "work:2")
+
+    chosen = _run(capsys, "attach", "--session", ":4", "review")
+
+    assert chosen["channel"] == "codex:reviewer"
+
+
 def test_attaching_a_brief_elsewhere_moves_it(capsys):
     _lemon("claude:a", "one", "2", 1)
     _lemon("claude:b", "two", "2", 1)
