@@ -60,9 +60,9 @@ def test_recoloring_says_it_needs_only_a_block():
     assert "packhouse has no color" in block["Alt+c"]
 
 
-def test_a_letter_says_a_big_tree_lists_its_lemons_by_number():
-    assert "three or more" in dict(help_panel.rows(True))["a letter"]
-    assert "three or more" in dict(help_panel.rows(False))["a digit, then a letter"]
+def test_the_panel_teaches_the_capital_and_a_place():
+    assert "C2" in dict(help_panel.rows(True))["a capital, then a place"]
+    assert "2C2" in dict(help_panel.rows(False))["a digit, a capital, a place"]
 
 
 @pytest.mark.parametrize(("width", "height"), [(160, 46), (80, 24)])

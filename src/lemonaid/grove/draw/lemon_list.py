@@ -1,5 +1,6 @@
 """The list of a tree's lemons drawn beside it when its block is zoomed in."""
 
+import string
 from collections.abc import Container
 
 from ..model import Tree
@@ -25,12 +26,36 @@ def session(tree: Tree) -> str:
     return f":session:{tree.key}"
 
 
-def key(tree: Tree, letter: str, index: int) -> str:
-    """What to type, after the block's digit, to reach lemon *index* of *tree*."""
-    if len(tree.lemons) >= 3:
-        return f"{letter}{index + 1}"
+def lemon_number(index: int) -> str:
+    """What picks lemon *index* after its tree's capital: its place, `2` to `9`, then `0a` to
+    `0z`, so no key waits to see whether another digit follows; "" past those, for a lemon
+    reached only by search.
+    """
+    if index < 9:
+        return str(index + 1)
+    if index < 9 + len(string.ascii_lowercase):
+        return f"0{string.ascii_lowercase[index - 9]}"
+    return ""
 
-    return letter if index == 0 else letter.upper()
+
+def lemon_index(typed: str) -> int | None:
+    if len(typed) == 1 and typed in "123456789":
+        return int(typed) - 1
+    if len(typed) == 2 and typed[0] == "0" and typed[1] in string.ascii_lowercase:
+        return 9 + string.ascii_lowercase.index(typed[1])
+    return None
+
+
+def key(tree: Tree, letter: str, index: int) -> str:
+    """What to type, after the block's digit, to reach lemon *index* of *tree*: its tree's letter
+    for the first, so a tree's main lemon keeps its key whatever joins it, and the capital and
+    the lemon's place for the rest, as `S2`.
+    """
+    if index == 0:
+        return letter
+
+    number = lemon_number(index)
+    return f"{letter.upper()}{number}" if number else ""
 
 
 def _row(

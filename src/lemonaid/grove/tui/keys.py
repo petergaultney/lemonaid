@@ -59,15 +59,15 @@ def tree_at(block: Block, arrangement: Arrangement, letter: str) -> Tree | None:
 
 
 def names(blocks: abc.Iterable[Block], arrangement: Arrangement) -> dict[str, str]:
-    """What to type to reach each lemon, by channel: its block's digit, then its key on its
-    tree, as `5s`, `5S` or `2c3`.
+    """What to type to reach each lemon with a key, by channel: its block's digit, then its key
+    on its tree, as `5s`, `5S2` or `5S0a`.
     """
     return {
-        lemon.channel: block.digit
-        + lemon_list.key(tree, arrangement.trees[(block.name, tree.key)].letter, i)
+        lemon.channel: block.digit + key
         for block in blocks
         for tree in block.trees
         for i, lemon in enumerate(tree.lemons)
+        if (key := lemon_list.key(tree, arrangement.trees[(block.name, tree.key)].letter, i))
     }
 
 
@@ -97,13 +97,14 @@ def _search_step(where: Where, key: str, blocks: abc.Sequence[Block]) -> tuple[W
 
 
 def _number_step(where: Where, key: str, tree: Tree) -> tuple[Where, str]:
+    if key == "0" and len(tree.lemons) > 9 and not where.number:
+        return dataclasses.replace(where, number="0"), ""
+
     typed = where.number + key
-    fits = [i for i in range(1, len(tree.lemons) + 1) if str(i).startswith(typed)]
-    if not fits:
+    index = lemon_list.lemon_index(typed)
+    if index is None or index >= len(tree.lemons):
         return dataclasses.replace(where, number="", note=f"no lemon {typed} on this tree"), ""
-    if fits == [int(typed)]:
-        return Where(), tree.lemons[int(typed) - 1].channel
-    return dataclasses.replace(where, number=typed), ""
+    return Where(), tree.lemons[index].channel
 
 
 def step(
@@ -114,12 +115,6 @@ def step(
         return _search_step(where, key, blocks)
 
     where = dataclasses.replace(where, note="")
-    if key == "enter" and where.tree and where.number:
-        zoomed = _block(blocks, where.block)
-        tree = tree_at(zoomed, arrangement, where.tree.lower()) if zoomed else None
-        if tree and int(where.number) <= len(tree.lemons):
-            return Where(), tree.lemons[int(where.number) - 1].channel
-        return where, ""
     if key == "escape":
         if where.tree:
             return dataclasses.replace(where, tree="", number=""), ""
@@ -139,6 +134,10 @@ def step(
             return Where(block=typed, digits=typed), ""
         return dataclasses.replace(where, digits="", note=f"no block {typed}"), ""
 
+    if where.number and zoomed and len(key) == 1:  # the letter after a lemon's `0`
+        tree = tree_at(zoomed, arrangement, where.tree)
+        return _number_step(where, key, tree) if tree else (Where(), "")
+
     if len(key) == 1 and key.isalpha():
         if not zoomed:
             return dataclasses.replace(where, note="type a block number first, or / to search"), ""
@@ -147,12 +146,11 @@ def step(
             return dataclasses.replace(
                 where, note=f"no tree {key.lower()} in {zoomed.name or 'no group'}"
             ), ""
-        if key.islower() and len(tree.lemons) >= 3:
-            return dataclasses.replace(where, tree=key, number="", digits=""), ""
-        index = 0 if key.islower() else 1
-        if index >= len(tree.lemons):
+        if key.islower():
+            return Where(), tree.lemons[0].channel
+        if len(tree.lemons) < 2:
             return dataclasses.replace(where, note="that tree has one lemon"), ""
-        return Where(), tree.lemons[index].channel
+        return dataclasses.replace(where, tree=key.lower(), number="", digits=""), ""
 
     return where, ""
 

@@ -5,14 +5,17 @@ from lemonaid.grove.draw import canvas, colors, lemon_list
 from .shared import lemon, tree
 
 
-def test_keys_for_small_trees_are_a_letter_and_its_capital():
-    pair = tree("t", lemon("claude:a"), lemon("claude:b"))
-    assert [lemon_list.key(pair, "t", i) for i in range(2)] == ["t", "T"]
+def test_a_trees_first_lemon_keeps_its_letter_however_many_join_it():
+    for count in (1, 2, 5):
+        grown = tree("t", *(lemon(f"claude:{i}") for i in range(count)))
+        assert lemon_list.key(grown, "t", 0) == "t"
 
 
-def test_keys_for_bigger_trees_are_numbered():
-    three = tree("t", *(lemon(f"claude:{i}") for i in range(3)))
-    assert [lemon_list.key(three, "t", i) for i in range(3)] == ["t1", "t2", "t3"]
+def test_the_rest_are_the_capital_and_their_place():
+    twelve = tree("t", *(lemon(f"claude:{i}") for i in range(12)))
+    keys = [lemon_list.key(twelve, "t", i) for i in range(12)]
+    assert keys[1:4] == ["T2", "T3", "T4"]
+    assert keys[8:] == ["T9", "T0a", "T0b", "T0c"]
 
 
 def test_model_and_context_stay_apart():
@@ -69,3 +72,11 @@ def test_a_list_cut_short_scrolls_to_keep_an_edited_lemon_in_view():
         )
         rows = canvas.plain_lines(picture)[1:4]
         assert any(f"Lemon{edited}" in row for row in rows), (edited, rows)
+
+
+def test_past_0z_a_lemon_has_no_key_and_nothing_breaks():
+    many = tree("t", *(lemon(f"claude:{i}") for i in range(37)))
+    keys = [lemon_list.key(many, "t", i) for i in range(37)]
+    assert keys[34] == "T0z" and keys[35:] == ["", ""]
+    picture = canvas.blank(lemon_list.WIDTH + 2, 40)
+    lemon_list.draw(picture, 0, 0, many, "t", "#6495ed", 0.0, None, True)

@@ -8,10 +8,8 @@ from textual.widgets import Label, Static
 
 _GROVE = [
     ("a digit", "zoom into that block; 0 is the packhouse, and 1 0 is block 10"),
-    (
-        "a digit, then a letter",
-        "jump to that tree's first lemon, as 2c; a tree of three or more lists them by number",
-    ),
+    ("a digit, then a letter", "jump to that tree's first lemon, as 2c"),
+    ("a digit, a capital, a place", "another lemon on it, as 2C2; past nine, 0 and a letter, 2C0a"),
     ("/", "search Brief-IDs, sessions and names; ↑↓ choose, enter jumps"),
     ("arrows", "pan the grove when it is bigger than the screen"),
     ("Shift and an arrow", "move the view a whole screen"),
@@ -21,12 +19,8 @@ _GROVE = [
     ("drag a block", "move it; drag its edge to resize it"),
 ]
 _BLOCK = [
-    (
-        "a letter",
-        "jump to the tree's first lemon, l the lead's; a tree of three or more lists them by number",
-    ),
-    ("a capital", "jump to the tree's second lemon, such as its reviewer"),
-    ("a letter, then a number", "on a tree of three or more lemons, that lemon, as c1"),
+    ("a letter", "jump to the tree's first lemon, l the lead's"),
+    ("a capital, then a place", "another lemon on the tree, as C2; past nine, 0 and a letter, C0a"),
     ("/", "search Brief-IDs, sessions and names; ↑↓ choose, enter jumps"),
     ("click a tree", "the same as its letter"),
     ("drag a tree", "move it within its block"),

@@ -99,8 +99,6 @@ def test_every_lemon_has_its_own_key_and_the_key_reaches_it(seed):
             where, chosen = keys.Where(), ""
             for character in key:
                 where, chosen = keys.step(where, character, grove.blocks, grove.arrangement)
-            if not chosen:  # `1` on a tree of ten or more waits for Enter, in case of `10`
-                where, chosen = keys.step(where, "enter", grove.blocks, grove.arrangement)
             assert chosen == channel, (key, channel)
 
 
