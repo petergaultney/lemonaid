@@ -97,3 +97,15 @@ def test_notification_without_pane_context_retains_identity(target):
         db.add(conn, "codex:jump", "next", metadata={})
         found = db.get_by_channel(conn, "codex:jump")
     assert found.metadata["tmux_pane_identity"] == ["%7", 90]
+
+
+def test_a_session_newer_than_the_last_notification_still_switches(target, monkeypatch):
+    """A restore makes every session newer than its lemons' rows; the pane identity is what
+    proves the pane, not when the lemon last spoke."""
+    with db.connect() as conn:
+        conn.execute("UPDATE notifications SET created_at = 50 WHERE channel = 'codex:jump'")
+        conn.commit()
+        found = db.get_by_channel(conn, "codex:jump")
+    monkeypatch.setattr(go, "_tmux", lambda command, *args: "%7|/dev/target|work|100|90|$2")
+
+    assert go._pane(["tmux"], found) == "%7"
