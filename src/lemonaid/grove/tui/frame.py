@@ -1,6 +1,7 @@
 """One screenful of the grove: the scene for where the keys have taken it, with its title and prompt."""
 
 import dataclasses
+from typing import Any
 
 from ..draw import bars, block_scene, canvas, colors, lemon_list, scene_parts, scenes
 from ..layout.arrange import Arrangement
@@ -12,6 +13,7 @@ from . import keys, picking
 class Grove:
     blocks: tuple[Block, ...]
     arrangement: Arrangement
+    saved: dict[str, Any]  # the layout *arrangement* was made from, as `arrange` keeps it
 
 
 def _summary(grove: Grove) -> str:

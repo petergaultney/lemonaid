@@ -1,14 +1,14 @@
 """Changes to a saved layout that a person or a lemon asks for: move, resize, clear open ground.
 
 Each returns a new layout and leaves its input alone. A tree's spot is relative to its plot,
-so trees move with their block; a block made smaller can leave trees outside its outline,
-which the next new tree's placement avoids but drawing does not hide.
+so trees move with their block; a block made smaller pushes the trees its edges cut off
+back onto it, and a tree too big for it stands afresh inside, squeezed in.
 """
 
 import copy
 from typing import Any
 
-from . import lead_spot
+from . import arrange, lead_spot
 
 
 class EditError(ValueError):
@@ -22,6 +22,30 @@ def _plot(saved: dict[str, Any], group: str) -> dict[str, Any]:
         raise EditError(
             f"No plot for group {group!r}; `lemonaid grove show` lays out live groups"
         ) from None
+
+
+def _pushed(spot: dict[str, Any], w: int, h: int) -> dict[str, Any] | None:
+    """*spot* moved the least that puts it on a *w* by *h* plot, crown aside, or None if it
+    can't fit there.
+    """
+    if "w" not in spot:
+        return {**spot, "x": min(max(spot["x"], 0), w), "y": min(max(spot["y"], 0), h)}
+    if spot["w"] > w or spot["h"] - spot["top"] > h:
+        return None
+
+    half = spot["w"] // 2
+    x = min(max(spot["x"], half), w - spot["w"] + half)
+    y = min(max(spot["y"], 0), h - spot["h"] + spot["top"])
+    return {**spot, "x": x, "y": y}
+
+
+def _push_back_cut_off(changed: dict[str, Any], group: str) -> dict[str, Any]:
+    plot, spots = _plot(changed, group), changed["trees"].get(group, {})
+    for key in arrange.cut_off(plot, spots):
+        if not spots[key].get("gone_since"):
+            pushed = _pushed(spots[key], plot["w"], plot["h"])
+            spots[key] = pushed or {"letter": spots[key].get("letter", ""), "squeeze": True}
+    return changed
 
 
 def move(saved: dict[str, Any], group: str, x: int, y: int) -> dict[str, Any]:
@@ -39,7 +63,7 @@ def resize(saved: dict[str, Any], group: str, w: int, h: int) -> dict[str, Any]:
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(w=w, h=h)
-    return changed
+    return _push_back_cut_off(changed, group)
 
 
 def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -> dict[str, Any]:
@@ -56,7 +80,7 @@ def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -
         if "x" in spot:
             spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
     plot.update(x=x, y=y, w=w, h=h)
-    return changed
+    return _push_back_cut_off(changed, group)
 
 
 def place_tree(

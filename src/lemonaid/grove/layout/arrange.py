@@ -96,26 +96,33 @@ def _toward_packhouse(name: str, plot: Plot, saved: dict[str, Any]) -> tuple[flo
     return house["x"] + house["w"] / 2 - plot.x, house["y"] + house["h"] / 2 - plot.y
 
 
-def _off(plot: Plot, spot: dict[str, Any]) -> bool:
-    """Whether a tree's spot reaches past its plot, but for a crown rising above its top: the
+def _off(w: int, h: int, spot: dict[str, Any]) -> bool:
+    """Whether a tree's spot reaches past a *w* by *h* plot, but for a crown rising above it: the
     ground placement gave it, or, for a spot saved without one, its middle.
     """
     if "x" not in spot:
         return True  # waiting to stand afresh
     if "w" not in spot:
-        return not (0 <= spot["x"] <= plot.w and 0 <= spot["y"] <= plot.h)
+        return not (0 <= spot["x"] <= w and 0 <= spot["y"] <= h)
 
     x, y = spot["x"] - spot["w"] // 2, spot["y"] - spot["top"]
-    return x < 0 or spot["y"] < 0 or x + spot["w"] > plot.w or y + spot["h"] > plot.h
+    return x < 0 or spot["y"] < 0 or x + spot["w"] > w or y + spot["h"] > h
 
 
 def _spilled(block: Block, plot: Plot, spots: dict[str, Any]) -> list[Tree]:
-    return [tree for tree in block.trees if not tree.lead and _off(plot, spots[tree.key])]
+    return [tree for tree in block.trees if not tree.lead and _off(plot.w, plot.h, spots[tree.key])]
+
+
+def cut_off(plot: dict[str, Any], spots: dict[str, Any]) -> list[str]:
+    """The keys of saved tree *spots* that reach past saved *plot*, for all but a crown."""
+    return [key for key, spot in spots.items() if "x" in spot and _off(plot["w"], plot["h"], spot)]
 
 
 def _free_lead(block: Block, plot: Plot, spots: dict[str, Any]) -> None:
     """Forget a lead spot off its plot, for the lead to be given a spot on it again."""
-    if any(t.lead for t in block.trees) and _off(plot, spots.get(lead_spot.KEY, {"x": 0, "y": 0})):
+    if any(t.lead for t in block.trees) and _off(
+        plot.w, plot.h, spots.get(lead_spot.KEY, {"x": 0, "y": 0})
+    ):
         del spots[lead_spot.KEY]
 
 

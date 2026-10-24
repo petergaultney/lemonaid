@@ -76,7 +76,7 @@ def _steps(seed: int) -> tuple[tuple[Grove, dict], ...]:
     for step in range(5):
         found = _blocks(rng, trees)
         arrangement, saved = arrange.arrange(found, saved, NOW + step * 3600)
-        steps.append((Grove(found, arrangement), saved))
+        steps.append((Grove(found, arrangement, saved), saved))
         _change(rng, trees, serial)
     return tuple(steps)
 

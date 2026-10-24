@@ -11,7 +11,7 @@ BLOCKS = (
     block("oria", "1", tree("oria-hq", lead=True), tree("tars/slow-first-queries")),
     block("relay", "2", tree("git-sync-wedge", lemon("claude:wedge", "CraneFly", "blocked"))),
 )
-GROVE = Grove(BLOCKS, arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)[0])
+GROVE = Grove(BLOCKS, *arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW))
 
 
 def screen_text(where: Where) -> str:

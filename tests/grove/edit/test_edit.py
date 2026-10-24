@@ -61,6 +61,23 @@ def test_reframing_from_the_left_keeps_trees_where_they_stand_on_the_ground():
     assert changed["trees"]["relay"]["a"] == {"x": 9, "y": 3}
 
 
+def test_a_block_made_smaller_pushes_the_trees_it_cuts_off_back_onto_it():
+    saved = {
+        "plots": {"relay": {"x": 10, "y": 5, "w": 40, "h": 12}},
+        "trees": {
+            "relay": {
+                "inside": {"letter": "a", "x": 8, "y": 4, "w": 10, "h": 6, "top": 2},
+                "edge": {"letter": "b", "x": 30, "y": 8, "w": 10, "h": 6, "top": 2},
+                "wide": {"letter": "c", "x": 20, "y": 3, "w": 36, "h": 6, "top": 2},
+            }
+        },
+    }
+    spots = edit.resize(saved, "relay", 32, 9)["trees"]["relay"]
+    assert spots["inside"] == saved["trees"]["relay"]["inside"]
+    assert (spots["edge"]["x"], spots["edge"]["y"]) == (27, 5)  # the least that puts it on
+    assert spots["wide"] == {"letter": "c", "squeeze": True}  # too wide, so it stands afresh
+
+
 def test_placing_the_lead_moves_its_lead_spot_and_leaves_its_own():
     saved = {**SAVED, "trees": {"relay": {"a": {"x": 5, "y": 3}, ":lead": {"x": 2, "y": 2}}}}
     led = edit.place_tree(saved, "relay", "a", True, 20, 6)["trees"]["relay"]

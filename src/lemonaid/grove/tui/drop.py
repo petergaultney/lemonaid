@@ -5,8 +5,8 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground
-from ..layout import arrange, edit, lead_spot, room, sizes, stand
-from ..model import Plot, Tree
+from ..layout import arrange, edit, lead_spot, room, sizes
+from ..model import Block, Plot
 from .frame import Grove
 from .garden import Drag
 
@@ -58,9 +58,27 @@ def dragged(grove: Grove, drag: Drag) -> Grove:
     return _placed(grove, drag, _aim(grove, drag))
 
 
-def _fits(plot: Plot, tree: Tree, s: stand.Standing) -> bool:
-    x, y, w, h = room.footprint(tree, s.label, s.letter, s.size, s.cx, s.cy)
-    return x >= 0 and y >= 0 and x + w <= plot.w and y + h <= plot.h
+def _tangled(block: Block, arrangement: arrange.Arrangement) -> bool:
+    oldest_first = sorted(block.trees, key=lambda t: (not t.lead, t.born, t.key))
+    # At their smallest, as the layout judges it: trees near each other shrink to fit.
+    footprints = (
+        (t, room.footprint(t, s.label, s.letter, sizes.SMALLEST, s.cx, s.cy))
+        for t in oldest_first
+        for s in [arrangement.trees[(block.name, t.key)]]
+    )
+    return bool(room.tangled(footprints))
+
+
+def _crowded(grove: Grove, block: Block, plot: Plot) -> bool:
+    """Whether *block* resized to *plot* is too small for its trees: the layout would put it
+    elsewhere, or make it bigger, or its trees would stand on each other.
+    """
+    resized = edit.reframe(grove.saved, block.name, plot.x, plot.y, plot.w, plot.h)
+    laid_out = arrange.arrange(grove.blocks, resized)[0]
+    if laid_out.plots[block.name] != plot:
+        return True
+
+    return _tangled(block, laid_out) and not _tangled(block, grove.arrangement)
 
 
 def _on_ground_of(plot: Plot, other: Plot) -> bool:
@@ -77,22 +95,14 @@ def _on_ground_of(plot: Plot, other: Plot) -> bool:
 
 
 def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
-    name, before = drag.block.name, grove.arrangement
+    name = drag.block.name
     after = _placed(grove, drag, aim).arrangement
     plot = after.plots[name]
-    stands = {t.key: after.trees[(name, t.key)] for t in drag.block.trees}
     if drag.tree:
-        s = stands[drag.tree]
+        s = after.trees[(name, drag.tree)]
         if not ground.inside(plot, plot.x + s.cx, plot.y + s.cy):
             return "a tree stays on its block's ground"
-        oldest_first = sorted(drag.block.trees, key=lambda t: (not t.lead, t.born, t.key))
-        # At their smallest, as the layout judges it: trees near each other shrink to fit.
-        footprints = (
-            (t, room.footprint(t, s.label, s.letter, sizes.SMALLEST, s.cx, s.cy))
-            for t in oldest_first
-            for s in [stands[t.key]]
-        )
-        return "another tree stands there" if room.tangled(footprints) else ""
+        return "another tree stands there" if _tangled(drag.block, after) else ""
 
     if plot.w < 12 or plot.h < 5:
         return "a block needs at least 12 columns and 5 rows"
@@ -101,12 +111,8 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
     others = [p for other, p in after.plots.items() if other != name] + list(after.open)
     if any(_on_ground_of(plot, other) for other in others):
         return "another block's ground is there"
-    if any(
-        _fits(before.plots[name], t, before.trees[(name, t.key)])
-        and not _fits(plot, t, stands[t.key])
-        for t in drag.block.trees
-    ):
-        return "a tree would be left outside the block"
+    if drag.sides and _crowded(grove, drag.block, plot):
+        return "its trees need more room than that"
     return ""
 
 
@@ -148,7 +154,7 @@ def drop(
         if any(not s.get("gone_since") and key not in known for key, s in spots.items()):
             raise edit.EditError("the grove changed while you dragged; try again")
 
-        fresh = Grove(grove.blocks, arrange.arrange(grove.blocks, saved, now)[0])
+        fresh = Grove(grove.blocks, *arrange.arrange(grove.blocks, saved, now))
         problem = _refused(fresh, drag, aim)
         if problem:
             raise edit.EditError(problem)

@@ -9,7 +9,7 @@ from lemonaid.grove.tui.keys import Where
 from .shared import NOW, block, tree
 
 BLOCKS = (block("oria", "1", tree("a")), block("", "0", tree("hq")))
-GROVE = Grove(BLOCKS, arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)[0])
+GROVE = Grove(BLOCKS, *arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW))
 WIDTH, HEIGHT = 100, 30
 ACROSS = WIDTH / scene_parts.LEAST_SCALE[0]
 DOWN = (HEIGHT - 2) / scene_parts.LEAST_SCALE[1]

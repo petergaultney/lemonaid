@@ -17,15 +17,14 @@ from . import blocks, inputs
 
 def _arranged(read: inputs.Inputs, config: Config) -> Grove:
     found = blocks.blocks(read, config.tui.context_threshold)
-    arranged: list[arrange.Arrangement] = []
+    arranged: list[tuple[arrange.Arrangement, dict[str, Any]]] = []
 
     def lay_out(saved: dict[str, Any]) -> dict[str, Any]:
-        arrangement, kept = arrange.arrange(found, saved)
-        arranged.append(arrangement)
-        return kept
+        arranged.append(arrange.arrange(found, saved))
+        return arranged[0][1]
 
     state.update(lay_out)
-    return Grove(found, arranged[0])
+    return Grove(found, *arranged[0])
 
 
 def from_inbox(
@@ -53,4 +52,4 @@ def preview(config: Config, switch_source: str | None) -> Grove:
     with db.connect() as conn:
         read = inputs.read(conn, config, switch_source)
     found = blocks.blocks(read, config.tui.context_threshold)
-    return Grove(found, arrange.arrange(found, state.load())[0])
+    return Grove(found, *arrange.arrange(found, state.load()))

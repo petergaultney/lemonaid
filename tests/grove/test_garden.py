@@ -97,7 +97,7 @@ def test_a_block_dragged_to_nothing_still_draws_and_is_refused():
 def test_a_dropped_tree_stays_where_it_was_dropped_or_is_refused():
     blocks = (block("sample", "1", *(tree(f"tree-{i}") for i in range(6))),)
     arrangement, saved = arrange.arrange(blocks, {"plots": {}, "trees": {}}, NOW)
-    grove = Grove(blocks, arrangement)
+    grove = Grove(blocks, arrangement, saved)
     at = arrangement.trees[("sample", "tree-1")]
     drag = garden.grab(grove, keys.Where(block="1"), _SIZE, (10, 10), ("1", at.letter))
     assert drag is not None
@@ -118,7 +118,7 @@ def test_a_dropped_tree_stays_where_it_was_dropped_or_is_refused():
 
 def test_a_drop_checks_the_saved_layout_not_the_one_it_was_dragged_on():
     arrangement, saved = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
-    old = Grove(BLOCKS, arrangement)
+    old = Grove(BLOCKS, arrangement, saved)
     drag = dataclasses.replace(_grab("relay", (0, 0)), sides=frozenset(), moved=(100, 0))
     assert drop.refused(old, drag) == ""
 
@@ -132,7 +132,7 @@ def test_a_drop_checks_the_saved_layout_not_the_one_it_was_dragged_on():
 
 def test_a_drop_is_refused_when_a_tree_arrived_in_its_block_during_the_drag():
     arrangement, saved = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
-    old = Grove(BLOCKS, arrangement)
+    old = Grove(BLOCKS, arrangement, saved)
     _x0, y0, x1, y1 = _screen_box("oria")
     drag = dataclasses.replace(_grab("oria", (x1 - 1, (y0 + y1) // 2)), moved=(-2, 0))
     assert drop.refused(old, drag) == ""
@@ -293,3 +293,26 @@ def test_a_tree_dragged_away_and_back_is_drawn_from_the_remembered_lists_on_rele
 
     assert asyncio.run(run()) == ""
     assert drawn[-2] is not lists and drawn[-1] is lists
+
+
+def test_every_resize_a_drag_accepts_is_dropped_at_that_size():
+    blocks = (block("sample", "1", *(tree(f"tree-{i}") for i in range(6))),)
+    grove = Grove(blocks, *arrange.arrange(blocks, {"plots": {}, "trees": {}}, NOW))
+    plot = grove.arrangement.plots["sample"]
+    cutting = 0  # accepted resizes whose edges cut a tree off, for it to be pushed back on
+    for side in ("left", "right", "top", "bottom"):
+        for d in range(-12, 13):
+            moved = (d, 0) if side in ("left", "right") else (0, d)
+            drag = garden.Drag(blocks[0], "", frozenset({side}), (0, 0), (1.0, 1.0), moved)
+            if drop.refused(grove, drag):
+                continue
+
+            aim = drop.dragged(grove, drag).arrangement.plots["sample"]
+            changed = drop.drop(grove, drag, NOW)(grove.saved)
+            assert arrange.arrange(blocks, changed, NOW)[0].plots["sample"] == aim, (side, d)
+            shifted = {
+                key: {**spot, "x": spot["x"] + plot.x - aim.x, "y": spot["y"] + plot.y - aim.y}
+                for key, spot in grove.saved["trees"]["sample"].items()
+            }
+            cutting += bool(arrange.cut_off({"w": aim.w, "h": aim.h}, shifted))
+    assert cutting

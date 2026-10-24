@@ -50,10 +50,10 @@ Change the key with `grove` in `[tui.keybindings]`.
 Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back.
 
 - **In the grove view, drag a block to move it.** Its trees move with it.
-- **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground.
+- **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground, but for those the moving edge would cut off, which it pushes back onto the block.
 - **Zoomed into a block, drag a tree to move it** within its block. The packhouse's bays stay in order.
 
-The prompt line says what you're moving, or why it can't go there. A block can't go onto another block's ground or past the grove's top or left edge, and resizing can't leave a tree or its tag outside the block. A tree can't go onto another tree or past its block's edge.
+The prompt line says what you're moving, or why it can't go there. A block can't go onto another block's ground or past the grove's top or left edge, and a block can't be made too small for its trees to stand in without standing on each other. A tree can't go onto another tree or past its block's edge.
 
 ## Places that stay put
 
