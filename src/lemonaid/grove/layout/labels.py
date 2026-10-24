@@ -53,12 +53,12 @@ def without_group(group: str, name: str) -> str:
     return " ".join(tokens[start:]) or name
 
 
-LETTERS = "abcdefghijklmnoprstuvwxyz"  # a tree's letter, never q, which quits; its capital is its second lemon
+LETTERS = "abcdefghijklmnoprstuvwxyz"  # a tree's letter, never q, which quits; its capital opens its other lemons
 
 
 def pick_letter(label: str, taken: abc.Container[str]) -> str:
     """The first free letter from *label*'s words' initials, then its other letters, then a-z;
-    always lowercase, since a capital means a tree's second lemon.
+    always lowercase, since a capital opens a tree's other lemons.
     """
     lowered = label.lower()
     initials = [word[0] for word in lowered.split()]
