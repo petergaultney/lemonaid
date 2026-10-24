@@ -37,6 +37,7 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | `/` | Search Brief-IDs, then sessions and names. Blocks without a match fade; when every match is in one block, the grove zooms to it. `↑`/`↓` choose, `enter` jumps. |
 | `esc` | Back out one step: out of a tree, out of a block, out of the grove. |
 | `Space` | Close the grove from anywhere in it, except while typing a search. |
+| `?` | List every key for the view you're in, the grove or a block. Any key closes the list. |
 
 So `2c` always means the same tree, `2C` its second lemon, and `2c3` the third lemon on it. In the grove view each tag shows its tree's whole key, as `2c`; zoomed into a block, just the letter. A click on a block zooms into it, and a click on a tree acts like its letter.
 
