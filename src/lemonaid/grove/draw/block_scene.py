@@ -28,7 +28,13 @@ def zoomed(
     plot = arrangement.plots[block.name]
     if plot.texture == "house":
         house.zoomed(
-            canvas, block, arrangement, phase, highlight.channels if highlight else None, opened
+            canvas,
+            block,
+            arrangement,
+            phase,
+            highlight.channels if highlight else None,
+            opened,
+            highlight.edited if highlight else "",
         )
         return
 
@@ -80,6 +86,7 @@ def zoomed(
             phase,
             highlight.channels if highlight else None,
             letter == opened,
+            edited=highlight.edited if highlight else "",
         )
         canvas.target = ()
         canvas.dim = 0.0

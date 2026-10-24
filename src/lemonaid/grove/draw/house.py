@@ -97,6 +97,7 @@ def zoomed(
     phase: float,
     hits: abc.Container[str] | None,
     opened: str,
+    edited: str = "",
 ) -> None:
     """The packhouse filling the screen, each session's lemons listed in its own bay."""
     x0, y0, w, h = 3, 2, canvas.width - 6, canvas.height - 4
@@ -129,5 +130,6 @@ def zoomed(
             hits,
             letter == opened,
             lemons,
+            edited,
         )
         canvas.target = ()
