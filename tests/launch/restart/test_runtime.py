@@ -161,7 +161,7 @@ def test_interrupted_worker_does_not_replay_the_stop_or_launch(
         ]
     )
     child = subprocess.run([sys.executable, "-c", script, token, boundary], timeout=15)
-    assert child.returncode == 9
+    assert child.returncode == 9, state.get(token)
     current = pane.by_id(original.socket, original.pane)
     monkeypatch.setattr(state.time, "time", lambda: 10**12)
     assert state.get(token)["phase"] == "partial"
