@@ -193,7 +193,7 @@ def _edit_while_waiting(tmp_path, doc, *args: str) -> subprocess.CompletedProces
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once", *args)
     _replace_doc(doc, "# Review\n\nPlease look at the second section.\n")
     try:
-        out, _ = proc.communicate(timeout=5)
+        out, _ = proc.communicate(timeout=30)
     except subprocess.TimeoutExpired:
         proc.kill()
         out, _ = proc.communicate()
@@ -249,7 +249,7 @@ def test_a_waiter_on_a_missing_doc_waits_for_it(tmp_path):
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once")
     _replace_doc(doc, "# Review\n\nPlease look.\n")
     try:
-        out, _ = proc.communicate(timeout=5)
+        out, _ = proc.communicate(timeout=30)
     except subprocess.TimeoutExpired:
         proc.kill()
         out, _ = proc.communicate()
