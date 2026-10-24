@@ -38,7 +38,8 @@ def _hidden(key: str, action: str, label: str) -> Binding:
 
 def _bindings(config: Config) -> abc.Iterator[Binding]:
     kb = config.tui.keybindings
-    yield from build_bindings(kb.quit, "quit", "Quit")
+    yield from build_bindings(kb.quit.replace("Q", ""), "quit", "Quit")
+    yield _hidden("Q", "quit_process", "Quit lma")
     yield _hidden("escape", "back", "Quit")
 
     # Enter always selects through DataTable; these are additional keys.
@@ -171,6 +172,7 @@ def set_footer(
 _WHILE_BRIEF_SHOWN = frozenset(
     {
         "quit",
+        "quit_process",
         "back",
         "brief",
         "refresh",

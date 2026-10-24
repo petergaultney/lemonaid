@@ -581,6 +581,10 @@ class LemonaidApp(CrashLoggedApp):
         else:
             self.exit()
 
+    def action_quit_process(self) -> None:
+        """Quit lma, even in the scratch pane, where `q` only hides it."""
+        self.exit()
+
     def _toggle_mode(self, mode: view_modes.Mode) -> None:
         leaving = self._mode
         if leaving is not None:

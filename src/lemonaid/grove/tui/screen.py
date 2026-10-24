@@ -11,7 +11,7 @@ from textual.screen import ModalScreen
 
 from ..draw import canvas
 from ..layout import edit, state
-from . import compass, drop, garden, help_panel, keys, picking
+from . import compass, drop, garden, help_panel, keys, picking, quitting
 from .frame import Grove, Lists, clamp_pan, render
 from .grove_map import GroveMap
 
@@ -196,6 +196,13 @@ class GroveScreen(ModalScreen[str]):
             dragging = self._dragged
             self._put_back("")
             if dragging and event.key == "escape":
+                return
+        match quitting.quit_for(self._where, event.character or ""):
+            case quitting.Quit.CLOSE:
+                self.dismiss("")
+                return
+            case quitting.Quit.PROCESS:
+                self.app.exit()
                 return
         if self.query(help_panel.HelpPanel):
             self.query(help_panel.HelpPanel).remove()

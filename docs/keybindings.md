@@ -51,6 +51,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `g` | Refresh |
 | `?` | Toggle the key hints (see below) |
 | `q` / `Escape` | Quit. In the scratch pane, `Escape` only backs out of a view, search or brief; `q` hides the pane |
+| `Q` | Quit `lma` entirely, including from the scratch pane, where `q` only hides it |
 | `↑` / `↓` | Navigate list |
 
 `H` writes `Hidden: yes` using the same checked edit as `lemonaid brief hide`,

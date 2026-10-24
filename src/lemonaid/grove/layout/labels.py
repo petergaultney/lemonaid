@@ -53,7 +53,7 @@ def without_group(group: str, name: str) -> str:
     return " ".join(tokens[start:]) or name
 
 
-LETTERS = "abcdefghijklmnopqrstuvwxyz"  # a tree's letter; its capital is its second lemon
+LETTERS = "abcdefghijklmnoprstuvwxyz"  # a tree's letter, never q, which quits; its capital is its second lemon
 
 
 def pick_letter(label: str, taken: abc.Container[str]) -> str:

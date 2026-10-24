@@ -41,6 +41,8 @@ _EDITS = {
 _LAST = [
     ("esc", "back out one step: out of a tree, a block, the grove"),
     ("space", "close the grove"),
+    ("q", "close the grove; a search or a dialog takes it as text"),
+    ("Q", "quit the process the grove runs in, so the next open starts fresh"),
     ("?", "show or hide this panel"),
 ]
 

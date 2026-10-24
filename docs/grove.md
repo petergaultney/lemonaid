@@ -35,6 +35,8 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | `Shift` and a digit | Jump to a screen-sized part of the grove around the packhouse: `1` north, then clockwise to `8` north-west (`!@#$%^&*` on a US keyboard). `Shift`+`0` or `Home` centers the packhouse. `Alt` and a digit does the same on any keyboard. The grove opens where you left it. |
 | `/` | Search Brief-IDs, then sessions and names. Blocks without a match fade; when every match is in one block, the grove zooms to it. `↑`/`↓` choose, `enter` jumps. |
 | `esc` | Back out one step: out of a tree, out of a block, out of the grove. |
+| `q` | Close the grove at once, from anywhere but where you're typing, a search or an edit's dialog, which take it as text: `lma` returns to the inbox and the popup hides. |
+| `Q` | Quit the process the grove runs in (`lma`, or the popup's resident, which the next opening starts afresh); it too is text in a search or a dialog. |
 | `Space` | Close the grove from anywhere in it, except while typing a search. |
 | `?` | List every key for the view you're in, the grove or a block. Any key closes the list. |
 
