@@ -7,7 +7,7 @@ from ...config import Config
 from ...inbox.tui.live import inbox_frame
 from ..layout import view
 from ..tui.screen import GroveScreen
-from . import live, renames
+from . import edits, live
 
 
 def for_inbox(
@@ -18,7 +18,7 @@ def for_inbox(
     """*rename_session(old, new)* renames a tmux session, for renaming a tree from the grove."""
     return GroveScreen(
         live.from_inbox(latest_frame, config),
-        rename=functools.partial(renames.apply, rename_session=rename_session),
+        edit=functools.partial(edits.ask, config=config, rename_session=rename_session),
         pan=view.load(),
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),

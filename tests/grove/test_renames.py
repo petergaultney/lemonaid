@@ -1,6 +1,6 @@
 from lemonaid.grove.layout import state
 from lemonaid.grove.source import renames
-from lemonaid.grove.tui.picking import Rename
+from lemonaid.grove.tui.picking import Target
 
 
 def _renamer(calls: list[tuple[str, str]], refusal: str = ""):
@@ -29,7 +29,7 @@ def test_a_session_rename_keeps_the_spot_and_letter_in_every_group(tmp_path, mon
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
     _saved(state.path())
     calls: list[tuple[str, str]] = []
-    note = renames.apply(Rename(("a", "b"), "old", "", "new", ()), _renamer(calls))
+    note = renames.apply(Target("rename", "a", ("a", "b"), "old", "", "new", ()), _renamer(calls))
     assert note == "renamed session old to new"
     assert calls == [("old", "new")]
     trees = state.load()["trees"]
@@ -41,9 +41,11 @@ def test_a_refused_rename_leaves_the_layout_as_it_was(tmp_path, monkeypatch):
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
     _saved(state.path())
     refused = _renamer([], "tmux could not rename old")
-    assert "could not rename" in renames.apply(Rename(("a", "b"), "old", "", "new", ()), refused)
+    assert "could not rename" in renames.apply(
+        Target("rename", "a", ("a", "b"), "old", "", "new", ()), refused
+    )
     assert set(state.load()["trees"]["a"]) == {"old"}
 
 
 def test_without_a_session_renamer_a_session_is_not_renamed():
-    assert "needs" in renames.apply(Rename(("a",), "old", "", "new", ()))
+    assert "needs" in renames.apply(Target("rename", "a", ("a",), "old", "", "new", ()))

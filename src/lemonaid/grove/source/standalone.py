@@ -8,7 +8,7 @@ from ...config import Config
 from ...inbox import db
 from ..layout import view
 from ..tui.app import GroveApp
-from . import live, renames
+from . import edits, live
 
 
 def run(config: Config, switch_source: str | None) -> None:
@@ -16,7 +16,7 @@ def run(config: Config, switch_source: str | None) -> None:
     channel = GroveApp(
         functools.partial(live.fresh, config, switch_source),
         refresh_every=5.0,
-        rename=renames.apply,
+        edit=functools.partial(edits.ask, config=config),
         pan=view.load,
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),

@@ -5,7 +5,7 @@ import math
 from collections import abc
 
 from textual import events
-from textual.app import ComposeResult
+from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
 from textual.strip import Strip
 from textual.widget import Widget
@@ -13,7 +13,6 @@ from textual.widget import Widget
 from ..draw import canvas
 from . import compass, keys, picking
 from .frame import Grove, Lists, clamp_pan, render
-from .rename_dialog import RenameDialog
 
 _PULSE_LEVELS = 8  # frames in half a pulse; the other half replays them backwards
 _TICK = 0.2
@@ -41,6 +40,10 @@ class GroveMap(Widget):
         return self.picture.rows[y][x].target
 
 
+# Asks for what an edit needs and makes it, over the app, then tells the callback what happened.
+Edit = abc.Callable[[App, picking.Target, abc.Callable[[str], None]], None]
+
+
 class GroveScreen(ModalScreen[str]):
     """Dismisses with the channel of the chosen lemon, or "" when closed without one.
 
@@ -54,21 +57,22 @@ class GroveScreen(ModalScreen[str]):
         load: abc.Callable[[], Grove],
         refresh_every: float = 2.0,
         note: str = "",
-        rename: abc.Callable[[picking.Rename], str] | None = None,
+        edit: Edit | None = None,
         pan: tuple[float, float] = (0.0, 0.0),
         keep_pan: abc.Callable[[tuple[float, float]], None] | None = None,
         nudge: tuple[int, int] = (2, 1),
         held: bool = False,
         lists: Lists | None = None,
     ) -> None:
-        """*rename* carries out a rename and says what happened; without it, nothing renames.
+        """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
+        without it, nothing is edited.
         The view starts at *pan*, and *keep_pan* is told where it moves, to start there next time;
         an arrow moves it *nudge* cells, across and down. A *held* grove doesn't pulse until
         `hold(False)`. *lists* remembers where lemon lists went, kept across groves that share it.
         """
         super().__init__()
         self._load = load
-        self._rename = rename
+        self._edit = edit
         self._refresh_every = refresh_every
         self._grove = load()
         self._where = keys.Where(note=note, pan=pan)
@@ -162,21 +166,23 @@ class GroveScreen(ModalScreen[str]):
             return
 
         before = self._where.pan
-        channel, rename = "", None
+        channel, target = "", None
         if compass.handles(self._where, key):
             self._where = compass.step(
                 self._grove, self._where, key, (self.size.width, self.size.height), self._nudge
             )
         else:  # only the compass moves the view: zooming, searching and picking keep it
-            self._where, channel, rename = picking.step(
+            self._where, channel, target = picking.step(
                 self._where, key, self._grove.blocks, self._grove.arrangement
             )
             self._where = dataclasses.replace(self._where, pan=before)
         self._where = clamp_pan(self._grove, self._where, self.size.width, self.size.height)
         if self._where.pan != before and self._keep_pan:
             self._keep_pan(self._where.pan)
-        if rename:
-            self._ask_name(rename)
+        if target and self._edit:
+            self._edit(self.app, target, self._finished)
+        elif target:
+            self._finished("editing needs lma or the popup")
         if channel:
             self.dismiss(channel)
             return
@@ -185,25 +191,15 @@ class GroveScreen(ModalScreen[str]):
             return
         self._redraw()
 
-    def _ask_name(self, rename: picking.Rename) -> None:
-        what = "lemon" if rename.channel else "tmux session"
+    def _finished(self, note: str) -> None:
+        if self not in self.app.screen_stack:
+            return  # closed while the edit ran
 
-        def renamed(name: str | None) -> None:
-            if name is None:
-                return
-
-            note = (
-                self._rename(dataclasses.replace(rename, name=name))
-                if self._rename
-                else "renaming needs lma or the popup"
-            )
-            self._where = dataclasses.replace(
-                self._where, renaming=False, picked_tree="", picked_lemon="", note=note
-            )
-            self._reload()
-            self._redraw()
-
-        self.app.push_screen(RenameDialog(f"Rename {what} {rename.name}", rename.name), renamed)
+        self._where = dataclasses.replace(
+            self._where, editing="", picked_tree="", picked_lemon="", note=note
+        )
+        self._reload()
+        self._redraw()
 
     def on_key(self, event: events.Key) -> None:
         event.stop()

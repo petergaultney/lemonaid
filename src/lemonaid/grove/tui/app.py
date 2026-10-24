@@ -6,8 +6,7 @@ from textual import events
 from textual.app import App
 
 from .frame import Grove, Lists
-from .picking import Rename
-from .screen import GroveScreen
+from .screen import Edit, GroveScreen
 
 
 class GroveApp(App[str]):
@@ -26,7 +25,7 @@ class GroveApp(App[str]):
         self,
         load: abc.Callable[[], Grove],
         refresh_every: float,
-        rename: abc.Callable[[Rename], str],
+        edit: Edit | None,
         choose: abc.Callable[[str], str] | None = None,
         leave: abc.Callable[[], None] | None = None,
         pan: abc.Callable[[], tuple[float, float]] = lambda: (0.0, 0.0),
@@ -34,7 +33,7 @@ class GroveApp(App[str]):
         nudge: tuple[int, int] = (2, 1),
     ) -> None:
         super().__init__()
-        self._rename = rename
+        self._edit = edit
         self._load = load
         self._refresh_every = refresh_every
         self._choose = choose
@@ -53,7 +52,7 @@ class GroveApp(App[str]):
                 self._load,
                 self._refresh_every,
                 note,
-                self._rename,
+                self._edit,
                 self._pan(),
                 self._keep_pan,
                 self._nudge,

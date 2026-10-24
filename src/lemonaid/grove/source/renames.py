@@ -6,7 +6,7 @@ from typing import Any
 
 from ...inbox import db
 from ..layout import edit, state
-from ..tui.picking import Rename
+from ..tui.picking import Target
 
 
 def _relayout(
@@ -20,7 +20,7 @@ def _relayout(
     )
 
 
-def _session(rename: Rename, rename_session: abc.Callable[[str, str], str]) -> str:
+def _session(rename: Target, rename_session: abc.Callable[[str, str], str]) -> str:
     new = rename.name.replace(".", "_").replace(":", "_")  # as tmux would store it
     if not new:
         return "A session needs a name"
@@ -39,7 +39,7 @@ def _session(rename: Rename, rename_session: abc.Callable[[str, str], str]) -> s
     return f"renamed session {rename.tree} to {new}"
 
 
-def _lemon(rename: Rename) -> str:
+def _lemon(rename: Target) -> str:
     with db.connect() as conn:
         found = db.get_by_channel(conn, rename.channel, unread_only=False)
         if found is None:
@@ -49,7 +49,7 @@ def _lemon(rename: Rename) -> str:
     return f"renamed {rename.name}" if rename.name else "name cleared"
 
 
-def apply(rename: Rename, rename_session: abc.Callable[[str, str], str] | None = None) -> str:
+def apply(rename: Target, rename_session: abc.Callable[[str, str], str] | None = None) -> str:
     """Carry out *rename*; what happened, for the prompt line. *rename_session(old, new)*
     renames a tmux session, saying why it couldn't or ""; without it, sessions aren't renamed.
     """
