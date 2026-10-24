@@ -5,6 +5,7 @@ was first given.
 """
 
 from collections import abc
+from typing import Any
 
 from ...config import Config
 from ...inbox import db
@@ -16,11 +17,15 @@ from . import blocks, inputs
 
 def _arranged(read: inputs.Inputs, config: Config) -> Grove:
     found = blocks.blocks(read, config.tui.context_threshold)
-    saved = state.load()
-    arrangement, kept = arrange.arrange(found, saved)
-    if kept != saved:
-        state.save(kept)
-    return Grove(found, arrangement)
+    arranged: list[arrange.Arrangement] = []
+
+    def lay_out(saved: dict[str, Any]) -> dict[str, Any]:
+        arrangement, kept = arrange.arrange(found, saved)
+        arranged.append(arrangement)
+        return kept
+
+    state.update(lay_out)
+    return Grove(found, arranged[0])
 
 
 def from_inbox(

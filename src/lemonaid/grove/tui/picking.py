@@ -154,7 +154,13 @@ def step(
     """`keys.step`, with editing on top; also the edit Enter asked for, if it did."""
     where = dataclasses.replace(where, note="")
     if key == "alt+m" and where.search is None:
-        return dataclasses.replace(where, note="moving trees by hand isn't here yet"), "", None
+        return (
+            dataclasses.replace(
+                where, note="drag a block, its edge or a tree with the mouse to move it"
+            ),
+            "",
+            None,
+        )
     if key in ACTIONS and where.search is None:
         where = dataclasses.replace(_let_go(where), editing=ACTIONS[key])
         return _color(where, blocks) if where.editing == "color" else (where, "", None)

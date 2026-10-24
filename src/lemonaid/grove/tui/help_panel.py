@@ -18,6 +18,7 @@ _GROVE = [
     ("Shift or Alt and 1-8", "a screen away from the packhouse: 1 north, clockwise to 8"),
     ("Shift or Alt and 0, Home", "center the packhouse"),
     ("click a block", "zoom into it"),
+    ("drag a block", "move it; drag its edge to resize it"),
 ]
 _BLOCK = [
     (
@@ -28,6 +29,7 @@ _BLOCK = [
     ("a letter, then a number", "on a tree of three or more lemons, that lemon, as c1"),
     ("/", "search Brief-IDs, sessions and names; ↑↓ choose, enter jumps"),
     ("click a tree", "the same as its letter"),
+    ("drag a tree", "move it within its block"),
 ]
 _EDITS = {
     "alt+r": "rename a tree's tmux session or a lemon",
@@ -54,7 +56,6 @@ def rows(zoomed: bool) -> list[tuple[str, str]]:
         ),
         *((f"Alt+{key[4:]}", what) for key, what in _EDITS.items()),
         ("Alt+c", f"recolor a block's group, asking {color}; the packhouse has no color"),
-        ("Alt+m", "kept for moving trees and blocks by hand"),
         *_LAST,
     ]
 
