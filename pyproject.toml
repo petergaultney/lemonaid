@@ -18,7 +18,12 @@ Changelog = "https://github.com/petergaultney/lemonaid/tree/main/changes"
 Issues = "https://github.com/petergaultney/lemonaid/issues"
 
 [dependency-groups]
-dev = ["pre-commit", "pytest", "ruff"]
+dev = [
+    "pre-commit",
+    "pytest",
+    "pytest-xdist>=3.8.0",
+    "ruff",
+]
 
 [project.scripts]
 lemonaid = "lemonaid.cli:main"
