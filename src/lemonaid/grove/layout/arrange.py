@@ -12,7 +12,7 @@ from typing import Any
 
 from ..draw import trees
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
-from . import landmarks, placement, room, stand
+from . import landmarks, lead_spot, new_spots, placement, room, sizes, stand
 
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
@@ -80,8 +80,10 @@ def _place_plots(blocks: tuple[Block, ...], saved: dict[str, Any], now: float) -
             trees.shape(tree, "x", 1.0).width * trees.shape(tree, "x", 1.0).height
             for tree in block.trees
         )
+        smallest = [new_spots.footprint(t, t.label, "x", sizes.SMALLEST) for t in block.trees]
+        largest = (max(f[0] for f in smallest), max(f[1] for f in smallest))
         plots[block.name] = _plot_data(
-            placement.new_plot(block.name, placement.plot_size(need), taken)
+            placement.new_plot(block.name, placement.plot_size(need, largest), taken)
         )
 
 
@@ -94,22 +96,39 @@ def _toward_packhouse(name: str, plot: Plot, saved: dict[str, Any]) -> tuple[flo
     return house["x"] + house["w"] / 2 - plot.x, house["y"] + house["h"] / 2 - plot.y
 
 
-def _spilled(block: Block, plot: Plot, standing: dict[str, stand.Standing]) -> list[Tree]:
-    return [
-        tree
-        for tree in block.trees
-        if not tree.lead
-        and not (0 <= standing[tree.key].cx <= plot.w and 0 <= standing[tree.key].cy <= plot.h)
-    ]
+def _off(plot: Plot, spot: dict[str, Any]) -> bool:
+    """Whether a tree's spot reaches past its plot, but for a crown rising above its top: the
+    ground placement gave it, or, for a spot saved without one, its middle.
+    """
+    if "x" not in spot:
+        return True  # waiting to stand afresh
+    if "w" not in spot:
+        return not (0 <= spot["x"] <= plot.w and 0 <= spot["y"] <= plot.h)
+
+    x, y = spot["x"] - spot["w"] // 2, spot["y"] - spot["top"]
+    return x < 0 or spot["y"] < 0 or x + spot["w"] > plot.w or y + spot["h"] > plot.h
+
+
+def _spilled(block: Block, plot: Plot, spots: dict[str, Any]) -> list[Tree]:
+    return [tree for tree in block.trees if not tree.lead and _off(plot, spots[tree.key])]
+
+
+def _free_lead(block: Block, plot: Plot, spots: dict[str, Any]) -> None:
+    """Forget a lead spot off its plot, for the lead to be given a spot on it again."""
+    if any(t.lead for t in block.trees) and _off(plot, spots.get(lead_spot.KEY, {"x": 0, "y": 0})):
+        del spots[lead_spot.KEY]
 
 
 def _stand(block: Block, kept: dict[str, Any], now: float) -> dict[str, stand.Standing]:
     """Where *block*'s trees stand. A tree that spilled out of its plot, for want of room, takes
-    more ground with it where the ground beside the plot is free, and stands afresh in it.
+    more ground with it where the ground beside the plot is free, and stands afresh in it. Once
+    the plot can grow for none of them, those left stand afresh squeezed in among the others.
     """
-    for _ in range(
-        2 * len(block.trees) + 2
-    ):  # a growth a spilled tree, and a second if it falls short
+    stuck: set[str] = set()  # spilled where the plot can't grow
+    squeezed = False
+    if block.name in kept["trees"] and kept["plots"][block.name].get("texture") != "house":
+        _free_lead(block, _plot(kept["plots"][block.name]), kept["trees"][block.name])
+    for _ in range(2 * len(block.trees) + 3):  # a growth a tree, a second if it falls short
         plot = _plot(kept["plots"][block.name])
         standing = stand.stand_trees(
             block,
@@ -119,21 +138,35 @@ def _stand(block: Block, kept: dict[str, Any], now: float) -> dict[str, stand.St
             _toward_packhouse(block.name, plot, kept),
             bays=plot.texture == "house",
         )
-        spilled = [] if plot.texture == "house" else _spilled(block, plot, standing)
-        if not spilled:
-            return standing
+        spots = kept["trees"][block.name]
+        spilled = [] if plot.texture == "house" else _spilled(block, plot, spots)
+        growable = [t for t in spilled if t.key not in stuck]
+        if not growable:
+            if not spilled or squeezed:
+                return standing
 
-        s = standing[spilled[0].key]
-        need = room.footprint(spilled[0], s.label, s.letter, s.size, s.cx, s.cy)[2:]
+            for tree in spilled:
+                spots[tree.key] = {"letter": spots[tree.key]["letter"], "squeeze": True}
+            squeezed = True
+            continue
+
+        s = standing[growable[0].key]
+        width, height, top = new_spots.footprint(growable[0], s.label, s.letter, sizes.SMALLEST)
+        need = (width, height - top)  # its crown may rise above the plot
         shift = room.grow(block.name, kept["plots"], need)
         if shift is None:
-            return standing
+            stuck.add(growable[0].key)
+            continue
 
-        spots = kept["trees"][block.name]
         for spot in spots.values():
             spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
-        spots[spilled[0].key] = {"letter": spots[spilled[0].key]["letter"]}
-    return standing
+        spots[growable[0].key] = {"letter": spots[growable[0].key]["letter"]}
+    plot = _plot(kept["plots"][block.name])
+    for tree in _spilled(block, plot, spots):
+        spots[tree.key] = {"letter": spots[tree.key]["letter"], "squeeze": True}
+    return stand.stand_trees(
+        block, plot, kept, now, _toward_packhouse(block.name, plot, kept), bays=False
+    )
 
 
 def arrange(

@@ -12,7 +12,7 @@ import random
 import pytest
 
 from lemonaid.grove.draw import canvas, scene_parts
-from lemonaid.grove.layout import arrange, room
+from lemonaid.grove.layout import arrange, new_spots, room
 from lemonaid.grove.model import Block, Lemon, Tree
 from lemonaid.grove.tui import keys
 from lemonaid.grove.tui.frame import Grove, render
@@ -61,7 +61,7 @@ def _change(rng: random.Random, trees: dict[str, dict[str, Tree]], serial: list[
 
 
 @functools.cache  # each test reads the same scenarios; building them is the slow part
-def _scenario(seed: int) -> tuple[Grove, ...]:
+def _steps(seed: int) -> tuple[tuple[Grove, dict], ...]:
     rng = random.Random(seed)
     serial = [0]
     trees: dict[str, dict[str, Tree]] = {}
@@ -72,13 +72,17 @@ def _scenario(seed: int) -> tuple[Grove, ...]:
             f"{key}-{name}": _tree(rng, f"{key}-{name}", key == lead, serial) for key in keys_here
         }
     saved: dict = {"plots": {}, "trees": {}}
-    groves = []
+    steps = []
     for step in range(5):
         found = _blocks(rng, trees)
         arrangement, saved = arrange.arrange(found, saved, NOW + step * 3600)
-        groves.append(Grove(found, arrangement))
+        steps.append((Grove(found, arrangement), saved))
         _change(rng, trees, serial)
-    return tuple(groves)
+    return tuple(steps)
+
+
+def _scenario(seed: int) -> tuple[Grove, ...]:
+    return tuple(grove for grove, _ in _steps(seed))
 
 
 SEEDS = range(25)
@@ -131,18 +135,29 @@ def test_a_tree_that_stays_keeps_its_place_letter_and_bay(seed):
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_no_tree_stands_on_another(seed):
-    for grove in _scenario(seed):
+def test_a_tree_stands_on_another_only_in_a_block_with_no_room_for_it(seed):
+    for grove, saved in _steps(seed):
         for block in grove.blocks:
-            if grove.arrangement.plots[block.name].texture == "house":
+            plot = grove.arrangement.plots[block.name]
+            if plot.texture == "house":
                 continue  # the packhouse draws bays, not trees
 
             stands = {t.key: grove.arrangement.trees[(block.name, t.key)] for t in block.trees}
-            assert not room.tangled(
+            tangled = room.tangled(
                 (t, room.footprint(t, s.label, s.letter, s.size, s.cx, s.cy))
                 for t in sorted(block.trees, key=lambda t: (not t.lead, t.born, t.key))
                 for s in [stands[t.key]]
-            ), block.name
+            )
+            spots = saved["trees"][block.name]
+            for tree, _ in tangled:
+                s = stands[tree.key]
+                others = {k: v for k, v in spots.items() if k != tree.key}
+                assert (
+                    new_spots.clear_spot(tree, s.label, s.letter, s.size, plot, others) is None
+                ), (
+                    block.name,
+                    tree.key,
+                )
 
 
 @pytest.mark.parametrize("seed", SEEDS[:8])
@@ -171,8 +186,42 @@ def test_every_tree_shows_its_letter_where_a_click_reaches_it(seed, size):
 
 
 def test_a_scenario_is_the_same_every_time():
-    first, again = _scenario.__wrapped__(7), _scenario.__wrapped__(7)
+    first, again = (tuple(g for g, _ in _steps.__wrapped__(7)) for _ in range(2))
     assert [g.arrangement.trees for g in first] == [g.arrangement.trees for g in again]
     assert canvas.plain_lines(render(first[0], keys.Where(), 160, 48, 0.5)) == canvas.plain_lines(
         render(again[0], keys.Where(), 160, 48, 0.5)
     )
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_every_tree_is_drawn_inside_its_block(seed):
+    """Every cell a tree draws in the grove view, crown, trunk and tag, is inside its block's
+    outline box, but for a crown rising above its top: a tree drawn on open ground or another
+    block reads as belonging to neither.
+    """
+    for grove in _scenario(seed):
+        picture = render(grove, keys.Where(), 210, 62, 0.5)
+        view = scene_parts.grove_view((210, 62), grove.arrangement)
+        for block in grove.blocks:
+            plot = grove.arrangement.plots[block.name]
+            if plot.texture == "house":
+                continue  # the packhouse draws bays, not trees
+
+            x0, y0 = view.screen(plot.x, plot.y)
+            x1, y1 = view.screen(plot.x + plot.w, plot.y + plot.h)
+            # A crown may rise above its block's top, so long as its middle is on the block.
+            rising = {
+                grove.arrangement.trees[(block.name, t.key)].letter
+                for t in block.trees
+                if grove.arrangement.trees[(block.name, t.key)].cy >= 0
+            }
+            outside = {
+                (cell.target, col, row)
+                for row, cells in enumerate(picture.rows)
+                for col, cell in enumerate(cells)
+                if len(cell.target) == 2
+                and cell.target[0] == block.digit
+                and not (x0 - 1 <= col <= x1 and y0 - 1 <= row <= y1)
+                and not (row < y0 and x0 - 1 <= col <= x1 and cell.target[1] in rising)
+            }
+            assert not outside, (block.name, sorted(outside)[:5])

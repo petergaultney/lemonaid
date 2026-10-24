@@ -24,7 +24,11 @@ class Standing:
 
 
 def _spaced(
-    block: Block, grown: dict[str, float], drawn: dict[str, float], spots: dict[str, Any]
+    block: Block,
+    grown: dict[str, float],
+    drawn: dict[str, float],
+    spots: dict[str, Any],
+    plot: Plot,
 ) -> dict[str, float]:
     """*drawn* shrunk where trees would grow into each other. Saved spots never move, and a tree
     keeps the size it was last drawn at unless that would crowd it, until it grows older: a
@@ -34,7 +38,7 @@ def _spaced(
         t.key: (lead_spot.standing_at(t, spots)["x"], lead_spot.standing_at(t, spots)["y"])
         for t in block.trees
     }
-    fitted = sizes.spaced(block, drawn, positions)[0]
+    fitted = sizes.spaced(block, drawn, positions, plot)[0]
     for tree in block.trees:
         spot = spots[tree.key]
         if spot.get("grown") == grown[tree.key] and "size" in spot:
@@ -69,14 +73,23 @@ def _untangle(
     now: float,
 ) -> None:
     oldest_first = sorted(block.trees, key=lambda t: (not t.lead, t.born, t.key))
+    # At their smallest: trees that only grow into each other are shrunk apart, not moved.
     for tree, _ in room.tangled(
-        (t, room.footprint(t, short[t.key], "x", drawn[t.key], at["x"], at["y"]))
+        (t, room.footprint(t, short[t.key], "x", sizes.SMALLEST, at["x"], at["y"]))
         for t in oldest_first
         for at in [lead_spot.standing_at(t, spots)]
     ):
+        letter = spots[tree.key]["letter"]
         others = {k: v for k, v in spots.items() if k != tree.key}
-        moved = new_spots.new_spot(tree, short[tree.key], drawn[tree.key], plot, others, now, False)
-        spots[tree.key] = {**moved, "letter": spots[tree.key]["letter"]}
+        moved = new_spots.clear_spot(tree, short[tree.key], letter, drawn[tree.key], plot, others)
+        if moved is None and not spots[tree.key].get("squeezed"):
+            # Past the plot's edge, for the block to grow into; a tree already squeezed into a
+            # block that couldn't grow stays where it is.
+            moved = new_spots.new_spot(
+                tree, short[tree.key], drawn[tree.key], plot, others, now, False
+            )
+        if moved:
+            spots[tree.key] = {**moved, "letter": letter}
 
 
 def stand_trees(
@@ -141,6 +154,7 @@ def stand_trees(
                     now,
                     False,
                     _anchor(block, others, toward),
+                    squeeze=spots[tree.key].get("squeeze", False),
                 ),
                 "letter": spots[tree.key]["letter"],
             }
@@ -154,7 +168,7 @@ def stand_trees(
         lead_spot.reserve(block, lead, short, drawn, plot, spots, now, toward)
     if not bays:
         _untangle(block, short, drawn, plot, spots, now)
-    drawn = _spaced(block, grown, drawn, spots)
+    drawn = _spaced(block, grown, drawn, spots, plot)
     standing: dict[str, Standing] = {}
     held: set[str] = set()  # letters live trees in the block already hold
     for tree in block.trees:

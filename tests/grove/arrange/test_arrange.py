@@ -1,5 +1,6 @@
 import dataclasses
 
+from lemonaid.grove.layout import new_spots
 from lemonaid.grove.layout.arrange import arrange
 
 from ..shared import DAY, NOW, block, lemon, tree
@@ -231,3 +232,111 @@ def test_a_stump_keeps_its_trees_name_for_two_hours():
     later, _ = arrange((block("g", "1", tree("a")),), saved, NOW + 3 * 3600)
     assert [label for *_, label in soon.stumps["g"]] == ["going"]
     assert [label for *_, label in later.stumps["g"]] == [""]
+
+
+def test_a_tree_saved_off_its_full_block_stands_inside_it_again():
+    def plot(x, y, w, h):
+        return {"x": x, "y": y, "w": w, "h": h, "roundness": 2.4, "seed": 65, "texture": "rows"}
+
+    big = tree("jump", *(lemon(f"claude:jump-{i}") for i in range(4)))
+    others = [tree(key) for key in ("browser", "focused", "freeze", "restart")]
+    spots = {"browser": (9, 9), "focused": (9, 15), "freeze": (40, 6), "restart": (31, 15)}
+    saved = {
+        # Block 5 boxed in: another block just below it, and one on each side.
+        "plots": {
+            "lemonaid": plot(37, 21, 57, 24),
+            "below": plot(37, 47, 57, 13),
+            "left": plot(1, 21, 34, 24),
+            "right": plot(96, 21, 30, 24),
+            "above": plot(37, 1, 57, 18),
+        },
+        "trees": {
+            "lemonaid": {
+                **{key: {"x": x, "y": y, "letter": key[0]} for key, (x, y) in spots.items()},
+                "jump": {"x": 28, "y": 27, "letter": "s"},  # below the block's bottom edge
+            }
+        },
+    }
+    blocks = (
+        block("lemonaid", "5", *others, big),
+        *(
+            block(name, str(i), tree(f"{name}-tree"))
+            for i, name in enumerate(("below", "left", "right", "above"), start=1)
+        ),
+    )
+    found, _ = arrange(blocks, saved, NOW)
+    s, p = found.trees[("lemonaid", "jump")], found.plots["lemonaid"]
+    assert 0 <= s.cx <= p.w and 0 <= s.cy <= p.h, (s.cx, s.cy, p.w, p.h)
+
+
+def _plot(x, y, w, h, **more):
+    return {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": 3, "texture": "rows", **more}
+
+
+_LARGE = tree("large", *(lemon(f"claude:large-{i}") for i in range(5)))
+
+
+def _fits(found, name, t):
+    s, p = found.trees[(name, t.key)], found.plots[name]
+    w, h, top = new_spots.footprint(t, s.label, s.letter, s.size)
+    x, y = s.cx - w // 2, s.cy - top
+    return x >= 0 and s.cy >= 0 and x + w <= p.w and y + h <= p.h  # its crown may rise above
+
+
+def test_a_block_too_short_for_its_tree_grows_taller_not_wider():
+    saved = {"plots": {"g": _plot(40, 20, 40, 8)}, "trees": {}}
+    found, _ = arrange((block("g", "1", _LARGE),), saved, NOW)
+    assert found.plots["g"].w == 40 and found.plots["g"].h > 8
+    assert _fits(found, "g", _LARGE)
+
+
+def test_a_tree_taller_than_its_block_lets_its_crown_rise_above_it():
+    saved = {"plots": {"g": _plot(40, 20, 40, 16)}, "trees": {}}
+    found, _ = arrange((block("g", "1", _LARGE),), saved, NOW)
+    assert (found.plots["g"].w, found.plots["g"].h) == (40, 16)
+    assert _fits(found, "g", _LARGE)
+
+
+def test_a_block_grows_over_open_ground_and_the_open_ground_is_forgotten():
+    open_ = {"open_since": 1.0}
+    saved = {
+        "plots": {
+            "g": _plot(40, 20, 40, 9),
+            "left": _plot(1, 20, 37, 9, **open_),
+            "right": _plot(82, 20, 40, 9, **open_),
+            "above": _plot(40, 1, 40, 17, **open_),
+            "below": _plot(40, 31, 40, 20, **open_),
+        },
+        "trees": {},
+    }
+    found, kept = arrange((block("g", "1", _LARGE),), saved, NOW)
+    assert _fits(found, "g", _LARGE)
+    grown = found.plots["g"]
+    for name, p in kept["plots"].items():
+        if name != "g":
+            assert not (
+                p["x"] < grown.x + grown.w
+                and grown.x < p["x"] + p["w"]
+                and p["y"] < grown.y + grown.h
+                and grown.y < p["y"] + p["h"]
+            ), name
+
+
+def test_a_lead_saved_off_its_block_stands_on_it_again():
+    head = tree("head", lead=True)
+    saved = {
+        "plots": {"g": _plot(30, 20, 40, 20), "": {**_plot(100, 20, 24, 9), "texture": "house"}},
+        "trees": {
+            "g": {
+                "head": {"x": 20, "y": 10, "letter": "h"},
+                ":lead": {"x": 20, "y": 25, "letter": "l", "w": 10, "h": 12, "top": 5},
+            }
+        },
+    }
+    found, kept = arrange((block("g", "1", head), block("", "0", tree("hq"))), saved, NOW)
+    assert _fits(found, "g", head)
+    again, _ = arrange((block("g", "1", head), block("", "0", tree("hq"))), kept, NOW + 60)
+    assert (again.trees[("g", "head")].cx, again.trees[("g", "head")].cy) == (
+        found.trees[("g", "head")].cx,
+        found.trees[("g", "head")].cy,
+    )
