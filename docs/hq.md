@@ -78,7 +78,7 @@ This installs the `brief`, `watch-doc`, `watch-pr` and `watch-briefs` skills for
 
 ## 2. Creating the HQ
 
-Start a lemon in a tmux window in a directory you want to treat as home. In that window (or with `lemonaid lemon start SESSION:WINDOW --preset claude`), give it a brief of its own:
+Start a lemon in a tmux window in a directory you want to treat as home. In that window (or with `lemonaid lemon start SESSION:WINDOW --preset claude`, or `:WINDOW` for a window of your own session), give it a brief of its own:
 
 ```bash
 lemonaid brief new --self "HQ"

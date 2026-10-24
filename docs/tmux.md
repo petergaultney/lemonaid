@@ -396,7 +396,7 @@ harness = "claude"
 args = ["--remote-control"]
 ```
 
-Each entry in `windows` creates a window, and an empty string is a shell. `lemon_window` is the 0-based window that gets the lemon. Start one with `lemonaid place open feat/thing --preset claude --shape work`, or in an existing session with `lemonaid lemon start SESSION:WINDOW --preset claude`. See [the configuration reference](config.md#independent-session-shapes-and-lemon-presets).
+Each entry in `windows` creates a window, and an empty string is a shell. `lemon_window` is the 0-based window that gets the lemon. Start one with `lemonaid place open feat/thing --preset claude --shape work`, or in an existing session with `lemonaid lemon start SESSION:WINDOW --preset claude` (`:WINDOW` for your own session). See [the configuration reference](config.md#independent-session-shapes-and-lemon-presets).
 
 ### Legacy templates and `tmux new`
 

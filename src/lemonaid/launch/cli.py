@@ -11,9 +11,17 @@ from . import command, handoff, options, window
 
 def _start(args: argparse.Namespace) -> tuple[dict, str]:
     """(JSON result, error)."""
-    session, _, index = args.target.partition(":")
-    if not session or not index.isdigit():
-        return {}, f"Name a window by its index: SESSION:WINDOW, not {args.target!r}"
+    session, colon, index = args.target.partition(":")
+    if not colon or not index.isdigit():
+        return {}, f"Name a window by its index: :WINDOW or SESSION:WINDOW, not {args.target!r}"
+
+    if not session:
+        session = window.own_session()
+        if not session:
+            return (
+                {},
+                f"{args.target} means a window of your own tmux session, and this isn't in tmux",
+            )
 
     config = load_config()
     try:
@@ -95,13 +103,17 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         "start",
         help="Start a lemon in a window of an existing tmux session",
         description="Runs a preset, harness executable, or legacy template's lemon line - the same one "
-        "`place open` starts in its harness window - in SESSION:WINDOW, in the "
-        "session's directory. The window is made if it doesn't exist and respawned "
+        "`place open` starts in its harness window - in window WINDOW of your own tmux "
+        "session (:WINDOW) or of SESSION, in the session's directory. :WINDOW follows your "
+        "session through renames, so a lemon starting a helper beside itself never needs its "
+        "session's name. The window is made if it doesn't exist and respawned "
         "if its panes are dead; anything running there is refused. Codex is started "
         "with its folder-trust and update prompts turned off, so the prompt reaches it.",
     )
     start.add_argument(
-        "target", metavar="SESSION:WINDOW", help="Where to start it; WINDOW is an index"
+        "target",
+        metavar="[SESSION]:WINDOW",
+        help="Where to start it: :4 is window 4 of your own session; WINDOW is an index",
     )
     options.add_arguments(start)
     start.add_argument(

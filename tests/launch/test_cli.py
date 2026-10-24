@@ -186,3 +186,25 @@ def test_a_brief_for_a_codex_on_the_shared_daemon_is_refused_before_anything_sta
     assert tmux("list-windows", "-t", "=work", "-F", "#{window_index}") == tmux(
         "display", "-p", "-t", "=work:", "#{window_index}"
     )
+
+
+def test_a_bare_window_starts_in_your_own_session_whatever_it_is_called_now(
+    capsys, tmux, monkeypatch
+):
+    monkeypatch.setenv("TMUX_PANE", tmux("display", "-p", "-t", "work:", "#{pane_id}"))
+    tmux("rename-session", "-t", "work", "renamed from the grove")
+
+    started = _start(capsys, ":4")
+
+    assert (started["error"], started["session"], started["window"]) == (
+        None,
+        "renamed from the grove",
+        "4",
+    )
+    assert "lemon" in _screen(tmux, "renamed from the grove:4", "lemon")
+
+
+def test_a_bare_window_outside_tmux_is_an_error(capsys, tmux, monkeypatch):
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+
+    assert "isn't in tmux" in _start(capsys, ":4")["error"]

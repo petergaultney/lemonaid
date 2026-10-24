@@ -1,6 +1,7 @@
 """The tmux window a lemon starts in: made, or respawned, but never taken from a live process."""
 
 import dataclasses
+import os
 import subprocess
 import time
 from collections import abc
@@ -52,6 +53,16 @@ def session_dir(session: str) -> Path | None:
     """The directory tmux session *session* was started in, or None if it doesn't exist."""
     result = _tmux("display-message", "-p", "-t", f"={session}:", "#{session_path}")
     return Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
+
+
+def own_session() -> str:
+    """The tmux session the calling pane is in, by the name it has now; "" outside tmux."""
+    pane = os.environ.get("TMUX_PANE")
+    if not pane:
+        return ""
+
+    result = _tmux("display-message", "-p", "-t", pane, "#{session_name}")
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def environment_args(environment: abc.Mapping[str, str]) -> list[str]:
