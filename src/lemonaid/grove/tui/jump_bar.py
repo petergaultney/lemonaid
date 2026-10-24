@@ -1,8 +1,6 @@
 """A one-line bar over the inbox that takes the rest of a grove key typed there, as `5s`."""
 
 from textual import events
-from textual.app import ComposeResult
-from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from . import keys
@@ -11,11 +9,11 @@ from .frame import Grove
 
 def _line(where: keys.Where, grove: Grove) -> str:
     if where.note:
-        return f"{where.note} · esc cancels"
+        return f"{where.note} · esc closes"
 
     block = next((b for b in grove.blocks if b.digit == where.block), None)
     if block is None:
-        return "type a block number · esc cancels"
+        return "type a block number · esc closes"
     if where.tree:
         what = "letter" if where.number else "place on the tree"
         return f"{where.block}{where.tree.upper()}{where.number}: the lemon's {what}"
@@ -28,42 +26,45 @@ def _line(where: keys.Where, grove: Grove) -> str:
     return f"{block.digit} {block.name or 'no group'}: {trees}"
 
 
-class JumpBar(ModalScreen[str]):
-    """Dismisses with the chosen lemon's channel, or "" when cancelled."""
+def key_name(event: events.Key) -> str:
+    """A typed character as itself, which keeps a capital's case; any other key by its name."""
+    if event.character and event.character.isprintable() and len(event.character) == 1:
+        return event.character
+    return event.key
+
+
+class JumpBar(Static):
+    """A one-line bar the inbox shows while a grove key is typed; the inbox hands it each key
+    first, so a key it doesn't take, and the mouse, act on the inbox as usual and in order.
+    """
 
     DEFAULT_CSS = """
-    JumpBar { background: transparent; }
-    JumpBar > Static { dock: bottom; height: 1; width: 100%; background: #1d2333; color: #e6ebf2; }
+    JumpBar {
+        dock: bottom; height: 1; width: 100%; background: #d97706; color: #111111; text-style: bold;
+    }
     """
 
     def __init__(self, grove: Grove, first: str) -> None:
-        super().__init__()
         self._grove = grove
         self._where, _ = keys.step(keys.Where(), first, grove.blocks, grove.arrangement)
+        super().__init__(_line(self._where, grove))
 
-    def compose(self) -> ComposeResult:
-        yield Static(_line(self._where, self._grove))
+    def take(self, key: str) -> tuple[bool, str | None]:
+        """Whether the bar takes *key*, and once it is done, the lemon chosen or "" (else None).
+        A key the bar doesn't take closes it, for the inbox to act on.
+        """
+        if key == "escape":
+            return True, ""
+        if not keys.uses(self._where, key, self._grove.blocks, self._grove.arrangement):
+            return False, ""
 
-    def on_key(self, event: events.Key) -> None:
-        event.stop()
-        event.prevent_default()
-        if event.key == "escape" and not self._where.tree:
-            self.dismiss("")
-            return
-
-        key = (
-            event.character
-            if event.character and event.character.isprintable() and len(event.character) == 1
-            else event.key
-        )
         self._where, channel = keys.step(
             self._where, key, self._grove.blocks, self._grove.arrangement
         )
         if channel:
-            self.dismiss(channel)
-            return
+            return True, channel
         if self._where == keys.Where():
-            self.dismiss("")
-            return
+            return True, ""
 
-        self.query_one(Static).update(_line(self._where, self._grove))
+        self.update(_line(self._where, self._grove))
+        return True, None
