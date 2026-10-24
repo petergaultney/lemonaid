@@ -11,7 +11,7 @@ from textual.strip import Strip
 from textual.widget import Widget
 
 from ..draw import canvas
-from . import compass, keys, picking
+from . import compass, help_panel, keys, picking
 from .frame import Grove, Lists, clamp_pan, render
 
 _PULSE_LEVELS = 8  # frames in half a pulse; the other half replays them backwards
@@ -50,7 +50,7 @@ class GroveScreen(ModalScreen[str]):
     Modal, so the inbox's own bindings (its priority arrow keys among them) stand aside.
     """
 
-    DEFAULT_CSS = "GroveScreen { background: #0b0e13; }"
+    DEFAULT_CSS = "GroveScreen { background: #0b0e13; layers: base overlay; }"
 
     def __init__(
         self,
@@ -96,6 +96,8 @@ class GroveScreen(ModalScreen[str]):
 
     def on_resize(self, _event: events.Resize) -> None:
         self._redraw()
+        for panel in self.query(help_panel.HelpPanel):
+            panel.center()
 
     def _phase_level(self) -> int:
         position = self._tick % (2 * _PULSE_LEVELS)
@@ -164,6 +166,9 @@ class GroveScreen(ModalScreen[str]):
         if key == " " and self._where.search is None:
             self.dismiss("")
             return
+        if key == "?" and self._where.search is None:
+            self.mount(help_panel.HelpPanel(zoomed=bool(self._where.block)))
+            return
 
         before = self._where.pan
         channel, target = "", None
@@ -204,6 +209,9 @@ class GroveScreen(ModalScreen[str]):
     def on_key(self, event: events.Key) -> None:
         event.stop()
         event.prevent_default()
+        if self.query(help_panel.HelpPanel):
+            self.query(help_panel.HelpPanel).remove()
+            return
         if self._held:
             self.hold(False)
         self._was_open = not keys.at_rest(self._where)
