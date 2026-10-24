@@ -12,6 +12,7 @@ import pytest  # noqa: E402
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
+from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
 from lemonaid.watch import codex_waiter, push_scout  # noqa: E402
@@ -75,6 +76,23 @@ def _no_real_tmux(monkeypatch):
 def _no_live_codex_threads(monkeypatch):
     monkeypatch.setattr(codex_processes, "thread_ttys", lambda: None)
     monkeypatch.setattr(codex_processes, "open_threads", lambda: None)
+
+
+class _NoLoopWatchdog:
+    def __init__(self, threshold: float) -> None: ...
+    def start(self) -> None: ...
+    def stop(self) -> None: ...
+    def worst(self, now: float) -> float:
+        return 0.0
+
+
+@pytest.fixture(autouse=True)
+def _no_loop_watchdog(monkeypatch):
+    """The watchdog's thread walks the loop thread's frames, which segfaulted CPython 3.11 under load.
+
+    tests/inbox/tui/test_loop_watchdog.py builds the real `Watchdog` itself.
+    """
+    monkeypatch.setattr(tui_app, "loop_watchdog", types.SimpleNamespace(Watchdog=_NoLoopWatchdog))
 
 
 @pytest.fixture(autouse=True)

@@ -150,6 +150,7 @@ def test_alt_r_a_letter_twice_then_enter_renames_that_lemon_from_the_grove(monke
             await pilot.pause()
             await pilot.press("space")
             await pilot.pause()
+            await pilot.app.workers.wait_for_complete()
             screen = app.screen
             assert isinstance(screen, GroveScreen)
             letter = screen._grove.arrangement.trees[("", "fourth")].letter
