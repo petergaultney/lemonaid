@@ -95,6 +95,7 @@ def load(
     focused_channels = focus.channels(active.rows, focused)
     matching_ids = (
         {result.notification.id for result in search.find(conn, search_text)}
+        | {n.id for n in active.rows if n.channel in focused_channels}
         | {n.id for n in active.rows if n.channel in active.deaf}
         if search_text is not None
         else None

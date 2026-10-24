@@ -8,6 +8,16 @@ from . import inbox_frame
 Entry = sections.Header | sections.Row
 
 
+def _focused_keys(frame: inbox_frame.Frame) -> set[str]:
+    return {
+        f"{n.id}@{group.group_id}"
+        for n in frame.active.rows
+        if n.channel in frame.focused_channels
+        for group in frame.groups
+        if group.name in frame.active.memberships.get(n.channel, ())
+    }
+
+
 def entries(
     frame: inbox_frame.Frame,
     shown: list[db.Notification],
@@ -62,7 +72,7 @@ def entries(
         frame.active.memberships,
         frame.groups,
         view.statuses(frame.active.cards, frame.active.rows),
-        kept,
+        {*kept, *_focused_keys(frame)},
         fold_open,
         frame.active.deaf,
         group_order=group_order,
