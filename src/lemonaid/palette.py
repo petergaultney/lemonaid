@@ -8,6 +8,7 @@ near-identical.
 """
 
 import colorsys
+import functools
 import re
 from collections import abc
 
@@ -98,16 +99,11 @@ def color_for(name: str) -> str:
 GROUP_MIN_DISTANCE = 0.08
 
 
-def assign_groups(names: abc.Iterable[str], pinned: abc.Mapping[str, str]) -> dict[str, str]:
-    """A colour for each of *names*: its `pinned` one, else its hash slot moved off any look-alike.
-
-    Names are taken in sorted order, so the result depends only on the set of
-    names. A name keeps its hash slot unless that is within `GROUP_MIN_DISTANCE`
-    of a colour already given out, and then takes the nearest slot that isn't;
-    with none left, it keeps its hash slot.
-    """
-    wanted = set(names)
-    given = {name: color for name, color in pinned.items() if name in wanted}
+@functools.lru_cache(maxsize=32)
+def _assigned(
+    wanted: frozenset[str], pinned: tuple[tuple[str, str], ...]
+) -> tuple[tuple[str, str], ...]:
+    given = dict(pinned)
     for name in sorted(wanted - given.keys()):
         taken = list(given.values())
         slot = color_for(name)
@@ -120,4 +116,16 @@ def assign_groups(names: abc.Iterable[str], pinned: abc.Mapping[str, str]) -> di
             else min(free, key=lambda candidate: distance(candidate, slot))
         )
 
-    return given
+    return tuple(given.items())
+
+
+def assign_groups(names: abc.Iterable[str], pinned: abc.Mapping[str, str]) -> dict[str, str]:
+    """A colour for each of *names*: its `pinned` one, else its hash slot moved off any look-alike.
+
+    Names are taken in sorted order, so the result depends only on the set of
+    names. A name keeps its hash slot unless that is within `GROUP_MIN_DISTANCE`
+    of a colour already given out, and then takes the nearest slot that isn't;
+    with none left, it keeps its hash slot.
+    """
+    wanted = frozenset(names)
+    return dict(_assigned(wanted, tuple(sorted((n, c) for n, c in pinned.items() if n in wanted))))

@@ -57,7 +57,7 @@ class HistoryTable(StableTable):
         if self.row_count == 0 or not (key := row_keys.at_row(self, self.cursor_row)):
             return None
 
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             notification = db.get(conn, int(key.value))
         if not notification:
             error_screen.show(
@@ -69,7 +69,7 @@ class HistoryTable(StableTable):
 
     def _warn_shared_name(self, channel: str) -> None:
         """Before a session comes back, tell its lemon (and the user) if its name is another's."""
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             lemon_id = brief.identity.by_channel(conn).get(channel)
             warning = brief.name_clash.warn(conn, lemon_id) if lemon_id else ""
         if warning:

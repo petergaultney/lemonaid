@@ -65,7 +65,7 @@ def _drawn(section: render.Section, mid_turn: bool, held_mid_turn: bool) -> rend
 
 def _turns(shown: render.View, now: float, held_mid_turn: bool) -> render.View:
     """*shown* with each section in the state its lemon shows."""
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         rows = db.get_active(conn)
         working = turns.briefs(rows, attached.by_channel(conn, (n.channel for n in rows)), now)
 
@@ -474,7 +474,7 @@ class BriefView(scroll_position.StableScroll):
         now = time.time()
         shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
         shown = _turns(shown, now, self._mid_turn_working)
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             self._lemons = identity.known(conn)
 
         rendered = render.to_markdown(shown, now, expanded=True)

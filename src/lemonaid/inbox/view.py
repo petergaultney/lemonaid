@@ -197,7 +197,7 @@ def ordered_active(
     hidden_briefs = frozenset(
         channel
         for channel, brief_id in brief_ids.items()
-        if channel in attached and brief.hidden.is_hidden(attached[channel].read_text())
+        if channel in attached and (card := cache.get(attached[channel])) and card.hidden
     )
     return Active(
         order.by_status(rows, statuses(cards, rows), pins.pinned_positions(conn)),

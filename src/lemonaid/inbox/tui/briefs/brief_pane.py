@@ -99,7 +99,7 @@ class BriefPane(BriefView):
         if not fresh and (found := self.targets.get(notification.id)):
             return found
 
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             attached = brief.attached.for_rows(conn, [notification])
             emojis = emoji.by_channel(conn)
         self.targets.pop(notification.id, None)
@@ -120,7 +120,7 @@ class BriefPane(BriefView):
 
         if (notification_id := row_keys.key_id(row_keys.at_row(table, next_row))) is None:
             return None
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             notification = db.get(conn, notification_id)
 
         return (next_row, notification) if notification else None
@@ -133,7 +133,7 @@ class BriefPane(BriefView):
             for near in (row - 2, row - 1, row + 1, row + 2)
             if 0 <= near < table.row_count
         ]
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             rows = [
                 notification
                 for key in keys
@@ -205,7 +205,7 @@ class BriefPane(BriefView):
         if not (row_key := self._cursor_key()):
             return False
 
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             notification = db.get(conn, int(row_key))
 
         return bool(notification and notification.is_unread)

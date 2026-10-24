@@ -13,7 +13,7 @@ def _visibility(inbox: InboxList, notification: db.Notification, text: str) -> s
     if notification.channel not in row_keys.channels(inbox.main) + row_keys.channels(inbox.other):
         return "; / search includes hidden lemons"
 
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         pinned = notification.channel in pins.pinned_positions(conn)
     placed = "blocked" if notification.asks else status.split(text).status
     reason = (
@@ -23,7 +23,7 @@ def _visibility(inbox: InboxList, notification: db.Notification, text: str) -> s
 
 
 def toggle(inbox: InboxList, notification: db.Notification) -> str:
-    with db.connect() as conn:
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
         path = attached.for_rows(conn, [notification]).get(notification.channel)
     if path is None:
         message = "No attached brief to hide this lemon"

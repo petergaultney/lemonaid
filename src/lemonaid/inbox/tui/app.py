@@ -1,5 +1,6 @@
 """Main Lemonaid TUI application."""
 
+import dataclasses
 import os
 import time
 import typing as ty
@@ -39,13 +40,22 @@ from ...tmux.scratch import (
     size_has_drifted,
 )
 from .. import db, sections, undo
-from . import bindings, claude_patch, error_screen, loop_watchdog, styles, unfocused_dim, utils
+from . import (
+    bindings,
+    claude_patch,
+    error_screen,
+    input_watchdog,
+    loop_watchdog,
+    styles,
+    unfocused_dim,
+    utils,
+)
 from .briefs.brief_pane import BriefPane
 from .crash_logging import CrashLoggedApp
 from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
 from .help_screen import HelpScreen
 from .inbox_content import InboxContent
-from .live import inbox_draw, status_line
+from .live import inbox_draw, inbox_frame, refresh_ticks, status_line
 from .live.inbox_list import InboxList
 from .notes import NotesPanel
 from .rows import brief_cards, row_parts
@@ -62,6 +72,7 @@ from .views.usage_view import UsageHeader
 from .watchers import focus, session_names, watcher_hooks
 
 _LOOP_STALL_SECONDS = 0.1
+_INPUT_STALL_SECONDS = 2.0
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
 
 _log = get_logger("tui")
@@ -88,6 +99,8 @@ class LemonaidApp(CrashLoggedApp):
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
         self._loop_watchdog = loop_watchdog.Watchdog(_LOOP_STALL_SECONDS)
+        self._ticks = refresh_ticks.Ticks(self)
+        self._input_watchdog = input_watchdog.Watchdog(self, _INPUT_STALL_SECONDS)
         self._dim = unfocused_dim.Dim(
             unfocused_dim.strength(self.config.tui.unfocused_dim), enabled=False
         )
@@ -205,6 +218,7 @@ class LemonaidApp(CrashLoggedApp):
 
     def on_mount(self) -> None:
         self._loop_watchdog.start()
+        self._input_watchdog.start()
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
         if (
@@ -240,7 +254,7 @@ class LemonaidApp(CrashLoggedApp):
 
         self._refresh_notifications()
         self.query_one("#main_table", DataTable).focus()
-        self.set_interval(self.config.tui.refresh_interval, self._refresh_notifications)
+        self.set_interval(self.config.tui.refresh_interval, self._tick)
         # Transcript watchers: auto-dismiss, message updates, and exit detection
         watcher_hooks.start(self.config, self._brief_cache, self._set_detached_channels)
         self.call_later(self._check_claude_patch)
@@ -255,6 +269,7 @@ class LemonaidApp(CrashLoggedApp):
         """Stop the DB-mutating watcher before this app's resources disappear."""
         stop_unified_watcher()
         self._loop_watchdog.stop()
+        self._input_watchdog.stop()
 
     def _refresh_skills(self) -> None:
         """Bring installed skills up to date after an upgrade, saying so only when it did something."""
@@ -420,21 +435,67 @@ class LemonaidApp(CrashLoggedApp):
             return
 
         self._wake_expired_snoozes()
-        self._names.maybe_scan(lambda: self.call_from_thread(self._refresh_notifications))
+        self._names.maybe_scan(lambda: self.call_from_thread(self._tick))
 
-        inbox = self._content.inbox
-        drawn = inbox.refresh_list(
+        drawn = self._content.inbox.refresh_list(
             focused=self._attention.ttys(),
-            env_filter=self.current_env if self.current_env != "unknown" else None,
-            search_text=self._content.filter_text if self._search_mode else None,
-            detached=self._detached_channels,
-            cards=self._content.cards,
-            width=self.size.width,
-            height=self.size.height,
-            card_width=self._content.card_width(),
-            card_shape=self._content.card_shape,
+            env_filter=self._env_filter(),
+            search_text=self._search_text(),
             stay_on_unread=stay_on_unread,
+            **self._draw_args(),
         )
+        self._inbox_drawn(drawn)
+
+    def _env_filter(self) -> str | None:
+        return self.current_env if self.current_env != "unknown" else None
+
+    def _search_text(self) -> str | None:
+        return self._content.filter_text if self._search_mode else None
+
+    def _draw_args(self) -> dict[str, ty.Any]:
+        return {
+            "detached": self._detached_channels,
+            "cards": self._content.cards,
+            "width": self.size.width,
+            "height": self.size.height,
+            "card_width": self._content.card_width(),
+            "card_shape": self._content.card_shape,
+        }
+
+    def _tick(self) -> None:
+        """The periodic refresh, whose reads run on a worker so a slow one never holds input."""
+        if not self.is_running or self._ticks.busy:
+            return
+
+        if self._brief_target is not None or self._mode is not None:
+            self._refresh_notifications()
+            return
+
+        self._content.refresh_notes()
+        self._names.maybe_scan(lambda: self.call_from_thread(self._tick))
+        inbox = self._content.inbox
+        request = inbox.request(frozenset(), self._env_filter(), self._search_text())
+        pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
+
+        def load() -> tuple[bool | None, inbox_frame.Frame]:
+            self._wake_expired_snoozes()
+            keys = self._attention.has_keys(pane) if pane else None
+            return keys, inbox.load(dataclasses.replace(request, focused=self._attention.ttys()))
+
+        def done(loaded: tuple[bool | None, inbox_frame.Frame]) -> None:
+            self._set_input_active(loaded[0])
+            if (
+                self.is_running
+                and self._brief_target is None
+                and self._mode is None
+                and (drawn := inbox.draw(loaded[1], **self._draw_args()))
+            ):
+                self._inbox_drawn(drawn)
+
+        self._ticks.run(load, done)
+
+    def _inbox_drawn(self, drawn: inbox_draw.Drawn) -> None:
+        inbox = self._content.inbox
         self.set_class(bool(drawn.unread), "-unread")
         self._refresh_resume_binding()
 
@@ -550,7 +611,7 @@ class LemonaidApp(CrashLoggedApp):
             next((n for n in frame.active.rows if n.channel == channel), None) if frame else None
         )
         if notification is None:
-            with db.connect() as conn:
+            with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
                 notification = db.get_by_channel(conn, channel, unread_only=False)
         if notification is not None:
             self._activate_lemon(notification)
@@ -608,7 +669,7 @@ class LemonaidApp(CrashLoggedApp):
             self.refresh_bindings()
 
     def _wake_expired_snoozes(self) -> None:
-        with db.connect() as conn:
+        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             woken = db.wake_expired(conn)
         for channel in woken:
             _log.info("snooze expired: %s", channel)

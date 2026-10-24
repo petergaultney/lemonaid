@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.style import Style
 from rich.text import Text
 
-from ....brief import colors
+from ....brief import colors, hidden
 from ....brief import now as brief_now
 from ....brief import status as brief_status
 from ....brief.colors import (
@@ -93,6 +93,7 @@ class CardBrief:
     asking: bool = (
         False  # its lemon is stuck on a permission prompt: `blocked`, whatever the brief says
     )
+    hidden: bool = False  # `Hidden: yes`: left out of the default inbox
 
     @property
     def placed(self) -> str:
@@ -193,6 +194,7 @@ def _parse(text: str, mtime: float) -> CardBrief:
         now.needs_label,
         brief_now.summary(now.running),
         parts.area,
+        hidden=hidden.is_hidden(text),
     )
 
 

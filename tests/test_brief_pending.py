@@ -236,6 +236,21 @@ def test_a_waiting_brief_attached_by_channel_since_stops_waiting():
         assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 0
 
 
+def test_a_claim_with_nothing_to_do_waits_for_no_writer():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "4", _brief("task"), [])
+    writer = sqlite3.connect(db.get_db_path())
+    writer.execute("BEGIN IMMEDIATE")
+    try:
+        claimer = sqlite3.connect(db.get_db_path(), timeout=0)
+        claimer.row_factory = sqlite3.Row
+        attached.claim_pending(claimer)
+
+        assert not claimer.in_transaction
+    finally:
+        writer.rollback()
+
+
 def test_a_brief_moved_to_a_new_window_keeps_waiting():
     """Attached before it was set waiting, so the new window's lemon still gets it."""
     _lemon("claude:old", "fresh", "2")

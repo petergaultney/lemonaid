@@ -151,14 +151,21 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
 _initialized_dbs: set[Path] = set()
 
+UI_TIMEOUT_SECONDS = 5.0
+
 
 @contextmanager
-def connect(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
-    """Context manager for database connections."""
+def connect(db_path: Path | None = None, *, timeout: float = 30.0) -> Iterator[sqlite3.Connection]:
+    """Context manager for database connections.
+
+    *timeout* is how long a statement waits for another process's lock. The
+    default suits processes that start together; the inbox's UI thread passes
+    `UI_TIMEOUT_SECONDS`, since keys and the mouse wait with it.
+    """
     if db_path is None:
         db_path = get_db_path()
 
-    conn = sqlite3.connect(db_path, timeout=30)  # many waiters may start at once
+    conn = sqlite3.connect(db_path, timeout=timeout)
     conn.row_factory = sqlite3.Row
 
     if db_path not in _initialized_dbs:
