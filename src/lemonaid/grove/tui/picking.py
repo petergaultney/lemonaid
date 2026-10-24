@@ -41,6 +41,7 @@ class Target:
     name: str  # the current name, which a rename starts from
     # (channel, window) of each lemon on the tree; for a rename, in its session in every group
     lemons: tuple[tuple[str, str], ...]
+    tagged: str = ""  # the lemon whose given name the tree's tag shows, "" when it's the session's
 
 
 def _picked(where: keys.Where, blocks: abc.Sequence[Block]) -> tuple[Block, Tree] | None:
@@ -87,6 +88,7 @@ def _target(
             for t in ([t for _, t in same] if where.editing == "rename" else [tree])
             for m in t.lemons
         ),
+        tree.lemons[0].channel if tree.lemons and tree.lemons[0].named else "",
     )
 
 
