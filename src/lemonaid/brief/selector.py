@@ -160,6 +160,10 @@ def _unlocated(
 
 def _session(conn: sqlite3.Connection, spec: str) -> tuple[Selected | None, str]:
     tmux_session, _, window = spec.partition(":")
+    if not tmux_session:
+        tmux_session = session.current_session().partition(":")[0]
+        if not tmux_session:
+            return None, f"{spec} means a window of your own tmux session, and this isn't in tmux"
     rows = _live_rows(conn, "json_extract(metadata, '$.tmux_session') = ?", (tmux_session,))
     if window:
         index, window_id = session.window(tmux_session, window)
@@ -234,8 +238,9 @@ def add_arguments(parser: argparse.ArgumentParser, required: bool = True) -> Non
     )
     target.add_argument(
         "--session",
-        metavar="SESSION[:WINDOW]",
-        help="The lemon in this tmux session; name the window when it holds several",
+        metavar="[SESSION]:WINDOW",
+        help="The lemon in this tmux session (:4 is window 4 of your own); name the window "
+        "when it holds several",
     )
     target.add_argument(
         "--channel",

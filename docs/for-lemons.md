@@ -332,10 +332,12 @@ timeout and don't retry on a timeout; a second call would just wait on the same 
 ### A lemon in another window: `lemon start`
 
 To start a lemon in a window of a session that already exists (a reviewer in window 4, or a
-lemon whose window died), use `lemon start` rather than typing a launch line into a pane:
+lemon whose window died), use `lemon start` rather than typing a launch line into a pane.
+`:4` is window 4 of your own tmux session, found from your pane, so it keeps working after the
+session is renamed; `<session>:4` names another session.
 
 ```bash
-lemonaid lemon start <session>:4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
+lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
     --brief <file> --parent parent --name 'REVIEW #12 thing' --json
 ```
 
