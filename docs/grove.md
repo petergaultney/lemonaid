@@ -24,9 +24,8 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | Keys | What they do |
 |------|--------------|
 | a digit | Zoom into that block. The inbox shows each lemon's key on its row, and typing one there jumps the same way. Blocks are numbered in the inbox's group order, so `2` is the second group in your list; lemons in no group are `0`. A second digit reaches block 10 and up (`1` `0`). |
-| a letter | Jump to the first lemon on that tree. `l` is the lead tree. |
-| a capital | Jump to the second lemon on that tree, such as its reviewer. A tree's main lemon is always first: a lemon whose brief is hidden (a reviewer's) comes after one whose brief isn't, then the lower window, then the older lemon. |
-| a letter, then a number | On a tree with three or more lemons the letter opens it, and its lemons are numbered in the order they started. |
+| a letter | Jump to the first lemon on that tree, its main lemon, however many lemons join it. `l` is the lead tree. |
+| a capital, then a number | Another lemon on that tree: the number is its place, so `S2` is the second lemon, such as a reviewer, and `S3` the third. Past nine they are `0` and a letter (`S0a` is the tenth). A tree's main lemon is always first: a lemon whose brief is hidden (a reviewer's) comes after one whose brief isn't, then the lower window, then the older lemon. |
 | `Alt`+`r` | Rename something, choosing it first: type a tree's letter (after its block's digit in the grove view), and the bottom line names its tmux session; the letter again, or an arrow, moves on to each of its lemons in turn. `enter` asks for the new name in a dialog, `esc` stops. A session keeps its tree's spot and letter; a lemon gets a new display name, as `r` gives one in the inbox, and an empty name clears it. |
 | `Alt`+`s`, `a`, `p`, `g` | Snooze, archive, pin or unpin, or move to another group, chosen the same way: a tree's letter offers the whole tree first, then each of its lemons. Snooze asks how long and moving asks which group, in the inbox's own dialogs; archive and pin happen on `enter`. A lemon moved to another group leaves the group it was drawn in. |
 | `Alt`+`c` | Recolor a block's group: in the grove view type its digit, zoomed in it asks at once. The packhouse has no color. |
@@ -40,7 +39,7 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | `Space` | Close the grove from anywhere in it, except while typing a search. |
 | `?` | List every key for the view you're in, the grove or a block. Any key closes the list. |
 
-So `2c` always means the same tree, `2C` its second lemon, and `2c3` the third lemon on it. In the grove view each tag shows its tree's whole key, as `2c`; zoomed into a block, just the letter. A click on a block zooms into it, and a click on a tree acts like its letter.
+So `2c` always means the same tree and its main lemon, `2C2` its second lemon, and `2C3` the third. In the grove view each tag shows its tree's whole key, as `2c`; zoomed into a block, just the letter. A click on a block zooms into it, and a click on a tree acts like its letter.
 
 Zoomed into a block, each tree lists its lemons with their Brief-ID, status, model and context use.
 

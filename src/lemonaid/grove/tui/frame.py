@@ -48,9 +48,9 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
             colors.TEXT,
         )
     if where.tree:
-        confirm = f" · enter takes {where.number}" if where.number else ""
+        what = "letter" if where.number else "place on the tree, 2 to 9, or 0 and a letter past 9"
         return (
-            f"{where.block}{where.tree}: type the lemon's number {where.number}{confirm}",
+            f"{where.block}{where.tree.upper()}{where.number}: type the lemon's {what} · esc backs out",
             colors.TEXT,
         )
     block = next((b for b in grove.blocks if b.digit == where.block), None)
@@ -62,7 +62,7 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
         ]
         more = f"  (another digit: {', '.join(longer)})" if longer else ""
         return (
-            f"{where.block} · {block.name or 'no group'}: a tree's letter jumps, l is the lead, a capital takes the second lemon, Alt and r, s, a, p, g or c edits{more}",
+            f"{where.block} · {block.name or 'no group'}: a tree's letter takes its first lemon, l is the lead's, a capital and a place the others, Alt and r, s, a, p, g or c edits{more}",
             colors.TEXT,
         )
     return "type a block number, or / to search · ? keys · esc closes", colors.MUTED

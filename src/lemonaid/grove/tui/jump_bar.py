@@ -17,7 +17,8 @@ def _line(where: keys.Where, grove: Grove) -> str:
     if block is None:
         return "type a block number · esc cancels"
     if where.tree:
-        return f"{where.block}{where.tree}: the lemon's number {where.number}"
+        what = "letter" if where.number else "place on the tree"
+        return f"{where.block}{where.tree.upper()}{where.number}: the lemon's {what}"
 
     trees = "  ".join(
         f"{grove.arrangement.trees[(block.name, t.key)].letter} "
