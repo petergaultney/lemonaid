@@ -109,3 +109,12 @@ def test_a_session_newer_than_the_last_notification_still_switches(target, monke
     monkeypatch.setattr(go, "_tmux", lambda command, *args: "%7|/dev/target|work|100|90|$2")
 
     assert go._pane(["tmux"], found) == "%7"
+
+
+def test_a_renamed_session_still_switches(target, monkeypatch):
+    """tmux keeps a session's id through a rename, and the recorded order holds that id."""
+    with db.connect() as conn:
+        found = db.get_by_channel(conn, "codex:jump")
+    monkeypatch.setattr(go, "_tmux", lambda command, *args: "%7|/dev/target|renamed|100|90|$2")
+
+    assert go._pane(["tmux"], found) == "%7"

@@ -53,7 +53,12 @@ def locate(metadata: dict[str, ty.Any]) -> tuple[str | None, str | None]:
         except ValueError:
             continue
 
-        if metadata.get("tmux_session") and metadata["tmux_session"] != session:
+        # The recorded order holds tmux's session id, which a rename keeps.
+        if (
+            metadata.get("tmux_session")
+            and not metadata.get("tmux_session_order")
+            and metadata["tmux_session"] != session
+        ):
             continue
 
         if metadata.get("tmux_session_order") and metadata["tmux_session_order"] != order:
