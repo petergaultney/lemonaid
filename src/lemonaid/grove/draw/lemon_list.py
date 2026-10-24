@@ -15,6 +15,14 @@ _MODEL, _MODEL_WIDTH = 43, 10
 _CONTEXT_END = 57  # right-aligned, up to four cells
 _PIN = 58
 _PANEL = "#121821"
+_EDITED = "#2c3e57"  # behind the row an edit would change
+
+
+def session(tree: Tree) -> str:
+    """What marks *tree*'s session as an edit's target, where a lemon's channel marks a lemon: no
+    channel starts with a colon.
+    """
+    return f":session:{tree.key}"
 
 
 def key(tree: Tree, letter: str, index: int) -> str:
@@ -25,7 +33,9 @@ def key(tree: Tree, letter: str, index: int) -> str:
     return letter if index == 0 else letter.upper()
 
 
-def _row(canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase: float) -> None:
+def _row(
+    canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase: float, panel: str
+) -> None:
     lemon = tree.lemons[i]
     keys = key(tree, letter, i)
     text(
@@ -34,7 +44,7 @@ def _row(canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase:
         y,
         keys,
         colors.status_text(lemon.status) if lemon.status else colors.TEXT,
-        _PANEL,
+        panel,
         bold=True,
         underline=True,
     )
@@ -44,11 +54,11 @@ def _row(canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase:
         y,
         colors.lemon_glyph(lemon),
         colors.lemon_color(lemon, phase),
-        _PANEL,
+        panel,
         bold=True,
     )
     if lemon.emoji:
-        wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, _PANEL)
+        wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, panel)
     name_color = colors.IDLE if lemon.quiet else colors.TEXT
     text(
         canvas,
@@ -56,7 +66,7 @@ def _row(canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase:
         y,
         lemon.brief_id or lemon.name,
         name_color,
-        _PANEL,
+        panel,
         bold=True,
         limit=_NAME_WIDTH,
     )
@@ -68,15 +78,15 @@ def _row(canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase:
         y,
         detail,
         detail_color,
-        _PANEL,
+        panel,
         bold=bool(lemon.status),
         limit=_DETAIL_WIDTH,
     )
-    text(canvas, x + _MODEL, y, lemon.model, colors.MUTED, _PANEL, limit=_MODEL_WIDTH)
+    text(canvas, x + _MODEL, y, lemon.model, colors.MUTED, panel, limit=_MODEL_WIDTH)
     context = lemon.context[-4:]
-    text(canvas, x + _CONTEXT_END + 1 - len(context), y, context, colors.IDLE, _PANEL)
+    text(canvas, x + _CONTEXT_END + 1 - len(context), y, context, colors.IDLE, panel)
     if lemon.pinned:
-        put(canvas, x + _PIN, y, "▪", colors.TEXT, _PANEL)
+        put(canvas, x + _PIN, y, "▪", colors.TEXT, panel)
 
 
 def draw(
@@ -90,9 +100,15 @@ def draw(
     hits: Container[str] | None,
     opened: bool,
     most: int = 0,
+    edited: str = "",
 ) -> None:
-    """*most*, when given, lists that many rows at most, the last saying how many more there are."""
+    """*most*, when given, lists that many rows at most, the last saying how many more there are.
+    *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
+    a list cut short scrolls to keep an edited lemon in it.
+    """
     shown = len(tree.lemons) if not most or len(tree.lemons) <= most else most - 1
+    at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
+    first = max(0, at - shown + 1)
     height = min(len(tree.lemons), most or len(tree.lemons)) + 2
     fill(canvas, x, y, WIDTH, height, _PANEL)
     box(
@@ -105,12 +121,18 @@ def draw(
         DOUBLE if opened else ROUND,
     )
     title = f" {tree.key} "
-    text(canvas, x + 2, y, title, "#9aa5b8", _PANEL, limit=WIDTH - 4)
+    if edited == session(tree):
+        text(canvas, x + 2, y, title, BACKGROUND, colors.LEMON, bold=True, limit=WIDTH - 4)
+    else:
+        text(canvas, x + 2, y, title, "#9aa5b8", _PANEL, limit=WIDTH - 4)
     dim = canvas.dim
-    for i, lemon in enumerate(tree.lemons[:shown]):
-        row = y + 1 + i
+    for i, lemon in enumerate(tree.lemons[first : first + shown], start=first):
+        row = y + 1 + i - first
         canvas.dim = 0.6 if hits is not None and lemon.channel not in hits else dim
-        _row(canvas, x, row, tree, letter, i, phase)
+        panel = _EDITED if lemon.channel == edited else _PANEL
+        if panel != _PANEL:
+            fill(canvas, x + 1, row, WIDTH - 2, 1, panel)
+        _row(canvas, x, row, tree, letter, i, phase, panel)
     canvas.dim = dim
     if shown < len(tree.lemons):
         text(

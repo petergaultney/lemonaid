@@ -17,6 +17,8 @@ class Highlight:
 
     channels: frozenset[str]
     selected: str  # the channel `enter` would jump to
+    # What an edit would change: a lemon's channel, or `lemon_list.session(tree)`.
+    edited: str = ""
 
 
 def fade(highlight: Highlight | None, channels: abc.Iterable[str]) -> float:

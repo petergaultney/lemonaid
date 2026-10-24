@@ -2,7 +2,7 @@
 
 import dataclasses
 
-from ..draw import bars, block_scene, canvas, colors, scene_parts, scenes
+from ..draw import bars, block_scene, canvas, colors, lemon_list, scene_parts, scenes
 from ..layout.arrange import Arrangement
 from ..model import Block
 from . import keys, picking
@@ -68,18 +68,23 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
     return "type a block number, or / to search · ? keys · esc closes", colors.MUTED
 
 
-def _picked_channels(grove: Grove, where: keys.Where) -> frozenset[str]:
-    if where.picked_lemon:
-        return frozenset({where.picked_lemon})
-
-    return frozenset(
-        lemon.channel
-        for block in grove.blocks
-        if block.digit == where.block
-        for tree in block.trees
-        if tree.key == where.picked_tree
-        for lemon in tree.lemons
+def _picked(grove: Grove, where: keys.Where) -> scene_parts.Highlight | None:
+    tree = next(
+        (
+            tree
+            for block in grove.blocks
+            if block.digit == where.block
+            for tree in block.trees
+            if tree.key == where.picked_tree
+        ),
+        None,
     )
+    if tree is None:
+        return None
+
+    channels = frozenset(lemon.channel for lemon in tree.lemons)
+    edited = where.picked_lemon or lemon_list.session(tree)
+    return scene_parts.Highlight(channels, where.picked_lemon or tree.lemons[0].channel, edited)
 
 
 def clamp_pan(grove: Grove, where: keys.Where, width: int, height: int) -> keys.Where:
@@ -117,9 +122,7 @@ def render(
         if found
         else None
     )
-    picked = _picked_channels(grove, where)
-    if picked:
-        highlight = scene_parts.Highlight(picked, where.picked_lemon or next(iter(picked)))
+    highlight = _picked(grove, where) or highlight
     found_blocks = {m.block.digit for m in found}
     zoom = where.block or (next(iter(found_blocks)) if len(found_blocks) == 1 else "")
     block = next((b for b in grove.blocks if b.digit == zoom), None)
