@@ -66,6 +66,32 @@ def test_matching_recorded_location_switches(monkeypatch):
     assert calls == [("original", "%3")]
 
 
+def test_a_renamed_session_still_switches(monkeypatch):
+    """tmux keeps a session's id through a rename, and the recorded order holds that id."""
+    calls = []
+    monkeypatch.setenv("TMUX", "/tmp/test-socket,1,0")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 0, stdout="%3|/dev/ttys081|renamed|100|10|$3"
+        ),
+    )
+    monkeypatch.setattr(
+        handlers.tmux.navigation, "switch_to_pane", lambda *args: calls.append(args) is None
+    )
+    metadata = {
+        "tty": "/dev/ttys081",
+        "tmux_socket": "/tmp/test-socket",
+        "tmux_session": "original",
+        "tmux_session_order": [100, 10, 3],
+        "tmux_pane_identity": ["%3", 10],
+    }
+
+    assert handlers.handle_notification(metadata, Config(), switch_source="tmux")
+    assert calls == [("renamed", "%3")]
+
+
 @pytest.mark.parametrize("unavailable", ["other-server", "query-failed"])
 def test_unknown_location_neither_switches_nor_resumes(monkeypatch, unavailable):
     monkeypatch.setenv("TMUX", "/tmp/current,1,0")

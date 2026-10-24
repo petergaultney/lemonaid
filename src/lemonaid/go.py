@@ -66,10 +66,8 @@ def _pane(command: list[str], found: db.Notification) -> str:
         parts = line.split("|")
         if len(parts) != 6 or parts[1] != tty:
             continue
-        pane, _, session, created, started, session_id = parts
+        pane, _, _, created, started, session_id = parts
         if [pane, int(started)] != recorded_pane:
-            continue
-        if metadata.get("tmux_session") and session != metadata["tmux_session"]:
             continue
         if [int(created), int(started), int(session_id.lstrip("$"))] != list(order):
             continue
