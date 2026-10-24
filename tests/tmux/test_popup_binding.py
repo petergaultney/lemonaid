@@ -39,6 +39,9 @@ def test_the_binding_shows_the_resident_on_one_client_at_a_time_and_closes_it_fr
     def tmux(*args: str) -> str:
         return subprocess.run([*server, *args], capture_output=True, text=True).stdout.strip()
 
+    def popup_clients() -> list[str]:
+        return tmux("list-clients", "-t", "=_lma_probe:", "-F", "#{client_name}").split()
+
     def sessions_with_clients() -> list[str]:
         return tmux("list-clients", "-F", "#{client_session}").split()
 
@@ -58,11 +61,12 @@ def test_the_binding_shows_the_resident_on_one_client_at_a_time_and_closes_it_fr
         os.write(clients[0][1], b"\x02 ")
         assert _until(lambda: sorted(sessions_with_clients()) == ["_lma_probe", "main", "other"])
         assert tmux("show-option", "-t", "=_lma_probe:", "-qv", fast_popup.OPENER_OPTION) == a
+        (first_popup,) = popup_clients()
         os.write(clients[1][1], b"\x02 ")  # B takes the popup over: A's closes
         assert _until(
             lambda: tmux("show-option", "-t", "=_lma_probe:", "-qv", fast_popup.OPENER_OPTION) == b
         )
-        assert _until(lambda: sorted(sessions_with_clients()) == ["_lma_probe", "main", "other"])
+        assert _until(lambda: (now := popup_clients()) != [first_popup] and len(now) == 1)
         os.write(clients[1][1], b"\x02 ")
         assert _until(lambda: sorted(sessions_with_clients()) == ["main", "other"])
     finally:
