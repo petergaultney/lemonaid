@@ -8,6 +8,8 @@ which the next new tree's placement avoids but drawing does not hide.
 import copy
 from typing import Any
 
+from . import lead_spot
+
 
 class EditError(ValueError):
     pass
@@ -37,6 +39,37 @@ def resize(saved: dict[str, Any], group: str, w: int, h: int) -> dict[str, Any]:
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(w=w, h=h)
+    return changed
+
+
+def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -> dict[str, Any]:
+    """Move and resize a block's plot at once, its trees staying where they stand on the ground."""
+    if w < 12 or h < 5:
+        raise EditError("A plot needs at least 12 columns and 5 rows")
+    if x < 0 or y < 0:
+        raise EditError("A plot's corner can't be above or left of the grove")
+
+    changed = copy.deepcopy(saved)
+    plot = _plot(changed, group)
+    shift = plot["x"] - x, plot["y"] - y
+    for spot in changed["trees"].get(group, {}).values():
+        if "x" in spot:
+            spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
+    plot.update(x=x, y=y, w=w, h=h)
+    return changed
+
+
+def place_tree(
+    saved: dict[str, Any], group: str, key: str, lead: bool, x: int, y: int
+) -> dict[str, Any]:
+    """Stand tree *key* at (*x*, *y*) in its plot; a *lead* tree's spot is the block's lead spot."""
+    changed = copy.deepcopy(saved)
+    spots = changed["trees"].get(group, {})
+    spot = spots.get(lead_spot.KEY) if lead and lead_spot.KEY in spots else spots.get(key)
+    if spot is None:
+        raise EditError(f"No spot for tree {key!r} in {group or 'no group'}")
+
+    spot.update(x=x, y=y)
     return changed
 
 

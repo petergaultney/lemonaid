@@ -1,3 +1,5 @@
+import threading
+
 from lemonaid.grove.layout import state
 
 
@@ -31,3 +33,19 @@ def test_roads_and_stream_survive_a_save(tmp_path):
 def test_the_layout_lives_in_the_state_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
     assert state.path() == tmp_path / "grove.json"
+
+
+def test_concurrent_updates_each_see_the_last_one_saved(tmp_path):
+    target = tmp_path / "grove.json"
+
+    def add(name: str):
+        return lambda saved: {**saved, "plots": {**saved["plots"], name: {}}}
+
+    threads = [
+        threading.Thread(target=state.update, args=(add(f"g{i}"), target)) for i in range(20)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert set(state.load(target)["plots"]) == {f"g{i}" for i in range(20)}

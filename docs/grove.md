@@ -30,7 +30,6 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | `Alt`+`r` | Rename something, choosing it first: type a tree's letter (after its block's digit in the grove view), and the bottom line names its tmux session; the letter again, or an arrow, moves on to each of its lemons in turn. `enter` asks for the new name in a dialog, `esc` stops. A session keeps its tree's spot and letter; a lemon gets a new display name, as `r` gives one in the inbox, and an empty name clears it. |
 | `Alt`+`s`, `a`, `p`, `g` | Snooze, archive, pin or unpin, or move to another group, chosen the same way: a tree's letter offers the whole tree first, then each of its lemons. Snooze asks how long and moving asks which group, in the inbox's own dialogs; archive and pin happen on `enter`. A lemon moved to another group leaves the group it was drawn in. |
 | `Alt`+`c` | Recolor a block's group: in the grove view type its digit, zoomed in it asks at once. The packhouse has no color. |
-| `Alt`+`m` | Kept for moving trees and blocks by hand, which isn't here yet. |
 | arrows | Pan the grove when it is too big for the screen, 2 columns or 1 row at a time (`grove_pan_columns` and `grove_pan_rows` in `[tui]`); it shrinks to fit only so far, so its trees stay readable. |
 | `Shift` and an arrow | Move the view a whole screen that way. |
 | `Shift` and a digit | Jump to a screen-sized part of the grove around the packhouse: `1` north, then clockwise to `8` north-west (`!@#$%^&*` on a US keyboard). `Shift`+`0` or `Home` centers the packhouse. `Alt` and a digit does the same on any keyboard. The grove opens where you left it. |
@@ -45,9 +44,19 @@ Zoomed into a block, each tree lists its lemons with their Brief-ID, status, mod
 
 Change the key with `grove` in `[tui.keybindings]`.
 
+## Gardening
+
+Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back.
+
+- **In the grove view, drag a block to move it.** Its trees move with it.
+- **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground.
+- **Zoomed into a block, drag a tree to move it** within its block. The packhouse's bays stay in order.
+
+The prompt line says what you're moving, or why it can't go there. A block can't go onto another block's ground or past the grove's top or left edge, and resizing can't leave a tree or its tag outside the block. A tree can't go onto another tree or past its block's edge.
+
 ## Places that stay put
 
-The first time lemonaid sees a group it gives it a plot of ground near the middle of the grove, and the first time it sees a tree it gives the tree a spot in its block, as near the block's lead as it fits with room to spare (else near its first tree, and a block's first tree near the packhouse), and a letter, taken from the words that tell it apart. Neither moves after that. A tree with no room left in its block takes more ground for the block, on whichever side is free of other blocks; when none is, it stands just past the block's edge, where the block's view still shows it, and `lemonaid grove resize` or `move` makes room.
+The first time lemonaid sees a group it gives it a plot of ground near the middle of the grove, and the first time it sees a tree it gives the tree a spot in its block, as near the block's lead as it fits with room to spare (else near its first tree, and a block's first tree near the packhouse), and a letter, taken from the words that tell it apart. Neither moves after that, unless you drag it. A tree with no room left in its block takes more ground for the block, on whichever side is free of other blocks; when none is, it stands just past the block's edge, where the block's view still shows it, and `lemonaid grove resize` or `move` makes room.
 
 - **A group that ends leaves open ground.** The outline stays, unnamed, and the next new group takes the open ground nearest the middle, so the grove doesn't hollow out.
 - **A tree that goes leaves a bare tree, with no leaves, in its spot.** The spot is kept for 30 days in case its session comes back; the next new tree in that block takes the oldest free spot.

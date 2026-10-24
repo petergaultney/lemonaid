@@ -38,11 +38,10 @@ def _apply(
 ) -> None:
     group = _group(args)
     try:
-        changed = change(state.load(), group)
+        changed = state.update(lambda saved: change(saved, group))
     except edit.EditError as error:
         _fail(args, str(error))
         raise
-    state.save(changed)
     plot = changed["plots"][group]
     if args.json:
         print(json.dumps({"group": group, "plot": plot, "error": None}))
@@ -63,8 +62,14 @@ def _cmd_reshape(args: argparse.Namespace) -> None:
 
 
 def _cmd_clear_open(args: argparse.Namespace) -> None:
-    changed, cleared = edit.clear_open(state.load())
-    state.save(changed)
+    cleared: list[str] = []
+
+    def clear(saved: dict[str, Any]) -> dict[str, Any]:
+        changed, gone = edit.clear_open(saved)
+        cleared.extend(gone)
+        return changed
+
+    state.update(clear)
     if args.json:
         print(json.dumps({"cleared": cleared, "error": None}))
     else:

@@ -125,4 +125,4 @@ def test_the_packhouse_has_no_color():
 
 
 def test_alt_m_says_moving_by_hand_is_not_here_yet():
-    assert "isn't here yet" in press("alt+m")[0].note
+    assert "drag" in press("alt+m")[0].note
