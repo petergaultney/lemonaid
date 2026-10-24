@@ -40,7 +40,8 @@ def zoomed(
     for cx, cy, _, label in arrangement.stumps.get(block.name, ()):
         plots.stump(canvas, *view.screen(plot.x + cx, plot.y + cy), block.color, label)
     canvas.target = ()
-    scale = min(1.6, max(1.0, min(view.sx, view.sy) * 0.8))
+    # As the grove view scales its trees, so a block's trees fill it as they do there.
+    scale = max(1.0, min(view.sx, view.sy))
     planted = [
         scene_parts.Planted(
             block,
