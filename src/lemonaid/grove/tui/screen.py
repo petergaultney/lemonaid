@@ -42,12 +42,14 @@ class GroveScreen(ModalScreen[str]):
         nudge: tuple[int, int] = (2, 1),
         held: bool = False,
         lists: Lists | None = None,
+        big_trees: bool = False,
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
         The view starts at *pan*, and *keep_pan* is told where it moves, to start there next time;
         an arrow moves it *nudge* cells, across and down. A *held* grove doesn't pulse until
         `hold(False)`. *lists* remembers where lemon lists went, kept across groves that share it.
+        *big_trees* lets a zoomed block's trees grow past a grown tree's size.
         """
         super().__init__()
         self._load = load
@@ -57,6 +59,7 @@ class GroveScreen(ModalScreen[str]):
         self._where = keys.Where(note=note, pan=pan)
         self._keep_pan = keep_pan
         self._nudge = nudge
+        self._big_trees = big_trees
         self._loading = False
         self._tick = 0
         self._frames: dict[int, canvas.Canvas] = {}
@@ -102,6 +105,7 @@ class GroveScreen(ModalScreen[str]):
                 size.height,
                 phase,
                 garden.loose(self._lists, drag) if drag else self._lists,
+                self._big_trees,
             )
         grove_map = self.query_one(GroveMap)
         grove_map.picture = self._frames[level]

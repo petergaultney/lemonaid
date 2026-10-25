@@ -240,7 +240,7 @@ def test_a_dragged_trees_lemon_list_moves_with_it_and_returns_if_put_back(monkey
     drawn: list = []
 
     def render_(*args):
-        drawn.append(args[-1])
+        drawn.append(args[5])  # the lemon lists
         return render(*args)
 
     monkeypatch.setattr("lemonaid.grove.tui.screen.render", render_)
@@ -272,7 +272,7 @@ def test_a_tree_dragged_away_and_back_is_drawn_from_the_remembered_lists_on_rele
     drawn: list = []
 
     def render_(*args):
-        drawn.append(args[-1])
+        drawn.append(args[5])  # the lemon lists
         return render(*args)
 
     monkeypatch.setattr("lemonaid.grove.tui.screen.render", render_)

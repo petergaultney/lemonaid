@@ -20,6 +20,7 @@ def run(config: Config, switch_source: str | None) -> None:
         pan=view.load,
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),
+        big_trees=config.tui.grove_big_trees,
     ).run()
     if not channel:
         return

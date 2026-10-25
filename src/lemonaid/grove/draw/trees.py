@@ -5,18 +5,17 @@ import functools
 from collections import abc
 
 from ..model import Tree
-from . import colors, hanging
+from . import clumps, colors, crown, hanging
 from .canvas import QUADRANTS, Canvas, box, mix, put, text, wide
 from .ground import noise, word_hash
 
 
 @dataclasses.dataclass(frozen=True)
 class Shape:
-    rx: float
+    rx: float  # the room the crown takes, across and down, which the layout keeps clear
     ry: float
-    blobs: tuple[
-        tuple[float, float, float, float], ...
-    ]  # (dx, dy, rx, ry) around the crown's center
+    blobs: tuple[clumps.Blob, ...]  # leaf clumps, back to front
+    bark: int  # the trunk's width in half cells
     width: int  # the footprint, crown or tag, whichever is wider
     height: int
     top: int  # rows from the footprint's top to the crown's center
@@ -42,24 +41,32 @@ def _tag_lines(letter: str, label: str, lead: bool, width: int) -> tuple[str, ..
     return tuple((" " + line)[:width].ljust(width) for line in fitted)
 
 
+# A grown tree's crown height from its center; taller crowns read as blobs.
+GROWN = 4.4
+
+
 @functools.lru_cache(maxsize=4096)
-def shape(tree: Tree, letter: str, size: float, full_tag: bool = False) -> Shape:
-    """*size* scales the crown: about 1 for a grown tree, smaller for a sapling or a crowded block."""
+def shape(
+    tree: Tree, letter: str, size: float, full_tag: bool = False, tallest: float = GROWN
+) -> Shape:
+    """*size* scales the crown: about 1 for a grown tree, smaller for a sapling or a crowded block.
+    The crown grows no taller than *tallest* rows from its center, unless its lemons need more.
+    """
     n = min(len(tree.lemons), 5)
     seed = word_hash(tree.key)
 
     def jitter(k: int) -> float:
         return noise(seed, k) - 0.5
 
-    rx = max(2.4, (3.4 + n * 1.1 + (1.4 if tree.lead else 0)) * size)
     # Tall enough for a row per lemon at any size, so lemons hang alike zoomed in and out.
-    ry = max(0.95, 0.6 * n + 0.5, (1.2 + n * 0.18 + (0.4 if tree.lead else 0)) * size)
-    blobs = (
-        (0.0, 0.0, rx, ry),
-        (-rx * (0.45 + 0.1 * jitter(1)), -ry * (0.35 + 0.15 * jitter(2)), rx * 0.58, ry * 0.8),
-        (rx * (0.42 + 0.1 * jitter(3)), -ry * (0.3 + 0.15 * jitter(4)), rx * 0.55, ry * 0.75),
-        (rx * 0.1 * jitter(5), -ry * 0.75, rx * 0.45, ry * 0.6),
+    ry = max(1.35, 0.6 * n + 0.5, min((1.2 + n * 0.18 + (0.4 if tree.lead else 0)) * size, tallest))
+    # Wide as a citrus tree, but only round once its lemons make it tall, so a crowded block
+    # still has room for it; and never so wide it reads as a cloud.
+    rx = min(
+        max(2.4, (3.4 + n * 1.1 + (1.4 if tree.lead else 0)) * size, 2.4 * min(ry, 2.6)),
+        2.8 * ry,
     )
+    blobs = clumps.crown(rx, ry, jitter)
     # Room at the tag's end for the emoji and the pin, so neither covers the name.
     marks = (3 if any(lemon.emoji for lemon in tree.lemons) else 0) + (
         1 if any(lemon.pinned for lemon in tree.lemons) else 0
@@ -84,46 +91,73 @@ def shape(tree: Tree, letter: str, size: float, full_tag: bool = False) -> Shape
             line.ljust(width) for line in _tag_lines(letter, tree.label, tree.lead, width - marks)
         )
     top = int(ry * 1.4) + 2
-    return Shape(rx, ry, blobs, width, top + int(ry) + 3 + len(tag), top, tag)
+    return Shape(
+        rx,
+        ry,
+        blobs,
+        2 if rx < 7 else 4 if rx < 13 else 6,
+        width,
+        top + int(ry) + 3 + len(tag),
+        top,
+        tag,
+    )
 
 
 def _in_crown(s: Shape, dx: float, dy: float) -> bool:
-    return any(((dx - bx) / brx) ** 2 + ((dy - by) / bry) ** 2 <= 1 for bx, by, brx, bry in s.blobs)
+    return any(
+        ((dx - bx) / brx) ** 2 + ((dy - by) / bry) ** 2 <= 1 for bx, by, brx, bry, _ in s.blobs
+    )
 
 
 _QUARTERS = ((0.25, 0.25, 1), (0.75, 0.25, 2), (0.25, 0.75, 4), (0.75, 0.75, 8))
 
 
-def _cells(s: Shape, ax: float, ay: float) -> abc.Iterator[tuple[int, int, int]]:
-    """Each crown cell centered on (*ax*, *ay*), with its quadrant bits."""
-    for y in range(int(ay - s.ry * 1.45) - 1, int(ay + s.ry) + 2):
-        for x in range(int(ax - s.rx) - 1, int(ax + s.rx) + 2):
-            bits = sum(bit for qx, qy, bit in _QUARTERS if _in_crown(s, x + qx - ax, y + qy - ay))
-            if bits:
-                yield x, y, bits
-
-
-# Where a trunk leaves its crown, a live tree's or a bare one's; a single column runs on below.
-FLARE = "\u259c\u2588\u259b"  # "▜█▛"
-
-
-def _bottom(s: Shape, ax: float, ay: float) -> int:
-    """The crown's lowest row over the trunk, where the trunk starts below."""
-    return max(
-        (y for x, y, bits in _cells(s, ax, ay) if abs(x - ax) < 1 and bits & 12), default=int(ay)
+def _reach(s: Shape, ax: float, ay: float) -> tuple[int, int, int, int]:
+    """The cells the crown centered on (*ax*, *ay*) can reach: (left, top, right, bottom)."""
+    return (
+        int(ax + min(bx - brx for bx, _, brx, _, _ in s.blobs)) - 1,
+        int(ay + min(by - bry for _, by, _, bry, _ in s.blobs)) - 1,
+        int(ax + max(bx + brx for bx, _, brx, _, _ in s.blobs)) + 1,
+        int(ay + max(by + bry for _, by, _, bry, _ in s.blobs)) + 1,
     )
 
 
+# Kept, as the crown's shading is: a pulsing grove draws the same crowns many times over.
+@functools.lru_cache(maxsize=1024)
+def _cells(s: Shape, ax: float, ay: float) -> tuple[tuple[int, int, int], ...]:
+    """Each crown cell centered on (*ax*, *ay*), with its quadrant bits."""
+    left, top, right, bottom = _reach(s, ax, ay)
+    return tuple(
+        (x, y, bits)
+        for y in range(top, bottom + 1)
+        for x in range(left, right + 1)
+        for bits in (
+            sum(bit for qx, qy, bit in _QUARTERS if _in_crown(s, x + qx - ax, y + qy - ay)),
+        )
+        if bits
+    )
+
+
+def _bottom(s: Shape, ax: float, ay: float) -> int:
+    """The crown's lowest row, where the trunk leaves it."""
+    return max((y for _, y, bits in _cells(s, ax, ay) if bits & 12), default=int(ay))
+
+
 def _crown(
-    canvas: Canvas, s: Shape, ax: float, ay: float, leaf: tuple[str, str]
-) -> tuple[list[tuple[int, int]], int]:
-    """Draw the crown centered on (*ax*, *ay*); return its solid cells and the row of its lowest edge."""
-    solid: list[tuple[int, int]] = []
-    for x, y, bits in _cells(s, ax, ay):
-        put(canvas, x, y, QUADRANTS[bits], leaf[0] if y < ay - s.ry * 0.15 else leaf[1])
-        if bits == 15:
-            solid.append((x, y))
-    return solid, _bottom(s, ax, ay)
+    canvas: Canvas, s: Shape, ax: float, ay: float, leaf: abc.Sequence[str]
+) -> tuple[dict[tuple[int, int], str], int]:
+    """Draw the crown centered on (*ax*, *ay*) in *leaf*'s shades, darkest first; return its
+    solid cells, each with the shade a lemon hangs on there, and the row of its lowest edge.
+    """
+    solid = {}
+    bottom = _bottom(s, ax, ay)
+    paint = (*leaf, colors.TRUNK, colors.TRUNK_SHADE)
+    reach = (*_reach(s, ax, ay)[:3], bottom)
+    for x, y, char, drawn, back in crown.cells(s.blobs, (ax, ay), reach, round(ax), s.bark):
+        put(canvas, x, y, char, paint[drawn], paint[back] if back != crown.NONE else None)
+        if crown.NONE != back < crown.BARK and drawn < crown.BARK:
+            solid[(x, y)] = paint[drawn] if QUADRANTS.index(char).bit_count() >= 2 else paint[back]
+    return solid, bottom
 
 
 def crown_box(s: Shape, ax: float, ay: float) -> tuple[int, int, int, int]:
@@ -186,11 +220,8 @@ def draw(
         hanging.spots(solid, (ax, ay), (s.rx, s.ry), len(tree.lemons), word_hash(tree.key)),
         strict=False,
     ):
-        under = leaf[0] if y < ay - s.ry * 0.15 else leaf[1]
         if lemon.channel in hits:
-            put(canvas, x, y, "◉", "#ffffff", under, bold=True)
-        elif lemon.status == "done":
-            put(canvas, x, y, "∘", mix(under, "#ffffff", 0.18), under)
+            put(canvas, x, y, "◉", "#ffffff", solid[(x, y)], bold=True)
         else:
             put(
                 canvas,
@@ -198,11 +229,9 @@ def draw(
                 y,
                 colors.lemon_glyph(lemon),
                 colors.lemon_color(lemon, phase),
-                under,
+                solid[(x, y)],
                 bold=True,
             )
-
-    trunk_x = round(ax)
     if pennant:
         x, y, _, _ = pennant_box(s, ax, ay)
         put(canvas, x, y + 1, "│", colors.TRUNK)
@@ -210,8 +239,24 @@ def draw(
         put(canvas, x + 1, y, "█", pennant)
         put(canvas, x + 2, y, "▀", pennant)
         put(canvas, x + 3, y, "▘", pennant)
-    text(canvas, trunk_x - 1, bottom + 1, FLARE, colors.TRUNK)
     return bottom
+
+
+def _bark(x: int, bark: int) -> abc.Iterator[tuple[int, str, str, str | None]]:
+    """A row of trunk *bark* half cells wide around column *x*'s middle, lit on its left: each
+    cell's (column, char, color, color behind).
+    """
+    for column in range(x - 1, x + 2):
+        left, right = (
+            (colors.TRUNK if half < x + 0.5 else colors.TRUNK_SHADE)
+            if abs(half - x - 0.5) < bark / 4
+            else None
+            for half in (column + 0.25, column + 0.75)
+        )
+        if left and right:
+            yield column, "█" if left == right else "▌", left, right if left != right else None
+        elif left or right:
+            yield column, "▌" if left else "▐", left or right, None
 
 
 def draw_tag(
@@ -224,13 +269,15 @@ def draw_tag(
     phase: float,
     selected: bool = False,
     key: int = 1,
+    bark: int = 2,
 ) -> None:
     """The tag's *lines* with their top left at (*x*, *y*), and the trunk from its *trunk* cell
-    (x, row) down to the tag. Its first *key* characters after the leading space are the key,
+    (x, row) down to the tag, *bark* half cells wide. Its first *key* characters after the leading space are the key,
     drawn on a cap with a cell either side.
     """
     for row in range(trunk[1], y):
-        put(canvas, trunk[0], row, "█", colors.TRUNK)
+        for column, char, fg, bg in _bark(trunk[0], bark):
+            put(canvas, column, row, char, fg, bg)
     width = len(lines[0])
     status = colors.tree_status(tree.lemons)
     working = any(lemon.working for lemon in tree.lemons)

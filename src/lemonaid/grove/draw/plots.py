@@ -5,7 +5,7 @@ import itertools
 from collections import abc
 
 from ..model import Plot
-from . import colors, trees
+from . import colors
 from .canvas import BACKGROUND, Canvas, mix, put, text
 from .ground import inside, noise, texture
 
@@ -76,7 +76,7 @@ def sign(
 
 # A tree with no leaves, standing where a tree whose session ended stood: bare branches over the
 # trunk a live tree has, its crown's middle on the second row.
-_BARE = ("\u259d\u2599 \u2588 \u259f\u2598", f"  {trees.FLARE}  ", "   \u2588   ")  # "▝▙ █ ▟▘"
+_BARE = ("\u259d\u2599 \u2588 \u259f\u2598", "  \u259c\u2588\u259b  ", "   \u2588   ")  # "▝▙ █ ▟▘"
 
 
 # A few dead leaves still on a tree whose session ended recently: (column, row, quadrant).

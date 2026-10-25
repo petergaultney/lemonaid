@@ -43,8 +43,11 @@ def place_tree(
     view: View,
     scale: float,
     full_tag: bool,
+    tallest: float = trees.GROWN,
 ) -> tuple[float, float, trees.Shape]:
-    """Where *tree*'s crown is centered on screen, and its shape there."""
+    """Where *tree*'s crown is centered on screen, and its shape there, no taller than *tallest*
+    rows from its center.
+    """
     standing = arrangement.trees[(block.name, tree.key)]
     plot = arrangement.plots[block.name]
     shape = trees.shape(
@@ -52,6 +55,7 @@ def place_tree(
         standing.letter if full_tag else f"{block.digit}{standing.letter}",
         standing.size * scale,
         full_tag,
+        tallest,
     )
     ax, ay = view.screen(plot.x + standing.cx, plot.y + standing.cy)
     return ax, ay, shape
@@ -120,6 +124,7 @@ def plant(
             phase,
             selected=bool(highlight and highlight.selected in tree_channels(p.tree)),
             key=len(tags[i].letter),
+            bark=tags[i].shape.bark,
         )
     canvas.dim, canvas.target = 0.0, ()
     return [fitted[i] for i in range(len(planted))]

@@ -209,6 +209,8 @@ class TuiConfig:
     # How far an arrow key moves the grove view, in screen columns across and rows down.
     grove_pan_columns: int = 2
     grove_pan_rows: int = 1
+    # Let a zoomed block's trees grow past a grown tree's size.
+    grove_big_trees: bool = False
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -649,6 +651,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         grove_pan_columns=max(1, int(tui_data.get("grove_pan_columns", 2))),
         grove_pan_rows=max(1, int(tui_data.get("grove_pan_rows", 1))),
+        grove_big_trees=bool(tui_data.get("grove_big_trees", False)),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),
         double_activate_ms=tui_data.get("double_activate_ms", 400),

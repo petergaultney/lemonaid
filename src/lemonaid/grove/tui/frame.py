@@ -1,9 +1,10 @@
 """One screenful of the grove: the scene for where the keys have taken it, with its title and prompt."""
 
 import dataclasses
+import math
 from typing import Any
 
-from ..draw import bars, block_scene, canvas, colors, lemon_list, scene_parts, scenes
+from ..draw import bars, block_scene, canvas, colors, lemon_list, scene_parts, scenes, trees
 from ..layout.arrange import Arrangement
 from ..model import Block
 from . import keys, picking
@@ -107,9 +108,11 @@ def render(
     height: int,
     phase: float,
     lists: Lists | None = None,
+    big_trees: bool = False,
 ) -> canvas.Canvas:
     """The grove's picture for *where*. With *lists*, a zoomed block's lemon lists stay where they
-    were drawn last time while they cover no more than they did then.
+    were drawn last time while they cover no more than they did then. *big_trees* lets a zoomed
+    block's trees grow past a grown tree's size.
     """
     picture = canvas.blank(width, height)
     if not scene_parts.fits(picture):
@@ -137,6 +140,7 @@ def render(
             highlight,
             where.tree.lower(),
             None if lists is None else lists.setdefault((block.digit, width, height), {}),
+            math.inf if big_trees else trees.GROWN,
         )
     else:
         scenes.overview(picture, grove.blocks, grove.arrangement, phase, highlight, where.pan)

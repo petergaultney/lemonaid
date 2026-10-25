@@ -22,9 +22,10 @@ MUTED = "#7c8696"
 IDLE = "#8b949e"
 TAG = "#4a5260"
 LEMON = "#f2d94e"
-LEAF = ("#4f8a4a", "#335e34")  # upper and lower crown
-LEAD_LEAF = ("#62a457", "#3e7139")
-TRUNK = "#7a5634"
+LEAF = ("#2b5230", "#3d7039", "#548f45", "#79b25a")  # a crown's shades, darkest first
+LEAD_LEAF = ("#33602f", "#4a8540", "#66a850", "#93cc68")
+TRUNK = "#8a6239"
+TRUNK_SHADE = "#5a3c24"
 BAR = "#161b24"
 
 
@@ -43,9 +44,12 @@ def tree_status(lemons: tuple[Lemon, ...]) -> str:
     return next((status for status in RANK if status in present), "")
 
 
+_ON_LEAF = {"done": "#6f9fe0"}  # status colors too dark to see on a crown
+
+
 def lemon_color(lemon: Lemon, phase: float) -> str:
     """A lemon's dot: its status color, grey when it has none, pulsing toward the background mid-turn."""
-    base = STATUS.get(lemon.status, IDLE)
+    base = _ON_LEAF.get(lemon.status) or STATUS.get(lemon.status, IDLE)
     if lemon.quiet:
         base = mix(base, BACKGROUND, 0.4)
     return mix(base, BACKGROUND, 0.85 * phase) if lemon.working else base

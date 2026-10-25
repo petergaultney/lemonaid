@@ -31,6 +31,7 @@ class GroveApp(App[str]):
         pan: abc.Callable[[], tuple[float, float]] = lambda: (0.0, 0.0),
         keep_pan: abc.Callable[[tuple[float, float]], None] | None = None,
         nudge: tuple[int, int] = (2, 1),
+        big_trees: bool = False,
     ) -> None:
         super().__init__()
         self._edit = edit
@@ -41,6 +42,7 @@ class GroveApp(App[str]):
         self._pan = pan
         self._keep_pan = keep_pan
         self._nudge = nudge
+        self._big_trees = big_trees
         self._lists: Lists = {}  # where lemon lists went, kept from one grove shown to the next
 
     def on_mount(self) -> None:
@@ -58,6 +60,7 @@ class GroveApp(App[str]):
                 self._nudge,
                 held,
                 self._lists,
+                self._big_trees,
             ),
             self._after_screen,
         )

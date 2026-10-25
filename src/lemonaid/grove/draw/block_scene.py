@@ -19,11 +19,12 @@ def zoomed(
     highlight: scene_parts.Highlight | None = None,
     opened: str = "",
     lists: dict[str, Spot] | None = None,
+    tallest: float = trees.GROWN,
 ) -> None:
     """*block* filling the screen, each tree with its lemons listed beside it. *opened* is the
     letter of a tree whose lemons are being picked by number. *lists*, where each tree's list was
     drawn last time, keeps a list there while it covers no more than it did then, and is told
-    where each one goes.
+    where each one goes. Its trees' crowns grow no taller than *tallest* rows from their centers.
     """
     lists = {} if lists is None else lists
     if not scene_parts.fits(canvas):
@@ -56,7 +57,7 @@ def zoomed(
         scene_parts.Planted(
             block,
             tree,
-            scene_parts.place_tree(block, tree, arrangement, view, scale, True),
+            scene_parts.place_tree(block, tree, arrangement, view, scale, True, tallest),
             scene_parts.fade(highlight, scene_parts.tree_channels(tree)) * 0.75,
             (1, canvas.width - 1),
         )
