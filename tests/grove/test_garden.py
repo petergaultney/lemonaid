@@ -159,7 +159,7 @@ def test_a_dropped_trees_lemon_list_is_placed_beside_it_again():
     block = GROVE.blocks[0]
     tree_ = block.trees[1]
     letter = GROVE.arrangement.trees[(block.name, tree_.key)].letter
-    lists = {("1", *_SIZE): {tree_.key: (0, 0), block.trees[0].key: (5, 5)}}
+    lists = {("1", *_SIZE): {tree_.key: (0, 0, 0.0), block.trees[0].key: (5, 5, 0.0)}}
 
     async def run() -> None:
         app = GroveApp(lambda: GROVE, 60.0, None)
@@ -176,7 +176,7 @@ def test_a_dropped_trees_lemon_list_is_placed_beside_it_again():
             await app.workers.wait_for_complete()
 
     asyncio.run(run())
-    assert lists[("1", *_SIZE)].get(tree_.key) != (0, 0)
+    assert lists[("1", *_SIZE)].get(tree_.key) != (0, 0, 0.0)
 
 
 @pytest.mark.parametrize(
@@ -236,7 +236,7 @@ def test_a_dragged_trees_lemon_list_moves_with_it_and_returns_if_put_back(monkey
     block = GROVE.blocks[0]
     tree_ = block.trees[1]
     letter = GROVE.arrangement.trees[(block.name, tree_.key)].letter
-    lists = {("1", *_SIZE): {tree_.key: (0, 0), block.trees[0].key: (5, 5)}}
+    lists = {("1", *_SIZE): {tree_.key: (0, 0, 0.0), block.trees[0].key: (5, 5, 0.0)}}
     drawn: list = []
 
     def render_(*args):
@@ -260,7 +260,7 @@ def test_a_dragged_trees_lemon_list_moves_with_it_and_returns_if_put_back(monkey
 
     asyncio.run(run())
     loose = [d for d in drawn if d is not lists]
-    assert loose and all(d[("1", *_SIZE)].get(tree_.key) != (0, 0) for d in loose)
+    assert loose and all(d[("1", *_SIZE)].get(tree_.key) != (0, 0, 0.0) for d in loose)
     assert drawn[-1] is lists  # put back, the list is drawn where it is remembered
 
 
@@ -268,7 +268,7 @@ def test_a_tree_dragged_away_and_back_is_drawn_from_the_remembered_lists_on_rele
     block = GROVE.blocks[0]
     tree_ = block.trees[1]
     letter = GROVE.arrangement.trees[(block.name, tree_.key)].letter
-    lists = {("1", *_SIZE): {tree_.key: (2, 2)}}
+    lists = {("1", *_SIZE): {tree_.key: (2, 2, 0.0)}}
     drawn: list = []
 
     def render_(*args):

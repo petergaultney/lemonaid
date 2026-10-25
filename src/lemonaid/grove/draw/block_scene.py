@@ -1,11 +1,14 @@
 """One block zoomed in to fill the screen, each tree with its lemons listed beside it."""
 
+import math
 from collections import abc
 
 from ..layout.arrange import Arrangement
 from ..model import Block
 from . import house, lemon_list, plots, scene_parts, tag_fit, trees
 from .canvas import Canvas
+
+Spot = tuple[int, int, float]  # a list's top left, and how much it covered when put there
 
 
 def zoomed(
@@ -15,11 +18,12 @@ def zoomed(
     phase: float,
     highlight: scene_parts.Highlight | None = None,
     opened: str = "",
-    lists: dict[str, tuple[int, int]] | None = None,
+    lists: dict[str, Spot] | None = None,
 ) -> None:
     """*block* filling the screen, each tree with its lemons listed beside it. *opened* is the
     letter of a tree whose lemons are being picked by number. *lists*, where each tree's list was
-    drawn last time, keeps a list there while it covers nothing, and is told where each one goes.
+    drawn last time, keeps a list there while it covers no more than it did then, and is told
+    where each one goes.
     """
     lists = {} if lists is None else lists
     if not scene_parts.fits(canvas):
@@ -62,15 +66,21 @@ def zoomed(
     taken = [_footprint(p, tag) for p, tag in zip(planted, fitted, strict=True)]
     footprints = dict(zip((p.tree.key for p in planted), list(taken), strict=True))
     spots: dict[str, tuple[int, int]] = {}
-    # Lists where they were last drawn first, while they still cover nothing, then the rest.
+    # Lists where they were last drawn first, while they cover no more than they did there, so
+    # a list in a crowded block stays put as its neighbors change; then the rest.
     for p in sorted(planted, key=lambda p: p.tree.key not in lists):
         rows = len(p.tree.lemons) + 2  # its lemons, and its box's edges
         was = lists.get(p.tree.key)
-        clear = was and _fits_at(canvas, (*was, lemon_list.WIDTH, rows), taken)
-        x, y = (
-            was if clear else _list_spot(canvas, p.placed[0], footprints[p.tree.key], rows, taken)
+        now = (
+            _crowding(canvas, (was[0], was[1], lemon_list.WIDTH, rows), taken) if was else math.inf
         )
-        spots[p.tree.key] = lists[p.tree.key] = (x, y)
+        if was and now < math.inf and now <= was[2]:
+            x, y, covered = was
+        else:
+            x, y = _list_spot(canvas, p.placed[0], footprints[p.tree.key], rows, taken)
+            covered = _crowding(canvas, (x, y, lemon_list.WIDTH, rows), taken)
+        spots[p.tree.key] = (x, y)
+        lists[p.tree.key] = (x, y, covered)
         taken.append((x, y, lemon_list.WIDTH, rows))
     for p in planted:
         letter = arrangement.trees[(block.name, p.tree.key)].letter
@@ -129,11 +139,13 @@ def _attached(ax: float, footprint: Rect, w: int, height: int) -> list[tuple[int
     ]
 
 
-def _fits_at(canvas: Canvas, rect: Rect, taken: list[Rect]) -> bool:
+def _crowding(canvas: Canvas, rect: Rect, taken: list[Rect]) -> float:
+    """How much of *taken*, and the room kept around it, *rect* covers; off the screen, too much."""
     x, y, w, h = rect
-    clear = [(tx - _GAP, ty - 1, tw + 2 * _GAP, th + 2) for tx, ty, tw, th in taken]
-    on_screen = x >= 1 and x + w <= canvas.width - 1 and y >= 1 and y + h <= canvas.height - 1
-    return on_screen and _overlap(rect, clear) == 0
+    if not (x >= 1 and x + w <= canvas.width - 1 and y >= 1 and y + h <= canvas.height - 1):
+        return math.inf
+
+    return _overlap(rect, [(tx - _GAP, ty - 1, tw + 2 * _GAP, th + 2) for tx, ty, tw, th in taken])
 
 
 def _list_spot(

@@ -97,7 +97,7 @@ def clamp_pan(grove: Grove, where: keys.Where, width: int, height: int) -> keys.
 
 
 # Where each zoomed block's lemon lists went, by (block digit, screen width, height), then tree.
-Lists = dict[tuple[str, int, int], dict[str, tuple[int, int]]]
+Lists = dict[tuple[str, int, int], dict[str, block_scene.Spot]]
 
 
 def render(
@@ -109,7 +109,7 @@ def render(
     lists: Lists | None = None,
 ) -> canvas.Canvas:
     """The grove's picture for *where*. With *lists*, a zoomed block's lemon lists stay where they
-    were drawn last time while they cover nothing.
+    were drawn last time while they cover no more than they did then.
     """
     picture = canvas.blank(width, height)
     if not scene_parts.fits(picture):
