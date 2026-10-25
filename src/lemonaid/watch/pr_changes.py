@@ -16,7 +16,7 @@ Key = tuple[str, int]  # ("owner/name", number)
 _FIELDS = (  # a reply in a review thread is a review of its own, so it moves the reviews count
     "state isDraft updatedAt headRefOid baseRefName reviewDecision mergeable"
     " commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) {"
-    " totalCount nodes { ... on CheckRun { status conclusion } ... on StatusContext { state } }"
+    " totalCount nodes { ... on CheckRun { status conclusion completedAt } ... on StatusContext { state createdAt } }"
     " } } } } } comments { totalCount } reviews { totalCount }"
     " reviewThreads(last: 100) { totalCount nodes { isResolved } }"
 )

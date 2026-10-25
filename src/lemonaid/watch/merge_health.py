@@ -1,6 +1,6 @@
 """Merge blockers a PR's author should fix before anyone asks: a conflict with its base branch, and failed CI.
 
-Each is reported once per head commit. A conflict is reported when GitHub first says
+Each is reported once per head commit, except that a CI failure is reported again when a re-run fails again. A conflict is reported when GitHub first says
 CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN (GitHub
 still computing) changes nothing. CI is reported once no check on the head is still
 running and any check has failed, whether or not it is required for merging. With `--ci`,
@@ -19,7 +19,7 @@ from . import cursors, pr_activity, roles
 
 class Seen(ty.NamedTuple):
     conflict_head: str  # head last seen CONFLICTING; "" once seen MERGEABLE
-    ci_head: str  # head whose CI failure was last reported
+    ci_head: str  # head and failed checks (with finish times) last reported
     stable: str = ""  # head and checks of the previous poll if all had passed, else ""
     passed: str = ""  # head and checks of the last reported pass
 
@@ -41,12 +41,16 @@ def save(path: pathlib.Path, seen: Seen) -> None:
     cursors.write_json(path, seen._asdict())
 
 
-def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[str]:
-    """Names of all failed checks, or [] while any check is still running."""
+def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[pr_activity.Check]:
+    """All failed checks, or [] while any check is still running."""
     if any(c.outcome == "pending" for c in checks):
         return []
 
-    return [c.name for c in checks if c.outcome == "failed"]
+    return [c for c in checks if c.outcome == "failed"]
+
+
+def _failure_id(head: str, failed: ty.Sequence[pr_activity.Check]) -> str:
+    return head + ":" + ",".join(sorted(f"{c.name}@{c.finished}" for c in failed))
 
 
 def _all_passed(snap: pr_activity.Snapshot) -> str:
@@ -70,7 +74,9 @@ def events(
         return [], seen
 
     conflict = comments and snap.mergeable == "CONFLICTING" and seen.conflict_head != snap.head
-    failed = _failed(snap.checks) if seen.ci_head != snap.head else []
+    failed = _failed(snap.checks)
+    failure = _failure_id(snap.head, failed) if failed else ""
+    failed = failed if failure != seen.ci_head else []
     now = _all_passed(snap)
     passed = ci and bool(now) and now == seen.stable and now != seen.passed
     return [
@@ -91,7 +97,7 @@ def events(
             [
                 roles.Event(
                     roles.CI_FAILED,
-                    f"PR #{pr} CI failed at {snap.head[:10]}: {', '.join(failed[:5])}: clear a `merge` status,"
+                    f"PR #{pr} CI failed at {snap.head[:10]}: {', '.join(c.name for c in failed[:5])}: clear a `merge` status,"
                     f" read `gh pr checks {pr}`, fix it and push (or rerun a flaky job),"
                     " then tell your reviewer",
                 )
@@ -108,7 +114,7 @@ def events(
         {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head)
         if comments
         else seen.conflict_head,
-        snap.head if failed else seen.ci_head,
+        failure if failed else seen.ci_head,
         now,
         now if passed else seen.passed,
     )

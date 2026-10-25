@@ -18,8 +18,8 @@ _ROLLUP = """
         pageInfo { hasNextPage endCursor }
         nodes {
           __typename
-          ... on CheckRun { name status conclusion isRequired(pullRequestNumber: $number) }
-          ... on StatusContext { context state isRequired(pullRequestNumber: $number) }
+          ... on CheckRun { name status conclusion completedAt isRequired(pullRequestNumber: $number) }
+          ... on StatusContext { context state createdAt isRequired(pullRequestNumber: $number) }
         }
       } }
 """
@@ -61,6 +61,7 @@ class Check(ty.NamedTuple):
     name: str
     required: bool
     outcome: ty.Literal["pending", "failed", "passed"]
+    finished: str = ""  # when this result was produced; a re-run gives a later one
 
 
 class Snapshot(ty.NamedTuple):
@@ -85,15 +86,18 @@ _PASSED = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
 def _check(node: dict) -> Check:
     if node["__typename"] == "CheckRun":
         name, result = node["name"], node["conclusion"] if node["status"] == "COMPLETED" else None
+        finished = node.get("completedAt") or ""
     else:
         name, result = (
             node["context"],
             None if node["state"] in ("PENDING", "EXPECTED") else node["state"],
         )
+        finished = node.get("createdAt") or ""
     return Check(
         name,
         bool(node["isRequired"]),
         "passed" if result in _PASSED else "failed" if result in _FAILED else "pending",
+        finished,
     )
 
 

@@ -1248,7 +1248,7 @@ that does. Details: [watch.md](watch.md#roles).
 
 An author marks its PR ready once its reviewer clears it, and sets `merge` without waiting for
 CI; a failure wakes it to clear `merge`. Add `--ci` only to wait for a result you need, to report CI completion on the current
-head, passing or failing, with or without `--comments`. It waits for all checks to finish and reports a failure once per head.
+head, passing or failing, with or without `--comments`. It waits for all checks to finish and reports a failure once per result: a re-run that fails again on the same head is reported again.
 A pass is reported once the same set of checks has passed on two polls in a row (one
 `--interval` after they finish), and again if the set later changes on that head.
 No checks is not a completion. A CI result that finished before your first waiter started

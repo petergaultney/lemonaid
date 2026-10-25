@@ -195,8 +195,9 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
 
 - A conflict is reported once per head, when GitHub says `CONFLICTING` (`UNKNOWN`, while it
   computes, is not a conflict). A first waiter takes a conflict that already exists as seen.
-- Failed CI is reported once per head, after every check on it has finished. Every check counts,
-  including checks that are not required for merging.
+- Failed CI is reported once per result, after every check on it has finished. A re-run that
+  fails again on the same head is a new result and is reported again; an unchanged result stays
+  quiet. Every check counts, including checks that are not required for merging.
 - The heads reported are kept beside the other state, so a rearm on the same head is quiet
   and a new push that still conflicts or fails is reported.
 
