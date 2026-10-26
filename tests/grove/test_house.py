@@ -1,3 +1,5 @@
+import dataclasses
+
 from lemonaid.grove.draw import canvas, house
 from lemonaid.grove.draw.plots import View
 from lemonaid.grove.layout import arrange
@@ -76,3 +78,13 @@ def test_bays_keep_their_rows_on_a_small_screen_when_the_last_bay_leaves():
     before, saved = where_b(block("", "0", *sessions), {"plots": {}, "trees": {}}, NOW)
     after, _ = where_b(block("", "0", *sessions[:-1]), saved, NOW + 60)
     assert before == after
+
+
+def test_a_bay_shows_its_main_lemons_emoji_after_its_key_and_its_pin_before_it():
+    packhouse = block(
+        "", "0", tree("b", dataclasses.replace(lemon("claude:b"), emoji="🌎", pinned=True))
+    )
+    found, _ = arrange.arrange((packhouse,), {"plots": {}, "trees": {}}, NOW)
+    picture = canvas.blank(200, 60)
+    house.draw(picture, packhouse, found, View(0, 0, 1.0, 1.0), 0.0, lambda _: 0.0)
+    assert any("▐ 0b  🌎 b" in line for line in canvas.plain_lines(picture))

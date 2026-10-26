@@ -47,6 +47,11 @@ def test_a_status_that_asks_for_the_user_is_named_beside_the_session():
     assert "review" not in _row(dataclasses.replace(blocked, status="review"))
 
 
+def test_a_pinned_row_marks_the_lists_border_and_leaves_its_columns_alone():
+    pinned = dataclasses.replace(lemon("claude:a"), pinned=True, age="4m ago")
+    assert _row(pinned).startswith("▐ t") and _row(pinned).endswith("4m │")
+
+
 def test_flipped_a_row_says_where_which_model_and_its_context():
     placed = dataclasses.replace(
         lemon("claude:a", "FilmyBoy"),

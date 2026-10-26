@@ -19,9 +19,9 @@ This replaces tmux's default `prefix Space` (`next-layout`). Choosing a lemon in
 The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps running in a hidden tmux session named `_lma_grove`, as the scratch pane's inbox lives in `_lma_scratch`, and the popup shows that session, already drawn. `lma` starts it in the background when it opens inside tmux, and one from an older install is replaced. There is one grove, so opening it on one client closes it on any other, and a choice always switches the client it shows on. See [tmux.md](tmux.md#fast-popups).
 
 - **A group is a block:** a patch of ground with its own color, outline, texture and signpost.
-- **A tree is a terminal session** (a tmux session; for lemons outside one, their directory). An author and its reviewer share a tree. Its tag shows the name given to its main lemon, in the inbox or with `inbox rename`, and otherwise its session's name.
+- **A tree is a terminal session** (a tmux session; for lemons outside one, their directory). An author and its reviewer share a tree. Its tag shows the name given to its main lemon, in the inbox or with `inbox rename`, and otherwise its session's name, after the main lemon's emoji (`inbox emoji`). A `▐` just left of the tag means the main lemon is pinned.
 - **Lemons hang on their tree,** colored by brief status: the inbox's yellow for `blocked`, green for `merge`, brown for `review`, red for `alert`, teal for `running`, blue (hollow) for `done`, grey otherwise. A lemon mid-turn gently dims and brightens over 4.5 seconds, staying visible throughout, and its tree's tag pulses with it. Idle lemons are dimmed but never hidden: the grove shows hidden and folded lemons too, so nothing moves out of its spot.
-- **The lead tree** (the group's lead, as the inbox works it out) stands nearest the packhouse, flies a pennant in its block's color, and has a star and the letter `l`, and its lead lemon comes first on it. HQ, the lead of the lemons in no group, gets `l` in the packhouse.
+- **The lead tree** (the group's lead, as the inbox works it out) stands nearest the packhouse, flies a pennant in its block's color, and has a crown (`♛`, as in the inbox) and the letter `l`, and its lead lemon comes first on it. HQ, the lead of the lemons in no group, gets `l` in the packhouse.
 - **The packhouse** at the grove's middle holds the lemons in no group, HQ among them, each session as a bay. It's numbered `0`.
 - **Roads and a stream** are landmarks: laid once, saved with the layout, and drawn under the blocks so they show in the gaps. A road crosses the stream on a bridge.
 
@@ -46,7 +46,7 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 
 So `2c` always means the same tree and its main lemon, `2C2` its second lemon, and `2C3` the third. In the grove view each tag shows its tree's whole key, as `2c`; zoomed into a block, just the letter. A click on a block zooms into it, and a click on a tree acts like its letter.
 
-Zoomed into a block, each tree lists its lemons by session name, with their Brief-ID and how long since each reported (`4m`). A status that asks for you (`blocked`, `alert`, `merge`, `approve`) is named beside the session as well; every status colors the lemon's key.
+Zoomed into a block, each tree lists its lemons by session name, with their Brief-ID and how long since each reported (`4m`). A status that asks for you (`blocked`, `alert`, `merge`, `approve`) is named beside the session as well; every status colors the lemon's key. Each lemon's emoji follows its key, and a pinned lemon's row has a `▐` in the list's left border.
 
 Change the key with `grove` in `[tui.keybindings]`.
 

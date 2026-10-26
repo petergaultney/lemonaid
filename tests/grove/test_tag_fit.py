@@ -49,12 +49,12 @@ def test_a_tag_stays_inside_its_block():
     assert found.x >= 45 and found.x + len(found.lines[0]) <= 70
 
 
-def test_a_short_tag_keeps_room_for_the_emoji():
+def test_a_short_tag_keeps_room_for_the_emoji_after_its_key():
     marked = dataclasses.replace(
         tree("t", dataclasses.replace(lemon("claude:t"), emoji="🌎")), label="spatial lemon jump"
     )
     short = trees.short_tag(marked, "s", 10)
-    assert len(short) == 10 and short[-3:] == "   "
+    assert len(short) == 10 and short.startswith(" s     s")
 
 
 def test_the_shortest_tag_keeps_its_letter_beside_the_emoji():

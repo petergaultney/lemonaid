@@ -23,11 +23,34 @@ def test_a_grown_tree_wraps_its_name_onto_two_lines():
     assert "".join(s.tag).split() == ["s", "spatial", "lemon", "jump"]
 
 
-def test_the_emoji_and_pin_get_room_after_the_name():
+def test_a_tags_emoji_follows_its_key_and_its_pin_takes_no_room():
     plain = trees.shape(_decorated("spatial"), "s", 0.62)
     marked = trees.shape(_decorated("spatial", emoji="🌎", pinned=True), "s", 0.62)
-    assert marked.width == plain.width + 4
-    assert marked.tag[0].rstrip() == plain.tag[0].rstrip()
+    assert marked.width == plain.width + 3
+    assert marked.tag[0].split() == plain.tag[0].split() == ["s", "spatial"]
+
+
+def test_a_tag_reads_key_crown_emoji_name_with_its_pin_just_outside():
+    lead = dataclasses.replace(_decorated("spatial", emoji="🌎", pinned=True), lead=True)
+    s = trees.shape(lead, "s", 0.62)
+    picture = canvas.blank(40, 3)
+    trees.draw_tag(picture, lead, s.tag, 2, 1, (10, 0), 0.0)
+    assert canvas.plain_lines(picture)[1].startswith(" ▐ s  ♛ 🌎 spatial")
+
+
+def test_a_selected_tag_keeps_its_pin():
+    pinned = _decorated("spatial", pinned=True)
+    picture = canvas.blank(40, 5)
+    trees.draw_tag(picture, pinned, trees.shape(pinned, "s", 0.62).tag, 3, 3, (10, 0), 0.0, True)
+    assert picture.rows[3][2].char == "▐"
+
+
+def test_a_tag_shows_only_its_main_lemons_emoji_and_pin():
+    other = dataclasses.replace(lemon("claude:b"), emoji="🔍", pinned=True)
+    s = trees.shape(tree("t", lemon("claude:a"), other), "t", 0.62)
+    picture = canvas.blank(40, 3)
+    trees.draw_tag(picture, tree("t", lemon("claude:a"), other), s.tag, 2, 1, (10, 0), 0.0)
+    assert "🔍" not in canvas.plain_lines(picture)[1] and "▐" not in canvas.plain_lines(picture)[1]
 
 
 def test_even_a_small_crown_has_a_row_for_each_lemon():

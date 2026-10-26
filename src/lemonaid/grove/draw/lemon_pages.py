@@ -1,6 +1,6 @@
 """The two pages of a row in a lemon list: its name, and where it is and when it reported.
 
-Each draws from the row's text column to its pin, at the list's width.
+Each draws from the row's text column to a cell short of the list's right border.
 """
 
 from pathlib import PurePath
@@ -13,7 +13,6 @@ TEXT = 10  # where a row's text starts, after its key, dot and emoji
 # The WordyBin's column, and on the other page the model's, as long as `Sonnet 5.5`
 _WHO, _WHO_WIDTH = 38, 10
 _LAST_END = 51  # right-aligned, up to four cells: the age, and on the other page the context
-PIN = 52
 # Statuses that ask something of the user, which the name page names as well as colors.
 _ASKING = ("blocked", "alert", "merge", "approve")
 

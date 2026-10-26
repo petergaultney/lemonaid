@@ -22,14 +22,20 @@ class Shape:
     tag: tuple[str, ...]
 
 
-def _head(letter: str, lead: bool) -> str:
+def _head(letter: str, lead: bool, emoji: str) -> str:
     """A tag's start: its key on a cap with a cell either side, then a cell in the tag's own
-    colors, so neither the key nor the name meets the change of color."""
-    return f" {letter}  {'★ ' if lead else ''}"
+    colors, so neither the key nor the name meets the change of color; then the lead's crown and
+    two cells that `draw_tag` fills with *emoji*, as a lemon list's row has them.
+    """
+    return f" {letter}  {'♛ ' if lead else ''}{'   ' if emoji else ''}"
 
 
-def _tag_lines(letter: str, label: str, lead: bool, width: int) -> tuple[str, ...]:
-    lines = [_head(letter, lead)[1:]]
+def _emoji(tree: Tree) -> str:
+    return tree.lemons[0].emoji
+
+
+def _tag_lines(letter: str, label: str, lead: bool, emoji: str, width: int) -> tuple[str, ...]:
+    lines = [_head(letter, lead, emoji)[1:]]
     for word in label.split():
         if len(lines[-1].strip()) > 3 and len(lines[-1] + word) > width - 2:
             lines.append("  " + word + " ")
@@ -67,10 +73,7 @@ def shape(
         2.8 * ry,
     )
     blobs = clumps.crown(rx, ry, jitter)
-    # Room at the tag's end for the emoji and the pin, so neither covers the name.
-    marks = (3 if any(lemon.emoji for lemon in tree.lemons) else 0) + (
-        1 if any(lemon.pinned for lemon in tree.lemons) else 0
-    )
+    emoji = _emoji(tree)
     one_line = not full_tag  # the grove view: one row a tree
     name = (
         len(tree.label) + 8
@@ -79,16 +82,15 @@ def shape(
         if one_line
         else min(len(tree.label) + 8, 21)
     )
-    width = max(int(rx * 2) + 4, name + marks)
+    width = max(int(rx * 2) + 4, name + (3 if emoji else 0))
     if one_line:
-        whole = f"{_head(letter, tree.lead)}{tree.label} "
-        fit = width - marks
+        whole = f"{_head(letter, tree.lead, emoji)}{tree.label} "
         tag: tuple[str, ...] = (
-            (whole if len(whole) <= fit else whole[: fit - 2] + "… ").ljust(width),
+            (whole if len(whole) <= width else whole[: width - 2] + "… ").ljust(width),
         )
     else:
         tag = tuple(
-            line.ljust(width) for line in _tag_lines(letter, tree.label, tree.lead, width - marks)
+            line.ljust(width) for line in _tag_lines(letter, tree.label, tree.lead, emoji, width)
         )
     top = int(ry * 1.4) + 2
     return Shape(
@@ -173,28 +175,20 @@ def pennant_box(s: Shape, ax: float, ay: float) -> tuple[int, int, int, int]:
     return round(ax), top - 2, 4, 2
 
 
-def _marks(tree: Tree) -> int:
-    """Cells at the tag's end for the emoji and the pin."""
-    return (3 if any(lemon.emoji for lemon in tree.lemons) else 0) + (
-        1 if any(lemon.pinned for lemon in tree.lemons) else 0
-    )
-
-
 def whole_tag(tree: Tree, letter: str) -> int:
-    """The one-line tag's width with all of its name, and room for the emoji and pin."""
-    return len(f"{_head(letter, tree.lead)}{tree.label} ") + _marks(tree)
+    """The one-line tag's width with all of its name."""
+    return len(f"{_head(letter, tree.lead, _emoji(tree))}{tree.label} ")
 
 
 def least_tag(tree: Tree, letter: str) -> int:
-    """The narrowest tag: its letter, and room for the emoji and pin after it."""
-    return len(_head(letter, tree.lead)) + _marks(tree)
+    """The narrowest tag: its letter, crown and emoji."""
+    return len(_head(letter, tree.lead, _emoji(tree)))
 
 
 def short_tag(tree: Tree, letter: str, width: int) -> str:
     """The one-line tag cut to *width*: the name shortened, down to just the letter."""
-    marks = _marks(tree)
-    head = _head(letter, tree.lead)
-    room = width - marks - len(head) - 1
+    head = _head(letter, tree.lead, _emoji(tree))
+    room = width - len(head) - 1
     name = tree.label if len(tree.label) <= room else tree.label[: max(0, room - 1)] + "…"
     return (head + name if room > 0 else head).ljust(width)
 
@@ -292,10 +286,10 @@ def draw_tag(
     # The letter to type, on a cap in the tag's colors swapped, as a packhouse bay's is. An
     # underline would be drawn in the text's color, which some terminals lose against the row below.
     text(canvas, x, y, lines[0][: key + 2], tag_bg, tag_fg, bold=True)
-    emoji = next((lemon.emoji for lemon in tree.lemons if lemon.emoji), "")
+    emoji = _emoji(tree)
     if emoji:
-        wide(canvas, x + width - 3, y, emoji, tag_fg, tag_bg)
-    if any(lemon.pinned for lemon in tree.lemons):
-        put(canvas, x + width - 1, y + len(lines) - 1, "▪", tag_fg, tag_bg)
+        wide(canvas, x + key + 3 + (2 if tree.lead else 0), y, emoji, tag_fg, tag_bg)
     if selected:
         box(canvas, x - 1, y - 1, width + 2, len(lines) + 2, "#ffffff")
+    if tree.lemons[0].pinned:  # over a selection's outline, which takes the same cell
+        put(canvas, x - 1, y, "▐", colors.TEXT)

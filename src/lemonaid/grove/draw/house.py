@@ -5,7 +5,7 @@ from collections import abc
 from ..layout.arrange import Arrangement
 from ..model import Block, Tree
 from . import colors, lemon_list
-from .canvas import BACKGROUND, DOUBLE, Canvas, box, fill, mix, put, text
+from .canvas import BACKGROUND, DOUBLE, Canvas, box, fill, mix, put, text, wide
 from .plots import View
 
 _FLOOR = "#1d1f24"
@@ -32,7 +32,22 @@ def _bay(
     key = f" {block.digit}{letter} "
     text(canvas, x, y, key, colors.on_status(status) if status else "#0b0e13", cap, bold=True)
     dots = len(tree.lemons) * 2
-    text(canvas, x + len(key) + 1, y, label, colors.TEXT, _FLOOR, bold=True, limit=width - 7 - dots)
+    main = tree.lemons[0]
+    if main.pinned:
+        put(canvas, x - 1, y, "▐", colors.TEXT, _FLOOR)
+    shift = 3 if main.emoji else 0
+    if main.emoji:
+        wide(canvas, x + len(key) + 1, y, main.emoji, colors.TEXT, _FLOOR)
+    text(
+        canvas,
+        x + len(key) + 1 + shift,
+        y,
+        label,
+        colors.TEXT,
+        _FLOOR,
+        bold=True,
+        limit=width - 7 - dots - shift,
+    )
     for i, lemon in enumerate(tree.lemons):
         put(
             canvas,

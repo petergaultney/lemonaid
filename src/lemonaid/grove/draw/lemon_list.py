@@ -90,7 +90,7 @@ def _row(
         wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, panel)
     (lemon_pages.where_and_when if flipped else lemon_pages.name_first)(canvas, x, y, lemon, panel)
     if lemon.pinned:
-        put(canvas, x + lemon_pages.PIN, y, "▪", colors.TEXT, panel)
+        put(canvas, x, y, "▐", colors.TEXT)
 
 
 def draw(
