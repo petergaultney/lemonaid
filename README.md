@@ -5,6 +5,18 @@ running in the terminal.
 
 <img width="900" alt="The lemonaid inbox as a left sidebar, a card per session, beside a Claude Code session" src="docs/images/inbox-left.png" />
 
+## The grove
+
+Press `Space` in `lma` and your lemons become a map. Each group is a block of ground, each terminal session a tree, and each lemon a dot hanging on its tree, colored by brief status. Nothing moves once it is placed, so you find a lemon by where it lives instead of scanning a list whose order changes with every status. A digit zooms into a block and a letter jumps to a tree's lemon (`2c`).
+
+<img width="900" alt="The grove: four blocks of trees around a packhouse, each tree tagged with its session and a status color" src="docs/images/grove-overview.png" />
+
+Zoomed into a block, each tree lists its lemons with their Brief-ID, status, model and context use:
+
+<img width="900" alt="One block of the grove zoomed in, each tree beside a card for its lemons" src="docs/images/grove-block.png" />
+
+The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md).
+
 ## An inbox that stays in view
 
 The inbox can live in a pane that follows you across every window and session
@@ -45,6 +57,11 @@ uv run scripts/demo-inbox.py --kill
 The screenshots here come from that demo:
 `uv run scripts/demo-inbox.py --no-attach` (add `--top` for the strip), then
 `uv run scripts/demo-screenshot.py docs/images/inbox-left.png`.
+
+The grove screenshots come from `uv run scripts/demo-grove.py` and then
+`uv run scripts/demo-screenshot.py docs/images/grove-overview.png --columns 232 --rows 62`;
+for the zoomed block, `uv run scripts/demo-grove.py --keys 3 --columns 180 --rows 46` and the same
+command with `grove-block.png`, `--columns 180 --rows 46`.
 
 Full setup, keybindings, and behaviour: [docs/tmux.md](docs/tmux.md).
 

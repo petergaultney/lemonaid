@@ -37,8 +37,10 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # Extracted from an iTerm2 profile by `terminal_palette.py`.
 DEFAULT_PALETTE = Path(__file__).resolve().parent / "demo-palette.json"
 
-_CELL_WIDTH = 8.4  # px, at 14px Menlo
-_CELL_HEIGHT = 17
+_CELL_WIDTH = (
+    9  # px, at 15px Menlo; whole device pixels, with halves, so block characters meet exactly
+)
+_CELL_HEIGHT = 18
 
 
 # pyte keeps no faint (SGR 2) attribute, and the inbox draws dim text with it
@@ -140,15 +142,53 @@ def _capture(columns: int, rows: int, settle: float) -> pyte.Screen:
     return screen
 
 
+_UL, _UR, _LL, _LR = 1, 2, 4, 8
+_QUADRANTS = {
+    "▘": _UL,
+    "▝": _UR,
+    "▖": _LL,
+    "▗": _LR,
+    "▀": _UL | _UR,
+    "▄": _LL | _LR,
+    "▌": _UL | _LL,
+    "▐": _UR | _LR,
+    "█": 15,
+    "▙": _UL | _LL | _LR,
+    "▚": _UL | _LR,
+    "▛": _UL | _UR | _LL,
+    "▜": _UL | _UR | _LR,
+    "▞": _UR | _LL,
+    "▟": _UR | _LL | _LR,
+}
+_CORNERS = {_UL: "0 0", _UR: "100% 0", _LL: "0 100%", _LR: "100% 100%"}
+
+
+def _quadrant_background(mask: int, foreground: str, background: str) -> str:
+    """CSS painting *mask*'s quadrants of a cell in *foreground* exactly, which a font glyph can't."""
+    layers = [
+        f"linear-gradient({foreground},{foreground}) {corner} / 50% 50% no-repeat"
+        for bit, corner in _CORNERS.items()
+        if mask & bit
+    ]
+    return ",".join([*layers, background])
+
+
 def _cell_html(char: _Char, wide: bool, palette: terminal_palette.Palette) -> str:
     foreground = _foreground(char, palette)
     background = _color(char.bg, palette.background, palette)
     if char.reverse:
         foreground, background = background, foreground
-    foreground = terminal_palette.with_contrast(foreground, background, palette.minimum_contrast)
-    if char.dim:
-        foreground = terminal_palette.blend(foreground, background, _FAINT_OPACITY)
+    quadrants = _QUADRANTS.get(char.data)
+    if not quadrants:  # a block is a fill, not text, so contrast and faintness don't apply
+        foreground = terminal_palette.with_contrast(
+            foreground, background, palette.minimum_contrast
+        )
+        if char.dim:
+            foreground = terminal_palette.blend(foreground, background, _FAINT_OPACITY)
     styles = [f"color:{foreground}", f"background:{background}"]
+    if quadrants and not wide:
+        styles[1] = f"background:{_quadrant_background(quadrants, foreground, background)}"
+        char = char._replace(data=" ")
     if char.bold:
         styles.append("font-weight:bold")
     if char.italics:
@@ -181,7 +221,7 @@ body {{ margin: 0; background: {palette.background}; }}
 .r {{ height: {_CELL_HEIGHT}px; white-space: pre; overflow: hidden; }}
 .c {{ display: inline-block; width: {_CELL_WIDTH}px; height: {_CELL_HEIGHT}px;
      line-height: {_CELL_HEIGHT}px; overflow: visible; vertical-align: top;
-     font: 14px Menlo, "STIX Two Math", monospace; }}
+     font: 15px Menlo, "STIX Two Math", monospace; }}
 .w {{ width: {2 * _CELL_WIDTH}px; font-family: Menlo, "Apple Color Emoji", monospace; }}
 </style><body>{rows}</body>"""
 

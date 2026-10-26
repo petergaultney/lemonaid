@@ -2,6 +2,12 @@
 
 > **Beta.** The grove is new and still changing. Its keys, its drawing, its commands and their JSON, and the layout files it keeps (`grove.json` and `grove-view.json` in lemonaid's state directory) may all change between releases without notice or migration. A release may lay out a grove afresh. Don't build on the formats yet.
 
+![The grove: four blocks of trees around a packhouse, each tree tagged with its session and a status color](images/grove-overview.png)
+
+Zoomed into a block, each tree lists its lemons:
+
+![One block of the grove zoomed in, each tree beside a card for its lemons](images/grove-block.png)
+
 The grove is a map of your lemons that keeps each one in the same place, so you can find a lemon by where it lives instead of scanning a list whose order changes with every status. Press `Space` in `lma` to open it, and `Space` again to close it. In tmux, from the sidebar or any pane too small for a map, it opens in a popup over the whole window instead, with a 3-cell margin (`popup_margin` in `[tmux-session]`). To open that popup from anywhere, bind a tmux key by adding what this prints to your tmux.conf:
 
 ```sh
