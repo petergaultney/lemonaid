@@ -191,3 +191,17 @@ def test_a_four_cell_key_stays_inside_the_lists_border():
     lemon_list.draw(picture, 0, 0, twelve, "t", "#6495ed", 0.0, None, False)
     rows = canvas.plain_lines(picture)
     assert rows[11][1:5] == ".t0a" and rows[11][0] != "."
+
+
+def test_a_list_widens_with_the_screen_within_its_bounds():
+    assert [lemon_list.width(n) for n in (100, 180, 200, 240, 400)] == [54, 54, 60, 72, 72]
+
+
+def test_a_wider_list_gives_its_extra_cells_to_the_name():
+    long = dataclasses.replace(
+        lemon("claude:a", "FilmyBoy"), name="REVIEW #411 grove context colors", age="4m ago"
+    )
+    picture = canvas.blank(74, 4)
+    lemon_list.draw(picture, 0, 0, tree("t", long), "t", "#6495ed", 0.0, None, False, width=72)
+    row = canvas.plain_lines(picture)[1]
+    assert "REVIEW #411 grove context colors" in row and row.endswith("FilmyBoy    4m │")

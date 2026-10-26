@@ -78,22 +78,21 @@ def zoomed(
     taken = [_footprint(p, tag) for p, tag in zip(planted, fitted, strict=True)]
     footprints = dict(zip((p.tree.key for p in planted), list(taken), strict=True))
     spots: dict[str, tuple[int, int]] = {}
+    w = lemon_list.width(canvas.width)
     # Lists where they were last drawn first, while they cover no more than they did there, so
     # a list in a crowded block stays put as its neighbors change; then the rest.
     for p in sorted(planted, key=lambda p: p.tree.key not in lists):
         rows = len(p.tree.lemons) + 2  # its lemons, and its box's edges
         was = lists.get(p.tree.key)
-        now = (
-            _crowding(canvas, (was[0], was[1], lemon_list.WIDTH, rows), taken) if was else math.inf
-        )
+        now = _crowding(canvas, (was[0], was[1], w, rows), taken) if was else math.inf
         if was and now < math.inf and now <= was[2]:
             x, y, covered = was
         else:
-            x, y = _list_spot(canvas, p.placed[0], footprints[p.tree.key], rows, taken)
-            covered = _crowding(canvas, (x, y, lemon_list.WIDTH, rows), taken)
+            x, y = _list_spot(canvas, p.placed[0], footprints[p.tree.key], w, rows, taken)
+            covered = _crowding(canvas, (x, y, w, rows), taken)
         spots[p.tree.key] = (x, y)
         lists[p.tree.key] = (x, y, covered)
-        taken.append((x, y, lemon_list.WIDTH, rows))
+        taken.append((x, y, w, rows))
     for p in planted:
         letter = arrangement.trees[(block.name, p.tree.key)].letter
         x, y = spots[p.tree.key]
@@ -111,12 +110,11 @@ def zoomed(
             letter == opened,
             edited=highlight.edited if highlight else "",
             flipped=flipped,
+            width=w,
         )
         canvas.target = ()
         canvas.dim = 0.0
-    return {
-        p.tree.key: (*spots[p.tree.key], lemon_list.WIDTH, len(p.tree.lemons) + 2) for p in planted
-    }
+    return {p.tree.key: (*spots[p.tree.key], w, len(p.tree.lemons) + 2) for p in planted}
 
 
 _GAP = 2  # columns kept clear beside a list; one row above and below
@@ -164,12 +162,11 @@ def _crowding(canvas: Canvas, rect: Rect, taken: list[Rect]) -> float:
 
 
 def _list_spot(
-    canvas: Canvas, ax: float, footprint: Rect, height: int, taken: list[Rect]
+    canvas: Canvas, ax: float, footprint: Rect, w: int, height: int, taken: list[Rect]
 ) -> tuple[int, int]:
     """The best spot touching the tree that overlaps nothing, else the one overlapping least:
     a list never leaves its tree, so on a crowded screen it may cover a neighbor a little.
     """
-    w = lemon_list.WIDTH
     clear = [(x - _GAP, y - 1, rw + 2 * _GAP, rh + 2) for x, y, rw, rh in taken]
     spots = [
         (min(max(1, x), canvas.width - w - 1), min(max(1, y), canvas.height - height - 2))

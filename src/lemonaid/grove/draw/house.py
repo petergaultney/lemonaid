@@ -128,7 +128,8 @@ def zoomed(
     sign = f" {block.digit} PACKHOUSE "
     text(canvas, x0 + (w - len(sign)) // 2, y0, sign, "#0b0e13", block.color, bold=True)
     canvas.target = ()
-    columns = max(1, (w - 4) // (lemon_list.WIDTH + 2))
+    across = lemon_list.width(canvas.width)
+    columns = max(1, (w - 4) // (across + 2))
     # Rows for every bay the layout has saved, gone ones included, so a session leaving moves
     # no other bay; the count rises only when the packhouse holds more sessions than ever before.
     rows = arrangement.bays.get(block.name, 0) // columns + 1
@@ -138,8 +139,8 @@ def zoomed(
     for tree in block.trees:
         row, column = divmod(arrangement.trees[(block.name, tree.key)].bay, columns)
         letter = arrangement.trees[(block.name, tree.key)].letter
-        x, y = x0 + 2 + column * (lemon_list.WIDTH + 2), y0 + 3 + row * (lemons + 3)
-        drawn[tree.key] = (x, y, lemon_list.WIDTH, min(len(tree.lemons), lemons) + 2)
+        x, y = x0 + 2 + column * (across + 2), y0 + 3 + row * (lemons + 3)
+        drawn[tree.key] = (x, y, across, min(len(tree.lemons), lemons) + 2)
         canvas.target = (block.digit, letter)
         lemon_list.draw(
             canvas,
@@ -155,6 +156,7 @@ def zoomed(
             edited,
             flipped,
             key_prefix + letter if key_prefix else "",
+            across,
         )
         canvas.target = ()
     return drawn

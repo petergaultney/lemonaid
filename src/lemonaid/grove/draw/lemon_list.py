@@ -7,11 +7,17 @@ from ..model import Tree
 from . import colors, lemon_pages
 from .canvas import BACKGROUND, DOUBLE, ROUND, Canvas, box, fill, mix, put, text, wide
 
-WIDTH = 54
+WIDTH = 54  # the narrowest list, and a lemon card's width
+_WIDEST = 72
 # Where each column starts, and how wide it may run, with a blank cell between columns.
 _KEY, _GLYPH, _EMOJI = 1, 5, 7
 _PANEL = "#121821"
 _EDITED = "#2c3e57"  # behind the row an edit would change
+
+
+def width(screen: int) -> int:
+    """How wide a list is on a screen *screen* columns wide: 30% of it, within its bounds."""
+    return min(_WIDEST, max(WIDTH, round(screen * 0.3)))
 
 
 def session(tree: Tree) -> str:
@@ -63,6 +69,7 @@ def _row(
     phase: float,
     panel: str,
     flipped: bool,
+    width: int,
 ) -> None:
     lemon = tree.lemons[i]
     keys = key(tree, letter, i)
@@ -88,7 +95,9 @@ def _row(
         )
     if lemon.emoji:
         wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, panel)
-    (lemon_pages.where_and_when if flipped else lemon_pages.name_first)(canvas, x, y, lemon, panel)
+    (lemon_pages.where_and_when if flipped else lemon_pages.name_first)(
+        canvas, x, y, lemon, panel, width
+    )
     if lemon.pinned:
         put(canvas, x, y, "▐", colors.TEXT)
 
@@ -107,6 +116,7 @@ def draw(
     edited: str = "",
     flipped: bool = False,
     title_key: str = "",
+    width: int = WIDTH,
 ) -> None:
     """*most*, when given, lists that many rows at most, the last saying how many more there are.
     *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
@@ -118,29 +128,29 @@ def draw(
     at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
     first = max(0, at - shown + 1)
     height = min(len(tree.lemons), most or len(tree.lemons)) + 2
-    fill(canvas, x, y, WIDTH, height, _PANEL)
+    fill(canvas, x, y, width, height, _PANEL)
     box(
         canvas,
         x,
         y,
-        WIDTH,
+        width,
         height,
         colors.LEMON if opened else mix(color, BACKGROUND, 0.5),
         DOUBLE if opened else ROUND,
     )
     title = f" {title_key}  {tree.key} " if title_key else f" {tree.key} "
     if edited == session(tree):
-        text(canvas, x + 2, y, title, BACKGROUND, colors.LEMON, bold=True, limit=WIDTH - 4)
+        text(canvas, x + 2, y, title, BACKGROUND, colors.LEMON, bold=True, limit=width - 4)
     else:
-        text(canvas, x + 2, y, title, "#9aa5b8", _PANEL, limit=WIDTH - 4)
+        text(canvas, x + 2, y, title, "#9aa5b8", _PANEL, limit=width - 4)
     dim = canvas.dim
     for i, lemon in enumerate(tree.lemons[first : first + shown], start=first):
         row = y + 1 + i - first
         canvas.dim = 0.6 if hits is not None and lemon.channel not in hits else dim
         panel = _EDITED if lemon.channel == edited else _PANEL
         if panel != _PANEL:
-            fill(canvas, x + 1, row, WIDTH - 2, 1, panel)
-        _row(canvas, x, row, tree, letter, i, phase, panel, flipped)
+            fill(canvas, x + 1, row, width - 2, 1, panel)
+        _row(canvas, x, row, tree, letter, i, phase, panel, flipped, width)
     canvas.dim = dim
     if shown < len(tree.lemons):
         text(

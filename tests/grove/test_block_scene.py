@@ -8,7 +8,9 @@ FOOTPRINT = (90, 25, 20, 8)  # a tree and its tag, standing at column 100
 
 
 def _spot(taken: list[block_scene.Rect]) -> block_scene.Rect:
-    x, y = block_scene._list_spot(canvas.blank(200, 60), 100.0, FOOTPRINT, 4, [FOOTPRINT, *taken])
+    x, y = block_scene._list_spot(
+        canvas.blank(200, 60), 100.0, FOOTPRINT, lemon_list.WIDTH, 4, [FOOTPRINT, *taken]
+    )
     return x, y, lemon_list.WIDTH, 4
 
 
