@@ -5,13 +5,14 @@ import time
 from collections import abc
 
 from ....claude import notify
+from ....codex import titles
 from ....log import get_logger
 from ... import db
 
 _log = get_logger("tui")
 
 
-def upgrade(mtimes: dict[str, float]) -> bool:
+def upgrade(mtimes: dict[str, float], codex_index: titles.IndexCache) -> bool:
     """Give each live Claude session the title its transcript now has; True if any changed.
 
     Claude names a session only once it has some content, so the name in the
@@ -67,6 +68,35 @@ def upgrade(mtimes: dict[str, float]) -> bool:
                     resolved.source,
                 )
 
+    return _upgrade_codex(codex_index) or upgraded
+
+
+def _upgrade_codex(index_cache: titles.IndexCache) -> bool:
+    """Give each live Codex session the title in Codex's session index; True if any changed.
+
+    Codex hook payloads carry no title, so the inbox starts with the cwd's name.
+    The index is re-read only when it changes, but applied to every current row,
+    since a row can appear after the index already holds its title.
+    """
+    by_id = index_cache.titles()
+    if not by_id:
+        return False
+
+    upgraded = False
+    with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
+        for n in db.get_active(conn, switch_source=None):
+            # a reconciled row can sit on a transient channel; session_id is the thread
+            thread = n.metadata.get("session_id") or n.channel.removeprefix("codex:")
+            title = by_id.get(thread)
+            if (
+                n.channel.startswith("codex:")
+                and title
+                and n.metadata.get("name_source") != "codex_title"
+                and db.refresh_auto_name(conn, n.id, title, "codex_index")
+            ):
+                upgraded = True
+                _log.info("name upgraded: %d -> %r (codex_index)", n.id, title)
+
     return upgraded
 
 
@@ -80,6 +110,7 @@ class Scanner:
 
     def __init__(self) -> None:
         self._mtimes: dict[str, float] = {}
+        self._codex_index = titles.IndexCache()
         self._last = 0.0
 
     def maybe_scan(self, upgraded: abc.Callable[[], None]) -> None:
@@ -89,7 +120,7 @@ class Scanner:
             return
 
         def scan() -> None:
-            if upgrade(self._mtimes):
+            if upgrade(self._mtimes, self._codex_index):
                 upgraded()
 
         self._last = now
