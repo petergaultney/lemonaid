@@ -21,6 +21,13 @@ def test_a_letter_is_the_groves_only_for_a_tree_in_the_zoomed_block():
     assert _uses(letter("tars/postgres-core"), zoomed)
     assert not _uses("j", zoomed)
     assert not _uses("j")
+    assert not _uses(letter("tars/postgres-core").upper(), zoomed)
+
+
+def test_a_dot_is_the_groves_only_once_a_block_is_zoomed_and_then_takes_a_letter():
+    zoomed, _ = step(Where(), "1", BLOCKS, ARRANGEMENT)
+    assert _uses(".", zoomed) and not _uses(".")
+    assert _uses("j", Where(block="1", dot=True))
 
 
 def test_enter_belongs_to_the_inbox_and_a_letter_after_0_to_the_grove():

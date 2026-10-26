@@ -60,9 +60,9 @@ def test_recoloring_says_it_needs_only_a_block():
     assert "packhouse has no color" in block["Alt+c"]
 
 
-def test_the_panel_teaches_the_capital_and_a_place():
-    assert "C2" in dict(help_panel.rows(True))["a capital, then a place"]
-    assert "2C2" in dict(help_panel.rows(False))["a digit, a capital, a place"]
+def test_the_panel_teaches_the_dot_the_letter_and_a_place():
+    assert ".c1" in dict(help_panel.rows(True))["a dot, a letter, a place"]
+    assert "2.c1" in dict(help_panel.rows(False))["a digit, a dot, a letter, a place"]
 
 
 @pytest.mark.parametrize(("width", "height"), [(160, 46), (80, 24)])

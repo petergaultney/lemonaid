@@ -1,4 +1,5 @@
-"""What each key does in the grove: digits pick a block, letters a tree, and `/` searches.
+"""What each key does in the grove: digits pick a block, letters a tree, `.` and a letter a
+tree's other lemons, and `/` searches.
 
 `step` is the whole of it: given where the grove is and a key, the next state and, when the
 key chose a lemon, its channel. The screen only draws and switches.
@@ -16,6 +17,7 @@ from ..model import Block, Lemon, Tree
 class Where:
     block: str = ""  # the zoomed-in block's digit
     digits: str = ""  # digits typed toward a block number
+    dot: bool = False  # a `.` typed, waiting for the letter of a tree to pick lemons on
     tree: str = ""  # the letter of a tree whose lemons are being picked by number
     number: str = ""  # digits typed toward one of that tree's lemons
     search: str | None = None  # the search text while searching
@@ -60,7 +62,7 @@ def tree_at(block: Block, arrangement: Arrangement, letter: str) -> Tree | None:
 
 def names(blocks: abc.Iterable[Block], arrangement: Arrangement) -> dict[str, str]:
     """What to type to reach each lemon with a key, by channel: its block's digit, then its key
-    on its tree, as `5s`, `5S2` or `5S0a`.
+    on its tree, as `5s`, `5.s1` or `5.s0a`.
     """
     return {
         lemon.channel: block.digit + key
@@ -97,7 +99,7 @@ def _search_step(where: Where, key: str, blocks: abc.Sequence[Block]) -> tuple[W
 
 
 def _number_step(where: Where, key: str, tree: Tree) -> tuple[Where, str]:
-    if key == "0" and len(tree.lemons) > 9 and not where.number:
+    if key == "0" and len(tree.lemons) > 10 and not where.number:
         return dataclasses.replace(where, number="0"), ""
 
     typed = where.number + key
@@ -105,6 +107,15 @@ def _number_step(where: Where, key: str, tree: Tree) -> tuple[Where, str]:
     if index is None or index >= len(tree.lemons):
         return dataclasses.replace(where, number="", note=f"no lemon {typed} on this tree"), ""
     return Where(), tree.lemons[index].channel
+
+
+def _dotted_step(where: Where, key: str, zoomed: Block, arrangement: Arrangement) -> Where:
+    tree = tree_at(zoomed, arrangement, key) if len(key) == 1 and key.islower() else None
+    if tree is None:
+        return dataclasses.replace(where, dot=False, note="a dot takes a tree's letter")
+    if len(tree.lemons) < 2:
+        return dataclasses.replace(where, dot=False, note="that tree has one lemon")
+    return dataclasses.replace(where, dot=False, tree=key, number="")
 
 
 def step(
@@ -116,13 +127,21 @@ def step(
 
     where = dataclasses.replace(where, note="")
     if key == "escape":
-        if where.tree:
-            return dataclasses.replace(where, tree="", number=""), ""
+        if where.tree or where.dot:
+            return dataclasses.replace(where, dot=False, tree="", number=""), ""
         return Where(pan=where.pan), ""
     if key == "slash" or key == "/":
         return Where(search=""), ""
 
     zoomed = _block(blocks, where.block)
+    if key == ".":
+        if not zoomed:
+            return dataclasses.replace(where, note="type a block number first, or / to search"), ""
+        return dataclasses.replace(where, dot=True, tree="", number="", digits=""), ""
+
+    if where.dot and zoomed:
+        return _dotted_step(where, key, zoomed, arrangement), ""
+
     if key.isdigit() and len(key) == 1:
         if zoomed and where.tree:
             tree = tree_at(zoomed, arrangement, where.tree)
@@ -141,16 +160,17 @@ def step(
     if len(key) == 1 and key.isalpha():
         if not zoomed:
             return dataclasses.replace(where, note="type a block number first, or / to search"), ""
-        tree = tree_at(zoomed, arrangement, key.lower())
+        if key.isupper():
+            return dataclasses.replace(
+                where, note="another lemon is a dot, its tree's letter, a place"
+            ), ""
+
+        tree = tree_at(zoomed, arrangement, key)
         if tree is None:
             return dataclasses.replace(
-                where, note=f"no tree {key.lower()} in {zoomed.name or 'no group'}"
+                where, note=f"no tree {key} in {zoomed.name or 'no group'}"
             ), ""
-        if key.islower():
-            return Where(), tree.lemons[0].channel
-        if len(tree.lemons) < 2:
-            return dataclasses.replace(where, note="that tree has one lemon"), ""
-        return dataclasses.replace(where, tree=key.lower(), number="", digits=""), ""
+        return Where(), tree.lemons[0].channel
 
     return where, ""
 
@@ -160,11 +180,16 @@ def uses(where: Where, key: str, blocks: abc.Sequence[Block], arrangement: Arran
     if where.search is not None or key in ("escape", "slash", "/") or key.isdigit():
         return True
 
+    if where.dot:
+        return len(key) == 1
+
     if where.tree and where.number:  # the letter after a lemon's `0`
         return len(key) == 1 and key.isalpha()
 
     zoomed = _block(blocks, where.block)
-    return bool(zoomed and len(key) == 1 and tree_at(zoomed, arrangement, key.lower()))
+    return bool(
+        zoomed and len(key) == 1 and (key == "." or tree_at(zoomed, arrangement, key) is not None)
+    )
 
 
 def reconcile(where: Where, before: abc.Sequence[Block], after: abc.Sequence[Block]) -> Where:

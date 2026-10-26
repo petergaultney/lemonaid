@@ -70,7 +70,7 @@ def test_each_row_starts_with_its_grove_key(monkeypatch):
     assert names, "no rows rendered"
     keys = {name.split()[0] for name in names}
     letter = grove.arrangement.trees[("", "/tmp")].letter
-    assert keys == {f"0{letter}", f"0{letter.upper()}2"}
+    assert keys == {f"0{letter}", f"0.{letter}1"}
 
 
 def test_a_digit_then_a_letter_switches_to_that_lemon(monkeypatch):

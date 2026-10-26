@@ -22,7 +22,7 @@ def test_one_escape_closes_the_bar_with_a_tree_typed():
 
     async def steps(app, pilot):
         letter = app._content.inbox.grove.arrangement.trees[("", "/tmp")].letter
-        await pilot.press("0", letter.upper())
+        await pilot.press("0", ".", letter)
         await pilot.pause()
         typed = _is_open(app)
         await pilot.press("escape")

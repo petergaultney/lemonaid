@@ -11,11 +11,11 @@ def test_a_trees_first_lemon_keeps_its_letter_however_many_join_it():
         assert lemon_list.key(grown, "t", 0) == "t"
 
 
-def test_the_rest_are_the_capital_and_their_place():
+def test_the_rest_are_a_dot_the_letter_and_their_place():
     twelve = tree("t", *(lemon(f"claude:{i}") for i in range(12)))
     keys = [lemon_list.key(twelve, "t", i) for i in range(12)]
-    assert keys[1:4] == ["T2", "T3", "T4"]
-    assert keys[8:] == ["T9", "T0a", "T0b", "T0c"]
+    assert keys[1:4] == [".t1", ".t2", ".t3"]
+    assert keys[9:] == [".t9", ".t0a", ".t0b"]
 
 
 def test_model_and_context_stay_apart():
@@ -77,6 +77,14 @@ def test_a_list_cut_short_scrolls_to_keep_an_edited_lemon_in_view():
 def test_past_0z_a_lemon_has_no_key_and_nothing_breaks():
     many = tree("t", *(lemon(f"claude:{i}") for i in range(37)))
     keys = [lemon_list.key(many, "t", i) for i in range(37)]
-    assert keys[34] == "T0z" and keys[35:] == ["", ""]
+    assert keys[35] == ".t0z" and keys[36] == ""
     picture = canvas.blank(lemon_list.WIDTH + 2, 40)
     lemon_list.draw(picture, 0, 0, many, "t", "#6495ed", 0.0, None, True)
+
+
+def test_a_four_cell_key_stays_inside_the_lists_border():
+    twelve = tree("t", *(lemon(f"claude:{i}") for i in range(12)))
+    picture = canvas.blank(lemon_list.WIDTH + 2, 14)
+    lemon_list.draw(picture, 0, 0, twelve, "t", "#6495ed", 0.0, None, False)
+    rows = canvas.plain_lines(picture)
+    assert rows[11][1:5] == ".t0a" and rows[11][0] != "."

@@ -242,8 +242,8 @@ question still wakes it. See `docs/for-lemons.md`.
 ## Jump by grove key
 
 Every row shows its lemon's key in [the grove](grove.md) before the session name, as `5s`: the
-group's block digit, then its tree's letter, then a capital (`5S`) for the tree's second lemon
-or a number (`2d3`) on a tree of three or more. Each group header shows its block's digit.
+group's block digit, then its tree's letter, then a dot and the letter (`5.s1`) for the tree's second lemon,
+`5.s2` for its third, and so on. Each group header shows its block's digit.
 A lemon keeps its key as the list reorders, and `l` is always a group's lead.
 
 Typing a digit opens a bar at the bottom that takes the rest of the key, listing the block's

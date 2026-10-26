@@ -14,9 +14,11 @@ def _line(where: keys.Where, grove: Grove) -> str:
     block = next((b for b in grove.blocks if b.digit == where.block), None)
     if block is None:
         return "type a block number · esc closes"
+    if where.dot:
+        return f"{where.block}.: the tree's letter"
     if where.tree:
         what = "letter" if where.number else "place on the tree"
-        return f"{where.block}{where.tree.upper()}{where.number}: the lemon's {what}"
+        return f"{where.block}.{where.tree}{where.number}: the lemon's {what}"
 
     trees = "  ".join(
         f"{grove.arrangement.trees[(block.name, t.key)].letter} "
@@ -27,7 +29,7 @@ def _line(where: keys.Where, grove: Grove) -> str:
 
 
 def key_name(event: events.Key) -> str:
-    """A typed character as itself, which keeps a capital's case; any other key by its name."""
+    """A typed character as itself, which keeps its case; any other key by its name."""
     if event.character and event.character.isprintable() and len(event.character) == 1:
         return event.character
     return event.key

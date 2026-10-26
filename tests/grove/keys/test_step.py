@@ -45,16 +45,32 @@ def test_a_trees_letter_takes_its_first_lemon_whatever_its_size():
     assert press("1", letter("tars/postgres-core"))[1] == "claude:author"
 
 
-def test_the_capital_and_a_place_take_the_rest():
+def test_a_dot_the_letter_and_a_place_take_the_rest():
     ops, core = letter("tars/postgres-ops"), letter("tars/postgres-core")
-    assert press("1", ops.upper(), "2")[1] == "codex:ops-review"
-    where, channel = press("1", core.upper())
-    assert where.tree == core and not channel
-    assert press("3", where=where)[1] == "codex:third"
+    assert press("1", ".", ops, "1")[1] == "codex:ops-review"
+    where, channel = press("1", ".", core)
+    assert where.tree == core and not where.dot and not channel
+    assert press("2", where=where)[1] == "codex:third"
+
+
+def test_a_dot_alone_waits_for_a_letter():
+    where, channel = press("1", ".")
+    assert where.dot and not where.tree and not channel
+    assert press("escape", where=where)[0] == Where(block="1")
+
+
+def test_a_capital_picks_nothing():
+    where, channel = press("1", letter("tars/postgres-core").upper())
+    assert not channel and not where.tree and where.note
+
+
+def test_a_dot_before_a_block_explains_itself():
+    where, _ = press(".")
+    assert not where.dot and "block number" in where.note
 
 
 def test_escape_backs_out_one_level_at_a_time():
-    where, _ = press("1", letter("tars/postgres-core").upper(), "escape")
+    where, _ = press("1", ".", letter("tars/postgres-core"), "escape")
     assert where.block == "1" and not where.tree
     assert press("escape", where=where)[0] == Where()
 
@@ -80,28 +96,28 @@ def _big(count: int):
 
 def _typed(blocks, arrangement, *keys: str) -> tuple[Where, str]:
     where, channel = Where(), ""
-    for key in ("1", arrangement.trees[("g", "big")].letter.upper(), *keys):
+    for key in ("1", ".", arrangement.trees[("g", "big")].letter, *keys):
         where, channel = step(where, key, blocks, arrangement)
     return where, channel
 
 
 def test_a_single_digit_picks_a_lemon_at_once_whatever_the_trees_size():
     blocks, arrangement = _big(12)
-    assert _typed(blocks, arrangement, "2")[1] == "claude:big2"
-    assert _typed(blocks, arrangement, "9")[1] == "claude:big9"
+    assert _typed(blocks, arrangement, "1")[1] == "claude:big2"
+    assert _typed(blocks, arrangement, "9")[1] == "claude:big10"
 
 
 def test_past_nine_a_lemon_is_0_and_a_letter():
-    blocks, arrangement = _big(12)
+    blocks, arrangement = _big(13)
     where, channel = _typed(blocks, arrangement, "0")
     assert not channel and where.number == "0"
-    assert _typed(blocks, arrangement, "0", "a")[1] == "claude:big10"
-    assert _typed(blocks, arrangement, "0", "c")[1] == "claude:big12"
+    assert _typed(blocks, arrangement, "0", "a")[1] == "claude:big11"
+    assert _typed(blocks, arrangement, "0", "c")[1] == "claude:big13"
     assert "no lemon 0d" in _typed(blocks, arrangement, "0", "d")[0].note
 
 
-def test_0_is_no_lemon_on_a_tree_of_nine_or_fewer():
-    blocks, arrangement = _big(9)
+def test_0_is_no_lemon_on_a_tree_of_ten_or_fewer():
+    blocks, arrangement = _big(10)
     assert "no lemon 0" in _typed(blocks, arrangement, "0")[0].note
 
 
@@ -112,4 +128,4 @@ def test_escape_keeps_the_pan():
 def test_a_tree_past_0z_still_names_every_lemon_it_can():
     blocks, arrangement = _big(37)
     named = names(blocks, arrangement)
-    assert len(named) == 35 and "claude:big36" not in named
+    assert len(named) == 36 and "claude:big37" not in named
