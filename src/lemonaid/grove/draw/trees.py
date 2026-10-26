@@ -281,7 +281,11 @@ def draw_tag(
     width = len(lines[0])
     status = colors.tree_status(tree.lemons)
     working = any(lemon.working for lemon in tree.lemons)
-    tag_bg = mix(colors.STATUS.get(status, colors.TAG), "#0b0e13", 0.75 * phase if working else 0)
+    tag_bg = mix(
+        colors.STATUS.get(status, colors.TAG),
+        "#0b0e13",
+        colors.PULSE_DEPTH * phase if working else 0,
+    )
     tag_fg = colors.on_status(status) if status else colors.TEXT
     for i, line in enumerate(lines):
         text(canvas, x, y + i, line, tag_fg, tag_bg, bold=i == 0)

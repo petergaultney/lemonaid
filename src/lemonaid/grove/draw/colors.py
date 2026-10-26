@@ -21,6 +21,7 @@ TEXT = "#e6ebf2"
 MUTED = "#7c8696"
 IDLE = "#8b949e"
 TAG = "#4a5260"
+PULSE_DEPTH = 0.45
 LEMON = "#f2d94e"
 LEAF = ("#2b5230", "#3d7039", "#548f45", "#79b25a")  # a crown's shades, darkest first
 LEAD_LEAF = ("#33602f", "#4a8540", "#66a850", "#93cc68")
@@ -52,7 +53,7 @@ def lemon_color(lemon: Lemon, phase: float) -> str:
     base = _ON_LEAF.get(lemon.status) or STATUS.get(lemon.status, IDLE)
     if lemon.quiet:
         base = mix(base, BACKGROUND, 0.4)
-    return mix(base, BACKGROUND, 0.85 * phase) if lemon.working else base
+    return mix(base, BACKGROUND, PULSE_DEPTH * phase) if lemon.working else base
 
 
 def lemon_glyph(lemon: Lemon) -> str:

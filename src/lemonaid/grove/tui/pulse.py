@@ -10,7 +10,7 @@ from collections import abc
 
 from ..draw.canvas import Canvas, mix
 
-PERIOD = 3.2  # seconds a pulse takes, from rest to darkest and back
+PERIOD = 4.5  # seconds a pulse takes, from rest to darkest and back
 TICK = 1 / 12  # seconds between frames, often enough that the pulse reads as smooth
 _STEPS = 64  # phases a pulse is drawn at, so blended colors repeat and stay cached
 

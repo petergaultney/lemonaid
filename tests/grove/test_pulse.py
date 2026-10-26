@@ -4,11 +4,13 @@ import types
 
 from textual import events
 
+from lemonaid.grove.draw import canvas, colors, trees
 from lemonaid.grove.tui import pulse, screen
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.frame import render
 from lemonaid.grove.tui.keys import Where
 
+from .shared import lemon, tree
 from .test_frame import GROVE
 
 WORKING = dataclasses.replace(
@@ -82,3 +84,23 @@ def test_a_working_lemon_keeps_changing_color_even_in_a_grove_shown_again(monkey
     assert first
     assert held_at_rest
     assert again
+
+
+def test_working_dots_and_tags_keep_at_least_half_their_color_above_the_background():
+    ground = _rgb(canvas.BACKGROUND)
+    for status in ("", *colors.STATUS):
+        working = dataclasses.replace(lemon("test", status=status), working=True)
+        resting = dataclasses.replace(working, working=False)
+        tag_colors = []
+        for at in (0.0, 1.0):
+            picture = canvas.blank(20, 4)
+            trees.draw_tag(picture, tree("test", working), [" a working "], 0, 2, (0, 0), at)
+            tag_colors.append(picture.rows[2][4].bg)
+        for rest, dark in (
+            (colors.lemon_color(working, 0.0), colors.lemon_color(working, 1.0)),
+            tuple(tag_colors),
+        ):
+            full = sum(abs(a - b) for a, b in zip(_rgb(rest), ground, strict=True))
+            dim = sum(abs(a - b) for a, b in zip(_rgb(dark), ground, strict=True))
+            assert full > dim >= full / 2, status
+        assert colors.lemon_color(resting, 0.0) == colors.lemon_color(resting, 1.0)
