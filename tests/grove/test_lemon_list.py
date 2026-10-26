@@ -29,6 +29,18 @@ def test_model_and_context_stay_apart():
     assert "Sonnet 5.5 100%" in row
 
 
+def test_a_lemons_context_is_colored_as_the_inbox_colors_it():
+    full, light = (
+        dataclasses.replace(lemon(f"claude:{n}", n), context=c)
+        for c, n in (("100%", "Full"), ("5%", "Light"))
+    )
+    picture = canvas.blank(lemon_list.WIDTH + 2, 5)
+    lemon_list.draw(picture, 0, 0, tree("t", full, light), "t", "#6495ed", 0.0, None, False)
+    percent = [next(c for c in row if c.char == "%") for row in picture.rows[1:3]]
+    assert [c.fg for c in percent] == [colors.reading_color("100%"), colors.reading_color("5%")]
+    assert colors.reading_color("100%") == "#ff3c1e"  # the inbox's red at the threshold
+
+
 def test_a_lemons_key_takes_its_status_color():
     merged = dataclasses.replace(lemon("claude:a", "WorthSip"), status="merge")
     picture = canvas.blank(lemon_list.WIDTH + 2, 4)

@@ -1,6 +1,7 @@
 """The grove's palette: the inbox's status colors, plus leaves, bark and ground."""
 
 from ...brief import colors
+from ...inbox import context_color
 from ..model import Lemon
 from .canvas import BACKGROUND, mix
 
@@ -53,6 +54,14 @@ def lemon_color(lemon: Lemon, phase: float) -> str:
     if lemon.quiet:
         base = mix(base, BACKGROUND, 0.4)
     return mix(base, BACKGROUND, 0.85 * phase) if lemon.working else base
+
+
+def reading_color(context: str) -> str:
+    """A context reading's color, as the inbox colors it; *context* is like "42%"."""
+    if not context.rstrip("%").isdigit():
+        return IDLE
+
+    return context_color.color(int(context.rstrip("%"))).triplet.hex
 
 
 def lemon_glyph(lemon: Lemon) -> str:

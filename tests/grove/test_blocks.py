@@ -3,7 +3,7 @@ import dataclasses
 from lemonaid.groups.store import Group
 from lemonaid.grove.draw import colors
 from lemonaid.grove.source import blocks, inputs
-from lemonaid.inbox import db
+from lemonaid.inbox import context_use, db
 
 from .shared import lemon as shared_lemon
 
@@ -75,3 +75,12 @@ def test_a_tree_of_done_and_idle_lemons_shows_done():
     assert colors.tree_status((finished, shared_lemon("claude:b"))) == "done"
     merging = dataclasses.replace(shared_lemon("claude:c"), status="merge")
     assert colors.tree_status((finished, merging)) == "merge"
+
+
+def test_a_context_reading_far_past_its_threshold_is_capped_as_the_inbox_caps_it():
+    n = dataclasses.replace(
+        notification("claude:a", "s"),
+        metadata={"tmux_session": "s", "context_tokens": 10_050, "model": "opus"},
+    )
+    thresholds = {"claude": context_use.Threshold(tokens=1000)}
+    assert blocks._context(n, thresholds) == "999%"

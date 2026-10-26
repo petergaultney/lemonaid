@@ -34,7 +34,7 @@ def _context(n: db.Notification, thresholds: abc.Mapping[str, context_use.Thresh
     pct = threshold and context_use.percent(
         used, window if isinstance(window, int) else 0, threshold
     )
-    return f"{pct}%" if pct is not None and threshold else ""
+    return f"{min(pct, 999)}%" if pct is not None and threshold else ""  # as the inbox caps it
 
 
 def _lemon(

@@ -109,7 +109,14 @@ def _row(
     )
     text(canvas, x + _MODEL, y, lemon.model, colors.MUTED, panel, limit=_MODEL_WIDTH)
     context = lemon.context[-4:]
-    text(canvas, x + _CONTEXT_END + 1 - len(context), y, context, colors.IDLE, panel)
+    text(
+        canvas,
+        x + _CONTEXT_END + 1 - len(context),
+        y,
+        context,
+        colors.reading_color(context),
+        panel,
+    )
     if lemon.pinned:
         put(canvas, x + _PIN, y, "▪", colors.TEXT, panel)
 

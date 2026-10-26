@@ -1,37 +1,16 @@
 """A lemon's context use before its model label, coloured from blue to red at its threshold."""
 
-import itertools
-
-from rich.color import Color
 from rich.style import Style
 from rich.text import Text
 
+from ...context_color import color
+
 _META = "lemonaid_context"
-# Percent of the threshold to colour, interpolated between stops. Red is the
-# threshold itself; past it the colour keeps going to magenta.
-_STOPS = (
-    (0, (75, 0, 130)),  # deep purple, which a working lemon is already past
-    (15, (50, 130, 255)),  # blue
-    (40, (0, 200, 100)),  # green
-    (70, (255, 220, 0)),  # yellow
-    (100, (255, 60, 30)),  # red
-    (130, (255, 0, 255)),  # magenta
-)
-
-
-def _color(percent: int) -> Color:
-    clamped = max(_STOPS[0][0], min(_STOPS[-1][0], percent))
-    for (p1, c1), (p2, c2) in itertools.pairwise(_STOPS):
-        if clamped <= p2:
-            t = (clamped - p1) / (p2 - p1)
-            return Color.from_rgb(*(a + t * (b - a) for a, b in zip(c1, c2, strict=True)))
-
-    return Color.from_rgb(*_STOPS[-1][1])
 
 
 def text(percent: int) -> Text:
     # Two cells before the model, as a filled row has: the badge's padding and the model's.
-    reading = Text.assemble((f"{min(percent, 999)}%", Style(color=_color(percent))), "  ")
+    reading = Text.assemble((f"{min(percent, 999)}%", Style(color=color(percent))), "  ")
     reading.stylize(Style(meta={_META: percent}))
     return reading
 
@@ -62,7 +41,7 @@ def filled(reading: Text) -> Text:
     if percent is None:
         return reading
 
-    background = _color(percent)
+    background = color(percent)
     red, green, blue = background.get_truecolor()
     dark = 0.299 * red + 0.587 * green + 0.114 * blue < 110  # the purple end
     badge = Style(color="#ffffff" if dark else "#000000", bgcolor=background)
