@@ -1,7 +1,7 @@
 """The grove as a full-screen Textual screen."""
 
 import dataclasses
-import math
+import time
 from collections import abc
 from typing import Any
 
@@ -11,13 +11,9 @@ from textual.screen import ModalScreen
 
 from ..draw import canvas
 from ..layout import edit, state
-from . import compass, drop, garden, help_panel, keys, picking, quitting
+from . import compass, drop, garden, help_panel, keys, picking, pulse, quitting
 from .frame import Grove, Lists, clamp_pan, render
 from .grove_map import GroveMap
-
-_PULSE_LEVELS = 8  # frames in half a pulse; the other half replays them backwards
-_TICK = 0.2
-
 
 # Asks for what an edit needs and makes it, over the app, then tells the callback what happened.
 Edit = abc.Callable[[App, picking.Target, abc.Callable[[str], None]], None]
@@ -61,8 +57,7 @@ class GroveScreen(ModalScreen[str]):
         self._nudge = nudge
         self._big_trees = big_trees
         self._loading = False
-        self._tick = 0
-        self._frames: dict[int, canvas.Canvas] = {}
+        self._ends: pulse.Ends | None = None  # the picture at rest and darkest, till it changes
         self._was_open = False  # whether the last key arrived zoomed in or searching
         self._held = held
         self._lists: Lists = {} if lists is None else lists
@@ -74,7 +69,7 @@ class GroveScreen(ModalScreen[str]):
         yield GroveMap()
 
     def on_mount(self) -> None:
-        self._pulse_timer = self.set_interval(_TICK, self._pulse, pause=self._held)
+        self._pulse_timer = self.set_interval(pulse.TICK, self._pulse, pause=self._held)
         self.set_interval(self._refresh_every, self._reload)
         self._redraw()
         self._reload()  # what it was given may be a while old
@@ -84,31 +79,32 @@ class GroveScreen(ModalScreen[str]):
         for panel in self.query(help_panel.HelpPanel):
             panel.center()
 
-    def _phase_level(self) -> int:
-        position = self._tick % (2 * _PULSE_LEVELS)
-        return position if position < _PULSE_LEVELS else 2 * _PULSE_LEVELS - 1 - position
-
     def _redraw(self) -> None:
-        self._frames.clear()
+        self._ends = None
         self._show()
 
+    def _draw(self, phase: float) -> canvas.Canvas:
+        drag = self._drag
+        return render(
+            drop.dragged(self._grove, drag) if drag else self._grove,
+            self._where,
+            self.size.width,
+            self.size.height,
+            phase,
+            garden.loose(self._lists, drag) if drag else self._lists,
+            self._big_trees,
+        )
+
     def _show(self) -> None:
-        level = self._phase_level()
-        if level not in self._frames:
-            phase = (1 - math.cos(math.pi * level / (_PULSE_LEVELS - 1))) / 2
-            size = self.size
-            drag = self._drag
-            self._frames[level] = render(
-                drop.dragged(self._grove, drag) if drag else self._grove,
-                self._where,
-                size.width,
-                size.height,
-                phase,
-                garden.loose(self._lists, drag) if drag else self._lists,
-                self._big_trees,
-            )
+        """The picture at this moment of the pulse; at rest while the grove is held, so a
+        working lemon never waits out of sight at its darkest.
+        """
+        if self._ends is None:
+            self._ends = pulse.ends(self._draw)
         grove_map = self.query_one(GroveMap)
-        grove_map.picture = self._frames[level]
+        grove_map.picture = pulse.frame(
+            self._ends, 0.0 if self._held else pulse.phase(time.monotonic())
+        )
         grove_map.refresh()
 
     def hold(self, held: bool) -> None:
@@ -116,6 +112,7 @@ class GroveScreen(ModalScreen[str]):
         self._held = held
         if held:
             self._pulse_timer.pause()
+            self._show()
             return
 
         self._pulse_timer.resume()
@@ -130,7 +127,6 @@ class GroveScreen(ModalScreen[str]):
         ):
             return
 
-        self._tick += 1
         self._show()
 
     def _reload(self) -> None:

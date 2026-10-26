@@ -292,7 +292,8 @@ def test_a_tree_dragged_away_and_back_is_drawn_from_the_remembered_lists_on_rele
             return app.screen._where.note
 
     assert asyncio.run(run()) == ""
-    assert drawn[-2] is not lists and drawn[-1] is lists
+    # Each frame draws the grove twice, at rest and at the pulse's darkest.
+    assert all(d is not lists for d in drawn[-4:-2]) and all(d is lists for d in drawn[-2:])
 
 
 def test_every_resize_a_drag_accepts_is_dropped_at_that_size():
