@@ -41,6 +41,21 @@ def test_a_lemons_context_is_colored_as_the_inbox_colors_it():
     assert colors.reading_color("100%") == "#ff3c1e"  # the inbox's red at the threshold
 
 
+def test_a_lemons_dot_shows_only_while_it_has_news_or_works():
+    news, read, working = (
+        dataclasses.replace(lemon(f"claude:{n}", n, "merge"), unread=unread, working=working)
+        for n, unread, working in (
+            ("News", True, False),
+            ("Read", False, False),
+            ("Busy", False, True),
+        )
+    )
+    picture = canvas.blank(lemon_list.WIDTH + 2, 6)
+    lemon_list.draw(picture, 0, 0, tree("t", news, read, working), "t", "#6495ed", 0.0, None, False)
+    dots = [[c.fg for c in row if c.char == "●"] for row in picture.rows[1:4]]
+    assert dots == [[colors.lemon_color(news, 0.0)], [], [colors.lemon_color(working, 0.0)]]
+
+
 def test_a_lemons_key_takes_its_status_color():
     merged = dataclasses.replace(lemon("claude:a", "WorthSip"), status="merge")
     picture = canvas.blank(lemon_list.WIDTH + 2, 4)

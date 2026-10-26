@@ -73,15 +73,16 @@ def _row(
         bold=True,
         underline=True,
     )
-    put(
-        canvas,
-        x + _GLYPH,
-        y,
-        colors.lemon_glyph(lemon),
-        colors.lemon_color(lemon, phase),
-        panel,
-        bold=True,
-    )
+    if lemon.unread or lemon.working:  # as the inbox's unread dot; a working one still pulses
+        put(
+            canvas,
+            x + _GLYPH,
+            y,
+            colors.lemon_glyph(lemon),
+            colors.lemon_color(lemon, phase),
+            panel,
+            bold=True,
+        )
     if lemon.emoji:
         wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, panel)
     name_color = colors.IDLE if lemon.quiet else colors.TEXT

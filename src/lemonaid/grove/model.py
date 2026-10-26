@@ -21,6 +21,7 @@ class Lemon:
     window: str  # its window in that container, "" when it has none
     hidden: bool  # its brief says `Hidden: yes`, as a reviewer's does
     named: bool = False  # its name was given, in the inbox or by `inbox rename`, not derived
+    unread: bool = False  # it has news the inbox marks unread
 
 
 @dataclasses.dataclass(frozen=True)

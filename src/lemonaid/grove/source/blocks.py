@@ -66,6 +66,7 @@ def _lemon(
         session=str(n.metadata.get("tmux_session") or ""),
         window=str(n.metadata.get("tmux_window") or ""),
         hidden=n.channel in inputs.hidden,
+        unread=n.is_unread,
         named="auto_name" in n.metadata,  # kept by `db.update_name` while a given name holds
     )
 
