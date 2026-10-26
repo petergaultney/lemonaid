@@ -718,6 +718,14 @@ autoresume_window = "20m"
 
 When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no inbox waiter, it starts that lemon on a prompt to read its inbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
 
+## `[claude.statusline]`
+
+Read by `lemonaid-claude-statusline` on each render.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `label_color` | `248` | Color of the model and session name: a 256-color index from 0 to 255, `"default"` for the terminal's foreground, or `"dim"` for the faint attribute. |
+
 ## `[usage]`
 
 Thresholds for [`lemonaid usage --watch`](usage.md).

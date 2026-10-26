@@ -40,7 +40,7 @@ import time
 from pathlib import Path
 
 from ..usage import samples
-from . import context_window
+from . import context_window, statusline_label
 
 # Colors matching common prompt themes
 ORANGE = "\033[38;5;214m"  # #ffaf00
@@ -48,7 +48,6 @@ CYAN = "\033[38;5;80m"  # #5dd8c8
 BLUE = "\033[1;34m"  # bold blue
 RED = "\033[31m"
 RED_BOLD = "\033[1;31m"
-DIM = "\033[2m"
 RESET = "\033[0m"
 
 # Context percentage color gradient control points (indigo → blue → green → yellow → red → magenta)
@@ -242,11 +241,12 @@ def render_statusline(data: dict) -> None:
 
     # Model name
     model_name = get_model_name(data)
-    model_part = f" {DIM}{model_name}{RESET}" if model_name else ""
+    label = statusline_label.label_escape()
+    model_part = f" {label}{model_name}{RESET}" if model_name else ""
 
     # Session name (custom or AI-generated; absent for default display names)
     session_name = data.get("session_name", "")
-    session_part = f" {DIM}({session_name}){RESET}" if session_name else ""
+    session_part = f" {label}({session_name}){RESET}" if session_name else ""
 
     # Build and print status line
     print(
