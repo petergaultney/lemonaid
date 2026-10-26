@@ -6,7 +6,7 @@ from collections import abc
 from ..layout import sizes
 from ..layout.arrange import Arrangement
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Tree
-from . import colors, tag_fit, trees
+from . import colors, tag_fit, tree_stats, trees
 from .canvas import Canvas, text
 from .plots import View
 
@@ -82,8 +82,11 @@ def plant(
     phase: float,
     highlight: Highlight | None,
     taken: abc.Iterable[tag_fit.Rect] = (),
+    stats: bool = False,
 ) -> list[tag_fit.Fitted]:
-    """Draw every tree, then every tag where it covers nothing already drawn or in *taken*."""
+    """Draw every tree, then every tag where it covers nothing already drawn or in *taken*. With
+    *stats*, a tag shows its tree's stats in place of its name, emoji and pin.
+    """
     tags = []
     occupied = list(taken)
     for p in planted:
@@ -107,6 +110,9 @@ def plant(
             p.tree, label=arrangement.trees[(p.block.name, p.tree.key)].label
         )
         shown = f"{p.block.digit}{letter}" if p.whole_key else letter
+        if stats:
+            labeled = tree_stats.tagged(labeled)
+            shape = dataclasses.replace(shape, tag=(trees.short_tag(labeled, shown, shape.width),))
         tags.append(tag_fit.Tag(labeled, shown, shape, ax, ay, bottom, p.bounds))
     order = sorted(range(len(tags)), key=lambda i: (tags[i].bottom, tags[i].ax))
     fitted = dict(zip(order, tag_fit.fit([tags[i] for i in order], occupied), strict=True))
@@ -116,7 +122,7 @@ def plant(
         canvas.dim, canvas.target = p.dim, (p.block.digit, letter)
         trees.draw_tag(
             canvas,
-            p.tree,
+            tags[i].tree,
             found.lines,
             found.x,
             found.y,
@@ -126,6 +132,8 @@ def plant(
             key=len(tags[i].letter),
             bark=tags[i].shape.bark,
         )
+        if stats:
+            tree_stats.color_context(canvas, found.lines[0], found.x, found.y)
     canvas.dim, canvas.target = 0.0, ()
     return [fitted[i] for i in range(len(planted))]
 

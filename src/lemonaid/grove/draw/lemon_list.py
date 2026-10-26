@@ -4,17 +4,12 @@ import string
 from collections.abc import Container
 
 from ..model import Tree
-from . import colors
+from . import colors, lemon_pages
 from .canvas import BACKGROUND, DOUBLE, ROUND, Canvas, box, fill, mix, put, text, wide
 
-WIDTH = 60
+WIDTH = 54
 # Where each column starts, and how wide it may run, with a blank cell between columns.
 _KEY, _GLYPH, _EMOJI = 1, 5, 7
-_NAME, _NAME_WIDTH = 10, 15
-_DETAIL, _DETAIL_WIDTH = 26, 16
-_MODEL, _MODEL_WIDTH = 43, 10
-_CONTEXT_END = 57  # right-aligned, up to four cells
-_PIN = 58
 _PANEL = "#121821"
 _EDITED = "#2c3e57"  # behind the row an edit would change
 
@@ -59,7 +54,15 @@ def key(tree: Tree, letter: str, index: int) -> str:
 
 
 def _row(
-    canvas: Canvas, x: int, y: int, tree: Tree, letter: str, i: int, phase: float, panel: str
+    canvas: Canvas,
+    x: int,
+    y: int,
+    tree: Tree,
+    letter: str,
+    i: int,
+    phase: float,
+    panel: str,
+    flipped: bool,
 ) -> None:
     lemon = tree.lemons[i]
     keys = key(tree, letter, i)
@@ -85,41 +88,9 @@ def _row(
         )
     if lemon.emoji:
         wide(canvas, x + _EMOJI, y, lemon.emoji, colors.TEXT, panel)
-    name_color = colors.IDLE if lemon.quiet else colors.TEXT
-    text(
-        canvas,
-        x + _NAME,
-        y,
-        lemon.brief_id or lemon.name,
-        name_color,
-        panel,
-        bold=True,
-        limit=_NAME_WIDTH,
-    )
-    detail = lemon.status or lemon.name.replace("REVIEW ", "review ")
-    detail_color = colors.status_text(lemon.status) if lemon.status else colors.MUTED
-    text(
-        canvas,
-        x + _DETAIL,
-        y,
-        detail,
-        detail_color,
-        panel,
-        bold=bool(lemon.status),
-        limit=_DETAIL_WIDTH,
-    )
-    text(canvas, x + _MODEL, y, lemon.model, colors.MUTED, panel, limit=_MODEL_WIDTH)
-    context = lemon.context[-4:]
-    text(
-        canvas,
-        x + _CONTEXT_END + 1 - len(context),
-        y,
-        context,
-        colors.reading_color(context),
-        panel,
-    )
+    (lemon_pages.where_and_when if flipped else lemon_pages.name_first)(canvas, x, y, lemon, panel)
     if lemon.pinned:
-        put(canvas, x + _PIN, y, "▪", colors.TEXT, panel)
+        put(canvas, x + lemon_pages.PIN, y, "▪", colors.TEXT, panel)
 
 
 def draw(
@@ -134,10 +105,12 @@ def draw(
     opened: bool,
     most: int = 0,
     edited: str = "",
+    flipped: bool = False,
 ) -> None:
     """*most*, when given, lists that many rows at most, the last saying how many more there are.
     *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
-    a list cut short scrolls to keep an edited lemon in it.
+    a list cut short scrolls to keep an edited lemon in it. *flipped* lists each lemon's model,
+    where it is and when it last reported in place of its name, WordyBin and context.
     """
     shown = len(tree.lemons) if not most or len(tree.lemons) <= most else most - 1
     at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
@@ -165,12 +138,12 @@ def draw(
         panel = _EDITED if lemon.channel == edited else _PANEL
         if panel != _PANEL:
             fill(canvas, x + 1, row, WIDTH - 2, 1, panel)
-        _row(canvas, x, row, tree, letter, i, phase, panel)
+        _row(canvas, x, row, tree, letter, i, phase, panel, flipped)
     canvas.dim = dim
     if shown < len(tree.lemons):
         text(
             canvas,
-            x + _NAME,
+            x + lemon_pages.TEXT,
             y + 1 + shown,
             f"+{len(tree.lemons) - shown} more",
             colors.MUTED,

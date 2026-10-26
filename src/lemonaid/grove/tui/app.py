@@ -5,6 +5,7 @@ from collections import abc
 from textual import events
 from textual.app import App
 
+from . import flip
 from .frame import Grove, Lists
 from .screen import Edit, GroveScreen
 
@@ -32,6 +33,7 @@ class GroveApp(App[str]):
         keep_pan: abc.Callable[[tuple[float, float]], None] | None = None,
         nudge: tuple[int, int] = (2, 1),
         big_trees: bool = False,
+        flips: flip.Flip = flip.DEFAULT,
     ) -> None:
         super().__init__()
         self._edit = edit
@@ -43,24 +45,35 @@ class GroveApp(App[str]):
         self._keep_pan = keep_pan
         self._nudge = nudge
         self._big_trees = big_trees
+        self._flips = flips
         self._lists: Lists = {}  # where lemon lists went, kept from one grove shown to the next
 
     def on_mount(self) -> None:
         self._open()
 
     def _open(self, note: str = "", held: bool = False) -> None:
+        """Reads the grove and where the view was in a thread, as a refresh does: both read files."""
+        self.run_worker(lambda: self._read(note, held), thread=True, group="grove-open")
+
+    def _read(self, note: str, held: bool) -> None:
+        grove, pan = self._load(), self._pan()
+        self.call_from_thread(self._push, grove, pan, note, held)
+
+    def _push(self, grove: Grove, pan: tuple[float, float], note: str, held: bool) -> None:
         self.push_screen(
             GroveScreen(
                 self._load,
                 self._refresh_every,
                 note,
                 self._edit,
-                self._pan(),
+                pan,
                 self._keep_pan,
                 self._nudge,
                 held,
                 self._lists,
                 self._big_trees,
+                self._flips,
+                grove,
             ),
             self._after_screen,
         )

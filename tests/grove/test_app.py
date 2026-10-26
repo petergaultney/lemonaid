@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.screen import GroveScreen
@@ -51,3 +52,24 @@ def test_an_edit_that_finishes_after_its_grove_closed_changes_no_screen():
 
     assert asyncio.run(run())
     assert len(pending) == 1
+
+
+def test_the_grove_and_its_view_are_read_off_the_event_loop():
+    readers = []
+
+    def read(found):
+        readers.append(threading.current_thread() is threading.main_thread())
+        return found
+
+    async def run() -> bool:
+        app = GroveApp(
+            lambda: read(GROVE), 60.0, None, leave=lambda: None, pan=lambda: read((0.0, 0.0))
+        )
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()
+            await pilot.press("escape")  # hides it, and a fresh grove waits, held
+            await pilot.pause()
+            return isinstance(app.screen, GroveScreen)
+
+    assert asyncio.run(run())
+    assert len(readers) >= 4 and not any(readers)

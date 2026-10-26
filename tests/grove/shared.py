@@ -18,6 +18,7 @@ def lemon(
         working=False,
         quiet=False,
         model="Opus 5.5",
+        provider="anthropic",
         context="",
         emoji="",
         pinned=False,

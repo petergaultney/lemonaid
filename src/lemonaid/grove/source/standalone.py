@@ -7,6 +7,7 @@ from ... import handlers
 from ...config import Config
 from ...inbox import db
 from ..layout import view
+from ..tui import flip
 from ..tui.app import GroveApp
 from . import edits, live
 
@@ -21,6 +22,7 @@ def run(config: Config, switch_source: str | None) -> None:
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),
         big_trees=config.tui.grove_big_trees,
+        flips=flip.configured(config),
     ).run()
     if not channel:
         return

@@ -44,10 +44,11 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | `Q` | Quit the process the grove runs in (`lma`, or the popup's resident, which the next opening starts afresh); it too is text in a search or a dialog. |
 | `Space` | Close the grove from anywhere in it, except while typing a search. |
 | `?` | List every key for the view you're in, the grove or a block. Any key closes the list. |
+| hold `;` | In a block, show each lemon's PR numbers and branch (or directory) where its name was, its model where its Brief-ID was, and its context use where its age was. In the grove view, each tree's tag shows how many of its lemons are mid-turn of how many, its fullest context and how long since its latest report (`1/3 · 88% · 4m`) in place of its name. Let go to see names again. See `grove_flip` in [config.md](config.md) for a key that toggles instead, or a different key. |
 
 So `2c` always means the same tree and its main lemon, `2C2` its second lemon, and `2C3` the third. In the grove view each tag shows its tree's whole key, as `2c`; zoomed into a block, just the letter. A click on a block zooms into it, and a click on a tree acts like its letter.
 
-Zoomed into a block, each tree lists its lemons with their Brief-ID, status, model and context use.
+Zoomed into a block, each tree lists its lemons by session name, with their Brief-ID and how long since each reported (`4m`). A status that asks for you (`blocked`, `alert`, `merge`, `approve`) is named beside the session as well; every status colors the lemon's key.
 
 Change the key with `grove` in `[tui.keybindings]`.
 

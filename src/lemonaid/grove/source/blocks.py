@@ -8,8 +8,8 @@ otherwise in the same directory.
 import time
 from collections import abc
 
-from ...brief import identity
-from ...inbox import context_use, db, group_lead, model_label, turns
+from ... import brief
+from ...inbox import context_use, db, group_lead, model_label, provider_color, turns
 from ..draw.colors import RANK
 from ..model import Block, Lemon, Tree
 from .inputs import Inputs
@@ -54,11 +54,12 @@ def _lemon(
         channel=n.channel,
         notification_id=n.id,
         name=n.name or n.channel,
-        brief_id=identity.brief_name(lemon_id) if lemon_id else "",
+        brief_id=brief.identity.brief_name(lemon_id) if lemon_id else "",
         status=status,
         working=working,
         quiet=not status and not working and not n.is_unread,
         model=label[0] if label else "",
+        provider=provider_color.provider(n.channel, label[1] if label else ""),
         context=_context(n, thresholds),
         emoji=inputs.emojis.get(n.channel, ""),
         pinned=n.channel in inputs.pinned,
@@ -68,6 +69,11 @@ def _lemon(
         hidden=n.channel in inputs.hidden,
         unread=n.is_unread,
         named="auto_name" in n.metadata,  # kept by `db.update_name` while a given name holds
+        branch=str(n.metadata.get("git_branch") or ""),
+        cwd=str(n.metadata.get("cwd") or ""),
+        age=brief.status.age(max(0.0, now - n.created_at)),
+        updated=n.created_at,
+        prs=tuple((pr.number, pr.url) for pr in inputs.numbers.get(n.channel, ())),
     )
 
 

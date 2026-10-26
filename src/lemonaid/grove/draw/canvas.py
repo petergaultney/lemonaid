@@ -20,6 +20,7 @@ class Cell:
     bold: bool = False
     underline: bool = False
     target: tuple[str, ...] = ()  # what a click here selects: (digit,) or (digit, letter)
+    link: str = ""  # a URL the terminal opens, as the inbox links PR numbers
 
 
 @dataclasses.dataclass
@@ -66,6 +67,7 @@ def put(
     bg: str | None = None,
     bold: bool = False,
     underline: bool = False,
+    link: str = "",
 ) -> None:
     """Draw one cell. A *bg* of None keeps the background already there."""
     col, row = round(x), round(y)
@@ -78,6 +80,7 @@ def put(
     if bg is not None:
         cell.bg = mix(bg, BACKGROUND, canvas.dim) if bg else ""
     cell.bold = bold
+    cell.link = link
     cell.underline = underline
     if canvas.target:
         cell.target = canvas.target
@@ -99,9 +102,10 @@ def text(
     bold: bool = False,
     limit: int = 999,
     underline: bool = False,
+    link: str = "",
 ) -> None:
     for i, char in enumerate(s[: max(0, limit)]):
-        put(canvas, x + i, y, char, fg, bg, bold, underline)
+        put(canvas, x + i, y, char, fg, bg, bold, underline, link)
 
 
 def fill(canvas: Canvas, x: int, y: int, w: int, h: int, bg: str) -> None:
@@ -134,16 +138,16 @@ def box(
 
 
 @functools.lru_cache(maxsize=4096)
-def _style(fg: str, bg: str, bold: bool, underline: bool) -> Style:
-    return Style(color=fg, bgcolor=bg or None, bold=bold, underline=underline)
+def _style(fg: str, bg: str, bold: bool, underline: bool, link: str) -> Style:
+    return Style(color=fg, bgcolor=bg or None, bold=bold, underline=underline, link=link or None)
 
 
 def line_segments(row: abc.Sequence[Cell]) -> list[Segment]:
     segments: list[Segment] = []
     run: list[str] = []
-    key: tuple[str, str, bool, bool] | None = None
+    key: tuple[str, str, bool, bool, str] | None = None
     for cell in row:
-        cell_key = (cell.fg, cell.bg, cell.bold, cell.underline)
+        cell_key = (cell.fg, cell.bg, cell.bold, cell.underline, cell.link)
         if cell_key != key and run:
             segments.append(Segment("".join(run), _style(*key)))  # type: ignore[misc]
             run = []

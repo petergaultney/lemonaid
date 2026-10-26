@@ -6,6 +6,8 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Label, Static
 
+from . import flip
+
 _GROVE = [
     ("a digit", "zoom into that block; 0 is the packhouse, and 1 0 is block 10"),
     ("a digit, then a letter", "jump to that tree's first lemon, as 2c"),
@@ -48,11 +50,24 @@ _LAST = [
 ]
 
 
-def rows(zoomed: bool) -> list[tuple[str, str]]:
+def _flip_row(flips: flip.Flip, zoomed: bool) -> tuple[str, str]:
+    lists = (
+        "each lemon's PRs and branch, model and context"
+        if zoomed
+        else "each tree's lemons mid-turn of all, fullest context, latest report: 1/3 · 88% · 4m"
+    )
+    if flips.hold:
+        return f"hold {flips.key}", f"{lists}; let go to see names again"
+
+    return flips.key, f"{lists}; again to see names"
+
+
+def rows(zoomed: bool, flips: flip.Flip = flip.DEFAULT) -> list[tuple[str, str]]:
     choose = "then a tree's letter" if zoomed else "then a block's digit and a tree's letter"
     color = "at once" if zoomed else "after a block's digit"
     return [
         *(_BLOCK if zoomed else _GROVE),
+        _flip_row(flips, zoomed),
         (
             "Alt+r, s, a, p, g",
             f"edit: {choose}; the letter again or an arrow for each lemon; enter",
@@ -63,11 +78,11 @@ def rows(zoomed: bool) -> list[tuple[str, str]]:
     ]
 
 
-def _table(zoomed: bool) -> Table:
+def _table(zoomed: bool, flips: flip.Flip) -> Table:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold #f2d94e", no_wrap=True)
     table.add_column(style="#d8dee9")
-    for key, what in rows(zoomed):
+    for key, what in rows(zoomed, flips):
         table.add_row(key, what)
     return table
 
@@ -88,16 +103,17 @@ class HelpPanel(VerticalScroll):
     HelpPanel Label {{ color: #9aa5b8; margin-bottom: 1; }}
     """
 
-    def __init__(self, zoomed: bool) -> None:
+    def __init__(self, zoomed: bool, flips: flip.Flip = flip.DEFAULT) -> None:
         super().__init__()
         self._zoomed = zoomed
+        self._flips = flips
 
     def compose(self) -> ComposeResult:
         yield Label(
             Text("Keys in a block" if self._zoomed else "Keys in the grove", style="bold")
             + Text(" · any key closes")
         )
-        yield Static(_table(self._zoomed))
+        yield Static(_table(self._zoomed, self._flips))
 
     def on_mount(self) -> None:
         self.center()
@@ -109,6 +125,8 @@ class HelpPanel(VerticalScroll):
         screen = self.screen.size
         width = min(_WIDTH, screen.width)
         console = self.app.console
-        lines = console.render_lines(_table(self._zoomed), console.options.update_width(width - 4))
+        lines = console.render_lines(
+            _table(self._zoomed, self._flips), console.options.update_width(width - 4)
+        )
         height = min(len(lines) + _FRAME_ROWS, screen.height)
         self.styles.offset = ((screen.width - width) // 2, (screen.height - height) // 2)

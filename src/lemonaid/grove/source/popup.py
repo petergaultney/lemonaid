@@ -9,6 +9,7 @@ from ...config import load_config
 from ...inbox import db
 from ...lemon_watchers.common import detect_terminal_switch_source
 from ..layout import view
+from ..tui import flip
 from ..tui.app import GroveApp
 from . import edits, live
 
@@ -50,4 +51,5 @@ def run(
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),
         big_trees=config.tui.grove_big_trees,
+        flips=flip.configured(config),
     ).run()

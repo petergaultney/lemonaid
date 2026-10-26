@@ -75,7 +75,7 @@ def test_a_working_lemon_keeps_changing_color_even_in_a_grove_shown_again(monkey
             await pilot.pause()
             clock[0] = pulse.PERIOD / 2  # the darkest, but a held grove stays at rest
             app.screen._show()
-            held_at_rest = app.screen.query_one("GroveMap").picture is app.screen._ends.rest
+            held_at_rest = app.screen.query_one("GroveMap").picture is app.screen._ends[False].rest
             app.post_message(events.AppFocus())  # shown again
             await pilot.pause()
             return first, held_at_rest, await changes()

@@ -12,7 +12,7 @@ from ... import brief, groups
 from ...config import Config
 from ...inbox import db, emoji, parent_order, pins, presence, view
 from ...inbox.tui.live import inbox_frame
-from ...inbox.tui.rows import brief_cards
+from ...inbox.tui.rows import brief_cards, pr_numbers
 
 
 @dataclasses.dataclass(frozen=True)
@@ -27,6 +27,7 @@ class Inputs:
     parents: dict[str, str]  # child channel to parent channel
     births: dict[str, float]  # when lemonaid first heard from each channel
     hidden: frozenset[str]  # channels whose brief says `Hidden: yes`
+    numbers: dict[str, tuple[pr_numbers.PR, ...]]  # each channel's PRs, as the inbox shows them
 
 
 def _births(conn: sqlite3.Connection, channels: abc.Iterable[str]) -> dict[str, float]:
@@ -58,6 +59,7 @@ def from_frame(conn: sqlite3.Connection, frame: inbox_frame.Frame) -> Inputs:
         parents=dict(frame.parents),
         births=_births(conn, (n.channel for n in active.rows)),
         hidden=active.hidden_briefs,
+        numbers=dict(frame.numbers),
     )
 
 
@@ -90,4 +92,7 @@ def read(conn: sqlite3.Connection, config: Config, switch_source: str | None) ->
         parents=parent_order.channels(conn),
         births=_births(conn, (n.channel for n in active.rows)),
         hidden=active.hidden_briefs,
+        # From briefs alone: a branch's PR comes from a place's `open_prs` command, which the
+        # inbox runs on its own schedule.
+        numbers=pr_numbers.rows(conn, active.rows, config.places, pr_numbers.Cache()),
     )

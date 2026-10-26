@@ -2,6 +2,7 @@
 
 from rich.text import Text
 
+from ... import provider_color
 from ...model_label import model_label
 from ..utils import styled_cell
 from . import context_reading
@@ -11,21 +12,11 @@ _DEFAULT_BACKEND_LABELS = {
     "codex": "OpenAI",
     "openclaw": "🦞",
 }
-_BACKEND_PROVIDERS = {
-    "claude": "anthropic",
-    "codex": "openai",
-}
-_PROVIDER_STYLES = {
-    "anthropic": "#d88760",
-    "openai": "#c0c4c8",
-}
 
 
 def provider_style(channel: str, model_provider: str = "") -> str:
     """The colour of a lemon's model label: its provider's, else its backend's provider's."""
-    prefix = channel.split(":")[0] if ":" in channel else channel
-    provider = model_provider or _BACKEND_PROVIDERS.get(prefix, "")
-    return _PROVIDER_STYLES.get(provider.lower(), "")
+    return provider_color.color(channel, model_provider)
 
 
 def backend_label(channel: str, overrides: dict[str, str]) -> str:
@@ -43,7 +34,6 @@ def backend_text(
     history: bool = False,
     context_percent: int | None = None,
 ) -> Text:
-    prefix = channel.split(":")[0] if ":" in channel else channel
     indicator = model_label(model)
     label = styled_cell(
         indicator[0] if indicator else backend_label(channel, overrides),
@@ -52,8 +42,7 @@ def backend_text(
         history=history,
     )
     provider = model_provider if isinstance(model_provider, str) else ""
-    provider = provider or (indicator[1] if indicator else _BACKEND_PROVIDERS.get(prefix, ""))
-    if style := _PROVIDER_STYLES.get(provider.lower()):
+    if style := provider_color.color(channel, provider or (indicator[1] if indicator else "")):
         label.stylize(style)
     if context_percent is not None:
         label = context_reading.text(context_percent) + label

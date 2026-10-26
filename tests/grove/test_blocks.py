@@ -4,6 +4,7 @@ from lemonaid.groups.store import Group
 from lemonaid.grove.draw import colors
 from lemonaid.grove.source import blocks, inputs
 from lemonaid.inbox import context_use, db
+from lemonaid.inbox.tui.rows import pr_numbers
 
 from .shared import lemon as shared_lemon
 
@@ -23,6 +24,7 @@ def read(
     rows: list[db.Notification],
     memberships: dict[str, tuple[str, ...]],
     parents: dict[str, str] | None = None,
+    numbers: dict[str, tuple[pr_numbers.PR, ...]] | None = None,
 ) -> inputs.Inputs:
     return inputs.Inputs(
         rows=rows,
@@ -38,6 +40,7 @@ def read(
         parents=parents or {},
         births={},
         hidden=frozenset(),
+        numbers=numbers or {},
     )
 
 
@@ -84,3 +87,23 @@ def test_a_context_reading_far_past_its_threshold_is_capped_as_the_inbox_caps_it
     )
     thresholds = {"claude": context_use.Threshold(tokens=1000)}
     assert blocks._context(n, thresholds) == "999%"
+
+
+def test_a_lemon_knows_its_branch_prs_and_age():
+    n = dataclasses.replace(
+        notification("codex:a", "x"),
+        metadata={"cwd": "/work/x", "git_branch": "grove/x", "model": "gpt-6.1-sol"},
+        created_at=1000.0,
+    )
+    numbers = {
+        "codex:a": (pr_numbers.PR("411", "https://github.com/o/r/pull/411"), pr_numbers.PR("409"))
+    }
+    (found,) = blocks.blocks(read([n], {}, numbers=numbers), {}, now=1000.0 + 240)
+    (lemon,) = found.trees[0].lemons
+    assert (lemon.branch, lemon.cwd, lemon.prs, lemon.age, lemon.model) == (
+        "grove/x",
+        "/work/x",
+        (("411", "https://github.com/o/r/pull/411"), ("409", "")),
+        "4m ago",
+        "Sol 6.1",
+    )

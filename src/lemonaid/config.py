@@ -211,6 +211,10 @@ class TuiConfig:
     grove_pan_rows: int = 1
     # Let a zoomed block's trees grow past a grown tree's size.
     grove_big_trees: bool = False
+    # The key that flips a zoomed block's lemon lists to their other page, and whether it shows
+    # that page while held (`hold`) or until pressed again (`toggle`).
+    grove_flip_key: str = ";"
+    grove_flip: str = "hold"
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -468,6 +472,35 @@ def _unfocused_dim(raw: object) -> str:
     return "off"
 
 
+# Keys that already mean something in the grove: letters, digits and `.` pick, and the rest
+# close it, search, show help or back out.
+_GROVE_KEYS = {".", " ", "/", "?", "space", "escape", "enter", "tab"}
+
+
+def _grove_flip_key(raw: object) -> str:
+    if (
+        isinstance(raw, str)
+        and raw
+        and not (len(raw) == 1 and raw.isalnum())
+        and raw.lower() not in _GROVE_KEYS
+    ):
+        return raw
+
+    print(
+        f"Warning: [tui] grove_flip_key can't be a letter, a digit, or a key the grove uses, as {raw!r} is",
+        file=sys.stderr,
+    )
+    return ";"
+
+
+def _grove_flip(raw: object) -> str:
+    if raw in ("hold", "toggle"):
+        return str(raw)
+
+    print(f'Warning: [tui] grove_flip must be "hold" or "toggle", not {raw!r}', file=sys.stderr)
+    return "hold"
+
+
 def _notes(raw: object) -> Path | None:
     """`[tui] notes`, reporting anything that is not a path."""
     if raw is None or raw == "":
@@ -652,6 +685,8 @@ def _parse_config(data: dict[str, Any]) -> Config:
         grove_pan_columns=max(1, int(tui_data.get("grove_pan_columns", 2))),
         grove_pan_rows=max(1, int(tui_data.get("grove_pan_rows", 1))),
         grove_big_trees=bool(tui_data.get("grove_big_trees", False)),
+        grove_flip_key=_grove_flip_key(tui_data.get("grove_flip_key", ";")),
+        grove_flip=_grove_flip(tui_data.get("grove_flip", "hold")),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),
         double_activate_ms=tui_data.get("double_activate_ms", 400),

@@ -8,10 +8,11 @@ from typing import Any
 from textual import events
 from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
+from textual.timer import Timer
 
 from ..draw import canvas
 from ..layout import edit, state
-from . import compass, drop, garden, help_panel, keys, picking, pulse, quitting
+from . import compass, drop, flip, garden, help_panel, keys, picking, pulse, quitting
 from .frame import Grove, Lists, clamp_pan, render
 from .grove_map import GroveMap
 
@@ -39,31 +40,40 @@ class GroveScreen(ModalScreen[str]):
         held: bool = False,
         lists: Lists | None = None,
         big_trees: bool = False,
+        flips: flip.Flip = flip.DEFAULT,
+        grove: Grove | None = None,
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
         The view starts at *pan*, and *keep_pan* is told where it moves, to start there next time;
         an arrow moves it *nudge* cells, across and down. A *held* grove doesn't pulse until
         `hold(False)`. *lists* remembers where lemon lists went, kept across groves that share it.
-        *big_trees* lets a zoomed block's trees grow past a grown tree's size.
+        *big_trees* lets a zoomed block's trees grow past a grown tree's size. *flips* says which
+        key flips the lemon lists to their other page, and how. A *grove* already loaded is
+        shown first, in place of loading one here.
         """
         super().__init__()
         self._load = load
         self._edit = edit
         self._refresh_every = refresh_every
-        self._grove = load()
+        self._grove = load() if grove is None else grove
         self._where = keys.Where(note=note, pan=pan)
         self._keep_pan = keep_pan
         self._nudge = nudge
         self._big_trees = big_trees
         self._loading = False
-        self._ends: pulse.Ends | None = None  # the picture at rest and darkest, till it changes
+        # The picture at rest and darkest, till it changes, for each page, so flipping between
+        # them draws neither again.
+        self._ends: dict[bool, pulse.Ends] = {}
         self._was_open = False  # whether the last key arrived zoomed in or searching
         self._held = held
         self._lists: Lists = {} if lists is None else lists
         self._drag: garden.Drag | None = None
         self._dragged = False  # the mouse moved since it was pressed, so its click isn't one
         self._drag_frame_due = False
+        self._flips = flips
+        self._flipped = False
+        self._flip_back: Timer | None = None
 
     def compose(self) -> ComposeResult:
         yield GroveMap()
@@ -80,7 +90,7 @@ class GroveScreen(ModalScreen[str]):
             panel.center()
 
     def _redraw(self) -> None:
-        self._ends = None
+        self._ends = {}
         self._show()
 
     def _draw(self, phase: float) -> canvas.Canvas:
@@ -93,17 +103,18 @@ class GroveScreen(ModalScreen[str]):
             phase,
             garden.loose(self._lists, drag) if drag else self._lists,
             self._big_trees,
+            self._flipped,
         )
 
     def _show(self) -> None:
         """The picture at this moment of the pulse; at rest while the grove is held, so a
         working lemon never waits out of sight at its darkest.
         """
-        if self._ends is None:
-            self._ends = pulse.ends(self._draw)
+        if self._flipped not in self._ends:
+            self._ends[self._flipped] = pulse.ends(self._draw)
         grove_map = self.query_one(GroveMap)
         grove_map.picture = pulse.frame(
-            self._ends, 0.0 if self._held else pulse.phase(time.monotonic())
+            self._ends[self._flipped], 0.0 if self._held else pulse.phase(time.monotonic())
         )
         grove_map.refresh()
 
@@ -150,12 +161,29 @@ class GroveScreen(ModalScreen[str]):
             self._grove = grove
             self._redraw()
 
+    def _flip(self) -> None:
+        flipped, back = flip.pressed(self._flipped, self._flips.hold)
+        if self._flip_back:
+            self._flip_back.stop()
+        self._flip_back = self.set_timer(back, self._unflip) if back else None
+        if flipped != self._flipped:
+            self._flipped = flipped
+            self._show()
+
+    def _unflip(self) -> None:
+        self._flip_back = None
+        self._flipped = False
+        self._show()
+
     def _press(self, key: str) -> None:
+        if key == self._flips.key and self._where.search is None:
+            self._flip()
+            return
         if key == " " and self._where.search is None:
             self.dismiss("")
             return
         if key == "?" and self._where.search is None:
-            self.mount(help_panel.HelpPanel(zoomed=bool(self._where.block)))
+            self.mount(help_panel.HelpPanel(zoomed=bool(self._where.block), flips=self._flips))
             return
 
         before = self._where.pan

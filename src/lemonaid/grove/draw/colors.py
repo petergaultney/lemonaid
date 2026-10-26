@@ -1,7 +1,7 @@
 """The grove's palette: the inbox's status colors, plus leaves, bark and ground."""
 
 from ...brief import colors
-from ...inbox import context_color
+from ...inbox import context_color, provider_color
 from ..model import Lemon
 from .canvas import BACKGROUND, mix
 
@@ -21,6 +21,7 @@ RANK = ("alert", "blocked", "running", "merge", "approve", "review", "done")
 TEXT = "#e6ebf2"
 MUTED = "#7c8696"
 IDLE = "#8b949e"
+BRANCH = "#c678dd"  # the inbox draws branches in the terminal's magenta; the canvas needs a hex
 TAG = "#4a5260"
 PULSE_DEPTH = 0.45
 LEMON = "#f2d94e"
@@ -67,3 +68,8 @@ def reading_color(context: str) -> str:
 
 def lemon_glyph(lemon: Lemon) -> str:
     return "∘" if lemon.status == "done" else "●"
+
+
+def model_color(lemon: Lemon) -> str:
+    """A lemon's model label color, as the inbox colors it by provider."""
+    return provider_color.color(lemon.channel, lemon.provider) or MUTED

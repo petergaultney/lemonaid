@@ -1,6 +1,7 @@
 import dataclasses
 
 from lemonaid.grove.draw import canvas, colors, lemon_list
+from lemonaid.inbox.tui.rows import backend_indicators
 
 from .shared import lemon, tree
 
@@ -18,15 +19,83 @@ def test_the_rest_are_a_dot_the_letter_and_their_place():
     assert keys[9:] == [".t9", ".t0a", ".t0b"]
 
 
-def test_model_and_context_stay_apart():
+def _row(lemon, flipped=False):
+    picture = canvas.blank(lemon_list.WIDTH + 2, 4)
+    lemon_list.draw(
+        picture, 0, 0, tree("t", lemon), "t", "#6495ed", 0.0, None, False, flipped=flipped
+    )
+    return canvas.plain_lines(picture)[1]
+
+
+def test_a_row_names_the_session_then_its_wordybin_and_age():
     wordy = dataclasses.replace(
-        lemon("claude:a", "FilmyBoy", "review"), model="Sonnet 5.5 extended", context="100%"
+        lemon("claude:a", "FilmyBoy", "review"),
+        name="REVIEW #411 grove context colors and much more",
+        context="100%",
+        age="1d ago",
+    )
+    row = _row(wordy)
+    assert "REVIEW #411 grove context" in row and "Opus" not in row and "100%" not in row
+    assert "review" not in row.replace("REVIEW", "")
+    assert "FilmyBoy    1d" in row
+    assert len(row) <= lemon_list.WIDTH
+
+
+def test_a_status_that_asks_for_the_user_is_named_beside_the_session():
+    blocked = dataclasses.replace(lemon("claude:a", "FilmyBoy", "blocked"), name="x" * 40)
+    assert "x blocked FilmyBoy" in _row(blocked)
+    assert "review" not in _row(dataclasses.replace(blocked, status="review"))
+
+
+def test_flipped_a_row_says_where_which_model_and_its_context():
+    placed = dataclasses.replace(
+        lemon("claude:a", "FilmyBoy"),
+        model="Sonnet 5.5",
+        branch="grove/show-more",
+        cwd="/work/grove-show-more",
+        prs=(("411", "https://github.com/o/r/pull/411"),),
+        age="4m ago",
+        context="41%",
+    )
+    row = _row(placed, flipped=True)
+    assert row.index("#411 show-more") < row.index("Sonnet 5.5") < row.index(" 41%")
+    assert "4m" not in row
+    assert "FilmyBoy" not in row and "lemon claude:a" not in row
+
+
+def test_flipped_a_rows_pr_number_and_branch_take_the_inboxs_colors():
+    placed = dataclasses.replace(
+        lemon("claude:a"), branch="show-more", prs=(("411", "https://github.com/o/r/pull/411"),)
     )
     picture = canvas.blank(lemon_list.WIDTH + 2, 4)
-    lemon_list.draw(picture, 0, 0, tree("t", wordy), "t", "#6495ed", 0.0, None, False)
-    row = canvas.plain_lines(picture)[1]
-    assert "FilmyBoy" in row and "review" in row
-    assert "Sonnet 5.5 100%" in row
+    lemon_list.draw(
+        picture, 0, 0, tree("t", placed), "t", "#6495ed", 0.0, None, False, flipped=True
+    )
+    cells = {cell.char: cell for cell in picture.rows[1][10:25]}
+    assert cells["4"].bold and cells["4"].fg == colors.TEXT
+    assert cells["w"].fg == colors.BRANCH
+    assert {cells[c].link for c in "#411"} == {"https://github.com/o/r/pull/411"}
+    assert not cells["w"].link and not cells[" "].link
+
+
+def test_flipped_a_rows_model_takes_its_providers_color_as_in_the_inbox():
+    codex = dataclasses.replace(lemon("codex:a"), model="Sol 6.1", provider="openai")
+    rows = []
+    for one in (lemon("claude:a"), codex):
+        picture = canvas.blank(lemon_list.WIDTH + 2, 4)
+        lemon_list.draw(
+            picture, 0, 0, tree("t", one), "t", "#6495ed", 0.0, None, False, flipped=True
+        )
+        rows.append(next(c for c in picture.rows[1] if c.char in "OS").fg)
+    assert rows == [
+        backend_indicators.provider_style("claude:a"),
+        backend_indicators.provider_style("codex:a"),
+    ]
+
+
+def test_flipped_without_a_branch_a_row_names_its_directory():
+    unbranched = dataclasses.replace(lemon("claude:a"), cwd="/work/scratch", age="2h ago")
+    assert "scratch" in _row(unbranched, flipped=True)
 
 
 def test_a_lemons_context_is_colored_as_the_inbox_colors_it():
@@ -35,7 +104,9 @@ def test_a_lemons_context_is_colored_as_the_inbox_colors_it():
         for c, n in (("100%", "Full"), ("5%", "Light"))
     )
     picture = canvas.blank(lemon_list.WIDTH + 2, 5)
-    lemon_list.draw(picture, 0, 0, tree("t", full, light), "t", "#6495ed", 0.0, None, False)
+    lemon_list.draw(
+        picture, 0, 0, tree("t", full, light), "t", "#6495ed", 0.0, None, False, flipped=True
+    )
     percent = [next(c for c in row if c.char == "%") for row in picture.rows[1:3]]
     assert [c.fg for c in percent] == [colors.reading_color("100%"), colors.reading_color("5%")]
     assert colors.reading_color("100%") == "#ff3c1e"  # the inbox's red at the threshold
@@ -91,14 +162,14 @@ def test_an_edited_session_marks_the_title_and_no_row():
 
 
 def test_a_list_cut_short_scrolls_to_keep_an_edited_lemon_in_view():
-    six = tree("t", *(lemon(f"claude:{i}", f"Lemon{i}") for i in range(6)))
+    six = tree("t", *(lemon(f"claude:{i}") for i in range(6)))
     for edited in range(6):
         picture = canvas.blank(lemon_list.WIDTH + 2, 6)
         lemon_list.draw(
             picture, 0, 0, six, "t", "#6495ed", 0.0, None, False, 4, edited=f"claude:{edited}"
         )
         rows = canvas.plain_lines(picture)[1:4]
-        assert any(f"Lemon{edited}" in row for row in rows), (edited, rows)
+        assert any(f"claude:{edited}" in row for row in rows), (edited, rows)
 
 
 def test_past_0z_a_lemon_has_no_key_and_nothing_breaks():

@@ -13,6 +13,7 @@ class Lemon:
     working: bool  # mid-turn
     quiet: bool  # read, between turns, no status: drawn dimmed
     model: str
+    provider: str  # the model's, as `anthropic`, else its backend's; "" when unknown
     context: str  # "42%", or "" when not configured
     emoji: str
     pinned: bool
@@ -22,6 +23,11 @@ class Lemon:
     hidden: bool  # its brief says `Hidden: yes`, as a reviewer's does
     named: bool = False  # its name was given, in the inbox or by `inbox rename`, not derived
     unread: bool = False  # it has news the inbox marks unread
+    branch: str = ""
+    cwd: str = ""
+    age: str = ""  # since it last reported, as `4m ago`
+    updated: float = 0.0  # when it last reported, epoch seconds
+    prs: tuple[tuple[str, str], ...] = ()  # its PRs as the inbox shows them: number, and URL or ""
 
 
 @dataclasses.dataclass(frozen=True)

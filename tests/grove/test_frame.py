@@ -30,8 +30,18 @@ def test_the_grove_view_tags_each_tree_with_its_whole_key_and_a_block_with_its_l
     assert not whole.search(screen_text(Where(block="2", digits="2")))
 
 
-def test_zoomed_in_lists_brief_ids():
-    assert "CraneFly" in screen_text(Where(block="2", digits="2"))
+def test_zoomed_in_lists_session_names_and_flipped_models():
+    zoomed = "\n".join(canvas.plain_lines(render(GROVE, Where(block="2"), 160, 48, 0.5)))
+    flipped = "\n".join(
+        canvas.plain_lines(render(GROVE, Where(block="2"), 160, 48, 0.5, flipped=True))
+    )
+    assert "lemon claude:wedge" in zoomed and "CraneFly" in zoomed
+    assert "Opus 5.5" in flipped and "lemon claude:wedge" not in flipped
+
+
+def test_the_flipped_grove_view_tags_trees_with_their_stats_not_their_names():
+    flipped = "\n".join(canvas.plain_lines(render(GROVE, Where(), 160, 48, 0.5, flipped=True)))
+    assert " 0/1 " in flipped and "git-sync-wedge" not in flipped
 
 
 def test_a_search_with_one_block_of_matches_zooms_to_it():

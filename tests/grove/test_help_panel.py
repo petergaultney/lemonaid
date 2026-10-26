@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from lemonaid.grove.tui import help_panel, picking
+from lemonaid.grove.tui import flip, help_panel, picking
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.screen import GroveScreen
 
@@ -14,6 +14,13 @@ def test_the_panel_lists_every_edit_in_both_views():
         keys = {key for key, _ in help_panel.rows(zoomed)}
         assert {f"Alt+{key[4:]}" for key in picking.ACTIONS} <= keys, keys
         assert {"?", "esc", "space"} <= keys
+
+
+def test_both_views_list_the_flip_key_as_configured():
+    assert "branch" in dict(help_panel.rows(True))["hold ;"]
+    assert "1/3" in dict(help_panel.rows(False))["hold ;"]
+    toggled = dict(help_panel.rows(True, flip.Flip("\\", hold=False)))
+    assert "again" in toggled["\\"]
 
 
 def test_question_mark_shows_the_keys_over_the_grove_and_any_key_closes_them():
