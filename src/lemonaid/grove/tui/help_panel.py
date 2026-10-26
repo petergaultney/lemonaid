@@ -30,6 +30,7 @@ _BLOCK = [
     ("/", "search Brief-IDs, sessions and names; ↑↓ choose, enter jumps"),
     ("click a tree", "the same as its letter"),
     ("drag a tree", "move it within its block"),
+    ("drag a bare tree", "move it; drag it off its block's ground to clear it away"),
 ]
 _EDITS = {
     "alt+r": "rename a tree's tmux session or a lemon",

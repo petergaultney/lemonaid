@@ -7,6 +7,7 @@ from typing import Any
 from ..draw import ground
 from ..layout import arrange, edit, lead_spot, room, sizes
 from ..model import Block, Plot
+from . import garden, stump_drag
 from .frame import Grove
 from .garden import Drag
 
@@ -55,6 +56,8 @@ def _placed(grove: Grove, drag: Drag, aim: Aim) -> Grove:
 
 
 def dragged(grove: Grove, drag: Drag) -> Grove:
+    if drag.stump:
+        return stump_drag.dragged(grove, drag)
     return _placed(grove, drag, _aim(grove, drag))
 
 
@@ -118,7 +121,15 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
 
 def refused(grove: Grove, drag: Drag) -> str:
     """Why the drag can't be dropped where it is, or "" when it can."""
+    if drag.stump:
+        return stump_drag.refused(grove, drag)
     return _refused(grove, drag, _aim(grove, drag))
+
+
+def describe(grove: Grove, drag: Drag) -> str:
+    if drag.stump:
+        return stump_drag.describe(grove, drag)
+    return garden.describe(drag, refused(grove, drag))
 
 
 def _edit(drag: Drag, aim: Aim) -> abc.Callable[[dict[str, Any]], dict[str, Any]]:
@@ -146,6 +157,8 @@ def drop(
     drawn, and raises EditError if the drop can't go there, or if laying the grove out again
     would move it.
     """
+    if drag.stump:
+        return stump_drag.drop(grove, drag, now)
     aim = _aim(grove, drag)
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:

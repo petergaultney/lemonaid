@@ -237,7 +237,7 @@ class GroveScreen(ModalScreen[str]):
             self._where = keys.Where(block=target[0], digits=target[0])
             self._redraw()
             return
-        if len(target) > 1:
+        if len(target) > 1 and target[1]:  # a bare tree has no letter
             self._press(target[1])
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
@@ -270,8 +270,7 @@ class GroveScreen(ModalScreen[str]):
         if self._drag is None:
             return
 
-        note = garden.describe(self._drag, drop.refused(self._grove, self._drag))
-        self._where = dataclasses.replace(self._where, note=note)
+        self._where = dataclasses.replace(self._where, note=drop.describe(self._grove, self._drag))
         self._redraw()
 
     def _put_back(self, note: str) -> None:

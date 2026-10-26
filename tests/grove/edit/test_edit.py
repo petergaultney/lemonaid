@@ -86,3 +86,19 @@ def test_placing_the_lead_moves_its_lead_spot_and_leaves_its_own():
         "x": 7,
         "y": 4,
     }
+
+
+def test_a_stump_moves_or_clears_but_a_live_tree_is_not_a_stump():
+    saved = {
+        **SAVED,
+        "trees": {"relay": {"a": {"x": 5, "y": 3}, "b": {"x": 9, "y": 4, "gone_since": 1.0}}},
+    }
+    assert edit.place_stump(saved, "relay", "b", 12, 6)["trees"]["relay"]["b"] == {
+        "x": 12,
+        "y": 6,
+        "gone_since": 1.0,
+    }
+    assert set(edit.clear_stump(saved, "relay", "b")["trees"]["relay"]) == {"a"}
+    assert "b" in saved["trees"]["relay"]
+    with pytest.raises(edit.EditError):
+        edit.clear_stump(saved, "relay", "a")

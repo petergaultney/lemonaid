@@ -52,15 +52,16 @@ Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc
 - **In the grove view, drag a block to move it.** Its trees move with it.
 - **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground, but for those the moving edge would cut off, which it pushes back onto the block.
 - **Zoomed into a block, drag a tree to move it** within its block. The packhouse's bays stay in order.
+- **Zoomed into a block, drag a bare tree to move it, or off its block's ground to clear it.** A cleared bare tree's spot and letter are forgotten at once, as they otherwise are after 30 days; if its session comes back, it stands afresh.
 
-The prompt line says what you're moving, or why it can't go there. A block can't go onto another block's ground or past the grove's top or left edge, and a block can't be made too small for its trees to stand in without standing on each other. A tree can't go onto another tree or past its block's edge.
+The prompt line says what you're moving, or why it can't go there. A block can't go onto another block's ground or past the grove's top or left edge, and a block can't be made too small for its trees to stand in without standing on each other. A tree can't go onto another tree or past its block's edge. A bare tree can't go onto a tree.
 
 ## Places that stay put
 
 The first time lemonaid sees a group it gives it a plot of ground near the middle of the grove, and the first time it sees a tree it gives the tree a spot in its block, as near the block's lead as it fits with room to spare (else near its first tree, and a block's first tree near the packhouse), and a letter, taken from the words that tell it apart. Neither moves after that, unless you drag it. A tree with no room left in its block takes more ground for the block, on whichever side is free of other blocks; when none is, it stands just past the block's edge, where the block's view still shows it, and `lemonaid grove resize` or `move` makes room.
 
 - **A group that ends leaves open ground.** The outline stays, unnamed, and the next new group takes the open ground nearest the middle, so the grove doesn't hollow out.
-- **A tree that goes leaves a bare tree, with no leaves, in its spot.** The spot is kept for 30 days in case its session comes back; the next new tree in that block takes the oldest free spot.
+- **A tree that goes leaves a bare tree, with no leaves, in its spot.** The spot is kept for 30 days in case its session comes back; the next new tree in that block takes the oldest free spot. You can move a bare tree or clear it away (see [Gardening](#gardening)).
 - **New trees start small.** A tree whose oldest lemon is less than a day old is a sapling, and under three days a young tree. Every tree in a crowded block is drawn smaller, and grows again as the block empties.
 - **Reordering groups renumbers blocks** but doesn't move them, so the digits always match the inbox.
 

@@ -48,8 +48,9 @@ def zoomed(
     canvas.target = (block.digit,)
     plots.ground(canvas, plot, view, block.color, live=True)
     sign = plots.sign(canvas, plot, view, block.digit, block.name, block.color)
-    for cx, cy, _, label in arrangement.stumps.get(block.name, ()):
-        plots.stump(canvas, *view.screen(plot.x + cx, plot.y + cy), block.color, label)
+    for stump in arrangement.stumps.get(block.name, ()):
+        canvas.target = (block.digit, "", stump.key)  # what a drag takes hold of; no letter
+        plots.stump(canvas, *view.screen(plot.x + stump.cx, plot.y + stump.cy), stump.label)
     canvas.target = ()
     # As the grove view scales its trees, so a block's trees fill it as they do there.
     scale = max(1.0, min(view.sx, view.sy))

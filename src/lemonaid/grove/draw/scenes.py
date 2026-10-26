@@ -55,8 +55,8 @@ def overview(
         plots.ground(canvas, plot, view, block.color, live=True)
         taken.append(plots.sign(canvas, plot, view, block.digit, block.name, block.color))
         signs.append((plot, block))
-        for cx, cy, _, label in arrangement.stumps.get(block.name, ()):
-            plots.stump(canvas, *view.screen(plot.x + cx, plot.y + cy), block.color, label)
+        for stump in arrangement.stumps.get(block.name, ()):
+            plots.stump(canvas, *view.screen(plot.x + stump.cx, plot.y + stump.cy), stump.label)
         canvas.dim, canvas.target = 0.0, ()
         left, right = (round(view.screen(x, plot.y)[0]) for x in (plot.x, plot.x + plot.w))
         planted += [

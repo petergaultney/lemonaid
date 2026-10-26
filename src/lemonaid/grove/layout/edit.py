@@ -1,4 +1,5 @@
-"""Changes to a saved layout that a person or a lemon asks for: move, resize, clear open ground.
+"""Changes to a saved layout that a person or a lemon asks for: move, resize, clear open ground
+or a stump.
 
 Each returns a new layout and leaves its input alone. A tree's spot is relative to its plot,
 so trees move with their block; a block made smaller pushes the trees its edges cut off
@@ -94,6 +95,30 @@ def place_tree(
         raise EditError(f"No spot for tree {key!r} in {group or 'no group'}")
 
     spot.update(x=x, y=y)
+    return changed
+
+
+def _stump(saved: dict[str, Any], group: str, key: str) -> dict[str, Any]:
+    spot = saved["trees"].get(group, {}).get(key)
+    if spot is None or not spot.get("gone_since"):
+        raise EditError(f"No bare tree {key!r} in {group or 'no group'}")
+    return spot
+
+
+def place_stump(saved: dict[str, Any], group: str, key: str, x: int, y: int) -> dict[str, Any]:
+    """Stand the bare tree left by tree *key* at (*x*, *y*) in its plot."""
+    changed = copy.deepcopy(saved)
+    _stump(changed, group, key).update(x=x, y=y)
+    return changed
+
+
+def clear_stump(saved: dict[str, Any], group: str, key: str) -> dict[str, Any]:
+    """The layout without the bare tree left by tree *key*: its spot, and the letter it kept,
+    are forgotten, as they are 30 days after the tree goes.
+    """
+    changed = copy.deepcopy(saved)
+    _stump(changed, group, key)
+    del changed["trees"][group][key]
     return changed
 
 

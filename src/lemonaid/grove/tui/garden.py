@@ -1,4 +1,4 @@
-"""Gardening the grove with the mouse: moving and resizing blocks, and moving trees."""
+"""Gardening the grove with the mouse: moving and resizing blocks, and moving trees and stumps."""
 
 import dataclasses
 from collections import abc
@@ -16,12 +16,15 @@ _SIDES = ("left", "right", "top", "bottom")
 @dataclasses.dataclass(frozen=True)
 class Drag:
     block: Block
-    tree: str  # the dragged tree's key, or "" for the block
+    tree: (
+        str  # the dragged tree's key, or the key of the tree a stump stood for, or "" for the block
+    )
     sides: frozenset[str]  # the edges of the block being dragged; none moves the whole block
     start: tuple[int, int]  # where the drag began on the screen
     scale: tuple[float, float]  # screen cells a grove unit, across and down
     moved: tuple[int, int] = (0, 0)  # in grove units
     name: str = ""  # what to type to reach the tree, as 2c, or the block's digit
+    stump: bool = False  # *tree* is gone, and this drags the bare tree it left
 
 
 def _box(plot: Plot, view: scene_parts.View) -> tuple[float, float, float, float]:
@@ -62,6 +65,11 @@ def grab(
         return None
 
     block = next((b for b in grove.blocks if target and b.digit == target[0]), None)
+    if where.block and block and len(target) > 2:
+        view = scene_parts.block_view(canvas.blank(*size), grove.arrangement, block)
+        stump = next(s for s in grove.arrangement.stumps[block.name] if s.key == target[2])
+        name = stump.label or stump.key
+        return Drag(block, stump.key, frozenset(), at, (view.sx, view.sy), name=name, stump=True)
     if where.block:
         tree = (
             keys.tree_at(block, grove.arrangement, target[1]) if block and len(target) > 1 else None

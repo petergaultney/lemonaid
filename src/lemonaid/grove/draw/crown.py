@@ -61,6 +61,10 @@ def _paint(
     if not 0 <= dy <= depth[1] or abs(dx - trunk) > spread:
         return NONE
 
+    return _bark(dx, trunk)
+
+
+def _bark(dx: float, trunk: float) -> int:
     return BARK if dx < trunk else BARK_SHADE
 
 
@@ -142,3 +146,17 @@ def cells(
     )
     left, top, right, bottom = reach
     return tuple(_shaded(blobs, center, depth, trunk, bark, left, top, right, bottom))
+
+
+def bare(picture: abc.Sequence[str], trunk: float) -> abc.Iterator[tuple[int, int, str, int, int]]:
+    """A tree with no leaves, drawn in *picture*'s quadrant characters, its bark lit as a crown's
+    trunk is around *trunk*, the trunk's middle in cells from the picture's left: each cell as
+    (x, y, char, paint drawn, paint behind or NONE), from the picture's top left.
+    """
+    for y, line in enumerate(picture):
+        for x, char in enumerate(line):
+            bits = QUADRANTS.index(char)
+            if bits:
+                paints = [_bark(x + qx, trunk) if bits & bit else NONE for qx, _, bit in _QUARTERS]
+                packed, drawn, back = _pack(paints)
+                yield x, y, QUADRANTS[packed], drawn, back

@@ -5,7 +5,7 @@ import itertools
 from collections import abc
 
 from ..model import Plot
-from . import colors
+from . import colors, crown
 from .canvas import BACKGROUND, Canvas, mix, put, text
 from .ground import inside, noise, texture
 
@@ -77,6 +77,11 @@ def sign(
 # A tree with no leaves, standing where a tree whose session ended stood: bare branches over the
 # trunk a live tree has, its crown's middle on the second row.
 _BARE = ("\u259d\u2599 \u2588 \u259f\u2598", "  \u259c\u2588\u259b  ", "   \u2588   ")  # "▝▙ █ ▟▘"
+# Bark a little faded, lit and shaded, by crown paint.
+_DEAD_BARK = {
+    crown.BARK: mix(colors.TRUNK, BACKGROUND, 0.2),
+    crown.BARK_SHADE: mix(colors.TRUNK_SHADE, BACKGROUND, 0.2),
+}
 
 
 # A few dead leaves still on a tree whose session ended recently: (column, row, quadrant).
@@ -84,15 +89,20 @@ _DEAD_LEAVES = ((1, -1, "\u2597"), (2, -1, "\u2584"), (4, -1, "\u2596"), (2, 0, 
 _DEAD_LEAF = "#b8925e"
 
 
-def stump(canvas: Canvas, x: float, y: float, color: str, label: str = "") -> None:
+def stump(canvas: Canvas, x: float, y: float, label: str = "") -> None:
     """A bare tree at (*x*, *y*); with *label*, its tree's name, it went recently, and keeps a few
     dead leaves and its name below it.
     """
     left, top = round(x) - 3, round(y) - 1
-    for row, line in enumerate(_BARE):
-        for col, char in enumerate(line):
-            if char != " ":
-                put(canvas, left + col, top + row, char, mix(colors.TRUNK, BACKGROUND, 0.2))
+    for col, row, char, drawn, back in crown.bare(_BARE, 3.5):
+        put(
+            canvas,
+            left + col,
+            top + row,
+            char,
+            _DEAD_BARK[drawn],
+            _DEAD_BARK[back] if back != crown.NONE else None,
+        )
     if not label:
         return
 

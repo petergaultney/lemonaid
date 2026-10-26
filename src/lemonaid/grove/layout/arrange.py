@@ -8,7 +8,7 @@ import copy
 import dataclasses
 import math
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 from ..draw import trees
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
@@ -17,13 +17,22 @@ from . import landmarks, lead_spot, new_spots, placement, room, sizes, stand
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
 
+class Stump(NamedTuple):
+    """A free spot, where a tree whose session ended stood."""
+
+    cx: int
+    cy: int
+    gone_since: float
+    label: str  # the name of the tree that stood there while it's recent, else ""
+    key: str  # that tree's key, which its saved spot is kept under
+
+
 @dataclasses.dataclass(frozen=True)
 class Arrangement:
     plots: dict[str, Plot]  # by group name, "" for lemons in no group
     open: tuple[Plot, ...]
     trees: dict[tuple[str, str], stand.Standing]  # by (group name, tree key)
-    # Free spots: (cx, cy, when freed, the name of the tree that stood there while it's recent).
-    stumps: dict[str, tuple[tuple[int, int, float, str], ...]]
+    stumps: dict[str, tuple[Stump, ...]]
     roads: tuple[tuple[tuple[int, int], ...], ...] = ()
     stream: tuple[tuple[int, int], ...] = ()
     bays: dict[str, int] = dataclasses.field(default_factory=dict)  # highest saved bay, gone or not
@@ -193,11 +202,12 @@ def arrange(
     plots = {block.name: _plot(kept["plots"][block.name]) for block in blocks}
     stumps = {
         block.name: tuple(
-            (
+            Stump(
                 s["x"],
                 s["y"],
                 s["gone_since"],
                 s.get("label", key) if now - s["gone_since"] < _STUMP_NAMED_FOR else "",
+                key,
             )
             for key, s in kept["trees"].get(block.name, {}).items()
             if s.get("gone_since")

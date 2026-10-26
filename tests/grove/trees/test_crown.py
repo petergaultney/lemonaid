@@ -36,3 +36,12 @@ def test_the_trunk_shows_between_the_bottom_clumps_and_no_lower():
     assert {x for x, _ in bark} <= {19, 20, 21}
     assert any(y < bottom for _, y in bark)
     assert all(y <= bottom for _, y in bark)
+
+
+def test_a_bare_trees_bark_is_lit_left_of_its_trunk_and_shaded_right():
+    cells = {
+        (x, y): (drawn, back) for x, y, _, drawn, back in crown.bare(("▝▙ █ ▟▘", "   █   "), 3.5)
+    }
+    assert cells[(0, 0)] == cells[(1, 0)] == (crown.BARK, crown.NONE)
+    assert cells[(5, 0)] == cells[(6, 0)] == (crown.BARK_SHADE, crown.NONE)
+    assert set(cells[(3, 1)]) == {crown.BARK, crown.BARK_SHADE}

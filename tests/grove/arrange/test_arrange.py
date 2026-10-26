@@ -230,8 +230,8 @@ def test_a_stump_keeps_its_trees_name_for_two_hours():
     )
     soon, saved = arrange((block("g", "1", tree("a")),), saved, NOW + 60)
     later, _ = arrange((block("g", "1", tree("a")),), saved, NOW + 3 * 3600)
-    assert [label for *_, label in soon.stumps["g"]] == ["going"]
-    assert [label for *_, label in later.stumps["g"]] == [""]
+    assert [s.label for s in soon.stumps["g"]] == ["going"]
+    assert [s.label for s in later.stumps["g"]] == [""]
 
 
 def test_a_tree_saved_off_its_full_block_stands_inside_it_again():
