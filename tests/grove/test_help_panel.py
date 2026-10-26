@@ -2,18 +2,21 @@ import asyncio
 
 import pytest
 
-from lemonaid.grove.tui import flip, help_panel, picking
+from lemonaid.grove.tui import flip, help_panel
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.screen import GroveScreen
 
 from .test_frame import GROVE
 
 
-def test_the_panel_lists_every_edit_in_both_views():
+def test_both_views_say_tab_selects_and_select_mode_lists_every_edit():
     for zoomed in (False, True):
-        keys = {key for key, _ in help_panel.rows(zoomed)}
-        assert {f"Alt+{key[4:]}" for key in picking.ACTIONS} <= keys, keys
-        assert {"?", "esc", "space"} <= keys
+        keys = dict(help_panel.rows(zoomed))
+        assert "select mode" in keys["Tab"]
+        assert {"?", "esc", "space"} <= set(keys)
+        assert not any(key.startswith("Alt+r") for key in keys)
+    edits = dict(help_panel.rows(True, selected=True))["r, s, a, p, g, c"]
+    assert all(verb in edits for verb in ("rename", "snooze", "archive", "pin", "move", "recolor"))
 
 
 def test_both_views_list_the_flip_key_as_configured():
@@ -28,7 +31,13 @@ def test_question_mark_shows_the_keys_over_the_grove_and_any_key_closes_them():
         app = GroveApp(lambda: GROVE, 60.0, lambda _: "")
         async with app.run_test(size=(160, 48)) as pilot:
             seen = []
-            for keys in (["question_mark"], ["x"], ["1", "question_mark"], ["escape"]):
+            for keys in (
+                ["question_mark"],
+                ["x"],
+                ["1", "question_mark"],
+                ["escape"],
+                ["tab", "question_mark"],
+            ):
                 for key in keys:
                     await pilot.press(key)
                 await pilot.pause()
@@ -36,18 +45,27 @@ def test_question_mark_shows_the_keys_over_the_grove_and_any_key_closes_them():
                 seen.append(
                     (
                         type(app.screen),
-                        panels.first()._zoomed if panels else None,
+                        panels.first()._title if panels else None,
                         app.screen._where.block,
                     )
                 )
             return seen
 
     assert asyncio.run(run()) == [
-        (GroveScreen, False, ""),
+        (GroveScreen, "Keys in the grove", ""),
         (GroveScreen, None, ""),
-        (GroveScreen, True, "1"),
+        (GroveScreen, "Keys in a block", "1"),
         (GroveScreen, None, "1"),  # the key that closes it does nothing else
+        (GroveScreen, "Keys in select mode", "1"),
     ]
+
+
+def test_select_mode_lists_its_own_keys_and_how_to_leave():
+    keys = dict(help_panel.rows(True, select_key="`", selected=True))
+    assert "rename" in keys["r, s, a, p, g, c"]
+    assert keys["`, esc"] == "leave select mode"
+    assert "esc" not in keys
+    assert "select mode" in dict(help_panel.rows(True))["Tab"]
 
 
 def test_question_mark_is_typed_into_a_search():
@@ -59,12 +77,6 @@ def test_question_mark_is_typed_into_a_search():
             return type(app.screen), app.screen._where.search
 
     assert asyncio.run(run()) == (GroveScreen, "?")
-
-
-def test_recoloring_says_it_needs_only_a_block():
-    grove, block = dict(help_panel.rows(False)), dict(help_panel.rows(True))
-    assert "after a block's digit" in grove["Alt+c"] and "at once" in block["Alt+c"]
-    assert "packhouse has no color" in block["Alt+c"]
 
 
 def test_the_panel_teaches_the_dot_the_letter_and_a_place():

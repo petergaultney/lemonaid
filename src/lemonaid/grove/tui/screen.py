@@ -12,7 +12,20 @@ from textual.timer import Timer
 
 from ..draw import canvas
 from ..layout import edit, state
-from . import compass, drop, flip, garden, help_panel, keys, picking, pulse, quitting
+from . import (
+    choice,
+    compass,
+    drop,
+    flip,
+    garden,
+    help_panel,
+    keys,
+    picking,
+    pulse,
+    quitting,
+    selecting,
+    tree_nudge,
+)
 from .frame import Grove, Lists, clamp_pan, render
 from .grove_map import GroveMap
 
@@ -42,6 +55,7 @@ class GroveScreen(ModalScreen[str]):
         big_trees: bool = False,
         flips: flip.Flip = flip.DEFAULT,
         grove: Grove | None = None,
+        select_key: str = selecting.DEFAULT_KEY,
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
@@ -50,7 +64,7 @@ class GroveScreen(ModalScreen[str]):
         `hold(False)`. *lists* remembers where lemon lists went, kept across groves that share it.
         *big_trees* lets a zoomed block's trees grow past a grown tree's size. *flips* says which
         key flips the lemon lists to their other page, and how. A *grove* already loaded is
-        shown first, in place of loading one here.
+        shown first, in place of loading one here. *select_key* enters and leaves select mode.
         """
         super().__init__()
         self._load = load
@@ -71,9 +85,15 @@ class GroveScreen(ModalScreen[str]):
         self._drag: garden.Drag | None = None
         self._dragged = False  # the mouse moved since it was pressed, so its click isn't one
         self._drag_frame_due = False
+        self._redraw_due = False
         self._flips = flips
         self._flipped = False
         self._flip_back: Timer | None = None
+        self._select_key = select_key
+        # A tree moved by arrow keys: the grove it moves from and how far, saved once they stop
+        self._moving: tuple[Grove, garden.Drag] | None = None
+        self._moved_save: Timer | None = None
+        self._flashed: tuple[str, ...] = ()  # the target of a tree that couldn't move
 
     def compose(self) -> ComposeResult:
         yield GroveMap()
@@ -93,6 +113,18 @@ class GroveScreen(ModalScreen[str]):
         self._ends = {}
         self._show()
 
+    def _redraw_soon(self) -> None:
+        """A redraw once the keys already waiting are handled, so a held arrow moves the choice
+        ahead of the picture instead of waiting on a frame for each press.
+        """
+        if not self._redraw_due:
+            self._redraw_due = True
+            self.call_after_refresh(self._redraw_now)
+
+    def _redraw_now(self) -> None:
+        self._redraw_due = False
+        self._redraw()
+
     def _draw(self, phase: float) -> canvas.Canvas:
         drag = self._drag
         return render(
@@ -104,6 +136,9 @@ class GroveScreen(ModalScreen[str]):
             garden.loose(self._lists, drag) if drag else self._lists,
             self._big_trees,
             self._flipped,
+            self._select_key,
+            drag is None,
+            self._flashed,
         )
 
     def _show(self) -> None:
@@ -156,8 +191,12 @@ class GroveScreen(ModalScreen[str]):
         self.app.call_from_thread(self._apply, grove)
 
     def _apply(self, grove: Grove) -> None:
-        if grove != self._grove and self._drag is None:
-            self._where = keys.reconcile(self._where, self._grove.blocks, grove.blocks)
+        if grove != self._grove and self._drag is None and self._moving is None:
+            self._where = choice.reconcile(
+                keys.reconcile(self._where, self._grove.blocks, grove.blocks),
+                grove.blocks,
+                grove.arrangement,
+            )
             self._grove = grove
             self._redraw()
 
@@ -183,18 +222,28 @@ class GroveScreen(ModalScreen[str]):
             self.dismiss("")
             return
         if key == "?" and self._where.search is None:
-            self.mount(help_panel.HelpPanel(zoomed=bool(self._where.block), flips=self._flips))
+            self.mount(
+                help_panel.HelpPanel(
+                    bool(self._where.block), self._flips, self._select_key, self._where.selecting
+                )
+            )
+            return
+
+        found = choice.chosen(self._where, self._grove.blocks, self._grove.arrangement)
+        by = tree_nudge.step(key)
+        if by and found and found[2] is None and self._where.selecting and not self._where.editing:
+            self._move_tree(found[1].key, by)
             return
 
         before = self._where.pan
         channel, target = "", None
-        if compass.handles(self._where, key):
+        if key != self._select_key and compass.handles(self._where, key):
             self._where = compass.step(
                 self._grove, self._where, key, (self.size.width, self.size.height), self._nudge
             )
         else:  # only the compass moves the view: zooming, searching and picking keep it
-            self._where, channel, target = picking.step(
-                self._where, key, self._grove.blocks, self._grove.arrangement
+            self._where, channel, target = selecting.step(
+                self._where, key, self._grove.blocks, self._grove.arrangement, self._select_key
             )
             self._where = dataclasses.replace(self._where, pan=before)
         self._where = clamp_pan(self._grove, self._where, self.size.width, self.size.height)
@@ -210,7 +259,56 @@ class GroveScreen(ModalScreen[str]):
         if key == "escape" and keys.at_rest(self._where) and not self._was_open:
             self.dismiss("")
             return
+        self._redraw_soon()
+
+    def _move_tree(self, tree_key: str, by: tuple[int, int]) -> None:
+        base, drag = self._moving or (
+            self._grove,
+            tree_nudge.start(self._grove, self._where.block, tree_key),
+        )
+        if isinstance(drag, str):
+            self._refuse(drag)
+            return
+
+        moved, problem = tree_nudge.nudged(base, drag, by)
+        if problem:
+            self._refuse(problem)
+            return
+
+        self._moving = base, moved
+        self._grove = drop.dragged(base, moved)
+        for spots in self._lists.values():  # its lemon list goes beside it again
+            spots.pop(tree_key, None)
+        if self._moved_save:
+            self._moved_save.stop()
+        self._moved_save = self.set_timer(0.6, self._save_moved)
+        self._where = dataclasses.replace(
+            self._where, note=f"moving tree {moved.name} · saved when the arrows stop"
+        )
+        self._redraw_soon()
+
+    def _refuse(self, problem: str) -> None:
+        """Flash the tree that can't move, and say why."""
+        self._flashed = (self._where.block, self._where.selected_tree)
+        self._where = dataclasses.replace(self._where, note=f"not moved: {problem}")
+        self._redraw_soon()
+        self.set_timer(0.25, self._unflash)
+
+    def _unflash(self) -> None:
+        self._flashed = ()
         self._redraw()
+
+    def _save_moved(self) -> None:
+        if self._moved_save:
+            self._moved_save.stop()
+        self._moved_save = None
+        if self._moving is None:
+            return
+
+        base, drag = self._moving
+        self._moving = None
+        change = drop.drop(base, drag)
+        self.run_worker(lambda: self._save(change), thread=True, group="grove-garden")
 
     def _finished(self, note: str) -> None:
         if self not in self.app.screen_stack:
@@ -225,6 +323,8 @@ class GroveScreen(ModalScreen[str]):
     def on_key(self, event: events.Key) -> None:
         event.stop()
         event.prevent_default()
+        if self._moving and tree_nudge.step(event.key) is None:  # saved before anything else
+            self._save_moved()
         if self._drag:  # a key ends a drag; only esc, mid-drag, is spent putting it back
             dragging = self._dragged
             self._put_back("")
@@ -262,13 +362,26 @@ class GroveScreen(ModalScreen[str]):
             return
 
         if self._where.block != target[0]:
-            self._where = keys.Where(block=target[0], digits=target[0])
+            self._where = keys.Where(
+                block=target[0], digits=target[0], selecting=self._where.selecting
+            )
             self._redraw()
             return
-        if len(target) > 1 and target[1]:  # a bare tree has no letter
+        if len(target) < 2 or not target[1]:  # a bare tree has no letter
+            return
+
+        if self._where.selecting and not self._where.editing:
+            self._where = selecting.choose_tree(
+                self._where, target[1], self._grove.blocks, self._grove.arrangement
+            )
+            self._redraw()
+        else:
             self._press(target[1])
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
+        if self._moved_save:  # a tree moved by keys waits for the mouse: its drop may supersede it
+            self._moved_save.stop()
+            self._moved_save = None
         self._dragged = False
         self._drag = garden.grab(
             self._grove,
@@ -304,6 +417,7 @@ class GroveScreen(ModalScreen[str]):
     def _put_back(self, note: str) -> None:
         self._drag = None
         self.release_mouse()
+        self._save_moved()
         self._where = dataclasses.replace(self._where, note=note)
         self._redraw()
 
@@ -315,6 +429,7 @@ class GroveScreen(ModalScreen[str]):
         if drag is None or drag.moved == (0, 0):
             self._drag = None
             self.release_mouse()
+            self._save_moved()
             return
 
         problem = drop.refused(self._grove, drag)
@@ -323,6 +438,8 @@ class GroveScreen(ModalScreen[str]):
             return
 
         change = drop.drop(self._grove, drag)
+        if self._moving and self._moving[1].tree == drag.tree:  # the drop's spot replaces it
+            self._moving = None
         self._grove = drop.dragged(self._grove, drag)
         for spots in self._lists.values():  # its lemon list goes beside it again
             spots.pop(drag.tree, None)

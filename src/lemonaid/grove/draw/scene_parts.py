@@ -44,15 +44,16 @@ def place_tree(
     scale: float,
     full_tag: bool,
     tallest: float = trees.GROWN,
+    key_prefix: str = "",
 ) -> tuple[float, float, trees.Shape]:
     """Where *tree*'s crown is centered on screen, and its shape there, no taller than *tallest*
-    rows from its center.
+    rows from its center. *key_prefix* goes before the key on its tag.
     """
     standing = arrangement.trees[(block.name, tree.key)]
     plot = arrangement.plots[block.name]
     shape = trees.shape(
         dataclasses.replace(tree, label=standing.label),
-        standing.letter if full_tag else f"{block.digit}{standing.letter}",
+        key_prefix + (standing.letter if full_tag else f"{block.digit}{standing.letter}"),
         standing.size * scale,
         full_tag,
         tallest,
@@ -64,7 +65,8 @@ def place_tree(
 @dataclasses.dataclass(frozen=True)
 class Planted:
     """A tree to draw: where it stands on screen, how faded, and the columns its block spans.
-    *whole_key* tags it with its block's digit as well as its letter, as the grove view does.
+    *whole_key* tags it with its block's digit as well as its letter, as the grove view does, and
+    *key_prefix* goes before either, as select mode's `$`.
     """
 
     block: Block
@@ -73,6 +75,7 @@ class Planted:
     dim: float
     bounds: tuple[int, int]
     whole_key: bool = False
+    key_prefix: str = ""
 
 
 def plant(
@@ -109,7 +112,7 @@ def plant(
         labeled = dataclasses.replace(
             p.tree, label=arrangement.trees[(p.block.name, p.tree.key)].label
         )
-        shown = f"{p.block.digit}{letter}" if p.whole_key else letter
+        shown = p.key_prefix + (f"{p.block.digit}{letter}" if p.whole_key else letter)
         if stats:
             labeled = tree_stats.tagged(labeled)
             shape = dataclasses.replace(shape, tag=(trees.short_tag(labeled, shown, shape.width),))

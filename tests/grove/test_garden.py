@@ -8,6 +8,7 @@ from lemonaid.grove.layout import arrange, edit, state
 from lemonaid.grove.tui import drop, garden, keys
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.frame import Grove, render
+from lemonaid.grove.tui.screen import GroveScreen
 
 from .shared import NOW, block, tree
 from .test_frame import BLOCKS, GROVE
@@ -217,6 +218,8 @@ def test_every_lemons_key_typed_into_the_grove_chooses_it(before):
         chosen: list[str] = []
         app = GroveApp(lambda: GROVE, 60.0, None, choose=lambda c: chosen.append(c) or "")
         async with app.run_test(size=_SIZE) as pilot:
+            while not isinstance(app.screen, GroveScreen):  # it opens from a worker
+                await pilot.pause()
             for step in before:
                 if step == "down":
                     await pilot.mouse_down(offset=on_a_block)

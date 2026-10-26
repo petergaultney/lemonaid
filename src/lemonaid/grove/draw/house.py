@@ -99,8 +99,11 @@ def zoomed(
     opened: str,
     edited: str = "",
     flipped: bool = False,
-) -> None:
-    """The packhouse filling the screen, each session's lemons listed in its own bay."""
+    key_prefix: str = "",
+) -> dict[str, tuple[int, int, int, int]]:
+    """The packhouse filling the screen, each session's lemons listed in its own bay; returns
+    where each session's list went.
+    """
     x0, y0, w, h = 3, 2, canvas.width - 6, canvas.height - 4
     canvas.target = (block.digit,)
     fill(canvas, x0, y0 + 1, w, h - 1, _FLOOR)
@@ -116,14 +119,17 @@ def zoomed(
     rows = arrangement.bays.get(block.name, 0) // columns + 1
     # Fewer lemons a bay when they don't all fit, so every bay stays on screen.
     lemons = max(2, min(_BAY_LEMONS, (h - 4) // rows - 3))  # 2: a key, then how many more
+    drawn = {}
     for tree in block.trees:
         row, column = divmod(arrangement.trees[(block.name, tree.key)].bay, columns)
         letter = arrangement.trees[(block.name, tree.key)].letter
+        x, y = x0 + 2 + column * (lemon_list.WIDTH + 2), y0 + 3 + row * (lemons + 3)
+        drawn[tree.key] = (x, y, lemon_list.WIDTH, min(len(tree.lemons), lemons) + 2)
         canvas.target = (block.digit, letter)
         lemon_list.draw(
             canvas,
-            x0 + 2 + column * (lemon_list.WIDTH + 2),
-            y0 + 3 + row * (lemons + 3),
+            x,
+            y,
             tree,
             letter,
             block.color,
@@ -133,5 +139,7 @@ def zoomed(
             lemons,
             edited,
             flipped,
+            key_prefix + letter if key_prefix else "",
         )
         canvas.target = ()
+    return drawn

@@ -215,6 +215,7 @@ class TuiConfig:
     # that page while held (`hold`) or until pressed again (`toggle`).
     grove_flip_key: str = ";"
     grove_flip: str = "hold"
+    grove_select_key: str = "tab"
     keybindings: KeybindingsConfig = field(default_factory=KeybindingsConfig)
     # Override the label shown for each backend in the TUI.
     # Keys are channel prefixes (claude, codex, openclaw, opencode); values are display strings.
@@ -473,8 +474,8 @@ def _unfocused_dim(raw: object) -> str:
 
 
 # Keys that already mean something in the grove: letters, digits and `.` pick, and the rest
-# close it, search, show help or back out.
-_GROVE_KEYS = {".", " ", "/", "?", "space", "escape", "enter", "tab"}
+# close it, search, show help, back out or, in select mode, undo a step of the choice.
+_GROVE_KEYS = {".", " ", "/", "?", "space", "escape", "enter", "tab", "backspace"}
 
 
 def _grove_flip_key(raw: object) -> str:
@@ -491,6 +492,31 @@ def _grove_flip_key(raw: object) -> str:
         file=sys.stderr,
     )
     return ";"
+
+
+# Keys that move the grove view, which select mode would take from them.
+_GROVE_MOVES = {
+    *(f"{shift}{arrow}" for shift in ("", "shift+") for arrow in ("left", "right", "up", "down")),
+    "home",
+    *")!@#$%^&*",
+    *(f"alt+{key}" for key in "012345678"),
+}
+
+
+def _grove_select_key(raw: object, flip_key: str) -> str:
+    if (
+        isinstance(raw, str)
+        and raw
+        and not (len(raw) == 1 and raw.isalnum())
+        and raw.lower() not in (_GROVE_KEYS - {"tab"}) | _GROVE_MOVES | {flip_key}
+    ):
+        return raw
+
+    print(
+        f"Warning: [tui] grove_select_key can't be a letter, a digit, or a key the grove uses, as {raw!r} is",
+        file=sys.stderr,
+    )
+    return "tab"
 
 
 def _grove_flip(raw: object) -> str:
@@ -687,6 +713,9 @@ def _parse_config(data: dict[str, Any]) -> Config:
         grove_big_trees=bool(tui_data.get("grove_big_trees", False)),
         grove_flip_key=_grove_flip_key(tui_data.get("grove_flip_key", ";")),
         grove_flip=_grove_flip(tui_data.get("grove_flip", "hold")),
+        grove_select_key=_grove_select_key(
+            tui_data.get("grove_select_key", "tab"), str(tui_data.get("grove_flip_key", ";"))
+        ),
         unfocused_dim=_unfocused_dim(tui_data.get("unfocused_dim", "off")),
         double_activate_focus=tui_data.get("double_activate_focus", False),
         double_activate_ms=tui_data.get("double_activate_ms", 400),

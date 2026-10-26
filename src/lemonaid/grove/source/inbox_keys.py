@@ -9,8 +9,10 @@ from . import live
 
 
 def grove(frame: inbox_frame.Frame, config: Config) -> Grove:
-    """The grove for *frame*, laying out and saving anything new, as opening the grove would."""
-    return live.from_inbox(lambda: frame, config)()
+    """The grove for *frame*, laying out and saving anything new, as opening the grove would; it
+    has no lemon cards, since the inbox makes it on its event loop.
+    """
+    return live.from_inbox(lambda: frame, config, cards=False)()
 
 
 def names(found: Grove) -> dict[str, str]:

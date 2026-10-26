@@ -32,14 +32,12 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 | a digit | Zoom into that block. The inbox shows each lemon's key on its row, and typing one there jumps the same way. Blocks are numbered in the inbox's group order, so `2` is the second group in your list; lemons in no group are `0`. A second digit reaches block 10 and up (`1` `0`). |
 | a letter | Jump to the first lemon on that tree, its main lemon, however many lemons join it. `l` is the lead tree. |
 | a dot, a letter, then a number | Another lemon on that tree: the number counts from the first, so `.s1` is the second lemon, such as a reviewer, and `.s2` the third. Past `.s9` they are `0` and a letter (`.s0a` is the eleventh). `.s` on its own waits for the number; `esc` backs out. A tree's main lemon is always first: a lemon whose brief is hidden (a reviewer's) comes after one whose brief isn't, then the lower window, then the older lemon. |
-| `Alt`+`r` | Rename something, choosing it first: type a tree's letter (after its block's digit in the grove view), and the bottom line names its tmux session; the letter again, or an arrow, moves on to each of its lemons in turn. `enter` asks for the new name in a dialog, `esc` stops. A session keeps its tree's spot and letter; a lemon gets a new display name, as `r` gives one in the inbox, and an empty name clears it. |
-| `Alt`+`s`, `a`, `p`, `g` | Snooze, archive, pin or unpin, or move to another group, chosen the same way: a tree's letter offers the whole tree first, then each of its lemons. Snooze asks how long and moving asks which group, in the inbox's own dialogs; archive and pin happen on `enter`. A lemon moved to another group leaves the group it was drawn in. |
-| `Alt`+`c` | Recolor a block's group: in the grove view type its digit, zoomed in it asks at once. The packhouse has no color. |
 | arrows | Pan the grove when it is too big for the screen, 2 columns or 1 row at a time (`grove_pan_columns` and `grove_pan_rows` in `[tui]`); it shrinks to fit only so far, so its trees stay readable. |
 | `Shift` and an arrow | Move the view a whole screen that way. |
 | `Shift` and a digit | Jump to a screen-sized part of the grove around the packhouse: `1` north, then clockwise to `8` north-west (`!@#$%^&*` on a US keyboard). `Shift`+`0` or `Home` centers the packhouse. `Alt` and a digit does the same on any keyboard. The grove opens where you left it. |
 | `/` | Search Brief-IDs, then sessions and names. Blocks without a match fade; when every match is in one block, the grove zooms to it. `↑`/`↓` choose, `enter` jumps. |
 | `esc` | Back out one step: out of a tree, out of a block, out of the grove. |
+| `Tab` | Enter [select mode](#select-mode), where keys choose a lemon or a tree without jumping, show its card, and rename, snooze, archive, pin, move or recolor it. |
 | `q` | Close the grove at once, from anywhere but where you're typing, a search or an edit's dialog, which take it as text: `lma` returns to the inbox and the popup hides. |
 | `Q` | Quit the process the grove runs in (`lma`, or the popup's resident, which the next opening starts afresh); it too is text in a search or a dialog. |
 | `Space` | Close the grove from anywhere in it, except while typing a search. |
@@ -52,9 +50,30 @@ Zoomed into a block, each tree lists its lemons by session name, with their Brie
 
 Change the key with `grove` in `[tui.keybindings]`.
 
+## Select mode
+
+Select mode is for looking at a lemon, or changing it, without jumping to it. `Tab` enters it (`grove_select_key` in `[tui]`), and the screen's edges and its title and prompt bars turn yellow while it's on. `esc`, or `Tab` again, leaves it. While it's on, each tree's tag in a block shows `$` before its letter, as `$s`, and each packhouse bay's title does too: that's what chooses the whole tree.
+
+| Keys | What they choose or do |
+|------|------------------------|
+| a digit | That block, as in jump mode. |
+| a letter | The first lemon on that tree. `l` is the lead tree. |
+| a dot, a letter, a place | Another lemon on that tree, as `.s1`; past nine, `0` and a letter. |
+| `$`, a letter | The whole tree, to edit every lemon on it at once, or to move it. |
+| `↑`, `↓` | With a lemon chosen, the next or previous lemon on its tree. |
+| arrows | With a whole tree chosen, move it a step within its block, or five with `Shift`. A step onto another tree hops past it to the next spot that's clear; a step it can't take at all flashes the tree red and leaves it where it was. The move is saved once the arrows stop, or at the next other key. The packhouse's bays don't move. |
+| `r`, `s`, `a`, `p`, `g`, `c` | With a tree or a lemon chosen: rename, snooze, archive, pin or unpin, move to another group, or recolor its block. A whole tree's edit covers each of its lemons, and a rename of a whole tree renames its tmux session where the tree is one; a session keeps its tree's spot and letter. A lemon's rename gives it a display name, as `r` does in the inbox, and an empty name clears it. Archive and pin happen at once; snooze asks how long and moving asks which group, in the inbox's own dialogs. A lemon moved to another group leaves the group it was drawn in. `c` recolors the tree's block; the packhouse has no color. |
+| `enter`, `o` | Jump to the chosen lemon, or the chosen tree's first lemon. |
+| `backspace` | Back to the block, then out of it. |
+| `/` | Search; `enter` chooses the match rather than jumping to it. |
+
+The chosen lemon's card opens beside its tree's list, above or below it, wherever the screen has more room, and covers whatever is there. It is the inbox's card for that lemon: its session name and Brief-ID, model and context use, status, what it needs, project and branch, PRs, how long ago it reported, and the start of its last message. A chosen tree shows its first lemon's card. The card hides while you drag.
+
+With only a block chosen, a letter chooses a tree rather than editing; to recolor the block, choose any of its trees and press `c`.
+
 ## Gardening
 
-Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back.
+Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back. A tree also moves with the arrow keys in [select mode](#select-mode), once `$` and its letter choose it.
 
 - **In the grove view, drag a block to move it.** Its trees move with it.
 - **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground, but for those the moving edge would cut off, which it pushes back onto the block.

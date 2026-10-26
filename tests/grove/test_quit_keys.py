@@ -49,7 +49,7 @@ def _run(
 def test_q_hides_the_grove_from_a_zoomed_block_and_an_opened_tree():
     assert _run("2", "q")[0] == [True]
     assert _run("q", where=keys.Where(block="2", digits="2", tree=LETTER))[0] == [True]
-    assert _run("alt+r", "q")[0] == [True]
+    assert _run("tab", "2", LETTER, "q")[0] == [True]
 
 
 def test_capital_q_exits_the_app_without_hiding():
@@ -71,7 +71,7 @@ def test_an_edits_dialog_takes_q_and_capital_q_as_text():
             leave=lambda: None,
         )
         async with app.run_test(size=(160, 48)) as pilot:
-            await pilot.press("alt+r", "2", LETTER, "enter")
+            await pilot.press("tab", "2", LETTER, "r")
             await pilot.pause()
             await pilot.press("q", "Q")
             await pilot.pause()

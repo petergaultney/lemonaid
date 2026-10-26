@@ -604,7 +604,9 @@ class LemonaidApp(CrashLoggedApp):
 
         inbox = self.query_one(InboxList)
         self.push_screen(
-            inbox_screen.for_inbox(lambda: inbox.last_frame, self.config, rename.session),
+            inbox_screen.for_inbox(
+                lambda: inbox.last_frame, self.config, rename.session, inbox.grove
+            ),
             self._grove_chose,
         )
 

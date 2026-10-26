@@ -140,7 +140,7 @@ def test_in_tmux_space_in_a_big_pane_draws_the_grove_in_place(monkeypatch):
     assert opened == []
 
 
-def test_alt_r_a_letter_twice_then_enter_renames_that_lemon_from_the_grove(monkeypatch):
+def test_r_on_a_lemon_chosen_in_select_mode_renames_it_from_the_grove(monkeypatch):
     monkeypatch.delenv("TMUX")
     _row("lemon four", "fourth")
 
@@ -155,11 +155,10 @@ def test_alt_r_a_letter_twice_then_enter_renames_that_lemon_from_the_grove(monke
             assert isinstance(screen, GroveScreen)
             letter = screen._grove.arrangement.trees[("", "fourth")].letter
             typed = (
-                "alt+r",
+                "tab",
                 "0",
                 letter,
-                letter,
-                "enter",
+                "r",
                 *["backspace"] * 5,
                 "space",
                 "5",

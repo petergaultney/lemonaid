@@ -1,6 +1,9 @@
+import dataclasses
 import re
 
-from lemonaid.grove.draw import block_scene, canvas
+from rich.text import Text
+
+from lemonaid.grove.draw import block_scene, canvas, colors
 from lemonaid.grove.layout import arrange
 from lemonaid.grove.tui.frame import Grove, clamp_pan, render
 from lemonaid.grove.tui.keys import Where
@@ -74,3 +77,50 @@ def test_a_pan_stops_at_the_groves_edge():
     far = clamp_pan(GROVE, Where(pan=(9999, 9999)), 100, 30)
     assert 0 < far.pan[0] < 210 and 0 < far.pan[1] < 60
     assert clamp_pan(GROVE, Where(pan=(40, 8)), 400, 120).pan == (0, 0)
+
+
+def _chosen() -> Where:
+    letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
+    return Where(block="2", selecting=True, selected_tree=letter, selected_lemon="claude:wedge")
+
+
+def test_select_mode_draws_the_chosen_lemons_card_beside_its_list():
+    carded = dataclasses.replace(
+        GROVE, cards={"claude:wedge": (Text("wedge card headline"), Text("Needs: a look"))}
+    )
+    shown = "\n".join(canvas.plain_lines(render(carded, _chosen(), 160, 48, 0.5)))
+    hidden = "\n".join(
+        canvas.plain_lines(render(carded, _chosen(), 160, 48, 0.5, card_shown=False))
+    )
+    assert "wedge card headline" in shown and "Needs: a look" in shown
+    assert "wedge card headline" not in hidden
+
+
+def test_select_mode_colors_the_screens_edges():
+    picture = render(GROVE, _chosen(), 160, 48, 0.5)
+    assert picture.rows[10][0].bg == picture.rows[10][-1].bg == colors.LEMON
+    assert render(GROVE, Where(block="2"), 160, 48, 0.5).rows[10][0].bg != colors.LEMON
+
+
+def test_a_flashed_tree_is_tinted_alert_red():
+    letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
+    picture = render(GROVE, _chosen(), 160, 48, 0.5, flashed=("2", letter))
+    tinted = [cell for row in picture.rows for cell in row if cell.target == ("2", letter)]
+    assert tinted and all(cell.bg != canvas.BACKGROUND for cell in tinted)
+    plain = render(GROVE, _chosen(), 160, 48, 0.5)
+    assert [c.bg for row in plain.rows for c in row if c.target == ("2", letter)] != [
+        c.bg for c in tinted
+    ]
+
+
+def test_select_mode_tags_each_tree_with_the_dollar_that_chooses_it_whole():
+    letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
+    selecting = "\n".join(canvas.plain_lines(render(GROVE, _chosen(), 160, 48, 0.5)))
+    jumping = "\n".join(canvas.plain_lines(render(GROVE, Where(block="2"), 160, 48, 0.5)))
+    assert f"${letter}" in selecting and f"${letter}" not in jumping
+
+
+def test_the_jump_mode_hints_name_the_configured_select_key():
+    for where in (Where(), Where(block="2", digits="2")):
+        shown = "\n".join(canvas.plain_lines(render(GROVE, where, 160, 48, 0.5, select_key="f6")))
+        assert "F6 selects" in shown and "Tab selects" not in shown

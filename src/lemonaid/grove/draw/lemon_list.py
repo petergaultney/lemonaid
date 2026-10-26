@@ -68,7 +68,7 @@ def _row(
     keys = key(tree, letter, i)
     text(
         canvas,
-        x + _KEY,
+        x + _KEY + (i == 0),  # a lone letter under the letter of `.s1`
         y,
         keys,
         colors.status_text(lemon.status) if lemon.status else colors.TEXT,
@@ -106,11 +106,13 @@ def draw(
     most: int = 0,
     edited: str = "",
     flipped: bool = False,
+    title_key: str = "",
 ) -> None:
     """*most*, when given, lists that many rows at most, the last saying how many more there are.
     *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
     a list cut short scrolls to keep an edited lemon in it. *flipped* lists each lemon's model,
     where it is and when it last reported in place of its name, WordyBin and context.
+    *title_key*, when given, is a key named in the title before the tree, as select mode's `$l`.
     """
     shown = len(tree.lemons) if not most or len(tree.lemons) <= most else most - 1
     at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
@@ -126,7 +128,7 @@ def draw(
         colors.LEMON if opened else mix(color, BACKGROUND, 0.5),
         DOUBLE if opened else ROUND,
     )
-    title = f" {tree.key} "
+    title = f" {title_key}  {tree.key} " if title_key else f" {tree.key} "
     if edited == session(tree):
         text(canvas, x + 2, y, title, BACKGROUND, colors.LEMON, bold=True, limit=WIDTH - 4)
     else:

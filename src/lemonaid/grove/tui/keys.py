@@ -24,11 +24,15 @@ class Where:
     chosen: int = 0  # which search match `enter` takes
     note: str = ""  # a word for the prompt line about the last key
     editing: str = (
-        ""  # an edit begun with Alt and a key (`rename`, `snooze`...): choosing its target
+        ""  # an edit chosen in select mode (`rename`, `snooze`...), while it asks what it needs
     )
     picked_tree: str = ""  # the key of the tree chosen to rename, in the zoomed block
     picked_lemon: str = ""  # the channel of one lemon on it, or "" for the tree's session
     pan: tuple[float, float] = (0.0, 0.0)  # the grove point at the overview's top left, if panned
+    selecting: bool = False  # select mode: keys choose without jumping, and letters edit the choice
+    whole: bool = False  # in select mode, a `$` typed, waiting for the letter of a tree to choose
+    selected_tree: str = ""  # in select mode, the letter of the chosen tree in the zoomed block
+    selected_lemon: str = ""  # the channel of the chosen lemon on it, or "" for the whole tree
 
 
 @dataclasses.dataclass(frozen=True)
@@ -199,5 +203,5 @@ def reconcile(where: Where, before: abc.Sequence[Block], after: abc.Sequence[Blo
 
     old, new = _block(before, where.block), _block(after, where.block)
     if old is None or new is None or old.name != new.name:
-        return Where(search=where.search, chosen=where.chosen)
+        return Where(search=where.search, chosen=where.chosen, selecting=where.selecting)
     return where

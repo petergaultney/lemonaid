@@ -1,6 +1,7 @@
 """A plot's ground drawn onto the screen at some scale, with its signpost."""
 
 import dataclasses
+import functools
 import itertools
 from collections import abc
 
@@ -28,21 +29,32 @@ class View:
         return (col - self.ox) / self.sx + self.left, (row - self.oy) / self.sy + self.top
 
 
+@functools.lru_cache(maxsize=4)
+def _specks(width: int, height: int) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (x, y) for y in range(1, height - 1) for x in range(width) if noise(x, y * 7) < 0.012
+    )
+
+
 def speckle(canvas: Canvas) -> None:
-    for y in range(1, canvas.height - 1):
-        for x in range(canvas.width):
-            if noise(x, y * 7) < 0.012:
-                put(canvas, x, y, "·", "#20262f")
+    for x, y in _specks(canvas.width, canvas.height):
+        put(canvas, x, y, "·", "#20262f")
 
 
-def ground(canvas: Canvas, plot: Plot, view: View, color: str, live: bool) -> None:
-    """Fill *plot*'s outline. Open ground (*live* False) is dark and unmarked."""
+@functools.lru_cache(maxsize=64)
+def _ground_cells(
+    plot: Plot, view: View, color: str, live: bool
+) -> tuple[tuple[int, int, str, str, str], ...]:
+    """(column, row, char, fg, bg) for each cell of *plot*'s ground: the same for every frame
+    drawn at one view, so a key that only moves a choice doesn't work them out again.
+    """
     x0, y0 = view.screen(plot.x, plot.y)
     x1, y1 = view.screen(plot.x + plot.w, plot.y + plot.h)
     soil = mix(color, BACKGROUND, 0.87) if live else "#13161a"
     rim = mix(color, BACKGROUND, 0.68) if live else "#252a31"
     marks = mix(color, BACKGROUND, 0.72) if live else "#2a3029"
     dx, dy = 1 / view.sx, 1 / view.sy
+    cells = []
     for row in range(int(y0), int(y1) + 1):
         for col in range(int(x0), int(x1) + 1):
             wx, wy = view.world(col, row)
@@ -52,16 +64,24 @@ def ground(canvas: Canvas, plot: Plot, view: View, color: str, live: bool) -> No
                 inside(plot, wx + ex, wy + ey) for ex, ey in ((-dx, 0), (dx, 0), (0, -dy), (0, dy))
             )
             if edge:
-                put(canvas, col, row, "░" if live else "·", rim, soil)
+                cells.append((col, row, "░" if live else "·", rim, soil))
             else:
-                put(
-                    canvas,
-                    col,
-                    row,
-                    texture(plot, col - int(x0), row - int(y0)) if live else " ",
-                    marks,
-                    soil,
+                cells.append(
+                    (
+                        col,
+                        row,
+                        texture(plot, col - int(x0), row - int(y0)) if live else " ",
+                        marks,
+                        soil,
+                    )
                 )
+    return tuple(cells)
+
+
+def ground(canvas: Canvas, plot: Plot, view: View, color: str, live: bool) -> None:
+    """Fill *plot*'s outline. Open ground (*live* False) is dark and unmarked."""
+    for col, row, char, fg, bg in _ground_cells(plot, view, color, live):
+        put(canvas, col, row, char, fg, bg)
 
 
 def sign(

@@ -23,6 +23,7 @@ def run(config: Config, switch_source: str | None) -> None:
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),
         big_trees=config.tui.grove_big_trees,
         flips=flip.configured(config),
+        select_key=config.tui.grove_select_key,
     ).run()
     if not channel:
         return

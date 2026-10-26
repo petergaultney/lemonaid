@@ -5,7 +5,7 @@ from collections import abc
 from textual import events
 from textual.app import App
 
-from . import flip
+from . import flip, selecting
 from .frame import Grove, Lists
 from .screen import Edit, GroveScreen
 
@@ -34,6 +34,7 @@ class GroveApp(App[str]):
         nudge: tuple[int, int] = (2, 1),
         big_trees: bool = False,
         flips: flip.Flip = flip.DEFAULT,
+        select_key: str = selecting.DEFAULT_KEY,
     ) -> None:
         super().__init__()
         self._edit = edit
@@ -46,6 +47,7 @@ class GroveApp(App[str]):
         self._nudge = nudge
         self._big_trees = big_trees
         self._flips = flips
+        self._select_key = select_key
         self._lists: Lists = {}  # where lemon lists went, kept from one grove shown to the next
 
     def on_mount(self) -> None:
@@ -74,6 +76,7 @@ class GroveApp(App[str]):
                 self._big_trees,
                 self._flips,
                 grove,
+                self._select_key,
             ),
             self._after_screen,
         )

@@ -9,6 +9,7 @@ from . import house, lemon_list, plots, scene_parts, tag_fit, trees
 from .canvas import Canvas
 
 Spot = tuple[int, int, float]  # a list's top left, and how much it covered when put there
+Rect = tuple[int, int, int, int]
 
 
 def zoomed(
@@ -21,20 +22,23 @@ def zoomed(
     lists: dict[str, Spot] | None = None,
     tallest: float = trees.GROWN,
     flipped: bool = False,
-) -> None:
-    """*block* filling the screen, each tree with its lemons listed beside it. *opened* is the
+    key_prefix: str = "",
+) -> dict[str, Rect]:
+    """*block* filling the screen, each tree with its lemons listed beside it; returns where each
+    tree's list went. *opened* is the
     letter of a tree whose lemons are being picked by number. *lists*, where each tree's list was
     drawn last time, keeps a list there while it covers no more than it did then, and is told
     where each one goes. Its trees' crowns grow no taller than *tallest* rows from their centers.
-    *flipped* shows each list's other page.
+    *flipped* shows each list's other page. *key_prefix* goes before each tree's key, as select
+    mode's `$` that chooses a whole tree.
     """
     lists = {} if lists is None else lists
     if not scene_parts.fits(canvas):
-        return
+        return {}
 
     plot = arrangement.plots[block.name]
     if plot.texture == "house":
-        house.zoomed(
+        return house.zoomed(
             canvas,
             block,
             arrangement,
@@ -43,8 +47,8 @@ def zoomed(
             opened,
             highlight.edited if highlight else "",
             flipped,
+            key_prefix,
         )
-        return
 
     view = scene_parts.block_view(canvas, arrangement, block)
     plots.speckle(canvas)
@@ -61,9 +65,12 @@ def zoomed(
         scene_parts.Planted(
             block,
             tree,
-            scene_parts.place_tree(block, tree, arrangement, view, scale, True, tallest),
+            scene_parts.place_tree(
+                block, tree, arrangement, view, scale, True, tallest, key_prefix
+            ),
             scene_parts.fade(highlight, scene_parts.tree_channels(tree)) * 0.75,
             (1, canvas.width - 1),
+            key_prefix=key_prefix,
         )
         for tree in block.trees
     ]
@@ -107,9 +114,11 @@ def zoomed(
         )
         canvas.target = ()
         canvas.dim = 0.0
+    return {
+        p.tree.key: (*spots[p.tree.key], lemon_list.WIDTH, len(p.tree.lemons) + 2) for p in planted
+    }
 
 
-Rect = tuple[int, int, int, int]
 _GAP = 2  # columns kept clear beside a list; one row above and below
 
 

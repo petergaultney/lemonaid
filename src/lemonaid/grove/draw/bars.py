@@ -1,7 +1,7 @@
 """The title row above the grove and the prompt row below it."""
 
 from . import colors
-from .canvas import Canvas, fill, put, text
+from .canvas import BACKGROUND, Canvas, fill, mix, put, text
 
 _LEGEND = (
     ("alert", "alert"),
@@ -33,3 +33,25 @@ def prompt(canvas: Canvas, line: str, color: str = colors.TEXT) -> None:
         put(canvas, x, row, "●", colors.STATUS.get(status, colors.IDLE), colors.BAR, bold=True)
         text(canvas, x + 2, row, label, colors.MUTED, colors.BAR)
         x += len(label) + 4
+
+
+_SELECT_BAR = "#3b3514"  # the title and prompt rows in select mode: the bar, tinted lemon
+
+
+def select_frame(canvas: Canvas) -> None:
+    """Select mode's frame: the screen's side columns in lemon, and its two bars tinted."""
+    for row in canvas.rows[1:-1]:
+        for cell in (row[0], row[-1]):
+            cell.char, cell.bg, cell.target = " ", colors.LEMON, ()
+    for row in (canvas.rows[0], canvas.rows[-1]):
+        for cell in row:
+            if cell.bg == colors.BAR:
+                cell.bg = _SELECT_BAR
+
+
+def flash(canvas: Canvas, target: tuple[str, ...]) -> None:
+    """Every cell that reaches *target*, a tree with its tag and list, tinted alert red."""
+    for row in canvas.rows:
+        for cell in row:
+            if cell.target == target:
+                cell.bg = mix(cell.bg or BACKGROUND, colors.STATUS["alert"], 0.55)

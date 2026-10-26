@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Label, Static
 
-from . import flip
+from . import flip, select_view, selecting
 
 _GROVE = [
     ("a digit", "zoom into that block; 0 is the packhouse, and 1 0 is block 10"),
@@ -34,13 +34,28 @@ _BLOCK = [
     ("drag a tree", "move it within its block"),
     ("drag a bare tree", "move it; drag it off its block's ground to clear it away"),
 ]
-_EDITS = {
-    "alt+r": "rename a tree's tmux session or a lemon",
-    "alt+s": "snooze a tree or a lemon, asking how long",
-    "alt+a": "archive a tree or a lemon",
-    "alt+p": "pin, or unpin when all are pinned",
-    "alt+g": "move to another group, asking which",
-}
+_SELECT = [
+    ("a digit", "choose that block"),
+    ("a letter", "choose that tree's first lemon, l the lead's, and show its card"),
+    (
+        "a dot, a letter, a place",
+        "choose another lemon on that tree, as .c1; past nine, 0 and a letter",
+    ),
+    ("$, a letter", "choose the whole tree, to edit every lemon on it or to move it"),
+    ("↑ ↓", "with a lemon chosen, the next or previous lemon on its tree"),
+    (
+        "arrows",
+        "with a whole tree chosen, move it a step; Shift, five; it hops what it can't stand on",
+    ),
+    (
+        "r, s, a, p, g, c",
+        "with a tree or a lemon chosen: rename, snooze, archive, pin or unpin, move to another group, recolor its block",
+    ),
+    ("enter, o", "jump to the chosen lemon, or the chosen tree's first"),
+    ("backspace", "back to the block, then out of it"),
+    ("/", "search Brief-IDs, sessions and names; enter chooses the match"),
+    ("click a tree", "the same as its letter"),
+]
 _LAST = [
     ("esc", "back out one step: out of a tree, a block, the grove"),
     ("space", "close the grove"),
@@ -62,27 +77,35 @@ def _flip_row(flips: flip.Flip, zoomed: bool) -> tuple[str, str]:
     return flips.key, f"{lists}; again to see names"
 
 
-def rows(zoomed: bool, flips: flip.Flip = flip.DEFAULT) -> list[tuple[str, str]]:
-    choose = "then a tree's letter" if zoomed else "then a block's digit and a tree's letter"
-    color = "at once" if zoomed else "after a block's digit"
+def rows(
+    zoomed: bool,
+    flips: flip.Flip = flip.DEFAULT,
+    select_key: str = selecting.DEFAULT_KEY,
+    selected: bool = False,
+) -> list[tuple[str, str]]:
+    key = select_view.key_name(select_key)
+    select = (
+        (f"{key}, esc", "leave select mode")
+        if selected
+        else (
+            key,
+            "select mode: keys choose a block, tree or lemon without jumping, a card shows it,"
+            " and r s a p g c rename, snooze, archive, pin, move or recolor it",
+        )
+    )
     return [
-        *(_BLOCK if zoomed else _GROVE),
+        *(_SELECT if selected else _BLOCK if zoomed else _GROVE),
+        select,
         _flip_row(flips, zoomed),
-        (
-            "Alt+r, s, a, p, g",
-            f"edit: {choose}; the letter again or an arrow for each lemon; enter",
-        ),
-        *((f"Alt+{key[4:]}", what) for key, what in _EDITS.items()),
-        ("Alt+c", f"recolor a block's group, asking {color}; the packhouse has no color"),
-        *_LAST,
+        *(row for row in _LAST if not (selected and row[0] == "esc")),
     ]
 
 
-def _table(zoomed: bool, flips: flip.Flip) -> Table:
+def _table(zoomed: bool, flips: flip.Flip, select_key: str, selected: bool) -> Table:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold #f2d94e", no_wrap=True)
     table.add_column(style="#d8dee9")
-    for key, what in rows(zoomed, flips):
+    for key, what in rows(zoomed, flips, select_key, selected):
         table.add_row(key, what)
     return table
 
@@ -103,17 +126,26 @@ class HelpPanel(VerticalScroll):
     HelpPanel Label {{ color: #9aa5b8; margin-bottom: 1; }}
     """
 
-    def __init__(self, zoomed: bool, flips: flip.Flip = flip.DEFAULT) -> None:
+    def __init__(
+        self,
+        zoomed: bool,
+        flips: flip.Flip = flip.DEFAULT,
+        select_key: str = selecting.DEFAULT_KEY,
+        selected: bool = False,
+    ) -> None:
         super().__init__()
-        self._zoomed = zoomed
-        self._flips = flips
+        self._table = _table(zoomed, flips, select_key, selected)
+        self._title = (
+            "Keys in select mode"
+            if selected
+            else "Keys in a block"
+            if zoomed
+            else "Keys in the grove"
+        )
 
     def compose(self) -> ComposeResult:
-        yield Label(
-            Text("Keys in a block" if self._zoomed else "Keys in the grove", style="bold")
-            + Text(" · any key closes")
-        )
-        yield Static(_table(self._zoomed, self._flips))
+        yield Label(Text(self._title, style="bold") + Text(" · any key closes"))
+        yield Static(self._table)
 
     def on_mount(self) -> None:
         self.center()
@@ -125,8 +157,6 @@ class HelpPanel(VerticalScroll):
         screen = self.screen.size
         width = min(_WIDTH, screen.width)
         console = self.app.console
-        lines = console.render_lines(
-            _table(self._zoomed, self._flips), console.options.update_width(width - 4)
-        )
+        lines = console.render_lines(self._table, console.options.update_width(width - 4))
         height = min(len(lines) + _FRAME_ROWS, screen.height)
         self.styles.offset = ((screen.width - width) // 2, (screen.height - height) // 2)

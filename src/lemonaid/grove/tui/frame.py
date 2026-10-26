@@ -2,12 +2,15 @@
 
 import dataclasses
 import math
+from collections import abc
 from typing import Any
 
-from ..draw import bars, block_scene, canvas, colors, lemon_list, scene_parts, scenes, trees
+from rich.text import Text
+
+from ..draw import bars, block_scene, canvas, card, colors, lemon_list, scene_parts, scenes, trees
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import keys, picking
+from . import keys, picking, select_view, selecting
 
 
 @dataclasses.dataclass(frozen=True)
@@ -15,6 +18,8 @@ class Grove:
     blocks: tuple[Block, ...]
     arrangement: Arrangement
     saved: dict[str, Any]  # the layout *arrangement* was made from, as `arrange` keeps it
+    # Each lemon's inbox card lines, by channel, for select mode
+    cards: abc.Mapping[str, tuple[Text, ...]] = dataclasses.field(default_factory=dict)
 
 
 def _summary(grove: Grove) -> str:
@@ -24,16 +29,13 @@ def _summary(grove: Grove) -> str:
     return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn"
 
 
-def _picked_prompt(where: keys.Where, grove: Grove) -> str:
-    block = next((b for b in grove.blocks if b.digit == where.block), None)
-    letter = grove.arrangement.trees.get((block.name, where.picked_tree)) if block else None
-    return picking.prompt(where, grove.blocks, letter.letter if letter else "")
-
-
-def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
+def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]:
+    selects = f"{select_view.key_name(select_key)} selects"
     if where.note:
         return where.note, colors.STATUS["blocked"]
-    if picked := _picked_prompt(where, grove):
+    if chosen := select_view.prompt(where, grove.blocks, grove.arrangement, select_key):
+        return chosen, colors.TEXT
+    if picked := picking.prompt(where, grove.blocks):
         return picked, colors.TEXT
     if where.search is not None:
         found = keys.matches(grove.blocks, where.search)
@@ -67,7 +69,7 @@ def _prompt(where: keys.Where, grove: Grove) -> tuple[str, str]:
         ]
         more = f"  (another digit: {', '.join(longer)})" if longer else ""
         return (
-            f"{where.block} · {block.name or 'no group'}: a tree's letter takes its first lemon, l is the lead's, a dot, a letter and a place the others, Alt and r, s, a, p, g or c edits{more}",
+            f"{where.block} · {block.name or 'no group'}: {selects}, to see and edit · a letter jumps to a tree's first lemon, l the lead's, a dot, a letter and a place the others{more}",
             colors.TEXT,
         )
     return "type a block number, or / to search · ? keys · esc closes", colors.MUTED
@@ -112,10 +114,16 @@ def render(
     lists: Lists | None = None,
     big_trees: bool = False,
     flipped: bool = False,
+    select_key: str = selecting.DEFAULT_KEY,
+    card_shown: bool = True,
+    flashed: tuple[str, ...] = (),
 ) -> canvas.Canvas:
     """The grove's picture for *where*. With *lists*, a zoomed block's lemon lists stay where they
     were drawn last time while they cover no more than they did then. *big_trees* lets a zoomed
     block's trees grow past a grown tree's size. *flipped* shows the lists' other page, or in the grove view each tree's stats.
+    *select_key* is the key that leaves select mode, for its prompt; *card_shown* draws the
+    chosen lemon's card in it. *flashed* is the click target, as (digit, letter), of a tree to
+    flash because it couldn't move.
     """
     picture = canvas.blank(width, height)
     if not scene_parts.fits(picture):
@@ -130,22 +138,37 @@ def render(
         if found
         else None
     )
-    highlight = _picked(grove, where) or highlight
+    highlight = (
+        _picked(grove, where)
+        or select_view.highlight(where, grove.blocks, grove.arrangement)
+        or highlight
+    )
     found_blocks = {m.block.digit for m in found}
     zoom = where.block or (next(iter(found_blocks)) if len(found_blocks) == 1 else "")
     block = next((b for b in grove.blocks if b.digit == zoom), None)
     if block:
-        block_scene.zoomed(
+        drawn = block_scene.zoomed(
             picture,
             block,
             grove.arrangement,
             phase,
             highlight,
-            where.tree.lower(),
+            where.tree.lower() or (where.selected_tree if where.selecting else ""),
             None if lists is None else lists.setdefault((block.digit, width, height), {}),
             math.inf if big_trees else trees.GROWN,
             flipped,
+            "$" if where.selecting else "",
         )
+        carded = select_view.carded(where, grove.blocks, grove.arrangement)
+        if card_shown and carded and carded[0].key in drawn:
+            tree, lemon = carded
+            card.draw(
+                picture,
+                drawn[tree.key],
+                grove.cards.get(lemon.channel, ()),
+                select_view.card_title(where, grove.blocks, grove.arrangement, lemon),
+                colors.LEMON,
+            )
     else:
         scenes.overview(
             picture, grove.blocks, grove.arrangement, phase, highlight, where.pan, flipped
@@ -154,9 +177,18 @@ def render(
     bars.title(
         picture,
         _summary(grove),
-        "digit zooms · letter jumps · / searches · "
+        (
+            "SELECT · letter chooses · enter jumps · "
+            if where.selecting
+            else f"digit zooms · letter jumps · {select_view.key_name(select_key)} selects · "
+        )
+        + "/ searches · "
         + ("arrows pan · ⇧1-8 compass · " if panning else "")
         + "? keys · space closes",
     )
-    bars.prompt(picture, *_prompt(where, grove))
+    bars.prompt(picture, *_prompt(where, grove, select_key))
+    if flashed:
+        bars.flash(picture, flashed)
+    if where.selecting:
+        bars.select_frame(picture)
     return picture
