@@ -15,6 +15,8 @@ from .. import brief
 from ..inbox import db
 from . import describe, links
 
+_NO_BRIEF = "no brief file to update; only the parent link changed"
+
 
 def _fail(args: argparse.Namespace, error: str) -> None:
     if args.json:
@@ -36,16 +38,32 @@ def _named(conn: sqlite3.Connection, args: argparse.Namespace, name: str) -> str
         raise
 
 
+def _sync_brief(conn: sqlite3.Connection, child: str, parent: str) -> str:
+    """Make *child*'s brief file name *parent* ("" for none); a note when there's no file."""
+    path = brief.lemon.brief_of(conn, child)
+    if path is None or not path.is_file():
+        return _NO_BRIEF
+
+    brief.store.edit(path, lambda text: brief.parent.with_parent(text, parent))
+    return ""
+
+
 def _cmd_parent(args: argparse.Namespace) -> None:
+    note = ""
     with db.connect() as conn:
         child = _named(conn, args, "self" if args.use_self else args.lemon)
         try:
             if args.set:
-                links.set_parent(conn, child, _named(conn, args, args.set))
+                parent_id = _named(conn, args, args.set)
+                links.set_parent(conn, child, parent_id)
+                note = _sync_brief(conn, child, parent_id)
             elif args.clear:
                 links.clear_parent(conn, child)
+                note = _sync_brief(conn, child, "")
         except links.LinkError as error:
             _fail(args, str(error))
+        except (ValueError, brief.store.ChangedUnderneath, OSError) as error:
+            _fail(args, f"The parent link changed, but the brief file did not: {error}")
 
         parent = links.parent_of(conn, child)
         described = describe.describe(conn, parent) if parent else None
@@ -56,12 +74,15 @@ def _cmd_parent(args: argparse.Namespace) -> None:
                 {
                     "lemon_id": child,
                     "parent": dataclasses.asdict(described) if described else None,
+                    "note": note,
                     "error": None,
                 }
             )
         )
     else:
         print(parent or "none")
+        if note:
+            print(note, file=sys.stderr)
 
 
 def _cmd_children(args: argparse.Namespace) -> None:

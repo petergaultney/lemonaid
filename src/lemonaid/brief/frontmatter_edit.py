@@ -56,6 +56,11 @@ def _collapsed(lines: abc.Sequence[str]) -> list[str]:
     return kept
 
 
+def parent_id(shown: str) -> str:
+    """The Lemon-ID in a `Parent:` line's text, without its session and date."""
+    return match["id"] if (match := _PARENT.fullmatch(shown)) else shown
+
+
 def _value(key: str, shown: str) -> object:
     """A header line's text as the frontmatter value for *key*, or None for no key."""
     if key == "groups":
@@ -68,7 +73,7 @@ def _value(key: str, shown: str) -> object:
         return True if shown.lower() in ("yes", "true") else None
 
     if key == "parent":
-        return match["id"] if (match := _PARENT.fullmatch(shown)) else shown or None
+        return parent_id(shown) or None
 
     return shown or None
 

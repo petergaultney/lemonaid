@@ -201,8 +201,8 @@ def _now(lines: abc.Sequence[str], outside: abc.Sequence[bool]) -> range:
     return range(start + 1, end)
 
 
-def taken(lines: abc.Sequence[str]) -> tuple[dict[str, str], list[str]]:
-    """The header lines' values by key, first wins, and *lines* without them.
+def header_lines(lines: abc.Sequence[str]) -> list[tuple[int, str, str]]:
+    """The (index, key, value) of each header line, in order.
 
     Header lines are the ones above the first section, and `Parent:`, `Output-Doc:`,
     `Area:` and `Groups:` lines in `## Now`; none inside a code fence counts.
@@ -210,17 +210,23 @@ def taken(lines: abc.Sequence[str]) -> tuple[dict[str, str], list[str]]:
     end = region_end(lines)
     outside = _unfenced(lines)
     now = _now(lines, outside)
-    found: dict[str, str] = {}
-    kept = []
+    found = []
     for i, line in enumerate(lines):
         match = _HEADER.fullmatch(line.rstrip()) if outside[i] else None
         key = _LABEL_KEYS[match["label"].lower()] if match else ""
         if match and (i < end or (i in now and key in _NOW_FIELDS)):
-            found.setdefault(key, match["value"].strip())
-            continue
+            found.append((i, key, match["value"].strip()))
+    return found
 
-        kept.append(line)
-    return found, kept
+
+def taken(lines: abc.Sequence[str]) -> tuple[dict[str, str], list[str]]:
+    """The header lines' values by key, first wins, and *lines* without them."""
+    found: dict[str, str] = {}
+    gone = set()
+    for i, key, value in header_lines(lines):
+        found.setdefault(key, value)
+        gone.add(i)
+    return found, [line for i, line in enumerate(lines) if i not in gone]
 
 
 def stray_labels(text: str) -> list[str]:
