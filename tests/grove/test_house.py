@@ -1,6 +1,6 @@
 import dataclasses
 
-from lemonaid.grove.draw import canvas, house
+from lemonaid.grove.draw import canvas, colors, house
 from lemonaid.grove.draw.plots import View
 from lemonaid.grove.layout import arrange
 
@@ -88,3 +88,12 @@ def test_a_bay_shows_its_main_lemons_emoji_after_its_key_and_its_pin_before_it()
     picture = canvas.blank(200, 60)
     house.draw(picture, packhouse, found, View(0, 0, 1.0, 1.0), 0.0, lambda _: 0.0)
     assert any("▐ 0b  🌎 b" in line for line in canvas.plain_lines(picture))
+
+
+def test_a_bay_with_no_status_caps_its_key_as_a_trees_tag_does():
+    packhouse = block("", "0", tree("b"))
+    found, _ = arrange.arrange((packhouse,), {"plots": {}, "trees": {}}, NOW)
+    picture = canvas.blank(200, 60)
+    house.draw(picture, packhouse, found, View(0, 0, 1.0, 1.0), 0.0, lambda _: 0.0)
+    cap = next(cell for row in picture.rows for cell in row if cell.char == "b" and cell.bold)
+    assert (cap.fg, cap.bg) == (colors.TAG, colors.TEXT)

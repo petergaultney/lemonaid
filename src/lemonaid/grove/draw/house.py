@@ -28,9 +28,11 @@ def _bay(
 ) -> None:
     canvas.target = (block.digit, letter)
     status = colors.tree_status(tree.lemons)
-    cap = colors.STATUS.get(status, mix(block.color, BACKGROUND, 0.2))
     key = f" {block.digit}{letter} "
-    text(canvas, x, y, key, colors.on_status(status) if status else "#0b0e13", cap, bold=True)
+    if status in colors.STATUS:
+        text(canvas, x, y, key, colors.on_status(status), colors.STATUS[status], bold=True)
+    else:  # as a tree's tag draws its key cap without a status
+        text(canvas, x, y, key, colors.TAG, colors.TEXT, bold=True)
     dots = len(tree.lemons) * 2
     main = tree.lemons[0]
     if main.pinned:
