@@ -84,12 +84,14 @@ def layout(
     parents: abc.Mapping[str, str] | None = None,
     lead_first: bool = False,
     current: abc.Sequence[db.Notification] = (),
+    empty_groups: bool = True,
 ) -> tuple[list[Header | Row], list[db.Notification]]:
     """The drawn list and what stays folded, from the inbox's *shown* and *folded* rows.
 
     *memberships* names each channel's groups; *all_groups* is every group, in order.
-    A group with no rows here isn't drawn, nor is one whose rows are all
-    folded while the fold is closed: its header would have nothing to open.
+    A group with a row here, or a member in *current*, is drawn: when nothing is drawn
+    under it its header still shows, so it can be reordered. A group with neither isn't drawn.
+    Without *empty_groups* (a search), only a group with a row to draw is drawn.
     *kept* holds row keys drawn even inside a collapsed group or folded; a *deaf* lemon's
     rows are always drawn. *group_order* keeps group members in their order before
     folding, so pulling a focused row out of the fold doesn't move it in its group.
@@ -178,6 +180,14 @@ def layout(
             for n in grouped[group.name]
         )
 
+    def is_drawn(group: groups.store.Group) -> bool:
+        if not empty_groups:
+            return shows_a_row(group)
+
+        return bool(grouped[group.name]) or any(
+            group.name in memberships.get(n.channel, ()) for n in current
+        )
+
     entries: list[Header | Row] = [
         Row(str(n.id), n)
         for n in (every if fold_open else shown)
@@ -191,7 +201,7 @@ def layout(
     if ungrouped_first:
         entries.extend(ungrouped)
     for group in all_groups:
-        if shows_a_row(group):
+        if is_drawn(group):
             entries.extend(drawn(group))
     if not ungrouped_first:
         entries.extend(ungrouped)

@@ -41,23 +41,17 @@ def _detached_marker(notification: db.Notification, detached: abc.Set[str], conf
     return marker
 
 
-def fold_label(
-    config: Config, fold_name: str, fold_open: bool, count: int, hidden_groups: int = 0
-) -> str:
-    """The fold's one line: which statuses, how many, any groups it hides, and its key.
+def fold_label(config: Config, fold_name: str, fold_open: bool, count: int) -> str:
+    """The fold's one line: which statuses, how many, and its key.
 
-    *count* includes folded rows in groups, which hide in place under
-    their headers, and *hidden_groups* the groups with every row folded.
+    *count* includes folded rows in groups, which hide in place under their headers.
     """
     key = config.tui.keybindings.fold[:1]
     group = f"{fold_name or ', '.join(config.tui.fold_statuses) or 'folded'} ({count})"
     if fold_open:
         return f"▴ {group} above" + (f" · {key} to fold" if key else "")
 
-    hidden = f" · {hidden_groups} group{'s' if hidden_groups != 1 else ''} hidden"
-    return (
-        f"▸ {group}" + (hidden if hidden_groups > 0 else "") + (f" · {key} to show" if key else "")
-    )
+    return f"▸ {group}" + (f" · {key} to show" if key else "")
 
 
 def active_row(

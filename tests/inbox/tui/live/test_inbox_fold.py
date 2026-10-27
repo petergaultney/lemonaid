@@ -328,7 +328,7 @@ def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
     assert after == [old, working]
 
 
-def test_a_group_with_every_row_folded_leaves_the_list_and_the_label_says_so(fold_waiting):
+def test_a_group_with_every_row_folded_keeps_only_its_header(fold_waiting):
     with db.connect() as conn:
         working = _session(conn, "working", age=30)
         loose = _session(conn, "loose", age=20)
@@ -350,6 +350,6 @@ def test_a_group_with_every_row_folded_leaves_the_list_and_the_label_says_so(fol
 
     (drawn, label), opened = _run(steps)
 
-    assert drawn == [working]
-    assert label == "▸ idle (2) · 1 group hidden · w to show"
+    assert drawn == [working, ""]
+    assert label == "▸ idle (2) · w to show"
     assert sorted(opened) == sorted(["", working, grouped, loose])

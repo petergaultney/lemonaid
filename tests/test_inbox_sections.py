@@ -150,12 +150,26 @@ def test_groups_keep_their_order_after_ungrouped_rows_in_status_order():
     assert _keys(entries) == ["1", "2", "3", "4", "group:1", "6@1", "group:2", "5@2"]
 
 
-def test_a_group_with_every_row_folded_is_drawn_only_with_the_fold_open():
+def test_a_group_with_every_row_folded_keeps_its_header_and_opens_with_the_fold():
     loose, quiet = _n(1, "l"), _n(2, "q")
-    args = ([loose], [quiet], set(), {"q": ("A",)}, [_group(1, "A")], {})
+    args = ([loose], [quiet], set(), {"q": ("A",)}, [_group(1, "A", members=("q-id",))], {})
 
-    assert _keys(sections.layout(*args)[0]) == ["1"]
+    closed, _ = sections.layout(*args)
+    assert _keys(closed) == ["1", "group:1"]
+    assert closed[1].tally == "0/1"
     assert _keys(sections.layout(*args, fold_open=True)[0]) == ["1", "group:1", "2@1"]
+
+
+def test_a_group_whose_lemons_the_inbox_hid_keeps_its_header_outside_a_search():
+    loose, hidden = _n(1, "l"), _n(2, "h")
+    args = ([loose], [], set(), {"h": ("A",)}, [_group(1, "A", members=("h-id",))], {})
+
+    shown, _ = sections.layout(*args, current=[loose, hidden])
+    searched, _ = sections.layout(*args, current=[loose, hidden], empty_groups=False)
+
+    assert _keys(shown) == ["1", "group:1"]
+    assert shown[1].tally == "0/1"
+    assert _keys(searched) == ["1"]
 
 
 @pytest.mark.parametrize("collapsed", [False, True])

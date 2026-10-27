@@ -93,7 +93,7 @@ def test_a_drawn_child_pulls_a_folded_parent_into_view():
 
 def test_a_folded_parent_stays_folded_when_no_child_is_drawn():
     frame = _frame(_CHILDREN, folded={"lead", "w1", "w2"})
-    assert _keys(frame) == []
+    assert _keys(frame) == ["group:1"]
 
 
 def test_ancestors_are_not_pulled_without_the_option():

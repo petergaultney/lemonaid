@@ -58,6 +58,7 @@ def entries(
             parents=frame.parents if parents_first else {},
             lead_first=lead_first,
             current=frame.active.rows,
+            empty_groups=False,
         )
         return (
             laid_out,

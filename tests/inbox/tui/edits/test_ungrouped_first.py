@@ -62,7 +62,7 @@ def test_fold_expand_keeps_grouped_rows_in_place(enabled):
         session(conn, "folded", "")
 
     async def steps(app, pilot):
-        assert channels(app) == ["claude:loose"]
+        assert channels(app) == (["claude:loose", ""] if enabled else ["", "claude:loose"])
         await pilot.press(app.config.tui.keybindings.fold)
         await pilot.pause()
         expected = (

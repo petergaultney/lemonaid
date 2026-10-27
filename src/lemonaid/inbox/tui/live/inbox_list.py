@@ -350,14 +350,6 @@ class InboxList(Vertical):
                 self.fold_name,
                 self.fold_open,
                 len(all_folded),
-                len(
-                    {
-                        name
-                        for n in [*shown, *all_folded]
-                        for name in active.memberships.get(n.channel, ())
-                    }
-                )
-                - len(self.headers),
             ),
         )
 
