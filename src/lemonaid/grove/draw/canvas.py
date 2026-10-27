@@ -86,10 +86,12 @@ def put(
         cell.target = canvas.target
 
 
-def wide(canvas: Canvas, x: float, y: float, char: str, fg: str, bg: str | None = None) -> None:
+def wide(
+    canvas: Canvas, x: float, y: float, char: str, fg: str, bg: str | None = None, link: str = ""
+) -> None:
     """A character two cells wide, such as an emoji: it takes this cell, and the next draws nothing."""
-    put(canvas, x, y, char, fg, bg)
-    put(canvas, x + 1, y, "", fg, bg)
+    put(canvas, x, y, char, fg, bg, link=link)
+    put(canvas, x + 1, y, "", fg, bg, link=link)
 
 
 def text(

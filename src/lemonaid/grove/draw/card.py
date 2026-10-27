@@ -42,9 +42,18 @@ def _line(canvas: Canvas, x: int, y: int, line: Text, limit: int) -> None:
             if col + width > limit:
                 return
             if width == 2:
-                wide(canvas, x + col, y, char, fg, bg)
+                wide(canvas, x + col, y, char, fg, bg, link=style.link or "" if style else "")
             elif width == 1:
-                put(canvas, x + col, y, char, fg, bg, bool(style and style.bold))
+                put(
+                    canvas,
+                    x + col,
+                    y,
+                    char,
+                    fg,
+                    bg,
+                    bool(style and style.bold),
+                    link=style.link or "" if style else "",
+                )
             col += width
 
 

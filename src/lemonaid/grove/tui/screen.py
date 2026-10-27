@@ -361,6 +361,13 @@ class GroveScreen(ModalScreen[str]):
         if not target:
             return
 
+        if target[0] == "link":
+            if event.button == 1:
+                self.run_worker(
+                    lambda: self.app.open_url(target[1]), thread=True, group="grove-link"
+                )
+            return
+
         if self._where.block != target[0]:
             self._where = keys.Where(
                 block=target[0], digits=target[0], selecting=self._where.selecting

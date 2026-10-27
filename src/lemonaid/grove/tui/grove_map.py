@@ -20,9 +20,11 @@ class GroveMap(Widget):
         return Strip(canvas.line_segments(self.picture.rows[y]), self.picture.width)
 
     def target_at(self, x: int, y: int) -> tuple[str, ...]:
+        """A URL as (`link`, URL), otherwise the cell's grove selection target."""
         if self.picture is None or not (
             0 <= y < self.picture.height and 0 <= x < self.picture.width
         ):
             return ()
 
-        return self.picture.rows[y][x].target
+        cell = self.picture.rows[y][x]
+        return ("link", cell.link) if cell.link else cell.target
