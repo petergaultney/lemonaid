@@ -172,14 +172,14 @@ Lemonaid provides an optional statusline command that shows:
 - Working directory basename (in blue)
 - Git branch (in cyan)
 - Context window usage percentage (color gradient: indigo → blue → green → yellow → red → magenta)
-- Model name and session name, in mid-gray
+- Model name (in the inbox's Anthropic orange) and session name (in mid-gray)
 - Vim mode indicator `[N]`/`[I]`
 
 Example output: `<14:32:15 3.2s> lemonaid feature/new-thing 23%`
 
 It also saves each session's context window size under the state directory, so inbox rows can show context use against a share of the window; see [`[tui.context_threshold]`](config.md#tuicontext_threshold).
 
-The model and session name use 256-color gray 248 rather than the faint attribute, which some themes render almost invisible. Change it in `~/.config/lemonaid/config.toml`:
+The session name uses 256-color gray 248 rather than the faint attribute, which some themes render almost invisible. Change it in `~/.config/lemonaid/config.toml`:
 
 ```toml
 [claude.statusline]

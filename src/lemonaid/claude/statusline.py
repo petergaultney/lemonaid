@@ -39,6 +39,7 @@ import sys
 import time
 from pathlib import Path
 
+from ..inbox import provider_color
 from ..usage import samples
 from . import context_window, statusline_label
 
@@ -60,6 +61,14 @@ CTX_COLOR_STOPS = [
     (70, (255, 60, 30)),  # red
     (85, (255, 0, 255)),  # magenta
 ]
+
+
+def _truecolor(hex_color: str) -> str:
+    r, g, b = (int(hex_color[i : i + 2], 16) for i in (1, 3, 5))
+    return f"\033[38;2;{r};{g};{b}m"
+
+
+ANTHROPIC = _truecolor(provider_color.color("claude"))
 
 
 def get_context_color(pct: int) -> str:
@@ -241,12 +250,13 @@ def render_statusline(data: dict) -> None:
 
     # Model name
     model_name = get_model_name(data)
-    label = statusline_label.label_escape()
-    model_part = f" {label}{model_name}{RESET}" if model_name else ""
+    model_part = f" {ANTHROPIC}{model_name}{RESET}" if model_name else ""
 
     # Session name (custom or AI-generated; absent for default display names)
     session_name = data.get("session_name", "")
-    session_part = f" {label}({session_name}){RESET}" if session_name else ""
+    session_part = (
+        f" {statusline_label.label_escape()}({session_name}){RESET}" if session_name else ""
+    )
 
     # Build and print status line
     print(

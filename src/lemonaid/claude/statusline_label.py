@@ -1,4 +1,4 @@
-"""The `[claude.statusline] label_color` setting: how the model and session name are drawn."""
+"""The `[claude.statusline] label_color` setting: how the session name is drawn."""
 
 import os
 import sys
@@ -33,7 +33,7 @@ def _escape(raw: object) -> str:
 
 
 def label_escape(config_path: Path | None = None) -> str:
-    """The escape sequence that precedes the model and session name; empty means the default foreground."""
+    """The escape sequence that precedes the session name; empty means the default foreground."""
     try:
         raw = tomllib.loads((config_path or _config_path()).read_text())
     except (OSError, tomllib.TOMLDecodeError):

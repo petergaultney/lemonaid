@@ -726,7 +726,7 @@ Read by `lemonaid-claude-statusline` on each render.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `label_color` | `248` | Color of the model and session name: a 256-color index from 0 to 255, `"default"` for the terminal's foreground, or `"dim"` for the faint attribute. |
+| `label_color` | `248` | Color of the session name: a 256-color index from 0 to 255, `"default"` for the terminal's foreground, or `"dim"` for the faint attribute. |
 
 ## `[usage]`
 
