@@ -40,7 +40,7 @@ from ...tmux.scratch import (
     save_current_size,
     size_has_drifted,
 )
-from .. import db, sections, undo
+from .. import attention, db, sections, undo
 from . import (
     bindings,
     claude_patch,
@@ -112,6 +112,9 @@ class LemonaidApp(CrashLoggedApp):
         self._keys_shown = True
         self._hint_timer: Timer | None = None
         self._brief_cache = brief_cards.BriefCache()
+        self._attention_mode = (
+            attention.load()
+        )  # before the event loop starts, so no first frame without it
         self._parts = row_parts.RowParts(
             self.config,
             lambda drain: self.run_worker(drain, group="project-names"),
@@ -165,7 +168,9 @@ class LemonaidApp(CrashLoggedApp):
                 Input(
                     placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
                 ),
-                InboxList(lists, self._refresh_notifications, id="inbox_list"),
+                InboxList(
+                    lists, self._refresh_notifications, self._attention_mode, id="inbox_list"
+                ),
                 Static("", id="search_archive_label"),
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
@@ -534,6 +539,22 @@ class LemonaidApp(CrashLoggedApp):
             )
         )
 
+    def action_toggle_attention_mode(self) -> None:
+        if self._mode is not None:
+            return
+
+        self._attention_mode = not self._attention_mode
+        self._content.inbox.attention = self._attention_mode
+        self._refresh_notifications()
+        self.run_worker(
+            lambda: attention.save_latest(lambda: self._attention_mode),
+            thread=True,
+            group="attention-mode",
+        )
+        self.notify(
+            "Attention mode on" if self._attention_mode else "Attention mode off", timeout=2
+        )
+
     def action_toggle_fold(self) -> None:
         if self._mode is not None:
             return
@@ -597,15 +618,18 @@ class LemonaidApp(CrashLoggedApp):
     def action_toggle_history(self) -> None:
         self._toggle_mode(view_modes.HISTORY)
 
-    def action_grove(self) -> None:
+    def action_grove(self, block: str = "") -> None:
+        """Open the grove, zoomed into the block numbered *block* if there is one."""
         if os.environ.get("TMUX") and popup_app.wants_popup(self.size.width, self.size.height):
-            fast_popup.show("grove", self.config.tmux_session.popup_margin, popup_app.TITLE)
+            fast_popup.show(
+                "grove", self.config.tmux_session.popup_margin, popup_app.TITLE, zoom=block
+            )
             return
 
         inbox = self.query_one(InboxList)
         self.push_screen(
             inbox_screen.for_inbox(
-                lambda: inbox.last_frame, self.config, rename.session, inbox.grove
+                lambda: inbox.last_frame, self.config, rename.session, inbox.grove, block
             ),
             self._grove_chose,
         )
@@ -1230,6 +1254,13 @@ class LemonaidApp(CrashLoggedApp):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self._activate_row(event.data_table.id, event.row_key)
+
+    def on_click_to_act_table_badge_clicked(self, event: ClickToActTable.BadgeClicked) -> None:
+        """In attention mode, a header's status badge opens its group's block in the grove."""
+        inbox = self._content.inbox
+        header = inbox.headers.get(str(event.row_key.value))
+        if header is not None and inbox.grove is not None:
+            self.action_grove(inbox_keys.digits(inbox.grove).get(header.group.name, ""))
 
     def on_click_to_act_table_selected_row_clicked(
         self, event: ClickToActTable.SelectedRowClicked

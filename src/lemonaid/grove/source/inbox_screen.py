@@ -17,10 +17,11 @@ def for_inbox(
     config: Config,
     rename_session: abc.Callable[[str, str], str] | None = None,
     grove: Grove | None = None,
+    block: str = "",
 ) -> GroveScreen:
     """*rename_session(old, new)* renames a tmux session, for renaming a tree from the grove.
     The screen shows *grove*, else one loaded here without lemon cards, until its first refresh
-    in a worker brings them.
+    in a worker brings them, zoomed into the block numbered *block* if there is one.
     """
     return GroveScreen(
         live.from_inbox(latest_frame, config),
@@ -32,4 +33,5 @@ def for_inbox(
         flips=flip.configured(config),
         select_key=config.tui.grove_select_key,
         grove=grove or live.from_inbox(latest_frame, config, cards=False)(),
+        block=block,
     )

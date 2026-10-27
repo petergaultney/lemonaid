@@ -6,8 +6,9 @@ read, then every other unread session, then everything else read: a brief
 without a status (`active`, `idle`, `deaf` or `dead`), and no brief. Within each band rows keep `db.get_active` order: pins
 by position, everything else unread first and then newest first.
 
-`fold` takes the rows of configured statuses out of that list, for the inbox
-to show as one group at its bottom.
+`fold` takes the rows a fold rule picks out of that list, for the inbox to show
+as one group at its bottom: `fold_statuses` names the statuses that fold, and
+attention mode names the ones that stay.
 """
 
 from collections import abc
@@ -85,32 +86,48 @@ def by_status(
     )
 
 
+FoldRule = abc.Callable[[str, bool], bool]  # whether a row of this status, unread or not, folds
+
+
+def status_rule(folded_statuses: abc.Collection[str]) -> FoldRule | None:
+    """Fold a read row whose status is in *folded_statuses*; None when nothing folds."""
+    if not folded_statuses:
+        return None
+
+    return lambda status, is_unread: status in folded_statuses and not is_unread
+
+
+def attention_rule(attention_statuses: abc.Container[str]) -> FoldRule:
+    """Fold every row whose status is not in *attention_statuses*, read or unread."""
+    return lambda status, is_unread: status not in attention_statuses
+
+
 def fold(
     rows: abc.Iterable[db.Notification],
     statuses: abc.Mapping[str, str],
     pinned: abc.Container[str],
-    folded_statuses: abc.Container[str],
+    folds: FoldRule | None,
     in_view: abc.Container[str],
     deaf: abc.Container[str],
     hidden: abc.Container[str] = (),
 ) -> tuple[list[db.Notification], list[db.Notification]]:
     """`rows` split into the main list and the group folded at its bottom, order kept.
 
-    A row folds when its brief status is in `folded_statuses`, unless it is
-    pinned, unread, deaf, or its channel is `in_view`: those stay where they would
-    be without folding. A `hidden` channel folds the same way, read or unread.
+    A row folds when *folds* says so for its brief status, unless it is pinned,
+    deaf, or its channel is `in_view`: those stay where they would be without
+    folding. A `hidden` channel folds the same way, read or unread.
     """
     shown: list[db.Notification] = []
     folded: list[db.Notification] = []
     for n in rows:
-        folds = (
+        folds_here = (
             n.channel not in pinned
             and n.channel not in in_view
             and n.channel not in deaf
             and (
                 n.channel in hidden
-                or (statuses.get(n.channel, "") in folded_statuses and not n.is_unread)
+                or (folds is not None and folds(statuses.get(n.channel, ""), n.is_unread))
             )
         )
-        (folded if folds else shown).append(n)
+        (folded if folds_here else shown).append(n)
     return shown, folded

@@ -26,7 +26,7 @@ def test_a_deaf_row_never_folds_whatever_statuses_are_folded(status, read):
         [deaf],
         statuses,
         set(),
-        {status, "deaf", "idle", "review", "blocked"},
+        order.status_rule({status, "deaf", "idle", "review", "blocked"}),
         set(),
         {"deaf"},
     )
@@ -37,7 +37,9 @@ def test_a_deaf_row_never_folds_whatever_statuses_are_folded(status, read):
 def test_a_row_that_is_not_deaf_still_folds():
     quiet = _n(1, "quiet")
 
-    shown, folded = order.fold([quiet], {"quiet": "idle"}, set(), {"idle"}, set(), set())
+    shown, folded = order.fold(
+        [quiet], {"quiet": "idle"}, set(), order.status_rule({"idle"}), set(), set()
+    )
 
     assert (shown, folded) == ([], [quiet])
 

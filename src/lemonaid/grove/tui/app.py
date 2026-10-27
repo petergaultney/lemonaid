@@ -18,6 +18,8 @@ class GroveApp(App[str]):
     exiting the app, for a grove that keeps running hidden: a fresh one waits, held, to be shown
     again. *pan* says
     where the view starts, *keep_pan* is told where it moves, and an arrow moves it *nudge* cells.
+    Each time the app is shown, *zoom_to*, read off the event loop, names a block to zoom into,
+    or "".
     """
 
     CSS = "Screen { background: #0b0e13; }"
@@ -35,8 +37,11 @@ class GroveApp(App[str]):
         big_trees: bool = False,
         flips: flip.Flip = flip.DEFAULT,
         select_key: str = selecting.DEFAULT_KEY,
+        zoom_to: abc.Callable[[], str] | None = None,
     ) -> None:
         super().__init__()
+        self._zoom_to = zoom_to
+        self._zoom_waiting = ""  # a block to zoom into, read before its grove screen was shown
         self._edit = edit
         self._load = load
         self._refresh_every = refresh_every
@@ -77,9 +82,11 @@ class GroveApp(App[str]):
                 self._flips,
                 grove,
                 self._select_key,
+                self._zoom_waiting,
             ),
             self._after_screen,
         )
+        self._zoom_waiting = ""
 
     def _after_screen(self, channel: str | None) -> None:
         problem = self._choose(channel) if channel and self._choose else ""
@@ -96,3 +103,19 @@ class GroveApp(App[str]):
     def on_app_focus(self, _event: events.AppFocus) -> None:
         if isinstance(self.screen, GroveScreen):
             self.screen.hold(False)
+        if self._zoom_to is not None:
+            zoom_to = self._zoom_to
+            self.run_worker(
+                lambda: self.call_from_thread(self._zoom, zoom_to()),
+                thread=True,
+                group="grove-zoom",
+            )
+
+    def _zoom(self, block: str) -> None:
+        if not block:
+            return
+
+        if isinstance(self.screen, GroveScreen):
+            self.screen.zoom(block)
+        else:
+            self._zoom_waiting = block

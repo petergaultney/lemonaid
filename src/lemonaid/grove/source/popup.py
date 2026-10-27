@@ -36,9 +36,11 @@ def run(
     opener: abc.Callable[[], str],
     rename_session: abc.Callable[[str, str], str],
     hide: abc.Callable[[], None],
+    take_zoom: abc.Callable[[], str],
 ) -> None:
     """Show the grove until its session ends, switching the client that last opened the popup
-    to the lemon chosen and hiding the popup after each choice.
+    to the lemon chosen and hiding the popup after each choice. Each time it is shown, it zooms
+    into the block *take_zoom()* names, if any.
     """
     config = load_config()
     GroveApp(
@@ -53,4 +55,5 @@ def run(
         big_trees=config.tui.grove_big_trees,
         flips=flip.configured(config),
         select_key=config.tui.grove_select_key,
+        zoom_to=take_zoom,
     ).run()

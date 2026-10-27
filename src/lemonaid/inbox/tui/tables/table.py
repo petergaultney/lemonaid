@@ -34,6 +34,15 @@ class ClickToActTable(StableTable):
     of RowSelected, so the app can tell it from Enter.
     """
 
+    class BadgeClicked(Message):
+        """A click on a group header's status badge; the row is the header's."""
+
+        def __init__(self, table: "ClickToActTable", row_key: RowKey, status: str) -> None:
+            super().__init__()
+            self.data_table = table
+            self.row_key = row_key
+            self.status = status
+
     class SelectedRowClicked(Message):
         def __init__(self, table: "ClickToActTable", row_key: RowKey) -> None:
             super().__init__()
@@ -48,6 +57,7 @@ class ClickToActTable(StableTable):
         self.row_backgrounds: dict[str, Style] = {}
         self.card_row_keys: set[str] = set()
         self.header_row_keys: set[str] = set()
+        self.badges_take_clicks = False  # a badge's click does only what BadgeClicked does
 
     def _render_line_in_row(
         self,
@@ -81,6 +91,16 @@ class ClickToActTable(StableTable):
         # posts twice.
         meta = event.style.meta
         if "row" not in meta or "column" not in meta:
+            return
+
+        if self.badges_take_clicks and "badge" in meta and meta["row"] >= 0:
+            event.prevent_default()
+            event.stop()
+            self.post_message(
+                self.BadgeClicked(
+                    self, self.coordinate_to_cell_key(Coordinate(meta["row"], 0))[0], meta["badge"]
+                )
+            )
             return
 
         row = meta["row"]

@@ -74,6 +74,8 @@ fields `lma` doesn't know. It exits 1 if there were any.
   rows change, and once a minute so an arranger can act on age. `lma` waits up
   to 50 ms for the answer and otherwise draws the newest answer it has.
 - **The fold key works with an arranger** even without `[tui] fold_statuses`.
+  An arranger's answer also wins over [attention mode](config.md#attention-mode);
+  the snapshot's `default.folded` is attention mode's answer while it is on.
   The fold line is labeled with the answer's `fold_label`.
 - **The lower table**, other terminals' sessions, keeps lemonaid's order.
 

@@ -155,21 +155,21 @@ def default_fold(
     active: Active,
     pinned: abc.Container[str],
     in_view: abc.Container[str],
-    folded_statuses: abc.Container[str],
+    folds: order.FoldRule | None,
     arranged: bool,
     unfolded: abc.Container[str],
 ) -> tuple[list[db.Notification], list[db.Notification], frozenset[str]]:
     """The inbox's own *shown* and *folded* rows, and the hidden channels that fold.
 
-    Hidden lemons fold only where a fold exists: *folded_statuses* is set or an arranger runs.
+    Hidden lemons fold only where a fold exists: there is a rule, or an arranger runs.
     """
-    fold_exists = bool(folded_statuses) or arranged
+    fold_exists = folds is not None or arranged
     hidden = hidden_channels(active, pinned, in_view) if fold_exists else frozenset()
     shown, folded = order.fold(
         inbox_rows(active, pinned, in_view, fold_exists),
         statuses(active.cards, active.rows),
         pinned,
-        folded_statuses,
+        folds,
         unfolded,
         active.deaf,
         hidden,

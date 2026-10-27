@@ -56,6 +56,7 @@ class GroveScreen(ModalScreen[str]):
         flips: flip.Flip = flip.DEFAULT,
         grove: Grove | None = None,
         select_key: str = selecting.DEFAULT_KEY,
+        block: str = "",
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
@@ -65,13 +66,18 @@ class GroveScreen(ModalScreen[str]):
         *big_trees* lets a zoomed block's trees grow past a grown tree's size. *flips* says which
         key flips the lemon lists to their other page, and how. A *grove* already loaded is
         shown first, in place of loading one here. *select_key* enters and leaves select mode.
+        It opens zoomed into the block numbered *block*, if there is one.
         """
         super().__init__()
         self._load = load
         self._edit = edit
         self._refresh_every = refresh_every
         self._grove = load() if grove is None else grove
-        self._where = keys.Where(note=note, pan=pan)
+        self._where = (
+            keys.Where(note=note, pan=pan, block=block, digits=block)
+            if any(b.digit == block for b in self._grove.blocks)
+            else keys.Where(note=note, pan=pan)
+        )
         self._keep_pan = keep_pan
         self._nudge = nudge
         self._big_trees = big_trees
@@ -152,6 +158,12 @@ class GroveScreen(ModalScreen[str]):
             self._ends[self._flipped], 0.0 if self._held else pulse.phase(time.monotonic())
         )
         grove_map.refresh()
+
+    def zoom(self, block: str) -> None:
+        """Zoom into the block numbered *block* from wherever the view is, if there is one."""
+        if any(b.digit == block for b in self._grove.blocks):
+            self._where = keys.Where(block=block, digits=block, pan=self._where.pan)
+            self._redraw()
 
     def hold(self, held: bool) -> None:
         """Stop pulsing while nobody can see the grove; on showing again, catch up."""
