@@ -8,7 +8,7 @@ def _row(i: int, channel: str) -> sections.Row:
 
 
 def test_first_row_is_the_first_drawn_row_of_a_focused_channel() -> None:
-    header = sections.Header(groups.store.Group(1, "g", 0, (), False, color="#c8a0f0"), 2, "read")
+    header = sections.Header(groups.store.Group(1, "g", 0, (), False, color="#c8a0f0"), 2)
     entries = [header, _row(1, "claude:a"), _row(2, "claude:b"), _row(3, "claude:b")]
 
     assert focus.first_row(entries, frozenset({"claude:b"})) == 2

@@ -324,7 +324,7 @@ it fits on its own.
 
 ### Group colors
 
-A group's header, arrow and rail take a color from the same generated palette as project labels (see [Name colors](tmux.md#name-colors)). Each group starts from the slot its name hashes to. Groups are taken in name order, and one whose slot is within a perceptual distance of 0.08 (OKLab) of a color already given out moves to the nearest slot that isn't, so no two groups share a look. Unless you choose one, nothing is stored: the colors depend only on the current set of group names.
+A group's header fill and rail take a color from the same generated palette as project labels (see [Name colors](tmux.md#name-colors)). Headers use contrasting black or white text and show a status-colored symbol badge with a count per represented brief status (see [Groups](groups.md)). Each group starts from the slot its name hashes to. Groups are taken in name order, and one whose slot is within a perceptual distance of 0.08 (OKLab) of a color already given out moves to the nearest slot that isn't, so no two groups share a look. Unless you choose one, nothing is stored: the colors depend only on the current set of group names.
 
 There are two ways to choose one. A group chosen either way keeps that color, and the others keep clear of it.
 

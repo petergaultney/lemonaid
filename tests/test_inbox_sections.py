@@ -75,7 +75,7 @@ def test_a_lemon_in_two_groups_is_drawn_in_both():
     assert {sections.notification_id(k) for k in _keys(entries)} == {None, 5}
 
 
-def test_a_collapsed_group_keeps_its_header_and_its_most_pressing_band():
+def test_a_collapsed_group_keeps_its_header_and_represented_statuses():
     calm, urgent = _n(1, "calm"), _n(2, "urgent", unread=True)
 
     entries, _ = sections.layout(
@@ -89,7 +89,7 @@ def test_a_collapsed_group_keeps_its_header_and_its_most_pressing_band():
 
     [header] = entries
     assert isinstance(header, sections.Header)
-    assert (header.count, header.band) == (2, "blocked")
+    assert (header.count, header.status_counts) == (2, (("blocked", 1),))
 
 
 def test_a_group_with_no_rows_is_not_drawn():
@@ -196,3 +196,34 @@ def test_header_counts_drawn_rows_against_current_members(collapsed, fold_open, 
     expected = int(not collapsed) + int(bool(retained) or (not collapsed and fold_open))
     assert len(rows) == expected
     assert header.tally == f"{expected}/3"
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_header_counts_hidden_and_folded_statuses_in_priority_order(collapsed):
+    rows = [_n(i, str(i), unread=i == 8) for i in range(1, 10)]
+    statuses = dict(
+        zip(
+            (n.channel for n in rows),
+            ("done", "blocked", "alert", "done", "review", "approve", "merge", "running", "idle"),
+            strict=False,
+        )
+    )
+    entries, _ = sections.layout(
+        rows[:3],
+        rows[3:5],
+        set(),
+        {n.channel: ("A",) for n in rows},
+        [_group(1, "A", collapsed)],
+        statuses,
+        current=rows,
+    )
+    header = entries[0]
+    assert header.status_counts == (
+        ("alert", 1),
+        ("blocked", 1),
+        ("running", 1),
+        ("merge", 1),
+        ("approve", 1),
+        ("review", 1),
+        ("done", 2),
+    )

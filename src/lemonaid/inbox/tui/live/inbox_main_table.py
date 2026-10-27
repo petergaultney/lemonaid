@@ -75,6 +75,7 @@ def draw(
                 layout.NAME_CELL,
                 key == marked_header,
                 (digits or {}).get(header.group.name, ""),
+                name_width=table.ordered_columns[layout.NAME_CELL].width if not card_width else 0,
             ),
             group_headers.background(header),
         )

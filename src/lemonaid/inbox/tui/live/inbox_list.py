@@ -423,6 +423,7 @@ class InboxList(Vertical):
                 inbox_keys.digits(self.grove).get(self.headers[changed].group.name, "")
                 if self.grove
                 else "",
+                name_width=table.ordered_columns[layout.NAME_CELL].width if not card_width else 0,
             )
             with contextlib.suppress(Exception):  # the row may be gone before a refresh
                 row = table.get_row_index(changed)

@@ -128,6 +128,7 @@ def sync_rows(
     ]
 
     if isinstance(table, ClickToActTable):
+        table.header_row_keys = set(headers)
         table.card_row_keys = {key for key, _ in rows if carded and key not in headers}
         table.row_backgrounds = {
             key: fill

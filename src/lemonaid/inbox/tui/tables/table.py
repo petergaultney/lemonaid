@@ -47,6 +47,7 @@ class ClickToActTable(StableTable):
         # Keyed by row key; set it before the cell updates that repaint the rows.
         self.row_backgrounds: dict[str, Style] = {}
         self.card_row_keys: set[str] = set()
+        self.header_row_keys: set[str] = set()
 
     def _render_line_in_row(
         self,
@@ -57,7 +58,9 @@ class ClickToActTable(StableTable):
         hover_location: Coordinate,
     ) -> tuple[list[list[Segment]], list[list[Segment]]]:
         row = self.rows.get(row_key)
-        if str(row_key.value) in self.card_row_keys and row and line_no == row.height - 1:
+        if str(row_key.value) in self.header_row_keys or (
+            str(row_key.value) in self.card_row_keys and row and line_no == row.height - 1
+        ):
             cursor_location = hover_location = Coordinate(-2, -2)
         return super()._render_line_in_row(
             row_key, line_no, base_style, cursor_location, hover_location

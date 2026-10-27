@@ -1,89 +1,68 @@
-"""A group's header line in the inbox list.
-
-An open group's header is plain bold. A collapsed one is filled with the
-color of its most pressing row's band, as that row's card would be, so a
-collapsed group still shows what is waiting inside it. Being unread alone
-doesn't fill it: an unread row in the group puts a dot on the header instead.
-Nor does a `done` row, which waits on nobody. The name takes a stable color
-from the palette project labels and tmux windows use: as its text on an open
-header, and as a badge inside a collapsed one's fill. Every header is
-underlined across its width, the thinnest rule a terminal draws, so stacked
-collapsed headers of one color stay apart.
-"""
+"""Group-colored inbox bars with a symbol badge for each represented brief status."""
 
 from rich.style import Style
 from rich.text import Text
+from textual.color import Color
 
 from ... import sections
-from ..rows.brief_cards import DOT_STYLES, STATUS_STYLES
-from ..utils import unread_marker_style
+from ..rows.brief_cards import STATUS_STYLES
 
-# White is no status's color, so the cursor's marker stands out on any fill.
-_SELECTED = Style(color="#000000", bgcolor="#ffffff", bold=True, underline=False)
-
-
-def _quiet(band: str) -> str:
-    """The band as it fills a header: being unread alone, or `done`, fills nothing."""
-    return {"unread done": "read", "done": "read", "unread": "read"}.get(band, band)
-
-
-def _fill(header: sections.Header) -> Style:
-    if not header.group.collapsed:
-        return Style()
-
-    return STATUS_STYLES.get(_quiet(header.band)) or Style(dim=True)
+_STATUS_GLYPHS = {
+    "alert": "!",
+    "blocked": "?",
+    "running": "N",
+    "merge": "m",
+    "approve": "✓",
+    "review": "r",
+    "done": "d",
+}
 
 
-def _dot(header: sections.Header) -> Text:
-    """The unread dot, dark on a fill the way a filled card's is."""
-    if not header.unread:
-        return Text("")
-
-    filled = _quiet(header.band) if header.group.collapsed else ""
-    return Text(" ●", style=DOT_STYLES.get(filled) or unread_marker_style())
+def _badges(header: sections.Header) -> Text:
+    text = Text(" " if header.status_counts else "", style=Style(underline=False))
+    for status, count in header.status_counts:
+        text.append(
+            f" {_STATUS_GLYPHS[status]}{count} ",
+            STATUS_STYLES[status] + Style(bold=True, underline=False),
+        )
+    return text
 
 
 def style(header: sections.Header) -> Style:
-    return _fill(header) + Style(bold=True, underline=True)
+    color = Color.parse(header.group.color)
+    luminance = sum(
+        weight * (channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4)
+        for channel, weight in zip(color.normalized, (0.2126, 0.7152, 0.0722), strict=True)
+    )
+    foreground = "#000000" if (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) else "#ffffff"
+    return Style(color=foreground, bgcolor=color.hex, bold=True, underline=True)
 
 
-def label(header: sections.Header, width: int = 0, selected: bool = False, digit: str = "") -> Text:
-    """Arrow, name and count, padded to *width* so the fill and rule reach the edge.
-
-    The arrow, the count and the rule across the rest of the line take the
-    group's color, above its cards' rail; the count keeps a status fill's text
-    color. Under the cursor the arrow turns into a block of that color, in
-    place, and a white block ends the line, since the table's cursor color is
-    lost under a status fill. *digit*, the group's block in the grove, comes before its name.
-    """
-    color = header.group.color
+def label(
+    header: sections.Header,
+    width: int = 0,
+    selected: bool = False,
+    digit: str = "",
+    *,
+    end_marker: bool = True,
+) -> Text:
+    """Keep the tally and status badges visible before shortening a long group name."""
     called = f"{digit} {header.group.name}" if digit else header.group.name
-    filled = _fill(header).bgcolor is not None
-    name = (
-        Text(f" {called} ", style=Style(color="#000000", bgcolor=color, dim=False))
-        if header.group.collapsed
-        else Text(called, style=Style(color=color))
-    )
     arrow = "▸" if header.group.collapsed else "▾"
-    text = Text.assemble(
-        # Selected, the space joins the arrow's block, so it runs into a collapsed
-        # header's badge rather than leaving a sliver of fill between them.
-        (
-            f"{arrow} ",
-            Style(color="#000000", bgcolor=color, bold=True, underline=False, dim=False)
-            if selected
-            else Style(color=color, dim=False),
-        ),
-        name,
-        (f" ({header.tally})", Style(color=None if filled else color, dim=False)),
-        _dot(header),
-        style=style(header),
-    )
+    name = Text(f"{arrow} {called}")
+    tail = Text.assemble(f" ({header.tally})", _badges(header))
+    fill = style(header)
+    marker = Style(color=fill.bgcolor, bgcolor=fill.color, bold=True, underline=False)
+    end = Text(" ◀ ", style=marker) if selected and end_marker else Text("")
     if width:
-        end = Text(" ◀ ", style=_SELECTED) if selected else Text("")
-        text.truncate(width - end.cell_len)
-        # The rule is drawn in each cell's text color, so colored spaces color it.
-        text.append(" " * (width - end.cell_len - text.cell_len), Style(color=color))
+        name.truncate(max(0, width - tail.cell_len - end.cell_len), overflow="ellipsis")
+    text = Text.assemble(name, tail, style=fill)
+    if selected and text.cell_len:
+        text.stylize(marker, 0, 1)
+    if width:
+        text.truncate(max(0, width - end.cell_len))
+        text.append(" " * max(0, width - end.cell_len - text.cell_len))
+        end.truncate(width)
         text.append_text(end)
     return text
 
@@ -95,20 +74,20 @@ def cells(
     name_cell: int,
     selected: bool = False,
     digit: str = "",
+    *,
+    name_width: int = 0,
 ) -> list[Text]:
-    """The header as a card (one cell *card_width* wide) or as a row of *columns* cells."""
+    """The header as a card or as a row of cells."""
     if card_width:
         return [label(header, card_width, selected, digit)]
 
     return [
-        label(header, selected=selected, digit=digit)
+        label(header, name_width, selected, digit, end_marker=False)
         if i == name_cell
-        else Text("", style=Style(color=header.group.color, underline=True))
+        else Text("", style=style(header))
         for i in range(columns)
     ]
 
 
-def background(header: sections.Header) -> Style | None:
-    """The fill a column-layout row paints across every cell, for a collapsed group."""
-    fill = style(header)
-    return Style(bgcolor=fill.bgcolor) if fill.bgcolor else None
+def background(header: sections.Header) -> Style:
+    return Style(bgcolor=header.group.color)

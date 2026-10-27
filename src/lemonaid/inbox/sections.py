@@ -10,7 +10,7 @@ place rather than moved to the fold, and drawn there again when the fold is open
 """
 
 import dataclasses
-from collections import abc
+from collections import Counter, abc
 
 from .. import groups
 from . import db, group_lead, order, parent_order
@@ -20,8 +20,7 @@ from . import db, group_lead, order, parent_order
 class Header:
     group: groups.store.Group
     count: int  # rows in the group, drawn or not
-    band: str  # the most pressing of its rows' bands, as `order.band` names them; "" when empty
-    unread: bool = False  # whether any of its rows is unread
+    status_counts: tuple[tuple[str, int], ...] = ()
     active: int = 0  # rows in the group that aren't folded
     visible: int = 0  # rows actually drawn under the header
 
@@ -40,14 +39,6 @@ class Row:
     key: str  # the notification id, then `@<group id>` for a row inside a group
     notification: db.Notification
     lead: bool = False  # the lead of the group this row is drawn under
-
-
-def _band(rows: abc.Sequence[db.Notification], statuses: abc.Mapping[str, str]) -> str:
-    return min(
-        (order.band(statuses.get(n.channel, ""), n.is_unread, False) for n in rows),
-        key=order.BAND_NAMES.index,
-        default="",
-    )
 
 
 def notification_id(key: str) -> int | None:
@@ -112,13 +103,11 @@ def layout(
 
     def drawn(group: groups.store.Group) -> list[Header | Row]:
         rows = grouped[group.name]
+        members = [n for n in current if group.name in memberships.get(n.channel, ())] or rows
+        represented = Counter(statuses.get(n.channel, "") for n in members)
         lead = (
             group_lead.find(
-                sorted(
-                    (n for n in current if group.name in memberships.get(n.channel, ())),
-                    key=lambda n: positions.get(n.id, len(positions)),
-                )
-                or rows,
+                sorted(members, key=lambda n: positions.get(n.id, len(positions))),
                 parents or {},
             )
             if lead_first
@@ -161,8 +150,11 @@ def layout(
             Header(
                 group,
                 len(rows),
-                _band(rows, statuses),
-                any(n.is_unread for n in rows),
+                tuple(
+                    (status, represented[status])
+                    for status in order.BAND_NAMES
+                    if status in represented and order.special_status(status)
+                ),
                 sum(n.id not in folded_ids for n in rows),
                 len(visible),
             ),
