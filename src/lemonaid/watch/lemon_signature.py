@@ -1,6 +1,8 @@
-"""Whether a GitHub comment is signed by a given lemon: `🍋 Reviewer (StateJob): ...`."""
+"""Whether a GitHub comment is signed by a given lemon: `🍋 StateJob (Reviewer): ...`."""
 
 from collections import abc
+
+from . import signature
 
 LEMON_MARKER = "\N{LEMON}"
 
@@ -12,4 +14,4 @@ def is_signed(body: str, signatures: abc.Iterable[str]) -> bool:
         return False
 
     rest = text.removeprefix(LEMON_MARKER).lstrip("\N{VARIATION SELECTOR-16}").lstrip()
-    return any(s and rest.startswith(f"{s}:") for s in signatures)
+    return any(s and rest.startswith(f"{s}:") for s in signature.forms(signatures))

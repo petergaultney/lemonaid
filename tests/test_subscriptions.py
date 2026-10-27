@@ -83,7 +83,7 @@ def test_the_default_identity_is_the_brief_name_in_either_order(tmp_path):
     for brief_id in ("SkullHen.center", "center.SkullHen"):
         text = f"# Task\n\nBrief-ID: {brief_id}\n\n{table}"
         [spec] = [s for s in subscriptions.report(text, tmp_path).specs if s.kind == "pr"]
-        assert spec.me == "Author (SkullHen)"
+        assert spec.me == "SkullHen (Author)"
 
 
 def _with_pr_row(text, pr, review=""):

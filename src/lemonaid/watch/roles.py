@@ -8,6 +8,8 @@ when it merges or closes. `[watch.roles.<role>] wake` replaces a role's list.
 import typing as ty
 from collections import abc
 
+from . import signature
+
 AUTHOR, REVIEWER, PARENT = "author", "reviewer", "parent"
 ROLES = (AUTHOR, REVIEWER, PARENT)
 
@@ -45,7 +47,7 @@ def derive(explicit: str, me: str, reviews_own_output: bool, a_child_authors: bo
     if explicit:
         return explicit
 
-    if me.startswith("Reviewer (") or reviews_own_output:
+    if signature.role_of(me) == "Reviewer" or reviews_own_output:
         return REVIEWER
 
     return PARENT if a_child_authors else AUTHOR

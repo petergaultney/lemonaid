@@ -6,9 +6,9 @@ then wakes the lemon that wrote it. It uses no model turns while it waits: it re
 every second.
 
 ```bash
-lemonaid watch doc --wait <doc> --me "Author (MotorHoe)" --legacy Claude --once
-lemonaid watch doc --wait <doc> --me "Reviewer (SaltyEbb)" --legacy Codex --codex-thread
-lemonaid watch doc --status <doc> --me "Author (MotorHoe)"
+lemonaid watch doc --wait <doc> --me "MotorHoe (Author)" --legacy Claude --once
+lemonaid watch doc --wait <doc> --me "SaltyEbb (Reviewer)" --legacy Codex --codex-thread
+lemonaid watch doc --status <doc> --me "MotorHoe (Author)"
 lemonaid watch openclaw start <doc> --session-key <openclaw session key> --me <name>
 lemonaid watch openclaw list
 lemonaid watch openclaw stop <doc>
@@ -125,7 +125,7 @@ is reported twice.
 - **Cursors belong to the lemon, not the signature.** They live in
   `~/.local/state/lemonaid/cursors/<Lemon-ID>/` (under `LEMONAID_STATE_DIR` when set),
   keyed by the Lemon-ID of the caller's attached brief, current through rerolls. A lemon
-  signing as `Author (X)` on one waiter and `Reviewer (X)` on another shares one set. A
+  signing as `X (Author)` on one waiter and `X (Reviewer)` on another shares one set. A
   caller with no brief is keyed by its `--me` signature.
 - **Delivery is at least once.** A cursor advances only after the event is printed or
   queued, and is replaced whole (written to a temporary file, then renamed), so a crash
@@ -148,9 +148,9 @@ is reported twice.
 `--interval` (60 seconds by default).
 
 ```bash
-lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "Author (MotorHoe)" --legacy Claude --once
-lemonaid watch pr --wait 90 --head <sha> --comments --me "Reviewer (SaltyEbb)" --codex-thread
-lemonaid watch pr --status 90 --me "Author (MotorHoe)"
+lemonaid watch pr --wait 90 --head <sha you handled> --comments --me "MotorHoe (Author)" --legacy Claude --once
+lemonaid watch pr --wait 90 --head <sha> --comments --me "SaltyEbb (Reviewer)" --codex-thread
+lemonaid watch pr --status 90 --me "MotorHoe (Author)"
 ```
 
 It reports a push (the head differs from the one last reported, or from `--head`) that the
@@ -159,8 +159,9 @@ draft, a review decision change, and with `--comments` a new comment from someon
 conflict with the base, or failed CI. A comment counts when it is in any
 review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation, and is not
 from a bot or a pending review. It is skipped as your own only when it is signed: 🍋, then
-your `--me` signature or a `--legacy` one, then a colon (`🍋 Author (MotorHoe): done`).
+your `--me` signature or a `--legacy` one, then a colon (`🍋 MotorHoe (Author): done`).
 Lemons post with their human's account, so the signature is the only way to tell them apart.
+A signature is the lemon's name, then its role in parentheses: `MotorHoe (Author)` on GitHub, `Motor Hoe (Author)` in Relay, where the space makes the initials two letters. The matcher treats `MotorHoe (Author)`, `Motor Hoe (Author)` and the older `Author (MotorHoe)` as the same signature, so existing documents and comments still count as yours.
 Other lemons' comments wake you, signed or not, and so does an unsigned 🍋 comment of your
 own from before you signed them. The head and state, comments already reported, and the
 last reported draft flag and decision are kept in the lemon's [cursors](#cursors), so a
@@ -242,7 +243,7 @@ it needs the PR itself only when it merges or closes. The role comes from the br
 match wins:
 
 1. `--role author|reviewer|parent` on the PR's `watch pr` line.
-2. A `--me` signature starting `Reviewer (`, or a `### PRs` row whose Review document is the
+2. A `--me` signature ending `(Reviewer)`, or a `### PRs` row whose Review document is the
    brief's own `Output-Doc:`: reviewer.
 3. A PR that one of the lemon's children authors (by these same rules): parent.
 4. Anything else: author.
@@ -289,9 +290,9 @@ line it is read like `watch pr`, and its events join the batch. Stop it with
 the same way the other watchers do.
 
 ```bash
-lemonaid watch file --wait notes.md --me "Author (MotorHoe)" --once
-lemonaid watch file --wait ~/some/inbox --wait other.md --me "Author (MotorHoe)" --codex-thread
-lemonaid watch file --status notes.md --me "Author (MotorHoe)"
+lemonaid watch file --wait notes.md --me "MotorHoe (Author)" --once
+lemonaid watch file --wait ~/some/inbox --wait other.md --me "MotorHoe (Author)" --codex-thread
+lemonaid watch file --status notes.md --me "MotorHoe (Author)"
 ```
 
 - A file is reported when it is created, removed, or its contents change.
@@ -484,7 +485,7 @@ Implement and review the notification changes.
 ## Watching
 
 - `lemonaid watch file --wait /tmp/notification-run.log --interval 1 --quiet 2`
-- `lemonaid watch doc --wait ~/notes/pr-reviews/related.md --me 'Author (NoteBee)' --no-edits`
+- `lemonaid watch doc --wait ~/notes/pr-reviews/related.md --me 'NoteBee (Author)' --no-edits`
 ```
 
 The rows and commands declare these sources:

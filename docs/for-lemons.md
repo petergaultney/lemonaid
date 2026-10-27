@@ -1236,12 +1236,12 @@ supported. Use `watch file` for binary-file change notifications without ranges.
 `lemonaid watch pr --wait <n> --head <sha you handled> --comments --me "<signature>" --once` does
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
 comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).
-Sign each GitHub comment right after the marker, `🍋 Author (MotorHoe): ...`, and pass that
+Sign each GitHub comment right after the marker, `🍋 MotorHoe (Author): ...`, and pass that
 signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. A waiter reports only what changes after it starts, never what is already true, so read the PR (`gh pr view`, `gh pr checks`) before your first one. Your waiter remembers the head it last reported, so a push made while none ran still wakes you; `--head` set to the head you just handled overrides it, and with `lemonaid hooks install` your own pushes never wake you. Never push with `-q` or `--quiet`, or with stderr sent to `/dev/null`: the hooks recognize your push by the heads `git push` prints, so they drop `-q`/`--quiet` from a Claude Code push and refuse any other push that would print none.
 
 Under `watch --self`, a PR wakes you only for the events your role on it needs: an author
 for everything but ready-for-review and passing CI, a reviewer for pushes and merge or close,
-a parent for merge or close only. The role comes from `--role`, a `Reviewer (` signature, a
+a parent for merge or close only. The role comes from `--role`, a `(Reviewer)` signature, a
 Review cell that is your `Output-Doc:`, or a child authoring the PR, else author; `watch --self
 --status` prints it. Events that don't wake you are listed at the start of the next one
 that does. Details: [watch.md](watch.md#roles).
@@ -1332,7 +1332,7 @@ in `## Now`:
 ## Watching
 
 - `lemonaid watch file --wait /tmp/run.log --quiet 2`
-- `lemonaid watch doc --wait /path/to/related-review.md --me 'Author (IndexElf)' --no-edits`
+- `lemonaid watch doc --wait /path/to/related-review.md --me 'IndexElf (Author)' --no-edits`
 ```
 
 ```bash

@@ -4,17 +4,14 @@ Such a waiter takes replies signed by any of them as its own, so it would sleep
 through the other lemon's answers.
 """
 
-import re
-
 from ..brief import active_names
 from ..inbox import db
-
-_SIGNED = re.compile(r"\(([^()]+)\)\s*$")  # `Reviewer (SaltyEbb)` signs as SaltyEbb
+from . import signature
 
 
 def warning(me: str) -> str:
     """The warning for a waiter signing as *me*, or "" when the name is one lemon's."""
-    name = match[1] if (match := _SIGNED.search(me)) else me.strip()
+    name = parsed[0] if (parsed := signature.parse(me)) else me.strip()
     with db.connect() as conn:
         holders = sorted(active_names.holding(conn, name))
     if len(holders) < 2:

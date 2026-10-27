@@ -16,6 +16,7 @@ from . import (
     own_edits_replay,
     path_presence,
     relay_comments,
+    signature,
 )
 
 
@@ -125,7 +126,7 @@ def open_watch(
         doc=doc,
         own_root=own_root,
         writer=writer,
-        mine=frozenset({me, *legacy}),
+        mine=signature.forms([me, *legacy]),
         edits=edits,
         quiet=quiet,
         reported_path=stem.with_suffix(".reported.json"),

@@ -1,7 +1,7 @@
 """One GraphQL snapshot of a PR: head, state, draft, review decision, mergeability, checks, and the review comments a lemon should answer.
 
 Lemons post with their human's GitHub account, so authorship can't tell them apart. Each
-lemon signs right after the lemon marker (`🍋 Reviewer (StateJob): ...`), and a comment is
+lemon signs right after the lemon marker (`🍋 StateJob (Reviewer): ...`), and a comment is
 the watching lemon's own only when it carries one of its signatures. Every other comment,
 including other lemons' and unsigned 🍋 ones, is someone else's. Bots, pending
 (unsubmitted) review comments never count. Resolved and outdated threads count unless

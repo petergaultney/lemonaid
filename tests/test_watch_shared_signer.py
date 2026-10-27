@@ -17,7 +17,7 @@ def test_a_shared_signing_name_warns_naming_both_lemons():
     _brief("one.AuditInk")
     _brief("two.AuditInk")
 
-    warning = shared_signer.warning("Reviewer (AuditInk)")
+    warning = shared_signer.warning("AuditInk (Reviewer)")
 
     assert "AuditInk is the name of one.AuditInk, two.AuditInk" in warning
 
@@ -25,5 +25,5 @@ def test_a_shared_signing_name_warns_naming_both_lemons():
 def test_a_name_one_lemon_holds_does_not_warn():
     _brief("one.AuditInk")
 
-    assert shared_signer.warning("Reviewer (AuditInk)") == ""
+    assert shared_signer.warning("AuditInk (Reviewer)") == ""
     assert shared_signer.warning("Sam") == ""

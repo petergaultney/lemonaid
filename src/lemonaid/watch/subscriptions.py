@@ -139,7 +139,7 @@ def report(
     except ValueError as error:
         parent = owner
         problems.append(str(error))
-    me = f"Author ({identity.brief_name(parent) or parent})"
+    me = f"{identity.brief_name(parent) or parent} (Author)"
     specs: dict[tuple[str, tuple[str, ...]], Subscription] = {}
     reviews: dict[tuple[str, ...], Path] = {}
     for command in waiters.commands(text):

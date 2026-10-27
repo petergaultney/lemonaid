@@ -23,13 +23,13 @@ The standalone commands below remain available.
 
 A PR number or URL. If omitted, infer it from the current branch (`gh pr view --json number`).
 
-- `--comments --me "<your signature>"`: also wake on new comments from anyone but you, and, as the PR's author, when it starts conflicting with its base or its CI fails. Use it on every PR you open. `<your signature>` is the one you sign Relay Comments with, e.g. `Author (MotorHoe)`.
+- `--comments --me "<your signature>"`: also wake on new comments from anyone but you, and, as the PR's author, when it starts conflicting with its base or its CI fails. Use it on every PR you open. `<your signature>` is the one you sign Relay Comments with, e.g. `MotorHoe (Author)`.
 - `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`; it does not require `--comments`. An author doesn't need it: mark your PR ready once your reviewer clears it, without waiting for CI, and a failure wakes you through `--comments`.
 - `--role author|reviewer|parent`: wake only for the events that role needs. Under `lemonaid watch --self` the role is worked out from your brief; `watch --self --status` prints it.
 - `--legacy <name>`: another signature whose comments count as yours, e.g. one you signed with before (repeatable).
 - Without `--comments` or `--ci`: pushes, merge/close, draft/ready, and review decision only, e.g. when you reviewed someone else's PR. Conflicts and CI are the author's to fix, so a reviewer isn't woken for them.
 
-A comment counts when it is in any review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation. Lemons usually post with their human's GitHub account, so sign everything you post right after the marker: `🍋 Author (MotorHoe): ...`. A comment is skipped as yours only when it starts with 🍋, then your `--me` or a `--legacy` signature, then a colon. Every other comment wakes you, including other lemons' 🍋 comments, signed or not. Bots and pending (unsubmitted) review comments never count. Comments already reported to `--me` are remembered, so a rearm doesn't wake you on one you handled.
+A comment counts when it is in any review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation. Lemons usually post with their human's GitHub account, so sign everything you post right after the marker: `🍋 MotorHoe (Author): ...`. A comment is skipped as yours only when it starts with 🍋, then your `--me` or a `--legacy` signature, then a colon. Every other comment wakes you, including other lemons' 🍋 comments, signed or not. Bots and pending (unsubmitted) review comments never count. Comments already reported to `--me` are remembered, so a rearm doesn't wake you on one you handled.
 
 For quieter waits, use `--skip-outdated` and/or `--skip-resolved`, or set `skip_outdated = true` and/or `skip_resolved = true` under `[watch.pr]` in the lemonaid config. Both default to false. `--no-skip-outdated` and `--no-skip-resolved` override configured filters for one wait. These filters apply only to review threads.
 

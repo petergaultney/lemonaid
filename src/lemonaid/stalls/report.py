@@ -5,7 +5,7 @@ from collections import abc
 from pathlib import Path
 
 from ..brief import status as brief_status
-from ..watch import pr_activity
+from ..watch import pr_activity, signature
 from . import doc_authors, move, pulls
 
 # A brief on an open PR with one of these says why nothing is moving.
@@ -32,8 +32,10 @@ def _last_writers(
 
     last = last_authors(pull.doc)
     return (
-        pull.author is not None and f"Author ({pull.author.name})" in last,
-        pull.reviewer is not None and f"Reviewer ({pull.reviewer.name})" in last,
+        pull.author is not None
+        and not last.isdisjoint(signature.forms([f"{pull.author.name} (Author)"])),
+        pull.reviewer is not None
+        and not last.isdisjoint(signature.forms([f"{pull.reviewer.name} (Reviewer)"])),
     )
 
 

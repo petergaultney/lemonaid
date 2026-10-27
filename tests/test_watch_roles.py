@@ -15,7 +15,7 @@ def _snap(head=_HEAD, draft=False, checks=(), mergeable="MERGEABLE", state="OPEN
 
 @pytest.fixture
 def poll(tmp_path):
-    stem = pr_wait.state_stem(tmp_path, "o/r", 90, "Reviewer (X)")
+    stem = pr_wait.state_stem(tmp_path, "o/r", 90, "X (Reviewer)")
     sent: list[str] = []
 
     def poll(snap, role):
@@ -57,11 +57,11 @@ def test_config_replaces_a_roles_whole_list():
 @pytest.mark.parametrize(
     ("explicit", "me", "own_output", "child", "role"),
     [
-        ("parent", "Reviewer (X)", True, False, "parent"),
-        ("", "Reviewer (X)", False, True, "reviewer"),
-        ("", "Author (X)", True, True, "reviewer"),
-        ("", "Author (X)", False, True, "parent"),
-        ("", "Author (X)", False, False, "author"),
+        ("parent", "X (Reviewer)", True, False, "parent"),
+        ("", "X (Reviewer)", False, True, "reviewer"),
+        ("", "X (Author)", True, True, "reviewer"),
+        ("", "X (Author)", False, True, "parent"),
+        ("", "X (Author)", False, False, "author"),
     ],
 )
 def test_derive(explicit, me, own_output, child, role):

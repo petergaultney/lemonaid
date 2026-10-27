@@ -42,5 +42,5 @@ Set no status for as long as the PR is open, whatever your verdict, and say unde
 
 Read the current PR and review doc first. The commands below are subscriptions; `lemonaid watch --self` reads them. Claude: follow the watch rule in the `brief` skill, which relies on the push scout when it is running and starts the one background Bash watcher only when it is not. Codex: the same rule, with `lemonaid watch --self --push` run with escalated permissions; only if it prints `not started`, run `lemonaid watch --self --codex-thread` in an escalated exec_command session and rearm it after each batch.
 
-- `lemonaid watch pr --wait $pr_url --role reviewer --me 'Reviewer ($wordybin)'`
-- `lemonaid watch doc --wait $output_doc_arg --me 'Reviewer ($wordybin)'`
+- `lemonaid watch pr --wait $pr_url --role reviewer --me '$wordybin (Reviewer)'`
+- `lemonaid watch doc --wait $output_doc_arg --me '$relay_name (Reviewer)'`

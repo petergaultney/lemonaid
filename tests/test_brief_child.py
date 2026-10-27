@@ -23,6 +23,7 @@ from lemonaid.brief import (
 )
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.rows import pr_numbers
+from lemonaid.watch import signature
 
 _PARENT = "hq.BlessBar"
 _PR = "https://github.com/acme/widgets/pull/12"
@@ -143,8 +144,8 @@ def test_the_review_template_fills_the_pr_doc_and_waiters(capsys, parent, tmp_pa
     assert f"[widgets#12]({_PR})" in text
     assert "[widgets-12](obsidian://open?vault=notes&file=reviews%2Fwidgets-12)" in text
     assert f"`lemonaid tell {_PARENT}` and `lemonaid tell widget.QuickOdd`" in text
-    assert f"--wait {_PR} --role reviewer --me 'Reviewer ({wordybin})'" in text
-    assert f"--wait {doc} --me 'Reviewer ({wordybin})'" in text
+    assert f"--wait {_PR} --role reviewer --me '{wordybin} (Reviewer)'" in text
+    assert f"--wait {doc} --me '{signature.spaced(wordybin)} (Reviewer)'" in text
     assert "lemonaid watch --self" in text
     assert "`git range-diff origin/<base> <reviewed sha> HEAD`" in text
 

@@ -1,19 +1,19 @@
 from lemonaid.watch import relay_comments
 
 _ASKED = '{==the claim==}{{authorId="1" author="Sam Rivera">>is this true?<<}}'
-_ANSWERED = _ASKED + '{{authorId="s" author="Author (MotorHoe)">>Yes.<<}}'
+_ANSWERED = _ASKED + '{{authorId="s" author="MotorHoe (Author)">>Yes.<<}}'
 
 
 def test_a_thread_is_unanswered_until_its_last_block_is_mine():
     text = f"Intro.\n\n{_ASKED}\n\nMiddle.\n\n{_ANSWERED}\n"
 
-    assert relay_comments.unanswered_threads(text, {"Author (MotorHoe)"}) == [_ASKED]
+    assert relay_comments.unanswered_threads(text, {"MotorHoe (Author)"}) == [_ASKED]
 
 
 def test_a_legacy_name_counts_as_mine():
     thread = _ASKED + '{{author="Claude">>Checked.<<}}'
 
-    assert relay_comments.unanswered_threads(thread, {"Author (MotorHoe)", "Claude"}) == []
+    assert relay_comments.unanswered_threads(thread, {"MotorHoe (Author)", "Claude"}) == []
 
 
 def test_author_falls_back_to_author_id_and_attributes_may_come_in_any_order():

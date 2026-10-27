@@ -7,7 +7,7 @@ outdated and resolved threads), a submitted review's body, or the PR conversatio
 conflicts with its base or its CI fails. `--comments` is the author's mode, so only the
 author is woken to fix those. A comment is your own, and never reported, when it starts
 with 🍋 followed by your `--me` signature or a `--legacy` one and a colon:
-`🍋 Author (MotorHoe): done`. Other lemons' comments, signed or not, are reported. Makes one GraphQL call per interval through `gh`.
+`🍋 MotorHoe (Author): done`. Other lemons' comments, signed or not, are reported. Makes one GraphQL call per interval through `gh`.
 
 By default prints one line per event and never exits on its own. With `--once`, prints
 the first event and exits, so a Claude background Bash task wakes its session once on
@@ -23,9 +23,9 @@ one started while the lemon's unified watcher (`watch --self`, or its push scout
 unified watcher shares the cursors and watches the brief's waiters, this one included.
 
     lemonaid watch pr --wait <number|url> [--repo owner/name] [--interval 60]
-    lemonaid watch pr --wait <number> --comments --me "Author (MotorHoe)" --legacy Claude --head <sha> --once
-    lemonaid watch pr --wait <number> --comments --me "Reviewer (SaltyEbb)" --head <sha> --codex-thread
-    lemonaid watch pr --status <number|url> [--me "Author (MotorHoe)"]
+    lemonaid watch pr --wait <number> --comments --me "MotorHoe (Author)" --legacy Claude --head <sha> --once
+    lemonaid watch pr --wait <number> --comments --me "SaltyEbb (Reviewer)" --head <sha> --codex-thread
+    lemonaid watch pr --status <number|url> [--me "MotorHoe (Author)"]
 """
 
 import argparse
@@ -252,7 +252,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--me",
         default="",
-        help="the signature you put after 🍋 in your comments, e.g. 'Author (MotorHoe)'; required with --comments",
+        help="the signature you put after 🍋 in your comments, e.g. 'MotorHoe (Author)'; required with --comments",
     )
     ap.add_argument(
         "--legacy",
