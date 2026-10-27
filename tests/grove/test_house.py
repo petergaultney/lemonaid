@@ -97,3 +97,37 @@ def test_a_bay_with_no_status_caps_its_key_as_a_trees_tag_does():
     house.draw(picture, packhouse, found, View(0, 0, 1.0, 1.0), 0.0, lambda _: 0.0)
     cap = next(cell for row in picture.rows for cell in row if cell.char == "b" and cell.bold)
     assert (cap.fg, cap.bg) == (colors.TAG, colors.TEXT)
+
+
+def _drawn(sessions, saved, now, height: int):
+    """The lines of a packhouse `height` rows tall (roof to bottom border) and its layout."""
+    packhouse = block("", "0", *sessions)
+    found, saved = arrange.arrange((packhouse,), saved, now)
+    plot = found.plots[""]
+    found.plots[""] = dataclasses.replace(plot, h=height)
+    picture = canvas.blank(200, 60)
+    house.draw(picture, packhouse, found, View(plot.x, plot.y, 1.0, 1.0), 0.0, lambda _: 0.0)
+    return [line.strip() for line in canvas.plain_lines(picture) if line.strip()], saved
+
+
+def test_the_bays_never_draw_over_the_bottom_border():
+    sessions = [tree(k) for k in "abcdef"]
+    for height in range(5, 16):
+        lines, _ = _drawn(sessions, {"plots": {}, "trees": {}}, NOW, height)
+        assert len(lines) <= height, height
+        assert set(lines[-1]) <= set("╚═╝▐▌"), (height, lines[-1])
+
+
+def test_a_short_packhouse_packs_its_bays_and_counts_the_rest():
+    sessions = [tree(k) for k in "abcdef"]
+    lines, _ = _drawn(sessions, {"plots": {}, "trees": {}}, NOW, 8)
+    assert sum(line.startswith("║  0") for line in lines) == 4
+    assert any("+" in line and "more" in line for line in lines)
+
+
+def test_sessions_pack_onto_lines_past_a_gap_in_the_bay_numbers():
+    sessions = [tree(k) for k in "abcdef"]
+    _, saved = _drawn(sessions, {"plots": {}, "trees": {}}, NOW, 12)
+    lines, _ = _drawn([sessions[0], sessions[5]], saved, NOW + 60, 6)
+    shown = "\n".join(lines)
+    assert " a" in shown and " f" in shown and "more" not in shown

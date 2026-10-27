@@ -63,6 +63,26 @@ def _bay(
     canvas.target = ()
 
 
+def _rows(block: Block, arrangement: Arrangement, room: int) -> list[tuple[Tree, int]]:
+    """Each drawn session and its line within `room` lines, in bay order.
+
+    Sessions sit at their saved bays, two lines apart, while all of them fit that way. Otherwise
+    they pack onto the lines of the sessions that exist, a blank line apart if that fits and
+    one per line if not; when even that is too many, the last line is left for a count of the rest.
+    """
+    trees = sorted(block.trees, key=lambda t: arrangement.trees[(block.name, t.key)].bay)
+    if all(arrangement.trees[(block.name, t.key)].bay * 2 < room for t in trees):
+        return [(t, arrangement.trees[(block.name, t.key)].bay * 2) for t in trees]
+
+    if len(trees) * 2 - 1 <= room:
+        return [(t, i * 2) for i, t in enumerate(trees)]
+
+    if len(trees) <= room:
+        return list(zip(trees, range(room)))
+
+    return list(zip(trees[: room - 1], range(room - 1)))
+
+
 def draw(
     canvas: Canvas,
     block: Block,
@@ -84,26 +104,15 @@ def draw(
     sign = f" {block.digit} PACKHOUSE "
     text(canvas, x0 + (w - len(sign)) // 2, y0, sign, "#0b0e13", block.color, bold=True)
     canvas.target = ()
-    room = h - 3
-    for tree in block.trees:
-        i = arrangement.trees[(block.name, tree.key)].bay
-        if i * 2 > room:
-            continue  # beyond what the drawing has room for; zoomed in, every bay shows
-
+    for tree, row in _rows(block, arrangement, h - 3):
         canvas.dim = fade(tree)
         standing = arrangement.trees[(block.name, tree.key)]
-        _bay(
-            canvas,
-            block,
-            tree,
-            standing.letter,
-            standing.label,
-            x0 + 2,
-            y0 + 2 + i * 2,
-            w - 4,
-            phase,
-        )
+        _bay(canvas, block, tree, standing.letter, standing.label, x0 + 2, y0 + 2 + row, w - 4, phase)
         canvas.dim = 0.0
+    shown = len(_rows(block, arrangement, h - 3))
+    if shown < len(block.trees):
+        more = f"+{len(block.trees) - shown} more"
+        text(canvas, x0 + 2, y0 + h - 2, more, colors.TEXT, _FLOOR)
     return x0 - 1, y0, w + 2, h
 
 
