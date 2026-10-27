@@ -16,6 +16,8 @@ lemonaid tmux popup grove --binding Space --title ' lemon grove '
 
 This replaces tmux's default `prefix Space` (`next-layout`). Choosing a lemon in the popup switches the window you opened it over to that lemon and closes the popup.
 
+A lemon whose recorded tmux pane is missing or cannot be verified shows an `x` and a `no jump` label, while keeping its brief status color. Select it or find it with `/` to see why the jump is unavailable. Its blocked request stays visible even after its terminal has gone; use the inbox to inspect its brief and resume it when appropriate.
+
 The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps running in a hidden tmux session named `_lma_grove`, as the scratch pane's inbox lives in `_lma_scratch`, and the popup shows that session, already drawn. `lma` starts it in the background when it opens inside tmux, and one from an older install is replaced. There is one grove, so opening it on one client closes it on any other, and a choice always switches the client it shows on. See [tmux.md](tmux.md#fast-popups).
 
 - **A group is a block:** a patch of ground with its own color, outline, texture and signpost.

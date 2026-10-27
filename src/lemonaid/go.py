@@ -6,12 +6,16 @@ import re
 import sqlite3
 import subprocess
 import sys
+from collections import abc
 from urllib.parse import quote, unquote, urlsplit
 
 from . import cmux, handlers
 from .brief import lemon, store
 from .inbox import db
-from .tmux import navigation
+from .log import get_logger
+from .tmux import jump_target, navigation
+
+_log = get_logger("go")
 
 
 def _target(value: str) -> str:
@@ -45,37 +49,40 @@ def _tmux(command: list[str], *args: str) -> str:
 
 
 def _pane(command: list[str], found: db.Notification) -> str:
-    metadata = found.metadata
-    tty = metadata.get("tty")
-    recorded_pane = metadata.get("tmux_pane_identity")
-    order = metadata.get("tmux_session_order")
-    if not tty or not recorded_pane or not order:
-        raise LookupError(
-            "This lemon has no recorded tmux pane identity; wait for its next notification"
-        )
+    jump_target.require_identity(found.metadata)
+    return jump_target.resolve(found.metadata, _tmux(command, *jump_target.QUERY))
 
-    panes = _tmux(
-        command,
-        "list-panes",
-        "-a",
-        "-F",
-        "#{pane_id}|#{pane_tty}|#{session_name}|#{session_created}|#{start_time}|#{session_id}",
-    )
-    matches: set[str] = set()
-    for line in panes.splitlines():
-        parts = line.split("|")
-        if len(parts) != 6 or parts[1] != tty:
-            continue
-        pane, _, _, created, started, session_id = parts
-        if [pane, int(started)] != recorded_pane:
-            continue
-        if [int(created), int(started), int(session_id.lstrip("$"))] != list(order):
-            continue
-        matches.add(pane)
-    if len(matches) != 1:
-        raise LookupError("The lemon's recorded tmux pane is gone or ambiguous; no jump made")
 
-    return matches.pop()
+def jump_problems(rows: abc.Iterable[db.Notification]) -> dict[str, str]:
+    panes: dict[str, str] = {}
+    failures: dict[str, str] = {}
+    problems: dict[str, str] = {}
+    for row in rows:
+        if row.switch_source != "tmux":
+            continue
+
+        try:
+            jump_target.require_identity(row.metadata)
+        except LookupError as error:
+            problems[row.channel] = str(error)
+            continue
+
+        socket = row.metadata.get("tmux_socket") or ""
+        if socket not in panes and socket not in failures:
+            try:
+                panes[socket] = _tmux(navigation.server_args(socket), *jump_target.QUERY)
+            except (OSError, subprocess.SubprocessError) as error:
+                failures[socket] = "Cannot check the recorded tmux server"
+                _log.warning("could not check grove jump targets: %s", error)
+        if socket in failures:
+            problems[row.channel] = failures[socket]
+            continue
+
+        try:
+            jump_target.resolve(row.metadata, panes[socket])
+        except LookupError as error:
+            problems[row.channel] = str(error)
+    return problems
 
 
 def _client(command: list[str], explicit: str, source_pane: str) -> str:

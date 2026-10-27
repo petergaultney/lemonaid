@@ -52,6 +52,7 @@ def _lemon(
     lemon_id = inputs.lemon_ids.get(n.channel, "")
     return Lemon(
         channel=n.channel,
+        jump_problem=inputs.jump_problems.get(n.channel, ""),
         notification_id=n.id,
         name=n.name or n.channel,
         brief_id=brief.identity.brief_name(lemon_id) if lemon_id else "",
