@@ -87,7 +87,9 @@ def _split(
         for i, (channel, _status, unread) in enumerate(rows)
     ]
     statuses = {channel: status for channel, status, _unread in rows}
-    shown, folded = order.fold(notifications, statuses, pinned, {"idle"}, in_view, frozenset())
+    shown, folded = order.fold(
+        notifications, statuses, pinned, order.status_rule({"idle"}), in_view, frozenset()
+    )
     return [n.channel for n in shown], [n.channel for n in folded]
 
 
@@ -189,15 +191,16 @@ def _help_lists_fold(app) -> bool:
     )
 
 
-def test_the_key_reference_lists_the_fold_key_only_when_something_folds(fold_waiting):
+def test_the_key_reference_lists_the_fold_key_without_fold_statuses():
+    """Attention mode folds whenever it's turned on, so the fold key is always bound."""
+
     async def steps(app, pilot):
         await pilot.press("question_mark")
         await pilot.pause()
         return _help_lists_fold(app)
 
-    assert _run(steps)
     Path(os.environ["LEMONAID_CONFIG"]).write_text("")
-    assert not _run(steps)
+    assert _run(steps)
 
 
 def _selected(app) -> str:

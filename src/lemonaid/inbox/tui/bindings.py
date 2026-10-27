@@ -80,8 +80,14 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.group_remove, "group_remove", "Group", show=False)
     yield from build_bindings(kb.group_color, "group_color", "Color", show=False)
 
-    if config.tui.fold_statuses or config.inbox.arrange:
-        yield from build_bindings(kb.fold, "toggle_fold", "Folded")
+    # Attention mode folds whenever it's on, so the fold key is always bound.
+    yield from build_bindings(
+        kb.fold,
+        "toggle_fold",
+        "Folded",
+        show=bool(config.tui.fold_statuses or config.inbox.arrange),
+    )
+    yield from build_bindings(kb.attention, "toggle_attention_mode", "Attention", show=False)
 
     if config.tui.notes is not None:
         yield from build_bindings(kb.notes, "toggle_notes", "Notes")
@@ -135,10 +141,8 @@ def app_bindings(config: Config) -> list[Binding]:
 
 
 def help_keys(config: Config) -> KeybindingsConfig:
-    """The keybindings the reference lists: the fold and notes keys only when bound."""
+    """The keybindings the reference lists: the notes key only when bound."""
     kb = config.tui.keybindings
-    if not (config.tui.fold_statuses or config.inbox.arrange):
-        kb = dataclasses.replace(kb, fold="")
     if config.tui.notes is None:
         kb = dataclasses.replace(kb, notes="")
     return kb

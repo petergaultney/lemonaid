@@ -58,7 +58,7 @@ def test_selected_and_hovered_header_keeps_its_group_fill(
                     (("alert", 2), ("done", 12)),
                 )
                 cells = group_headers.cells(
-                    header, card_width, len(table.columns), 0, selected=True, name_width=35
+                    header, card_width, [35, *([0] * (len(table.columns) - 1))], 0, selected=True
                 )
                 table_rows.sync_rows(
                     table,

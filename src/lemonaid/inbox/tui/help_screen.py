@@ -68,7 +68,12 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("brief", "Show where its work stands, from its brief"),
             ("search", "Search inbox sessions"),
-            ("fold", "Show or hide folded sessions (tui.fold_statuses)"),
+            ("fold", "Show or hide folded sessions (tui.fold_statuses, attention mode)"),
+            (
+                "attention",
+                "Attention mode: rows only for what needs you or is selected"
+                " (tui.attention_statuses)",
+            ),
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),
             ("usage_view", "Show usage pace for each limit window"),

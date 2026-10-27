@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ...config import Config, load_config
-from .. import db, emoji, pins, presence, view
+from .. import attention, db, emoji, pins, presence, view
 from ..tui.rows import brief_cards
 from . import answer, child, serve
 
@@ -36,7 +36,7 @@ def _snapshot(
         active,
         pinned,
         frozenset(),
-        config.tui.fold_statuses,
+        attention.rule(config.tui, attention.load()),
         bool(config.inbox.arrange),
         frozenset(),
     )

@@ -7,7 +7,7 @@ from collections import abc
 from .... import brief, groups
 from ....config import Config
 from ....stalls import inbox as stalls_inbox
-from ... import db, emoji, parent_order, pins, presence, search, view
+from ... import attention, db, emoji, parent_order, pins, presence, search, view
 from ..rows import brief_cards, pr_numbers
 from ..watchers import focus
 
@@ -23,6 +23,7 @@ class Request:
     current_key: str | None
     other_key: str | None
     unfolded_ids: frozenset[str]
+    attention: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -99,6 +100,7 @@ def load(
     unfolded_ids: abc.Set[str],
     shared_names: abc.Set[str],
     now: float,
+    attention_mode: bool = False,
 ) -> Frame:
     """`env_filter` names the terminal this inbox switches in, if known; `search_text` is
     None outside a search. `current_key` and `other_key` are the cursor's rows.
@@ -126,15 +128,16 @@ def load(
         active,
         pinned,
         in_view,
-        config.tui.fold_statuses,
+        attention.rule(config.tui, attention_mode),
         bool(config.inbox.arrange),
         {
             n.channel
             for n in active.rows
             if n.channel in focused_channels
+            or (matching_ids is not None and n.id in matching_ids)
             or (str(n.id) == current_key and current_key in unfolded_ids)
         },
-    )  # a focused lemon stays out of the fold, and so does the cursor's row until the cursor leaves it
+    )  # a focused lemon or search match stays out of the fold, and so does the cursor's row until the cursor leaves it
     identities = brief.identity.by_channel(conn)
     current_members = {identities[n.channel] for n in active.rows if n.channel in identities}
     group_list = [

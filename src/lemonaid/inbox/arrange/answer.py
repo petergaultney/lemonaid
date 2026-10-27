@@ -10,7 +10,8 @@ says the arranger failed, and the inbox draws its own order meanwhile.
 
 The answer decides display only, and nothing it does loses a row: a row it
 leaves out goes where the inbox's own order puts it, and an unread row stays
-out of the fold unless the user allows otherwise; a deaf lemon's row never folds.
+out of the fold unless the user allows otherwise or the inbox folded it itself;
+a deaf lemon's row never folds.
 """
 
 import dataclasses
@@ -63,7 +64,8 @@ def apply(
 ) -> Arranged:
     """*answer* applied to the inbox's own *shown* and *folded* rows.
 
-    A *hidden* lemon may stay folded while unread, since the inbox folded it that way.
+    An unread row in *folded*, or of a *hidden* lemon, may stay folded, since the inbox
+    folded it that way.
     """
     if not isinstance(answer, dict):
         raise AnswerError(f"answer must be a JSON object, not {type(answer).__name__}")
@@ -76,6 +78,7 @@ def apply(
         raise AnswerError("'fold_label' must be a string")
 
     by_id = {n.id: n for n in [*shown, *folded]}
+    folded_ids = {n.id for n in folded}
     problems = [f"unknown field {key!r} ignored" for key in sorted(answer.keys() - _FIELDS)]
     placed: set[int] = set()
     out_shown: list[db.Notification] = []
@@ -96,6 +99,7 @@ def apply(
                 and by_id[i].is_unread
                 and not may_fold_unread
                 and by_id[i].channel not in hidden
+                and i not in folded_ids
             ):
                 problems.append(f"folded: row {i} is unread, kept in the list")
                 kept_out.append(by_id[i])

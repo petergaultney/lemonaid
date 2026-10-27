@@ -1,4 +1,4 @@
-"""The inbox's list of live sessions: the main table, its fold line, and the other-terminals table.
+"""The inbox's list of live sessions: the main table, its fold or summary line, and the other-terminals table.
 
 It owns what persists between refreshes - the fold, the arranger, the group
 headers drawn, where the cursor should follow - and redraws from the database
@@ -30,6 +30,7 @@ from ..tables.table import ClickToActTable
 from ..utils import update_static
 from ..watchers import focus
 from . import (
+    attention_summary,
     group_headers,
     inbox_arrange,
     inbox_draw,
@@ -49,6 +50,7 @@ class InboxList(Vertical):
         self,
         lists: row_parts.Lists,
         redraw: abc.Callable[[], None],
+        attention: bool = False,
         *,
         id: str,
     ) -> None:
@@ -74,6 +76,7 @@ class InboxList(Vertical):
         )
         self.grove: Grove | None = None  # the grove of that refresh, for its keys
         self.fold_open = False
+        self.attention = attention
         self.fold_name = ""  # the arranger's name for the folded group
         self._unfolded_ids: frozenset[str] = (
             frozenset()
@@ -82,6 +85,7 @@ class InboxList(Vertical):
         self.families = family_highlight.Highlighter()
         self.headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
+        self._slot = 0  # every header's status slot width, as last drawn
         self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
         # The row a group was collapsed from, drawn until the cursor leaves it.
         self.kept: frozenset[str] = frozenset()
@@ -90,6 +94,7 @@ class InboxList(Vertical):
         self._drawn = 0  # the request of the frame drawn last
 
     def compose(self) -> ComposeResult:
+        yield Static("", id="attention_summary")
         yield ClickToActTable(id="main_table")
         yield Static("", id="fold_label")
         yield Static("", id="other_sources_label")
@@ -180,6 +185,7 @@ class InboxList(Vertical):
             None if current_key == self.dismissed_key else current_key,
             None if other_key == self.dismissed_key else other_key,
             self._unfolded_ids,
+            self.attention,
         )
         self.dismissed_key = None
         return request
@@ -215,6 +221,7 @@ class InboxList(Vertical):
                     else frozenset()
                 ),
                 now=time.time(),
+                attention_mode=request.attention,
             )
         return dataclasses.replace(frame, request=request.seq, search_text=request.search_text)
 
@@ -311,7 +318,9 @@ class InboxList(Vertical):
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
         self._marked_header = current_row if current_row in self.headers else ""
-        chrome = 3 + bool(folded)
+        main.badges_take_clicks = self.attention
+        summary_shown = self.attention and search_text is None
+        chrome = 3 + (summary_shown or bool(folded))
         show_other = bool(other_notifications) and (
             height - chrome - min(len(other_notifications), 8) >= _MIN_MAIN_ROWS
         )
@@ -325,6 +334,11 @@ class InboxList(Vertical):
             row_keys.at_cursor(other if focused_on_other else main) or "",
         )
         visible_counts = parent_order.counts(visible_channels.values(), frame.parents)
+        counted = view.statuses(active.cards, active.rows)
+        self._slot = max(
+            group_headers.slot_width(self.headers.values()),
+            attention_summary.slot_width(active.rows, counted) if summary_shown else 0,
+        )
         rebuilt = inbox_main_table.draw(
             main,
             entries,
@@ -336,13 +350,36 @@ class InboxList(Vertical):
             self.config,
             card_width,
             card_shape,
+            self._slot,
             self.families,
             visible_counts,
             inbox_keys.names(self.grove),
             inbox_keys.digits(self.grove),
         )
 
-        fold_label.display = bool(all_folded) and search_text is None
+        summary = self.query_one("#attention_summary", Static)
+        summary.display = summary_shown
+        if summary_shown:
+            update_static(
+                summary,
+                attention_summary.line(
+                    active.rows,
+                    counted,
+                    self.config.tui.attention_statuses,
+                    cards,
+                    self.config.tui.keybindings.fold[:1],
+                    self.fold_open,
+                    group_headers.slot_starts(
+                        card_width,
+                        [column.width for column in main.ordered_columns],
+                        layout.NAME_CELL,
+                        main.cell_padding,
+                        self._slot,
+                    ),
+                    self._slot,
+                ),
+            )
+        fold_label.display = bool(all_folded) and search_text is None and not summary_shown
         update_static(
             fold_label,
             inbox_draw.fold_label(
@@ -417,13 +454,13 @@ class InboxList(Vertical):
             cells = group_headers.cells(
                 self.headers[changed],
                 card_width,
-                len(table.columns),
+                [column.width for column in table.ordered_columns],
                 layout.NAME_CELL,
                 changed == wanted,
                 inbox_keys.digits(self.grove).get(self.headers[changed].group.name, "")
                 if self.grove
                 else "",
-                name_width=table.ordered_columns[layout.NAME_CELL].width if not card_width else 0,
+                self._slot,
             )
             with contextlib.suppress(Exception):  # the row may be gone before a refresh
                 row = table.get_row_index(changed)

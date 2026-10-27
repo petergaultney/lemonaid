@@ -209,6 +209,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `inactive_row_color` | *(unset)* | The selected inbox row background while the scratch pane is not receiving keys. By default, the selected row's colour blended 70% toward the background. Has no effect outside scratch mode, where the pane cannot be asked. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
+| `attention_statuses` | `["alert", "blocked", "merge", "approve", "running"]` | In attention mode, the brief statuses whose sessions keep a row (see [Attention mode](#attention-mode)). |
 | `group_lead_first` | `true` | Sort a group's lead, the member with the most descendants in the group, first among the group's rows, mark it with `♛`, and draw a drawn member's ancestors in that group. See [Groups](groups.md#in-the-inbox). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 | `grove_pan_columns` | `2` | Screen columns an arrow key moves the grove view across. |
@@ -297,6 +298,34 @@ brings nothing back. Any status can be listed; the default folds nothing.
 ```toml
 [tui]
 fold_statuses = ["idle"]
+```
+
+### Attention mode
+
+`!` (the `attention` key) turns attention mode on and off in the inbox. With it on, a lemon keeps a row only when it needs you or is running:
+
+- its brief Status is in `attention_statuses`, by default `alert`, `blocked`, `merge`, `approve` and `running`;
+- it is pinned, marked `deaf`, or its pane is focused;
+- the cursor is on its row: it keeps the row until the cursor moves off it, so a lemon whose status changes while you look at it doesn't vanish, and neither does one you found with a search;
+- it is an ancestor of a lemon drawn in the same group, such as a lead above its child, while [`group_lead_first`](#tui) is on.
+
+Everything else folds, unread or not: `review`, `done`, idle, active, dead, and lemons without a brief. The aim is a list short enough to need no scrollbar. Its rule replaces `fold_statuses` while it is on. An [`[inbox] arrange`](arrange.md) program still decides over both.
+
+In place of the fold line at the bottom, one line at the top of the list counts every lemon by status. Each count is the badge its group header draws, the status's glyph and number in its color (`!` alert, `?` blocked, `N` running, `m` merge, `✓` approve, `r` review, `d` done), in the same column as on the group bars. Lemons without one of those statuses share one dim `○` count, at the left with the `w` hint:
+
+```
+ ○11   w shows all                          ?1  N1          r4  d6
+```
+
+Where the group bars pack their badges instead, as in a narrow sidebar, the line packs too: the statuses that keep a row, a divider, then the ones that fold, and a shorter hint.
+
+`w` opens the fold as usual. A group with nothing that keeps a row keeps its header and counts. Clicking a status badge on a group's header opens the [grove](grove.md) zoomed into that group's block, to see its folded lemons. Typing a lemon's grove key still switches to it while its row is folded. The grove is unchanged.
+
+Lemonaid saves the choice in `inbox.json` in its state directory, so it survives restarts. It starts off; there is no setting that turns it on.
+
+```toml
+[tui]
+attention_statuses = ["alert", "blocked", "merge", "approve"]  # running lemons fold too
 ```
 
 With `card_unread_style = "bar"`, an unread card without a brief (see above)

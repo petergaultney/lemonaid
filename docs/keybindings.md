@@ -32,7 +32,8 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `S` | Toggle snoozed view |
 | `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
 | `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it |
-| `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set |
+| `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set or attention mode is on |
+| `!` | Turn [attention mode](config.md#attention-mode) on or off: rows only for what needs you, with a count of everything at the top |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |
 | `P` | Pin the session below any other pins, or unpin it (`lemonaid inbox pin`, `inbox unpin`) |
 | `Shift`+`↑` / `Shift`+`↓` | Move a pinned session up or down one slot; on a group's header, move the group |
@@ -310,7 +311,8 @@ resume_detached = "R"  # resume a detached inbox row
 dialog_accept = "A"  # accept the offer an error dialog makes (archive, copy the resume command)
 save_size = "ctrl+s"  # save scratch pane size explicitly (also with autosave)
 flip_position = "F"  # move the scratch pane between top and left
-fold = "w"  # show or hide folded sessions (needs [tui] fold_statuses)
+fold = "w"  # show or hide folded sessions ([tui] fold_statuses or attention mode)
+attention = "!"  # turn attention mode on or off
 notes = "N"  # show or hide your notes (needs [tui] notes)
 question_previous = "["  # in a brief view, the previous question
 question_next = "]"  # in a brief view, the next question

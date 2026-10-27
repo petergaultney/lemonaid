@@ -72,6 +72,7 @@ def _inbox(kb: "KeybindingsConfig") -> dict[str, abc.Iterable[str]]:
         "last": [kb.last, "end"],
         "save_size": [kb.save_size],
         "fold": kb.fold,
+        "attention": kb.attention,
         "notes": kb.notes,
         "search": [kb.search],
         "patch_claude": ["ctrl+t"],

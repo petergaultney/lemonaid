@@ -94,3 +94,17 @@ def test_a_hidden_unread_row_stays_folded_when_the_answer_folds_it():
 
     assert _ids(arranged.folded) == [2]
     assert arranged.problems == []
+
+
+def test_an_unread_row_the_inbox_folded_stays_folded_in_an_unchanged_answer():
+    """Attention mode folds unread `review` and `done` rows; the default answer keeps them there."""
+    arranged = answer.apply({"rows": [1], "folded": [2]}, [_row(1)], [_row(2, True)], False)
+
+    assert (_ids(arranged.shown), _ids(arranged.folded)) == ([1], [2])
+    assert arranged.problems == []
+
+
+def test_an_answer_can_still_show_an_unread_row_the_inbox_folded():
+    arranged = answer.apply({"rows": [2, 1]}, [_row(1)], [_row(2, True)], False)
+
+    assert (_ids(arranged.shown), _ids(arranged.folded)) == ([2, 1], [])

@@ -24,6 +24,7 @@ def draw(
     config: Config,
     card_width: int,
     card_shape: abc.Callable[[int], tuple[int, int]],
+    slot: int,
     families: family_highlight.Highlighter | None = None,
     visible_counts: abc.Mapping[str, int] | None = None,
     keys: abc.Mapping[str, str] | None = None,
@@ -33,8 +34,9 @@ def draw(
 
     `headers` are the group headers among the entries by key, `marked_header`
     the one drawn with the cursor's marker, `card_shape` sizes cards for a
-    given number of extra brief lines, `keys` gives each lemon's grove key by channel, and
-    `digits` each group's block digit by name.
+    given number of extra brief lines, `slot` is each header's status slot width,
+    `keys` gives each lemon's grove key by channel, and `digits` each group's block
+    digit by name.
     """
     card_briefs = frame.active.cards
     drawn = [e for e in entries if isinstance(e, sections.Row)]
@@ -71,11 +73,11 @@ def draw(
             group_headers.cells(
                 header,
                 card_width,
-                len(table.columns),
+                [column.width for column in table.ordered_columns],
                 layout.NAME_CELL,
                 key == marked_header,
                 (digits or {}).get(header.group.name, ""),
-                name_width=table.ordered_columns[layout.NAME_CELL].width if not card_width else 0,
+                slot,
             ),
             group_headers.background(header),
         )

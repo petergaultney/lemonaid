@@ -1,6 +1,8 @@
 import asyncio
 import threading
 
+from textual import events
+
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.grove_map import GroveMap
 from lemonaid.grove.tui.screen import GroveScreen
@@ -132,3 +134,46 @@ def test_a_click_on_a_tree_in_select_mode_chooses_it_and_edits_nothing():
 
     assert asyncio.run(run()) == other
     assert asked == []
+
+
+def test_a_zoom_asked_for_while_the_grove_loads_applies_once_it_shows():
+    release = threading.Event()
+    taken = threading.Event()
+
+    def load():
+        assert release.wait(5)
+        return GROVE
+
+    def zoom_to() -> str:
+        taken.set()
+        return "2"
+
+    async def run() -> str:
+        app = GroveApp(load, 60.0, None, zoom_to=zoom_to)
+        async with app.run_test(size=(160, 48)) as pilot:
+            app.on_app_focus(events.AppFocus())
+            assert await asyncio.to_thread(taken.wait, 2)
+            await pilot.pause()
+            release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert isinstance(app.screen, GroveScreen)
+            return app.screen._where.block
+
+    try:
+        assert asyncio.run(run()) == "2"
+    finally:
+        release.set()
+
+
+def test_a_zoom_asked_for_on_a_shown_grove_zooms_it():
+    async def run() -> str:
+        app = GroveApp(lambda: GROVE, 60.0, None, zoom_to=lambda: "2")
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()
+            app.on_app_focus(events.AppFocus())
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            return app.screen._where.block
+
+    assert asyncio.run(run()) == "2"

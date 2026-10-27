@@ -16,7 +16,7 @@ CSS = (
 }
 
 /* Shown by the app when a view, a search or the rows call for them. */
-#history_filter, #fold_label, #other_sources_label, #other_sources_table,
+#history_filter, #fold_label, #attention_summary, #other_sources_label, #other_sources_table,
 #search_archive_label, #history_table, #snoozed_table, #usage_table {
     display: none;
 }
@@ -76,10 +76,14 @@ App.-history DataTable > .datatable--header {
     background: ansi_blue;
 }
 
-#fold_label {
+#fold_label, #attention_summary {
     height: 1;
     color: $text-muted;
     padding: 0 1;
+}
+
+#attention_summary {
+    padding: 0;  /* its badges line up with the table's cells */
 }
 
 #other_sources_label {

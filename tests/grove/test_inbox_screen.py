@@ -74,7 +74,7 @@ def test_in_tmux_space_in_a_narrow_pane_opens_the_grove_popup(monkeypatch):
     monkeypatch.setattr(
         fast_popup,
         "show",
-        lambda name, margin, title: opened.append((name, margin) == ("grove", 3)),
+        lambda name, margin, title, zoom="": opened.append((name, margin) == ("grove", 3)),
     )
     _row("lemon four", "fourth")
 
@@ -124,7 +124,7 @@ def test_in_tmux_space_in_a_big_pane_draws_the_grove_in_place(monkeypatch):
     monkeypatch.setattr(
         fast_popup,
         "show",
-        lambda name, margin, title: opened.append((name, margin) == ("grove", 3)),
+        lambda name, margin, title, zoom="": opened.append((name, margin) == ("grove", 3)),
     )
     _row("lemon six", "sixth")
 

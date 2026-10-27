@@ -149,6 +149,7 @@ class KeybindingsConfig:
     save_size: str = "ctrl+s"  # Save the scratch pane size (follow mode only)
     flip_position: str = "F"  # Move the scratch pane between top and left
     fold: str = "w"  # Show or hide the sessions folded at the bottom of the list
+    attention: str = "!"  # Turn attention mode on or off: rows only for what needs you
     notes: str = "N"  # Show or hide the [tui] notes file under the sessions
     # In a brief view, the questions under what a lemon needs from you.
     question_previous: str = "["
@@ -191,6 +192,11 @@ class TuiConfig:
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
+    # In attention mode (`attention` key), the brief statuses whose sessions keep a row;
+    # see docs/config.md for the other rows that stay.
+    attention_statuses: list[str] = field(
+        default_factory=lambda: ["alert", "blocked", "merge", "approve", "running"]
+    )
     # A group's lead (the member with the most descendants in it) sorts first among the group's rows.
     group_lead_first: bool = True
     # The scratch pane's title bar and bottom edge while it will receive keys.
@@ -706,6 +712,9 @@ def _parse_config(data: dict[str, Any]) -> Config:
             {"waiting": "idle", "working": "active"}.get(status, status)
             for status in tui_data.get("fold_statuses", [])
         ],
+        attention_statuses=list(
+            tui_data.get("attention_statuses", ["alert", "blocked", "merge", "approve", "running"])
+        ),
         group_lead_first=tui_data.get("group_lead_first", True),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         grove_pan_columns=max(1, int(tui_data.get("grove_pan_columns", 2))),

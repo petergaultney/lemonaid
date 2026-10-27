@@ -20,5 +20,6 @@ def run(
     opener: abc.Callable[[], str],
     rename_session: abc.Callable[[str, str], str],
     hide: abc.Callable[[], None],
+    take_zoom: abc.Callable[[], str],
 ) -> None:
-    popup.run(opener, rename_session, hide)
+    popup.run(opener, rename_session, hide, take_zoom)

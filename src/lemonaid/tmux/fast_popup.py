@@ -8,7 +8,7 @@ by detaching the popup's client. The client that opened it is kept in a session 
 app to read.
 
 The app is found by name: popup `grove` runs the module `lemonaid.grove.popup_app`, whose
-`run(opener, rename_session, hide)` the resident calls (see `popup_resident`). Nothing here
+`run(opener, rename_session, hide, take_zoom)` the resident calls (see `popup_resident`). Nothing here
 knows any app.
 """
 
@@ -24,6 +24,7 @@ from .command import run
 
 SETTINGS_OPTION = "@lemonaid_popup_settings"  # the build and overrides the resident started with
 OPENER_OPTION = "@lemonaid_popup_client"  # the client the popup was last opened over
+ZOOM_OPTION = "@lemonaid_popup_zoom"  # what the popup should show once opened, till it takes it
 _TIMEOUT_SECONDS = 2.0
 # What says which inbox, layout and config a lemonaid process uses. tmux starts the resident
 # with the server's environment, so these are passed to it explicitly.
@@ -150,6 +151,15 @@ def opener(name: str) -> str:
     return _tmux("show-option", "-t", f"={session_for(name)}:", "-qv", OPENER_OPTION).stdout.strip()
 
 
+def take_zoom(name: str) -> str:
+    """What popup *name* was last opened to show, such as a grove block's digit, once: "" after."""
+    target = f"={session_for(name)}:"
+    zoom = _tmux("show-option", "-t", target, "-qv", ZOOM_OPTION).stdout.strip()
+    if zoom:
+        _tmux("set-option", "-t", target, "-u", ZOOM_OPTION)
+    return zoom
+
+
 def hide(name: str) -> None:
     """Close popup *name* wherever it shows, leaving its app running."""
     _tmux("detach-client", "-s", f"={session_for(name)}")
@@ -163,9 +173,10 @@ def attach_command(name: str) -> list[str]:
     return ["sh", "-c", attach]
 
 
-def show(name: str, margin: int, title: str = "") -> None:
+def show(name: str, margin: int, title: str = "", zoom: str = "") -> None:
     """Open popup *name* over the calling client, *margin* cells in from each edge and titled
     *title*, and return without waiting for it to close; called from inside it, close it.
+    *zoom* is for the popup's app to read with `take_zoom`.
     """
     client = _client()
     if client is None:
@@ -180,6 +191,8 @@ def show(name: str, margin: int, title: str = "") -> None:
     hide(name)  # one popup at a time, so a choice switches the client it shows on
     width, height = _size(client_width, client_height, margin)
     _tmux("set-option", "-t", f"={session_for(name)}:", OPENER_OPTION, client_name)
+    if zoom:
+        _tmux("set-option", "-t", f"={session_for(name)}:", ZOOM_OPTION, zoom)
     subprocess.Popen(
         [
             "tmux",
