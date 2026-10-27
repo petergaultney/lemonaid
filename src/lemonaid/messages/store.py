@@ -120,7 +120,7 @@ def receive_lock(inbox: Path, wait: bool = True) -> abc.Iterator[bool]:
         yield False
         return
 
-    with open(inbox / ".receive.lock", "w") as lock:
+    with open(inbox / ".receive.lock", "a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

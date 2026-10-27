@@ -7,6 +7,7 @@ from pathlib import Path
 from . import waiter_lock
 
 STALE = 120.0  # seconds a waiter may go without polling before it counts as deaf
+_BEAT_EVERY = 10.0
 
 
 def lock_path(lemon_id: str) -> Path:
@@ -19,7 +20,16 @@ def _beat_path(lemon_id: str) -> Path:
 
 
 def beat(lemon_id: str) -> None:
-    _beat_path(lemon_id).touch()
+    path = _beat_path(lemon_id)
+    try:
+        age = time.time() - path.stat().st_mtime
+        if 0 <= age < _BEAT_EVERY:
+            return
+
+    except FileNotFoundError:
+        pass
+
+    path.touch()
 
 
 def silent_for(lemon_id: str) -> float:

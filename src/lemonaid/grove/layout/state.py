@@ -53,7 +53,7 @@ def save(data: dict[str, Any], where: Path | None = None) -> None:
 @contextlib.contextmanager
 def _locked(target: Path) -> abc.Iterator[None]:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with open(target.with_name(target.name + ".lock"), "w") as lock:
+    with open(target.with_name(target.name + ".lock"), "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield
 

@@ -51,6 +51,13 @@ def directory(kind: str, me: str, codex_thread: str = "") -> pathlib.Path:
 
 def write_text(path: pathlib.Path, text: str) -> None:
     """Replace `path` whole, so a crash leaves the old cursor or the new one."""
+    try:
+        if path.read_text() == text:
+            return
+
+    except FileNotFoundError:
+        pass
+
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:

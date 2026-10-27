@@ -649,8 +649,9 @@ its session ending, its brief being detached, or `lemonaid watch stop`. A refuse
 a crash, or a SIGTERM that `watch stop` didn't send is abnormal and logged as a warning.
 A start line with no exit line is a scout that was killed outright.
 
-Each `watch --self` waiter touches `wait.beat` beside its lock on every pass of its
-loop. One that still holds its lock but has not polled for two minutes is deaf: it
+Each `watch --self` waiter records its loop's progress in `wait.beat` beside its
+lock at most once every ten seconds. One that still holds
+its lock but has no progress recorded for two minutes is deaf: it
 delivers nothing, so `--status` says `watcher deaf`, the Stop check and `lemonaid tell`
 don't count it, and the live inbox marks its lemon `deaf`. Whatever starts a scout
 (those same paths, and `watch --self --push`) first stops a deaf waiter, with SIGKILL if
