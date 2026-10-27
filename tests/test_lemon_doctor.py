@@ -11,13 +11,14 @@ from lemonaid.inbox import db
 from lemonaid.lemon_facts import cli
 from lemonaid.lineage import links
 from lemonaid.messages import recipient, waiter
-from lemonaid.watch import briefs_orphans
+from lemonaid.watch import briefs_orphans, registry
 
 
 @pytest.fixture(autouse=True)
 def _caller(monkeypatch):
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:lead")
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish"])  # nothing runs there
+    monkeypatch.setattr(recipient, "_every_tty", lambda: None)  # so each tty asks _tty_commands
     monkeypatch.setattr(briefs_orphans, "live_sessions", lambda socket: frozenset())
     _attach("lead", "claude:lead", "Status: working")
 
@@ -144,3 +145,17 @@ def test_a_harness_on_a_reused_tty_is_not_this_lemon_running(capsys, monkeypatch
     assert _doctor("--children", "--self", "--json") == 1
     (row,) = json.loads(capsys.readouterr().out)["lemons"]
     assert (row["harness_running"], row["state"]) == (False, "dead")
+
+
+def test_all_reads_each_brief_and_the_waiters_a_fixed_number_of_times(capsys, monkeypatch):
+    for i in range(20):
+        _attach(f"worker{i}", f"claude:worker{i}", "Status: working")
+    reads, scans = [], []
+    read, running = identity.from_path, registry.running
+    monkeypatch.setattr(identity, "from_path", lambda path: reads.append(path) or read(path))
+    monkeypatch.setattr(registry, "running", lambda: scans.append(1) or running())
+
+    assert _doctor("--all", "--json") == 1
+    assert len(json.loads(capsys.readouterr().out)["lemons"]) == 21
+    assert len(reads) <= 2 * 21  # once to scope, once to look each lemon up
+    assert len(scans) == 1

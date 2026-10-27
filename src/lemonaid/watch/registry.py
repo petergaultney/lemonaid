@@ -7,12 +7,14 @@ process still holds its entry.
 
 import contextlib
 import dataclasses
+import functools
 import json
 import logging
 import os
 import pathlib
 import shlex
 import signal
+import sqlite3
 import sys
 import threading
 import typing as ty
@@ -202,24 +204,33 @@ def _matches(waiter: Waiter, target: str) -> bool:
     return any(t in candidates or t.endswith(f"#{target}") for t in waiter.targets)
 
 
+def _owner(conn: sqlite3.Connection, channel: str) -> str:
+    return channels.for_session(conn, channel[6:]) if channel.startswith("codex:") else channel
+
+
 def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
     """`channel`'s running waiters, of `kind` and watching `target` when given."""
     if not channel:
         return []
 
     with db.connect() as conn:
-
-        def resolved(value: str) -> str:
-            return channels.for_session(conn, value[6:]) if value.startswith("codex:") else value
-
-        owner = resolved(channel)
+        owner = _owner(conn, channel)
         return [
             waiter
             for waiter in running()
-            if resolved(waiter.channel) == owner
+            if _owner(conn, waiter.channel) == owner
             and kind in ("", waiter.kind)
             and _matches(waiter, target)
         ]
+
+
+def by_lemon(conn: sqlite3.Connection) -> abc.Callable[[str], list[Waiter]]:
+    """`mine` for many channels, listing the running waiters and resolving each channel once."""
+    owner = functools.cache(functools.partial(_owner, conn))
+    found: dict[str, list[Waiter]] = {}
+    for waiter in running():
+        found.setdefault(owner(waiter.channel), []).append(waiter)
+    return lambda channel: list(found.get(owner(channel), [])) if channel else []
 
 
 def running_for(kind: str, target: str) -> list[Waiter]:

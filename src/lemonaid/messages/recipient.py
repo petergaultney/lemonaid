@@ -9,6 +9,7 @@ anything once its harness has exited.
 import subprocess
 import time
 import typing as ty
+from collections import abc
 from pathlib import Path
 
 from .. import handlers
@@ -60,11 +61,47 @@ def _tty_commands(tty: str) -> list[str] | None:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def harness_alive(row: db.Notification) -> bool | None:
+def _every_tty() -> dict[str, list[str]] | None:
+    """The command of every process on each tty, from one `ps`, or None if it could not say."""
+    try:
+        result = subprocess.run(["ps", "-A", "-o", "tty=,comm="], capture_output=True, text=True)
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    found: dict[str, list[str]] = {}
+    for line in result.stdout.splitlines():
+        tty, _, command = line.strip().partition(" ")
+        if tty and command.strip():
+            found.setdefault(tty, []).append(command.strip())
+    return found
+
+
+def tty_commands() -> abc.Callable[[str], list[str] | None]:
+    """`_tty_commands` for many ttys, from one `ps` for all of them where it can."""
+    every = _every_tty()
+    if every is None:
+        return lambda tty: _tty_commands(tty)
+
+    def commands(tty: str) -> list[str] | None:
+        name = tty.removeprefix("/dev/")
+        if name in every:
+            return every[name]
+
+        return _tty_commands(tty) if Path("/dev", name).exists() else []
+
+    return commands
+
+
+def harness_alive(
+    row: db.Notification, commands: abc.Callable[[str], list[str] | None] | None = None
+) -> bool | None:
     """Whether a harness still runs on the terminal *row* last reported, or None if unknowable.
 
     A cmux session can move to a new tty when cmux restarts, so cmux is asked
-    where it is now instead.
+    where it is now instead. *commands* stands in for `ps` (see `tty_commands`).
     """
     if row.switch_source in handlers.PER_SESSION_SOURCES:
         found = handlers.where_sessions_are(
@@ -73,11 +110,11 @@ def harness_alive(row: db.Notification) -> bool | None:
         return None if found is None else bool(found)
 
     tty = str(row.metadata.get("tty") or "")
-    commands = _tty_commands(tty) if tty else None
-    if commands is None:
+    running = (commands or _tty_commands)(tty) if tty else None
+    if running is None:
         return False if row.is_archived else None
 
-    return any(is_harness(command) for command in commands)
+    return any(is_harness(command) for command in running)
 
 
 def classify(

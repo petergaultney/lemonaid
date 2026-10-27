@@ -136,6 +136,16 @@ def test_a_waiter_registers_only_while_it_runs():
     assert registry.mine("claude:mine") == []
 
 
+def test_by_lemon_finds_what_mine_finds():
+    with registry.registered("pr", ("o/r#12",), "claude:mine", "lemonaid watch pr --wait 12") as w:
+        with db.connect() as conn:
+            waiters_of = registry.by_lemon(conn)
+
+        assert waiters_of("claude:mine") == registry.mine("claude:mine") == [w]
+        assert waiters_of("claude:other") == []
+        assert waiters_of("") == []
+
+
 def test_a_waiter_signalled_outside_lemonaid_says_so(tmp_path):
     _briefed("claude:mine", "mine")
     waiter = _start("claude:mine", tmp_path, "inbox", "watch", "--self")

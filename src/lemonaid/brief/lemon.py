@@ -1,7 +1,9 @@
 """Which lemon a command means: the caller itself, or one named by ID, channel, or brief."""
 
+import functools
 import os
 import sqlite3
+from collections import abc
 from pathlib import Path
 
 from .. import groups
@@ -65,28 +67,36 @@ def current(conn: sqlite3.Connection, lemon_id: str) -> str:
     return row["lemon_id"] if row else lemon_id
 
 
-def attachment(
-    conn: sqlite3.Connection, target: str, *, claim_pending: bool = True
+def _brief_ids(entries: abc.Iterable[attached.Attachment]) -> dict[Path, str]:
+    found = {}
+    for entry in entries:
+        if not entry.channel or not entry.path.is_file():
+            continue
+        try:
+            found[entry.path] = identity.from_path(entry.path)
+        except ValueError as error:
+            _log.warning("Skipping invalid brief %s: %s", entry.path, error)
+    return found
+
+
+def _find(
+    conn: sqlite3.Connection,
+    all_briefs: list[attached.Attachment],
+    brief_ids: abc.Callable[[], dict[Path, str]],
+    target: str,
 ) -> attached.Attachment:
-    """The one attached lemon *target* names: a channel, a Lemon-ID (or an old one), or a brief's name."""
-    if claim_pending:
-        attached.claim_pending(conn)
     if target.startswith("codex:"):
         from ..codex import channels
 
         target = channels.for_session(conn, target.removeprefix("codex:"))
-    all_briefs = attached.everything(conn)
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):
         lemon_id = current(conn, target)
-        for entry in all_briefs:
-            if not entry.channel or not entry.path.is_file():
-                continue
-            try:
-                if identity.from_path(entry.path) == lemon_id:
-                    found.append(entry)
-            except ValueError as error:
-                _log.warning("Skipping invalid brief %s: %s", entry.path, error)
+        found = [
+            entry
+            for entry in all_briefs
+            if entry.channel and brief_ids().get(entry.path) == lemon_id
+        ]
 
     if not found:
         found = [
@@ -98,6 +108,25 @@ def attachment(
         raise LookupError(f"Expected one attached lemon for {target!r}; found {len(found)}")
 
     return found[0]
+
+
+def finder(conn: sqlite3.Connection) -> abc.Callable[[str], attached.Attachment]:
+    """`attachment` for many targets, reading the attachments and each brief once."""
+    attached.claim_pending(conn)
+    all_briefs = attached.everything(conn)
+    return functools.partial(
+        _find, conn, all_briefs, functools.cache(lambda: _brief_ids(all_briefs))
+    )
+
+
+def attachment(
+    conn: sqlite3.Connection, target: str, *, claim_pending: bool = True
+) -> attached.Attachment:
+    """The one attached lemon *target* names: a channel, a Lemon-ID (or an old one), or a brief's name."""
+    if claim_pending:
+        attached.claim_pending(conn)
+    all_briefs = attached.everything(conn)
+    return _find(conn, all_briefs, functools.cache(lambda: _brief_ids(all_briefs)), target)
 
 
 def brief_of(conn: sqlite3.Connection, lemon_id: str) -> Path | None:

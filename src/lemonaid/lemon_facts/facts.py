@@ -7,6 +7,7 @@ docs/for-lemons.md). Deciding what they add up to is left to the reader.
 import dataclasses
 import re
 import time
+from collections import abc
 from pathlib import Path
 
 from ..brief import attached, status
@@ -98,11 +99,15 @@ def gather(
     parent: str,
     window: float,
     running: owners.Owners | None,
+    waiters: abc.Iterable[registry.Waiter],
+    commands: abc.Callable[[str], list[str] | None],
 ) -> Facts:
-    """The facts about *found*'s lemon; *window* is the start limit's, in seconds, and
-    *running* the ttys each lemon runs on (`owners.running()`), None if unknown."""
+    """The facts about *found*'s lemon; *window* is the start limit's, in seconds,
+    *running* the ttys each lemon runs on (`owners.running()`), None if unknown,
+    *waiters* the ones it runs (`registry.mine`), and *commands* what runs on a tty
+    (`recipient.tty_commands()`)."""
     row, inbox, text = found.notification, store.inbox_for_id(lemon_id), _text(found.path)
-    alive = recipient.harness_alive(row) if row is not None else False
+    alive = recipient.harness_alive(row, commands) if row is not None else False
     if alive and row is not None and owners.on_recorded_tty(row, running) is False:
         alive = False  # the harness on its tty is another lemon
     armed = waiter.is_armed(inbox)
@@ -122,7 +127,7 @@ def gather(
         inbox_waiter=armed,
         pane=_pane(row, alive) if row is not None else None,
         waiters_listed=_listed_waiters(text),
-        waiters_running=[w.command for w in registry.mine(found.channel)],
+        waiters_running=[w.command for w in waiters],
         messages_queued=store.pending_count(inbox),
         exited_at=metadata.get("exited_at"),
         exit_reason=str(metadata.get("exit_reason") or ""),

@@ -20,7 +20,7 @@ from ..lineage import links
 from ..log import get_logger
 from ..messages import recipient
 from ..stalls import cli as stalls_cli
-from ..watch import briefs_orphans
+from ..watch import briefs_orphans, registry
 from . import facts
 
 _log = get_logger("lemon_facts.cli")
@@ -130,16 +130,25 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
             _fail(args, str(error))
         gathered, skipped = [], []
-        running = owners.running()
+        running, attachment = owners.running(), brief.lemon.finder(conn)
+        waiters, commands = registry.by_lemon(conn), recipient.tty_commands()
         for lemon_id in ids:
             try:
-                found = brief.lemon.attachment(conn, lemon_id)
+                found = attachment(lemon_id)
             except (LookupError, ValueError):
                 skipped.append(lemon_id)  # no such lemon, cleaned up, or not started
                 continue
 
             gathered.append(
-                facts.gather(found, lemon_id, links.parent_of(conn, lemon_id), window, running)
+                facts.gather(
+                    found,
+                    lemon_id,
+                    links.parent_of(conn, lemon_id),
+                    window,
+                    running,
+                    waiters(found.channel),
+                    commands,
+                )
             )
 
     shown = [found for found in gathered if args.verbose or _unreachable(found)]
@@ -188,7 +197,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Lemons with no parent, or whose parent's session is gone (with --self)",
     )
     parser.add_argument(
-        "--all", action="store_true", help="Every attached lemon (a ps and a pane capture each)"
+        "--all", action="store_true", help="Every attached lemon (a pane capture each live one)"
     )
     parser.add_argument(
         "--stalls",

@@ -166,6 +166,31 @@ def test_ps_with_no_match_means_nothing_runs_there(monkeypatch):
     assert recipient._tty_commands("/dev/ttys001") == []
 
 
+def test_one_ps_answers_for_every_tty_it_lists(monkeypatch):
+    monkeypatch.setattr(recipient, "_every_tty", lambda: {"ttys001": ["-fish", "claude"]})
+    monkeypatch.setattr(recipient.Path, "exists", lambda path: path.name == "ttys002")
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: None)
+    commands = recipient.tty_commands()
+
+    assert commands("/dev/ttys001") == ["-fish", "claude"]
+    assert commands("/dev/ttys002") is None  # present but unlisted: ask `ps -t` about it
+    assert commands("/dev/ttys003") == []  # gone
+
+
+def test_the_ps_listing_groups_commands_by_tty(monkeypatch):
+    listing = "??       /sbin/launchd\nttys001  -fish\nttys001  /opt/bin/codex app\n"
+    monkeypatch.setattr(
+        recipient.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, listing, ""),
+    )
+
+    assert recipient._every_tty() == {
+        "??": ["/sbin/launchd"],
+        "ttys001": ["-fish", "/opt/bin/codex app"],
+    }
+
+
 def test_other_harnesses_are_unknown_even_without_a_process():
     row = db.Notification(id=1, channel="opencode:x", message="")
 
