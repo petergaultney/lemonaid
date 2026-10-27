@@ -44,6 +44,9 @@ def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]
         if not found:
             return f"/{where.search}  no match · esc cancels", colors.TEXT
         chosen = found[where.chosen % len(found)]
+        if chosen.lemon.jump_problem:
+            return f"no jump: {chosen.lemon.jump_problem}", colors.STATUS["blocked"]
+
         blocks = len({m.block.digit for m in found})
         letter = grove.arrangement.trees[(chosen.block.name, chosen.tree.key)].letter
         return (

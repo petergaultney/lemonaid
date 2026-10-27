@@ -31,14 +31,14 @@ def _context(canvas: Canvas, end: int, y: int, lemon: Lemon, panel: str) -> None
 
 def name_first(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, width: int) -> None:
     who = width - _WHO
-    tag = lemon.status if lemon.status in _ASKING else ""
+    tag = "no jump" if lemon.jump_problem else lemon.status if lemon.status in _ASKING else ""
     if tag:
         text(
             canvas,
             x + who - 1 - len(tag),
             y,
             tag,
-            colors.status_text(tag),
+            colors.status_text(lemon.status),
             panel,
             bold=True,
         )
@@ -67,7 +67,9 @@ def where_and_when(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, wid
         at,
         y,
         # without its project, `garden/`, which the list's title usually names
-        lemon.branch.rpartition("/")[2] or PurePath(lemon.cwd).name,
+        "no jump"
+        if lemon.jump_problem
+        else lemon.branch.rpartition("/")[2] or PurePath(lemon.cwd).name,
         colors.BRANCH,
         panel,
         limit=end - at,

@@ -3,6 +3,7 @@
 Made while loading, off the grove's event loop, since a card's project may take resolving paths.
 """
 
+import textwrap
 from collections import abc
 
 from rich.text import Text
@@ -55,7 +56,13 @@ def _card(
         tui.project_name_colors,
     )
     lines = card.split("\n")
-    return tuple(lines[:-1] if lines and not lines[-1].plain.strip() else lines)
+    lines = lines[:-1] if lines and not lines[-1].plain.strip() else lines
+    if problem := read.jump_problems.get(n.channel):
+        lines[:0] = [
+            Text(line, style="bold yellow")
+            for line in textwrap.wrap(f"Cannot jump: {problem}", width=width - 1)
+        ]
+    return tuple(lines)
 
 
 def by_channel(

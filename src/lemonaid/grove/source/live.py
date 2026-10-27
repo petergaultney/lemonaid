@@ -4,10 +4,12 @@ Loading also lays out anything new and saves the layout, so a block or tree keep
 was first given.
 """
 
+import dataclasses
 import time
 from collections import abc
 from typing import Any
 
+from ... import go
 from ...config import Config
 from ...inbox import db
 from ...inbox.tui.live import inbox_frame
@@ -19,6 +21,7 @@ from . import blocks, inputs, lemon_cards
 
 def _arranged(read: inputs.Inputs, config: Config, cards: bool = True) -> Grove:
     """*cards* makes each lemon's card, which reads the filesystem: only off the event loop."""
+    read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows)) if cards else read
     found = blocks.blocks(read, config.tui.context_threshold)
     arranged: list[tuple[arrange.Arrangement, dict[str, Any]]] = []
 
@@ -60,5 +63,6 @@ def preview(config: Config, switch_source: str | None) -> Grove:
     """The grove as `fresh` would lay it out, without saving anything new."""
     with db.connect() as conn:
         read = inputs.read(conn, config, switch_source)
+    read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows))
     found = blocks.blocks(read, config.tui.context_threshold)
     return Grove(found, *arrange.arrange(found, state.load()))

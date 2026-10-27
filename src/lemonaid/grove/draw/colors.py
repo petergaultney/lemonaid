@@ -67,6 +67,9 @@ def reading_color(context: str) -> str:
 
 
 def lemon_glyph(lemon: Lemon) -> str:
+    if lemon.jump_problem:
+        return "x"
+
     return "∘" if lemon.status == "done" else "●"
 
 

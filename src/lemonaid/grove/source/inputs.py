@@ -29,6 +29,8 @@ class Inputs:
     hidden: frozenset[str]  # channels whose brief says `Hidden: yes`
     numbers: dict[str, tuple[pr_numbers.PR, ...]]  # each channel's PRs, as the inbox shows them
 
+    jump_problems: dict[str, str] = dataclasses.field(default_factory=dict)
+
 
 def _births(conn: sqlite3.Connection, channels: abc.Iterable[str]) -> dict[str, float]:
     wanted = list(channels)

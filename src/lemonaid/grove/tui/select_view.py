@@ -43,6 +43,9 @@ def prompt(
     _, tree, lemon = found
     if lemon is None:
         return f"{at} · {tree.key}: arrows move it · {_EDITS}"
+    if lemon.jump_problem:
+        return f"no jump: {lemon.jump_problem}"
+
     return f"{at} · {lemon.brief_id or lemon.name}: {_EDITS} · ↑↓ along the tree · enter jumps"
 
 
