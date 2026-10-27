@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .. import brief
 from ..brief.handoff import clear as handoff_clear
+from ..codex import startup
 from ..inbox import db
 from ..inbox.channel import channel_id
 from ..launch.restart import native
@@ -82,6 +83,8 @@ def context(data: dict, harness: str) -> str:
         if harness == "claude" and session and data.get("source") == "clear"
         else ""
     )
+    if harness == "codex":
+        startup.register(data)  # so the brief waiting on its window can claim it now
     path = session_brief.attached(data, harness)
     if session:
         session_gate.mark(own_edits.root(), f"{harness}-{session}", path)

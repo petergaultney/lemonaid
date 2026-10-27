@@ -703,6 +703,7 @@ def register_working(
 
     if existing:
         name = _reconcile_name(existing, name, metadata)
+        _carry_forward(existing, metadata)
 
         new_status = "read" if existing.is_archived else existing.status
         conn.execute(

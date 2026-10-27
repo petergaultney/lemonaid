@@ -15,18 +15,12 @@ from ..inbox.channel import UnidentifiedSession, full_channel_id
 from ..launch.restart import native
 from ..lemon_watchers import (
     detect_terminal_switch_source,
-    get_cmux_surface,
     get_git_branch,
     get_name_from_cwd,
-    get_tmux_pane_tty,
-    get_tmux_session_name,
-    get_tmux_session_order,
-    get_tmux_socket,
-    get_tty,
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, hosting, permissions
+from . import channels, location, permissions
 from .utils import (
     extract_session_id_from_filename,
     find_latest_session_for_cwd,
@@ -226,30 +220,7 @@ def handle_notification(
     if branch:
         metadata["git_branch"] = branch
 
-    # Under the app-server daemon, the tty found is the daemon's, not this
-    # session's pane; recording it would put every Codex session in one pane.
-    hosted = hosting.under_app_server()
-    tty = None if hosted else get_tty()
-    if not tty and not hosted and switch_source == "tmux":
-        tty = get_tmux_pane_tty()
-    if tty:
-        metadata["tty"] = tty
-        surface = get_cmux_surface()
-        if surface:
-            metadata["cmux_surface"] = surface
-
-    # This hook runs in the session's own pane (except app-server hooks, which
-    # have no session TTY). Record the tmux session identity so a later TTY
-    # reuse cannot make another Codex session look like this one.
-    if tty and switch_source == "tmux":
-        if tmux_session := get_tmux_session_name():
-            metadata["tmux_session"] = tmux_session
-        if socket := get_tmux_socket():
-            metadata["tmux_socket"] = socket
-        if session_order := get_tmux_session_order():
-            metadata["tmux_session_order"] = list(session_order)
-            if pane := os.environ.get("TMUX_PANE"):
-                metadata["tmux_pane_identity"] = [pane, session_order[1]]
+    metadata.update(location.pane_metadata(switch_source))
 
     try:
         channel = full_channel_id("codex", session_id)

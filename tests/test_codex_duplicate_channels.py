@@ -28,12 +28,12 @@ def setup(monkeypatch, tmp_path):
     monkeypatch.setattr(
         notify, "find_latest_session_for_cwd", lambda cwd: pytest.fail("directory is not identity")
     )
-    monkeypatch.setattr(notify.hosting, "under_app_server", lambda: False)
-    monkeypatch.setattr(notify, "get_tty", lambda: "/dev/author")
+    monkeypatch.setattr(notify.location.hosting, "under_app_server", lambda: False)
+    monkeypatch.setattr(notify.location, "get_tty", lambda: "/dev/author")
     monkeypatch.setattr(notify, "detect_terminal_switch_source", lambda: "tmux")
-    monkeypatch.setattr(notify, "get_tmux_session_name", lambda: "shared")
-    monkeypatch.setattr(notify, "get_tmux_session_order", lambda: (20, 10, 1))
-    monkeypatch.setattr(notify, "get_tmux_socket", lambda: "/tmp/server")
+    monkeypatch.setattr(notify.location, "get_tmux_session_name", lambda: "shared")
+    monkeypatch.setattr(notify.location, "get_tmux_session_order", lambda: (20, 10, 1))
+    monkeypatch.setattr(notify.location, "get_tmux_socket", lambda: "/tmp/server")
     monkeypatch.setenv("TMUX_PANE", "%2")
     monkeypatch.setattr(notify, "get_git_branch", lambda cwd: None)
     return rollout
@@ -161,8 +161,8 @@ def test_snoozed_attachment_does_not_get_a_second_channel(setup):
 
 
 def test_missing_hook_tty_uses_its_own_tmux_pane_for_owner_resolution(setup, monkeypatch):
-    monkeypatch.setattr(notify, "get_tty", lambda: None)
-    monkeypatch.setattr(notify, "get_tmux_pane_tty", lambda: "/dev/author")
+    monkeypatch.setattr(notify.location, "get_tty", lambda: None)
+    monkeypatch.setattr(notify.location, "get_tmux_pane_tty", lambda: "/dev/author")
     with db.connect() as conn:
         row = _row(conn, _ROOT, _LOCATION, attach=True)
     notify.handle_notification(json.dumps({"thread-id": _ROOT, "cwd": "/work/shared"}))
@@ -268,7 +268,7 @@ def test_no_rollout_drops_before_db_or_terminal_inspection(setup, monkeypatch, s
 
     with monkeypatch.context() as gate:
         gate.setattr(db, "connect", forbidden)
-        gate.setattr(notify, "get_tty", forbidden)
+        gate.setattr(notify.location, "get_tty", forbidden)
         gate.setattr(notify, "find_latest_session_for_cwd", forbidden)
         notify.handle_notification(
             json.dumps({"type": "agent-turn-complete", "thread-id": thread, "cwd": "/work/shared"})
@@ -281,7 +281,7 @@ def test_no_rollout_drops_before_db_or_terminal_inspection(setup, monkeypatch, s
 @pytest.mark.parametrize("surface", ["tmux", "wezterm", "cmux"])
 def test_persistent_thread_keeps_its_row_after_terminal_move(setup, monkeypatch, surface):
     monkeypatch.setattr(notify, "detect_terminal_switch_source", lambda: surface)
-    monkeypatch.setattr(notify, "get_tty", lambda: "/dev/new-terminal")
+    monkeypatch.setattr(notify.location, "get_tty", lambda: "/dev/new-terminal")
     with db.connect() as conn:
         author = _row(conn, _ROOT, _LOCATION, attach=True)
         reviewer = _row(conn, _REVIEWER, _LOCATION, attach=True)

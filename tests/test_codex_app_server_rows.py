@@ -77,8 +77,8 @@ def test_the_desktop_apps_server_counts_despite_its_config_flags():
 
 
 def test_a_hosted_notification_records_no_tty(monkeypatch):
-    monkeypatch.setattr(codex_notify.hosting, "under_app_server", lambda: True)
-    monkeypatch.setattr(codex_notify, "get_tty", lambda: "/dev/ttys012")
+    monkeypatch.setattr(codex_notify.location.hosting, "under_app_server", lambda: True)
+    monkeypatch.setattr(codex_notify.location, "get_tty", lambda: "/dev/ttys012")
     monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
     monkeypatch.setattr(codex_notify, "get_git_branch", lambda cwd: None)
 
@@ -92,12 +92,12 @@ def test_a_hosted_notification_records_no_tty(monkeypatch):
 
 def test_a_tmux_codex_hook_records_its_own_session_identity(monkeypatch):
     monkeypatch.setenv("TMUX_PANE", "%7")
-    monkeypatch.setattr(codex_notify.hosting, "under_app_server", lambda: False)
-    monkeypatch.setattr(codex_notify, "get_tty", lambda: "/dev/ttys012")
+    monkeypatch.setattr(codex_notify.location.hosting, "under_app_server", lambda: False)
+    monkeypatch.setattr(codex_notify.location, "get_tty", lambda: "/dev/ttys012")
     monkeypatch.setattr(codex_notify, "detect_terminal_switch_source", lambda: "tmux")
-    monkeypatch.setattr(codex_notify, "get_tmux_session_name", lambda: "review")
-    monkeypatch.setattr(codex_notify, "get_tmux_socket", lambda: "/tmp/tmux-501/default")
-    monkeypatch.setattr(codex_notify, "get_tmux_session_order", lambda: (100, 50, 2))
+    monkeypatch.setattr(codex_notify.location, "get_tmux_session_name", lambda: "review")
+    monkeypatch.setattr(codex_notify.location, "get_tmux_socket", lambda: "/tmp/tmux-501/default")
+    monkeypatch.setattr(codex_notify.location, "get_tmux_session_order", lambda: (100, 50, 2))
     monkeypatch.setattr(codex_notify, "get_git_branch", lambda cwd: None)
 
     codex_notify.handle_notification(json.dumps({"thread-id": _THREAD, "cwd": _CWD}))
