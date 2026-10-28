@@ -3,6 +3,7 @@
 from rich.style import Style
 from rich.text import Text
 
+from ..unfocused_dim import kept
 from ..utils import HERE_BAR
 
 
@@ -35,7 +36,7 @@ def finished(
 
     if rail:
         lines = [
-            Text.assemble((HERE_BAR, rail)) + line
+            Text.assemble((HERE_BAR, kept(rail))) + line
             if index < len(lines) - 1 or not end_rail
             else Text(" ") + line
             for index, line in enumerate(lines)

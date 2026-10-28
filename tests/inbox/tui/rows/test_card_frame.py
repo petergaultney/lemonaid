@@ -6,11 +6,13 @@ import pytest
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.color import Color
 
 from lemonaid.inbox.tui import utils
-from lemonaid.inbox.tui.rows import cards
+from lemonaid.inbox.tui.rows import card_frame, cards
 from lemonaid.inbox.tui.rows.brief_cards import CardBrief
 from lemonaid.inbox.tui.tables.table import ClickToActTable
+from lemonaid.inbox.tui.unfocused_dim import Dim
 from lemonaid.inbox.tui.utils import HERE_BAR, jump_gutter
 
 
@@ -103,3 +105,10 @@ def test_rendered_frame_stays_in_its_row_before_a_header(width, position):
                 assert segment.style.bgcolor is not None
 
     asyncio.run(render())
+
+
+def test_the_rail_keeps_its_color_when_the_inbox_is_dimmed():
+    [line] = card_frame.finished([Text("x")], 1, "", "#c86400", False)
+    [rail, *_] = line.render(Console(color_system="truecolor"))
+    [out] = Dim(0.5).apply([rail], Color(0, 0, 0))
+    assert out.style.color.triplet == (200, 100, 0)

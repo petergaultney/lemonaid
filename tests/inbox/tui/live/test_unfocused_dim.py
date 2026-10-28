@@ -132,3 +132,10 @@ def test_a_superseded_probe_finishing_last_does_not_overwrite_the_newer_answer(m
             assert app.has_class("-input-active")
 
     asyncio.run(check())
+
+
+def test_a_kept_color_is_neither_faded_nor_faint():
+    style = unfocused_dim.kept("#c86400")
+    for strength in (0.5, None):
+        [out] = unfocused_dim.Dim(strength).apply([Segment("x", style)], Color(0, 0, 0))
+        assert out.style == style and not out.style.dim
