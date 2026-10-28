@@ -603,7 +603,10 @@ inbox messages, then run the same unified command again. An unchanged unanswered
 thread does not create a fresh wake on every rearm. The session may remain idle
 with the watcher armed; it does not need repeated model turns to poll.
 
-`--interval` controls brief and inbox reads (default 0.5 seconds). `--quiet` controls
+`--interval` controls brief and inbox checks (default 0.5 seconds). Unchanged briefs
+reuse their parsed subscriptions; brief edits, saved-state changes and child PR
+changes refresh the list. Linked paths are resolved again at least every 30 seconds
+so a retargeted symlink is eventually followed. `--quiet` controls
 batch gathering after the last event (default 2 seconds). Individual watch commands
 keep their source polling and quiet options. Documents wait for their own quiet
 period, normally 20 seconds, before reporting a body edit. A new comment waits only

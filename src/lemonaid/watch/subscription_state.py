@@ -1,6 +1,7 @@
 """Watch every readable source, retaining the list across an incomplete brief write."""
 
 import json
+import time
 from collections import abc
 from pathlib import Path
 
@@ -56,3 +57,42 @@ def read(
 def remember(root: Path, problem: str) -> None:
     delivered = {line[2:] for line in problem.splitlines() if line.startswith("- ")}
     cursors.write_json(root / "brief-problems.json", sorted(reported(root) | delivered))
+
+
+def _version(path: Path) -> tuple[int, int, int, int] | None:
+    try:
+        stat = path.stat()
+        return stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+    except FileNotFoundError:
+        return None
+
+
+def reader(
+    path: Path,
+    root: Path,
+    cwd: Path,
+    owner: str,
+    vaults: tuple[Path, ...],
+) -> abc.Callable[[abc.Set[tuple[str, ...]]], tuple[list[subscriptions.Subscription], str]]:
+    """Cache one waiter's inputs; periodically resolve linked paths again for symlink changes."""
+    cached: tuple[list[subscriptions.Subscription], str] | None = None
+    previous: tuple = ()
+    refreshed = 0.0
+
+    def poll(
+        children_prs: abc.Set[tuple[str, ...]],
+    ) -> tuple[list[subscriptions.Subscription], str]:
+        nonlocal cached, previous, refreshed
+        version = (
+            _version(path),
+            _version(root / "subscriptions.md"),
+            _version(root / "brief-problems.json"),
+            frozenset(children_prs),
+        )
+        now = time.monotonic()
+        if cached is None or version != previous or now - refreshed >= 30:
+            cached = read(path, root, cwd, owner, vaults, children_prs)
+            previous, refreshed = version, now
+        return cached
+
+    return poll
