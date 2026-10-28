@@ -658,7 +658,8 @@ waiter, as after `lemonaid watch stop`; the lemonaid log records `stopping deaf 
 `lemonaid watch restart` restarts running `watch --self` waiters, push scouts
 included, into the installed lemonaid: name lemons by Lemon-ID, or pass `--self` or
 `--all`. Each waiter records its lemonaid version in the registry and restarts on
-`SIGUSR1` once nothing it has detected is waiting to be delivered: it leaves its
+`SIGUSR1`, even with a batch detected but not yet delivered (cursors advance only on
+delivery, so the new process detects it again): it leaves its
 loop (a scout logs `exited normally` with reason `restarting on request`) and
 re-execs itself with the same arguments. Inbox messages it hadn't delivered stay in
 the inbox for the new process. Nothing polls for this: the first lemonaid command of
@@ -671,28 +672,25 @@ an install take turns on a lock, so each waiter is signaled once. The digest cov
 lemonaid's own modules, so an upgrade that changes only a dependency restarts nothing;
 run `lemonaid watch restart --all` if running waiters must load it. An editable install keeps one version, so after editing its source run
 `lemonaid watch restart --all`. Waiters from a lemonaid without this command don't
-know the signal and are never sent it; stop and rearm those once.
+know the signal and are never sent it; `watch restart` stops those instead.
 
 ### Restarting watchers after an upgrade
 
 A lemonaid that has `watch restart` restarts its older watchers by itself the first time
-any lemonaid command runs after the upgrade. The first upgrade onto such a version is the
-exception: watchers started before it don't know the signal, so you restart them once by hand.
+any lemonaid command runs after the upgrade. `lemonaid watch restart --all` also
+covers watchers that cannot take the signal.
 
-1. Run `lemonaid watch restart --all`. It prints each watcher it asked, and lists the ones it
-   could not signal with their Lemon-ID, kind, pid, channel and rearm command.
-2. Stop each listed watcher by its pid with a plain `kill <pid>`. Never kill by pattern:
-   a pattern matches every lemon's waiter on the machine, and `lemonaid watch stop --self`
-   only knows waiters started by a lemonaid new enough to register them.
-3. Start a fresh one for the same lemon, with the listed channel, so it watches that lemon's
-   session and not yours: `lemonaid watch --self --push --channel <channel>` for a push
-   scout. Older commands in the listing carry no `--channel`, so add it yourself.
+`watch restart` prints each watcher it asked. After `--wait` seconds (default 30) it stops
+every asked watcher still running changed code, and every watcher that predates the signal,
+with the same SIGTERM as `watch stop`. For a push scout it then starts a new one for the same
+session. Any other stopped waiter prints the command its lemon must rearm. A waiter that
+doesn't exit prints its pid, and you stop it with a plain `kill <pid>`, never by pattern.
 
 One-shot Codex waiters (`watch --self --codex-thread`) exit after their next batch and the
 lemon rearms them on the new code, so they need no step.
 
 To confirm a watcher runs the new version, run `lemonaid watch restart --all` again. It
-prints no "older watchers" list once every watcher takes the signal. The registry file
+prints no "older watchers" line once every watcher takes the signal. The registry file
 `$LEMONAID_STATE_DIR/waiters/<pid>.json` (default `~/.local/state/lemonaid/waiters/`)
 of a restarted watcher also records the new `version`.
 

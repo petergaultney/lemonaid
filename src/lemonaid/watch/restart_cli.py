@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from . import registry, restart
+from . import registry, restart, restart_fallback
 
 _HELP = """\
 Ask running `watch --self` waiters, push scouts included, to restart into the
@@ -11,8 +11,10 @@ installed lemonaid. Each one restarts once nothing it has detected is waiting to
 delivered, with the same arguments, so no lemon has to rearm. A new lemonaid
 version does this by itself the first time any lemonaid command runs.
 
-Waiters started by a lemonaid from before this command existed don't know the
-signal and are left alone; stop and rearm those.
+A watcher that has not restarted after --wait seconds, and any started by a lemonaid
+from before this command existed (they don't know the signal), is stopped instead,
+and a push scout is started again in its place. Another waiter stays stopped for
+its lemon to rearm.
 """
 
 
@@ -35,15 +37,12 @@ def run(a: argparse.Namespace) -> int:
     sent = restart.send(chosen)
     for waiter in sent:
         print(f"Asked {', '.join(waiter.targets)}'s watcher (pid {waiter.pid}) to restart")
-    if skipped := [w for w in chosen if w not in sent]:
-        print(f"{len(skipped)} older watchers don't restart on request:")
-        for waiter in skipped:
-            print(
-                f"  {', '.join(waiter.targets)}  {waiter.kind}  pid {waiter.pid}  channel {waiter.channel or '-'}  {waiter.command}"
-            )
-        print(
-            "Stop each by its pid (`kill <pid>`, never a pattern) and start it again; see docs/watch.md"
-        )
+    unasked = [w for w in chosen if w not in sent]
+    if unasked:
+        print(f"{len(unasked)} older watchers don't restart on request")
+    replaced = [*unasked, *restart_fallback.stuck(sent, a.wait)]
+    for line in restart_fallback.replace(replaced):
+        print(line)
     if not chosen:
         print("No running watch --self waiter matches")
     return 0
@@ -63,5 +62,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("lemons", nargs="*", help="Lemon-IDs whose watchers to restart")
     parser.add_argument("--self", dest="use_self", action="store_true", help="Your own watcher")
     parser.add_argument("--all", action="store_true", help="Every lemon's watcher")
+    parser.add_argument(
+        "--wait",
+        type=float,
+        default=30.0,
+        help="Seconds to let asked watchers restart before stopping them (default 30)",
+    )
     parser.add_argument("--channel", help="Your channel, overriding self detection")
     parser.set_defaults(func=_cmd)

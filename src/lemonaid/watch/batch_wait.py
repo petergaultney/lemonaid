@@ -99,9 +99,10 @@ def wait(
     restart_requested: abc.Callable[[], bool] = lambda: False,
     beat: abc.Callable[[], None] = lambda: None,
 ) -> bool:
-    """Deliver one batch; True instead when a restart was requested while nothing was pending.
+    """Deliver one batch; True instead when a restart was requested.
 
-    Undelivered inbox messages stay on disk for the restarted waiter.
+    Cursors advance only on delivery, so the restarted waiter detects again whatever was
+    pending, and undelivered inbox messages stay on disk for it.
     """
     vaults = tuple(load_config().brief.vaults)
     output: queue.Queue[scouts.Pending] = queue.Queue()
@@ -135,7 +136,7 @@ def wait(
             pending = _reconcile(running, specs, pending, root, writer, output, signatures, notes)
             if _collect(output, running, pending):
                 since = time.monotonic()
-            if not pending and restart_requested():
+            if restart_requested():
                 return True
 
             with store.receive_lock(inbox, wait=False) as held:

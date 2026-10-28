@@ -1185,9 +1185,9 @@ pattern matches every lemon's waiter on the machine.
 waiter or push scout into the installed lemonaid without dropping what it has detected; you
 need not rearm it. A new lemonaid version does this for every older waiter by itself.
 
-After upgrading onto the first lemonaid that has `watch restart`, watchers and push scouts
-started before it don't know the signal. `lemonaid watch restart --all` lists them with their
-pids; stop each by pid with a plain `kill <pid>`, never by pattern, then rearm it. Steps:
+A watcher that doesn't restart within `--wait` seconds (default 30), or that predates the
+restart signal, is stopped, and its push scout is started again; any other stopped waiter
+prints the command its lemon rearms. Steps:
 [watch.md](watch.md#restarting-watchers-after-an-upgrade).
 
 A waiter stopped by SIGTERM prints who stopped it and the command that rearms it, then exits
