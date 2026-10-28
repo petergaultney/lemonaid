@@ -94,7 +94,7 @@ def test_expired_same_terminal_request_is_retired_before_retry(setup):
         time.time() - 1,
     )
 
-    assert handoff_cli._pending_handoff(conn, path, time.time()) is None
+    assert handoff_cli.request._pending_handoff(conn, path, time.time()) is None
     retired = handoff_state.get(conn, old["token"])
     assert retired["phase"] == "failed"
     assert "superseded" in retired["error"]
@@ -128,17 +128,17 @@ def test_live_same_terminal_request_remains_pending(setup):
         str(path.parent),
         time.time() + 600,
     )
-    assert handoff_cli._pending_handoff(conn, path, time.time())["token"] == row["token"]
+    assert handoff_cli.request._pending_handoff(conn, path, time.time())["token"] == row["token"]
 
 
 def test_codex_handoff_request_mentions_escalated_permissions():
-    message = handoff_cli._request_message("codex:old", "token", True)
+    message = handoff_cli.request._request_message("codex:old", "token", True)
     assert "escalated permissions" in message
     assert "exit this harness normally" in message
 
 
 def test_claude_handoff_request_omits_codex_permissions():
-    message = handoff_cli._request_message("claude:old", "token", False)
+    message = handoff_cli.request._request_message("claude:old", "token", False)
     assert "escalated permissions" not in message
     assert "exit this harness normally" not in message
 

@@ -12,6 +12,7 @@ def build(row) -> dict:
     manual = not row["source_pane_id"]
     report = {
         "token": row["token"],
+        "mode": "recovery" if row["recovery_hash"] else "cooperative",
         "phase": row["phase"],
         "source": row["source"],
         "target": row["target"] or None,

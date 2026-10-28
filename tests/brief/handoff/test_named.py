@@ -36,12 +36,12 @@ def test_named_codex_preset_moves_brief_through_request_and_accept(setup, monkey
             )
         )
     )
-    for module in (handoff_cli, handoff_launch, handoff_report):
+    for module in (handoff_cli.request, handoff_launch, handoff_report):
         monkeypatch.setattr(module, "load_config", lambda: config)
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(path.parent))
     monkeypatch.setattr(handoff_cli.db, "connect", lambda: nullcontext(conn))
-    monkeypatch.setattr(handoff_cli.subprocess, "Popen", Mock())
-    monkeypatch.setattr(handoff_cli.to_brief, "send", Mock())
+    monkeypatch.setattr(handoff_cli.request.subprocess, "Popen", Mock())
+    monkeypatch.setattr(handoff_cli.request.to_brief, "send", Mock())
     args = _args("--to", "codex-low", "--brief", str(path))
     args.func(args)
     report = json.loads(capsys.readouterr().out)

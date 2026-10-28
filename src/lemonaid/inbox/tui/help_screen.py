@@ -39,6 +39,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("archive", "Archive - remove it from the list"),
             ("snooze", "Snooze until a time you pick"),
             ("rename", "Rename (clear it to go back to the auto name)"),
+            ("handoff", "Hand off to another harness or recover from saved context (confirmed)"),
             ("resume_detached", "Resume a detached session when available"),
             ("undo", "Undo the last inbox change"),
         ],
@@ -99,6 +100,7 @@ def _key_display(value: str, field: str) -> str:
         "last",
         "search",
         "save_size",
+        "handoff",
     ):
         return value.replace("shift+", "Shift+").replace("ctrl+", "Ctrl+").replace("alt+", "Alt+")
 

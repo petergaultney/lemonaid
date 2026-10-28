@@ -627,6 +627,51 @@ Parent links are between Lemon-IDs; see `docs/lineage.md`.
 
 ### Harness handoff
 
+Select another lemon with `--source LemonAce` or its full stable Lemon-ID:
+
+```sh
+lemonaid brief handoff --source LemonAce --to codex
+lemonaid brief handoff --source LemonAce.control-center --to codex-low
+```
+
+A short name must identify exactly one attached lemon. `--brief FILE` remains supported
+and also accepts these IDs. Explicit source selection opts out of controlling-TTY
+selection. Destinations can be Claude, Codex, or configured presets for either.
+
+Recovery is selected manually. Lemonaid does not detect exhausted credits or choose
+recovery automatically. If the outgoing lemon cannot take a final turn, select Recovery
+in the inbox and confirm, or explicitly request it from the CLI:
+
+```sh
+lemonaid brief handoff --source LemonAce --to codex --recover --yes
+```
+
+Recovery replaces the outgoing harness in its **existing pane and window**. It checks
+its recorded native session, exact process generation, terminal ownership and other
+jobs before sending SIGTERM to that process. If ownership is missing or ambiguous,
+it refuses to stop anything. Run the recovery command from the inbox or another
+terminal, outside the outgoing harness.
+
+The confirmation authorizes interruption without a fresh handoff note or outgoing
+acknowledgement. The saved brief must pass `brief check` and remain unchanged until
+the destination accepts the token. Its context may be incomplete; the replacement
+prompt says so. Identity, lineage, groups and manual inbox state transfer through
+the same transaction as cooperative handoff. The outgoing process is stopped; no
+second live lemon or extra window is kept. Its transcript remains ordinary session
+history, and its inbox row is archived after transfer.
+
+If recovery fails, the brief stays attached to the source record. A failure before
+stopping the source allows a confirmed retry. If the source may have stopped or the
+pane may have been replaced, the attempt remains pending even after expiry: inspect
+the pane and saved resume command before another attempt. Recovery does not restart
+the old process automatically.
+
+In the inbox, **Alt+h** opens destination and mode selection for the selected live lemon.
+A second dialog identifies the source and destination and requires confirmation. Escape
+or Cancel at either step leaves everything unchanged. `[tui.keybindings] handoff` changes
+the binding (one key name, default `"alt+h"`; empty disables it).
+
+
 `brief handoff --to claude|codex` needs an attached brief and a live outgoing
 inbox row. The destination can be the lemon's own harness: the replacement is then
 a fresh session of that harness, with a new context, in the same pane. It sends the outgoing lemon a request with a random token.

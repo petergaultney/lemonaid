@@ -128,6 +128,7 @@ class KeybindingsConfig:
     history: str = "h"  # Toggle history view
     search: str = "/"  # Search the inbox, or filter history
     copy_resume: str = "c"  # Copy resume command to clipboard
+    handoff: str = "alt+h"  # One modified key
     resume_detached: str = "R"  # Resume a detached session from the inbox
     tmux_resume: str = "T"  # Spawn tmux session around a history entry
     brief: str = "b"  # Show the session's brief in a tmux popup

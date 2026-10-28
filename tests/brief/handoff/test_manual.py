@@ -84,7 +84,7 @@ def test_manual_lifecycle_transfers_state_without_touching_tmux(setup, monkeypat
     monkeypatch.setenv("CODEX_THREAD_ID", "new")
     monkeypatch.delenv("LEMONAID_CHANNEL", raising=False)
     monkeypatch.setattr(handoff_cli.db, "connect", lambda: nullcontext(conn))
-    monkeypatch.setattr(handoff_cli.subprocess, "Popen", Mock())
+    monkeypatch.setattr(handoff_cli.request.subprocess, "Popen", Mock())
     handoff_cli._cmd(argparse.Namespace(watch=False, to=None, token=row["token"], action="accept"))
     assert attached.by_channel(conn, ["codex:new"])["codex:new"] == path
     assert db.get_by_channel(conn, "codex:new", unread_only=False).name == "Manual name"
@@ -236,7 +236,7 @@ def test_accept_binds_harness_id_and_waits_for_its_inbox_row(setup, monkeypatch,
     conn.commit()
     handoff_coordinator.advance(conn, row["token"])
     monkeypatch.setattr(handoff_cli.db, "connect", lambda: nullcontext(conn))
-    monkeypatch.setattr(handoff_cli.subprocess, "Popen", Mock())
+    monkeypatch.setattr(handoff_cli.request.subprocess, "Popen", Mock())
     monkeypatch.setenv("CODEX_THREAD_ID", "new")
     monkeypatch.setenv("LEMONAID_HANDOFF_TOKEN", "wrong")
     monkeypatch.delenv("LEMONAID_CHANNEL", raising=False)

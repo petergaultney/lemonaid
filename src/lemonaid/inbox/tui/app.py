@@ -53,7 +53,14 @@ from . import (
 )
 from .briefs.brief_pane import BriefPane
 from .crash_logging import CrashLoggedApp
-from .edits import edit_dialogs, group_dialogs, inbox_edits, inbox_groups, inbox_hidden
+from .edits import (
+    edit_dialogs,
+    group_dialogs,
+    handoff_dialog,
+    inbox_edits,
+    inbox_groups,
+    inbox_hidden,
+)
 from .help_screen import HelpScreen
 from .inbox_content import InboxContent
 from .live import inbox_draw, inbox_frame, refresh_ticks, status_line
@@ -1034,6 +1041,10 @@ class LemonaidApp(CrashLoggedApp):
 
     def _selected_notification(self) -> db.Notification | None:
         return row_keys.notification(self._get_current_row_key())
+
+    def action_handoff(self) -> None:
+        if self._mode is None and (notification := self._selected_notification()):
+            handoff_dialog.open_dialog(self, notification.channel, self.config)
 
     def action_snooze(self) -> None:
         """Snooze the selected session out of the inbox for a chosen duration."""

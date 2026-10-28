@@ -158,7 +158,7 @@ def test_tmux_accept_requires_native_target_and_original_pane(setup, monkeypatch
     monkeypatch.setattr(handoff_tmux, "pane_process", lambda *_: ("400", False))
     monkeypatch.setattr(handoff_tmux, "set_remain_on_exit", lambda *_: True)
     monkeypatch.setattr(handoff_cli.db, "connect", lambda: nullcontext(conn))
-    monkeypatch.setattr(handoff_cli.subprocess, "Popen", Mock())
+    monkeypatch.setattr(handoff_cli.request.subprocess, "Popen", Mock())
     monkeypatch.setenv("CODEX_THREAD_ID", "new")
     monkeypatch.setenv("LEMONAID_HANDOFF_TOKEN", row["token"])
     monkeypatch.delenv("LEMONAID_CHANNEL", raising=False)

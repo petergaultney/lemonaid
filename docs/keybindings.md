@@ -376,3 +376,14 @@ Leave empty (the default) to use only arrow keys.
 - `Escape` - always bound to quit (in addition to configured quit key)
 - `Home` / `End` - the top and bottom of the list, alongside `first` and `last`
 - `Ctrl`+`t` - patch Claude binary (only acts when Claude is unpatched)
+
+### Harness handoff
+
+`Alt+h` on a live lemon opens a destination harness/preset picker. Choose cooperative
+handoff (fresh outgoing notes, replacement in its pane) or recovery (saved context,
+no final outgoing turn, verified process replacement in the same pane). A second dialog names the source and destination
+and requires confirmation. Recovery is selected manually; Lemonaid does not detect
+exhausted credits or choose recovery automatically. Escape or Cancel at either step
+makes no changes. Confirmed Recovery stops the outgoing process and starts its
+replacement in the same pane; it creates no extra window or second live lemon. See
+[Harness handoff](for-lemons.md#harness-handoff) for CLI selection and recovery details.
