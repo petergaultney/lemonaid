@@ -1,12 +1,14 @@
 import asyncio
+import os
 import statistics
 import time
+from unittest import mock
 
 import pytest
 from textual.app import App
 
 from lemonaid import tmux
-from lemonaid.brief import children, family, pr, render, store, target
+from lemonaid.brief import children, family, pr, render, status, store, target
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
 from lemonaid.lineage import links
@@ -145,4 +147,42 @@ def test_pending_child_without_a_session_is_visible():
         links.set_parent(conn, child, parent)
     assert family.added(render.view(found, 0, pr.no_state)).sections[0].children == (
         render.Child("", "pending", child),
+    )
+
+
+def test_a_redraw_reads_only_the_changed_briefs_of_shown_children(monkeypatch):
+    found = _lead(10)
+    split = status.split
+    read: list[str] = []
+    monkeypatch.setattr(status, "split", lambda text: read.append(text) or split(text))
+    family.added(render.view(found, 0, pr.no_state))
+    read.clear()
+
+    family.added(render.view(found, 0, pr.no_state))
+    assert len(read) == 1  # the lead's own brief; no child is re-read
+
+    path = store.briefs_dir() / "child-2.md"
+    path.write_text(path.read_text().replace("Status: done", "Status: blocked"))
+    read.clear()
+    shown = family.added(render.view(found, 0, pr.no_state))
+    assert len(read) == 2
+    assert render.Child("blocked", "child-2", mock.ANY) in shown.sections[0].children
+
+
+@pytest.mark.parametrize("replace", [False, True])
+def test_a_child_edit_that_keeps_its_mtime_and_size_is_still_seen(replace):
+    found = _lead(1)
+    path = store.briefs_dir() / "child-0.md"
+    before = path.stat()
+    family.added(render.view(found, 0, pr.no_state))
+
+    edited = path.read_text().replace("Status: blocked", "Status: running")
+    target_path = path.with_name("replacement.md") if replace else path
+    target_path.write_text(edited)
+    os.utime(target_path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    if replace:
+        target_path.replace(path)
+    assert path.stat().st_size == before.st_size
+    assert family.added(render.view(found, 0, pr.no_state)).sections[0].children[0].state == (
+        "running"
     )
