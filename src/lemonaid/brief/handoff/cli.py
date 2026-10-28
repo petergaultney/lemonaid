@@ -4,66 +4,18 @@ import argparse
 import fcntl
 import json
 import os
-import shlex
 import subprocess
 import sys
 import time
 
-from ...config import load_config
 from ...inbox import db
 from ...inbox.channel import channel_id, full_channel_id
-from ...messages import to_brief
-from ...resume import build_resume_command
-from .. import attached, lemon, store
+from .. import attached, lemon
 from . import coordinator as handoff_coordinator
-from . import launch as handoff_launch
 from . import pane as handoff_tmux
+from . import request
 from . import shell as handoff_shell
 from . import state as handoff_state
-
-_DEADLINE_SECONDS = 600
-
-
-def _pending_handoff(conn, path, now: float):
-    """Return a live same-brief handoff, retiring expired or errored attempts."""
-    existing = conn.execute(
-        "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
-        (str(path),),
-    ).fetchone()
-    if existing is None:
-        return None
-    if existing["error"] or existing["deadline"] <= now:
-        error = existing["error"] or "Expired handoff superseded by a new request"
-        conn.execute(
-            "UPDATE brief_handoffs SET phase = 'failed', error = ? WHERE token = ?",
-            (error, existing["token"]),
-        )
-        conn.commit()
-        return None
-    return existing
-
-
-def _request_message(channel: str, token: str, same_terminal: bool) -> str:
-    exit_instruction = (
-        "After writing the ready marker, exit this harness normally so the "
-        "same terminal can start the replacement. "
-        if same_terminal
-        else ""
-    )
-    sandbox_instruction = (
-        "If Codex blocks writing this brief or running `lemonaid brief check`, "
-        "retry those operations with escalated permissions before reporting ready. "
-        if channel.startswith("codex:")
-        else ""
-    )
-    return (
-        "Write a fresh ## Handoff with at most five bullets. Do not reread files "
-        "when the brief is already current. Stop your waiters. "
-        f"Put Handoff-Ready: {token} on its own final line in the brief. "
-        "You may instead print that exact line in your final reply after editing "
-        f"## Handoff. {sandbox_instruction}{exit_instruction}"
-        "The old session stays active until cutover."
-    )
 
 
 def _cmd(args: argparse.Namespace) -> None:
@@ -105,7 +57,7 @@ def _cmd(args: argparse.Namespace) -> None:
                         or row["error"]
                     ):
                         return
-                except (ValueError, OSError):
+                except (ValueError, OSError, subprocess.SubprocessError):
                     with db.connect() as conn:
                         try:
                             row = handoff_state.get(conn, args.token)
@@ -118,95 +70,25 @@ def _cmd(args: argparse.Namespace) -> None:
                 time.sleep(1)
 
     direct_tty = False
+    token = ""
     try:
         with db.connect() as conn:
-            source_job = None
+            if getattr(args, "recover", False) and (
+                not args.to
+                or not getattr(args, "yes", False)
+                or not (getattr(args, "source", "") or getattr(args, "brief", ""))
+            ):
+                raise ValueError("Recovery needs --to, an explicit --source or --brief, and --yes")
             if args.to:
-                backend = handoff_launch.destination(args.to)
-                on_tty = not getattr(args, "brief", "") and sys.stdin.isatty()
-                stopped = None
-                if on_tty:
-                    tty = os.ttyname(sys.stdin.fileno())
-                    stopped = handoff_shell.stopped_harness_on_tty(
-                        tty, handoff_shell.harnesses_on_tty(conn, tty)
-                    )
-                direct_tty = bool(on_tty and (stopped or not os.environ.get("TMUX_PANE")))
-                same_terminal = direct_tty
-                if getattr(args, "brief", ""):
-                    path = store.resolve(args.brief)
-                    if store.outside_error(path):
-                        raise ValueError(store.outside_error(path))
-                    holders = [
-                        item.channel for item in attached.everything(conn) if item.path == path
-                    ]
-                    if len(holders) != 1 or not holders[0]:
-                        raise ValueError("The brief needs one attached outgoing channel")
-                    channel = holders[0]
-                elif direct_tty:
-                    tty = os.ttyname(sys.stdin.fileno())
-                    channel = handoff_shell.channel_on_tty(conn, tty)
-                    source_harness = channel.split(":", 1)[0]
-                    if stopped is None:
-                        source_job = handoff_shell.stopped_job_on_tty(tty, source_harness)
-                    elif stopped[0] != source_harness:
-                        raise ValueError(
-                            f"Found stopped {stopped[0]} on {tty}, but attached session "
-                            f"{channel} is {source_harness}; refusing to guess which one to hand off."
-                        )
-                    else:
-                        source_job = stopped[1]
-                else:
-                    channel = lemon.self_channel(conn)
-                path, session, index, window_id, pane_id, source_command = (
-                    handoff_coordinator.source(conn, channel)
-                )
-                notification = db.get_by_channel(conn, channel, unread_only=False)
-                if same_terminal:
-                    shlex.split(handoff_launch.configured_line(args.to, args.to))
-                    tty = os.ttyname(sys.stdin.fileno())
-                    if notification.metadata.get("tty") != tty:
-                        raise ValueError("The outgoing harness was recorded on another terminal")
-                    pane_id, window_id = "", ""
-                    source_command = str(notification.metadata.get("cwd") or "")
-                    if not os.path.isdir(source_command):
-                        raise ValueError("The outgoing lemon's working directory is unavailable")
-                resume = build_resume_command(load_config(), channel, notification.metadata)
-                if resume is None or not resume[1]:
-                    raise ValueError("The outgoing session has no usable resume command")
-                if same_terminal:
-                    existing = _pending_handoff(conn, path, time.time())
-                else:
-                    existing = conn.execute(
-                        "SELECT * FROM brief_handoffs "
-                        "WHERE path = ? AND phase NOT IN ('complete', 'failed')",
-                        (str(path),),
-                    ).fetchone()
-                if existing is not None and same_terminal:
-                    raise ValueError("A handoff is already pending for this brief")
-                row = handoff_state.request(
+                token, direct_tty, source_job = request.prepare(
                     conn,
-                    path,
-                    channel,
-                    backend,
-                    session,
-                    index,
-                    window_id,
-                    pane_id,
-                    source_command,
-                    time.time() + _DEADLINE_SECONDS,
-                    launch_name=args.to,
+                    args.to,
+                    args.brief,
+                    getattr(args, "source", ""),
+                    getattr(args, "recover", False),
                 )
-                conn.execute(
-                    "UPDATE brief_handoffs SET resume_line = ?, resume_cwd = ? WHERE token = ?",
-                    (shlex.join(resume[1]), resume[0], row["token"]),
-                )
-                conn.commit()
-                row = handoff_state.get(conn, row["token"])
-                if existing is None or existing["error"] or time.time() > existing["deadline"]:
-                    to_brief.send(path, _request_message(channel, row["token"], same_terminal))
-                token = row["token"]
             else:
-                token = args.token
+                token, source_job = args.token, None
 
             if args.action in ("ready", "accept"):
                 channel = lemon.self_channel(conn)
@@ -235,7 +117,7 @@ def _cmd(args: argparse.Namespace) -> None:
                         or os.environ.get("LEMONAID_HANDOFF_TOKEN", "") not in ("", token)
                     ):
                         raise ValueError("Accept needs the launched target harness and its token")
-                    if not row["source_pane_id"]:
+                    if not row["target_pane_id"]:
                         if attached.by_channel(conn, [channel]):
                             raise ValueError("The target channel already has a brief")
                         handoff_state.bind_target(conn, token, channel)
@@ -259,42 +141,16 @@ def _cmd(args: argparse.Namespace) -> None:
 
             report = handoff_coordinator.advance(conn, token)
             if report["phase"] != "complete":
-                watcher_args = [
-                    sys.executable,
-                    "-m",
-                    "lemonaid",
-                    "brief",
-                    "handoff",
-                    "status",
-                    token,
-                    "--watch",
-                ]
-                if source_job:
-                    watcher_args.extend(
-                        (
-                            "--source-pid",
-                            str(source_job[0]),
-                            "--source-pgid",
-                            str(source_job[1]),
-                            "--source-tty",
-                            source_job[2],
-                            "--source-start",
-                            source_job[3],
-                        )
-                    )
-                subprocess.Popen(
-                    watcher_args,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                    env=os.environ.copy(),
-                )
+                request.watch(token, source_job)
+
         if direct_tty:
             handoff_shell.launch_from_tty(token, source_job)
             return
         print(json.dumps(report))
-    except (ValueError, LookupError, OSError) as error:
+    except (ValueError, LookupError, OSError, subprocess.SubprocessError) as error:
+        if args.to and token:
+            with db.connect() as conn:
+                handoff_coordinator.recover_source(conn, handoff_state.get(conn, token), "failed")
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         sys.exit(1)
 
@@ -306,7 +162,17 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--to", metavar="NAME", help="Claude, Codex, or a named lemon running either backend"
     )
-    parser.add_argument("--brief", default="", help="Outgoing brief, if called by another lemon")
+    selector = parser.add_mutually_exclusive_group()
+    selector.add_argument("--brief", default="", help="Outgoing brief path or Lemon-ID")
+    selector.add_argument("--source", default="", help="Outgoing full Lemon-ID or unique name half")
+    parser.add_argument(
+        "--recover",
+        action="store_true",
+        help="Use saved context in the same pane; stop the verified source without an outgoing turn",
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="Confirm recovery using existing durable context"
+    )
     parser.add_argument("--source-pid", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--source-pgid", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--source-tty", default="", help=argparse.SUPPRESS)

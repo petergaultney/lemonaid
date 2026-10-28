@@ -56,6 +56,8 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.hide, "hide", "Hide/show", show=False)
     yield from build_bindings(kb.archive, "archive", "Archive")
     yield from build_bindings(kb.rename, "rename", "Rename")
+    if kb.handoff:
+        yield _hidden(kb.handoff, "handoff", "Handoff")
     yield from build_bindings(kb.snooze, "snooze", "Snooze")
     yield from build_bindings(kb.snoozed_list, "toggle_snoozed", "Snoozed")
     yield from build_bindings(kb.usage_view, "toggle_usage", "Usage")
@@ -207,6 +209,9 @@ def permitted(
     resume_available: abc.Callable[[], bool],
 ) -> bool:
     """Whether *action* runs now. `overlaid` means a dialog is up or a text box has the keys."""
+    if action == "handoff":
+        return not (brief_shown or overlaid or searching)
+
     if action == "select_brief":
         return brief_shown and not overlaid
 

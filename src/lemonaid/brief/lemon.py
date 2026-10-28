@@ -92,10 +92,15 @@ def _find(
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):
         lemon_id = current(conn, target)
+        ids = brief_ids()
         found = [
             entry
             for entry in all_briefs
-            if entry.channel and brief_ids().get(entry.path) == lemon_id
+            if entry.channel
+            and (
+                ids.get(entry.path) == lemon_id
+                or identity.brief_name(ids.get(entry.path, "")) == target
+            )
         ]
 
     if not found:
@@ -105,7 +110,11 @@ def _find(
             if entry.channel and (entry.path.stem == target or entry.path.name == target)
         ]
     if len(found) != 1:
-        raise LookupError(f"Expected one attached lemon for {target!r}; found {len(found)}")
+        choices = ", ".join(str(entry.path.stem) for entry in found)
+        raise LookupError(
+            f"Expected one attached lemon for {target!r}; found {len(found)}"
+            + (f" (ambiguous: {choices}); use a full Lemon-ID" if found else "")
+        )
 
     return found[0]
 

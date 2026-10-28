@@ -250,7 +250,7 @@ def test_bare_cli_handoff_runs_in_same_terminal_and_recovers(
         "process = handoff_shell._job_process(source_pid)\n"
         "assert process and 'T' in process[2], process\n"
         f"handoff_launch.configured_line = lambda *_: shlex.join([sys.executable, {str(target)!r}])\n"
-        f"handoff_cli.build_resume_command = lambda *_: (os.getcwd(), [sys.executable, {str(resume)!r}])\n"
+        f"handoff_cli.request.build_resume_command = lambda *_: (os.getcwd(), [sys.executable, {str(resume)!r}])\n"
         "from lemonaid.cli import main\n"
         "real_popen = subprocess.Popen\n"
         "def fake_popen(*args, **kwargs):\n"

@@ -64,6 +64,7 @@ def request(
     source_command: str,
     deadline: float,
     launch_name: str = "",
+    recovery_hash: str = "",
 ) -> sqlite3.Row:
     existing = conn.execute(
         "SELECT * FROM brief_handoffs WHERE path = ? AND phase NOT IN ('complete', 'failed')",
@@ -71,7 +72,8 @@ def request(
     ).fetchone()
     if existing:
         if (
-            existing["source"] != source
+            bool(existing["recovery_hash"]) != bool(recovery_hash)
+            or existing["source"] != source
             or existing["harness"] != harness
             or (existing["launch_name"] or existing["harness"]) != (launch_name or harness)
         ):
@@ -91,8 +93,8 @@ def request(
     conn.execute(
         """INSERT INTO brief_handoffs
            (token, path, source, harness, launch_name, phase, section_hash, session, source_window,
-            source_window_id, source_pane_id, source_command, created_at, deadline)
-           VALUES (?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?, ?, ?)""",
+            source_window_id, source_pane_id, source_command, created_at, deadline, recovery_hash)
+           VALUES (?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             token,
             str(path),
@@ -107,6 +109,7 @@ def request(
             source_command,
             time.time(),
             deadline,
+            recovery_hash,
         ),
     )
     conn.commit()
@@ -131,6 +134,13 @@ def ready(conn: sqlite3.Connection, row: sqlite3.Row) -> tuple[bool, str]:
             return False, "brief file is still changing"
     except OSError:
         return False, "brief file is unavailable"
+
+    if row["recovery_hash"]:
+        if digest(first) != row["recovery_hash"]:
+            return False, "recovery brief changed; start a new confirmed recovery"
+        if problems := [*check.structure(first), *check.recorded(conn, path, first)]:
+            return False, "brief check failed: " + "; ".join(problems)
+        return True, ""
 
     handoff = section(first)
     if not handoff or digest(handoff) == row["section_hash"]:

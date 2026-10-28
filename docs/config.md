@@ -786,3 +786,8 @@ pace_over_percent = 110
 claude = 2
 codex = 1
 ```
+
+### Handoff key
+
+Under `[tui.keybindings]`, `handoff = "alt+h"` opens the confirmed harness handoff action.
+It accepts one modified key name; set it to `""` to disable the action's shortcut.

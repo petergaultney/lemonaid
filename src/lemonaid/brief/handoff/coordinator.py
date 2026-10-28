@@ -10,6 +10,7 @@ from .. import attached
 from . import codex as handoff_codex
 from . import launch as handoff_launch
 from . import pane as handoff_tmux
+from . import recovery
 from . import report as handoff_report
 from . import state as handoff_state
 from . import transfer as handoff_transfer
@@ -49,7 +50,18 @@ def recover_source(conn, row, reason: str) -> str:
     if row["error"]:
         return row["error"]
 
-    if not row["source_pane_id"]:
+    if row["recovery_hash"]:
+        error = (
+            f"recovery {reason}; brief retained; inspect the original pane and saved resume command"
+        )
+        if row["phase"] == "prepared":
+            conn.execute(
+                "UPDATE brief_handoffs SET error = ? WHERE token = ?", (error, row["token"])
+            )
+            conn.commit()
+            return error
+
+    elif not row["source_pane_id"]:
         error = (
             f"handoff {reason}; outgoing channel retains its brief; "
             "resume the original session if it exited, then rearm its waiters before retrying"
@@ -150,11 +162,17 @@ def _advance(conn, token: str) -> dict:
                 **handoff_report.build(handoff_state.get(conn, token)),
                 "missing": ["start the target command, then accept from that harness"],
             }
-        handoff_launch.run(conn, row)
+        if row["recovery_hash"]:
+            recovery.launch(conn, row)
+        else:
+            handoff_launch.run(conn, row)
         row = handoff_state.get(conn, token)
 
     if row["phase"] == "prepared":
-        handoff_launch.run(conn, row)
+        if row["recovery_hash"]:
+            recovery.launch(conn, row)
+        else:
+            handoff_launch.run(conn, row)
         row = handoff_state.get(conn, token)
 
     if row["phase"] == "launched":

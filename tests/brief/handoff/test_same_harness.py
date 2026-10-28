@@ -41,12 +41,12 @@ def test_claude_hands_off_to_a_fresh_claude_in_its_own_pane(setup, monkeypatch, 
     )
     conn.commit()
     config = Config(tmux_session=TmuxSessionConfig(resume_window=1))
-    for module in (handoff_cli, handoff_launch):
+    for module in (handoff_cli.request, handoff_launch):
         monkeypatch.setattr(module, "load_config", lambda: config)
     monkeypatch.setenv("LEMONAID_BRIEFS_DIR", str(path.parent))
     monkeypatch.setattr(handoff_cli.db, "connect", lambda: nullcontext(conn))
-    monkeypatch.setattr(handoff_cli.subprocess, "Popen", Mock())
-    monkeypatch.setattr(handoff_cli.to_brief, "send", Mock())
+    monkeypatch.setattr(handoff_cli.request.subprocess, "Popen", Mock())
+    monkeypatch.setattr(handoff_cli.request.to_brief, "send", Mock())
     monkeypatch.setattr(handoff_tmux, "pane_for_tty", lambda *_: ("%2", "@2"))
     monkeypatch.setattr(handoff_tmux, "has_pane", lambda *_: True)
     monkeypatch.setattr(handoff_tmux, "current_command", lambda _pane: "claude")
