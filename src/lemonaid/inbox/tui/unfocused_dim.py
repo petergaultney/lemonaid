@@ -13,6 +13,12 @@ _FAINT = Style(dim=True)
 
 
 _BLACK = RichColor.from_rgb(0, 0, 0)
+_KEEP = "lemonaid_keep_color"
+
+
+def kept(color: str, **attributes: bool) -> Style:
+    """*color* as a foreground the dim leaves alone, so it matches a background fill of the same color."""
+    return Style(color=color, meta={_KEEP: True}, **attributes)
 
 
 def _rgb(color: RichColor | None, default: RichColor) -> RichColor:
@@ -52,7 +58,7 @@ class Dim(LineFilter):
         behind = background.rich_color
         return [
             segment
-            if segment.control or segment.style is None
+            if segment.control or segment.style is None or segment.style.meta.get(_KEEP)
             else Segment(
                 segment.text,
                 segment.style + _FAINT
