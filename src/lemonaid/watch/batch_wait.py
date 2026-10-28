@@ -104,6 +104,10 @@ def wait(
     Undelivered inbox messages stay on disk for the restarted waiter.
     """
     vaults = tuple(load_config().brief.vaults)
+    cwd = Path.cwd()
+    read_subscriptions = subscription_state.reader(path, root, cwd, inbox.name, vaults)
+    wordy = identity.brief_name(inbox.name) or inbox.name
+    signatures = tuple(f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead"))
     output: queue.Queue[scouts.Pending] = queue.Queue()
     running: dict[tuple, scouts.Scout] = {}
     pending: list[scouts.Pending] = []
@@ -115,12 +119,10 @@ def wait(
             beat()
             if time.monotonic() - children_at >= _CHILDREN_EVERY:
                 children, children_at = (
-                    pr_roles.children_author(inbox.name, Path.cwd(), vaults),
+                    pr_roles.children_author(inbox.name, cwd, vaults),
                     time.monotonic(),
                 )
-            listed, problem = subscription_state.read(
-                path, root, Path.cwd(), inbox.name, vaults, children
-            )
+            listed, problem = read_subscriptions(children)
             specs = {s.key: s for s in listed}
             if not problem:
                 pending = [p for p in pending if p.source != "brief"]
@@ -128,10 +130,6 @@ def wait(
                 pending = [p for p in pending if p.source != "brief"]
                 pending.append(scouts.Pending("brief", problem))
                 since = time.monotonic()
-            wordy = identity.brief_name(inbox.name) or inbox.name
-            signatures = tuple(
-                f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead")
-            )
             pending = _reconcile(running, specs, pending, root, writer, output, signatures, notes)
             if _collect(output, running, pending):
                 since = time.monotonic()
