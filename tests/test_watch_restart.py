@@ -13,7 +13,15 @@ import pytest
 
 from lemonaid.brief import attached, store
 from lemonaid.inbox import db
-from lemonaid.watch import batch_wait, registry, restart, restart_cli, wait_cli, wait_state
+from lemonaid.watch import (
+    batch_wait,
+    registry,
+    restart,
+    restart_cli,
+    restart_fallback,
+    wait_cli,
+    wait_state,
+)
 
 
 def _waiter(
@@ -263,10 +271,73 @@ def test_the_command_restarts_named_or_all_watchers(monkeypatch, capsys):
         restart_cli.add_parser(parser.add_subparsers())
         return restart_cli.run(parser.parse_args(["restart", *argv]))
 
-    assert run("a.Bee") == 0
+    stopped = []
+    monkeypatch.setattr(restart_fallback, "stuck", lambda asked, wait: [])
+    monkeypatch.setattr(restart_fallback.stopping, "stop", lambda w, by: stopped.append(w.pid))
+    monkeypatch.setattr(restart_fallback.push_scout, "ensure", lambda session, lemon: True)
+
+    assert run("a.Bee", "--wait", "0") == 0
     assert "pid 1" in capsys.readouterr().out
-    assert run("--all") == 0
+    assert run("--all", "--wait", "0") == 0
     out = capsys.readouterr().out
     assert "pid 1" in out and "1 older watchers" in out
-    assert "b.Cow  wait  pid 2  channel claude:old  lemonaid watch --self --push" in out
+    assert "b.Cow: replaced scout pid 2" in out
+    assert stopped == [2]
     assert run() == 2
+
+
+def test_a_watcher_that_stays_registered_is_stopped_and_its_scout_started_again(monkeypatch):
+    claude = _waiter(1, lemon="a.Bee", channel="claude:s1", command="lemonaid watch --self --push")
+    codex = _waiter(
+        2, lemon="b.Cow", channel="codex:t2", command="lemonaid watch --self --codex-thread --push"
+    )
+    rearm = _waiter(3, lemon="c.Dog", command="lemonaid watch --self")
+    monkeypatch.setattr(registry, "running", lambda: iter([claude, codex, rearm]))
+    stopped, started = [], []
+    monkeypatch.setattr(restart_fallback.stopping, "stop", lambda w, by: stopped.append(w.pid))
+    monkeypatch.setattr(
+        restart_fallback.push_scout,
+        "ensure",
+        lambda session, lemon: started.append((session, lemon)) or True,
+    )
+    monkeypatch.setattr(
+        restart_fallback.codex_waiter,
+        "ensure",
+        lambda channel, thread, lemon: started.append((channel, thread, lemon)) or True,
+    )
+
+    assert restart_fallback.stuck([claude, codex, rearm], 0) == [claude, codex, rearm]
+    lines = list(restart_fallback.replace([claude, codex, rearm]))
+
+    assert stopped == [1, 2, 3]
+    assert started == [("s1", "a.Bee"), ("codex:t2", "t2", "b.Cow")]
+    assert "replaced scout pid 1" in lines[0] and "replaced scout pid 2" in lines[1]
+    assert "must rearm `lemonaid watch --self`" in lines[2]
+
+
+def test_a_watcher_that_registered_again_has_restarted(monkeypatch):
+    before = dataclasses.replace(_waiter(1), started=1.0)
+    monkeypatch.setattr(
+        registry, "running", lambda: iter([dataclasses.replace(before, started=2.0)])
+    )
+
+    assert restart_fallback.stuck([before], 0) == []
+
+
+def test_a_requested_restart_does_not_wait_for_pending_batches(tmp_path, monkeypatch):
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    (inbox / "m.md").write_text("hello")
+    brief = tmp_path / "task.md"
+    brief.write_text("# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n")
+
+    assert batch_wait.wait(
+        brief,
+        inbox,
+        tmp_path / "cursors",
+        "",
+        lambda message: pytest.fail("delivered"),
+        lambda: True,
+        quiet=0,
+        restart_requested=lambda: True,
+    )

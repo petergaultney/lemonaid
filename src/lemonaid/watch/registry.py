@@ -17,6 +17,7 @@ import signal
 import sqlite3
 import sys
 import threading
+import time
 import typing as ty
 from collections import abc
 
@@ -45,6 +46,7 @@ class Waiter:
     prefix: str = ""  # `sys.prefix` of the install it runs from
     code: str = ""  # digest of the lemonaid modules it loaded (see `restart.fingerprint`)
     code_paths: tuple[str, ...] = ()
+    started: float = 0.0  # when it registered; a restart in place registers again
 
 
 def root() -> pathlib.Path:
@@ -133,6 +135,7 @@ def registered(
         restartable,
         sys.prefix,
         *code,
+        started=time.time(),
     )
     _registry().mkdir(parents=True, exist_ok=True)
     path = entry(waiter.pid)
