@@ -10,7 +10,7 @@ from datetime import datetime
 import lemonaid.inbox.arrange.cli
 import lemonaid.messages.cli
 
-from . import db, decorate_cli, pin_cli, snooze_cli
+from . import db, decorate_cli, pin_cli, show_cli, snooze_cli
 
 
 def _notification_to_json(n: db.Notification) -> dict:
@@ -177,6 +177,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser.add_argument("id", type=int, help="Notification ID")
     read_parser.set_defaults(func=cmd_read)
 
+    show_cli.add_parser(inbox_subparsers)
     decorate_cli.add_parsers(inbox_subparsers)
     snooze_cli.add_parser(inbox_subparsers)
     pin_cli.add_parsers(inbox_subparsers)

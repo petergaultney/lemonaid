@@ -12,10 +12,10 @@ _log = get_logger("tui")
 
 
 class Arrangement:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, budget: float = 0.05) -> None:
         self._config = config
         self._arranger = (
-            child.Arranger(child.parse_command(config.inbox.arrange))
+            child.Arranger(child.parse_command(config.inbox.arrange), budget=budget)
             if config.inbox.arrange
             else None
         )

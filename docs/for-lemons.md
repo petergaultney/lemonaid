@@ -7,6 +7,20 @@ don't need to know where a checkout lives. Every command below also has `--help`
 
 ## Inbox Commands
 
+### See the inbox as the user sees it
+
+```bash
+lemonaid inbox show            # lma's list: order, groups, status, Needs and Waiting on
+lemonaid inbox show --folded   # the folded rows too
+lemonaid inbox show --json     # every row, folded or not, with its group and brief
+lemonaid inbox show --stuck    # also fetch waited-on PRs from GitHub, for stuck lines
+```
+
+`show` builds the list the way `lma` does, so it applies the configured arranger and
+attention mode, and each row's `state` is the status its card shows (`idle 4m`,
+`merge 1d ago`, `active just now`). `inbox list` is only the unread notifications,
+newest first. JSON's `arrange_error` says why the arranger's order was not used.
+
 ### List notifications
 
 ```bash

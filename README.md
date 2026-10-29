@@ -258,6 +258,9 @@ lemonaid inbox
 
 # List notifications (non-interactive)
 lemonaid inbox list
+
+# Print the list as lma draws it: order, groups, status and the fold
+lemonaid inbox show
 ```
 
 ### Session order
