@@ -211,3 +211,18 @@ def test_pending_needs_edits_do_not_delay_delivery_or_failed_delivery_retry(
         clock[0] = 4
     assert poll(w) == [f"{child}: Status: none -> merge; Needs: latest ask ({path})"]
     assert poll(open_watch(family)) == []
+
+
+def test_an_archived_child_is_no_longer_read(family, monkeypatch):
+    _, _, path, _ = family
+    w = open_watch(family)
+    with db.connect() as conn:
+        db.archive_channel(conn, "codex:child", "test")
+    path.write_text(path.read_text().replace("Status: working", "Status: done"))
+    read = []
+    original = type(path).read_text
+    monkeypatch.setattr(
+        type(path), "read_text", lambda p, *a, **k: read.append(p) or original(p, *a, **k)
+    )
+    assert poll(w) == []
+    assert path not in read

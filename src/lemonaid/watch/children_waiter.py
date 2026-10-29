@@ -32,7 +32,7 @@ def with_briefs(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     """Lemon-IDs of *lemon_id*'s children that have a brief to watch."""
     return [
         child
-        for child in links.children_of(conn, lemon_id)
+        for child in links.live_children_of(conn, lemon_id)
         if (path := lemon.brief_of(conn, child)) and path.is_file()
     ]
 

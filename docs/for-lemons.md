@@ -1276,6 +1276,10 @@ independent per database, parent, optional `--me` name, and target-status set. A
 `merge`, `approve`, `review`, `done`; Needs asks wake too). Details:
 [watch.md](watch.md#watching-childrens-briefs).
 
+A child whose inbox row is archived drops out of watching: its brief is no longer read
+and its later changes don't wake you. Its parent link stays, so `lemon children` and
+`brief children --all` still list it, and unarchiving its row brings it back.
+
 A watcher event about a child, a listed lemon or an orphan can end with
 `Your notes for these events:` and one note per event kind,
 such as `child.done`. Your user wrote these in `~/.lemons/event-notes/`; follow them as
