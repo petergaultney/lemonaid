@@ -27,7 +27,7 @@ def children_author(
     with db.connect() as conn:
         briefs = [
             lemon.brief_of(conn, child)
-            for child in links.children_of(conn, lemon.current(conn, lemon_id))
+            for child in links.live_children_of(conn, lemon.current(conn, lemon_id))
         ]
     found: frozenset[tuple[str, ...]] = frozenset()
     for path in filter(None, briefs):

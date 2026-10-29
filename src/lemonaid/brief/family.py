@@ -47,13 +47,10 @@ def _status(path: Path, version: tuple[int, ...]) -> str:
 
 def _child(
     conn: sqlite3.Connection, channels: abc.Mapping[str, str], lemon_id: str
-) -> render.Child | None:
+) -> render.Child:
     current = lemon.current(conn, lemon_id)
     path = lemon.brief_of(conn, current)
     row = _session_row(conn, channels, path)
-    if row and row.is_archived:
-        return None
-
     return render.Child(
         _status(path, _version(path.stat())) if path and path.is_file() else "",
         (row.name if row else "") or identity.brief_description(current),
@@ -72,9 +69,8 @@ def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Se
         parent=parent,
         parent_name=_session_name(conn, channels, lemon.brief_of(conn, parent)) if parent else "",
         children=tuple(
-            child
-            for child_id in links.children_of(conn, section.lemon_id)
-            if (child := _child(conn, channels, child_id)) is not None
+            _child(conn, channels, child_id)
+            for child_id in links.live_children_of(conn, section.lemon_id)
         ),
     )
 

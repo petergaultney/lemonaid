@@ -32,6 +32,30 @@ def children_of(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     ]
 
 
+# A child is gone once the newest inbox row of its brief's session is archived. Its link stays,
+# so lineage and `brief children --all` still show it, but automatic child tracking stops.
+_LIVE_CHILDREN = """
+WITH attached AS (SELECT path, channel, MIN(rowid) FROM session_briefs GROUP BY path)
+SELECT p.lemon_id FROM lemon_parents p
+LEFT JOIN lemon_aliases a ON a.old_id = p.lemon_id
+LEFT JOIN lemon_identities i ON i.lemon_id = COALESCE(a.lemon_id, p.lemon_id)
+LEFT JOIN attached b ON b.path = i.path
+WHERE p.parent_id = ?
+  AND COALESCE(
+    (
+      SELECT n.status FROM notifications n WHERE n.channel = b.channel
+      ORDER BY n.created_at DESC LIMIT 1
+    ),
+    ''
+  ) != 'archived'
+ORDER BY p.linked_at, p.lemon_id
+"""
+
+
+def live_children_of(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
+    return [row["lemon_id"] for row in conn.execute(_LIVE_CHILDREN, (lemon_id,))]
+
+
 def ancestors(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     """*lemon_id*'s parent, its parent, and so on."""
     found: list[str] = []

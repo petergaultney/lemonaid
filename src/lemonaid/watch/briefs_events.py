@@ -49,7 +49,7 @@ def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
         explicit = _resolve(conn, rows)
-        origins = dict.fromkeys(links.children_of(conn, lemon.current(conn, parent)), "child")
+        origins = dict.fromkeys(links.live_children_of(conn, lemon.current(conn, parent)), "child")
         origins |= {lemon_id: "watched" for lemon_id in explicit if lemon_id not in origins}
         if orphans:
             origins |= dict.fromkeys(
