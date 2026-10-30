@@ -66,7 +66,7 @@ def test_heartbeat_writes_are_bounded_and_stalled_waiters_still_go_deaf(tmp_path
             assert wait_state.is_armed(lemon)
         assert _stamp(beat) == before
 
-        os.utime(beat, (now - 11, now - 11))
+        os.utime(beat, (now - wait_state._BEAT_EVERY - 1,) * 2)
         wait_state.beat(lemon)
         assert _stamp(beat) != before
         now += wait_state.STALE + 1
