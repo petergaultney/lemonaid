@@ -56,7 +56,7 @@ def environment() -> str:
     return json.dumps([str(db.get_db_path()), str(_state()), str(session_socket.claude_dir())])
 
 
-def _path(lemon_id: str) -> pathlib.Path:
+def path(lemon_id: str) -> pathlib.Path:
     return _dir() / f"{lemon_id}.json"
 
 
@@ -65,7 +65,7 @@ def _changing(lemon_id: str) -> abc.Iterator[None]:
     """Held while a registration is replaced or removed, so a removal of an old one never
     deletes the new one written between its check and its unlink."""
     _dir().mkdir(parents=True, exist_ok=True)
-    with _path(lemon_id).with_suffix(".lock").open("a") as lock:
+    with path(lemon_id).with_suffix(".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield
 
@@ -73,14 +73,14 @@ def _changing(lemon_id: str) -> abc.Iterator[None]:
 def register(lemon_id: str, channel: str, thread: str, cwd: str) -> Registration:
     registration = Registration(lemon_id, channel, thread, cwd, environment(), uuid.uuid4().hex)
     with _changing(lemon_id):
-        temporary = _path(lemon_id).with_suffix(f".{registration.token}.tmp")
+        temporary = path(lemon_id).with_suffix(f".{registration.token}.tmp")
         temporary.write_text(json.dumps(registration._asdict()))
-        temporary.replace(_path(lemon_id))
+        temporary.replace(path(lemon_id))
     return registration
 
 
 def read(lemon_id: str) -> Registration | None:
-    return _load(_path(lemon_id))
+    return _load(path(lemon_id))
 
 
 def _load(path: pathlib.Path) -> Registration | None:
@@ -105,7 +105,7 @@ def remove(lemon_id: str, token: str = "", by: str = "") -> None:
         if current is None or (token and current.token != token):
             return
 
-        _path(lemon_id).unlink(missing_ok=True)
+        path(lemon_id).unlink(missing_ok=True)
     if by:
         _log.info("%s removed the scout registration of %s", by, lemon_id)
 

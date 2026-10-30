@@ -21,6 +21,7 @@ from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.messages import store as messages
 from lemonaid.watch import (
+    hosted_scout,
     push_scout,
     registry,
     scout_roster,
@@ -132,7 +133,8 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     assert "lemonaid is watching for you" in received[1]
     assert "don't" not in (received[0] + received[1]).lower()
     assert messages.pending_count(inbox) == 0
-    assert hosted.run(_LEMON, _CHANNEL) == "retry"  # a second scout for the same lemon waits
+    registration = scout_roster.read(_LEMON)
+    assert registration and hosted_scout.run(registration, lambda: False) == "retry"
     listing.unlink()
     assert scout.join() == "ended"
     assert not wait_state.is_armed(_LEMON)

@@ -45,21 +45,41 @@ def _resolve(
     return found
 
 
+def _origins(
+    conn: sqlite3.Connection, parent: str, explicit: abc.Iterable[str], orphans: bool
+) -> dict[str, str]:
+    """Each lemon the watch reads, with its key in kinds.ORIGINS."""
+    origins = dict.fromkeys(
+        links.live_children_of(conn, lemon.current(conn, parent), archive.attic_dir()), "child"
+    )
+    origins |= {lemon_id: "watched" for lemon_id in explicit if lemon_id not in origins}
+    if orphans:
+        origins |= dict.fromkeys(
+            briefs_orphans.find(
+                conn, {lemon.current(conn, parent), *origins}, briefs_orphans.live_sessions
+            ),
+            "orphan",
+        )
+    return origins
+
+
+def brief_paths(
+    parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool
+) -> list[pathlib.Path]:
+    """The briefs a watch of *parent* reads, so a scout can sleep until one changes."""
+    with db.connect() as conn:
+        return [
+            path
+            for child in _origins(conn, parent, _resolve(conn, rows), orphans)
+            if (path := lemon.brief_of(conn, child))
+        ]
+
+
 def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -> _Seen:
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
         explicit = _resolve(conn, rows)
-        origins = dict.fromkeys(
-            links.live_children_of(conn, lemon.current(conn, parent), archive.attic_dir()), "child"
-        )
-        origins |= {lemon_id: "watched" for lemon_id in explicit if lemon_id not in origins}
-        if orphans:
-            origins |= dict.fromkeys(
-                briefs_orphans.find(
-                    conn, {lemon.current(conn, parent), *origins}, briefs_orphans.live_sessions
-                ),
-                "orphan",
-            )
+        origins = _origins(conn, parent, explicit, orphans)
         for child in origins:
             path = lemon.brief_of(conn, child)
             if path is None or archive.is_archived(path):
