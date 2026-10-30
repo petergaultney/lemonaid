@@ -8,15 +8,19 @@ from pathlib import Path
 from .. import brief
 from ..brief.handoff import clear as handoff_clear
 from ..codex import startup
+from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import channel_id
 from ..launch.restart import native
 from ..lemon_watchers import get_tty
 from ..log import get_logger
 from ..watch import codex_scout, own_edits, push_scout
-from . import session_brief, session_gate, stop_check
+from . import context_docs, session_brief, session_gate, stop_check
 
 _log = get_logger("hooks.session_start")
+
+# A resumed or forked thread's history still holds the copy its start injected.
+_DOCS_SOURCES = frozenset({"startup", "clear", "compact"})
 
 # `lemonaid claude session-start` registers the new session's row; Claude runs it beside this hook.
 _ROW_WAIT_SECONDS = 3
@@ -118,13 +122,25 @@ def context(data: dict, harness: str) -> str:
     )
 
 
+def _docs(data: dict, harness: str) -> str:
+    if harness != "codex" or data.get("source", "startup") not in _DOCS_SOURCES:
+        return ""
+
+    root = load_config().codex.context_doc
+    return context_docs.expand(root) if root else ""
+
+
 def handle(harness: str) -> None:
     try:
         data = json.loads(sys.stdin.read() or "{}")
     except json.JSONDecodeError:
         return
 
-    if not isinstance(data, dict) or not (text := context(data, harness)):
+    if not isinstance(data, dict):
+        return
+
+    text = "\n\n".join(part for part in (_docs(data, harness), context(data, harness)) if part)
+    if not text:
         return
 
     print(

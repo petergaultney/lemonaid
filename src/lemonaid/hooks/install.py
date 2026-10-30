@@ -13,6 +13,9 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
 Codex also gets `lemonaid codex tool-used` on PreToolUse and PostToolUse, which clears a
 permission notice when its requested tool starts or returns.
 
+Codex's SessionStart handler gets `"additionalContextLimit": 0`, so the `[codex] context_doc`
+it injects reaches the model whole instead of as a head-and-tail preview.
+
 Codex trusts a hook by a hash of it (`[hooks.state]` in its `config.toml`), so a hook this
 adds or changes runs only once it is trusted again in Codex's `/hooks`.
 """
@@ -88,6 +91,10 @@ def stop_command(harness: str) -> str:
 
 def session_start_command(harness: str) -> str:
     return f"lemonaid hooks session-start --harness {harness}"
+
+
+def _handler_fields(harness: str, event: str) -> dict[str, object]:
+    return {"additionalContextLimit": 0} if (harness, event) == ("codex", "SessionStart") else {}
 
 
 def hooks(harness: str) -> list[tuple[str, str]]:
@@ -175,7 +182,9 @@ def install(
         *migrated,
         *(_without_legacy(path, dry_run) if harness == "claude" else []),
         *(
-            install_hooks.install(event, command, path, dry_run)
+            install_hooks.install(
+                event, command, path, dry_run, fields=_handler_fields(harness, event)
+            )
             for event, command in hooks(harness)
             if not events or event in events
         ),
