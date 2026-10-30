@@ -197,14 +197,14 @@ def test_each_harness_text_names_only_its_own_watch_mechanism(homes):
 
 
 def test_each_harness_gets_its_own_attached_brief_guidance(homes):
-    claude, codex = _packaged("watch-pr", "claude"), _packaged("watch-pr", "codex")
+    claude, codex = _packaged("brief", "claude"), _packaged("brief", "codex")
 
     assert "`lemonaid watch --self --status`" in claude
     assert "`lemonaid watch --self --push`" in claude
-    assert "lemonaid brief pr add" in claude
+    assert "pushes each batch into your session" in claude
     assert "run `lemonaid watch --self --push` with escalated permissions" in codex
     assert "queues each batch into your thread" in codex
-    assert "lemonaid brief pr add" not in codex
+    assert "pushes each batch into your session" not in codex
 
 
 def test_sections_of_an_overlay_and_a_replacement_follow_the_harness(homes):

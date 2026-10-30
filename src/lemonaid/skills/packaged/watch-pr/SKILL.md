@@ -7,15 +7,7 @@ description: Wait, at zero token cost, until a GitHub PR gets a new push, is mer
 
 ## With an attached brief
 
-Prefer `lemonaid watch --self` for all subscriptions together. PR table rows include comments and CI; Docs rows include comments and optional body edits. Keep explicit watch commands under `## Watching` and doc rows with `brief doc add`. Read current state first.
-
-<!-- harness: claude -->
-Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session: add the PR with `lemonaid brief pr add` if it is not in your brief's PR table, and handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`timeout: 2147483647`) and rearm it after each batch.
-<!-- /harness -->
-
-<!-- harness: codex -->
-Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and queues each batch into your thread; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push` with escalated permissions, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self --codex-thread` in an escalated exec_command session and rearm it after each batch.
-<!-- /harness -->
+Prefer `lemonaid watch --self` for all subscriptions together; the `brief` skill's "Declare subscriptions and watch them" table lists what it watches and how to subscribe. Read current state first.
 
 The standalone commands below remain available.
 
