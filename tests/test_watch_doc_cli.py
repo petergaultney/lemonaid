@@ -188,27 +188,35 @@ def _replace_doc(doc: Path, body: str) -> None:
     os.replace(replacement, doc)  # The waiter must only see complete contents.
 
 
-def _edit_while_waiting(tmp_path, doc, *args: str) -> subprocess.CompletedProcess[str]:
+def _output_within(proc: subprocess.Popen[str], timeout: float) -> str:
+    try:
+        return proc.communicate(timeout=timeout)[0]
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return proc.communicate()[0]
+
+
+def _edit_while_waiting(
+    tmp_path, doc, *args: str, timeout: float = 30
+) -> subprocess.CompletedProcess[str]:
     doc.write_text("# Review\n")
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once", *args)
     _replace_doc(doc, "# Review\n\nPlease look at the second section.\n")
-    try:
-        out, _ = proc.communicate(timeout=30)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        out, _ = proc.communicate()
+    out = _output_within(proc, timeout)
     return subprocess.CompletedProcess(proc.args, proc.returncode, out, "")
 
 
 def test_body_edits_are_reported_by_default(tmp_path, doc):
     result = _edit_while_waiting(tmp_path, doc)
 
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stdout
     assert result.stdout.startswith(f"body of {doc} changed (+2/-0 lines), quiet for 0s")
 
 
 def test_no_edits_reports_comments_only(tmp_path, doc):
-    result = _edit_while_waiting(tmp_path, doc, "--no-edits")
+    result = _edit_while_waiting(
+        tmp_path, doc, "--no-edits", timeout=3
+    )  # absence can't be polled for
 
     assert result.returncode != 0  # still waiting when killed
     assert result.stdout == ""
@@ -248,11 +256,7 @@ def test_a_waiter_on_a_missing_doc_waits_for_it(tmp_path):
     doc = tmp_path / "later.md"
     proc = _start(tmp_path, "--wait", str(doc), "--me", "Claude", "--quiet", "0.2", "--once")
     _replace_doc(doc, "# Review\n\nPlease look.\n")
-    try:
-        out, _ = proc.communicate(timeout=30)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        out, _ = proc.communicate()
+    out = _output_within(proc, 30)
 
-    assert proc.returncode == 0
+    assert proc.returncode == 0, out
     assert out.startswith(f"{doc} was created (+3/-0 lines), quiet for 0s")

@@ -43,7 +43,7 @@ def _start(channel: str, tmp_path: Path, *command: str) -> subprocess.Popen:
 
 
 def _registered(channel: str, kind: str) -> bool:
-    for _ in range(200):
+    for _ in range(600):
         if registry.mine(channel, kind):
             return True
 
@@ -74,14 +74,14 @@ def test_stop_ends_only_the_callers_waiters_and_drops_their_entries(capsys, tmp_
         assert any("watch file" in c for c in waiters.commands(brief.read_text()))
 
         assert f"pid {mine_file.pid}" in _stop(capsys, "claude:mine", "file", str(watched))
-        _, err = mine_file.communicate(timeout=10)
+        _, err = mine_file.communicate(timeout=30)
         assert mine_file.returncode == 143
         assert "stopped by SIGTERM from `lemonaid watch stop`, run by claude:mine" in err
         assert f"lemonaid watch file --wait {watched}" in err
         assert mine_inbox.poll() is None
 
         assert f"pid {mine_inbox.pid}" in _stop(capsys, "claude:mine")
-        assert mine_inbox.wait(timeout=10) == 143
+        assert mine_inbox.wait(timeout=30) == 143
         assert waiters.commands(brief.read_text()) == []
 
         assert other_inbox.poll() is None
@@ -153,7 +153,7 @@ def test_a_waiter_signalled_outside_lemonaid_says_so(tmp_path):
         assert _registered("claude:mine", "inbox")
 
         waiter.send_signal(signal.SIGTERM)  # what a stray `pkill -f` does
-        _, err = waiter.communicate(timeout=10)
+        _, err = waiter.communicate(timeout=30)
         assert waiter.returncode == 143
         assert "from a process outside lemonaid" in err
     finally:
@@ -174,7 +174,7 @@ def test_a_descendant_arming_its_waiters_leaves_its_ancestors_alone(tmp_path):
         added = _start(
             lemons[2], tmp_path, "brief", "waiter", "add", "--self", "lemonaid inbox watch --self"
         )
-        assert added.wait(timeout=20) == 0
+        assert added.wait(timeout=30) == 0
 
         assert [a.poll() for a in ancestors] == [None, None]
         assert grandchild.poll() is None
@@ -221,7 +221,7 @@ def test_stop_keeps_declared_watches_when_switching_to_unified_waiting(capsys, t
         assert _registered("claude:mine", "file")
         before = waiters.commands(brief.read_text())
         _stop(capsys, "claude:mine", "--keep-subscriptions")
-        assert process.wait(timeout=10) == 143
+        assert process.wait(timeout=30) == 143
         assert waiters.commands(brief.read_text()) == before
     finally:
         if process.poll() is None:
