@@ -8,6 +8,7 @@ when the app asks it to.
 import contextlib
 import dataclasses
 import time
+import typing as ty
 from collections import abc
 from pathlib import Path
 
@@ -43,6 +44,11 @@ from . import (
 _log = get_logger("tui")
 
 _MIN_MAIN_ROWS = 5  # the other-terminals table hides rather than squeeze the main one below this
+_REDRAW_SECONDS = 5.0  # an unchanged frame is still drawn this often, for its ages
+
+
+def _drawn_key(frame: inbox_frame.Frame, **draw_args: object) -> tuple:
+    return dataclasses.replace(frame, request=0), sorted(draw_args.items())
 
 
 class InboxList(Vertical):
@@ -92,6 +98,8 @@ class InboxList(Vertical):
         self._restore_checked: frozenset[str] = frozenset()
         self._requested = 0
         self._drawn = 0  # the request of the frame drawn last
+        self._drawn_key: tuple | None = None  # what it was drawn from
+        self._drawn_at = 0.0
 
     def compose(self) -> ComposeResult:
         yield Static("", id="attention_summary")
@@ -253,6 +261,20 @@ class InboxList(Vertical):
         assert drawn is not None, "a frame requested last is drawn"
         return drawn
 
+    def repeats(self, frame: inbox_frame.Frame, input_at: float, **draw_args: ty.Any) -> bool:
+        """Whether drawing *frame* with *draw_args* would show what is already drawn.
+
+        Only a periodic refresh asks: there has been no input since the last draw,
+        that draw is under `_REDRAW_SECONDS` old, and no arranger is waiting to be
+        asked again.
+        """
+        return (
+            not self.arrangement.asks
+            and input_at < self._drawn_at
+            and time.monotonic() - self._drawn_at < _REDRAW_SECONDS
+            and _drawn_key(frame, stay_on_unread=False, **draw_args) == self._drawn_key
+        )
+
     def draw(
         self,
         frame: inbox_frame.Frame,
@@ -274,6 +296,17 @@ class InboxList(Vertical):
             return None
 
         self._drawn = frame.request
+        self._drawn_key = _drawn_key(
+            frame,
+            detached=detached,
+            cards=cards,
+            width=width,
+            height=height,
+            card_width=card_width,
+            card_shape=card_shape,
+            stay_on_unread=stay_on_unread,
+        )
+        self._drawn_at = time.monotonic()
         self.last_frame = frame
         self.grove = inbox_keys.grove(frame, self.config)
         main = self.main

@@ -115,3 +115,97 @@ def test_device_numbers_name_every_process_as_ps_does():
     assert {pid: tty_processes._tty_name(tdevs[pid], names) for pid in both} == {
         pid: ttys[pid] for pid in both
     }
+
+
+def _listing_with(monkeypatch, pid: int) -> list[list[str]]:
+    asked: list[list[str]] = []
+    out = f"{pid}  pts/3  claude --resume abc\n1  ??  /sbin/launchd\n"
+    monkeypatch.setattr(tty_processes.sys, "platform", "linux")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **kw: asked.append(a[0]) or subprocess.CompletedProcess(a, 0, out, ""),
+    )
+    return asked
+
+
+def _harnesses():
+    return tty_processes.Reused(lambda args: watcher.is_harness(args, "claude"))
+
+
+def test_a_listing_is_reused_while_its_harnesses_run(monkeypatch):
+    asked = _listing_with(monkeypatch, os.getpid())
+    reused = _harnesses()
+
+    first = reused.by_tty(False, 100.0)
+    again = reused.by_tty(False, 110.0)
+
+    assert first == again == {"pts/3": ["claude --resume abc"], "??": ["/sbin/launchd"]}
+    assert asked == [["ps", "-A", "-o", "pid=,tty=,args="]]
+
+
+def test_a_listing_is_taken_again_once_a_harness_in_it_exits(monkeypatch):
+    exited = subprocess.Popen([sys.executable, "-c", ""])
+    exited.wait()
+    asked = _listing_with(monkeypatch, exited.pid)
+    reused = _harnesses()
+
+    reused.by_tty(False, 100.0)
+    reused.by_tty(False, 101.0)
+
+    assert len(asked) == 2
+
+
+@pytest.mark.parametrize(("fresh", "now"), [(True, 101.0), (False, 130.0)])
+def test_a_listing_is_taken_again_when_asked_or_once_it_is_old(monkeypatch, fresh, now):
+    asked = _listing_with(monkeypatch, os.getpid())
+    reused = _harnesses()
+
+    reused.by_tty(False, 100.0)
+    reused.by_tty(fresh, now)
+
+    assert len(asked) == 2
+
+
+_RESUMED = ("claude:resume", "resume", "/tmp", 50.0, False, "/dev/ttys001", "msg", "tmux")
+_PANES = {None: {"/dev/ttys001": navigation.PaneLocation("session", "0")}}
+
+
+def _judge(monkeypatch, stale, fresh, protected=()):
+    monkeypatch.setattr(watcher, "tty_device_exists", lambda name: True)
+    relisted: list[bool] = []
+    archived: list[str] = []
+    watcher._archive_stale_sessions(
+        [_RESUMED],
+        archived.append,
+        {},
+        _PANES,
+        protected_channels=set(protected),
+        tty_processes=stale,
+        relist=lambda: relisted.append(True) or fresh,
+    )
+    return archived, relisted
+
+
+def test_an_absence_in_a_stale_listing_is_confirmed_before_archiving(monkeypatch):
+    archived, relisted = _judge(
+        monkeypatch, {"ttys001": ["-zsh"]}, {"ttys001": ["-zsh", "claude --resume resume"]}
+    )
+
+    assert archived == []
+    assert relisted == [True]
+
+
+def test_an_absence_confirmed_by_a_fresh_listing_archives(monkeypatch):
+    archived, _ = _judge(monkeypatch, {"ttys001": ["-zsh"]}, {"ttys001": ["-zsh"]})
+
+    assert archived == ["claude:resume"]
+
+
+def test_a_protected_row_never_costs_a_fresh_listing(monkeypatch):
+    archived, relisted = _judge(
+        monkeypatch, {"ttys001": ["-zsh"]}, {"ttys001": ["-zsh"]}, protected=["claude:resume"]
+    )
+
+    assert archived == []
+    assert relisted == []
