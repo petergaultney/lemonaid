@@ -25,6 +25,7 @@ import lemonaid.restore.cli
 import lemonaid.skills.cli
 import lemonaid.terminal.cli
 import lemonaid.tmux.cli
+import lemonaid.tmux.label_host
 import lemonaid.usage.cli
 import lemonaid.watch.cli
 import lemonaid.watch.reconcile
@@ -159,7 +160,7 @@ def main() -> None:
     lemonaid.tmux.cli.setup_parser(subparsers)
     lemonaid.usage.cli.setup_parser(subparsers)
     lemonaid.watch.wait_cli.setup_parser(subparsers)
-    lemonaid.watch.cli.setup_parser(subparsers)
+    lemonaid.watch.cli.setup_parser(subparsers, (lemonaid.tmux.label_host.service,))
     lemonaid.wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)
     setup_mark_read_parser(subparsers)
