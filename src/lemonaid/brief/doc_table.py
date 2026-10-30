@@ -141,6 +141,15 @@ def add(
     return now_edit.with_section(text, "Docs", lambda body: render(listed, vaults))
 
 
+def watch_all_edits(text: str, path: Path, purpose: str, vaults: abc.Collection[Path] = ()) -> str:
+    """*text* with *path* watched for `All edits`, upgrading a `Relay comments` row and keeping its purpose."""
+    found = next((row for row in rows(text) if row.path == path.expanduser().resolve()), None)
+    if found is not None and found.watch == Watch.ALL_EDITS:
+        return text
+
+    return add(text, path, found.purpose if found else purpose, Watch.ALL_EDITS, vaults)
+
+
 def remove(text: str, path: Path, vaults: abc.Collection[Path] = ()) -> str:
     path = path.expanduser().resolve()
     listed = _editable_rows(text)
