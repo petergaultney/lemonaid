@@ -8,6 +8,7 @@ from collections import abc
 from pathlib import Path
 
 from ..log import get_logger
+from . import pane_state
 
 _log = get_logger("tmux.navigation")
 
@@ -169,7 +170,9 @@ def _session_order(created: str, server_started: str, session_id: str) -> Sessio
         return None
 
 
-def locations_by_tty(socket: str | None = None) -> dict[str, PaneLocation] | None:
+def locations_by_tty(
+    socket: str | None = None, *, fresh: bool = False
+) -> dict[str, PaneLocation] | None:
     """Where every pane is sitting, by tty.
 
     Distinct from `get_pane_for_tty`, which answers "is it still there" and is
@@ -178,8 +181,20 @@ def locations_by_tty(socket: str | None = None) -> dict[str, PaneLocation] | Non
     sessions, which would otherwise never re-record their own location.
 
     Returned whole rather than looked up per tty: the caller has many sessions
-    and runs on a poll, so one listing beats one subprocess each.
+    and runs on a poll, so one listing beats one subprocess each. Unless *fresh*, it
+    comes from the scout host's pane state when one is kept, which can lag a pane tmux
+    has just made: confirm an absence with a *fresh* listing before acting on it.
     """
+    if not fresh and (state := pane_state.read(socket)):
+        return {
+            p["pane_tty"]: PaneLocation(
+                p["session_name"],
+                p["window_index"],
+                _session_order(p["session_created"], p["start_time"], p["session_id"]),
+            )
+            for p in state.panes
+        }
+
     try:
         result = subprocess.run(
             [
@@ -230,6 +245,9 @@ def focused_ttys(socket: str | None = None) -> set[str]:
     the user moves into the inbox, tmux selects scratch and marks that lemon as
     the window's last pane. Keep it in view until the client changes windows.
     """
+    if state := pane_state.read(socket):
+        return pane_state.focused_ttys(state)
+
     try:
         result = subprocess.run(
             [

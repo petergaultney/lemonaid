@@ -7,6 +7,7 @@ from lemonaid.config import load_config
 from lemonaid.inbox import db, presence, view
 from lemonaid.inbox.tui.rows.brief_cards import BriefCache
 from lemonaid.stalls import inbox
+from lemonaid.watch import cursors, pr_activity, pr_poller
 
 from .shared import KEY, snap
 
@@ -45,3 +46,30 @@ def test_the_stall_check_knows_a_visible_reviewer_by_its_brief_id(brief_id, stuc
 
     assert active.hidden_briefs == set()
     assert marked.cards[channel].stuck == stuck
+
+
+def test_a_pr_the_scout_host_keeps_is_not_read_from_github_again(monkeypatch):
+    reads = []
+    monkeypatch.setattr(pr_activity, "read", lambda repo, number: reads.append(number))
+    repository = {
+        "pullRequest": {
+            "headRefOid": "abc1234def",
+            "baseRefName": "main",
+            "state": "OPEN",
+            "isDraft": False,
+            "reviewDecision": "APPROVED",
+            "mergeable": "MERGEABLE",
+            "commits": {"nodes": [{"commit": {"oid": "abc1234def", "statusCheckRollup": None}}]},
+            "reviewThreads": {"nodes": []},
+            "reviews": {"nodes": []},
+            "comments": {"nodes": []},
+        },
+    }
+    cursors.write_json(
+        pr_poller._snapshot_path(KEY[0], int(KEY[1])),
+        {"fingerprint": "f", "fetched": time.time(), "repository": repository},
+    )
+
+    found = inbox.fetch(KEY)
+
+    assert found is not None and found.decision == "APPROVED" and reads == []

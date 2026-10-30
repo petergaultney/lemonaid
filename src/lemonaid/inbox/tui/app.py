@@ -16,7 +16,7 @@ from textual.widget import Widget
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief
+from ... import brief, messages
 from ...claude import patch_status
 from ...claude.patcher import find_binary
 from ...config import load_config
@@ -29,7 +29,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import fast_popup, navigation, rename, scratch_autosave
+from ...tmux import fast_popup, navigation, pane_state, rename, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -63,7 +63,7 @@ from .edits import (
 )
 from .help_screen import HelpScreen
 from .inbox_content import InboxContent
-from .live import inbox_draw, inbox_frame, refresh_ticks, status_line
+from .live import changes, inbox_draw, inbox_frame, refresh_ticks, status_line
 from .live.inbox_list import InboxList
 from .notes import NotesPanel
 from .rows import brief_cards, row_parts
@@ -110,11 +110,13 @@ class LemonaidApp(CrashLoggedApp):
         self._input_at = 0.0  # monotonic seconds of the last key or mouse event
         self._size_settling_until = 0.0
         self._size_polled_at = 0.0
+        self._size_panes: int | None = None  # the `pane_state.version` sampled last
         self._undo_stack = undo.Stack()
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
         self._loop_watchdog = loop_watchdog.Watchdog(_LOOP_STALL_SECONDS)
         self._ticks = refresh_ticks.Ticks(self)
+        self._changes: changes.Changes | None = None  # made by the first tick
         self._input_watchdog = input_watchdog.Watchdog(self, _INPUT_STALL_SECONDS)
         self._dim = unfocused_dim.Dim(
             unfocused_dim.strength(self.config.tui.unfocused_dim), enabled=False
@@ -290,6 +292,8 @@ class LemonaidApp(CrashLoggedApp):
         stop_unified_watcher()
         self._loop_watchdog.stop()
         self._input_watchdog.stop()
+        if self._changes is not None:
+            self._changes.close()
 
     def _refresh_skills(self) -> None:
         """Bring installed skills up to date after an upgrade, saying so only when it did something."""
@@ -370,9 +374,14 @@ class LemonaidApp(CrashLoggedApp):
                 widget.refresh()
 
     def _poll_size(self) -> None:
-        """Sample the scratch pane's size while a resize settles; between resizes, less often."""
+        """Sample the scratch pane's size while a resize settles. Between resizes, sample it
+        when the scout host sees tmux's panes change, or without the host, less often."""
         now = time.monotonic()
-        if now >= self._size_settling_until and now - self._size_polled_at < _SIZE_IDLE_SECONDS:
+        panes = pane_state.version(None)
+        changed, self._size_panes = panes != self._size_panes, panes
+        if now >= self._size_settling_until and (
+            not changed if panes is not None else now - self._size_polled_at < _SIZE_IDLE_SECONDS
+        ):
             return
 
         self._size_polled_at = now
@@ -380,6 +389,8 @@ class LemonaidApp(CrashLoggedApp):
 
     def on_resize(self, event: events.Resize) -> None:
         self._size_settling_until = time.monotonic() + _SIZE_SETTLING_SECONDS
+        if self._changes is not None:
+            self._changes.mark()  # the next tick draws at the new size
         # self.size still reports the old width while this event is being handled,
         # so every decision here keys off the size the event carries.
         width = event.size.width
@@ -465,7 +476,7 @@ class LemonaidApp(CrashLoggedApp):
             return
 
         self._wake_expired_snoozes()
-        self._names.maybe_scan(lambda: self.call_from_thread(self._tick))
+        self._names.maybe_scan(lambda: self.call_from_thread(self._fetched))
 
         drawn = self._content.inbox.refresh_list(
             focused=self._attention.ttys(),
@@ -502,20 +513,33 @@ class LemonaidApp(CrashLoggedApp):
             return
 
         self._content.refresh_notes()
-        self._names.maybe_scan(lambda: self.call_from_thread(self._tick))
+        self._names.maybe_scan(lambda: self.call_from_thread(self._fetched))
         inbox = self._content.inbox
+        if self._changes is None:
+            self._changes = changes.Changes(
+                db.get_db_path(),
+                (brief.store.briefs_dir(), messages.store.inbox_root()),
+                changes.hub(),
+            )
+            inbox.fetched = self._changes.mark
+        found = self._changes
         request = inbox.request(frozenset(), self._env_filter(), self._search_text())
         pane = os.environ.get("TMUX_PANE") if self._scratch_mode else None
 
-        def load() -> tuple[bool | None, inbox_frame.Frame]:
+        def load() -> tuple[bool | None, inbox_frame.Frame | None]:
             self._wake_expired_snoozes()
             keys = self._attention.has_keys(pane) if pane else None
-            return keys, inbox.load(dataclasses.replace(request, focused=self._attention.ttys()))
+            asked = dataclasses.replace(request, focused=self._attention.ttys())
+            if not found.due(dataclasses.replace(asked, seq=0), time.monotonic()):
+                return keys, None
 
-        def done(loaded: tuple[bool | None, inbox_frame.Frame]) -> None:
+            return keys, inbox.load(asked)
+
+        def done(loaded: tuple[bool | None, inbox_frame.Frame | None]) -> None:
             self._set_input_active(loaded[0])
             if (
-                self.is_running
+                loaded[1] is not None
+                and self.is_running
                 and self._brief_target is None
                 and self._mode is None
                 and not inbox.repeats(loaded[1], self._input_at, **(args := self._draw_args()))
@@ -524,6 +548,12 @@ class LemonaidApp(CrashLoggedApp):
                 self._inbox_drawn(drawn)
 
         self._ticks.run(load, done)
+
+    def _fetched(self) -> None:
+        """A background fetch stored something the next load reads; load it now."""
+        if self._changes is not None:
+            self._changes.mark()
+        self._tick()
 
     def _inbox_drawn(self, drawn: inbox_draw.Drawn) -> None:
         inbox = self._content.inbox
@@ -1260,7 +1290,10 @@ class LemonaidApp(CrashLoggedApp):
             _hide(pane_id)
 
     def _set_detached_channels(self, channels: set[str]) -> None:
-        self._detached_channels = frozenset(channels)
+        if (detached := frozenset(channels)) != self._detached_channels:
+            self._detached_channels = detached
+            if self._changes is not None:
+                self._changes.mark()
 
     def _brief_local(self) -> bool:
         """Whether the brief shown stays here because its lemon's terminal can't come up."""

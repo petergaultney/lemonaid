@@ -8,7 +8,7 @@ import sqlite3
 from .. import brief
 from ..config import Config
 from ..inbox import view
-from ..watch import pr_activity
+from ..watch import pr_activity, pr_poller
 from . import cache, doc_authors, pulls, report
 
 _RECOMPUTE_SECONDS = 30.0
@@ -79,4 +79,5 @@ class Tracker:
 
 
 def fetch(key: pulls.Key) -> pr_activity.Snapshot | None:
-    return pr_activity.fetch(key[0], int(key[1]), ())
+    """The scout host's snapshot of a PR a scout watches, else a read from GitHub."""
+    return pr_activity.fetch(key[0], int(key[1]), (), source=pr_poller.read)
