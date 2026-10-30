@@ -15,7 +15,7 @@ from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
-from lemonaid.watch import scout_start  # noqa: E402
+from lemonaid.watch import restart, scout_start  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
 # reverts them all, which once pointed a test's migration at the live database and
@@ -160,6 +160,21 @@ def _no_detached_delivery_service(monkeypatch):
     never sees. Tests of starting the service stub `subprocess.Popen` instead.
     """
     monkeypatch.setattr(service, "ensure_running", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_reexec(monkeypatch):
+    """A scout host under test must never replace the test process with a new lemonaid.
+
+    A restart request that an earlier test's signal left behind would otherwise end the
+    next host at once and re-exec the pytest worker.
+    """
+
+    def refuse() -> None:
+        raise AssertionError("a test tried to re-exec its process into lemonaid")
+
+    monkeypatch.setattr(restart, "restart", refuse)
+    monkeypatch.setattr(restart, "_requested", False)
 
 
 @pytest.fixture(autouse=True)

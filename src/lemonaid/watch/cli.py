@@ -1,11 +1,13 @@
 """`lemonaid watch`: watchers that wake a lemon when something it watches changes."""
 
 import argparse
+from collections import abc
 
 from . import (
     briefs_cli,
     doc_cli,
     file_cli,
+    host_services,
     notes_cli,
     openclaw_cli,
     pr_cli,
@@ -18,7 +20,10 @@ from . import (
 )
 
 
-def setup_parser(subparsers: argparse._SubParsersAction) -> None:
+def setup_parser(
+    subparsers: argparse._SubParsersAction,
+    host_services: abc.Sequence[host_services.Factory] = (),
+) -> None:
     parser = subparsers.add_parser(
         "watch", help="Watch your brief with --self, or watch a document, PR, file or children"
     )
@@ -34,4 +39,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     reconcile.add_parser(watch_subparsers)
     stop_cli.add_parser(watch_subparsers)
     restart_cli.add_parser(watch_subparsers)
-    scout_host.add_parser(watch_subparsers)
+    scout_host.add_parser(watch_subparsers, host_services)

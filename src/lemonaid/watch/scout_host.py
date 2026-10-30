@@ -5,6 +5,9 @@ registration is removed or replaced. A scout that ends normally removes its own
 registration; one that fails is tried again after `RETRY_SECONDS`. On `restart.SIGNAL`
 it stops every scout and re-execs itself, and the registrations on disk bring them back
 on the new code. It exits once it has had no registrations for `IDLE_SECONDS`.
+
+It also runs the services its caller passes (`host_services`), such as tmux tab labels,
+and stays up while any of them has work.
 """
 
 import argparse
@@ -17,7 +20,16 @@ import time
 from collections import abc
 
 from ..log import get_logger
-from . import hosted_scout, kqueue_waits, registry, restart, scout_roster, waiter_lock, waits
+from . import (
+    host_services,
+    hosted_scout,
+    kqueue_waits,
+    registry,
+    restart,
+    scout_roster,
+    waiter_lock,
+    waits,
+)
 
 _log = get_logger("watch.scout_host")
 
@@ -99,7 +111,11 @@ def _pacing() -> waits.Waits:
     return kqueue_waits.Hub()
 
 
-def serve(run: Run | None = None, idle: float = IDLE_SECONDS) -> int:
+def serve(
+    run: Run | None = None,
+    idle: float = IDLE_SECONDS,
+    services: abc.Iterable[host_services.Factory] = (),
+) -> int:
     """`lemonaid watch host`: 3 when another host already runs.
 
     Its scouts sleep on kqueue events where the platform has kqueue, and on timers elsewhere.
@@ -114,6 +130,7 @@ def serve(run: Run | None = None, idle: float = IDLE_SECONDS) -> int:
     run = run or functools.partial(hosted_scout.run, pacing=pacing)
     scouts: dict[str, _Scout] = {}
     retry_at: dict[str, float] = {}  # by registration token
+    running = [start() for start in services]
     quitting = threading.Event()
     empty_since = time.monotonic()
     _log.info("scout host started: pid=%s", os.getpid())
@@ -131,16 +148,22 @@ def serve(run: Run | None = None, idle: float = IDLE_SECONDS) -> int:
             ),
         ):
             while not restart.requested():
-                if _tick(scouts, retry_at, run, quitting) or scouts:
+                working = [_tick(scouts, retry_at, run, quitting), len(scouts)]
+                working += [service.tick(quitting) for service in running]
+                if any(working):
                     empty_since = time.monotonic()
                 elif time.monotonic() - empty_since >= idle:
                     break
                 time.sleep(_TICK)
     finally:
         _stop_all(scouts, quitting, pacing)
+        for service in running:
+            service.join()
         lock.close()
-    if restart.requested() or any(
-        r.environment == scout_roster.environment() for r in scout_roster.listed().values()
+    if (
+        restart.requested()
+        or any(service.pending() for service in running)
+        or any(r.environment == scout_roster.environment() for r in scout_roster.listed().values())
     ):
         _log.info("scout host restarting: pid=%s", os.getpid())
         restart.restart()  # a registration written while it was stopping needs a host
@@ -148,6 +171,8 @@ def serve(run: Run | None = None, idle: float = IDLE_SECONDS) -> int:
     return 0
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
+def add_parser(
+    subparsers: argparse._SubParsersAction, services: abc.Sequence[host_services.Factory] = ()
+) -> None:
     parser = subparsers.add_parser("host", help=argparse.SUPPRESS)
-    parser.set_defaults(func=lambda a: sys.exit(serve()))
+    parser.set_defaults(func=lambda a: sys.exit(serve(services=services)))
