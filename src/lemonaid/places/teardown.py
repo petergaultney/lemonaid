@@ -165,4 +165,5 @@ def toss(
         return error
 
     inbox_cleanup.finish(snapshot)
+    inbox_cleanup.archive_briefs(snapshot)
     return None

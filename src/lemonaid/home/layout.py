@@ -38,6 +38,10 @@ def inbox_root() -> Path:
     return lemons_dir() / "inbox" if cut_over() else legacy_dir() / "inbox"
 
 
+def attic_dir() -> Path:
+    return lemons_dir() / "attic" if cut_over() else legacy_dir() / "attic"
+
+
 def stray() -> str:
     """Why the old home must be reconciled first, or "" when it needn't.
 

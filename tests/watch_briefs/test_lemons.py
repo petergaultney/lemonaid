@@ -1,6 +1,6 @@
 import pytest
 
-from lemonaid.brief import lemon_table
+from lemonaid.brief import archive, lemon_table
 from lemonaid.inbox import db
 from lemonaid.watch import briefs_events, briefs_orphans, lemon_liveness
 
@@ -185,3 +185,14 @@ def test_a_lemon_still_without_a_row_after_the_grace_is_gone(grove, monkeypatch)
         problem = lemon_liveness.probe(conn, {child: ""})[child]
 
     assert problem and problem.detail == "its inbox session is gone"
+
+
+def test_an_archived_child_is_dropped_without_a_report(grove, sessions):
+    _, _, child_path, _, _, _ = grove
+    w = _watch(grove)
+    sessions.discard("s-child")
+    with db.connect() as conn:
+        db.archive_channel(conn, "codex:child", "test")
+        archive.archive(conn, child_path, 0.0)
+
+    assert _poll(w) == []

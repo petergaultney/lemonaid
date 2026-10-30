@@ -247,6 +247,9 @@ class BriefConfig:
     # Days a lemon's brief can sit idle, with no session live, before its name
     # may go to a new lemon. 0 never frees a name.
     name_idle_days: int = 14
+    # Days a brief can go unused before a daily sweep moves it and its inbox to the
+    # attic (`brief archive --idle-days`). 0 never sweeps.
+    archive_idle_days: int = 14
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
     # `obsidian://` link.
     vaults: tuple[Path, ...] = ()
@@ -545,13 +548,13 @@ def _notes(raw: object) -> Path | None:
     return Path(raw).expanduser()
 
 
-def _idle_days(raw: object) -> int:
-    """`[brief] name_idle_days`, or the default when it is not a whole number of days."""
+def _idle_days(raw: object, key: str = "name_idle_days") -> int:
+    """`[brief] <key>`, or the default when it is not a whole number of days."""
     if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
         return raw
 
     print(
-        f"Warning: [brief] name_idle_days must be a whole number of days, not {raw!r}; using 14",
+        f"Warning: [brief] {key} must be a whole number of days, not {raw!r}; using 14",
         file=sys.stderr,
     )
     return 14
@@ -741,6 +744,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         pr_url=brief_data.get("pr_url", ""),
         name=brief_data.get("name", ""),
         name_idle_days=_idle_days(brief_data.get("name_idle_days", 14)),
+        archive_idle_days=_idle_days(brief_data.get("archive_idle_days", 14), "archive_idle_days"),
         vaults=_vaults(brief_data.get("vaults")),
         responsible_parties=tuple(str(p) for p in brief_data.get("responsible_parties", ())),
     )

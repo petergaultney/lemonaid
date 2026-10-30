@@ -7,6 +7,7 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
+import lemonaid.brief.archive_cli
 import lemonaid.brief.cli
 import lemonaid.claude.cli
 import lemonaid.codex.cli
@@ -174,6 +175,8 @@ def main() -> None:
     args.invocation = ["lemonaid", *sys.argv[1:]]
     lemonaid.watch.restart.after_upgrade()
     lemonaid.watch.reconcile.after_install()
+    if getattr(args, "brief_command", None) not in lemonaid.brief.archive_cli.COMMANDS:
+        lemonaid.brief.archive_cli.daily()
 
     try:
         if args.command is None:

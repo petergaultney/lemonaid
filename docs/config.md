@@ -490,6 +490,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `pr_url` | `""` | Shell command that prints a PR's URL for `{ref}`, so `brief pr add` takes a number; unset, it needs the URL. |
 | `name` | `""` | Shell command that prints a new lemon's name; unset uses a random two-word WordyBin. |
 | `name_idle_days` | `14` | Days a lemon's brief can sit idle, with no live session, before a new lemon may take its name; `0` never frees one. |
+| `archive_idle_days` | `14` | Days a brief can go unused before a daily sweep moves it and its inbox to `~/.lemons/attic/YYYY-MM/`; `0` never sweeps. In use means a live session, or within the window: created, Status changed, session activity, attached, or a message in its inbox. `place toss` archives the briefs of the lemons it ends at once. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 | `responsible_parties` | `[]` | Who a new top-level brief's `responsible-parties` names; unset is the account's full name. A child copies its parent's. |
 

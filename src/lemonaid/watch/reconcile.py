@@ -127,7 +127,7 @@ def run() -> list[str]:
     return done
 
 
-def _editable() -> bool:
+def editable_install() -> bool:
     """A dev checkout's install, whose commands must not start scouts for every lemon."""
     try:
         found = importlib.metadata.distribution("lemonaid-inbox").read_text("direct_url.json")
@@ -151,7 +151,7 @@ def after_install() -> None:
     ):
         return
 
-    if waiter_lock.held(_lock_path()) or _editable() or not load_config().watch.reconcile:
+    if waiter_lock.held(_lock_path()) or editable_install() or not load_config().watch.reconcile:
         return
 
     _record(
