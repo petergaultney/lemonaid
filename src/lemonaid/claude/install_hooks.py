@@ -61,18 +61,33 @@ def has_command(entries: ty.Iterable[dict], command: str) -> bool:
     )
 
 
-def _with_hook(settings: dict, event: str, command: str, matcher: str = "") -> tuple[dict, bool]:
-    """`settings` plus a hook for `command`, and whether anything changed."""
+def _with_hook(
+    settings: dict,
+    event: str,
+    command: str,
+    matcher: str = "",
+    fields: ty.Mapping[str, object] = {},
+) -> tuple[dict, bool]:
+    """`settings` plus a hook for `command` carrying `fields`, and whether anything changed."""
     hooks = settings.setdefault("hooks", {})
     entries = hooks.setdefault(event, [])
 
-    if has_command(entries, command):
-        return settings, False
+    existing = [
+        hook
+        for entry in entries
+        for hook in entry.get("hooks", [])
+        if isinstance(hook, dict) and hook.get("command") == command
+    ]
+    if existing:
+        stale = [hook for hook in existing if any(hook.get(k) != v for k, v in fields.items())]
+        for hook in stale:
+            hook.update(fields)
+        return settings, bool(stale)
 
     entries.append(
         {
             **({"matcher": matcher} if matcher else {}),
-            "hooks": [{"type": "command", "command": command}],
+            "hooks": [{"type": "command", "command": command, **fields}],
         }
     )
     return settings, True
@@ -92,21 +107,30 @@ def _write(path: Path, settings: dict) -> None:
 
 
 def install(
-    event: str, command: str, path: Path | None = None, dry_run: bool = False, matcher: str = ""
+    event: str,
+    command: str,
+    path: Path | None = None,
+    dry_run: bool = False,
+    matcher: str = "",
+    fields: ty.Mapping[str, object] = {},
 ) -> str:
-    """Add a hook running `command` on `event` (for tools `matcher` names). Returns the line to print."""
+    """Add a hook running `command` on `event` (for tools `matcher` names), or set `fields` on it.
+
+    Returns the line to print.
+    """
     path = path or settings_path()
     settings = load(path)
-    settings, changed = _with_hook(settings, event, command, matcher)
+    present = has_command(settings.get("hooks", {}).get(event, []), command)
+    settings, changed = _with_hook(settings, event, command, matcher, fields)
 
     if not changed:
         return f"{event} hook already installed in {path}"
 
     if dry_run:
-        return f"would add {event} -> {command} in {path}"
+        return f"would {'update' if present else 'add'} {event} -> {command} in {path}"
 
     _write(path, settings)
-    return f"installed {event} -> {command} in {path}"
+    return f"{'updated' if present else 'installed'} {event} -> {command} in {path}"
 
 
 def uninstall(event: str, command: str, path: Path | None = None) -> str:

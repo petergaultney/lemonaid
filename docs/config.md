@@ -57,6 +57,23 @@ start shell commands. Configure each harness's own keybindings to submit with Ct
 before enabling it here; see [Claude's keybindings](https://code.claude.com/docs/en/keybindings)
 and [Codex's TUI keymap](https://learn.chatgpt.com/docs/config-file/config-basic#tui-keymap).
 
+## `[codex]`
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `context_doc` | `""` | A Markdown file lemonaid gives every Codex session at start, with the files its `@` imports name; unset gives none. |
+
+```toml
+[codex]
+context_doc = "~/.claude/CLAUDE.md"
+```
+
+Codex has no `@` imports of its own, so this lets one file (Claude Code's `CLAUDE.md`, for
+instance) list the always-loaded docs for both harnesses. lemonaid's Codex SessionStart hook
+expands it the way Claude Code does and passes the text to Codex: on a new thread, after
+`/clear` and after compaction, but not on resume or fork, whose history already holds it.
+See [codex.md](codex.md#always-loaded-docs) for the hook setting it needs.
+
 ## `[wezterm]`
 
 See [wezterm.md](wezterm.md).

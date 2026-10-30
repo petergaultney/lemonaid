@@ -155,6 +155,22 @@ While Codex is working, the notification message updates to show current activit
 - "Searching: query" (web searches)
 - First line of assistant responses
 
+### Always-loaded docs
+
+With [`[codex] context_doc`](config.md#codex) set, the SessionStart hook passes that file and
+the files its `@` imports name to every new Codex thread, and again after `/clear` and after
+each compaction (Codex reruns SessionStart then, so the docs return when compaction drops
+them). An import is `@path` at the start of a line or after a space, outside code; it is
+relative to the importing file, `~` expands and `\ ` is a space. Each file is included once,
+imports are followed four hops deep, as in Claude Code, and a file that can't be read is logged and skipped. If the
+docs were also listed for Codex to read in `~/.codex/AGENTS.md`, remove that list, or Codex
+reads each one twice.
+
+Codex otherwise cuts a hook's text past about 10 KB down to a preview of its start and end,
+so `lemonaid hooks install --harness codex` sets `"additionalContextLimit": 0` on the
+SessionStart handler, updating one installed by an earlier version. That changes the hook's
+hash: approve it again in Codex's `/hooks` once after upgrading.
+
 ## CLI commands
 
 ```bash

@@ -113,3 +113,20 @@ def test_a_fresh_codex_install_adds_tool_used(tmp_path, monkeypatch):
 
     assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PreToolUse")
     assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PostToolUse")
+
+
+def test_codex_session_start_takes_the_whole_context_doc(tmp_path):
+    hooks_json = tmp_path / "hooks.json"
+    command = install.session_start_command("codex")
+    hooks_json.write_text(
+        json.dumps(
+            {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": command}]}]}}
+        )
+    )
+
+    lines = install.install("codex", hooks_json)
+
+    (entry,) = json.loads(hooks_json.read_text())["hooks"]["SessionStart"]
+    assert entry["hooks"] == [{"type": "command", "command": command, "additionalContextLimit": 0}]
+    assert any(line.startswith("updated SessionStart") for line in lines)
+    assert all("already installed" in line for line in install.install("codex", hooks_json))

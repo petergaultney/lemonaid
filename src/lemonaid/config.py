@@ -11,7 +11,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-from . import auto_read, keys, launch_config, messages_config, palette, watch_config
+from . import auto_read, codex_config, keys, launch_config, messages_config, palette, watch_config
 from .inbox import context_use, snooze_time
 from .usage import settings
 
@@ -400,6 +400,7 @@ class Config:
     watch: watch_config.WatchConfig = field(default_factory=watch_config.WatchConfig)
     usage: settings.UsageConfig = field(default_factory=settings.UsageConfig)
     messages: messages_config.MessagesConfig = field(default_factory=messages_config.MessagesConfig)
+    codex: codex_config.CodexConfig = field(default_factory=codex_config.CodexConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -436,7 +437,7 @@ def load_config(config_path: Path | None = None) -> Config:
             data = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
         # Log warning but return defaults
-        print(f"Warning: Could not load config from {config_path}: {e}")
+        print(f"Warning: Could not load config from {config_path}: {e}", file=sys.stderr)
         return Config()
 
     return _parse_config(data)
@@ -824,6 +825,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         watch=watch_config.parse(data.get("watch", {})),
         usage=settings.parse(data.get("usage", {})),
         messages=messages_config.parse(data.get("messages", {})),
+        codex=codex_config.parse(data.get("codex", {})),
     )
 
 
