@@ -1,7 +1,7 @@
-"""A Codex lemon's scout: `lemonaid watch --self --codex-thread --push`, detached, while its thread runs.
+"""A Codex lemon's scout: `lemonaid watch --self --codex-thread --push`, in the scout host, while its thread runs.
 
 It queues each batch into the thread with `codex queue` instead of exiting with it, so the
-lemon never rearms a watcher. `codex_waiter` starts it; it holds the same lock as any
+lemon never rearms a watcher. `codex_waiter` registers it; it holds the same lock as any
 unified watcher.
 """
 

@@ -11,6 +11,9 @@ installed lemonaid. Each one restarts once nothing it has detected is waiting to
 delivered, with the same arguments, so no lemon has to rearm. A new lemonaid
 version does this by itself the first time any lemonaid command runs.
 
+Push scouts run in the scout host, so restarting any of them restarts the host,
+which brings every scout back on the installed lemonaid.
+
 A watcher that has not restarted after --wait seconds, and any started by a lemonaid
 from before this command existed (they don't know the signal), is stopped instead,
 and a push scout is started again in its place. Another waiter stays stopped for
@@ -34,6 +37,14 @@ def run(a: argparse.Namespace) -> int:
         return 2
 
     chosen = _chosen(a)
+    hosts = (
+        restart.send(w for w in registry.running() if w.kind == "host")
+        if any(w.hosted for w in chosen)
+        else []
+    )
+    for host in hosts:
+        print(f"Asked the scout host (pid {host.pid}) to restart, with every scout it runs")
+    chosen = [w for w in chosen if not w.hosted]
     sent = restart.send(chosen)
     for waiter in sent:
         print(f"Asked {', '.join(waiter.targets)}'s watcher (pid {waiter.pid}) to restart")
@@ -43,7 +54,7 @@ def run(a: argparse.Namespace) -> int:
     replaced = [*unasked, *restart_fallback.stuck(sent, a.wait)]
     for line in restart_fallback.replace(replaced):
         print(line)
-    if not chosen:
+    if not chosen and not hosts:
         print("No running watch --self waiter matches")
     return 0
 

@@ -53,7 +53,17 @@ def test_failed_delivery_keeps_file_cursor_and_inbox_pending(tmp_path):
         assert store.pending_count(inbox) == 1
         assert cursor.read_text() == before
         sent = []
-        batch_wait.wait(path, inbox, root, "", sent.append, lambda: True, interval=0.01, quiet=0.01)
+        batch_wait.wait(
+            path,
+            inbox,
+            root,
+            "",
+            sent.append,
+            lambda: True,
+            cwd=tmp_path,
+            interval=0.01,
+            quiet=0.01,
+        )
         assert len(sent) == 1 and str(file) in sent[0] and "Still pending" in sent[0]
     finally:
         stop.set()

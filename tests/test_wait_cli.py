@@ -5,6 +5,7 @@ from lemonaid.brief import attached, store
 from lemonaid.inbox import db
 from lemonaid.messages import store as messages
 from lemonaid.watch import batch_wait, cli, codex_scout, delivery, wait_cli, wait_state, waiter_lock
+from tests.scout_host import shared as hosted
 
 
 def test_wait_is_registered_holds_one_lock_and_delivers_inbox(monkeypatch, capsys):
@@ -70,15 +71,6 @@ def test_a_scout_keeps_watching_an_archived_session_whose_thread_runs(monkeypatc
         attached.attach(conn, "codex:test", path)
         conn.execute("UPDATE notifications SET status = 'archived' WHERE channel = 'codex:test'")
         conn.commit()
-    args = argparse.Namespace(
-        codex_thread="test",
-        channel="",
-        status=False,
-        interval=0.01,
-        quiet=0,
-        push=True,
-        foreground=True,
-    )
     alive = [True]
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
     monkeypatch.setattr(codex_scout, "liveness", lambda thread: lambda: alive[0])
@@ -91,7 +83,8 @@ def test_a_scout_keeps_watching_an_archived_session_whose_thread_runs(monkeypatc
 
     monkeypatch.setattr(batch_wait, "wait", wait)
 
-    assert wait_cli.run(args) == 0
+    with hosted.hosting():
+        assert hosted.run("task.IndexElf", "codex:test", "test") == "ended"
     assert watched == [True]
 
 

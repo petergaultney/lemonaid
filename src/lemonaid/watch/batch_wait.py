@@ -93,6 +93,7 @@ def wait(
     deliver: delivery.Deliver,
     still_attached: abc.Callable[[], bool],
     *,
+    cwd: Path,
     interval: float = 0.5,
     quiet: float = 2,
     notes: notes.Reader = notes.none,
@@ -105,7 +106,6 @@ def wait(
     pending, and undelivered inbox messages stay on disk for it.
     """
     vaults = tuple(load_config().brief.vaults)
-    cwd = Path.cwd()
     read_subscriptions = subscription_state.reader(path, root, cwd, inbox.name, vaults)
     wordy = identity.brief_name(inbox.name) or inbox.name
     signatures = tuple(f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead"))

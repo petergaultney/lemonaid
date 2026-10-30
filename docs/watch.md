@@ -578,7 +578,7 @@ The unified command accepts:
 | `--self` | Select the attached brief and unified watcher. |
 | `--channel CHANNEL` | Override caller identity outside normal harness detection. |
 | `--status` | Check the shared lock: exit 0 when running, 1 when absent. |
-| `--push` | Start a detached push scout and return, unless a watcher already runs. |
+| `--push` | Register a push scout with the scout host and return, unless a watcher already runs. |
 | `--codex-thread [THREAD_ID]` | Deliver into Codex; bare means the current thread. |
 | `--interval SECONDS` | Brief/inbox read interval, default 0.5. |
 | `--quiet SECONDS` | Batch gathering quiet period, default 2. |
@@ -622,7 +622,14 @@ still being edited holds back only its own event; other ready sources can delive
 
 ### The push scout
 
-A lemon's scout is a detached process that keeps watching instead of exiting. A Codex
+A lemon's scout keeps watching instead of exiting. Every lemon's scout runs as a thread of
+one long-lived process, the scout host (`lemonaid watch host`). `watch --self --push`
+writes the lemon's registration to `scouts/<Lemon-ID>.json` in the state directory and
+starts the host if none runs; the host runs a scout for each registration and stops one
+whose registration is removed or replaced. A scout that ends normally removes its own
+registration, and one that fails is tried again 30 seconds later. The host serves only
+registrations written against its own database, state and Claude directories, and exits
+after a minute with none. A Codex
 lemon's scout queues each batch into its thread with `codex queue`, checks before each
 delivery that some Codex process (a terminal or the shared daemon) still has the thread's
 rollout open, and exits when none does or the brief is detached. When `lsof` can't be read,
@@ -635,25 +642,27 @@ A Claude lemon's scout writes each batch
 into the Claude session through the session's inbox socket (listed in
 `~/.claude/sessions/<pid>.json`), saves cursors only once the socket has taken the batch,
 and exits when the session ends or its brief is detached. It holds the same lock as
-`watch --self`, so a second one for the same lemon refuses to start, and the Stop check
-counts it as the lemon's watcher.
+`watch --self`, so a second one for the same lemon waits, and the Stop check counts it as
+the lemon's watcher. A registration for a new session of the same lemon (after `/clear` or
+a resume) replaces the scout still pushing into the old one.
 
 The SessionStart hook, the Stop check and `lemonaid tell` each start one when the lemon
 has none and its session would read a pushed message, and so does the live inbox for a
 Claude lemon it marks `deaf` (at most once a minute per lemon). A lemon whose `--status`
 says `no watcher running` can start its own with `lemonaid watch --self --push`, which
-returns at once; starting one where a watcher already runs does nothing. The scout's
+returns at once; starting one where a watcher already runs does nothing. The host's
 output goes to `push-scout.log` in the state directory. When the session
 would hold the message (bypass-permissions mode without `"crossSessionInbound": "accept"`,
 see [Claude setup](claude.md#3-let-lemonaid-push-events-into-each-lemon)), nothing starts
 and the lemon falls back to a background `watch --self`. If the socket refuses a batch, the
-scout exits and the batch stays pending for the next watcher.
+batch stays pending and the host tries the scout again.
 
 Each scout logs `push scout started` and `push scout exited normally` or `exited
-abnormally` to the lemonaid log, with its Lemon-ID, session and pid. A normal exit is
-its session ending, its brief being detached, or `lemonaid watch stop`. A refused batch,
-a crash, or a SIGTERM that `watch stop` didn't send is abnormal and logged as a warning.
-A start line with no exit line is a scout that was killed outright.
+abnormally` to the lemonaid log, with its Lemon-ID, session and the host's pid. A normal
+exit is its session ending, its brief being detached, a restart, or `lemonaid watch stop`,
+which removes the lemon's registration rather than signalling the host. A refused batch or
+a crash is abnormal and logged as a warning. A start line with no exit line is a scout
+whose host was killed outright; the inbox's deaf-scout revival starts a new host.
 
 Each `watch --self` waiter records its loop's progress in `wait.beat` beside its
 lock at most once every ten seconds. One that still holds
@@ -661,12 +670,14 @@ its lock but has no progress recorded for two minutes is deaf: it
 delivers nothing, so `--status` says `watcher deaf`, the Stop check and `lemonaid tell`
 don't count it, and the live inbox marks its lemon `deaf`. Whatever starts a scout
 (those same paths, and `watch --self --push`) first stops a deaf waiter, with SIGKILL if
-SIGTERM doesn't end it, and starts a new one. Its undelivered changes stay for the new
+SIGTERM doesn't end it, and starts a new one. A deaf hosted scout is stopped by removing its
+registration and is never killed, since that would kill the host. Its undelivered changes stay for the new
 waiter, as after `lemonaid watch stop`; the lemonaid log records `stopping deaf waiter`.
 
 `lemonaid watch restart` restarts running `watch --self` waiters, push scouts
 included, into the installed lemonaid: name lemons by Lemon-ID, or pass `--self` or
-`--all`. Each waiter records its lemonaid version in the registry and restarts on
+`--all`. Restarting any push scout restarts the scout host, which stops every scout,
+re-execs itself, and starts them again from their registrations. Each waiter records its lemonaid version in the registry and restarts on
 `SIGUSR1`, even with a batch detected but not yet delivered (cursors advance only on
 delivery, so the new process detects it again): it leaves its
 loop (a scout logs `exited normally` with reason `restarting on request`) and

@@ -12,6 +12,7 @@ from . import (
     reconcile,
     repo_cli,
     restart_cli,
+    scout_host,
     stop_cli,
     wait_cli,
 )
@@ -33,3 +34,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     reconcile.add_parser(watch_subparsers)
     stop_cli.add_parser(watch_subparsers)
     restart_cli.add_parser(watch_subparsers)
+    scout_host.add_parser(watch_subparsers)

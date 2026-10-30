@@ -62,8 +62,8 @@ Stop checks resolve an attached transient notification channel from verified ter
 ownership even before the first turn-complete notification records its root thread.
 Codex treats a blocking Stop response as a request to continue the turn.
 
-A Codex lemon with a brief gets a push scout: a detached `lemonaid watch --self --push`
-that queues each batch of watch events and messages into its thread with `codex queue`
+A Codex lemon with a brief gets a push scout: `lemonaid watch --self --push` registers it
+with the scout host, which runs every lemon's scout and queues each batch of watch events and messages into its thread with `codex queue`
 and keeps watching, so the lemon never rearms a watcher. It runs outside the Codex
 sandbox, since `codex queue` writes `~/.codex`, and exits when no Codex process has the
 thread's rollout open or the brief is detached. The SessionStart and Stop hooks start it. The

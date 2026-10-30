@@ -13,6 +13,7 @@ from lemonaid.watch import (
     wait_cli,
     wait_state,
 )
+from tests.scout_host import shared as hosted
 
 
 def _briefed() -> None:
@@ -53,7 +54,8 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
 
     monkeypatch.setattr(batch_wait, "wait", wait)
 
-    assert wait_cli.run(_args(push=True)) == 0
+    with hosted.hosting():
+        assert hosted.run("task.IndexElf", "codex:test", "test") == "ended"
     assert len(queued) == 2
     assert all("queues the next batch" in text and "rearm" not in text for text in queued)
     assert all(push_scout.FLAG in command.split() for command in commands)

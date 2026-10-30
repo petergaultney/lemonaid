@@ -87,8 +87,9 @@ maximum timeout; for a waiter, ignore that and restart it.
 
 ### 3. Let lemonaid push events into each lemon
 
-With a brief attached, lemonaid starts a scout for each Claude lemon: a detached
-`lemonaid watch --self --push` that writes every batch of watch events and `tell`
+With a brief attached, lemonaid starts a scout for each Claude lemon: `lemonaid watch
+--self --push` registers it with the scout host, one process that runs every lemon's scout
+and writes every batch of watch events and `tell`
 messages into the session through Claude Code's inbox socket. The lemon keeps no
 background task, so it gets none of the harness's check-in prompts about quiet tasks.
 

@@ -30,6 +30,7 @@ def start(tmp_path, text, deliver, notes=None):
                 "",
                 deliver,
                 lambda: not stop.is_set(),
+                cwd=tmp_path,
                 interval=0.01,
                 quiet=0.05,
                 notes=lambda: notes or {},

@@ -12,6 +12,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+import tempfile
 import typing as ty
 
 from ..codex import channels
@@ -37,15 +38,12 @@ def codex_setup_problem() -> str:
     if not shutil.which("codex"):
         return "`codex` is not on PATH"
 
-    probe = (
-        pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex"))
-        / f".watch-probe-{os.getpid()}"
-    )
+    home = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex"))
     try:
-        probe.touch()
-        probe.unlink()
+        with tempfile.NamedTemporaryFile(dir=home, prefix=".watch-probe-"):
+            pass  # a name of its own, since the scout host probes from many threads at once
     except OSError as e:
-        return f"cannot write {probe.parent} ({e}), so `codex queue` would fail; run the waiter outside the sandbox"
+        return f"cannot write {home} ({e}), so `codex queue` would fail; run the waiter outside the sandbox"
     return ""
 
 

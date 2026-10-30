@@ -1,9 +1,6 @@
 """Start a Codex lemon's push scout, and restore it for a live, idle lemon that has none."""
 
-import os
 import sqlite3
-import subprocess
-import sys
 import time
 import typing as ty
 from pathlib import Path
@@ -11,35 +8,13 @@ from pathlib import Path
 from ..brief import attached, identity, status
 from ..brief.handoff import state as handoff_state
 from ..codex import channels, processes, utils
-from ..inbox import db
-from ..log import LOG_PATH, get_logger
-from . import deaf_waiter, wait_state, waiter_lock
+from ..log import get_logger
+from . import deaf_waiter, scout_start, wait_state, waiter_lock
 
 _log = get_logger("watch.codex_waiter")
 
 RETRY_SECONDS = 60.0  # between restores of one lemon, so a scout that keeps failing is not restarted every refresh
 _restored: dict[str, float] = {}
-
-
-def _spawn(channel: str, thread: str) -> None:
-    with LOG_PATH.open("a") as log:
-        subprocess.Popen(
-            [
-                *(sys.executable, "-m", "lemonaid", "watch", "--self", "--push", "--foreground"),
-                *("--codex-thread", thread),
-            ],
-            env={
-                **os.environ,
-                "CODEX_THREAD_ID": thread,
-                "LEMONAID_CHANNEL": channel,
-                "LEMONAID_DB": str(db.get_db_path()),
-            },
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=log,
-            cwd=Path.home(),
-            start_new_session=True,
-        )
 
 
 def ensure(channel: str, thread: str, lemon_id: str) -> bool:
@@ -53,7 +28,7 @@ def ensure(channel: str, thread: str, lemon_id: str) -> bool:
         return False
     try:
         if not wait_state.is_armed(lemon_id):
-            _spawn(channel, thread)
+            scout_start.host(lemon_id, channel, thread, str(Path.home()))
             _log.info("starting Codex push scout channel=%s thread=%s", channel, thread)
         armed = wait_state.is_armed(lemon_id, grace=3)
         if not armed:

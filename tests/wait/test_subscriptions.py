@@ -48,7 +48,15 @@ def test_a_half_edited_brief_reports_once_and_keeps_previous_watches(tmp_path):
         )
         timer.start()
         batch_wait.wait(
-            path, inbox, root, "", later.append, lambda: True, interval=0.01, quiet=0.02
+            path,
+            inbox,
+            root,
+            "",
+            later.append,
+            lambda: True,
+            cwd=tmp_path,
+            interval=0.01,
+            quiet=0.02,
         )
         timer.join()
         assert len(later) == 1 and "still listening" in later[0]
