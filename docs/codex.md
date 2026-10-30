@@ -52,7 +52,9 @@ waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse h
 and a valid brief, and a SessionStart hook. The SessionStart hook also gives a new
 thread its inbox row, with its pane, so a brief waiting on its window (`place open
 --brief`, `lemon start --brief`) is attached as it starts rather than when its first turn
-ends. The SessionStart and Stop hooks start the lemon's push scout (below). Codex
+ends. The SessionStart and Stop hooks start the lemon's push scout (below). Each hook is
+named in `/hooks` (`lemonaid: session-start`, for instance) by its `statusMessage`, which
+Codex also shows while a slow hook runs. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 

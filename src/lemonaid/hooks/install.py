@@ -13,8 +13,9 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
 Codex also gets `lemonaid codex tool-used` on PreToolUse and PostToolUse, which clears a
 permission notice when its requested tool starts or returns.
 
-Codex's SessionStart handler gets `"additionalContextLimit": 0`, so the `[codex] context_doc`
-it injects reaches the model whole instead of as a head-and-tail preview.
+Each Codex handler gets a `statusMessage` naming it (`lemonaid: session-start`), and the
+SessionStart handler `"additionalContextLimit": 0`, so the `[codex] context_doc` it injects
+reaches the model whole instead of as a head-and-tail preview.
 
 Codex trusts a hook by a hash of it (`[hooks.state]` in its `config.toml`), so a hook this
 adds or changes runs only once it is trusted again in Codex's `/hooks`.
@@ -93,21 +94,28 @@ def session_start_command(harness: str) -> str:
     return f"lemonaid hooks session-start --harness {harness}"
 
 
-def _handler_fields(harness: str, event: str) -> dict[str, object]:
-    return {"additionalContextLimit": 0} if (harness, event) == ("codex", "SessionStart") else {}
+def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
+    """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
+    if harness != "codex":
+        return {}
+
+    return {
+        "statusMessage": f"lemonaid: {name}",
+        **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
+    }
 
 
-def hooks(harness: str) -> list[tuple[str, str]]:
-    """(event, command) for every hook lemonaid installs in `harness`."""
+def hooks(harness: str) -> list[tuple[str, str, str]]:
+    """(event, command, name) for every hook lemonaid installs in `harness`."""
     return [
-        ("PreToolUse", own_change_command(harness)),
-        ("PostToolUse", own_change_command(harness)),
-        ("Stop", stop_command(harness)),
-        ("SessionStart", session_start_command(harness)),
+        ("PreToolUse", own_change_command(harness), "own-change"),
+        ("PostToolUse", own_change_command(harness), "own-change"),
+        ("Stop", stop_command(harness), "stop"),
+        ("SessionStart", session_start_command(harness), "session-start"),
         *(
             [
-                ("PreToolUse", _CODEX_TOOL_USED_COMMAND),
-                ("PostToolUse", _CODEX_TOOL_USED_COMMAND),
+                ("PreToolUse", _CODEX_TOOL_USED_COMMAND, "tool-used"),
+                ("PostToolUse", _CODEX_TOOL_USED_COMMAND, "tool-used"),
             ]
             if harness == "codex"
             else []
@@ -183,9 +191,9 @@ def install(
         *(_without_legacy(path, dry_run) if harness == "claude" else []),
         *(
             install_hooks.install(
-                event, command, path, dry_run, fields=_handler_fields(harness, event)
+                event, command, path, dry_run, fields=_handler_fields(harness, event, name)
             )
-            for event, command in hooks(harness)
+            for event, command, name in hooks(harness)
             if not events or event in events
         ),
     ]
@@ -195,6 +203,6 @@ def uninstall(harness: str, path: Path | None = None, events: ty.Collection[str]
     path = path or settings_path(harness)
     return [
         install_hooks.uninstall(event, command, path)
-        for event, command in hooks(harness)
+        for event, command, _ in hooks(harness)
         if not events or event in events
     ]

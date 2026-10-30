@@ -127,6 +127,34 @@ def test_codex_session_start_takes_the_whole_context_doc(tmp_path):
     lines = install.install("codex", hooks_json)
 
     (entry,) = json.loads(hooks_json.read_text())["hooks"]["SessionStart"]
-    assert entry["hooks"] == [{"type": "command", "command": command, "additionalContextLimit": 0}]
+    assert entry["hooks"] == [
+        {
+            "type": "command",
+            "command": command,
+            "statusMessage": "lemonaid: session-start",
+            "additionalContextLimit": 0,
+        }
+    ]
     assert any(line.startswith("updated SessionStart") for line in lines)
     assert all("already installed" in line for line in install.install("codex", hooks_json))
+
+
+def test_codex_hooks_are_named_and_claude_hooks_are_not(tmp_path):
+    codex, claude = tmp_path / "hooks.json", tmp_path / "settings.json"
+
+    install.install("codex", codex)
+    install.install("claude", claude)
+
+    names = {
+        hook.get("statusMessage")
+        for entries in json.loads(codex.read_text())["hooks"].values()
+        for entry in entries
+        for hook in entry["hooks"]
+    }
+    assert names == {
+        "lemonaid: own-change",
+        "lemonaid: stop",
+        "lemonaid: session-start",
+        "lemonaid: tool-used",
+    }
+    assert "statusMessage" not in claude.read_text()
