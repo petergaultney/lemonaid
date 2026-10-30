@@ -7,6 +7,7 @@ going away.
 
 import sqlite3
 import time
+from pathlib import Path
 
 from .. import brief
 
@@ -32,15 +33,16 @@ def children_of(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     ]
 
 
-# A child is gone once the newest inbox row of its brief's session is archived. Its link stays,
-# so lineage and `brief children --all` still show it, but automatic child tracking stops.
+# A child is gone once the newest inbox row of its brief's session is archived, or once its
+# brief, attached to no session, is in the attic. Its link stays, so lineage and
+# `brief children --all` still show it, but automatic child tracking stops.
 _LIVE_CHILDREN = """
 WITH attached AS (SELECT path, channel, MIN(rowid) FROM session_briefs GROUP BY path)
 SELECT p.lemon_id FROM lemon_parents p
 LEFT JOIN lemon_aliases a ON a.old_id = p.lemon_id
 LEFT JOIN lemon_identities i ON i.lemon_id = COALESCE(a.lemon_id, p.lemon_id)
 LEFT JOIN attached b ON b.path = i.path
-WHERE p.parent_id = ?
+WHERE p.parent_id = :parent
   AND COALESCE(
     (
       SELECT n.status FROM notifications n WHERE n.channel = b.channel
@@ -48,12 +50,16 @@ WHERE p.parent_id = ?
     ),
     ''
   ) != 'archived'
+  AND NOT (b.channel IS NULL AND substr(COALESCE(i.path, ''), 1, length(:attic)) = :attic)
 ORDER BY p.linked_at, p.lemon_id
 """
 
 
-def live_children_of(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
-    return [row["lemon_id"] for row in conn.execute(_LIVE_CHILDREN, (lemon_id,))]
+def live_children_of(conn: sqlite3.Connection, lemon_id: str, attic: Path) -> list[str]:
+    return [
+        row["lemon_id"]
+        for row in conn.execute(_LIVE_CHILDREN, {"parent": lemon_id, "attic": f"{attic}/"})
+    ]
 
 
 def ancestors(conn: sqlite3.Connection, lemon_id: str) -> list[str]:

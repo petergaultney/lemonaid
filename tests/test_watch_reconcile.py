@@ -101,7 +101,7 @@ def _spawns(monkeypatch, fail: bool = False) -> tuple[list[dict[str, str]], list
             raise PermissionError("sandboxed")
 
     monkeypatch.setattr(subprocess, "Popen", popen)
-    monkeypatch.setattr(reconcile, "_editable", lambda: False)
+    monkeypatch.setattr(reconcile, "editable_install", lambda: False)
     monkeypatch.setattr(reconcile.time, "time", lambda: clock[0])
     monkeypatch.setattr(restart, "version", lambda: "2.0")
     return envs, clock
@@ -195,7 +195,7 @@ def test_a_session_that_can_never_take_a_scout_does_not_hold_the_pass_open(monke
 
 def test_a_dev_checkout_starts_no_pass(monkeypatch):
     envs, _ = _spawns(monkeypatch)
-    monkeypatch.setattr(reconcile, "_editable", lambda: True)
+    monkeypatch.setattr(reconcile, "editable_install", lambda: True)
 
     reconcile.after_install()
 

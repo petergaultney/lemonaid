@@ -12,12 +12,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from lemonaid.brief import attached
+from lemonaid.brief import archive, attached
 from lemonaid.config import PlaceRoot
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.places import ownership, teardown
+
+from .brief_archive import shared
 
 
 def _destroyable(path) -> PlaceRoot:
@@ -373,6 +375,23 @@ def test_toss_archives_the_lemons_in_a_released_place(monkeypatch, tmp_path):
 
     assert teardown.toss("review", [place]) is None
     assert _active_channels() == {"claude:elsewhere", "claude:author"}
+
+
+def test_toss_moves_the_briefs_of_the_lemons_it_ends_to_the_attic(monkeypatch, tmp_path):
+    place = _place(tmp_path, "review")
+    _lemon("codex:reviewer", place.directory)
+    _lemon("claude:elsewhere", tmp_path / "other")
+    ended, _ = shared.brief("reviewer", at=time.time())
+    kept, _ = shared.brief("elsewhere", at=time.time())
+    with db.connect() as conn:
+        attached.attach(conn, "codex:reviewer", ended)
+        attached.attach(conn, "claude:elsewhere", kept)
+    _session_panes(monkeypatch, set())
+    monkeypatch.setattr(teardown, "_spawn_reaper", lambda *a: None)
+
+    assert teardown.toss("review", [place]) is None
+    assert not ended.exists() and kept.exists()
+    assert list(archive.attic_dir().glob("*/reviewer.md"))
 
 
 def test_toss_archives_the_lemons_on_the_killed_sessions_panes(monkeypatch, tmp_path):

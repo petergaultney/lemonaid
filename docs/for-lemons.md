@@ -592,6 +592,9 @@ lemonaid brief now --self "Current progress..."       # replace progress, keep o
                                                # refuses to drop other sub-headings unless --replace-all
 lemonaid brief hide --self [--show]          # add or remove `Hidden: yes`: out of the inbox default list
 lemonaid brief detach --self                   # the file stays
+lemonaid brief archive <Lemon-ID|brief>        # move it and its inbox to ~/.lemons/attic/YYYY-MM/
+lemonaid brief archive --idle-days 30 --dry-run  # every brief unused for 30 days (drop --dry-run to move them)
+lemonaid brief revive <Lemon-ID>               # move it back, unattached
 lemonaid brief list --json                     # every brief file and the session it belongs to
 lemonaid place open feat/thing --brief <file>  # attach to the first lemon that starts in the new session
 lemonaid place open feat/thing --brief <file> --parent self  # and record yourself as its parent

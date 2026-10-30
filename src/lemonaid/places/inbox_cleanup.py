@@ -2,10 +2,12 @@
 
 import os
 import sqlite3
+import time
 from collections import abc
 from typing import NamedTuple
 
 from .. import tmux
+from ..brief import archive, attached
 from ..inbox import db, teardown_evidence
 from ..log import get_logger
 from . import archive_scope, ownership, windows
@@ -49,3 +51,21 @@ def finish(snapshot: Snapshot) -> None:
                 db.archive(conn, row_id, "place-teardown")
     except sqlite3.Error as e:
         _log.warning("could not record torn-down lemons: %s", e)
+
+
+def archive_briefs(snapshot: Snapshot) -> None:
+    """Move the briefs of the lemons a toss ends to the attic, unless another live session holds one."""
+    try:
+        with db.connect() as conn:
+            rows = [
+                *snapshot.terminals,
+                *(row for row_id in snapshot.daemon_ids if (row := db.get(conn, row_id))),
+            ]
+            closing = {row.channel for row in rows}
+            for path in set(attached.by_channel(conn, closing).values()):
+                try:
+                    archive.archive(conn, path, time.time(), closing)
+                except (OSError, ValueError) as e:
+                    _log.info("kept brief %s: %s", path.name, e)
+    except sqlite3.Error as e:
+        _log.warning("could not archive torn-down lemons' briefs: %s", e)

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ..brief import lemon
+from ..brief import archive, lemon
 from ..config import load_config
 from ..inbox import db
 from ..lineage import links
@@ -27,7 +27,9 @@ def children_author(
     with db.connect() as conn:
         briefs = [
             lemon.brief_of(conn, child)
-            for child in links.live_children_of(conn, lemon.current(conn, lemon_id))
+            for child in links.live_children_of(
+                conn, lemon.current(conn, lemon_id), archive.attic_dir()
+            )
         ]
     found: frozenset[tuple[str, ...]] = frozenset()
     for path in filter(None, briefs):

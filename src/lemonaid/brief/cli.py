@@ -14,6 +14,7 @@ from ..config import load_config
 from ..inbox import db, emoji
 from ..inbox.tui.briefs import brief_popup
 from . import (
+    archive_cli,
     attached,
     dismiss,
     docs_cli,
@@ -247,6 +248,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     docs_cli.add_parser(brief_subparsers)
     lemons_cli.add_parser(brief_subparsers)
     write_cli.add_parsers(brief_subparsers)
+    archive_cli.add_parsers(brief_subparsers)
     handoff_cli.add_parser(brief_subparsers)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())

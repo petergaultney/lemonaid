@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lineage import links
-from . import identity, lemon, render, status
+from . import archive, identity, lemon, render, status
 
 
 def _channels(conn: sqlite3.Connection) -> dict[str, str]:
@@ -70,7 +70,7 @@ def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Se
         parent_name=_session_name(conn, channels, lemon.brief_of(conn, parent)) if parent else "",
         children=tuple(
             _child(conn, channels, child_id)
-            for child_id in links.live_children_of(conn, section.lemon_id)
+            for child_id in links.live_children_of(conn, section.lemon_id, archive.attic_dir())
         ),
     )
 

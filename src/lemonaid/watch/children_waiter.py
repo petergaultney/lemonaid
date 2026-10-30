@@ -6,7 +6,7 @@ Any running children waiter for the parent counts, whatever its options.
 import os
 import sqlite3
 
-from ..brief import lemon
+from ..brief import archive, lemon
 from ..lineage import links
 from . import registry
 
@@ -32,7 +32,7 @@ def with_briefs(conn: sqlite3.Connection, lemon_id: str) -> list[str]:
     """Lemon-IDs of *lemon_id*'s children that have a brief to watch."""
     return [
         child
-        for child in links.live_children_of(conn, lemon_id)
+        for child in links.live_children_of(conn, lemon_id, archive.attic_dir())
         if (path := lemon.brief_of(conn, child)) and path.is_file()
     ]
 

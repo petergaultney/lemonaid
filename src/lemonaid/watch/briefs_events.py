@@ -9,7 +9,7 @@ import sqlite3
 import time
 from collections import abc
 
-from ..brief import lemon, lemon_table, status, store
+from ..brief import archive, lemon, lemon_table, status, store
 from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
@@ -49,7 +49,9 @@ def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -
     with db.connect() as conn:
         found: dict[str, _Mark] = {}
         explicit = _resolve(conn, rows)
-        origins = dict.fromkeys(links.live_children_of(conn, lemon.current(conn, parent)), "child")
+        origins = dict.fromkeys(
+            links.live_children_of(conn, lemon.current(conn, parent), archive.attic_dir()), "child"
+        )
         origins |= {lemon_id: "watched" for lemon_id in explicit if lemon_id not in origins}
         if orphans:
             origins |= dict.fromkeys(
@@ -60,8 +62,8 @@ def _snapshot(parent: str, rows: abc.Iterable[lemon_table.Row], orphans: bool) -
             )
         for child in origins:
             path = lemon.brief_of(conn, child)
-            if path is None:
-                continue
+            if path is None or archive.is_archived(path):
+                continue  # an archived lemon is finished, not gone
             try:
                 text = path.read_text()
             except FileNotFoundError:

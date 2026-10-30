@@ -8,6 +8,7 @@ window passes, and un-archiving one holds the name again at once.
 
 import sqlite3
 import time
+import typing as ty
 from collections import abc, defaultdict
 from pathlib import Path
 
@@ -26,19 +27,31 @@ GROUP BY i.path
 """
 
 
-def _modified(path: str) -> float:
+class Usage(ty.NamedTuple):
+    path: str
+    lemon_id: str
+    live: bool  # a session attached to it is not archived
+    last: float  # its sessions' newest activity, or 0.0
+
+
+def modified(path: Path) -> float:
     try:
-        return Path(path).stat().st_mtime
+        return path.stat().st_mtime
     except OSError:
         return 0.0
 
 
+def usage(conn: sqlite3.Connection) -> abc.Iterator[Usage]:
+    for row in conn.execute(_BRIEFS):
+        yield Usage(row["path"], row["lemon_id"], bool(row["live"]), row["last"] or 0.0)
+
+
 def _active_ids(conn: sqlite3.Connection, since: float, excluding: str) -> set[str]:
     return {
-        row["lemon_id"]
-        for row in conn.execute(_BRIEFS)
-        if row["path"] != excluding
-        and (row["live"] or (row["last"] or 0.0) >= since or _modified(row["path"]) >= since)
+        use.lemon_id
+        for use in usage(conn)
+        if use.path != excluding
+        and (use.live or use.last >= since or modified(Path(use.path)) >= since)
     }
 
 
