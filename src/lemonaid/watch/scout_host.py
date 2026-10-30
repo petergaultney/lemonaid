@@ -9,6 +9,7 @@ on the new code. It exits once it has had no registrations for `IDLE_SECONDS`.
 
 import argparse
 import dataclasses
+import functools
 import os
 import sys
 import threading
@@ -16,7 +17,7 @@ import time
 from collections import abc
 
 from ..log import get_logger
-from . import hosted_scout, registry, restart, scout_roster, waiter_lock
+from . import hosted_scout, kqueue_waits, registry, restart, scout_roster, waiter_lock, waits
 
 _log = get_logger("watch.scout_host")
 
@@ -82,21 +83,35 @@ def _tick(
     return len(wanted)
 
 
-def _stop_all(scouts: dict[str, _Scout], quitting: threading.Event) -> None:
+def _stop_all(scouts: dict[str, _Scout], quitting: threading.Event, pacing: waits.Waits) -> None:
     quitting.set()
+    pacing.wake_all()
     deadline = time.monotonic() + _JOIN_SECONDS
     for scout in scouts.values():
         scout.thread.join(timeout=max(0, deadline - time.monotonic()))
 
 
-def serve(run: Run = hosted_scout.run, idle: float = IDLE_SECONDS) -> int:
-    """`lemonaid watch host`: 3 when another host already runs."""
+def _pacing() -> waits.Waits:
+    if not kqueue_waits.available():
+        return waits.TIMERS
+
+    kqueue_waits.raise_file_limit()
+    return kqueue_waits.Hub()
+
+
+def serve(run: Run | None = None, idle: float = IDLE_SECONDS) -> int:
+    """`lemonaid watch host`: 3 when another host already runs.
+
+    Its scouts sleep on kqueue events where the platform has kqueue, and on timers elsewhere.
+    """
     path = scout_roster.host_lock_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock = waiter_lock.acquire(path, grace=0)
     if lock is None:
         return 3
 
+    pacing = _pacing() if run is None else waits.TIMERS
+    run = run or functools.partial(hosted_scout.run, pacing=pacing)
     scouts: dict[str, _Scout] = {}
     retry_at: dict[str, float] = {}  # by registration token
     quitting = threading.Event()
@@ -122,7 +137,7 @@ def serve(run: Run = hosted_scout.run, idle: float = IDLE_SECONDS) -> int:
                     break
                 time.sleep(_TICK)
     finally:
-        _stop_all(scouts, quitting)
+        _stop_all(scouts, quitting, pacing)
         lock.close()
     if restart.requested() or any(
         r.environment == scout_roster.environment() for r in scout_roster.listed().values()

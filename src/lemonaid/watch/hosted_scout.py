@@ -26,6 +26,7 @@ from . import (
     scout_roster,
     wait_state,
     waiter_lock,
+    waits,
 )
 
 _log = get_logger("watch.hosted_scout")
@@ -47,6 +48,7 @@ class _Harness(ty.NamedTuple):
     alive: abc.Callable[[], bool]
     writer: str
     session: session_socket.Session | None
+    sources: tuple[tuple[Path, ...], tuple[int, ...]] = ((), ())  # whose changes wake the scout
 
 
 def _harness(registration: scout_roster.Registration) -> _Harness | str:
@@ -69,16 +71,27 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
         functools.partial(session_socket.alive, session),
         own_edits.claude_writer(session.session_id),
         session,
+        ((session_socket.claude_dir() / "sessions" / f"{session.pid}.json",), (session.pid,)),
     )
 
 
-def run(registration: scout_roster.Registration, stopping: abc.Callable[[], bool]) -> Outcome:
+def run(
+    registration: scout_roster.Registration,
+    stopping: abc.Callable[[], bool],
+    pacing: waits.Waits = waits.TIMERS,
+) -> Outcome:
     """Deliver batches until the lemon is gone (ended) or *stopping* says so (stopped).
 
     `retry` means it could not run now: another waiter holds the lemon's lock, or
     delivery failed. Undelivered changes stay pending for the next attempt.
     """
     lemon_id, channel = registration.lemon_id, registration.channel
+    told_to_stop = stopping
+
+    def stopping() -> bool:
+        """Also checked on the wake its registration's removal or replacement causes."""
+        return told_to_stop() or scout_roster.read(lemon_id) != registration
+
     try:
         path = _brief(channel, lemon_id)
     except (OSError, ValueError) as error:
@@ -131,6 +144,11 @@ def run(registration: scout_roster.Registration, stopping: abc.Callable[[], bool
                     ),
                     restart_requested=stopping,
                     beat=functools.partial(wait_state.beat, lemon_id),
+                    pacing=pacing,
+                    harness=(
+                        (*harness.sources[0], scout_roster.path(lemon_id)),
+                        harness.sources[1],
+                    ),
                 )
     except waiter.AlreadyArmed as error:
         _log.info("scout for %s waits: %s", lemon_id, error)

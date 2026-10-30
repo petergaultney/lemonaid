@@ -21,16 +21,21 @@ def _authored(text: str, cwd: Path, vaults: tuple[Path, ...]) -> frozenset[tuple
     )
 
 
-def children_author(
-    lemon_id: str, cwd: Path, vaults: tuple[Path, ...]
-) -> frozenset[tuple[str, ...]]:
+def children_briefs(lemon_id: str) -> list[Path]:
     with db.connect() as conn:
-        briefs = [
-            lemon.brief_of(conn, child)
+        return [
+            brief
             for child in links.live_children_of(
                 conn, lemon.current(conn, lemon_id), archive.attic_dir()
             )
+            if (brief := lemon.brief_of(conn, child))
         ]
+
+
+def children_author(
+    lemon_id: str, cwd: Path, vaults: tuple[Path, ...]
+) -> frozenset[tuple[str, ...]]:
+    briefs = children_briefs(lemon_id)
     found: frozenset[tuple[str, ...]] = frozenset()
     for path in filter(None, briefs):
         try:

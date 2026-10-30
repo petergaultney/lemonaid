@@ -1,6 +1,7 @@
 """Reread subscriptions while waiting and deliver every pending source in one wake."""
 
 import queue
+import threading
 import time
 from collections import abc
 from pathlib import Path
@@ -9,7 +10,7 @@ from ..brief import identity
 from ..config import load_config
 from ..log import get_logger
 from ..messages import store
-from . import delivery, doc_version, notes, pr_roles, scouts, subscription_state
+from . import delivery, doc_version, notes, pr_roles, scouts, subscription_state, waits
 
 _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 
@@ -33,6 +34,8 @@ def _reconcile(
     output: "queue.Queue[scouts.Pending]",
     signatures: tuple[str, ...],
     notes: notes.Reader,
+    pacing: waits.Waits,
+    detected: threading.Event,
 ) -> list[scouts.Pending]:
     for key in list(running):
         if key not in specs or running[key].spec != specs[key]:
@@ -42,7 +45,7 @@ def _reconcile(
             pending = [p for p in pending if p.source != retired.spec.source]
     for key, spec in specs.items():
         if key not in running:
-            scout = scouts.Scout(spec, root, writer, output, signatures, notes)
+            scout = scouts.Scout(spec, root, writer, output, signatures, notes, pacing, detected)
             running[key] = scout
             scout.thread.start()
     return pending
@@ -99,11 +102,15 @@ def wait(
     notes: notes.Reader = notes.none,
     restart_requested: abc.Callable[[], bool] = lambda: False,
     beat: abc.Callable[[], None] = lambda: None,
+    pacing: waits.Waits = waits.TIMERS,
+    harness: tuple[abc.Iterable[Path], abc.Iterable[int]] = ((), ()),
 ) -> bool:
     """Deliver one batch; True instead when a restart was requested.
 
     Cursors advance only on delivery, so the restarted waiter detects again whatever was
-    pending, and undelivered inbox messages stay on disk for it.
+    pending, and undelivered inbox messages stay on disk for it. With nothing pending, a
+    loop with event *pacing* sleeps until its brief, inbox, a detector or the *harness* files
+    and pids change, or `waits.idle` passes.
     """
     vaults = tuple(load_config().brief.vaults)
     read_subscriptions = subscription_state.reader(path, root, cwd, inbox.name, vaults)
@@ -112,6 +119,8 @@ def wait(
     output: queue.Queue[scouts.Pending] = queue.Queue()
     running: dict[tuple, scouts.Scout] = {}
     pending: list[scouts.Pending] = []
+    wake = threading.Event()
+    unwatch = pacing.watch([path, inbox, *harness[0]], harness[1], wake)
     since, last_messages = 0.0, ()
     children: frozenset[tuple[str, ...]] = frozenset()
     children_at = -_CHILDREN_EVERY
@@ -131,7 +140,9 @@ def wait(
                 pending = [p for p in pending if p.source != "brief"]
                 pending.append(scouts.Pending("brief", problem))
                 since = time.monotonic()
-            pending = _reconcile(running, specs, pending, root, writer, output, signatures, notes)
+            pending = _reconcile(
+                running, specs, pending, root, writer, output, signatures, notes, pacing, wake
+            )
             if _collect(output, running, pending):
                 since = time.monotonic()
             if restart_requested():
@@ -146,6 +157,7 @@ def wait(
                     s.ready.is_set() or any(p.source == s.spec.source for p in pending)
                     for s in running.values()
                 )
+                busy = bool(pending or messages) or not armed
                 if (pending or messages) and armed and time.monotonic() - since >= quiet:
                     _log.info(
                         "delivering to %s: %s",
@@ -182,9 +194,11 @@ def wait(
                     for scout in running.values():
                         scout.thread.join(timeout=max(0, deadline - time.monotonic()))
                     return False
-            time.sleep(interval)
+            wake.wait(waits.sleep_for(pacing, interval, busy))
+            wake.clear()
         return False
     finally:
+        unwatch()
         for scout in running.values():
             scout.stop()
         for event in pending:

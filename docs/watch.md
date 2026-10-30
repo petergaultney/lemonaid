@@ -631,7 +631,15 @@ starts the host if none runs; the host runs a scout for each registration and st
 whose registration is removed or replaced. A scout that ends normally removes its own
 registration, and one that fails is tried again 30 seconds later. The host serves only
 registrations written against its own database, state and Claude directories, and exits
-after a minute with none. A Codex
+after a minute with none.
+
+On macOS (and BSD) the host's scouts sleep on kqueue events instead of polling. An idle
+scout wakes when its brief, its inbox directory, a watched doc or file, its children's
+briefs, its Claude session's listing or the session's process changes,
+and otherwise checks everything every 45 seconds, so a missed event delays a batch by at
+most that long. After a change, a scout polls at its usual intervals until the change
+settles. PR and repo watches keep their own intervals, and elsewhere the scouts keep
+today's timers. A Codex
 lemon's scout queues each batch into its thread with `codex queue`, checks before each
 delivery that some Codex process (a terminal or the shared daemon) still has the thread's
 rollout open, and exits when none does or the brief is detached. When `lsof` can't be read,
