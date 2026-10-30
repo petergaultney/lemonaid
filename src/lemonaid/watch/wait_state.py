@@ -7,7 +7,7 @@ from pathlib import Path
 from . import waiter_lock
 
 STALE = 120.0  # seconds a waiter may go without polling before it counts as deaf
-_BEAT_EVERY = 10.0
+_BEAT_EVERY = 60.0
 
 
 def lock_path(lemon_id: str) -> Path:
