@@ -537,6 +537,9 @@ lemonaid brief pr add --self https://github.com/owner/repo/pull/274 "Notificatio
 lemonaid brief check --self
 ```
 
+`--review` with a path also lists that doc under Docs with Watch `All edits`, or upgrades its
+`Relay comments` row, because reviewers write findings and verdicts in the doc's body.
+
 New briefs and templates use `## Watching`. Legacy `## Waiters` headings and
 `brief waiter` edit verbs still work. A backticked watch command can have a note
 after its closing backtick. Starting a standalone watch records its subscription;

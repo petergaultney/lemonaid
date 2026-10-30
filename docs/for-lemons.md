@@ -578,7 +578,8 @@ lemonaid brief status --self blocked            # Status: blocked  (running | bl
 lemonaid brief bullet add --self "Next" "open the PR"       # under any heading; Done adds at the top
 lemonaid brief bullet set --self "open the PR" "PR #12 open" # replace the one bullet starting with that text
 lemonaid brief bullet rm --self "PR #12"                     # remove it; an emptied heading goes too
-lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in PRs (new sections use ##)
+lemonaid brief pr add --self <url> "Delivery service" --review <vault doc>  # a row in PRs (new sections use ##);
+                                               # a review doc path is also watched in Docs for All edits
 lemonaid brief pr rm --self 12                 # by number, or by URL when two repos share it
 lemonaid brief waiter add --self "lemonaid watch pr --wait https://github.com/owner/repo/pull/12 --comments --once"  # a bullet in ## Watching
 lemonaid brief waiter add --self "lemonaid watch repo --wait owner/repo --label needs-review --once"  # every PR in a repo, not one

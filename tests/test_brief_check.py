@@ -8,7 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import attached, check, frontmatter, identity, now_edit, store, write_cli
+from lemonaid.brief import (
+    attached,
+    check,
+    doc_table,
+    frontmatter,
+    identity,
+    now_edit,
+    store,
+    write_cli,
+)
 from lemonaid.inbox import db
 
 _BRIEF = """\
@@ -298,6 +307,40 @@ def test_a_review_doc_in_a_vault_becomes_an_obsidian_link(capsys, monkeypatch, t
 
     assert "[review doc](obsidian://open?vault=trove&file=reviews%2Fr-7)" in path.read_text()
     assert "pr_url" in refused["error"]
+
+
+def test_a_review_doc_is_watched_for_all_edits_and_a_comment_watch_is_upgraded(
+    capsys, monkeypatch, tmp_path
+):
+    vault = tmp_path / "trove"
+    (vault / "reviews").mkdir(parents=True)
+    first, second = vault / "reviews" / "r-7.md", vault / "reviews" / "r-8.md"
+    first.write_text("")
+    second.write_text("")
+    config = tmp_path / "config.toml"
+    config.write_text(f'[brief]\nvaults = ["{vault}"]\n')
+    monkeypatch.setenv("LEMONAID_CONFIG", str(config))
+    path = _attached()
+    path.write_text(doc_table.add(path.read_text(), second, "My docket"))
+
+    for number, doc in ((7, first), (8, second)):
+        _run(
+            capsys,
+            "pr",
+            "add",
+            "--channel",
+            "codex:t1",
+            f"https://github.com/o/r/pull/{number}",
+            "Fix",
+            "--review",
+            str(doc),
+        )
+
+    rows = {row.path: row for row in doc_table.rows(path.read_text())}
+    assert rows[first.resolve()].watch == doc_table.Watch.ALL_EDITS
+    assert rows[second.resolve()] == doc_table.Row(
+        second.resolve(), "My docket", doc_table.Watch.ALL_EDITS
+    )
 
 
 def test_check_all_lists_every_live_brief_and_fails_if_one_does(capsys):

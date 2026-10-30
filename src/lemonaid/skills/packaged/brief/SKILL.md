@@ -73,7 +73,7 @@ lemonaid brief status --self clear
 lemonaid brief bullet add --self "Next" "open the PR"
 lemonaid brief bullet set --self "open the PR" "PR #12 open"
 lemonaid brief bullet rm --self "PR #12 open"
-lemonaid brief pr add --self <PR-URL> "Delivery service" --review <review-doc-link-or-path>
+lemonaid brief pr add --self <PR-URL> "Delivery service" --review <review-doc-link-or-path>  # a path is also watched for All edits
 lemonaid brief pr rm --self 12
 lemonaid brief section show --self "Notes"
 lemonaid brief section set --self "Notes" -          # body from stdin; new headings default to ##

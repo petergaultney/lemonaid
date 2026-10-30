@@ -20,6 +20,7 @@ from . import (
     check,
     command,
     created,
+    doc_table,
     hidden,
     links,
     now_edit,
@@ -145,14 +146,21 @@ def _cmd_pr(args: argparse.Namespace) -> None:
         command.finish(args, {"path": None}, error or review_error)
         return
 
-    edited(
-        args,
-        lambda brief: now_edit.with_section(
+    def change(brief: str) -> str:
+        brief = now_edit.with_section(
             brief,
             "PRs",
             lambda body: pr_table.with_row(body, url, args.work, review if args.review else None),
-        ),
-    )
+        )
+        if not args.review or "://" in args.review:
+            return brief
+
+        # Reviewers write findings and verdicts in the doc's body, not only in comments.
+        return doc_table.watch_all_edits(
+            brief, Path(args.review), f"Review of {url}", config.vaults
+        )
+
+    edited(args, change)
 
 
 def _verbs(
