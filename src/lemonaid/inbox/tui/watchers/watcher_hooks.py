@@ -9,7 +9,7 @@ from .... import claude, codex, handlers, openclaw, opencode
 from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
-from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes
+from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes, watcher
 from ....watch import codex_waiter
 from ... import db, teardown_evidence
 from ..rows import brief_cards
@@ -180,6 +180,11 @@ def start(
     detached_channels: abc.Callable[[set[str]], None],
 ) -> None:
     last_repair: float | None = None
+    harness_ttys = tty_processes.Reused(
+        lambda args: any(
+            watcher.is_harness(args, name) for name in ("claude", "codex", "openclaw", "opencode")
+        )
+    )
 
     def active() -> list[tuple]:
         nonlocal last_repair
@@ -218,6 +223,6 @@ def start(
         record_turn=record_channel_turn,
         protected_channels=functools.partial(protected_brief_channels, brief_cache),
         detached_channels=detached_channels,
-        tty_processes=tty_processes.by_tty,
+        tty_processes=lambda fresh: harness_ttys.by_tty(fresh, time.time()),
         claude_sessions=live_sessions.by_tty,
     )

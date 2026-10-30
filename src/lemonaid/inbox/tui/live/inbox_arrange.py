@@ -23,6 +23,11 @@ class Arrangement:
         self.error = ""  # why the last answer wasn't used, for the status line
         self._logged: set[str] = set()
 
+    @property
+    def asks(self) -> bool:
+        """Whether an arranger is asked on every draw: its answers and failures arrive only then."""
+        return self._arranger is not None
+
     def close(self) -> None:
         if self._arranger is not None:
             self._arranger.close()

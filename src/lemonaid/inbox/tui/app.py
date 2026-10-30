@@ -82,6 +82,9 @@ from .watchers import focus, session_names, watcher_hooks
 _LOOP_STALL_SECONDS = 0.1
 _INPUT_STALL_SECONDS = 2.0
 _KEY_HINT_SECONDS = 10  # how long the footer's key hints stay up before yielding the row
+_SIZE_POLL_SECONDS = 0.25
+_SIZE_SETTLING_SECONDS = 3.0  # how long after a resize the size is sampled every poll
+_SIZE_IDLE_SECONDS = 2.0  # how often otherwise, so a one-step resize has a baseline to differ from
 
 _log = get_logger("tui")
 
@@ -104,6 +107,9 @@ class LemonaidApp(CrashLoggedApp):
         self._scratch_mode = scratch_mode
         self._last_activation: double_activate.Activation | None = None
         self._focus_gained = 0.0  # monotonic seconds
+        self._input_at = 0.0  # monotonic seconds of the last key or mouse event
+        self._size_settling_until = 0.0
+        self._size_polled_at = 0.0
         self._undo_stack = undo.Stack()
         self._names = session_names.Scanner()
         self._attention = focus.Probe()
@@ -242,7 +248,7 @@ class LemonaidApp(CrashLoggedApp):
         ):
             scratch_autosave.install_guards()
             self._size_observer = scratch_autosave.Observer()
-            self.set_interval(0.25, self._size_observer.poll)
+            self.set_interval(_SIZE_POLL_SECONDS, self._poll_size)
         if os.environ.get("TMUX"):
             self.run_worker(
                 lambda: fast_popup.warm("grove", self.config.tmux_session.popup_margin),
@@ -363,7 +369,17 @@ class LemonaidApp(CrashLoggedApp):
                 widget._styles_cache.clear()
                 widget.refresh()
 
+    def _poll_size(self) -> None:
+        """Sample the scratch pane's size while a resize settles; between resizes, less often."""
+        now = time.monotonic()
+        if now >= self._size_settling_until and now - self._size_polled_at < _SIZE_IDLE_SECONDS:
+            return
+
+        self._size_polled_at = now
+        self._size_observer.poll(now)
+
     def on_resize(self, event: events.Resize) -> None:
+        self._size_settling_until = time.monotonic() + _SIZE_SETTLING_SECONDS
         # self.size still reports the old width while this event is being handled,
         # so every decision here keys off the size the event carries.
         width = event.size.width
@@ -502,7 +518,8 @@ class LemonaidApp(CrashLoggedApp):
                 self.is_running
                 and self._brief_target is None
                 and self._mode is None
-                and (drawn := inbox.draw(loaded[1], **self._draw_args()))
+                and not inbox.repeats(loaded[1], self._input_at, **(args := self._draw_args()))
+                and (drawn := inbox.draw(loaded[1], **args))
             ):
                 self._inbox_drawn(drawn)
 
@@ -1193,6 +1210,8 @@ class LemonaidApp(CrashLoggedApp):
         """While the jump bar is open it takes each key first, here, where keys and the mouse
         arrive in order: one it doesn't take, and the mouse, close it and go on as usual.
         """
+        if isinstance(event, events.InputEvent):
+            self._input_at = time.monotonic()
         bar = self._jump_bar
         if bar is not None and isinstance(event, events.InputEvent) and not event.is_forwarded:
             if isinstance(event, events.Key):

@@ -17,8 +17,9 @@ def test_tui_timer_respects_opt_in(tmux, monkeypatch, tmp_path, enabled):
     async def exercise():
         app = LemonaidApp(scratch_mode=True)
         async with app.run_test() as pilot:
-            await pilot.pause(0.4)
+            await pilot.pause(3.5)  # past the startup resize's settling window
             tmux("resize-pane", "-t", pane, "-x", "70")
+            await pilot.resize_terminal(70, 24)  # as the pane's terminal tells the app
             await pilot.pause(1.5)
             assert scratch.saved_size("left") == ("70" if enabled else "58")
 
