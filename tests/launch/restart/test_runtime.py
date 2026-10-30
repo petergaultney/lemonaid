@@ -1,16 +1,18 @@
 """Run the smaller coordinator and native hook against test-owned processes only."""
 
 import json
+import os
 import subprocess
 import sys
 
 import pytest
 
+from lemonaid.claude import session_socket
 from lemonaid.config import Config
 from lemonaid.inbox import db
 from lemonaid.launch.restart import coordinator, native, pane, planning, process, state
 from lemonaid.messages import store, waiter
-from lemonaid.watch import registry, wait_state
+from lemonaid.watch import registry, scout_roster, wait_state
 
 from . import runtime_fixture, shared
 
@@ -21,21 +23,11 @@ _until = runtime_fixture._until
 def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path, monkeypatch):
     _path, lemon_id, _original = runtime
     inbox = store.inbox_for_id(lemon_id)
+    scout_roster.register(lemon_id, shared.CHANNEL, shared.SESSION, str(tmp_path))
     with (tmp_path / "scout.log").open("w") as log:
-        scout = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "lemonaid",
-                "watch",
-                "--self",
-                "--push",
-                "--foreground",
-                "--channel",
-                shared.CHANNEL,
-                "--codex-thread",
-                shared.SESSION,
-            ],
+        host = subprocess.Popen(
+            [sys.executable, "-m", "lemonaid", "watch", "host"],
+            env={**os.environ, "CLAUDE_CONFIG_DIR": str(session_socket.claude_dir())},
             stdout=log,
             stderr=log,
         )
@@ -57,11 +49,11 @@ def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path
             token = state.reserve(plan)
             coordinator.run(token)
             assert state.get(token)["phase"] == "started"
-            assert scout.wait(timeout=5) == 143
+            assert host.poll() is None  # the host outlives one lemon's scout
+            assert scout_roster.read(lemon_id) is None
         finally:
-            if scout.poll() is None:
-                scout.terminate()
-                scout.wait(timeout=5)
+            host.terminate()
+            host.wait(timeout=5)
 
 
 def test_native_resume_gets_rearm_instruction_without_rebuilding_watchers(runtime, tmp_path):

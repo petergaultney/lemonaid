@@ -1,24 +1,22 @@
-"""A Claude lemon's scout: `lemonaid watch --self --push`, detached, for as long as its session runs.
+"""A Claude lemon's scout: `lemonaid watch --self --push`, for as long as its session runs.
 
 It delivers each batch of `watch --self` through the session's inbox socket instead of
-exiting with it, so the lemon keeps no background task. It holds the same lock as
-`watch --self`, so the Stop check counts it as the lemon's waiter, and a second one for
-the same Lemon-ID refuses to start.
+exiting with it, so the lemon keeps no background task. The scout runs in the scout host
+(`scout_host`); it holds the same lock as `watch --self`, so the Stop check counts it as
+the lemon's waiter, and a second one for the same Lemon-ID refuses to start.
 """
 
 import contextlib
 import logging
 import os
 import pathlib
-import subprocess
-import sys
 import time
 from collections import abc
 
 from ..claude import inbound, session_socket
 from ..inbox.channel import channel_id
 from ..log import get_logger
-from . import deaf_waiter, delivery, registry, stop_sender, wait_state
+from . import deaf_waiter, delivery, registry, scout_roster, scout_start, stop_sender, wait_state
 
 _log = get_logger("watch.push_scout")
 
@@ -59,7 +57,7 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
 
 
 def _announced_marker(session_id: str) -> pathlib.Path:
-    return pathlib.Path(_log_path()).parent / "announced" / session_id
+    return scout_roster.log_path().parent / "announced" / session_id
 
 
 def announce(entry: session_socket.Session) -> None:
@@ -87,7 +85,7 @@ def not_pushing(session_id: str, lemon_id: str) -> str:
     if wait_state.is_armed(lemon_id):
         return ""
 
-    why = problem(session(session_id)) or f"its scout did not start; see {_log_path()}"
+    why = problem(session(session_id)) or f"its scout did not start; see {scout_roster.log_path()}"
     return (
         f"lemonaid is NOT pushing batches or messages into this session ({why}). "
         "Messages reach you only while a background waiter runs, so you must run it."
@@ -152,39 +150,27 @@ def _exit(fields: str, reason: str, normal: bool) -> None:
     )
 
 
-def _log_path() -> str:
-    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
-    return os.path.expanduser(f"{state}/push-scout.log")
+def _hosted(lemon_id: str, channel: str, grace: float) -> bool:
+    deadline = time.monotonic() + grace
+    while channel not in _scout_channels(lemon_id) or not wait_state.is_armed(lemon_id):
+        if time.monotonic() >= deadline:
+            return False
 
-
-def _spawn(entry: session_socket.Session) -> None:
-    os.makedirs(os.path.dirname(_log_path()), exist_ok=True)
-    with open(_log_path(), "a") as log:
-        subprocess.Popen(
-            [
-                *(sys.executable, "-m", "lemonaid", "watch", "--self", FLAG, "--foreground"),
-                *("--channel", channel_id("claude", entry.session_id)),
-            ],
-            cwd=entry.cwd or None,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=log,
-            start_new_session=True,
-        )
+        time.sleep(0.1)
+    return True
 
 
 def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) -> bool:
-    """Start a scout for the lemon in *session_id* unless a waiter already runs; whether one now does.
+    """Have the scout host push into *session_id* for the lemon unless a waiter it armed itself runs; whether one now does.
 
     A scout still pushing into the lemon's previous session (before `/clear` or a resume)
-    exits once it notices, so this waits for its lock rather than counting it.
+    is replaced: the new registration stops a hosted one, and an older scout process exits
+    once it notices its session is gone.
     """
-    deaf_waiter.clear(lemon_id, channel_id("claude", session_id))
-    previous = _scout_channels(lemon_id) - {channel_id("claude", session_id)}
-    deadline = time.monotonic() + (5 if previous else 0)
-    while wait_state.is_armed(lemon_id) and previous and time.monotonic() < deadline:
-        time.sleep(0.1)
-    if wait_state.is_armed(lemon_id):
+    channel = channel_id("claude", session_id)
+    deaf_waiter.clear(lemon_id, channel)
+    scouts = _scout_channels(lemon_id)
+    if wait_state.is_armed(lemon_id) and (channel in scouts or not scouts):
         return True
 
     entry = session(session_id, wait)
@@ -194,15 +180,20 @@ def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) 
 
     assert entry is not None  # problem() names a missing session
     try:
-        _spawn(entry)
+        scout_start.host(lemon_id, channel, "", entry.cwd)
     except OSError as error:
         _log.warning("could not start a push scout for %s: %s", lemon_id, error)
         return False
 
-    if wait_state.is_armed(lemon_id, grace):
+    if _hosted(lemon_id, channel, grace):
         return True
 
-    _log.warning("push scout for %s did not start within %ss; see %s", lemon_id, grace, _log_path())
+    _log.warning(
+        "push scout for %s did not start within %ss; see %s",
+        lemon_id,
+        grace,
+        scout_roster.log_path(),
+    )
     return False
 
 
@@ -212,6 +203,9 @@ def start(session_id: str, lemon_id: str) -> int:
         print("push scout running" if running(lemon_id) else "watcher running")
         return 0
 
-    why = problem(session(session_id)) or f"the scout did not take its lock; see {_log_path()}"
+    why = (
+        problem(session(session_id))
+        or f"the scout did not take its lock; see {scout_roster.log_path()}"
+    )
     print(f"not started: {why}")
     return 2

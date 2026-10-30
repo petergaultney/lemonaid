@@ -9,14 +9,11 @@ import contextlib
 import dataclasses
 import functools
 import json
-import logging
 import os
 import pathlib
 import shlex
-import signal
 import sqlite3
 import sys
-import threading
 import time
 import typing as ty
 from collections import abc
@@ -24,10 +21,7 @@ from collections import abc
 from ..brief import lemon
 from ..codex import channels
 from ..inbox import db
-from ..log import get_logger
-from . import stop_sender, waiter_lock
-
-_log = get_logger("watch.registry")
+from . import scout_roster, stop_sender, termination, waiter_lock
 
 KINDS = ("wait", "inbox", "pr", "repo", "doc", "file", "briefs")
 
@@ -47,6 +41,7 @@ class Waiter:
     code: str = ""  # digest of the lemonaid modules it loaded (see `restart.fingerprint`)
     code_paths: tuple[str, ...] = ()
     started: float = 0.0  # when it registered; a restart in place registers again
+    hosted: bool = False  # a push scout the scout host runs; `pid` is the host's
 
 
 def root() -> pathlib.Path:
@@ -73,41 +68,6 @@ def owner_channel(explicit: str = "", codex_thread: str = "") -> str:
             return lemon.self_channel(conn, explicit)
         except LookupError:
             return ""
-
-
-def _stopped_message(waiter: Waiter, sender: str) -> str:
-    return (
-        f"This {waiter.kind} waiter ({', '.join(waiter.targets)}) was stopped by SIGTERM "
-        f"from {sender}. If you didn't stop it yourself, rearm it with `{waiter.command}`."
-    )
-
-
-@contextlib.contextmanager
-def _reports_termination(message: abc.Callable[[], str]) -> abc.Iterator[None]:
-    """Logs and prints `message()` to stderr, and exits 143, if SIGTERM arrives.
-
-    A harness reports a killed background task only by its exit code, so without
-    this a lemon whose waiter another process killed cannot tell why it woke.
-    Signal handlers belong to the main thread; elsewhere this does nothing.
-    """
-    if threading.current_thread() is not threading.main_thread():
-        yield
-        return
-
-    def _exit(signum: int, _frame: object) -> None:
-        try:
-            text = message()
-            level = logging.INFO if stop_sender.requested(entry(os.getpid())) else logging.WARNING
-            _log.log(level, "pid %s: %s", os.getpid(), text)
-            print(text, file=sys.stderr, flush=True)
-        finally:
-            raise SystemExit(128 + signum)  # whatever reporting did
-
-    previous = signal.signal(signal.SIGTERM, _exit)
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGTERM, previous)
 
 
 @contextlib.contextmanager
@@ -148,7 +108,12 @@ def registered(
         lock.truncate(0)
         lock.write(json.dumps(dataclasses.asdict(waiter)))
         lock.flush()
-        with _reports_termination(lambda: _stopped_message(waiter, stop_sender.describe(path))):
+        with termination.reported(
+            lambda: termination.stopped_message(
+                waiter.kind, waiter.targets, waiter.command, stop_sender.describe(path)
+            ),
+            entry(waiter.pid),
+        ):
             yield waiter
     finally:
         stop_sender.clear(path)
@@ -181,7 +146,24 @@ def _alive(pid: str) -> bool:
     return True
 
 
+def _hosted() -> abc.Iterator[Waiter]:
+    host = scout_roster.host_pid()
+    for r in scout_roster.listed().values() if host else ():
+        if scout_roster.serving(r.lemon_id, host):
+            yield Waiter(
+                host,
+                r.channel,
+                "wait",
+                (r.lemon_id,),
+                "lemonaid watch --self" + (" --codex-thread" if r.thread else "") + " --push",
+                r.cwd,
+                hosted=True,
+            )
+
+
 def running() -> abc.Iterator[Waiter]:
+    """Every running waiter, each push scout the scout host runs included."""
+    yield from _hosted()
     for path in sorted(_registry().glob("*.json")):
         if not waiter_lock.held(path):
             if not _alive(path.stem):
@@ -195,6 +177,9 @@ def running() -> abc.Iterator[Waiter]:
 
 def current(waiter: Waiter) -> bool:
     """Whether *waiter*'s process still runs and holds the entry it was read from."""
+    if waiter.hosted:
+        return waiter in _hosted()
+
     path = entry(waiter.pid)
     return waiter_lock.held(path) and _read(path) == waiter
 

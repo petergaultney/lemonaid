@@ -20,10 +20,36 @@ from lemonaid.claude import inbound, session_socket
 from lemonaid.hooks import stop_check
 from lemonaid.inbox import db
 from lemonaid.messages import store as messages
-from lemonaid.watch import push_scout, registry, stop_sender, wait_cli, wait_state, waiter_lock
+from lemonaid.watch import (
+    push_scout,
+    registry,
+    scout_roster,
+    scout_start,
+    stop_sender,
+    wait_cli,
+    wait_state,
+    waiter_lock,
+)
+from tests.scout_host import shared as hosted
 
 _SESSION = "abcd1234-1111-2222-3333-444455556666"
 _LEMON = "task.IndexElf"
+_CHANNEL = "claude:abcd1234"
+
+
+@pytest.fixture(autouse=True)
+def _hosting():
+    with hosted.hosting():
+        yield
+
+
+def _registered(monkeypatch) -> list[str]:
+    """The channels `ensure` registers a scout for."""
+    channels: list[str] = []
+    monkeypatch.setattr(
+        scout_start, "host", lambda lemon_id, channel, thread, cwd: channels.append(channel)
+    )
+    return channels
 
 
 def _briefed() -> Path:
@@ -92,9 +118,7 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     inbox = _briefed()
     sock, received = _listener()
     listing = _session(sock)
-    results: list[int] = []
-    scout = threading.Thread(target=lambda: results.append(wait_cli.run(_args())))
-    scout.start()
+    scout = hosted.start(_LEMON, _CHANNEL)
     _until(lambda: push_scout.running(_LEMON))
     _until(lambda: len(received) == 1)
 
@@ -108,10 +132,9 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     assert "lemonaid is watching for you" in received[1]
     assert "don't" not in (received[0] + received[1]).lower()
     assert messages.pending_count(inbox) == 0
-    assert wait_cli.run(_args()) == 3  # a second scout for the same lemon refuses
+    assert hosted.run(_LEMON, _CHANNEL) == "retry"  # a second scout for the same lemon waits
     listing.unlink()
-    scout.join(timeout=10)
-    assert results == [0]
+    assert scout.join() == "ended"
     assert not wait_state.is_armed(_LEMON)
 
 
@@ -120,13 +143,12 @@ def test_a_claude_scout_started_from_a_codex_lemon_serves_the_claude_session(mon
     _briefed()
     sock, received = _listener()
     listing = _session(sock)
-    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
-    scout.start()
+    scout = hosted.start(_LEMON, _CHANNEL)
 
     _until(lambda: push_scout.running(_LEMON, _SESSION))
     _until(lambda: len(received) == 1)
     listing.unlink()
-    scout.join(timeout=10)
+    scout.join()
 
 
 def test_a_replacement_scout_does_not_announce_again():
@@ -145,7 +167,7 @@ def test_a_refused_push_leaves_the_message_for_the_next_waiter(capsys):
     _session(os.path.join(tempfile.mkdtemp(dir="/tmp"), "gone.sock"))
     messages.send(inbox, "kept", "other.IndexElf")
 
-    assert wait_cli.run(_args()) == 1
+    assert hosted.run(_LEMON, _CHANNEL) == "retry"
     assert messages.pending_count(inbox) == 1
 
 
@@ -156,19 +178,19 @@ def test_no_scout_for_a_session_that_would_hold_the_message(monkeypatch, capsys)
 
     assert wait_cli.run(_args()) == 2
     assert "crossSessionInbound" in capsys.readouterr().out
+    assert hosted.run(_LEMON, _CHANNEL) == "ended"
 
 
 def test_ensure_starts_a_scout_only_for_a_session_that_accepts(monkeypatch):
     _briefed()
     _session("/tmp/unused.sock")
-    spawned: list[session_socket.Session] = []
-    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
+    registered = _registered(monkeypatch)
 
     push_scout.ensure("abcd1234", _LEMON, grace=0)
     monkeypatch.setattr(inbound, "session_accepts", lambda entry: False)
     push_scout.ensure("abcd1234", _LEMON, grace=0)
 
-    assert [e.session_id for e in spawned] == [_SESSION]
+    assert registered == [_CHANNEL]
 
 
 def test_the_stop_check_starts_a_scout_instead_of_asking_for_a_background_task(monkeypatch, capsys):
@@ -184,8 +206,7 @@ def test_ensure_replaces_a_scout_still_bound_to_the_previous_session(monkeypatch
     """After /clear the old scout holds the lock until it notices its session is gone."""
     _briefed()
     _session("/tmp/unused.sock")
-    spawned: list[session_socket.Session] = []
-    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
+    registered = _registered(monkeypatch)
     lock = wait_state.lock_path(_LEMON)
     lock.parent.mkdir(parents=True, exist_ok=True)
     old = waiter_lock.acquire(lock)
@@ -194,7 +215,7 @@ def test_ensure_replaces_a_scout_still_bound_to_the_previous_session(monkeypatch
 
         push_scout.ensure("abcd1234", _LEMON, grace=0)
 
-    assert [e.session_id for e in spawned] == [_SESSION]
+    assert registered == [_CHANNEL]
 
 
 def _silence(lemon_id: str) -> None:
@@ -205,23 +226,21 @@ def _silence(lemon_id: str) -> None:
 
 def test_a_polling_scout_keeps_its_heartbeat_fresh():
     _briefed()
-    sock, received = _listener()
+    sock, _ = _listener()
     listing = _session(sock)
-    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
-    scout.start()
+    scout = hosted.start(_LEMON, _CHANNEL)
     _until(lambda: push_scout.running(_LEMON))
     _silence(_LEMON)
 
     _until(lambda: not wait_state.deaf(_LEMON))
     listing.unlink()
-    scout.join(timeout=10)
+    scout.join()
 
 
 def test_ensure_replaces_a_scout_that_stopped_polling(monkeypatch):
     _briefed()
     _session("/tmp/unused.sock")
-    spawned: list[session_socket.Session] = []
-    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
+    registered = _registered(monkeypatch)
     stuck = subprocess.Popen(
         [
             sys.executable,
@@ -249,7 +268,7 @@ def test_ensure_replaces_a_scout_that_stopped_polling(monkeypatch):
         push_scout.ensure(_SESSION, _LEMON, grace=0)
 
         assert stuck.wait(timeout=10) != 0
-        assert [e.session_id for e in spawned] == [_SESSION]
+        assert registered == [_CHANNEL]
     finally:
         stuck.kill()
         stuck.wait()
@@ -323,21 +342,20 @@ def test_a_refused_push_logs_an_abnormal_exit(caplog):
     messages.send(inbox, "kept", "other.IndexElf")
 
     with caplog.at_level(logging.INFO):
-        assert wait_cli.run(_args()) == 1
+        assert hosted.run(_LEMON, _CHANNEL) == "retry"
 
     [(level, message)] = _exits(caplog)
     assert level == "WARNING" and "Failed" in message
 
 
-def test_push_without_foreground_starts_a_detached_scout_and_returns(monkeypatch, capsys):
+def test_push_registers_the_scout_with_the_host_and_returns(capsys):
     _briefed()
     _session("/tmp/unused.sock")
-    spawned: list[session_socket.Session] = []
-    monkeypatch.setattr(push_scout, "_spawn", spawned.append)
 
     assert wait_cli.run(argparse.Namespace(**{**vars(_args()), "foreground": False})) == 2
 
-    assert [e.session_id for e in spawned] == [_SESSION]
+    registration = scout_roster.read(_LEMON)
+    assert registration and registration.channel == _CHANNEL and not registration.thread
     assert "did not take its lock" in capsys.readouterr().out
 
 
@@ -345,14 +363,13 @@ def test_push_without_foreground_reports_a_running_scout(capsys):
     inbox = _briefed()
     sock, _ = _listener()
     listing = _session(sock)
-    scout = threading.Thread(target=lambda: wait_cli.run(_args()))
-    scout.start()
+    scout = hosted.start(_LEMON, _CHANNEL)
     _until(lambda: push_scout.running(_LEMON))
 
     assert wait_cli.run(argparse.Namespace(**{**vars(_args()), "foreground": False})) == 0
     assert "push scout running" in capsys.readouterr().out
     listing.unlink()
-    scout.join(timeout=10)
+    scout.join()
     assert messages.pending_count(inbox) == 0
 
 

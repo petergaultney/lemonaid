@@ -246,6 +246,7 @@ def test_an_idle_wait_stops_for_a_restart(tmp_path):
         "",
         print,
         lambda: True,
+        cwd=tmp_path,
         quiet=0,
         restart_requested=lambda: True,
     )
@@ -338,6 +339,7 @@ def test_a_requested_restart_does_not_wait_for_pending_batches(tmp_path, monkeyp
         "",
         lambda message: pytest.fail("delivered"),
         lambda: True,
+        cwd=tmp_path,
         quiet=0,
         restart_requested=lambda: True,
     )

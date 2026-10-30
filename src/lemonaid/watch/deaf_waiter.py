@@ -29,5 +29,8 @@ def clear(lemon_id: str, by: str) -> None:
         try:
             stopping.stop(waiter, by)
         except TimeoutError:
+            if waiter.hosted:
+                continue  # killing the host would stop every lemon's scout
+
             with contextlib.suppress(ProcessLookupError):
                 os.kill(waiter.pid, signal.SIGKILL)

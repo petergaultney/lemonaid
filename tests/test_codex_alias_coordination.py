@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import time
 
 import pytest
 
@@ -17,6 +18,9 @@ from lemonaid.watch import (
     cursors,
     delivery,
     registry,
+    restart,
+    scout_roster,
+    scout_start,
     wait_cli,
     wait_state,
 )
@@ -29,7 +33,7 @@ from tests.test_codex_duplicate_channels import (
 )
 
 setup = test_codex_duplicate_channels.setup
-_REAL_SPAWN = codex_waiter._spawn
+_REAL_SPAWN = scout_start._spawn
 
 
 @pytest.fixture
@@ -198,7 +202,6 @@ def test_stop_before_first_notify_resolves_unbound_alias_and_blocks(setup, monke
 
 def test_inbox_restores_deaf_alias_watcher_using_real_root(alias, monkeypatch):
     from lemonaid.messages import recipient
-    from lemonaid.watch import codex_waiter
 
     channel, _, lemon_id = alias
     started = []
@@ -228,7 +231,6 @@ def test_inbox_does_not_restore_other_codex_sessions(alias, monkeypatch, state):
     import time
 
     from lemonaid.messages import recipient
-    from lemonaid.watch import codex_waiter
 
     channel, path, _ = alias
     monkeypatch.setattr(
@@ -259,7 +261,14 @@ def test_inbox_does_not_restore_other_codex_sessions(alias, monkeypatch, state):
         codex_waiter.restore(conn)
 
 
-def test_detached_recovery_actually_arms_alias_inbox(alias, monkeypatch, tmp_path):
+def _until(condition, timeout: float = 15) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.05)
+
+
+def test_the_scout_host_actually_arms_alias_inbox(alias, monkeypatch, tmp_path):
     import os
     import subprocess
 
@@ -289,10 +298,20 @@ def test_detached_recovery_actually_arms_alias_inbox(alias, monkeypatch, tmp_pat
 
     monkeypatch.setattr(subprocess, "Popen", launch)
     try:
-        _REAL_SPAWN(channel, _ROOT)
-        assert wait_state.is_armed(lemon_id, grace=5)
+        scout_roster.register(lemon_id, channel, _ROOT, str(tmp_path))
+        _REAL_SPAWN()
+        assert wait_state.is_armed(lemon_id, grace=10)
         assert waiter.is_armed(messages.inbox_for_id(lemon_id), grace=1)
         assert registry.mine(channel, "wait")
+        [host] = [w for w in registry.running() if w.kind == "host"]
+
+        assert restart.send([host]) == [host]  # the host re-execs and brings the scout back
+
+        _until(
+            lambda: any(w.started > host.started for w in registry.running() if w.kind == "host")
+        )
+        assert [w.pid for w in registry.running() if w.kind == "host"] == [host.pid]
+        assert wait_state.is_armed(lemon_id, grace=10)
     finally:
         for process in started:
             process.terminate()

@@ -4,24 +4,18 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
 from lemonaid.messages import recipient
-from lemonaid.watch import codex_waiter, wait_state, waiter_lock
-
-_SPAWN = codex_waiter._spawn
+from lemonaid.watch import codex_waiter, scout_roster, scout_start, wait_state, waiter_lock
 
 
-def test_spawn_passes_real_thread_and_isolated_database(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        codex_waiter.subprocess, "Popen", lambda *args, **kwargs: calls.append((args, kwargs))
-    )
-    _SPAWN("codex:alias", "root")
-    args, kwargs = calls[0]
-    assert args[0][-2:] == ["--codex-thread", "root"]
-    assert {"--push", "--foreground"} <= set(args[0])
-    assert kwargs["env"]["CODEX_THREAD_ID"] == "root"
-    assert kwargs["env"]["LEMONAID_CHANNEL"] == "codex:alias"
-    assert kwargs["env"]["LEMONAID_DB"] == str(db.get_db_path())
-    assert kwargs["start_new_session"]
+def test_ensure_registers_the_real_thread_with_the_host(monkeypatch):
+    spawned = []
+    monkeypatch.setattr(scout_start, "_spawn", lambda: spawned.append(True))
+
+    assert not codex_waiter.ensure("codex:alias", "root", "task.IndexElf")
+
+    registration = scout_roster.read("task.IndexElf")
+    assert registration and (registration.channel, registration.thread) == ("codex:alias", "root")
+    assert spawned == [True]
 
 
 def test_recovery_launch_is_serialized_and_existing_waiter_is_kept(monkeypatch):
@@ -29,14 +23,14 @@ def test_recovery_launch_is_serialized_and_existing_waiter_is_kept(monkeypatch):
     calls = []
     monkeypatch.setattr(wait_state, "is_armed", lambda *args, **kwargs: armed)
 
-    def spawn(channel, thread):
+    def host(lemon_id, channel, thread, cwd):
         nonlocal armed
-        assert waiter_lock.held(wait_state.lock_path("task.IndexElf").with_suffix(".start.lock"))
-        assert not codex_waiter.ensure(channel, thread, "task.IndexElf")
+        assert waiter_lock.held(wait_state.lock_path(lemon_id).with_suffix(".start.lock"))
+        assert not codex_waiter.ensure(channel, thread, lemon_id)
         calls.append((channel, thread))
         armed = True
 
-    monkeypatch.setattr(codex_waiter, "_spawn", spawn)
+    monkeypatch.setattr(scout_start, "host", host)
     assert codex_waiter.ensure("codex:alias", "root", "task.IndexElf")
     assert codex_waiter.ensure("codex:alias", "root", "task.IndexElf")
     assert calls == [("codex:alias", "root")]
