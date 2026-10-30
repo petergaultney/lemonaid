@@ -198,22 +198,45 @@ def for_rows(conn: sqlite3.Connection, rows: abc.Iterable[db.Notification]) -> d
     return by_channel(conn, (row.channel for row in rows))
 
 
-def everything(conn: sqlite3.Connection) -> list[Attachment]:
-    """Every attachment, then every pending one."""
+def _attachments(
+    conn: sqlite3.Connection, where: str, params: abc.Sequence[str]
+) -> list[Attachment]:
+    # Each channel's newest notification, as `db.get_by_channel` picks it, in the same query.
     attached = [
         Attachment(
-            Path(row["path"]),
-            row["channel"],
+            Path(row["attached_path"]),
+            row["attached_channel"],
             (found.metadata.get("tmux_session") or "") if found else "",
             str(found.metadata.get("tmux_window") or "") if found else "",
             found,
-            row["attached_at"],
+            row["attached_since"],
         )
-        for row in conn.execute("SELECT * FROM session_briefs ORDER BY attached_at").fetchall()
-        for found in [db.get_by_channel(conn, row["channel"], unread_only=False)]
+        for row in conn.execute(
+            "SELECT s.path AS attached_path, s.channel AS attached_channel, "
+            "s.attached_at AS attached_since, n.* FROM session_briefs s "
+            "LEFT JOIN notifications n ON n.id = (SELECT id FROM notifications "
+            "WHERE channel = s.channel ORDER BY created_at DESC LIMIT 1) "
+            f"WHERE {where.format(table='s')} ORDER BY s.attached_at",
+            params,
+        ).fetchall()
+        for found in [db.Notification.from_row(row) if row["id"] is not None else None]
     ]
     pending = [
         Attachment(Path(row["path"]), "", row["tmux_session"], row["tmux_window"], None)
-        for row in conn.execute("SELECT * FROM pending_briefs ORDER BY requested_at").fetchall()
+        for row in conn.execute(
+            f"SELECT * FROM pending_briefs p WHERE {where.format(table='p')} ORDER BY requested_at",
+            params,
+        ).fetchall()
     ]
     return [*attached, *pending]
+
+
+def everything(conn: sqlite3.Connection) -> list[Attachment]:
+    """Every attachment, then every pending one."""
+    return _attachments(conn, "1", ())
+
+
+def for_paths(conn: sqlite3.Connection, paths: abc.Iterable[Path]) -> list[Attachment]:
+    """`everything`, cut down to the attachments of *paths*."""
+    wanted = [str(path) for path in paths]
+    return _attachments(conn, f"{{table}}.path IN ({','.join('?' * len(wanted))})", wanted)

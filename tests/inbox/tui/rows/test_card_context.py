@@ -3,11 +3,11 @@
 from rich.console import Console
 from rich.text import Text
 
+from lemonaid import window_status
 from lemonaid.config import PlaceRoot, PlacesConfig, load_config
 from lemonaid.inbox.tui import utils
 from lemonaid.inbox.tui.rows import brief_cards, card_context, cards
 from lemonaid.inbox.tui.utils import project_color
-from lemonaid.tmux import window_status
 
 _TIME = Text("15:32:47")
 

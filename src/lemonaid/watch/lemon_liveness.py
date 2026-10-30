@@ -78,12 +78,18 @@ def probe(
     sessions: abc.Callable[[str], abc.Set[str] | None] | None = None,
 ) -> dict[str, Problem | None]:
     """What is wrong with each lemon in *statuses* (Lemon-ID to its brief's Status), if anything."""
+    if not statuses:
+        return {}
+
     sessions = functools.cache(sessions or briefs_orphans.live_sessions)
     attached.claim_pending(conn)
-    by_path = {entry.path: entry for entry in attached.everything(conn)}
+    paths = {lemon_id: lemon.brief_of(conn, lemon_id) for lemon_id in statuses}
+    by_path = {
+        entry.path: entry for entry in attached.for_paths(conn, filter(None, paths.values()))
+    }
     found: dict[str, Problem | None] = {}
     for lemon_id, status in statuses.items():
-        path = lemon.brief_of(conn, lemon_id)
+        path = paths[lemon_id]
         entry = by_path.get(path) if path else None
         if status == "done" or (entry is not None and not entry.channel):
             found[lemon_id] = None  # finished, or still waiting for its lemon to start

@@ -543,7 +543,7 @@ named_processes = ["mops-console"]
 ### Customization
 
 The color constants remain source-level customization in
-`src/lemonaid/tmux/window_status.py`:
+`src/lemonaid/window_status.py`:
 
 - `palette.SLOTS` (`src/lemonaid/palette.py`) - The generated colors names hash into: hues 10 degrees apart in three lightness tiers, with near-identical ones dropped. See [Name colors](#name-colors).
 - `DIR_COLORS` - Override colors for specific directory names

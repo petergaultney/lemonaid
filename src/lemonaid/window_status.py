@@ -34,8 +34,8 @@ import subprocess
 import sys
 from collections.abc import Collection
 
-from .. import palette
-from ..config import load_config
+from . import palette
+from .config import load_config
 
 # Special overrides for known directory names
 DIR_COLORS: dict[str, str] = {

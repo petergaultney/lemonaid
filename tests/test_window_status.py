@@ -5,7 +5,7 @@ import shlex
 from pathlib import Path
 from subprocess import CompletedProcess
 
-from lemonaid.tmux import window_status
+from lemonaid import window_status
 
 
 def test_documented_tmux_status_command_keeps_empty_positional_arguments():

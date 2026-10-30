@@ -33,6 +33,47 @@ def test_a_grove_that_hides_keeps_running_with_a_fresh_one_held_for_next_time():
     assert replaced and held and not still_held
 
 
+def test_a_grove_started_held_reads_nothing_until_it_is_shown():
+    loads = []
+
+    def load():
+        loads.append(True)
+        return GROVE
+
+    async def run() -> tuple[int, int]:
+        app = GroveApp(load, 0.05, lambda _: "", leave=lambda: None, start_held=True)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            while_held = len(loads)
+            app.post_message(events.AppFocus())
+            await pilot.pause(0.3)
+            return while_held, len(loads)
+
+    while_held, after_shown = asyncio.run(run())
+    assert while_held == 1  # the first read, before it was held
+    assert after_shown > while_held
+
+
+def test_a_grove_shown_while_its_first_read_runs_starts_unheld():
+    release = threading.Event()
+
+    def load():
+        release.wait(5)
+        return GROVE
+
+    async def run() -> bool:
+        app = GroveApp(load, 0.05, lambda _: "", leave=lambda: None, start_held=True)
+        async with app.run_test(size=(160, 48)) as pilot:
+            app.post_message(events.AppFocus())
+            await pilot.pause()
+            release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            return isinstance(app.screen, GroveScreen) and not app.screen._held
+
+    assert asyncio.run(run())
+
+
 def test_an_edit_that_finishes_after_its_grove_closed_changes_no_screen():
     pending = []
     letter = GROVE.arrangement.trees[("relay", "git-sync-wedge")].letter
