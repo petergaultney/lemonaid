@@ -215,7 +215,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | Key | Default | Description |
 |-----|---------|-------------|
 | `transparent` | `false` | Use ANSI colors instead of RGB, allowing terminal transparency to work. |
-| `refresh_interval` | `0.33` | Seconds between inbox refreshes. |
+| `refresh_interval` | `0.33` | Seconds between checks for changes; the inbox reloads its list only when something it shows changed, and every 5 seconds regardless. |
 | `card_unread_style` | `"dot"` | Card-layout unread treatment: `"dot"`, or `"bar"` for a yellow title bar and provider-coloured model badge. |
 | `card_fields` | `["time", "project", "branch"]` | What a card's second line shows, in order: any of `time`, `age`, `project`, `branch` and `cwd` (see below). |
 | `brief_status` | `false` | Color sessions with attached briefs by their `Status:`; cards also show brief age. |

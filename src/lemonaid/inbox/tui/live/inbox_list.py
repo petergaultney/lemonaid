@@ -62,7 +62,8 @@ class InboxList(Vertical):
     ) -> None:
         """`redraw` refreshes the whole inbox, this list included, after an edit.
 
-        What the background fetches store is drawn by the next periodic refresh.
+        What the background fetches store is drawn by the next periodic refresh, which
+        `fetched` tells to load.
         """
         super().__init__(id=id)
         self.config = lists.config
@@ -97,6 +98,7 @@ class InboxList(Vertical):
         self.kept: frozenset[str] = frozenset()
         self._restore_checked: frozenset[str] = frozenset()
         self._requested = 0
+        self.fetched: abc.Callable[[], None] = lambda: None  # after a background fetch stores
         self._drawn = 0  # the request of the frame drawn last
         self._drawn_key: tuple | None = None  # what it was drawn from
         self._drawn_at = 0.0
@@ -129,6 +131,7 @@ class InboxList(Vertical):
             def load(root: PlaceRoot = root) -> None:
                 numbers = pr_numbers.refresh(root)
                 self.app.call_from_thread(self.pr_numbers.store, root, numbers, time.monotonic())
+                self.fetched()
 
             self.run_worker(load, thread=True, group="pr-numbers")
 
@@ -138,6 +141,7 @@ class InboxList(Vertical):
             def load(key: stalls_pulls.Key = key) -> None:
                 snap = stalls_inbox.fetch(key)
                 self.app.call_from_thread(self.stalls.store, key, snap, time.monotonic())
+                self.fetched()
 
             self.run_worker(load, thread=True, group="stalls")
 

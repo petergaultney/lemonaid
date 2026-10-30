@@ -106,15 +106,27 @@ def parse_timestamp(ts_str: str) -> float | None:
         return None
 
 
+def _leading_words(args: str, count: int) -> list[str]:
+    """The first *count* words of a command line as `shlex.split` reads them, reading no
+    further: a Codex command line ends in its whole launch prompt."""
+    lexer = shlex.shlex(args, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    words: list[str] = []
+    try:
+        while len(words) < count and (word := lexer.get_token()) is not None:
+            words.append(word)
+    except ValueError:
+        return args.split()[:count]
+    return words
+
+
 def is_harness(args: str, process_name: str) -> bool:
     """Whether a `ps` args line runs *process_name*.
 
     `comm` can be truncated or name Node instead of Codex, so argv is inspected instead.
     """
-    try:
-        argv = shlex.split(args)
-    except ValueError:
-        argv = args.split()
+    argv = _leading_words(args, 2)
     if not argv:
         return False
 
@@ -333,6 +345,18 @@ def _record_locations(
             )
 
 
+def _replaced(
+    panes: dict[str, tmux.navigation.PaneLocation],
+    tty: str,
+    recorded_order: tmux.navigation.SessionOrder | None,
+) -> bool:
+    """Whether *panes* says *tty*'s pane is gone, or now belongs to another session."""
+    location = panes.get(tty)
+    return location is None or bool(
+        recorded_order and location.session_order and recorded_order != location.session_order
+    )
+
+
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
     archive_channel: Callable[[str], None],
@@ -346,6 +370,8 @@ def _archive_stale_sessions(
     tty_processes: dict[str, list[str]] | None = None,
     claude_sessions: Callable[[], dict[str, set[str]] | None] | None = None,
     relist: Callable[[], dict[str, list[str]] | None] | None = None,
+    confirm_panes: Callable[[str | None], dict[str, tmux.navigation.PaneLocation] | None]
+    | None = None,
 ) -> set[str]:
     """Archive stale sessions using channel identity, pane presence and process evidence.
 
@@ -367,6 +393,10 @@ def _archive_stale_sessions(
     `claude_sessions` lists the Claude session each tty runs, and is asked only when
     several rows share a tty with a live Claude: the row it names keeps the tty and
     the others are archived. Without it, or if it names none of them, all are kept.
+
+    `confirm_panes` takes a fresh listing of a server whose `pane_locations` listing may
+    lag tmux; a pane is judged gone only if a fresh listing agrees, except for a
+    protected channel, which is only reported detached.
 
     `tty_processes` is one `tty_processes.by_tty` listing for every tty; None asks
     `ps` about each tty on its own. A listing that may be stale comes with `relist`,
@@ -419,6 +449,7 @@ def _archive_stale_sessions(
     # First pass: archive any sessions whose panes no longer exist
     remaining = []
     located = located or {}
+    confirmed: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None] = {}
     for item in active:
         channel, _session_id, _cwd, _created_at, _is_unread, tty, _db_message, switch_source = item
         if channel in located:
@@ -432,6 +463,15 @@ def _archive_stale_sessions(
         elif tty and switch_source == "tmux":
             socket = sockets.get(channel)
             server_panes = pane_locations.get(socket)
+            if (
+                confirm_panes is not None
+                and server_panes is not None
+                and channel not in protected_channels  # only marked detached, never archived
+                and _replaced(server_panes, tty, session_orders.get(channel))
+            ):
+                if socket not in confirmed:
+                    confirmed[socket] = confirm_panes(socket)
+                server_panes = confirmed[socket]
             # server_panes is None when the server could not be reached -
             # that is not evidence that the pane is gone.
             if server_panes is not None:
@@ -720,6 +760,7 @@ def unified_watch_loop(
                     tty_processes(False) if tty_processes else None,
                     claude_sessions,
                     (lambda: tty_processes(True)) if tty_processes else None,
+                    lambda socket: tmux.navigation.locations_by_tty(socket, fresh=True),
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]

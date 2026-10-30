@@ -448,7 +448,7 @@ Note: Due to tmux timing issues, the submit key may not be delivered automatical
 
 Lemonaid colors each tmux tab by its directory or program, with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
 
-The scout host keeps every window's label in two window options: `@lemonaid_label`, and `@lemonaid_label_current` for the current window. It runs one tmux control-mode client per server, attached to its own `_lma_labels` session, and relabels a window only when its active pane's path, command, title or pid changes. The status line reads the options, so drawing it starts no process. `lemonaid tmux labels` registers the server and starts the host if none runs. Run it from your tmux config so the labels return whenever tmux starts. A window with no label yet shows its command.
+The scout host keeps every window's label in two window options: `@lemonaid_label`, and `@lemonaid_label_current` for the current window. It runs one tmux control-mode client per server, attached to its own `_lma_labels` session, and relabels a window only when its active pane's path, command, title or pid changes. The status line reads the options, so drawing it starts no process. `lemonaid tmux labels` registers the server and starts the host if none runs. Run it from your tmux config so the labels return whenever tmux starts. A window with no label yet shows its command. The same client also keeps a listing of the server's clients and panes, which the inbox reads to tell which panes you are looking at instead of running `tmux` each second.
 
 ### tmux.conf setup
 

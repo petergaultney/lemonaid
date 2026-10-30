@@ -5,7 +5,7 @@ import time
 from collections.abc import Iterable, Sequence
 
 from ....lemon_watchers import get_tmux_socket
-from ....tmux import navigation
+from ....tmux import navigation, pane_state
 from ... import db, sections
 
 
@@ -44,7 +44,7 @@ class Probe:
 
     A refresh runs on the poll interval and again on every action that
     changes the list - far more often than a pane can be switched by hand,
-    and each answer costs a subprocess.
+    and each answer costs a subprocess unless the scout host keeps the pane state.
     """
 
     def __init__(self) -> None:
@@ -73,6 +73,11 @@ class Probe:
             return None
 
         self.input_at = now
+        if (state := pane_state.read(get_tmux_socket())) and (
+            found := pane_state.receives_keys(state, pane)
+        ) is not None:
+            return found
+
         return pane_receives_keys(pane)
 
 

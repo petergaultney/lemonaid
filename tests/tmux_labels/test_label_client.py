@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid.tmux import label_client, window_labels
+from lemonaid.tmux import label_client, label_session, window_labels
 
 from . import shared
 
@@ -66,25 +66,25 @@ def test_the_client_reports_its_server_gone(server):
 
 def test_a_listing_queued_behind_label_writes_still_reaches_relabelling(server, monkeypatch):
     socket, _ = server
-    session = label_client._Session(label_client._attach(socket, None))
-    listings: list[list[str]] = []
-    monkeypatch.setattr(session, "listed", listings.append)
+    session = label_session.Session(label_client._attach(socket, None))
+    listings: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(session, "listed", lambda kind, lines: listings.append((kind, lines)))
     serving = threading.Thread(target=label_client._serve, args=(session,), daemon=True)
     serving.start()
     shared.until(lambda: session.listing)  # attached, and its own first listing is out
     window = window_labels.Window("@0", "", "/tmp", "sleep", "1", "")
 
     session.relabel(["\t".join(window)])  # two option writes for the window
-    session.listing = False
-    session.list_windows()
+    session.listing.clear()
+    session.ask("windows")
     session.send("detach-client")
     serving.join(10)
 
     assert not serving.is_alive()
     session.process.wait(5)
 
-    _, queued = listings  # the client's own first listing, then the queued one
-    assert any(line.startswith("@0\t") for line in queued)
+    _, (kind, queued) = listings  # the client's own first listing, then the queued one
+    assert kind == "windows" and any(line.startswith("@0\t") for line in queued)
 
 
 def test_a_stale_registration_never_starts_a_server():

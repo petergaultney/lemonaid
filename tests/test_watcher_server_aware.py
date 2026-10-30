@@ -8,6 +8,8 @@ the watcher archived live sessions whenever it ran somewhere else.
 
 import subprocess
 
+import pytest
+
 from lemonaid import handlers
 from lemonaid.lemon_watchers import watcher
 from lemonaid.tmux import navigation
@@ -194,3 +196,47 @@ def test_without_a_cutoff_any_pane_on_that_tty_matches(monkeypatch):
     _listing(monkeypatch, "/dev/ttys001|relay|%1|9999\n")
 
     assert navigation.get_pane_for_tty("/dev/ttys001") == ("relay", "%1")
+
+
+@pytest.mark.parametrize(
+    ("fresh", "expected"),
+    [
+        ({"/dev/ttys001": navigation.PaneLocation("relay", "0")}, []),  # just made
+        (None, []),  # tmux didn't answer: unknown
+        ({}, ["claude:new"]),  # gone after all
+    ],
+)
+def test_a_pane_missing_from_a_kept_listing_is_archived_only_if_tmux_agrees(
+    monkeypatch, fresh, expected
+):
+    monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name: True)
+    archived: list[str] = []
+    socket = "/tmp/tmux-1/other"
+    asked: list[str | None] = []
+
+    watcher._archive_stale_sessions(
+        [_active("claude:new", "/dev/ttys001")],
+        archived.append,
+        {"claude:new": socket},
+        {socket: {}},  # the scout host's listing, from before the pane was made
+        confirm_panes=lambda s: asked.append(s) or fresh,
+    )
+
+    assert archived == expected and asked == [socket]
+
+
+def test_a_protected_lemon_missing_from_a_kept_listing_asks_tmux_nothing(monkeypatch):
+    detached: list[set[str]] = []
+    socket = "/tmp/tmux-1/other"
+
+    watcher._archive_stale_sessions(
+        [_active("claude:kept", "/dev/ttys001")],
+        lambda channel: pytest.fail("a protected lemon is never archived"),
+        {"claude:kept": socket},
+        {socket: {}},
+        protected_channels={"claude:kept"},
+        detached_channels=detached.append,
+        confirm_panes=lambda s: pytest.fail("nothing to confirm"),
+    )
+
+    assert detached == [{"claude:kept"}]
