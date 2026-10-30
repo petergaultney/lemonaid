@@ -20,11 +20,13 @@ _INSTRUCTION = (
     "and queues the next batch into this thread"
 )
 _ALIVE_EVERY = 30.0
+_LISTED_WITHIN = 15.0  # every scout checks, so one recent listing serves the rest
 
 
-def thread_alive(thread: str) -> bool:
-    """False only when no Codex process, the shared daemon included, has *thread*'s rollout open."""
-    open_threads = processes.open_threads()
+def thread_alive(thread: str, max_age: float = 0.0) -> bool:
+    """False only when no Codex process, the shared daemon included, has *thread*'s rollout
+    open, as of a listing under *max_age* seconds old."""
+    open_threads = processes.open_threads(max_age)
     return open_threads is None or thread in open_threads
 
 
@@ -36,7 +38,7 @@ def liveness(thread: str) -> abc.Callable[[], bool]:
     def still() -> bool:
         nonlocal checked, alive
         if time.monotonic() - checked >= _ALIVE_EVERY:
-            checked, alive = time.monotonic(), thread_alive(thread)
+            checked, alive = time.monotonic(), thread_alive(thread, _LISTED_WITHIN)
         return alive
 
     return still
