@@ -42,6 +42,11 @@ def _spawn() -> None:
         )
 
 
+def ensure_host() -> None:
+    if not scout_roster.host_pid():
+        _spawn()
+
+
 def host(lemon_id: str, channel: str, thread: str, cwd: str) -> None:
     """Register the lemon's scout and start the host if none runs.
 
@@ -49,5 +54,4 @@ def host(lemon_id: str, channel: str, thread: str, cwd: str) -> None:
     registration written while it exits is never left without a host.
     """
     scout_roster.register(lemon_id, channel, thread, cwd)
-    if not scout_roster.host_pid():
-        _spawn()
+    ensure_host()

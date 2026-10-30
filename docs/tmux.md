@@ -446,7 +446,9 @@ Note: Due to tmux timing issues, the submit key may not be delivered automatical
 
 ## Window Colors
 
-Lemonaid includes `lemonaid-tmux-window-status`, a tool that formats tmux window titles with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
+Lemonaid colors each tmux tab by its directory or program, with deterministic colors based on directory names. Each directory gets a consistent color, making it easy to visually identify windows at a glance.
+
+The scout host keeps every window's label in two window options: `@lemonaid_label`, and `@lemonaid_label_current` for the current window. It runs one tmux control-mode client per server, attached to its own `_lma_labels` session, and relabels a window only when its active pane's path, command, title or pid changes. The status line reads the options, so drawing it starts no process. `lemonaid tmux labels` registers the server and starts the host if none runs. Run it from your tmux config so the labels return whenever tmux starts. A window with no label yet shows its command.
 
 ### tmux.conf setup
 
@@ -455,16 +457,20 @@ Lemonaid includes `lemonaid-tmux-window-status`, a tool that formats tmux window
 set-option -g default-terminal "tmux-256color"
 set-option -sa terminal-features ',xterm-256color:RGB'
 
-# Window status with colored directory names
-# q: shell-quotes each value; adjacent empty quotes keep empty fields as arguments.
-# In particular, pane_path is often empty for Codex, and dropping it shifts every
-# later argument, causing the task title to be mistaken for the process name.
-setw -g window-status-format " #I:#(lemonaid-tmux-window-status ''#{q:pane_path}'' ''#{q:pane_current_path}'' ''#{q:pane_current_command}'' ''#{q:pane_title}'' ''#{q:window_active}'' ''#{q:pane_pid}'') "
-setw -g window-status-current-format " #I:#(lemonaid-tmux-window-status ''#{q:pane_path}'' ''#{q:pane_current_path}'' ''#{q:pane_current_command}'' ''#{q:pane_title}'' ''#{q:window_active}'' ''#{q:pane_pid}'') "
+# Window status with colored directory names, kept by the scout host
+run-shell -b 'lemonaid tmux labels'
+set -g status-interval 5
+setw -g window-status-format " #I:#{?@lemonaid_label,#{@lemonaid_label},#{pane_current_command}} "
+setw -g window-status-current-format " #I:#{?@lemonaid_label_current,#{@lemonaid_label_current},#{pane_current_command}} "
 setw -g window-status-style none
 setw -g window-status-current-style "bg=colour238,bold"
 setw -g window-status-separator "│"
+
+# Session name with a colored background
+set -g status-left '#[bg=#5865F2,fg=#FFFFFF,bold] #{session_name} #[default]'
 ```
+
+`lemonaid-tmux-window-status` and `lemonaid-tmux-session-name` still format one tab or session name when run through `#()`, as older configs do. Each call starts Python, about 47 ms of CPU, for every visible tab at every status interval.
 
 ### Shell integration
 
@@ -530,7 +536,7 @@ sys.stdout.write("\033]0;myapp\007")
 sys.stdout.flush()
 ```
 
-`lemonaid-tmux-window-status` will prefer `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
+The label prefers `#{pane_title}` over `#{pane_current_command}` when the process is an interpreter (python, node, etc.) and the title looks meaningful.
 
 For apps that do not set a useful title, configure their console-script name.
 Lemonaid will find it in the interpreter command line and show it by itself:
