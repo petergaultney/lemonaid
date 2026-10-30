@@ -41,7 +41,7 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
     queued, commands, alive = [], [], [True]
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
     monkeypatch.setattr(codex_scout, "_ALIVE_EVERY", 0)
-    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread: alive[0])
+    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: alive[0])
     monkeypatch.setattr(
         delivery, "to_codex", lambda thread, kind, instruction: lambda m: queued.append(instruction)
     )
@@ -62,7 +62,7 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
 
 def test_a_batch_for_a_dead_thread_is_not_queued(monkeypatch):
     queued = []
-    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread: False)
+    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: False)
     monkeypatch.setattr(delivery, "to_codex", lambda *args: queued.append)
 
     with pytest.raises(delivery.Failed):
@@ -72,7 +72,9 @@ def test_a_batch_for_a_dead_thread_is_not_queued(monkeypatch):
 
 def test_liveness_leaves_a_starting_session_time_to_open_its_rollout(monkeypatch):
     checks = []
-    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread: checks.append(thread))
+    monkeypatch.setattr(
+        codex_scout, "thread_alive", lambda thread, max_age=0.0: checks.append(thread)
+    )
 
     assert codex_scout.liveness("test")()
     assert checks == []
@@ -90,7 +92,9 @@ def test_a_one_shot_rearm_beside_a_scout_is_a_no_op(monkeypatch, capsys):
 
 
 def test_a_thread_open_only_in_the_shared_daemon_is_alive(monkeypatch):
-    monkeypatch.setattr(codex_scout.processes, "open_threads", lambda: {"daemon-thread"})
+    monkeypatch.setattr(
+        codex_scout.processes, "open_threads", lambda max_age=0.0: {"daemon-thread"}
+    )
 
     assert codex_scout.thread_alive("daemon-thread")
     assert not codex_scout.thread_alive("exited-thread")

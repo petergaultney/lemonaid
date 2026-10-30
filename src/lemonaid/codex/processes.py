@@ -1,6 +1,9 @@
 """Codex threads whose rollout files are open in a terminal process."""
 
+import os
 import subprocess
+import tempfile
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -12,21 +15,52 @@ _log = get_logger("codex.processes")
 _TIMEOUT = 1
 
 
-def _lsof() -> str | None:
-    """`lsof` of every Codex process's open files, or None if it can't be read."""
+def _shared() -> Path:
+    state = os.environ.get("LEMONAID_STATE_DIR") or "~/.local/state/lemonaid"
+    return Path(state).expanduser() / "codex-lsof"
+
+
+def _keep(listing: str) -> None:
+    path = _shared()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False) as f:
+            f.write(listing)
+        os.replace(f.name, path)
+    except OSError as error:
+        _log.debug("could not keep the Codex listing: %s", error)
+
+
+def _lsof(max_age: float = 0.0) -> str | None:
+    """`lsof` of every Codex process's open files, or None if it can't be read.
+
+    Each listing is kept for every lemonaid process, and one under *max_age* seconds
+    old is used instead of running `lsof`, which costs a tenth of a second of CPU.
+    """
+    if max_age:
+        try:
+            if time.time() - _shared().stat().st_mtime < max_age:
+                return _shared().read_text()
+        except OSError:
+            pass
     files = subprocess.run(
         ["lsof", "-c", "codex", "-Fpn"],
         capture_output=True,
         text=True,
         timeout=_TIMEOUT,
     )
-    return None if files.returncode not in (0, 1) or files.stderr.strip() else files.stdout
+    if files.returncode not in (0, 1) or files.stderr.strip():
+        return None
+
+    _keep(files.stdout)
+    return files.stdout
 
 
-def open_threads() -> set[str] | None:
-    """Threads whose rollout any Codex process has open, the shared daemon included."""
+def open_threads(max_age: float = 0.0) -> set[str] | None:
+    """Threads whose rollout any Codex process has open, the shared daemon included, as
+    of a listing under *max_age* seconds old."""
     try:
-        listing = _lsof()
+        listing = _lsof(max_age)
     except (OSError, subprocess.SubprocessError) as error:
         _log.debug("could not inspect Codex processes: %s", error)
         return None

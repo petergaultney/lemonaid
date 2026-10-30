@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 
 import pytest
@@ -75,3 +76,45 @@ def test_a_failed_open_threads_probe_is_unknown(monkeypatch):
         subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("denied"))
     )
     assert _open_threads() is None
+
+
+_THREAD = "019a0000-0000-7000-8000-000000000001"
+
+
+def _counted_lsof(monkeypatch, tmp_path, returncode=0):
+    path = _rollout(tmp_path, _THREAD)
+    asked = []
+
+    def run(argv, **kwargs):
+        asked.append(argv[0])
+        return subprocess.CompletedProcess(argv, returncode, stdout=f"p11\nn{path}\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    return asked
+
+
+def test_a_recent_listing_from_any_process_is_used_instead_of_lsof(monkeypatch, tmp_path):
+    asked = _counted_lsof(monkeypatch, tmp_path)
+
+    assert _open_threads() == {_THREAD}
+    assert _open_threads(max_age=15) == {_THREAD}
+    assert asked == ["lsof"]
+
+
+def test_an_old_listing_or_none_wanted_runs_lsof_again(monkeypatch, tmp_path):
+    asked = _counted_lsof(monkeypatch, tmp_path)
+    _open_threads()
+    old = processes._shared().stat().st_mtime - 30
+    os.utime(processes._shared(), (old, old))
+
+    _open_threads(max_age=15)
+    _open_threads()
+
+    assert asked == ["lsof", "lsof", "lsof"]
+
+
+def test_a_failed_listing_is_not_kept(monkeypatch, tmp_path):
+    _counted_lsof(monkeypatch, tmp_path, returncode=2)
+
+    assert _open_threads() is None
+    assert not processes._shared().exists()
