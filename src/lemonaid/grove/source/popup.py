@@ -56,4 +56,5 @@ def run(
         flips=flip.configured(config),
         select_key=config.tui.grove_select_key,
         zoom_to=take_zoom,
+        start_held=True,
     ).run()

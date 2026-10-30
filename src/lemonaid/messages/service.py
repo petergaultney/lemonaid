@@ -50,8 +50,10 @@ def _inbox(path: Path) -> Path | None:
         return None
 
 
-def _claimed_recipients(conn: sqlite3.Connection) -> abc.Iterator[tuple[Path, str]]:
-    for entry in brief.attached.everything(conn):
+def _claimed_recipients(
+    entries: "abc.Iterable[brief.attached.Attachment]",
+) -> abc.Iterator[tuple[Path, str]]:
+    for entry in entries:
         found = entry.notification
         if not entry.channel.startswith("codex:") or found is None or found.is_archived:
             continue
@@ -69,7 +71,7 @@ def codex_recipients(conn: sqlite3.Connection) -> abc.Iterator[tuple[Path, str]]
     the lemon is seen again.
     """
     brief.attached.claim_pending(conn)
-    yield from _claimed_recipients(conn)
+    yield from _claimed_recipients(brief.attached.everything(conn))
 
 
 def has_pending(conn: sqlite3.Connection, channel: str) -> bool:
@@ -78,9 +80,24 @@ def has_pending(conn: sqlite3.Connection, channel: str) -> bool:
     return inbox is not None and store.peek_next(inbox) is not None
 
 
+def _first_thread(entries: "abc.Iterable[brief.attached.Attachment]", inbox: Path) -> str:
+    return next((t for found, t in _claimed_recipients(entries) if found == inbox), "")
+
+
+def _thread_for(conn: sqlite3.Connection, inbox: Path) -> str:
+    """The thread *inbox* goes to now, or "".
+
+    Only its own brief is read, unless that finds no thread: then every attachment is.
+    """
+    path = brief.lemon.brief_of(conn, inbox.name)  # an inbox is named by its Lemon-ID
+    own = brief.attached.for_paths(conn, [path]) if path else []
+    return _first_thread(own, inbox) or _first_thread(brief.attached.everything(conn), inbox)
+
+
 def _current_thread(inbox: Path) -> str:
     with db.connect() as conn:
-        return next((thread for found, thread in codex_recipients(conn) if found == inbox), "")
+        brief.attached.claim_pending(conn)
+        return _thread_for(conn, inbox)
 
 
 @contextlib.contextmanager
@@ -94,9 +111,7 @@ def _while_current(inbox: Path, thread: str) -> abc.Iterator[bool]:
     with db.connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            yield (
-                next((t for found, t in _claimed_recipients(conn) if found == inbox), "") == thread
-            )
+            yield _thread_for(conn, inbox) == thread
         finally:
             conn.rollback()
 
@@ -127,6 +142,9 @@ def _pass(retry_at: dict[Path, float], retry: float) -> bool:
 
     pending = False
     for inbox, thread in recipients:
+        if store.peek_next(inbox) is None:
+            continue
+
         if retry_at.get(inbox, 0.0) <= time.monotonic():
             try:
                 _deliver_all(inbox, thread)

@@ -28,8 +28,8 @@ dev = [
 [project.scripts]
 lemonaid = "lemonaid.cli:main"
 lma = "lemonaid.cli:inbox_main"
-lemonaid-tmux-window-status = "lemonaid.tmux.window_status:main"
-lemonaid-tmux-session-name = "lemonaid.tmux.window_status:session_main"
+lemonaid-tmux-window-status = "lemonaid.window_status:main"
+lemonaid-tmux-session-name = "lemonaid.window_status:session_main"
 lemonaid-claude-statusline = "lemonaid.claude.statusline:main"
 
 [build-system]

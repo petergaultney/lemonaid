@@ -188,8 +188,11 @@ class GroveScreen(ModalScreen[str]):
         self._show()
 
     def _reload(self) -> None:
-        """Load in a thread: a fresh read of the inbox takes a quarter second or so."""
-        if self._loading:
+        """Load in a thread: a fresh read of the inbox takes a quarter second or so.
+
+        A held grove doesn't load: `hold` loads when it is shown again.
+        """
+        if self._loading or self._held:
             return
 
         self._loading = True

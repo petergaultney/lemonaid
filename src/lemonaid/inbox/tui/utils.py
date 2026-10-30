@@ -5,9 +5,9 @@ import sys
 from rich.text import Text
 from textual.widgets import Static
 
+from ... import window_status
 from ...brief import colors
 from ...config import Config
-from ...tmux import window_status
 
 
 def same_cell(old: object, new: object) -> bool:

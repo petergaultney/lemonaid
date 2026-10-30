@@ -30,7 +30,6 @@ _ALLOWED: set[str] = {
     "inbox/self_session.py",
     "inbox/tui/app.py",
     "inbox/tui/watchers/focus.py",
-    "inbox/tui/utils.py",
     "inbox/unarchive.py",
     "launch/command.py",
     "launch/window.py",

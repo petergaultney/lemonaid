@@ -38,10 +38,13 @@ class GroveApp(App[str]):
         flips: flip.Flip = flip.DEFAULT,
         select_key: str = selecting.DEFAULT_KEY,
         zoom_to: abc.Callable[[], str] | None = None,
+        start_held: bool = False,
     ) -> None:
         super().__init__()
         self._zoom_to = zoom_to
+        self._start_held = start_held
         self._zoom_waiting = ""  # a block to zoom into, read before its grove screen was shown
+        self._shown_while_opening = False  # focus arrived before the opening grove screen did
         self._edit = edit
         self._load = load
         self._refresh_every = refresh_every
@@ -56,10 +59,11 @@ class GroveApp(App[str]):
         self._lists: Lists = {}  # where lemon lists went, kept from one grove shown to the next
 
     def on_mount(self) -> None:
-        self._open()
+        self._open(held=self._start_held)
 
     def _open(self, note: str = "", held: bool = False) -> None:
         """Reads the grove and where the view was in a thread, as a refresh does: both read files."""
+        self._shown_while_opening = False
         self.run_worker(lambda: self._read(note, held), thread=True, group="grove-open")
 
     def _read(self, note: str, held: bool) -> None:
@@ -76,7 +80,7 @@ class GroveApp(App[str]):
                 pan,
                 self._keep_pan,
                 self._nudge,
-                held,
+                held and not self._shown_while_opening,
                 self._lists,
                 self._big_trees,
                 self._flips,
@@ -103,6 +107,8 @@ class GroveApp(App[str]):
     def on_app_focus(self, _event: events.AppFocus) -> None:
         if isinstance(self.screen, GroveScreen):
             self.screen.hold(False)
+        else:
+            self._shown_while_opening = True
         if self._zoom_to is not None:
             zoom_to = self._zoom_to
             self.run_worker(
