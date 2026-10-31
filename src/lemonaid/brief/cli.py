@@ -10,6 +10,8 @@ import sys
 import time
 from pathlib import Path
 
+import lemonaid.tasks.briefs.ensure_cli
+
 from ..config import load_config
 from ..inbox import db, emoji
 from ..inbox.tui.briefs import brief_popup
@@ -256,5 +258,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     write_cli.add_parsers(brief_subparsers)
     archive_cli.add_parsers(brief_subparsers)
     handoff_cli.add_parser(brief_subparsers)
+    lemonaid.tasks.briefs.ensure_cli.add_parser(brief_subparsers)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())

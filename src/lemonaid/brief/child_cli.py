@@ -13,6 +13,8 @@ from pathlib import Path
 from .. import groups, home
 from ..config import load_config
 from ..inbox import db
+from ..tasks.briefs import options_cli
+from ..tasks.model import ledger
 from ..watch import children_waiter
 from . import child, created, frontmatter, identity, lemon, name_words_cli, review_link, store
 
@@ -43,11 +45,12 @@ def _parent(target: str) -> tuple[str, str]:
             return found, ""
 
 
-def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, str]:
-    """(path, Lemon-ID, parent Lemon-ID) of the new brief."""
+def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, str, dict]:
+    """(path, Lemon-ID, parent Lemon-ID, task disposition) of the new brief."""
     output_doc = args.output_doc or args.review_doc
     body = child.template(child.PACKAGED_DIR, child.user_dir(), args.template)
-    vaults = load_config().brief.vaults
+    config = load_config()
+    vaults = config.brief.vaults
     values = {
         **(child.pr_values(args.pr, args.repo) if args.pr else {}),
         **(child.output_doc_values(output_doc, vaults) if output_doc else {}),
@@ -66,6 +69,19 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
             if args.name_words
             else name_words_cli.of_parent(conn, parent[0])
         )
+        try:
+            task_plan = options_cli.plan(
+                conn,
+                args,
+                sponsor=parent[0],
+                actor=options_cli.caller(conn),
+                enabled=config.tasks.enabled,
+                template=args.template,
+                existing_task_templates=config.tasks.existing_task_templates,
+                attached=False,
+            )
+        except ledger.Refused as cause:
+            raise child.Problem(str(cause)) from None
     title = args.title.strip()
     name = store.slug(args.slug or title)
     try:
@@ -118,7 +134,14 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
                 f"--author {target} names no lemon, so its PR row was left alone", file=sys.stderr
             )
     name_words_cli.report(words, lemon_id)
-    return path, lemon_id, parent[0]
+    if task_plan is None:
+        return path, lemon_id, parent[0], {}
+
+    with db.connect() as conn:
+        task = options_cli.register(
+            conn, task_plan, path, lemon_id, parent[0], title, link_parent=True
+        )
+    return path, lemon_id, parent[0], task
 
 
 def given(args: argparse.Namespace) -> list[str]:
@@ -149,7 +172,10 @@ def cmd(args: argparse.Namespace) -> None:
         if args.review_doc:
             print("--review-doc is deprecated; use --output-doc", file=sys.stderr)
 
-        path, lemon_id, parent_id = _create(args, datetime.date.today())
+        path, lemon_id, parent_id, task = _create(args, datetime.date.today())
+    except options_cli.Unregistered as problem:
+        options_cli.report(problem, args.json)
+        sys.exit(1)
     except (child.Problem, ValueError, store.ChangedUnderneath) as problem:
         if args.json:
             print(json.dumps({"error": str(problem)}, ensure_ascii=False))
@@ -158,10 +184,18 @@ def cmd(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if args.json:
-        result = {"path": str(path), "lemon_id": lemon_id, "parent": parent_id, "error": None}
+        result = {
+            "path": str(path),
+            "lemon_id": lemon_id,
+            "parent": parent_id,
+            **task,
+            "error": None,
+        }
         print(json.dumps(result, ensure_ascii=False))
     else:
         print(path)
+        if "task_id" in task:
+            print(f"task:{task['task_id']}", file=sys.stderr)
 
     print(children_waiter.reminder(), file=sys.stderr)
 
@@ -204,3 +238,4 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="LEMON",
         help="The PR's author, if not the parent; $tell names it too",
     )
+    options_cli.add_arguments(parser)

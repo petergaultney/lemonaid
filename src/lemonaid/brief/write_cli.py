@@ -9,7 +9,10 @@ import sys
 from pathlib import Path
 
 from .. import home
+from ..config import load_config
 from ..inbox import db
+from ..tasks.briefs import options_cli
+from ..tasks.model import ledger
 from . import (
     attach_guard,
     attached,
@@ -117,6 +120,13 @@ def _cmd_new(args: argparse.Namespace) -> None:
         command.finish(args, {}, paused)
 
     try:
+        with db.connect() as conn:
+            task_plan = options_cli.attached_plan(conn, args, load_config().tasks.enabled)
+    except ledger.Refused as e:
+        command.finish(args, {}, str(e))
+        return
+
+    try:
         words = name_words_cli.given(args)
         with db.connect() as conn:
             caller = created.by(conn)
@@ -144,6 +154,14 @@ def _cmd_new(args: argparse.Namespace) -> None:
 
     with db.connect() as conn:
         result, error, message = _attach(conn, args, path)
+        if task_plan is not None and not error:
+            running = task_plan._replace(attached=bool(result.get("channel")))
+            try:
+                result |= options_cli.register(
+                    conn, running, path, lemon_id, running.actor, args.title, link_parent=False
+                )
+            except options_cli.Unregistered as problem:
+                error = str(problem)
     command.finish(args, {"path": str(path), **result}, error, message or str(path))
 
 

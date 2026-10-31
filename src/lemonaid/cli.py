@@ -23,6 +23,7 @@ import lemonaid.opencode.cli
 import lemonaid.places.cli
 import lemonaid.restore.cli
 import lemonaid.skills.cli
+import lemonaid.tasks.cli
 import lemonaid.terminal.cli
 import lemonaid.tmux.cli
 import lemonaid.tmux.label_host
@@ -156,6 +157,7 @@ def main() -> None:
     lemonaid.restore.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)
+    lemonaid.tasks.cli.setup_parser(subparsers)
     lemonaid.terminal.cli.setup_parser(subparsers)
     lemonaid.tmux.cli.setup_parser(subparsers)
     lemonaid.usage.cli.setup_parser(subparsers)
