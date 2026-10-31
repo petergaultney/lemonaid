@@ -163,9 +163,9 @@ def test_a_conflict_is_reported_once_per_head(stem):
 
 
 def test_an_unknown_mergeable_state_is_not_a_conflict():
-    seen = merge_health.Seen("", "")
+    messages, seen = merge_health.events(90, _snap(mergeable="UNKNOWN"), merge_health.Seen("", ""))
 
-    assert merge_health.events(90, _snap(mergeable="UNKNOWN"), seen) == ([], seen)
+    assert (messages, seen.conflict_head) == ([], "")
 
 
 def test_ci_is_reported_once_every_check_has_finished(stem):

@@ -22,7 +22,19 @@ COMMENTS = "comments"
 CONFLICT = "conflict"
 CI_FAILED = "ci-failed"
 CI_PASSED = "ci-passed"  # only reported with --ci
-KINDS = (STATE, HEAD, READY, DRAFT, DECISION, COMMENTS, CONFLICT, CI_FAILED, CI_PASSED)
+CI_GREEN = "ci-green"  # a pass after CI was seen running or failed
+KINDS = (
+    STATE,
+    HEAD,
+    READY,
+    DRAFT,
+    DECISION,
+    COMMENTS,
+    CONFLICT,
+    CI_FAILED,
+    CI_PASSED,
+    CI_GREEN,
+)
 
 DEFAULT_WAKE: dict[str, frozenset[str]] = {
     AUTHOR: frozenset(KINDS) - {READY},

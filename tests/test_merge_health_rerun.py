@@ -40,4 +40,4 @@ def test_a_rerun_that_passes_is_reported_when_ci_is_watched():
     _, seen = merge_health.events(1, passing, seen, ci=True)
     passed, _ = merge_health.events(1, passing, seen, ci=True)
 
-    assert _kinds(passed) == [roles.CI_PASSED]
+    assert _kinds(passed) == [roles.CI_GREEN]

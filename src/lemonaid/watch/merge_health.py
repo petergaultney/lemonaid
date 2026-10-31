@@ -8,6 +8,10 @@ passing CI is also reported, only when every check has passed and the same set o
 passed on the previous poll too (a workflow's jobs may not be queued
 yet when the first ones finish); no checks is not completion. A pass is reported again if
 the set of checks it covered later changes, so a premature one never hides the real one.
+Without `--ci`, a stable pass is still reported, as `ci-green`, when the watcher last saw
+CI unfinished, failed or not yet started, on this head or an earlier one (a push whose CI
+finishes between polls), and the PR is not a draft, so an
+author that cleared its `merge` status while CI ran hears that it can restore it.
 """
 
 import json
@@ -22,6 +26,7 @@ class Seen(ty.NamedTuple):
     ci_head: str  # head and failed checks (with finish times) last reported
     stable: str = ""  # head and checks of the previous poll if all had passed, else ""
     passed: str = ""  # head and checks of the last reported pass
+    awaiting: str = ""  # head last seen without a passing set of checks; "" once one settles
 
 
 def load(path: pathlib.Path) -> Seen:
@@ -32,6 +37,7 @@ def load(path: pathlib.Path) -> Seen:
             str(saved["ci_head"]),
             str(saved.get("stable", "")),
             str(saved.get("passed", "")),
+            str(saved.get("awaiting", "")),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return Seen("", "")
@@ -78,7 +84,9 @@ def events(
     failure = _failure_id(snap.head, failed) if failed else ""
     failed = failed if failure != seen.ci_head else []
     now = _all_passed(snap)
-    passed = ci and bool(now) and now == seen.stable and now != seen.passed
+    settled = bool(now) and now == seen.stable
+    green = settled and bool(seen.awaiting) and not snap.draft
+    passed = ci and settled and now != seen.passed and not green
     return [
         *(
             [
@@ -106,6 +114,18 @@ def events(
             else []
         ),
         *(
+            [
+                roles.Event(
+                    roles.CI_GREEN,
+                    f"PR #{pr} CI passed at {snap.head[:10]}: check"
+                    f" `gh pr view {pr} --json mergeable,reviewDecision,isDraft`;"
+                    " if only your user's merge remains, set your brief's Status back to `merge`",
+                )
+            ]
+            if green
+            else []
+        ),
+        *(
             [roles.Event(roles.CI_PASSED, f"PR #{pr} CI passed at {snap.head[:10]}")]
             if passed
             else []
@@ -116,5 +136,6 @@ def events(
         else seen.conflict_head,
         failure if failed else seen.ci_head,
         now,
-        now if passed else seen.passed,
+        now if passed or green else seen.passed,
+        "" if settled else seen.awaiting if now else snap.head,
     )

@@ -1304,14 +1304,16 @@ Sign each GitHub comment right after the marker, `🍋 MotorHoe (Author): ...`, 
 signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. A waiter reports only what changes after it starts, never what is already true, so read the PR (`gh pr view`, `gh pr checks`) before your first one. Your waiter remembers the head it last reported, so a push made while none ran still wakes you; `--head` set to the head you just handled overrides it, and with `lemonaid hooks install` your own pushes never wake you. Never push with `-q` or `--quiet`, or with stderr sent to `/dev/null`: the hooks recognize your push by the heads `git push` prints, so they drop `-q`/`--quiet` from a Claude Code push and refuse any other push that would print none.
 
 Under `watch --self`, a PR wakes you only for the events your role on it needs: an author
-for everything but ready-for-review and passing CI, a reviewer for pushes and merge or close,
+for everything but ready-for-review and a `--ci` pass, a reviewer for pushes and merge or close,
 a parent for merge or close only. The role comes from `--role`, a `(Reviewer)` signature, a
 Review cell that is your `Output-Doc:`, or a child authoring the PR, else author; `watch --self
 --status` prints it. Events that don't wake you are listed at the start of the next one
 that does. Details: [watch.md](watch.md#roles).
 
 An author marks its PR ready once its reviewer clears it, and sets `merge` without waiting for
-CI; a failure wakes it to clear `merge`. Add `--ci` only to wait for a result you need, to report CI completion on the current
+CI; a failure wakes it to clear `merge`. A pass on a non-draft PR after your waiter last saw
+CI running or failed, on this head or an earlier one, wakes it once more (`ci-green`): recheck `gh pr view` and set `merge` again
+if only your user's merge remains. Add `--ci` only to wait for a result you need, to report CI completion on the current
 head, passing or failing, with or without `--comments`. It waits for all checks to finish and reports a failure once per result: a re-run that fails again on the same head is reported again.
 A pass is reported once the same set of checks has passed on two polls in a row (one
 `--interval` after they finish), and again if the set later changes on that head.
