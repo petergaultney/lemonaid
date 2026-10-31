@@ -156,7 +156,7 @@ lemonaid watch pr --status 90 --me "MotorHoe (Author)"
 It reports a push (the head differs from the one last reported, or from `--head`) that the
 lemon didn't make itself, a merge or close, a move to or from
 draft, a review decision change, and with `--comments` a new comment from someone else, a
-conflict with the base, or failed CI. A comment counts when it is in any
+conflict with the base, failed CI, or CI passing after it was seen running or failed. A comment counts when it is in any
 review thread, including outdated and resolved threads, a submitted review's body, or the PR conversation, and is not
 from a bot or a pending review. It is skipped as your own only when it is signed: 🍋, then
 your `--me` signature or a `--legacy` one, then a colon (`🍋 MotorHoe (Author): done`).
@@ -201,6 +201,12 @@ Submitted review bodies and PR conversation comments are unaffected by these fil
   quiet. Every check counts, including checks that are not required for merging.
 - The heads reported are kept beside the other state, so a rearm on the same head is quiet
   and a new push that still conflicts or fails is reported.
+- Passing CI is reported as `ci-green`, with or without `--ci`, when the PR is not a draft
+  and the waiter last saw CI running, failed or not yet started, on this head or an earlier
+  one. It is reported once for each such recovery, so a failed rerun that later passes is
+  reported again. An author that
+  cleared `merge` while CI ran or failed is told to recheck `gh pr view` and restore it. A PR
+  whose checks had all passed before the waiter first saw it wakes no one.
 
 Add `--ci` when you want a completion event whether CI passes or fails. It works
 with or without `--comments`, and with `--once` or `--codex-thread`. Completion waits
@@ -219,7 +225,8 @@ identity, including failures already reported by `--comments`, so rearming with
 `--head` does not repeat a handled completion. A new push is reported normally; rearm
 with `--ci` to wait for that head's checks. Remove `--ci` after handling the result.
 An author doesn't need `--ci`: it marks its PR ready once its reviewer clears it, without
-waiting for CI, and a failure wakes it through `--comments` to clear a `merge` status.
+waiting for CI, a failure wakes it through `--comments` to clear a `merge` status, and
+`ci-green` wakes it to restore one. With `--ci`, `ci-green` takes the place of `ci-passed`.
 
 ### Roles
 
@@ -238,6 +245,7 @@ next event that does (`Seen without waking you: ...`).
 | conflict with the base (`conflict`) | wakes | | |
 | CI failed (`ci-failed`) | wakes | | |
 | CI passed, only with `--ci` (`ci-passed`) | wakes | | |
+| CI passed after the waiter saw it running or failed (`ci-green`) | wakes | | |
 
 The parent hears that its child's PR is ready to merge or done through the child's Status, so
 it needs the PR itself only when it merges or closes. The role comes from the brief, first
@@ -494,7 +502,7 @@ The rows and commands declare these sources:
 | Source | What the unified watcher watches |
 |---|---|
 | `## Watching` | Supported `watch pr`, `doc`, `file` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
-| `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. Passing CI is reported only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
+| `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. A pass is reported as `ci-green` after CI was seen running or failed, and otherwise only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
 | A PR's Review cell | A local review document's unanswered comments and body edits, whatever its Docs row says, because reviewers write findings and verdicts in the body. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
 | Inbox | Every pending message for this lemon, included in the same batch as source changes. |
