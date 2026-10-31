@@ -921,7 +921,8 @@ in; brief cards show it after the project (`ds-monorepo: apps/unified-asset`). A
 without one can add an `Area:` line through `brief now`, or the key by hand.
 `--output-doc <path>` (any template) names the document the work produces. It fills the
 `$output_doc*` placeholders and is recorded as `output-doc: <absolute path>` in the frontmatter, which
-`lemonaid.brief.output_doc.of_brief` reads back. `--review-doc` is the old name: it
+`lemonaid.brief.output_doc.of_brief` reads back. With `--pr`, it also fills an empty Review cell
+in that PR's row in your brief (or `--parent`'s) and `--author`'s, so the doc is watched for body edits. `--review-doc` is the old name: it
 still works and warns; templates must use `$output_doc*` now.
 `--slug` replaces the title's slug in the filename. An existing file is never overwritten.
 

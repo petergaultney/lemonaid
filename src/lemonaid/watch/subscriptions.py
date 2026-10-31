@@ -164,7 +164,9 @@ def report(
                     if found:
                         reviews[found] = path.resolve()
                     key = ("doc", (str(path.resolve()),))
-                    specs.setdefault(key, Subscription("doc", key[1], me, interval=1, quiet=20))
+                    old = specs.get(key, Subscription("doc", key[1], me, interval=1, quiet=20))
+                    # reviewers write findings and verdicts in the body, so a Docs row can't turn edits off
+                    specs[key] = dataclasses.replace(old, edits=True)
         elif section.heading.lower() == "docs":
             problems.extend(doc_table.parse(section.body)[1])
         elif section.heading.lower() == "lemons":

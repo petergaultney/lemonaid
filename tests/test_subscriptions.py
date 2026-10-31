@@ -52,7 +52,7 @@ def test_bad_legacy_lines_do_not_hide_tables_files_or_children(tmp_path):
         ("file", (str(tmp_path / "source"),)),
         ("briefs", ("task.IndexElf",)),
     }
-    assert next(s for s in reading.specs if s.kind == "doc").edits is False
+    assert next(s for s in reading.specs if s.kind == "doc").edits is True
     assert next(s for s in reading.specs if s.kind == "pr").head == ""
     assert next(s for s in reading.specs if s.kind == "briefs").to == frozenset({"merge", "done"})
 
@@ -116,6 +116,16 @@ def test_a_pr_row_whose_review_doc_is_the_briefs_output_is_the_reviewers(tmp_pat
     [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
 
     assert spec.role == "reviewer"
+
+
+def test_a_review_doc_listed_for_relay_comments_still_wakes_for_body_edits(tmp_path):
+    doc = tmp_path / "docket.md"
+    text = _with_pr_row(shared.BRIEF, "https://github.com/o/r/pull/12", f"[doc]({doc})")
+    text = doc_table.add(text, doc, "PR review conversation", doc_table.Watch.RELAY_COMMENTS)
+
+    [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "doc"]
+
+    assert spec.edits
 
 
 def test_an_explicit_role_wins(tmp_path):
