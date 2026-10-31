@@ -68,3 +68,17 @@ def test_held_by_includes_tasks_the_brief_answers_for_and_leaves_out_closed_ones
 def test_holder_must_be_tagged(text):
     with pytest.raises(ValueError):
         ids.holder(text)
+
+
+def test_only_the_holder_acknowledges_and_a_repeat_changes_nothing():
+    with db.connect() as conn:
+        task = new_task(conn)
+        with pytest.raises(ValueError), ledger.transaction(conn):
+            holding.acknowledge(conn, task, 1, "Work.bravo", "a0", 1.0)
+        with ledger.transaction(conn):
+            first = holding.acknowledge(conn, task, 1, "Work.alpha", "a1", 2.0)
+            again = holding.acknowledge(conn, task, 2, "Work.alpha", "a2", 3.0)
+
+        assert (first["acknowledged"], again["acknowledged"]) == ("now", "already")
+        assert ledger.state(conn, task)["acknowledged_at"] == 2.0
+        assert len(ledger.history(conn, task)) == 2

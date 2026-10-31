@@ -45,6 +45,22 @@ def tell_taken(task: ty.Mapping[str, ty.Any], taken_from: str, new_holder: str, 
     return f"task:{task['task_id']} was taken from {former}; it has been told"
 
 
+def tell_holder(task: ty.Mapping[str, ty.Any], new_holder: str, actor: str, reason: str) -> str:
+    """Queue a message for a running brief a task was just assigned to; returns a line."""
+    to = new_holder.removeprefix("brief:")
+    body = (
+        f"You now hold task:{task['task_id']} ({task['description']}), assigned by"
+        f" {actor or 'lemonaid'}: {reason}. Once you have read it and accept it, run"
+        f" `lemonaid task acknowledge {task['task_id']}`."
+    )
+    try:
+        store.send(store.inbox_for_id(to), body, actor or "lemonaid")
+    except (ValueError, OSError) as error:
+        return f"telling {to} about task:{task['task_id']} failed: {error}"
+
+    return f"{to} has been told it holds task:{task['task_id']}"
+
+
 def notice(
     conn: sqlite3.Connection, result: ty.Mapping[str, ty.Any], new_holder: str, actor: str
 ) -> str:

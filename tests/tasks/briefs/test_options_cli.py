@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 import lemonaid.tasks.briefs.ensure_cli
+import lemonaid.tasks.cli
 from lemonaid.brief import identity, write_cli
 from lemonaid.inbox import db
 from lemonaid.messages import store
@@ -46,6 +47,10 @@ def _repair(capsys, error: str) -> dict:
 
 def _as(monkeypatch, caller: str) -> None:
     monkeypatch.setattr(options_cli, "caller", lambda _conn: caller)
+
+
+def _unwritable(*_args):
+    raise OSError("read-only file system")
 
 
 def _broken(*_args):
@@ -309,3 +314,45 @@ def test_repairing_a_live_attached_brief_keeps_its_clock_running(capsys, monkeyp
 
     with db.connect() as conn:
         assert ledger.state(conn, repaired["task_id"])["attached_at"] is not None
+
+
+def test_assigning_to_a_running_brief_starts_its_clock_and_tells_it(capsys):
+    running = _attached(capsys, "--no-task", "on call", "Running reviewer")
+    with db.connect() as conn:
+        work = new_task(conn, brief_id=_PARENT, sponsor="")
+    parser = argparse.ArgumentParser()
+    lemonaid.tasks.cli.setup_parser(parser.add_subparsers())
+
+    assigned = _parsed(
+        capsys,
+        parser,
+        ["task", "assign", work, "--to", running["lemon_id"], "--reason", "ready", "--json"],
+    )
+
+    with db.connect() as conn:
+        assert ledger.state(conn, work)["attached_at"] is not None
+    told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
+    assert len(told) == 1 and f"lemonaid task acknowledge {work}" in told[0]
+    assert "has been told it holds" in assigned["notice"]
+
+
+def test_a_failed_message_to_a_running_recipient_still_marks_the_assignment_as_messaged(
+    capsys, monkeypatch
+):
+    running = _attached(capsys, "--no-task", "on call", "Unreachable reviewer")
+    with db.connect() as conn:
+        work = new_task(conn, brief_id=_PARENT, sponsor="")
+    parser = argparse.ArgumentParser()
+    lemonaid.tasks.cli.setup_parser(parser.add_subparsers())
+    monkeypatch.setattr(store, "send", _unwritable)
+
+    assigned = _parsed(
+        capsys,
+        parser,
+        ["task", "assign", work, "--to", running["lemon_id"], "--reason", "ready", "--json"],
+    )
+
+    with db.connect() as conn:
+        last = ledger.history(conn, work)[-1]
+    assert (last["kind"], last["data"]["delivery"]) == ("assigned", "message")
+    assert "failed" in assigned["notice"]

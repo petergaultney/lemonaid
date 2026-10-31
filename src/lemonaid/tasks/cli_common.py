@@ -10,6 +10,7 @@ import uuid
 from collections import abc
 
 from .. import brief
+from ..brief import attached, lemon
 from .model import identities, ids, ledger
 
 
@@ -49,6 +50,12 @@ def actor(conn: sqlite3.Connection, channel: str = "") -> str:
         return brief.lemon.own_id(conn, channel)
     except (LookupError, ValueError, brief.store.ChangedUnderneath):
         return "cli"
+
+
+def running(conn: sqlite3.Connection, brief_id: str) -> bool:
+    """Whether a lemon has *brief_id*'s brief now, not a window still waiting for one."""
+    path = lemon.brief_of(conn, brief_id)
+    return any(a.channel for a in attached.for_paths(conn, [path])) if path else False
 
 
 def task_id(text: str) -> str:
