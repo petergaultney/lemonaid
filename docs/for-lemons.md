@@ -1194,6 +1194,10 @@ Older labelled bullets and `### Next`, `### Done`, `### PRs`, and `### Docs` ins
 remain readable. `### Running` names a long process and its tmux session:window. `Needs` may name who it needs (`Needs you`); readers show it first
 whatever order you write, and show the live state of any `PR #N` or pull-request URL you mention when the user has configured `[brief] pr_state`.
 
+## Tasks
+
+With `[tasks] enabled = true`, each brief made with `brief new` holds a task, takes an existing one (`--task TASK_ID` for a reviewer; add `--observe` to link without taking it), or records why it has none (`--no-task REASON`). `lemonaid task assign TASK_ID --to BRIEF` hands a task on; anyone may take one, and its former holder is told. Its JSON output adds `disposition` and `task_id`. When your session starts, its context lists your open tasks; run `lemonaid task acknowledge TASK_ID` once you have read and accepted an assignment. `lemonaid task list --holder self --json` lists what you hold, and `lemonaid task list --tree self --json` what your lemon tree holds or specifies. See `docs/tasks.md`.
+
 ## Lemon-to-lemon messages
 
 With a brief attached to the recipient's channel, `lemonaid tell <lemon-id-or-channel-or-brief>

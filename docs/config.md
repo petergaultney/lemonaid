@@ -769,6 +769,16 @@ autoresume_window = "20m"
 
 When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no inbox waiter, it starts that lemon on a prompt to read its inbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
 
+## `[tasks]`
+
+```toml
+[tasks]
+enabled = false
+existing_task_templates = ["review"]  # these must name the work's existing task
+```
+
+With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. See [tasks](tasks.md).
+
 ## `[claude.statusline]`
 
 Read by `lemonaid-claude-statusline` on each render.
