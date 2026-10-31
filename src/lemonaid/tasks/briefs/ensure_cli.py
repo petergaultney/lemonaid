@@ -1,14 +1,15 @@
 """`lemonaid brief task ensure`: record a brief's task disposition if it has none."""
 
 import argparse
+import sys
 import time
 
-from ...brief import attached, lemon
+from ...brief import lemon
 from ...inbox import db
 from ...lineage import links
 from .. import cli_common
 from ..model import ledger
-from . import options_cli, registration
+from . import notices, options_cli, registration
 
 
 def _title(text: str) -> str:
@@ -28,12 +29,13 @@ def _cmd_ensure(args: argparse.Namespace) -> None:
 
                 found = {**existing, "created": False}
             else:
-                live = any(a.channel for a in attached.for_paths(conn, [path])) if path else False
+                live = cli_common.running(conn, brief_id)
+                actor = options_cli.caller(conn)
                 planned = options_cli.plan(
                     conn,
                     args,
                     sponsor=sponsor,
-                    actor=options_cli.caller(conn),
+                    actor=actor,
                     enabled=True,
                     template="",
                     existing_task_templates=(),
@@ -43,6 +45,8 @@ def _cmd_ensure(args: argparse.Namespace) -> None:
                 found = registration.ensure(
                     conn, planned, brief_id, sponsor, title or brief_id, time.time()
                 )
+                if said := notices.notice(conn, found, f"brief:{brief_id}", actor):
+                    print(said, file=sys.stderr)
         except cli_common.Failed as error:
             cli_common.fail(args, str(error))
         except (ValueError, ledger.RequestReused, OSError) as error:

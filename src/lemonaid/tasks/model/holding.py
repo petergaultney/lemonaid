@@ -64,11 +64,14 @@ def assign(
     actor: str,
     request_id: str,
     at: float,
+    *,
+    delivery: str = "",
 ) -> dict[str, ty.Any]:
     """Make *to* the holder now; the current holder becomes the previous one.
 
     Anyone may assign a task. When *actor* isn't its holder, `taken_from` names the holder
-    it was taken from, who should be told.
+    it was taken from, who should be told. *delivery* is `message` when a running holder
+    learns of the assignment from a queued message rather than its launch context.
     """
     current = ledger.state(conn, task)
     if current is None:
@@ -82,7 +85,13 @@ def assign(
         task,
         expected,
         "assigned",
-        {"holder": new_holder, "reason": reason, "attached": attached, "taken_from": taken_from},
+        {
+            "holder": new_holder,
+            "reason": reason,
+            "attached": attached,
+            "taken_from": taken_from,
+            "delivery": delivery,
+        },
         actor,
         request_id,
         at,
@@ -113,6 +122,33 @@ def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> li
     for task, revision in waiting:
         ledger.append(conn, task, revision, "attached", {}, actor, f"attach:{task}:{revision}", at)
     return [task for task, _ in waiting]
+
+
+def acknowledge(
+    conn: sqlite3.Connection, task: str, expected: int, actor: str, request_id: str, at: float
+) -> dict[str, ty.Any]:
+    """Accept the current assignment; acknowledging it again changes nothing."""
+    current = ledger.state(conn, task)
+    if current is None:
+        raise LookupError(f"no task:{task}")
+
+    if current["holder"] not in {f"brief:{n}" for n in identities.names(conn, actor)}:
+        raise ValueError(f"task:{task} is held by {current['holder']}, not {actor}")
+
+    if current["acknowledged_at"] is not None:
+        return {"task_id": task, "revision": current["revision"], "acknowledged": "already"}
+
+    _, state = ledger.append(
+        conn,
+        task,
+        expected,
+        "acknowledged",
+        {"assignment_event_id": current["assignment_event_id"]},
+        actor,
+        request_id,
+        at,
+    )
+    return {"task_id": task, "revision": state["revision"], "acknowledged": "now"}
 
 
 def held_by(conn: sqlite3.Connection, brief_id: str) -> list[dict[str, ty.Any]]:

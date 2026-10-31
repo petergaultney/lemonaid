@@ -80,6 +80,20 @@ def test_acknowledgment_grace_starts_at_delivery_for_a_running_holder():
     assert _kinds(records) == [("ok",), ("recheck",)]
 
 
+def test_a_message_assignment_is_never_challenged_before_its_delivery():
+    sent = {
+        "assignment.acknowledged_at": "",
+        "assignment.attached_at": "2026-10-31T10:00:00Z",
+        "assignment.delivery": "message",
+    }
+
+    queued = _evaluate([task(**sent)], idle())
+    read = _evaluate([task(**sent, **{"assignment.delivered_at": "2026-10-31T10:01:00Z"})], idle())
+
+    assert _kinds(queued) == [("unknown",)]
+    assert _kinds(read) == [("challenge", "acknowledge")]
+
+
 def test_recently_idle_holder_is_rechecked_not_challenged():
     records = _evaluate([task()], idle(since="2026-10-31T11:59:00Z"))
 

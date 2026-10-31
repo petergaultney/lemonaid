@@ -81,7 +81,11 @@ def _acknowledgment(
             )
         ]
 
-    start = task.get("assignment.delivered_at") or task["assignment.attached_at"]
+    start = task.get("assignment.delivered_at")
+    if not start and task.get("assignment.delivery") == "message":
+        raise settings.Unknown("the assignment message hasn't been delivered yet")
+
+    start = start or task["assignment.attached_at"]
     due = checker_input.timestamp(start) + policy.ack_grace
     if due > policy.now or settings.fact(view, "lemon", brief, "activity") == "active":
         return [
