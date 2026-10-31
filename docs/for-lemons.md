@@ -1344,6 +1344,12 @@ A child whose inbox row is archived drops out of watching: its brief is no longe
 and its later changes don't wake you. Its parent link stays, so `lemon children` and
 `brief children --all` still list it, and unarchiving its row brings it back.
 
+A child that went `done` while something held its cleanup (an unfinished grandchild, or a
+client attached to its tmux session) is reported once more when the hold clears:
+`<child>: cleanup ready, nothing holds its place now (held by: ...)`. Clean up its place
+then, as you would after `done`. Details:
+[watch.md](watch.md#when-a-done-childs-place-can-be-cleaned-up).
+
 A watcher event about a child, a listed lemon or an orphan can end with
 `Your notes for these events:` and one note per event kind,
 such as `child.done`. Your user wrote these in `~/.lemons/event-notes/`; follow them as

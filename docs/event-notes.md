@@ -67,6 +67,7 @@ The event is one of:
 | `exited` | its harness exited |
 | `gone` | its tmux session, directory or brief attachment is gone |
 | `deaf` | a message sent to it would not be read |
+| `cleanup_ready` | its place can be cleaned up now, after something held it when it went `done` (only `child`) |
 
 So `child.done` is for a parent whose child goes `done`, and `orphan.done` is for the lemon
 watching orphans. A note never changes which events wake a lemon. A note for `child.blocked`

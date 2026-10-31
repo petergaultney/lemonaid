@@ -32,6 +32,10 @@ def problem(origin: str, kind: str) -> str:
     return f"{origin}.{kind}"
 
 
+def cleanup_ready(origin: str) -> str:
+    return f"{origin}.cleanup_ready"
+
+
 def _described() -> dict[str, str]:
     found: dict[str, str] = {}
     for origin, who in ORIGINS.items():
@@ -42,6 +46,9 @@ def _described() -> dict[str, str]:
         found[needs(origin)] = f"{who.capitalize()} has a new or changed Needs ask"
         for kind, what in _PROBLEMS.items():
             found[problem(origin, kind)] = f"{who.capitalize()}: {what}"
+    found[cleanup_ready("child")] = (
+        "Your done child's place can be cleaned up now; something held it when it went done"
+    )
     return found
 
 
