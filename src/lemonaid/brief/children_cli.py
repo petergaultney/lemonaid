@@ -32,13 +32,23 @@ def _tmux_lines(*argv: str) -> list[str] | None:
     return result.stdout.splitlines()
 
 
-def _world() -> child_place.World:
+def holds_world() -> child_place.World:
+    """Sessions and their clients, without places: all that a child's cleanup holds depend on."""
     sessions = _tmux_lines("list-sessions", "-F", "#{session_name}")
     clients = _tmux_lines("list-clients", "-F", "#{client_session}")
-    config = load_config()
     return child_place.World(
         sessions=set(sessions) if sessions is not None else None,
         clients=collections.Counter(clients) if clients is not None else None,
+        places=(),
+        panes={},
+        roots=(),
+    )
+
+
+def _world() -> child_place.World:
+    config = load_config()
+    return dataclasses.replace(
+        holds_world(),
         places=ownership.managed_places(config),
         panes=ownership.pane_paths(),
         roots=config.places.roots,

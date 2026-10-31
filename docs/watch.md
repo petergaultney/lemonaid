@@ -395,6 +395,23 @@ does not check which statuses the waiter wakes on.
 A report can end with your own [event notes](event-notes.md), one for each kind of event in it,
 such as `child.done` for a child entering `done`.
 
+### When a done child's place can be cleaned up
+
+A child can go `done` while something still holds its place: one of its own children not
+yet `done`, or, for a lemon in tmux, a client attached to its session (`lemonaid brief
+children` shows these as `cleanup held: ...`). The waiter then reports the child once more, when nothing holds it:
+
+```text
+fix-auth.AceJot: cleanup ready, nothing holds its place now (held by: a client is attached to fix-auth); Status: done (/Users/me/.lemons/brief/2026-10-21-fix-auth.md)
+```
+
+This needs `done` among the statuses that wake the waiter, and comes only for children, not
+listed lemons or orphans. A child whose cleanup was ready when it went `done`, or that is
+cleaned up already, gets no second report. The waiter checks held children every 30 seconds,
+and only while one is held. A child in tmux is checked only when tmux reports its sessions
+and clients; a child outside tmux is checked on its descendants alone. Its event-note kind is
+`child.cleanup_ready`.
+
 ### Also watching briefs no live lemon owns
 
 `--orphans` adds every attached brief that has no parent link, or whose parent's session is

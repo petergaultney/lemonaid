@@ -13,7 +13,7 @@ from ..brief import archive, lemon, lemon_table, status, store
 from ..inbox import db
 from ..lineage import links
 from ..log import get_logger
-from . import briefs_orphans, delivery, kinds, lemon_liveness, needs_text, notes
+from . import briefs_orphans, cleanup_ready, delivery, kinds, lemon_liveness, needs_text, notes
 
 _log = get_logger("watch.briefs")
 
@@ -136,6 +136,7 @@ class BriefsWatch:
     pending_since: float
     to: frozenset[str]
     tracker: lemon_liveness.Tracker
+    cleanup: cleanup_ready.Tracker
     orphans: bool = False
     rows: tuple[lemon_table.Row, ...] = ()
     needs: bool = False  # a changed Needs wakes, as it does with `orphans`
@@ -171,6 +172,7 @@ def open_watch(
         time.monotonic(),
         to,
         tracker,
+        cleanup_ready.open_tracker(stem.with_suffix(".cleanup.json")),
         orphans,
         rows,
         needs,
@@ -250,7 +252,19 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
         else {}
     )
     stopped = lemon_liveness.due(w.tracker, seen.problems, w.quiet, time.monotonic())
-    if not changed and not stopped:
+    ready = cleanup_ready.due(
+        w.cleanup,
+        w.parent,
+        {
+            child
+            for child, mark in current.items()
+            if seen.origins[child] == "child"
+            and mark.status == "done"
+            and "done" in (seen.explicit[child].wake if child in seen.explicit else w.to)
+        },
+        time.time(),
+    )
+    if not changed and not stopped and not ready:
         return False
 
     present = [
@@ -260,6 +274,7 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
             for kind in _kinds(seen.origins[child], w.reported.get(child), mark)
         ),
         *(kinds.problem(seen.origins[child], problem.kind) for child, problem in stopped.items()),
+        *(kinds.cleanup_ready("child") for _ in ready),
     ]
     deliver(
         "\n".join(
@@ -270,6 +285,11 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
                     f" ({current[child].path})"
                     for child, problem in stopped.items()
                 ),
+                *(
+                    f"{child}: cleanup ready, nothing holds its place now (held by: "
+                    f"{', '.join(reasons)}); Status: done ({current[child].path})"
+                    for child, reasons in ready.items()
+                ),
                 *filter(None, [notes.appendix(present, w.read_notes())]),
             ]
         )
@@ -279,4 +299,5 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
         w.reported = w.reported | current
         _save(w.reported_path, w.reported)
     lemon_liveness.commit(w.tracker, stopped)
+    cleanup_ready.commit(w.cleanup, ready)
     return True
