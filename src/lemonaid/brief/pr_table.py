@@ -134,3 +134,14 @@ def without(body: abc.Sequence[str], ref: str) -> list[str]:
         raise ValueError(f"Several rows in ### PRs are #{number}; name the PR by its URL")
 
     return render([row for i, row in enumerate(rows) if i != matches[0]])
+
+
+def with_review(body: abc.Sequence[str], url: str, review: str) -> abc.Sequence[str]:
+    """*body* with *review* in the Review cell of the PR's row, if it has a row and that cell is empty."""
+    rows, problems = parse(body)
+    found = pr.repo_and_number(url)
+    at = next((i for i, row in enumerate(rows) if target(row.pr) == found), None)
+    if problems or at is None or rows[at].review:
+        return body
+
+    return render([*rows[:at], dataclasses.replace(rows[at], review=review), *rows[at + 1 :]])

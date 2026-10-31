@@ -23,7 +23,7 @@ from lemonaid.brief import (
 )
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.rows import pr_numbers
-from lemonaid.watch import signature
+from lemonaid.watch import signature, subscriptions
 
 _PARENT = "hq.BlessBar"
 _PR = "https://github.com/acme/widgets/pull/12"
@@ -304,3 +304,76 @@ def test_the_review_template_hides_its_lemon_in_the_frontmatter(capsys, parent, 
     text = Path(result["path"]).read_text()
     assert frontmatter.fields(text)["hidden"] is True
     assert hidden.is_hidden(text)
+
+
+def _review_child(capsys, doc: Path) -> dict:
+    return _run(
+        capsys,
+        "--child",
+        "--template",
+        "review",
+        "--parent",
+        _PARENT,
+        "--pr",
+        _PR,
+        "--output-doc",
+        str(doc),
+        "Review widgets #12",
+    )
+
+
+def test_a_reviewer_brief_names_its_doc_in_the_parents_row_for_the_pr(capsys, parent, tmp_path):
+    vault = tmp_path / "notes"
+    (tmp_path / "config.toml").write_text(f'[brief]\nvaults = ["{vault}"]\n')
+    doc = vault / "reviews" / "widgets-12.md"
+    parent.write_text(
+        parent.read_text()
+        + f"\n## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n| Widgets | [widgets#12]({_PR}) | |\n"
+    )
+
+    _review_child(capsys, doc)
+
+    text = parent.read_text()
+    assert "| [widgets-12](obsidian://open?vault=notes&file=reviews%2Fwidgets-12) |" in text
+    [spec] = [s for s in subscriptions.read(text, tmp_path, vaults=(vault,)) if s.kind == "doc"]
+    assert spec.target == (str(doc),) and spec.edits
+
+
+def test_a_reviewer_brief_keeps_a_review_doc_the_parent_already_names(capsys, parent, tmp_path):
+    row = f"| Widgets | [widgets#12]({_PR}) | [older](/elsewhere/older.md) |"
+    parent.write_text(
+        parent.read_text()
+        + f"\n## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n{row}\n"
+    )
+    before = parent.read_text()
+
+    _review_child(capsys, tmp_path / "widgets-12.md")
+
+    assert parent.read_text() == before
+
+
+def test_a_reviewer_brief_names_its_doc_in_an_author_named_by_brief_path(capsys, parent, tmp_path):
+    rows = f"\n## Now\n\n### PRs\n\n| Work | PR | Review |\n|---|---|---|\n| Widgets | [widgets#12]({_PR}) | |\n"
+    author = parent.parent / "2026-09-02-widget.md"
+    author.write_text(f"# widget\n\nLemon-ID: widget.QuickOdd\n{rows}")
+    doc = tmp_path / "widgets-12.md"
+
+    _run(
+        capsys,
+        *("--child", "--template", "review", "--parent", _PARENT, "--pr", _PR),
+        *("--output-doc", str(doc), "--author", str(author), "Review widgets #12"),
+    )
+
+    assert f"| [widgets#12]({_PR}) | `{doc}` |" in author.read_text()
+
+
+def test_an_author_that_names_no_lemon_is_reported(capsys, parent, tmp_path):
+    err: list[str] = []
+    _run(
+        capsys,
+        *("--child", "--template", "review", "--parent", _PARENT, "--pr", _PR),
+        *("--output-doc", str(tmp_path / "d.md"), "--author", "nobody.NoSuch", "Review it"),
+        err=err,
+    )
+
+    assert "--author nobody.NoSuch names no lemon" in err[0]

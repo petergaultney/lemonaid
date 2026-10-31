@@ -14,7 +14,7 @@ from .. import groups, home
 from ..config import load_config
 from ..inbox import db
 from ..watch import children_waiter
-from . import child, created, frontmatter, identity, lemon, name_words_cli, store
+from . import child, created, frontmatter, identity, lemon, name_words_cli, review_link, store
 
 
 def _responsible(conn: sqlite3.Connection, parent_id: str) -> tuple[str, ...]:
@@ -107,6 +107,16 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
         path.unlink(missing_ok=True)
         raise
 
+    if "pr_url" in values and "output_doc_link" in values:
+        linked = review_link.link(
+            (parent[0], args.author), values["pr_url"], values["output_doc_link"]
+        )
+        for brief in linked.briefs:
+            print(f"{brief}: {values['pr_label']}'s Review is now {output_doc}", file=sys.stderr)
+        for target in linked.unknown:
+            print(
+                f"--author {target} names no lemon, so its PR row was left alone", file=sys.stderr
+            )
     name_words_cli.report(words, lemon_id)
     return path, lemon_id, parent[0]
 
