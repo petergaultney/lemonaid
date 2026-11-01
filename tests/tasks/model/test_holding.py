@@ -82,3 +82,15 @@ def test_only_the_holder_acknowledges_and_a_repeat_changes_nothing():
         assert (first["acknowledged"], again["acknowledged"]) == ("now", "already")
         assert ledger.state(conn, task)["acknowledged_at"] == 2.0
         assert len(ledger.history(conn, task)) == 2
+
+
+def test_assigning_a_closed_task_keeps_it_closed():
+    with db.connect() as conn:
+        task = new_task(conn)
+        with ledger.transaction(conn):
+            lifecycle.close(conn, task, 1, "finished", "x", "close", 1.0)
+            holding.assign(
+                conn, task, 2, "brief:Other.one", "move the record", False, "x", "a", 2.0
+            )
+
+        assert ledger.state(conn, task)["lifecycle"] == "closed"

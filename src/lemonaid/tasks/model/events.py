@@ -71,6 +71,13 @@ def _changes(state: State, event: Event) -> State:
                 "assigned_at": event["at"],
                 "attached_at": event["at"] if data.get("attached") else None,
                 "acknowledged_at": None,
+                "lifecycle": (
+                    state["lifecycle"]
+                    if state["lifecycle"] == "closed"
+                    else "check"
+                    if data.get("check")
+                    else "open"
+                ),
             }
         case "attached":
             return {"attached_at": state["attached_at"] or event["at"]}

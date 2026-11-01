@@ -12,11 +12,11 @@ import pytest
 
 import lemonaid.tasks.briefs.ensure_cli
 import lemonaid.tasks.cli
-from lemonaid.brief import identity, write_cli
+from lemonaid.brief import identity, verbs_cli, write_cli
 from lemonaid.inbox import db
 from lemonaid.messages import store
 from lemonaid.tasks.briefs import options_cli, planning
-from lemonaid.tasks.model import associations, dependencies, holding, ledger, tree
+from lemonaid.tasks.model import associations, dependencies, holding, ledger, lifecycle, tree
 
 from ..shared import new_task
 
@@ -333,7 +333,7 @@ def test_assigning_to_a_running_brief_starts_its_clock_and_tells_it(capsys):
         assert ledger.state(conn, work)["attached_at"] is not None
     told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
     assert len(told) == 1 and f"lemonaid task acknowledge {work}" in told[0]
-    assert "has been told it holds" in assigned["notice"]
+    assert f"{running['lemon_id']} has been told" in assigned["notice"]
 
 
 def test_a_failed_message_to_a_running_recipient_still_marks_the_assignment_as_messaged(
@@ -356,3 +356,39 @@ def test_a_failed_message_to_a_running_recipient_still_marks_the_assignment_as_m
         last = ledger.history(conn, work)[-1]
     assert (last["kind"], last["data"]["delivery"]) == ("assigned", "message")
     assert "failed" in assigned["notice"]
+
+
+def test_done_is_refused_while_the_brief_holds_an_open_task(capsys):
+    child = _attached(capsys, "Finish me")
+    parser = argparse.ArgumentParser()
+    verbs_cli.add_parsers(parser.add_subparsers())
+
+    def done() -> dict:
+        return _parsed(capsys, parser, ["status", "--channel", "claude:worker", "done", "--json"])
+
+    refused = done()
+    with db.connect() as conn, ledger.transaction(conn):
+        lifecycle.close(conn, child["task_id"], 1, "finished", "x", "close", 1.0)
+    accepted = done()
+
+    assert refused["open_tasks"] == [child["task_id"]]
+    assert f"lemonaid task close {child['task_id']}" in refused["error"]
+    assert accepted["error"] is None
+
+
+def test_creating_a_task_for_a_running_brief_tells_it(capsys):
+    running = _attached(capsys, "--no-task", "on call", "Busy one")
+    parser = argparse.ArgumentParser()
+    lemonaid.tasks.cli.setup_parser(parser.add_subparsers())
+    argv = ["--brief", running["lemon_id"], "--assign", running["lemon_id"], "--description", "x"]
+
+    created = _parsed(capsys, parser, ["task", "create", *argv, "--json"])
+
+    with db.connect() as conn:
+        state = ledger.state(conn, created["task_id"])
+        made = ledger.history(conn, created["task_id"])[0]["data"]
+    assert state["attached_at"] is not None and made["delivery"] == "message"
+    told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
+    assert len(told) == 1 and created["message_id"] in [
+        p.stem.split("-", 1)[1] for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")
+    ]

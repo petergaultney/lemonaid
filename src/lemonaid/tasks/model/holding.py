@@ -26,12 +26,15 @@ def create(
     actor: str,
     request_id: str,
     at: float,
+    delivery: str = "",
 ) -> dict[str, ty.Any]:
-    """A new task held by *holder_brief_id*; a different *spec_brief_id* observes it."""
+    """A new task held by *holder_brief_id*; a different *spec_brief_id* observes it.
+    *delivery* is as for `assign`."""
     if not description.strip() or "\n" in description:
         raise ValueError("a task description is one nonempty line")
 
     new_id = str(uuid.uuid4())
+    message_id = f"task-{new_id}-r1" if delivery == "message" else ""
     event_id, state = ledger.create(
         conn,
         new_id,
@@ -43,6 +46,8 @@ def create(
             "subject_url": ids.subject_url(subject_url_text),
             "checker_id": checker_id,
             "attached": attached,
+            "delivery": delivery,
+            "message_id": message_id,
         },
         actor,
         request_id,
@@ -51,7 +56,7 @@ def create(
     associations.record_link(conn, holder_brief_id, new_id, "holder", event_id)
     if spec_brief_id != holder_brief_id:
         associations.record_link(conn, spec_brief_id, new_id, "observer", event_id)
-    return {"task_id": new_id, "revision": state["revision"]}
+    return {"task_id": new_id, "revision": state["revision"], "message_id": message_id}
 
 
 def assign(
@@ -66,18 +71,32 @@ def assign(
     at: float,
     *,
     delivery: str = "",
+    accountable: str = "",
+    recheck_at: str = "",
+    check: bool = False,
 ) -> dict[str, ty.Any]:
-    """Make *to* the holder now; the current holder becomes the previous one.
+    """Make *to* the holder now; the current holder becomes the previous one. With
+    *check*, the task waits for *to* to check finished work, and *to* may close it.
 
     Anyone may assign a task. When *actor* isn't its holder, `taken_from` names the holder
     it was taken from, who should be told. *delivery* is `message` when a running holder
-    learns of the assignment from a queued message rather than its launch context.
+    learns of the assignment from a queued message, named by the returned `message_id`,
+    rather than from its launch context. A human holder needs the *accountable* brief that
+    exposes the request; an external one also needs a *recheck_at* time.
     """
     current = ledger.state(conn, task)
     if current is None:
         raise LookupError(f"no task:{task}")
 
     new_holder = ids.holder(to)
+    if not new_holder.startswith("brief:"):
+        if not accountable:
+            raise ValueError(f"{new_holder} needs an accountable brief")
+
+        if new_holder.startswith("external:") and not recheck_at:
+            raise ValueError(f"{new_holder} needs a recheck time")
+
+    message_id = f"task-{task}-r{expected + 1}" if delivery == "message" else ""
     ours = {f"brief:{n}" for n in identities.names(conn, actor)} | {new_holder}
     taken_from = "" if current["holder"] in ours else current["holder"]
     event_id, state = ledger.append(
@@ -91,6 +110,10 @@ def assign(
             "attached": attached,
             "taken_from": taken_from,
             "delivery": delivery,
+            "message_id": message_id,
+            "accountable_brief_id": accountable,
+            "recheck_at": recheck_at,
+            "check": check,
         },
         actor,
         request_id,
@@ -104,6 +127,8 @@ def assign(
         "holder": new_holder,
         "previous_holder": state["previous_holder"],
         "taken_from": taken_from,
+        "previous_accountable": current["accountable_brief_id"],
+        "message_id": message_id,
     }
 
 
@@ -114,7 +139,7 @@ def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> li
     waiting = [
         (row["task_id"], row["revision"])
         for row in conn.execute(
-            "SELECT task_id, revision FROM tasks WHERE lifecycle = 'open' AND attached_at IS NULL"
+            "SELECT task_id, revision FROM tasks WHERE lifecycle != 'closed' AND attached_at IS NULL"
             f" AND holder IN ({identities.placeholders(holders)})",
             holders,
         )
@@ -159,7 +184,7 @@ def held_by(conn: sqlite3.Connection, brief_id: str) -> list[dict[str, ty.Any]]:
     return [
         dict(row)
         for row in conn.execute(
-            "SELECT * FROM tasks WHERE lifecycle = 'open'"
+            "SELECT * FROM tasks WHERE lifecycle != 'closed'"
             f" AND (holder IN ({marks}) OR accountable_brief_id IN ({marks})) ORDER BY created_at",
             [*(f"brief:{n}" for n in names), *names],
         )

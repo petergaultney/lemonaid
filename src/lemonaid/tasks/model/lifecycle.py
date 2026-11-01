@@ -6,7 +6,7 @@ These run inside a caller's `ledger.transaction`.
 import sqlite3
 import typing as ty
 
-from . import ids, ledger
+from . import dependencies, ids, ledger
 
 
 def set_url(
@@ -35,3 +35,79 @@ def set_url(
         at,
     )
     return {"task_id": task, "revision": state["revision"], "previous_url": previous}
+
+
+def result(
+    conn: sqlite3.Connection,
+    task: str,
+    expected: int,
+    evidence: str,
+    actor: str,
+    request_id: str,
+    at: float,
+) -> dict[str, ty.Any]:
+    """Record a result without closing the task."""
+    if not evidence.strip():
+        raise ValueError("a result needs evidence: a commit, PR, document or brief reference")
+
+    _, state = ledger.append(
+        conn, task, expected, "result", {"evidence": evidence.strip()}, actor, request_id, at
+    )
+    return {"task_id": task, "revision": state["revision"]}
+
+
+def close(
+    conn: sqlite3.Connection,
+    task: str,
+    expected: int,
+    reason: str,
+    actor: str,
+    request_id: str,
+    at: float,
+) -> dict[str, ty.Any]:
+    """Close the task and release every task waiting for it; returns those as `released`."""
+    current = ledger.state(conn, task)
+    if current is None:
+        raise LookupError(f"no task:{task}")
+
+    if current["lifecycle"] == "closed":
+        raise ValueError(f"task:{task} is already closed")
+
+    if not reason.strip():
+        raise ValueError("closing a task needs a reason")
+
+    _, state = ledger.append(
+        conn, task, expected, "closed", {"reason": reason.strip()}, actor, request_id, at
+    )
+    return {
+        "task_id": task,
+        "revision": state["revision"],
+        "holder": state["holder"],
+        "released": dependencies.release(conn, task, actor, request_id, at),
+    }
+
+
+def reopen(
+    conn: sqlite3.Connection,
+    task: str,
+    expected: int,
+    reason: str,
+    actor: str,
+    request_id: str,
+    at: float,
+) -> dict[str, ty.Any]:
+    """Reopen a closed task with its last holder; released dependencies stay released."""
+    current = ledger.state(conn, task)
+    if current is None:
+        raise LookupError(f"no task:{task}")
+
+    if current["lifecycle"] != "closed":
+        raise ValueError(f"task:{task} is already open")
+
+    if not reason.strip():
+        raise ValueError("reopening a task needs a reason")
+
+    _, state = ledger.append(
+        conn, task, expected, "reopened", {"reason": reason.strip()}, actor, request_id, at
+    )
+    return {"task_id": task, "revision": state["revision"], "holder": state["holder"]}

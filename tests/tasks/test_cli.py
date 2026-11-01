@@ -113,19 +113,42 @@ def test_assign_by_the_holder_tells_nobody_and_by_anyone_else_tells_the_holder(c
         assert ledger.consistent(conn, made)
 
 
-def test_assign_refuses_human_and_external_holders_and_takes_one_back(capsys):
+def test_an_external_holder_needs_a_recheck_and_a_human_one_is_answered_for(capsys):
     with db.connect() as conn:
         made = new_task(conn)
         _known(conn, "Work.alpha")
         with ledger.transaction(conn):
-            holding.assign(conn, made, 1, "human:sam", "decide", False, "Work.alpha", "h", 1.0)
+            holding.assign(
+                conn,
+                made,
+                1,
+                "human:sam",
+                "decide",
+                False,
+                "Work.alpha",
+                "h",
+                1.0,
+                accountable="Lead.lead",
+            )
 
-    refused = _run(capsys, "assign", made, "--to", "external:ci", "--reason", "x", "--json")
+    no_recheck = _run(
+        capsys,
+        "assign",
+        made,
+        "--to",
+        "external:ci",
+        "--reason",
+        "x",
+        "--accountable",
+        "Work.alpha",
+        "--json",
+    )
     back = _run(capsys, "assign", made, "--to", "Work.alpha", "--reason", "decided", "--json")
 
-    assert "accountable brief" in refused["error"]
+    assert "recheck" in no_recheck["error"]
     assert back["taken_from"] == "human:sam"
-    assert "tell them yourself" in back["notice"]
+    told = [p.read_text() for p in store.inbox_for_id("Lead.lead").glob("*.md")]
+    assert len(told) == 1 and "taken from human:sam, which you answer for" in told[0]
 
 
 def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch):

@@ -45,7 +45,7 @@ def _cmd_ensure(args: argparse.Namespace) -> None:
                 found = registration.ensure(
                     conn, planned, brief_id, sponsor, title or brief_id, time.time()
                 )
-                if said := notices.notice(conn, found, f"brief:{brief_id}", actor):
+                if said := notices.notice(conn, found, actor):
                     print(said, file=sys.stderr)
         except cli_common.Failed as error:
             cli_common.fail(args, str(error))

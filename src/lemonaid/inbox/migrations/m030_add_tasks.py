@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     recheck_at TEXT NOT NULL,
     checker_id TEXT NOT NULL,
     revision INTEGER NOT NULL,
-    lifecycle TEXT NOT NULL CHECK (lifecycle IN ('open', 'closed')),
+    lifecycle TEXT NOT NULL CHECK (lifecycle IN ('open', 'check', 'closed')),
     assignment_event_id INTEGER NOT NULL,
     assigned_at REAL NOT NULL,
     attached_at REAL,
