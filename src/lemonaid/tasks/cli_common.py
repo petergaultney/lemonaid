@@ -51,12 +51,6 @@ def actor(conn: sqlite3.Connection, channel: str = "") -> str:
         return "cli"
 
 
-def running(conn: sqlite3.Connection, brief_id: str) -> bool:
-    """Whether a lemon has *brief_id*'s brief now, not a window still waiting for one."""
-    path = brief.lemon.brief_of(conn, brief_id)
-    return any(a.channel for a in brief.attached.for_paths(conn, [path])) if path else False
-
-
 def task_id(text: str) -> str:
     try:
         return ids.task_id(text)

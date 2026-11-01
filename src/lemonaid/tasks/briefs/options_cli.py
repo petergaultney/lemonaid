@@ -91,7 +91,11 @@ def conflict(args: argparse.Namespace, existing: ty.Mapping[str, ty.Any]) -> str
 
     match recorded:
         case "holds":
-            return f"the brief already holds task:{existing['task_id']}"
+            return (
+                f"the brief already holds task:{existing['task_id']}; to follow another task"
+                " instead, run `lemonaid task observe TASK_ID`"
+                f" (add `--instead-of {existing['task_id']}` if yours duplicates it)"
+            )
         case "observe":
             return f"the brief already observes task:{existing['task_id']}"
     return f"the brief is already exempt: {existing.get('reason', '')}"

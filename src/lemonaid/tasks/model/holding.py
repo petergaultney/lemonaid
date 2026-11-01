@@ -1,5 +1,5 @@
-"""Who holds a task: creating it with a holder, handing it on, its holder starting and
-acknowledging it, and the open tasks a brief holds.
+"""Who holds a task: creating it with a holder, handing it on, its holder's lemon
+starting, and the open tasks a brief holds.
 
 These run inside a caller's `ledger.transaction`. Brief IDs passed here are already
 resolved to current Lemon-IDs; a holder is a tagged string (`brief:ID`, `human:ID` or
@@ -26,15 +26,12 @@ def create(
     actor: str,
     request_id: str,
     at: float,
-    delivery: str = "",
 ) -> dict[str, ty.Any]:
-    """A new task held by *holder_brief_id*; a different *spec_brief_id* observes it.
-    *delivery* is as for `assign`."""
+    """A new task held by *holder_brief_id*; a different *spec_brief_id* observes it."""
     if not description.strip() or "\n" in description:
         raise ValueError("a task description is one nonempty line")
 
     new_id = str(uuid.uuid4())
-    message_id = f"task-{new_id}-r1" if delivery == "message" else ""
     event_id, state = ledger.create(
         conn,
         new_id,
@@ -46,8 +43,6 @@ def create(
             "subject_url": ids.subject_url(subject_url_text),
             "checker_id": checker_id,
             "attached": attached,
-            "delivery": delivery,
-            "message_id": message_id,
         },
         actor,
         request_id,
@@ -56,7 +51,7 @@ def create(
     associations.record_link(conn, holder_brief_id, new_id, "holder", event_id)
     if spec_brief_id != holder_brief_id:
         associations.record_link(conn, spec_brief_id, new_id, "observer", event_id)
-    return {"task_id": new_id, "revision": state["revision"], "message_id": message_id}
+    return {"task_id": new_id, "revision": state["revision"]}
 
 
 def assign(
@@ -70,7 +65,6 @@ def assign(
     request_id: str,
     at: float,
     *,
-    delivery: str = "",
     accountable: str = "",
     recheck_at: str = "",
     check: bool = False,
@@ -79,9 +73,7 @@ def assign(
     *check*, the task waits for *to* to check finished work, and *to* may close it.
 
     Anyone may assign a task. When *actor* isn't its holder, `taken_from` names the holder
-    it was taken from, who should be told. *delivery* is `message` when a running holder
-    learns of the assignment from a queued message, named by the returned `message_id`,
-    rather than from its launch context. A human holder needs the *accountable* brief that
+    it was taken from, who should be told. A human holder needs the *accountable* brief that
     exposes the request; an external one also needs a *recheck_at* time.
     """
     current = ledger.state(conn, task)
@@ -96,7 +88,6 @@ def assign(
         if new_holder.startswith("external:") and not recheck_at:
             raise ValueError(f"{new_holder} needs a recheck time")
 
-    message_id = f"task-{task}-r{expected + 1}" if delivery == "message" else ""
     ours = {f"brief:{n}" for n in identities.names(conn, actor)} | {new_holder}
     taken_from = "" if current["holder"] in ours else current["holder"]
     event_id, state = ledger.append(
@@ -109,8 +100,6 @@ def assign(
             "reason": reason,
             "attached": attached,
             "taken_from": taken_from,
-            "delivery": delivery,
-            "message_id": message_id,
             "accountable_brief_id": accountable,
             "recheck_at": recheck_at,
             "check": check,
@@ -121,6 +110,8 @@ def assign(
     )
     if new_holder.startswith("brief:"):
         associations.record_link(conn, new_holder.removeprefix("brief:"), task, "holder", event_id)
+    if current["holder"].startswith("brief:") and current["holder"] != new_holder:
+        associations.handed_on(conn, current["holder"].removeprefix("brief:"), task)
     return {
         "task_id": task,
         "revision": state["revision"],
@@ -128,13 +119,12 @@ def assign(
         "previous_holder": state["previous_holder"],
         "taken_from": taken_from,
         "previous_accountable": current["accountable_brief_id"],
-        "message_id": message_id,
     }
 
 
 def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> list[str]:
-    """Start the acknowledgment clock of each open assignment to *brief_id* still waiting
-    for its lemon; returns their task IDs. Resuming an attached brief changes nothing."""
+    """Record that *brief_id*'s lemon started, for each open assignment still waiting for
+    it; returns their task IDs. Resuming an attached brief changes nothing."""
     holders = [f"brief:{name}" for name in identities.names(conn, brief_id)]
     waiting = [
         (row["task_id"], row["revision"])
@@ -147,33 +137,6 @@ def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> li
     for task, revision in waiting:
         ledger.append(conn, task, revision, "attached", {}, actor, f"attach:{task}:{revision}", at)
     return [task for task, _ in waiting]
-
-
-def acknowledge(
-    conn: sqlite3.Connection, task: str, expected: int, actor: str, request_id: str, at: float
-) -> dict[str, ty.Any]:
-    """Accept the current assignment; acknowledging it again changes nothing."""
-    current = ledger.state(conn, task)
-    if current is None:
-        raise LookupError(f"no task:{task}")
-
-    if current["holder"] not in {f"brief:{n}" for n in identities.names(conn, actor)}:
-        raise ValueError(f"task:{task} is held by {current['holder']}, not {actor}")
-
-    if current["acknowledged_at"] is not None:
-        return {"task_id": task, "revision": current["revision"], "acknowledged": "already"}
-
-    _, state = ledger.append(
-        conn,
-        task,
-        expected,
-        "acknowledged",
-        {"assignment_event_id": current["assignment_event_id"]},
-        actor,
-        request_id,
-        at,
-    )
-    return {"task_id": task, "revision": state["revision"], "acknowledged": "now"}
 
 
 def held_by(conn: sqlite3.Connection, brief_id: str) -> list[dict[str, ty.Any]]:

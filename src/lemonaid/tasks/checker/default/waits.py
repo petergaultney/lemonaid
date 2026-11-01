@@ -1,9 +1,11 @@
-"""The default checker's waits: task dependencies, CI, and what happens once they release.
+"""The default checker's waits: task dependencies, CI, what the holder's brief declares,
+and what happens once they release.
 
-A released wait (CI finished, a dependency closed) is the holder's move only after the
-release was delivered to it and the idle grace has passed since; until delivery the holder
-is still waiting to hear. Dependency waits need the child's own latest finding, and a
-dependency cycle is reported once, by the task with the smallest ID in it.
+A closed dependency is the holder's move once the idle grace has passed since it closed.
+CI known to be running on the task's PR is a wait; in any other state, or with no PR or no
+CI known, an idle holder falls to the idle rule and its backoff. Dependency waits need the
+child's own latest finding, and a dependency cycle is reported once, by the task with the
+smallest ID in it.
 """
 
 import typing as ty
@@ -15,6 +17,9 @@ _HEALTHY = frozenset({"ok", "wait"})
 
 _UNHEALTHY = frozenset({"challenge", "adjudicate"})
 
+# Brief statuses that put the next move on someone other than the holder.
+_DECLARED = frozenset({"blocked", "alert", "review", "merge", "approve", "running"})
+
 
 class _Subject(ty.NamedTuple):
     view: checker_input.View
@@ -23,32 +28,36 @@ class _Subject(ty.NamedTuple):
 
 
 def _wait(s: _Subject, kind: str, evidence: str, until: str, reason: str) -> protocol.Record:
-    return ("wait", s.view.task_id, "progress", kind, evidence, until, reason)
+    return ("wait", s.view.subject, "progress", kind, evidence, until, reason)
 
 
-def _released(
-    s: _Subject, fact_kind: str, fact_key: str, evidence: str, obligation: str, reason: str
-) -> list[protocol.Record]:
-    soon = settings.at(s.policy, s.policy.now + s.policy.reconcile)
-    delivered = settings.fact(s.view, fact_kind, fact_key, "release_delivered_at")
-    if not delivered:
-        return [_wait(s, "release-notification", evidence, soon, f"{reason}; not yet delivered")]
-
-    due = checker_input.timestamp(delivered) + s.policy.idle_grace
+def _released(s: _Subject, child: str) -> list[protocol.Record]:
+    closed = settings.fact(s.view, "task", child, "released_at")
+    due = checker_input.timestamp(closed) + s.policy.idle_grace
     if due > s.policy.now:
-        return [("recheck", s.view.task_id, settings.at(s.policy, due))]
+        return [("recheck", s.view.subject, settings.at(s.policy, due))]
 
-    return [("challenge", s.view.task_id, obligation, evidence, "brief", s.holder, reason)]
+    return [
+        (
+            "challenge",
+            s.view.subject,
+            "consume-result",
+            f"task:{child}",
+            "brief",
+            s.holder,
+            f"{child} closed",
+        )
+    ]
 
 
 def _cycle(s: _Subject) -> list[protocol.Record]:
-    members = settings.fact(s.view, "task", s.view.task_id, "cycle")
+    members = settings.fact(s.view, "task", s.view.subject, "cycle")
     if not members:
         return []
 
     loop = sorted(members.split(","))
-    if s.view.task_id != loop[0]:
-        return [("ok", s.view.task_id, f"cycle reported on {loop[0]}")]
+    if s.view.subject != loop[0]:
+        return [("ok", s.view.subject, f"cycle reported on {loop[0]}")]
 
     adjudicator = s.view.context.get("policy.adjudicator", "")
     if not adjudicator:
@@ -57,7 +66,7 @@ def _cycle(s: _Subject) -> list[protocol.Record]:
     return [
         (
             "adjudicate",
-            s.view.task_id,
+            s.view.subject,
             "dependency-cycle",
             f"cycle:{','.join(loop)}",
             "human",
@@ -68,8 +77,8 @@ def _cycle(s: _Subject) -> list[protocol.Record]:
 
 
 def _dependency(s: _Subject, child: str) -> list[protocol.Record]:
-    if settings.fact(s.view, "task", child, "lifecycle") != "open":
-        return _released(s, "task", child, f"task:{child}", "consume-result", f"{child} closed")
+    if settings.fact(s.view, "task", child, "lifecycle") == "closed":
+        return _released(s, child)
 
     finding = settings.fact(s.view, "task", child, "finding")
     if finding in _HEALTHY:
@@ -77,22 +86,20 @@ def _dependency(s: _Subject, child: str) -> list[protocol.Record]:
         return [_wait(s, "waiting-for-task", f"task:{child}", until, f"waiting for {child}")]
 
     if finding in _UNHEALTHY:
-        return [("ok", s.view.task_id, f"attention is on {child}, which has its own finding")]
+        return [("ok", s.view.subject, f"attention is on {child}, which has its own finding")]
 
     raise settings.Unknown(f"task {child} finding is {finding!r}")
 
 
 def _ci(s: _Subject, url: str) -> list[protocol.Record]:
-    checks = settings.fact(s.view, "pr", url, "checks")
-    if checks == "none":
+    found = s.view.facts.get(("pr", url, "checks"))
+    if found is None or found.availability != "known" or found.value != "pending":
         return []
 
-    head = settings.fact(s.view, "pr", url, "head")
-    if checks == "pending":
-        until = settings.at(s.policy, s.policy.now + s.policy.reconcile)
-        return [_wait(s, "waiting-for-ci", f"{url}@{head}", until, "CI is running")]
-
-    return _released(s, "pr", url, f"{url}@{head}:{checks}", "ci-result", f"CI {checks} on {head}")
+    head = s.view.facts.get(("pr", url, "head"))
+    until = settings.at(s.policy, s.policy.now + s.policy.reconcile)
+    evidence = f"{url}@{head.value if head else ''}"
+    return [_wait(s, "waiting-for-ci", evidence, until, "CI is running")]
 
 
 def findings(
@@ -100,11 +107,13 @@ def findings(
 ) -> list[protocol.Record]:
     """Waits and release findings for the progress obligation; [] when none apply."""
     s = _Subject(view, policy, holder)
-    dependencies = [f.removeprefix("dependency.") for f in view.task if f.startswith("dependency.")]
+    dependencies = [
+        f.removeprefix("dependency.") for f in view.fields if f.startswith("dependency.")
+    ]
     if dependencies and (cycle := _cycle(s)):
         return cycle
 
-    url = view.task.get("subject_url", "")
+    url = view.fields.get("subject_url", "")
     found = [
         *(r for child in dependencies for r in _dependency(s, child)),
         *(_ci(s, url) if url else []),
@@ -114,3 +123,31 @@ def findings(
         return actionable
 
     return [r for r in found if r[0] == "ok"][:1] + actionable
+
+
+def declared(
+    view: checker_input.View, policy: settings.Policy, holder: str
+) -> list[protocol.Record]:
+    """A wait when the holder's brief Status puts the move on someone else; [] otherwise.
+
+    The status speaks for this task only when it is the brief's sole open task or the
+    brief's Needs or Waiting on names it. Naming only other tasks leaves this one to be
+    judged, and naming none among several tasks is unknown.
+    """
+    state = settings.fact(view, "brief", holder, "status")
+    if state not in _DECLARED:
+        return []
+
+    held = settings.fact(view, "brief", holder, "held").split()
+    named = "\n".join(settings.fact(view, "brief", holder, f) for f in ("needs", "waiting_on"))
+    if held != [view.subject] and view.subject not in named:
+        if any(task in named for task in held):
+            return []
+
+        raise settings.Unknown(
+            f"its brief is {state} but doesn't say for which of {len(held)} tasks"
+        )
+
+    until = settings.at(policy, policy.now + policy.reconcile)
+    s = _Subject(view, policy, holder)
+    return [_wait(s, "declared", f"brief:{holder}:{state}", until, f"its brief is {state}")]

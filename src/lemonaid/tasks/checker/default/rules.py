@@ -1,5 +1,7 @@
 """The default checker: a starting policy, run as `python -m lemonaid.tasks.checker.default`.
 
+It judges tasks here and working briefs with no task in `coverage`.
+
 Lemonaid ships it so replay has a checker to run; a user's own package replaces it. It
 reads only the line protocol.
 """
@@ -10,127 +12,90 @@ from collections import abc
 from pathlib import Path
 
 from .. import checker_input, protocol
-from . import settings, waits
+from . import coverage, holders, settings, waits
 
 _REQUIRED = ("lifecycle", "holder", "revision", "assignment.assigned_at")
 
 
-def _human_or_external(view: checker_input.View, policy: settings.Policy) -> list[protocol.Record]:
-    task, holder = view.task, view.task["holder"]
-    accountable = task.get("accountable_brief_id", "")
-    recheck = task.get("recheck_at", "")
-    if not accountable or (holder.startswith("external:") and not recheck):
-        raise settings.Unknown(f"{holder} needs accountable_brief_id and, if external, recheck_at")
-
-    if recheck and checker_input.timestamp(recheck) <= policy.now:
-        return [
-            (
-                "challenge",
-                view.task_id,
-                "recheck",
-                recheck,
-                "brief",
-                accountable,
-                f"re-check of {holder} is due",
-            ),
-        ]
-    wait = "external-review" if holder.startswith("external:") else "human"
-    until = checker_input.timestamp(recheck) if recheck else policy.now + policy.reconcile
-    return [
-        (
-            "wait",
-            view.task_id,
-            "next-move",
-            wait,
-            holder,
-            settings.at(policy, until),
-            f"{holder} holds it",
-        )
-    ]
-
-
-def _acknowledgment(
+def _unstarted(
     view: checker_input.View, policy: settings.Policy, brief: str
 ) -> list[protocol.Record]:
-    task = view.task
-    if task.get("assignment.acknowledged_at"):
+    """An assignment whose brief's lemon never started is its sponsor's to chase; []
+    once the lemon has started."""
+    task = view.fields
+    if task.get("assignment.attached_at"):
         return []
 
-    transfer = task.get("assignment.transfer_event", task["revision"])
-    if not task.get("assignment.attached_at"):
-        if settings.fact(view, "lemon", brief, "attached") != "false":
-            raise settings.Unknown("no attachment time, but the lemon is attached")
+    if settings.fact(view, "lemon", brief, "attached") != "false":
+        raise settings.Unknown("no attachment time, but the lemon is attached")
 
-        due = checker_input.timestamp(task["assignment.assigned_at"]) + policy.unstarted_grace
-        if due > policy.now:
-            return [("recheck", view.task_id, settings.at(policy, due))]
+    due = checker_input.timestamp(task["assignment.assigned_at"]) + policy.unstarted_grace
+    if due > policy.now:
+        return [("recheck", view.subject, settings.at(policy, due))]
 
-        sponsor = task.get("sponsor", "")
-        if not sponsor:
-            raise settings.Unknown("unstarted assignment with no sponsor")
-
-        return [
-            (
-                "challenge",
-                view.task_id,
-                "launch",
-                transfer,
-                "brief",
-                sponsor,
-                f"{brief} was assigned this task and has not started",
-            )
-        ]
-
-    start = task.get("assignment.delivered_at")
-    if not start and task.get("assignment.delivery") == "message":
-        raise settings.Unknown("the assignment message hasn't been delivered yet")
-
-    start = start or task["assignment.attached_at"]
-    due = checker_input.timestamp(start) + policy.ack_grace
-    if due > policy.now or settings.fact(view, "lemon", brief, "activity") == "active":
-        return [
-            (
-                "recheck",
-                view.task_id,
-                settings.at(policy, max(due, policy.now + policy.idle_grace)),
-            )
-        ]
+    sponsor = task.get("sponsor", "")
+    if not sponsor:
+        raise settings.Unknown("unstarted assignment with no sponsor")
 
     return [
         (
             "challenge",
-            view.task_id,
-            "acknowledge",
-            transfer,
+            view.subject,
+            "launch",
+            task.get("assignment.transfer_event", task["revision"]),
             "brief",
-            brief,
-            f"run `lemonaid task acknowledge {view.task_id}` after reading the assignment",
+            sponsor,
+            f"{brief} was assigned this task and has not started",
         )
     ]
+
+
+def _idle(task_id: str) -> str:
+    return "\n".join(
+        [
+            "You are idle holding this task. Do one of these:",
+            "- Act on it.",
+            "- Hand it to the lemon that moves next:"
+            f" `lemonaid task assign {task_id} --to BRIEF --reason TEXT`.",
+            "- If a person who holds no task moves next, hand it to them and stay accountable:"
+            f" `lemonaid task assign {task_id} --to human:NAME --accountable self --reason TEXT`.",
+            "- If you are waiting for CI on the task's PR, give the task its PR and the inspector"
+            f" waits while CI runs: `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
+            "- If another lemon's task already covers this work, follow that one instead:"
+            f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
+            "- If you are blocked on someone, set your brief's Status (such as `blocked`).",
+        ]
+    )
 
 
 def _progress(
     view: checker_input.View, policy: settings.Policy, brief: str
 ) -> list[protocol.Record]:
     if settings.fact(view, "lemon", brief, "activity") == "active":
-        return [("recheck", view.task_id, settings.at(policy, policy.now + policy.idle_grace))]
+        return [("recheck", view.subject, settings.at(policy, policy.now + policy.idle_grace))]
 
     if found := waits.findings(view, policy, brief):
         return found
 
-    idle_since = checker_input.timestamp(settings.fact(view, "lemon", brief, "idle_since"))
+    idle_since = max(
+        checker_input.timestamp(settings.fact(view, "lemon", brief, "idle_since")),
+        checker_input.timestamp(view.fields["assignment.attached_at"]),
+    )  # the clock starts no earlier than the assignment, or the lemon's start with it
     if idle_since + policy.idle_grace > policy.now:
-        return [("recheck", view.task_id, settings.at(policy, idle_since + policy.idle_grace))]
+        return [("recheck", view.subject, settings.at(policy, idle_since + policy.idle_grace))]
+
+    if found := waits.declared(view, policy, brief):
+        return found
 
     return [
         (
             "challenge",
-            view.task_id,
+            view.subject,
             "progress",
-            view.task["revision"],
+            view.fields["revision"],
             "brief",
             brief,
-            "idle with this task open and no recorded wait",
+            _idle(view.subject),
         )
     ]
 
@@ -138,26 +103,51 @@ def _progress(
 def evaluate(view: checker_input.View) -> list[protocol.Record]:
     """The complete finding set for the input's task."""
     try:
-        if missing := [f for f in _REQUIRED if not view.task.get(f)]:
+        if missing := [f for f in _REQUIRED if not view.fields.get(f)]:
             raise settings.Unknown(f"missing task field {', '.join(missing)}")
 
         policy = settings.read(view.context)
-        if view.task["lifecycle"] == "closed":
-            return [("ok", view.task_id, "closed")]
+        if view.fields["lifecycle"] == "closed":
+            return [("ok", view.subject, "closed")]
 
-        holder = view.task["holder"]
+        holder = view.fields["holder"]
         if not holder.startswith("brief:"):
-            return _human_or_external(view, policy)
+            return holders.human_or_external(view, policy)
 
         brief = holder.removeprefix("brief:")
-        found = _acknowledgment(view, policy, brief) or _progress(view, policy, brief)
+        found = (
+            holders.unavailable(view, brief)
+            or _unstarted(view, policy, brief)
+            or _progress(view, policy, brief)
+        )
     except (settings.Unknown, ValueError, KeyError) as e:
-        return [("unknown", view.task_id, str(e))]
+        return [("unknown", view.subject, str(e))]
 
     if any(r[0] in ("ok", "challenge", "adjudicate", "wait") for r in found):
         return found
 
-    return [("ok", view.task_id, "progressing"), *found]
+    return [("ok", view.subject, "progressing"), *found]
+
+
+def _watches(view: checker_input.View) -> list[tuple[str, str]]:
+    if view.kind == "brief":
+        return [("lemon", view.subject), ("brief", view.subject)]
+
+    holder = view.fields.get("holder", "")
+    return [
+        ("task", view.subject),
+        *(
+            (kind, holder.removeprefix("brief:"))
+            for kind in ("lemon", "brief")
+            if holder.startswith("brief:")
+        ),
+        *([("pr", view.fields["subject_url"])] if view.fields.get("subject_url") else []),
+        *(
+            ("task", f.removeprefix("dependency."))
+            for f in view.fields
+            if f.startswith("dependency.")
+        ),
+    ]
 
 
 def main(argv: abc.Sequence[str] | None = None) -> None:
@@ -167,18 +157,8 @@ def main(argv: abc.Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     view = checker_input.read(args.input.read_text())
     if args.operation == "describe":
-        holder = view.task.get("holder", "")
-        watches = [
-            ("task", view.task_id),
-            *([("lemon", holder.removeprefix("brief:"))] if holder.startswith("brief:") else []),
-            *([("pr", view.task["subject_url"])] if view.task.get("subject_url") else []),
-            *(
-                ("task", f.removeprefix("dependency."))
-                for f in view.task
-                if f.startswith("dependency.")
-            ),
-        ]
-        sys.stdout.write(protocol.render(("watch", *w) for w in watches))
+        sys.stdout.write(protocol.render(("watch", *w) for w in _watches(view)))
         return
 
-    sys.stdout.write(protocol.render(evaluate(view)))
+    found = coverage.evaluate(view) if view.kind == "brief" else evaluate(view)
+    sys.stdout.write(protocol.render(found))

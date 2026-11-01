@@ -29,7 +29,7 @@ def _cmd_ensure(args: argparse.Namespace) -> None:
 
                 found = {**existing, "created": False}
             else:
-                live = cli_common.running(conn, brief_id)
+                live = notices.running(conn, brief_id)
                 actor = options_cli.caller(conn)
                 planned = options_cli.plan(
                     conn,

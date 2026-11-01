@@ -48,7 +48,6 @@ def rows(conn: sqlite3.Connection, brief_id: str, include_closed: bool) -> list[
             found.append(
                 {
                     **dict(task),
-                    "acknowledged": task["acknowledged_at"] is not None,
                     "waits_for": dependencies.waits_for(conn, task["task_id"]),
                     "connections": connections,
                 }

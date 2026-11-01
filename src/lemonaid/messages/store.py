@@ -53,10 +53,10 @@ def _forwarded(inbox: Path) -> Path:
     raise ValueError(f"Inbox forwards more than {_MAX_HOPS} times: {inbox}")
 
 
-def _write(inbox: Path, body: str, sender: str, message_id: str = "") -> Path:
+def _write(inbox: Path, body: str, sender: str) -> Path:
     inbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    path = inbox / f"{stamp}-{message_id or uuid.uuid4().hex}.md"
+    path = inbox / f"{stamp}-{uuid.uuid4().hex}.md"
     sent = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     text = f"From: {sender}\nSent: {sent}\n\n{body.rstrip()}\n"
     fd, temporary = tempfile.mkstemp(dir=inbox, prefix=".message-", suffix=".tmp")
@@ -70,8 +70,7 @@ def _write(inbox: Path, body: str, sender: str, message_id: str = "") -> Path:
     return path
 
 
-def send(inbox: Path, body: str, sender: str, message_id: str = "") -> Path:
-    """Queue *body*; *message_id* names the file, so `claimed_at` can find it later."""
+def send(inbox: Path, body: str, sender: str) -> Path:
     if not body.strip():
         raise ValueError("Message cannot be empty")
 
@@ -80,14 +79,7 @@ def send(inbox: Path, body: str, sender: str, message_id: str = "") -> Path:
         if inbox.is_symlink():
             raise ValueError(f"Inbox is a symlink: {inbox}")
 
-        return _write(inbox, body, sender, message_id)
-
-
-def claimed_at(inbox: Path, message_id: str) -> float | None:
-    """When the message sent with *message_id* was claimed by its reader, or None if it
-    is still pending or was never sent."""
-    claimed = sorted((_forwarded(inbox) / "done").glob(f"*-{message_id}.md"))
-    return claimed[-1].stat().st_mtime if claimed else None
+        return _write(inbox, body, sender)
 
 
 def _pending(inbox: Path) -> abc.Iterator[Path]:
@@ -111,7 +103,6 @@ def mark_done(path: Path) -> Path:
     done.mkdir(exist_ok=True)
     claimed = done / path.name
     path.rename(claimed)
-    os.utime(claimed)  # a claimed message's mtime is when it was claimed; see claimed_at
     return claimed
 
 

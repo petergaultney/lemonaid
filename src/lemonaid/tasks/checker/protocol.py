@@ -14,7 +14,7 @@ VERSION = "1"
 Record = tuple[str, ...]
 
 # Field counts, the kind included.
-INPUT: ty.Mapping[str, int] = {"context": 3, "task": 4, "case": 4, "fact": 7}
+INPUT: ty.Mapping[str, int] = {"context": 3, "task": 4, "brief": 4, "case": 4, "fact": 7}
 
 DESCRIBE: ty.Mapping[str, int] = {"watch": 3}
 

@@ -102,3 +102,11 @@ def release(
             (event_id, row["rowid"]),
         )
     return [row["parent_task_id"] for row in rows]
+
+
+def loop_through(conn: sqlite3.Connection, task_id: str) -> list[str]:
+    """The tasks on a dependency cycle through *task_id*, or [] when there is none."""
+    for child in waits_for(conn, task_id):
+        if found := path(conn, child, task_id):
+            return found
+    return []

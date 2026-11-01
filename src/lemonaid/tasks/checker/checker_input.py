@@ -14,33 +14,35 @@ class Fact(ty.NamedTuple):
 
 class View(ty.NamedTuple):
     context: dict[str, str]
-    task_id: str
-    task: dict[str, str]
+    kind: str  # `task`, or `brief` for a working brief with no task
+    subject: str  # its task ID or Lemon-ID, which its findings name
+    fields: dict[str, str]
     cases: dict[str, dict[str, str]]
     facts: dict[tuple[str, str, str], Fact]
 
 
 def read(text: str) -> View:
-    """Raises protocol.ProtocolError for a malformed file or one naming several tasks."""
+    """Raises protocol.ProtocolError for a malformed file, or one with other than one
+    task or brief."""
     context: dict[str, str] = {}
-    tasks: dict[str, dict[str, str]] = {}
+    subjects: dict[tuple[str, str], dict[str, str]] = {}
     cases: dict[str, dict[str, str]] = {}
     facts: dict[tuple[str, str, str], Fact] = {}
     for record in protocol.parse(text, protocol.INPUT):
         match record:
             case ("context", field, value):
                 context[field] = value
-            case ("task", task_id, field, value):
-                tasks.setdefault(task_id, {})[field] = value
+            case ("task" | "brief" as kind, subject, field, value):
+                subjects.setdefault((kind, subject), {})[field] = value
             case ("case", case_id, field, value):
                 cases.setdefault(case_id, {})[field] = value
-            case ("fact", kind, key, field, value, observed_at, availability):
-                facts[(kind, key, field)] = Fact(value, observed_at, availability)
-    if len(tasks) != 1:
-        raise protocol.ProtocolError(f"expected one task, got {len(tasks)}")
+            case ("fact", fact_kind, key, field, value, observed_at, availability):
+                facts[(fact_kind, key, field)] = Fact(value, observed_at, availability)
+    if len(subjects) != 1:
+        raise protocol.ProtocolError(f"expected one task or brief, got {len(subjects)}")
 
-    [(task_id, task)] = tasks.items()
-    return View(context, task_id, task, cases, facts)
+    [((kind, subject), fields)] = subjects.items()
+    return View(context, kind, subject, fields, cases, facts)
 
 
 def timestamp(value: str) -> datetime.datetime:

@@ -10,9 +10,9 @@ from .. import checker_input
 
 _DEFAULTS = {
     "policy.idle_grace": 120,
-    "policy.ack_grace": 300,
     "policy.unstarted_grace": 600,
     "policy.reconcile": 300,
+    "policy.coverage_grace": 600,
 }
 
 
@@ -23,9 +23,9 @@ class Unknown(Exception):
 class Policy(ty.NamedTuple):
     now: datetime.datetime
     idle_grace: datetime.timedelta
-    ack_grace: datetime.timedelta
     unstarted_grace: datetime.timedelta
     reconcile: datetime.timedelta
+    coverage_grace: datetime.timedelta
 
 
 def read(context: ty.Mapping[str, str]) -> Policy:
@@ -35,9 +35,9 @@ def read(context: ty.Mapping[str, str]) -> Policy:
     return Policy(
         checker_input.timestamp(context["now"]),
         seconds("policy.idle_grace"),
-        seconds("policy.ack_grace"),
         seconds("policy.unstarted_grace"),
         seconds("policy.reconcile"),
+        seconds("policy.coverage_grace"),
     )
 
 

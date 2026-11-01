@@ -17,7 +17,6 @@ def task(**fields: str) -> dict[str, str]:
         "assignment.transfer_event": "e3",
         "assignment.assigned_at": "2026-10-31T11:00:00Z",
         "assignment.attached_at": "2026-10-31T11:01:00Z",
-        "assignment.acknowledged_at": "2026-10-31T11:02:00Z",
         **fields,
     }
 
@@ -35,8 +34,28 @@ def fact(
     }
 
 
+def brief_says(
+    brief: str = "Work.alpha",
+    status: str = "",
+    needs: str = "",
+    waiting_on: str = "",
+    held: str = "t1",
+) -> list[dict[str, str]]:
+    return [
+        fact("brief", brief, "status", status),
+        fact("brief", brief, "needs", needs),
+        fact("brief", brief, "waiting_on", waiting_on),
+        fact("brief", brief, "held", held),
+    ]
+
+
 def idle(brief: str = "Work.alpha", since: str = "2026-10-31T11:50:00Z") -> list[dict[str, str]]:
-    return [fact("lemon", brief, "activity", "idle"), fact("lemon", brief, "idle_since", since)]
+    """An idle lemon whose brief declares no wait."""
+    return [
+        fact("lemon", brief, "activity", "idle"),
+        fact("lemon", brief, "idle_since", since),
+        *brief_says(brief),
+    ]
 
 
 def snapshot(
