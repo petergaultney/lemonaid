@@ -775,9 +775,22 @@ When `lemonaid tell` finds that its recipient won't read the message, because it
 [tasks]
 enabled = false
 existing_task_templates = ["review"]  # these must name the work's existing task
+checker = []           # the inspector's checker argv; empty runs the default checker
+checker_timeout = 30   # seconds per evaluation
+challenge_interval = 300        # seconds before an open challenge is sent again, doubling; 0 sends none
+max_challenge_interval = 86400  # the longest gap between re-sends
+
+[tasks.opt_out]        # briefs that get no challenges, each with its reason
+# "Design.sketch" = "a human drives it"
+
+[tasks.policy]         # passed to the checker as policy.NAME
+# idle_grace = 120
+# unstarted_grace = 600
+# coverage_grace = 600
+# adjudicator = "human:sam"
 ```
 
-With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. See [tasks](tasks.md).
+With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. `lemonaid task inspect` reads the rest: it sends each challenge to the brief it names, again with doubling gaps while it stays open, unless `challenge_interval` is 0 or the brief is in `opt_out`. See [tasks](tasks.md).
 
 ## `[claude.statusline]`
 
