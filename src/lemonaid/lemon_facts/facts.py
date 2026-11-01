@@ -131,6 +131,8 @@ def gather(
         messages_queued=store.pending_count(inbox),
         exited_at=metadata.get("exited_at"),
         exit_reason=str(metadata.get("exit_reason") or ""),
-        last_activity=_mtime(str(metadata.get("transcript_path") or "")),
+        last_activity=_mtime(
+            str(metadata.get("transcript_path") or metadata.get("session_path") or "")
+        ),  # Claude records transcript_path, Codex session_path
         recent_starts=resume_log.within(resume_log.entries(inbox), time.time(), window),
     )
