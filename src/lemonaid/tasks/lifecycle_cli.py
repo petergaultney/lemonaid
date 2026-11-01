@@ -5,10 +5,13 @@ first result, and its messages went out then.
 """
 
 import argparse
+import sqlite3
+import typing as ty
 
 from ..inbox import db
 from . import cli_common
-from .model import lifecycle
+from .briefs import completion, notices
+from .model import identities, ledger, lifecycle
 
 
 def _cmd_set_url(args: argparse.Namespace) -> None:
@@ -29,6 +32,100 @@ def _cmd_set_url(args: argparse.Namespace) -> None:
     cli_common.emit(args, changed, f"task:{task} now at {args.url or 'no URL'}")
 
 
+def _cmd_result(args: argparse.Namespace) -> None:
+    with db.connect() as conn:
+        try:
+            task = cli_common.task_id(args.task)
+            actor = cli_common.actor(conn)
+            recorded = cli_common.write(
+                conn,
+                args,
+                {"op": "result", "task_id": task, "evidence": args.evidence},
+                lambda expected, request_id, at: lifecycle.result(
+                    conn, task, expected, args.evidence, actor, request_id, at
+                ),
+            )
+        except cli_common.Failed as error:
+            cli_common.fail(args, str(error))
+    cli_common.emit(args, recorded, f"task:{task} result: {args.evidence}")
+
+
+def _not_mine(state: ty.Mapping[str, ty.Any], actor: str) -> bool:
+    return state["holder"] != f"brief:{actor}"
+
+
+def _own_close(conn: sqlite3.Connection, task: str, actor: str) -> None:
+    """Raises Failed when *actor* holds *task* to work on it and has a parent to check it;
+    a task held in the `check` state may be closed by its holder."""
+    state = ledger.state(conn, task)
+    mine = {f"brief:{name}" for name in identities.names(conn, actor)} if actor != "cli" else set()
+    if not state or state["holder"] not in mine or state["lifecycle"] == "check":
+        return
+
+    if parent := completion.checker(conn, actor):
+        raise cli_common.Failed(
+            f"task:{task} is yours, and {parent} checks it: mark your brief done, which hands"
+            f" it to {parent}, or hand it on with `lemonaid task assign {task} --to BRIEF"
+            " --reason TEXT`"
+        )
+
+
+def _cmd_close(args: argparse.Namespace) -> None:
+    with db.connect() as conn:
+        try:
+            task = cli_common.task_id(args.task)
+            actor = cli_common.actor(conn)
+
+            def close(expected: int, request_id: str, at: float) -> dict[str, ty.Any]:
+                _own_close(conn, task, actor)  # a retry of a committed close skips this
+                return lifecycle.close(conn, task, expected, args.reason, actor, request_id, at)
+
+            closed, committed = cli_common.write_once(
+                conn, args, {"op": "close", "task_id": task, "reason": args.reason}, close
+            )
+        except cli_common.Failed as error:
+            cli_common.fail(args, str(error))
+        state = ledger.state(conn, task)
+        assert state is not None
+        parents = [ledger.state(conn, p) for p in closed["released"]] if committed else []
+        said = [
+            notices.tell_closed(state, actor, args.reason)
+            if committed and _not_mine(state, actor)
+            else "",
+            *(
+                notices.tell_released(parent, state, actor, args.reason)
+                for parent in parents
+                if parent is not None and _not_mine(parent, actor)
+            ),
+        ]
+    cli_common.report(args, closed, said, f"task:{task} closed")
+
+
+def _cmd_reopen(args: argparse.Namespace) -> None:
+    with db.connect() as conn:
+        try:
+            task = cli_common.task_id(args.task)
+            actor = cli_common.actor(conn)
+            reopened, committed = cli_common.write_once(
+                conn,
+                args,
+                {"op": "reopen", "task_id": task, "reason": args.reason},
+                lambda expected, request_id, at: lifecycle.reopen(
+                    conn, task, expected, args.reason, actor, request_id, at
+                ),
+            )
+        except cli_common.Failed as error:
+            cli_common.fail(args, str(error))
+        state = ledger.state(conn, task)
+        assert state is not None
+        said = [
+            notices.tell_closed(state, actor, args.reason)
+            if committed and _not_mine(state, actor)
+            else ""
+        ]
+    cli_common.report(args, reopened, said, f"task:{task} reopened, held by {state['holder']}")
+
+
 def add_parsers(tasks: argparse._SubParsersAction) -> None:
     set_url = tasks.add_parser("set-url", help="Replace a task's subject URL, keeping its ID")
     set_url.add_argument("task", metavar="TASK_ID")
@@ -36,3 +133,23 @@ def add_parsers(tasks: argparse._SubParsersAction) -> None:
     set_url.add_argument("--reason", required=True, help="Why it changed, such as a successor PR")
     cli_common.add_write_options(set_url)
     set_url.set_defaults(func=_cmd_set_url)
+
+    result = tasks.add_parser("result", help="Record a result without closing the task")
+    result.add_argument("task", metavar="TASK_ID")
+    result.add_argument(
+        "--evidence", required=True, help="Where the result is: a commit, PR, document or brief"
+    )
+    cli_common.add_write_options(result)
+    result.set_defaults(func=_cmd_result)
+
+    close = tasks.add_parser("close", help="Close a task, releasing tasks that wait for it")
+    close.add_argument("task", metavar="TASK_ID")
+    close.add_argument("--reason", required=True, help="Why it's finished")
+    cli_common.add_write_options(close)
+    close.set_defaults(func=_cmd_close)
+
+    reopen = tasks.add_parser("reopen", help="Reopen a closed task with its last holder")
+    reopen.add_argument("task", metavar="TASK_ID")
+    reopen.add_argument("--reason", required=True, help="Why it isn't finished")
+    cli_common.add_write_options(reopen)
+    reopen.set_defaults(func=_cmd_reopen)

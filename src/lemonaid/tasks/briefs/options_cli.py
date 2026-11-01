@@ -177,7 +177,7 @@ def register(
         recorded = registration.register(conn, planned, lemon_id, sponsor, title, time.time())
     except (ledger.Refused, links.LinkError, sqlite3.Error, LookupError) as error:
         raise Unregistered(path, lemon_id, str(error), planning.repair_flags(planned)) from None
-    if said := notices.notice(conn, recorded, f"brief:{lemon_id}", planned.actor):
+    if said := notices.notice(conn, recorded, planned.actor):
         print(said, file=sys.stderr)
         return {**recorded, "notice": said}
 

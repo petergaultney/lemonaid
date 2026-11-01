@@ -10,7 +10,6 @@ import uuid
 from collections import abc
 
 from .. import brief
-from ..brief import attached, lemon
 from .model import identities, ids, ledger
 
 
@@ -54,8 +53,8 @@ def actor(conn: sqlite3.Connection, channel: str = "") -> str:
 
 def running(conn: sqlite3.Connection, brief_id: str) -> bool:
     """Whether a lemon has *brief_id*'s brief now, not a window still waiting for one."""
-    path = lemon.brief_of(conn, brief_id)
-    return any(a.channel for a in attached.for_paths(conn, [path])) if path else False
+    path = brief.lemon.brief_of(conn, brief_id)
+    return any(a.channel for a in brief.attached.for_paths(conn, [path])) if path else False
 
 
 def task_id(text: str) -> str:
@@ -111,3 +110,27 @@ def add_write_options(parser: argparse.ArgumentParser) -> None:
         help="Repeat a request safely: a committed one returns its first result",
     )
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
+
+
+def write_once(
+    conn: sqlite3.Connection,
+    args: argparse.Namespace,
+    operation: ty.Mapping[str, ty.Any],
+    run: abc.Callable[[int, str, float], dict[str, ty.Any]],
+) -> tuple[dict[str, ty.Any], bool]:
+    """`cli_common.write`'s result, and whether this call committed it."""
+    committed: list[bool] = []
+
+    def counted(expected: int, request_id: str, at: float) -> dict[str, ty.Any]:
+        committed.append(True)
+        return run(expected, request_id, at)
+
+    return write(conn, args, operation, counted), bool(committed)
+
+
+def report(args: argparse.Namespace, result: dict, said: abc.Iterable[str], text: str) -> None:
+    lines = [line for line in said if line]
+    if not args.json:
+        for line in lines:
+            print(line, file=sys.stderr)
+    emit(args, {**result, "notice": "\n".join(lines)}, text)

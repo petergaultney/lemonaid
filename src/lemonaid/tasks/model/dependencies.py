@@ -73,3 +73,32 @@ def depend(
         (parent_task_id, child_task_id, event_id),
     )
     return state["revision"]
+
+
+def release(
+    conn: sqlite3.Connection, task: str, actor: str, request_id: str, at: float
+) -> list[str]:
+    """Resolve each open dependency on *task*; returns the parent task IDs."""
+    rows = conn.execute(
+        "SELECT rowid, parent_task_id FROM task_dependencies"
+        " WHERE child_task_id = ? AND resolved_event_id IS NULL",
+        (task,),
+    ).fetchall()
+    for row in rows:
+        parent = ledger.state(conn, row["parent_task_id"])
+        assert parent is not None
+        event_id, _ = ledger.append(
+            conn,
+            row["parent_task_id"],
+            parent["revision"],
+            "dependency_resolved",
+            {"child_task_id": task},
+            actor,
+            f"{request_id}:release:{row['parent_task_id']}",
+            at,
+        )
+        conn.execute(
+            "UPDATE task_dependencies SET resolved_event_id = ? WHERE rowid = ?",
+            (event_id, row["rowid"]),
+        )
+    return [row["parent_task_id"] for row in rows]

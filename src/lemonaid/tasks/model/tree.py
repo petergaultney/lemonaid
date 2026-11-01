@@ -35,7 +35,7 @@ def rows(conn: sqlite3.Connection, brief_id: str, include_closed: bool) -> list[
     aliases = _aliases(conn)
     found = []
     for task in conn.execute(
-        "SELECT * FROM tasks WHERE lifecycle = 'open' OR ? ORDER BY created_at, task_id",
+        "SELECT * FROM tasks WHERE lifecycle != 'closed' OR ? ORDER BY created_at, task_id",
         (include_closed,),
     ):
         connections = [

@@ -9,6 +9,7 @@ but no edit may drop one.
 """
 
 import argparse
+import functools
 import sys
 from collections import abc
 from pathlib import Path
@@ -16,6 +17,8 @@ from pathlib import Path
 from .. import obsidian
 from ..config import load_config
 from ..inbox import db
+from ..tasks import cli_common
+from ..tasks.briefs import completion
 from . import (
     check,
     command,
@@ -89,6 +92,19 @@ def _cmd_hide(args: argparse.Namespace) -> None:
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
+    if args.state == "done" and load_config().tasks.enabled:
+        path, _ = command.own_brief(args)
+        with db.connect() as conn:
+            lemon_id, held = completion.open_tasks(conn, path) if path else ("", [])
+            handed, held = completion.hand_to_parent(
+                conn, lemon_id, held, functools.partial(cli_common.running, conn)
+            )
+        for line in handed:
+            print(line, file=sys.stderr)
+        if held:
+            result = {"path": str(path), "open_tasks": [t["task_id"] for t in held]}
+            command.finish(args, result, completion.refusal(held))
+
     if args.state in store.RETIRED:
         print(
             f"`{args.state}` is no longer set by hand; cleared Status, so the inbox shows"
