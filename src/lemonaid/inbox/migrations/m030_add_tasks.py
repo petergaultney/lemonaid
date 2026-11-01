@@ -1,4 +1,5 @@
-"""Task objects: an append-only event log, the current state it implies, and brief associations."""
+"""Task objects: an append-only event log, the current state it implies, brief associations,
+and the inspector's open cases and latest evaluations."""
 
 import sqlite3
 
@@ -33,7 +34,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     assignment_event_id INTEGER NOT NULL,
     assigned_at REAL NOT NULL,
     attached_at REAL,
-    acknowledged_at REAL,
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_holder ON tasks(holder);
@@ -67,6 +67,31 @@ CREATE TABLE IF NOT EXISTS task_dependencies (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_dependencies_live
     ON task_dependencies(parent_task_id, child_task_id) WHERE resolved_event_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_child ON task_dependencies(child_task_id);
+CREATE TABLE IF NOT EXISTS task_cases (
+    case_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject TEXT NOT NULL,
+    obligation TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('challenge', 'adjudicate')),
+    target_kind TEXT NOT NULL,
+    target TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    basis TEXT NOT NULL,
+    opened_at REAL NOT NULL,
+    notified_at REAL,
+    resolved_at REAL,
+    notices INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_cases_open
+    ON task_cases(subject, obligation, evidence) WHERE resolved_at IS NULL;
+CREATE TABLE IF NOT EXISTS task_evaluations (
+    subject TEXT PRIMARY KEY,
+    revision INTEGER NOT NULL,
+    at REAL NOT NULL,
+    outcome TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    next_check TEXT NOT NULL
+);
 """
 
 

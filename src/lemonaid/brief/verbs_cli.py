@@ -17,8 +17,7 @@ from pathlib import Path
 from .. import obsidian
 from ..config import load_config
 from ..inbox import db
-from ..tasks import cli_common
-from ..tasks.briefs import completion
+from ..tasks.briefs import completion, notices
 from . import (
     check,
     command,
@@ -97,7 +96,7 @@ def _cmd_status(args: argparse.Namespace) -> None:
         with db.connect() as conn:
             lemon_id, held = completion.open_tasks(conn, path) if path else ("", [])
             handed, held = completion.hand_to_parent(
-                conn, lemon_id, held, functools.partial(cli_common.running, conn)
+                conn, lemon_id, held, functools.partial(notices.running, conn)
             )
         for line in handed:
             print(line, file=sys.stderr)

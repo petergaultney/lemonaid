@@ -7,17 +7,15 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
-from . import cli_common, holding_cli, lifecycle_cli
+from . import cli_common, holding_cli, lifecycle_cli, observe_cli
 from .checker import corpus, replay
+from .inspection import inspect_cli
 from .model import associations, dependencies, holding, ledger, tree
-
-_DEFAULT_CHECKER = (sys.executable, "-m", "lemonaid.tasks.checker.default")
 
 
 def _line(task: dict) -> str:
-    holder = task["holder"] + ("" if task["acknowledged_at"] is not None else " (unacknowledged)")
     url = f"  {task['subject_url']}" if task["subject_url"] else ""
-    return f"task:{task['task_id']}  {holder}  {task['description']}{url}"
+    return f"task:{task['task_id']}  {task['holder']}  {task['description']}{url}"
 
 
 def _cmd_list(args: argparse.Namespace) -> None:
@@ -76,7 +74,7 @@ def _cmd_replay(args: argparse.Namespace) -> None:
         snapshots = corpus.load(args.corpus)
     except corpus.CorpusError as error:
         cli_common.fail(args, str(error))
-    argv = shlex.split(args.checker) if args.checker else list(_DEFAULT_CHECKER)
+    argv = shlex.split(args.checker) if args.checker else list(replay.DEFAULT_CHECKER)
     verdicts = list(replay.replay(argv, snapshots, args.timeout))
     baseline = replay.load_baseline(args.baseline) if args.baseline else {}
     changed = list(replay.changed(verdicts, baseline))
@@ -155,3 +153,5 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     holding_cli.add_parsers(tasks)
     lifecycle_cli.add_parsers(tasks)
+    observe_cli.add_parser(tasks)
+    inspect_cli.add_parser(tasks)

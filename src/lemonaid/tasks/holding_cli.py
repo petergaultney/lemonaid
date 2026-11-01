@@ -1,4 +1,4 @@
-"""`lemonaid task create|assign|acknowledge`.
+"""`lemonaid task create|assign`.
 
 Anyone may assign a task. Messages go out only when this call committed the change: a
 repeated request returns its first result, and its messages went out then.
@@ -22,7 +22,7 @@ def _cmd_create(args: argparse.Namespace) -> None:
             spec = cli_common.brief_id(conn, args.brief)
             holder = cli_common.brief_id(conn, args.assign)
             sponsor = cli_common.actor(conn)
-            running = cli_common.running(conn, holder)
+            running = notices.running(conn, holder)
             request_id = args.request_id or f"create:{time.time_ns()}"
             committed: list[bool] = []
 
@@ -40,7 +40,6 @@ def _cmd_create(args: argparse.Namespace) -> None:
                     actor=sponsor,
                     request_id=request_id,
                     at=time.time(),
-                    delivery="message" if running else "",
                 )
 
             operation = {
@@ -59,7 +58,7 @@ def _cmd_create(args: argparse.Namespace) -> None:
         state = ledger.state(conn, created["task_id"])
         assert state is not None
         said = [
-            notices.tell_holder(state, sponsor, "a new task", created["message_id"])
+            notices.tell_holder(state, sponsor, "a new task")
             if committed and running and holder != sponsor
             else ""
         ]
@@ -98,7 +97,7 @@ def _cmd_assign(args: argparse.Namespace) -> None:
             to, accountable, recheck_at = _target(conn, args)
             actor = cli_common.actor(conn)
             brief_id = to.removeprefix("brief:") if to.startswith("brief:") else ""
-            running = bool(brief_id) and cli_common.running(conn, brief_id)
+            running = bool(brief_id) and notices.running(conn, brief_id)
             assigned, committed = cli_common.write_once(
                 conn,
                 args,
@@ -120,7 +119,6 @@ def _cmd_assign(args: argparse.Namespace) -> None:
                     actor,
                     request_id,
                     at,
-                    delivery="message" if running else "",
                     accountable=accountable,
                     recheck_at=recheck_at,
                 ),
@@ -130,30 +128,13 @@ def _cmd_assign(args: argparse.Namespace) -> None:
         state = ledger.state(conn, task)
         assert state is not None
         said = [
-            notices.notice(conn, assigned, actor) if committed else "",
-            notices.tell_holder(state, actor, args.reason, assigned["message_id"])
-            if committed and running and brief_id != actor
+            notices.notice(
+                conn, {**assigned, "tell_holder": running and brief_id != actor}, actor, args.reason
+            )
+            if committed
             else "",
         ]
     cli_common.report(args, assigned, said, f"task:{task} now held by {to}")
-
-
-def _cmd_acknowledge(args: argparse.Namespace) -> None:
-    with db.connect() as conn:
-        try:
-            task = cli_common.task_id(args.task)
-            me = cli_common.brief_id(conn, "self")
-            done = cli_common.write(
-                conn,
-                args,
-                {"op": "acknowledge", "task_id": task, "by": me},
-                lambda expected, request_id, at: holding.acknowledge(
-                    conn, task, expected, me, request_id, at
-                ),
-            )
-        except cli_common.Failed as error:
-            cli_common.fail(args, str(error))
-    cli_common.emit(args, done, f"task:{task} acknowledged ({done['acknowledged']})")
 
 
 def add_parsers(tasks: argparse._SubParsersAction) -> None:
@@ -190,10 +171,3 @@ def add_parsers(tasks: argparse._SubParsersAction) -> None:
     )
     cli_common.add_write_options(assign)
     assign.set_defaults(func=_cmd_assign)
-
-    acknowledge = tasks.add_parser(
-        "acknowledge", help="Accept the task you were just assigned, after reading it"
-    )
-    acknowledge.add_argument("task", metavar="TASK_ID")
-    cli_common.add_write_options(acknowledge)
-    acknowledge.set_defaults(func=_cmd_acknowledge)

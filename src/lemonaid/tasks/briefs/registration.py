@@ -17,6 +17,7 @@ def _link(
     state = ledger.state(conn, planned.task_id)
     assert state is not None
     actor = planned.actor or brief_id
+    told = planned.attached and actor != brief_id
     if planned.mode == "observe":
         associations.observe(
             conn, planned.task_id, state["revision"], brief_id, actor, request_id, at
@@ -48,6 +49,7 @@ def _link(
         "disposition": "task",
         "task_id": planned.task_id,
         "taken_from": assigned["taken_from"],
+        "tell_holder": told,
     }
 
 
@@ -67,6 +69,7 @@ def _record(
     if planned.mode != "new":
         return _link(conn, planned, brief_id, request_id, at)
 
+    actor = planned.actor or sponsor or brief_id
     created = holding.create(
         conn,
         description=description,
@@ -76,7 +79,7 @@ def _record(
         subject_url_text="",
         checker_id="",
         attached=planned.attached,
-        actor=planned.actor or sponsor or brief_id,
+        actor=actor,
         request_id=request_id,
         at=at,
     )
@@ -95,6 +98,7 @@ def _record(
         "disposition": "new",
         "task_id": created["task_id"],
         "parent_task_id": planned.parent_task_id,
+        "tell_holder": planned.attached and actor != brief_id,
     }
 
 

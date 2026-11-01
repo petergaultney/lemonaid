@@ -19,7 +19,7 @@ from . import protocol
 
 AVAILABILITY = frozenset({"known", "unknown", "unavailable"})
 
-_FACT_FIELDS = ("kind", "key", "field", "value", "observed_at", "availability")
+FACT_FIELDS = ("kind", "key", "field", "value", "observed_at", "availability")
 
 
 class CorpusError(ValueError):
@@ -53,7 +53,7 @@ def _strings(raw: object, where: str) -> dict[str, str]:
 
 def _fact(raw: object, where: str) -> dict[str, str]:
     fact = _strings(raw, where)
-    if missing := [f for f in _FACT_FIELDS if f not in fact]:
+    if missing := [f for f in FACT_FIELDS if f not in fact]:
         raise CorpusError(f"{where}: missing {', '.join(missing)}")
 
     if fact["availability"] not in AVAILABILITY:
@@ -106,7 +106,7 @@ def _records(snapshot: Snapshot, task: dict[str, str]) -> abc.Iterator[tuple[str
     for case in snapshot.cases:
         if case["task_id"] == task["task_id"]:
             yield from (("case", case["case_id"], k, v) for k, v in case.items() if k != "case_id")
-    yield from (tuple(["fact", *(f[name] for name in _FACT_FIELDS)]) for f in snapshot.facts)
+    yield from (tuple(["fact", *(f[name] for name in FACT_FIELDS)]) for f in snapshot.facts)
 
 
 def inputs(snapshots: abc.Iterable[Snapshot]) -> abc.Iterator[Input]:

@@ -47,7 +47,7 @@ def record_link(
     conn: sqlite3.Connection, brief_id: str, task_id: str, kind: str, event_id: int
 ) -> None:
     """The `brief_tasks` row for an event that already records the association. Holding
-    a task replaces observing it, and a brief keeps its holder link after the task moves on."""
+    a task replaces observing it; a brief that hands it on observes it (`handed_on`)."""
     if kind not in KINDS:
         raise ledger.Refused(f"association kind {kind!r}")
 
@@ -80,6 +80,44 @@ def observe(
         at,
     )
     record_link(conn, brief_id, task_id, "observer", event_id)
+    return state["revision"]
+
+
+def handed_on(conn: sqlite3.Connection, brief_id: str, task_id: str) -> None:
+    """*brief_id* gave its task away, so it observes it now; the `assigned` event that
+    moved the task records this, through its previous holder."""
+    conn.execute(
+        "UPDATE brief_tasks SET kind = 'observer' WHERE brief_id = ? AND task_id = ?",
+        (brief_id, task_id),
+    )
+
+
+def unobserve(
+    conn: sqlite3.Connection,
+    task_id: str,
+    expected: int,
+    brief_id: str,
+    actor: str,
+    request_id: str,
+    at: float,
+) -> int:
+    """Stop *brief_id* observing a task; returns the new revision. The holder can't."""
+    names = identities.names(conn, brief_id)
+    linked = conn.execute(
+        "SELECT brief_id FROM brief_tasks WHERE task_id = ? AND kind = 'observer'"
+        f" AND brief_id IN ({identities.placeholders(names)})",
+        [task_id, *names],
+    ).fetchall()
+    if not linked:
+        raise ledger.Refused(f"{brief_id} doesn't observe task:{task_id}")
+
+    _, state = ledger.append(
+        conn, task_id, expected, "unlinked", {"brief_id": brief_id}, actor, request_id, at
+    )
+    conn.executemany(
+        "DELETE FROM brief_tasks WHERE brief_id = ? AND task_id = ?",
+        [(row["brief_id"], task_id) for row in linked],
+    )
     return state["revision"]
 
 

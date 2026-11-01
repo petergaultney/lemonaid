@@ -332,7 +332,7 @@ def test_assigning_to_a_running_brief_starts_its_clock_and_tells_it(capsys):
     with db.connect() as conn:
         assert ledger.state(conn, work)["attached_at"] is not None
     told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
-    assert len(told) == 1 and f"lemonaid task acknowledge {work}" in told[0]
+    assert len(told) == 1 and f"lemonaid task assign {work}" in told[0]
     assert f"{running['lemon_id']} has been told" in assigned["notice"]
 
 
@@ -353,8 +353,7 @@ def test_a_failed_message_to_a_running_recipient_still_marks_the_assignment_as_m
     )
 
     with db.connect() as conn:
-        last = ledger.history(conn, work)[-1]
-    assert (last["kind"], last["data"]["delivery"]) == ("assigned", "message")
+        assert ledger.state(conn, work)["holder"] == f"brief:{running['lemon_id']}"
     assert "failed" in assigned["notice"]
 
 
@@ -386,9 +385,6 @@ def test_creating_a_task_for_a_running_brief_tells_it(capsys):
 
     with db.connect() as conn:
         state = ledger.state(conn, created["task_id"])
-        made = ledger.history(conn, created["task_id"])[0]["data"]
-    assert state["attached_at"] is not None and made["delivery"] == "message"
+    assert state["attached_at"] is not None
     told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
-    assert len(told) == 1 and created["message_id"] in [
-        p.stem.split("-", 1)[1] for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")
-    ]
+    assert len(told) == 1 and f"You now hold task:{created['task_id']}" in told[0]

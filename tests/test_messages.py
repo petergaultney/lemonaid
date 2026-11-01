@@ -2,7 +2,6 @@
 
 import argparse
 import io
-import os
 import sys
 import threading
 import time
@@ -388,19 +387,3 @@ def test_watch_stops_when_attachment_moves_or_timeout(tmp_path):
 
     with pytest.raises(TimeoutError, match="timeout"):
         store.watch_next(inbox, lambda: True, timeout=0.01, interval=0.01)
-
-
-def test_a_named_message_reports_when_it_was_claimed(tmp_path):
-    inbox = tmp_path / "Work.alpha"
-    sent = store.send(inbox, "you hold it now", "lead", "task-1-r2")
-    os.utime(sent, (100, 100))
-
-    assert store.claimed_at(inbox, "task-1-r2") is None
-    before = time.time()
-    claimed = store.take_next(inbox)
-    assert claimed is not None and claimed[0].name.endswith("-task-1-r2.md")
-    assert store.claimed_at(inbox, "task-1-r2") >= before
-    assert store.claimed_at(inbox, "task-9-r1") is None
-
-    store.restore(claimed[0])  # a failed delivery puts it back
-    assert store.claimed_at(inbox, "task-1-r2") is None

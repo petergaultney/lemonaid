@@ -42,7 +42,7 @@ def test_an_observer_leaves_the_holder_alone_until_it_takes_the_task():
             holding.assign(conn, task, 2, "brief:Watch.one", "", False, "Watch.one", "r2", 2.0)
 
         assert associations.links_of(conn, task) == [
-            {"brief_id": "Work.alpha", "kind": "holder"},
+            {"brief_id": "Work.alpha", "kind": "observer"},
             {"brief_id": "Watch.one", "kind": "holder"},
         ]
         assert ledger.consistent(conn, task)

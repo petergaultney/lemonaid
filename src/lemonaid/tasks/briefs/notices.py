@@ -8,10 +8,18 @@ its accountable brief.
 import sqlite3
 import typing as ty
 
+from ... import brief
 from ...messages import store
 from ..model import ledger
 
 Task = ty.Mapping[str, ty.Any]
+
+
+def running(conn: sqlite3.Connection, brief_id: str) -> bool:
+    """Whether a lemon has *brief_id*'s brief now, not a window still waiting for one; a
+    running holder is told of a task by message, and one yet to start by its launch context."""
+    path = brief.lemon.brief_of(conn, brief_id)
+    return any(a.channel for a in brief.attached.for_paths(conn, [path])) if path else False
 
 
 def observing(task_id: str, holder: str) -> str:
@@ -21,7 +29,7 @@ def observing(task_id: str, holder: str) -> str:
     )
 
 
-def tell(holder: str, accountable: str, body: str, sender: str, message_id: str = "") -> str:
+def tell(holder: str, accountable: str, body: str, sender: str) -> str:
     """Queue *body* for *holder*, or for the brief accountable for a human or external one;
     returns how that went, for the caller's output."""
     to = holder.removeprefix("brief:") if holder.startswith("brief:") else accountable
@@ -29,7 +37,7 @@ def tell(holder: str, accountable: str, body: str, sender: str, message_id: str 
         return f"{holder} isn't a lemon; tell them yourself"
 
     try:
-        store.send(store.inbox_for_id(to), body, sender or "lemonaid", message_id)
+        store.send(store.inbox_for_id(to), body, sender or "lemonaid")
     except (ValueError, OSError) as error:
         return f"telling {to} failed: {error}"
 
@@ -55,15 +63,14 @@ def tell_taken(task: Task, taken_from: str, accountable: str, new_holder: str, a
     )
 
 
-def tell_holder(task: Task, actor: str, reason: str, message_id: str) -> str:
-    """Tell a running brief it was just assigned *task*; *message_id* lets the inspector
-    see when the message was read."""
+def tell_holder(task: Task, actor: str, reason: str) -> str:
+    """Tell a running brief it was just assigned *task*."""
     body = (
         f"You now hold task:{task['task_id']} ({task['description']}), assigned by"
-        f" {actor or 'lemonaid'}: {reason}. Once you have read it and accept it, run"
-        f" `lemonaid task acknowledge {task['task_id']}`."
+        f" {actor or 'lemonaid'}: {reason}. When you are no longer the one to move next on it,"
+        f" hand it on with `lemonaid task assign {task['task_id']} --to BRIEF --reason TEXT`."
     )
-    return tell(task["holder"], "", body, actor, message_id)
+    return tell(task["holder"], "", body, actor)
 
 
 def tell_closed(task: Task, actor: str, reason: str) -> str:
@@ -84,17 +91,34 @@ def tell_released(parent: Task, child: Task, actor: str, reason: str) -> str:
     return tell(parent["holder"], parent["accountable_brief_id"], body, actor)
 
 
-def notice(conn: sqlite3.Connection, result: ty.Mapping[str, ty.Any], actor: str) -> str:
-    """The line to show for a recorded disposition or assignment, after telling the former
-    holder of a taken task; "" when the task neither was taken nor gained an observer."""
+def notice(
+    conn: sqlite3.Connection,
+    result: ty.Mapping[str, ty.Any],
+    actor: str,
+    reason: str = "your brief's task",
+) -> str:
+    """The lines to show for a recorded disposition or assignment, after telling the former
+    holder of a taken task, and the new holder when *result* says `tell_holder`; "" when
+    none of these happened."""
     if result.get("disposition") == "observe" and result.get("holder"):
         return observing(result["task_id"], result["holder"])
 
-    if taken := result.get("taken_from"):
-        task = ledger.state(conn, result["task_id"])
-        assert task is not None
-        return tell_taken(
-            task, taken, result.get("previous_accountable", ""), task["holder"], actor
-        )
+    task = ledger.state(conn, result["task_id"]) if result.get("task_id") else None
+    if task is None:
+        return ""
 
-    return ""
+    taken = result.get("taken_from")
+    return "\n".join(
+        [
+            *(
+                [
+                    tell_taken(
+                        task, taken, result.get("previous_accountable", ""), task["holder"], actor
+                    )
+                ]
+                if taken
+                else []
+            ),
+            *([tell_holder(task, actor, reason)] if result.get("tell_holder") else []),
+        ]
+    )

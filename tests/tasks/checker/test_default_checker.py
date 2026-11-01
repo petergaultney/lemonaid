@@ -3,7 +3,7 @@ import pytest
 from lemonaid.tasks.checker import checker_input, corpus
 from lemonaid.tasks.checker.default import rules
 
-from ..shared import fact, idle, snapshot, task
+from ..shared import brief_says, fact, idle, snapshot, task
 
 
 def _evaluate(tasks, facts):
@@ -20,7 +20,6 @@ def _unstarted(assigned_at):
         **{
             "assignment.assigned_at": assigned_at,
             "assignment.attached_at": "",
-            "assignment.acknowledged_at": "",
         }
     )
 
@@ -28,7 +27,7 @@ def _unstarted(assigned_at):
 _NOT_STARTED = [fact("lemon", "Work.alpha", "attached", "false")]
 
 
-def test_unstarted_child_gets_launch_grace_and_no_ack_accusation():
+def test_unstarted_child_gets_launch_grace():
     assert _kinds(_evaluate([_unstarted("2026-10-31T11:55:00Z")], _NOT_STARTED)) == [
         ("ok",),
         ("recheck",),
@@ -45,53 +44,6 @@ def test_unstarted_child_past_launch_grace_challenges_only_its_sponsor():
     assert finding[0] == "challenge"
     assert finding[2] == "launch"
     assert finding[5] == "Lead.lead"
-
-
-def test_attached_unacknowledged_idle_holder_is_asked_to_acknowledge_first():
-    records = _evaluate(
-        [
-            task(
-                **{
-                    "assignment.acknowledged_at": "",
-                    "assignment.attached_at": "2026-10-31T11:40:00Z",
-                }
-            )
-        ],
-        idle(),
-    )
-
-    assert _kinds(records) == [("challenge", "acknowledge")]
-
-
-def test_acknowledgment_grace_starts_at_delivery_for_a_running_holder():
-    records = _evaluate(
-        [
-            task(
-                **{
-                    "assignment.acknowledged_at": "",
-                    "assignment.attached_at": "2026-10-31T10:00:00Z",
-                    "assignment.delivered_at": "2026-10-31T11:58:00Z",
-                }
-            )
-        ],
-        idle(),
-    )
-
-    assert _kinds(records) == [("ok",), ("recheck",)]
-
-
-def test_a_message_assignment_is_never_challenged_before_its_delivery():
-    sent = {
-        "assignment.acknowledged_at": "",
-        "assignment.attached_at": "2026-10-31T10:00:00Z",
-        "assignment.delivery": "message",
-    }
-
-    queued = _evaluate([task(**sent)], idle())
-    read = _evaluate([task(**sent, **{"assignment.delivered_at": "2026-10-31T10:01:00Z"})], idle())
-
-    assert _kinds(queued) == [("unknown",)]
-    assert _kinds(read) == [("challenge", "acknowledge")]
 
 
 def test_recently_idle_holder_is_rechecked_not_challenged():
@@ -127,19 +79,15 @@ _URL = "https://example.com/pr/1"
 _SOON = "2026-10-31T12:05:00Z"
 
 
-def _ci(checks: str, delivered: str = "") -> list[dict[str, str]]:
+def _ci(checks: str, since: str = "2026-10-31T11:50:00Z") -> list[dict[str, str]]:
     return [
-        *idle(),
+        *idle(since=since),
         fact("pr", _URL, "checks", checks),
         fact("pr", _URL, "head", "abc"),
-        fact("pr", _URL, "release_delivered_at", delivered),
     ]
 
 
 def test_wait_records_carry_type_before_evidence():
-    assert _evaluate([task(subject_url=_URL)], _ci("pending")) == [
-        ("wait", "t1", "progress", "waiting-for-ci", f"{_URL}@abc", _SOON, "CI is running")
-    ]
     external = task(
         holder="external:github",
         accountable_brief_id="Work.alpha",
@@ -158,38 +106,29 @@ def test_wait_records_carry_type_before_evidence():
     ]
 
 
-def test_finished_ci_is_the_holders_move_only_after_delivery_and_grace():
-    undelivered = _evaluate([task(subject_url=_URL)], _ci("passed"))
-    recent = _evaluate([task(subject_url=_URL)], _ci("passed", "2026-10-31T11:59:30Z"))
-    overdue = _evaluate([task(subject_url=_URL)], _ci("passed", "2026-10-31T11:30:00Z"))
+def test_running_ci_on_the_tasks_pr_is_a_wait_and_any_other_state_is_not():
+    running = _evaluate([task(subject_url=_URL)], _ci("pending", "2026-10-31T11:30:00Z"))
 
-    assert _kinds(undelivered) == [("wait", "progress")]
-    assert undelivered[0][3] == "release-notification"
-    assert _kinds(recent) == [("ok",), ("recheck",)]
-    assert overdue == [
-        (
-            "challenge",
-            "t1",
-            "ci-result",
-            f"{_URL}@abc:passed",
-            "brief",
-            "Work.alpha",
-            "CI passed on abc",
-        ),
-    ]
+    assert running[0][:5] == ("wait", "t1", "progress", "waiting-for-ci", f"{_URL}@abc")
+    for checks in ("passed", "failed", "none"):
+        overdue = _evaluate([task(subject_url=_URL)], _ci(checks, "2026-10-31T11:30:00Z"))
+
+        assert _kinds(overdue) == [("challenge", "progress")]
 
 
-def test_a_task_with_ci_absent_is_judged_on_idleness_alone():
-    assert _kinds(_evaluate([task(subject_url=_URL)], _ci("none"))) == [("challenge", "progress")]
+def test_unknown_ci_falls_to_the_idle_rule():
+    unknown = [*idle(since="2026-10-31T11:30:00Z"), fact("pr", _URL, "checks", "", "unknown")]
+
+    assert _kinds(_evaluate([task(subject_url=_URL)], unknown)) == [("challenge", "progress")]
 
 
-def _child(lifecycle: str, finding: str = "", delivered: str = "") -> list[dict[str, str]]:
+def _child(lifecycle: str, finding: str = "", closed: str = "") -> list[dict[str, str]]:
     return [
         *idle(),
         fact("task", "t1", "cycle", ""),
         fact("task", "t2", "lifecycle", lifecycle),
         *([fact("task", "t2", "finding", finding)] if finding else []),
-        fact("task", "t2", "release_delivered_at", delivered),
+        *([fact("task", "t2", "released_at", closed)] if closed else []),
     ]
 
 
@@ -207,11 +146,14 @@ def test_a_dependency_justifies_a_wait_only_while_it_is_healthy():
     assert _kinds(_evaluate([held], _child("open"))) == [("unknown",)]
 
 
-def test_a_closed_dependency_asks_for_its_result_once_its_release_is_delivered():
+def test_a_closed_dependency_is_the_holders_move_once_the_grace_since_it_closed_passes():
     held = task(**{"dependency.t2": "pending"})
 
-    assert _evaluate([held], _child("closed"))[0][3] == "release-notification"
-    assert _evaluate([held], _child("closed", delivered="2026-10-31T11:00:00Z")) == [
+    assert _kinds(_evaluate([held], _child("closed", closed="2026-10-31T11:59:30Z"))) == [
+        ("ok",),
+        ("recheck",),
+    ]
+    assert _evaluate([held], _child("closed", closed="2026-10-31T11:00:00Z")) == [
         ("challenge", "t1", "consume-result", "task:t2", "brief", "Work.alpha", "t2 closed"),
     ]
 
@@ -237,3 +179,76 @@ def test_a_cycle_is_reported_once_by_its_smallest_task():
         "sam",
     )
     assert _kinds(found[1]) == [("ok",)]
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        {"status": "blocked", "needs": "Design acceptance"},
+        {"status": "review", "waiting_on": "- The reviewer's verdict"},
+    ],
+)
+def test_an_idle_holder_whose_brief_status_declares_a_wait_is_not_challenged(said):
+    lemon = [f for f in idle() if f["kind"] == "lemon"]
+
+    assert _kinds(_evaluate([task()], [*lemon, *brief_says(**said)])) == [("wait", "progress")]
+
+
+@pytest.mark.parametrize("said", [{}, {"waiting_on": "- CI on the PR"}, {"needs": "A ruling"}])
+def test_an_idle_holder_is_challenged_unless_its_status_declares_a_wait(said):
+    lemon = [f for f in idle() if f["kind"] == "lemon"]
+
+    assert _kinds(_evaluate([task()], [*lemon, *brief_says(**said)])) == [("challenge", "progress")]
+
+
+@pytest.mark.parametrize(
+    ("waiting_on", "expected"),
+    [
+        ("- A reviewer for t1", [("wait", "progress")]),
+        ("- A reviewer for t2", [("challenge", "progress")]),
+        ("- A reviewer", [("unknown",)]),
+    ],
+)
+def test_a_declared_wait_covers_only_the_task_it_names_when_the_brief_holds_several(
+    waiting_on, expected
+):
+    lemon = [f for f in idle() if f["kind"] == "lemon"]
+    said = brief_says(status="review", waiting_on=waiting_on, held="t1 t2")
+
+    assert _kinds(_evaluate([task()], [*lemon, *said])) == expected
+
+
+@pytest.mark.parametrize(
+    ("started", "expected"),
+    [
+        ("2026-10-31T11:59:30Z", [("ok",), ("recheck",)]),
+        ("2026-10-31T11:40:00Z", [("challenge", "progress")]),
+    ],
+)
+def test_the_idle_clock_starts_no_earlier_than_the_assignment(started, expected):
+    records = _evaluate(
+        [task(**{"assignment.attached_at": started})], idle(since="2026-10-31T11:00:00Z")
+    )
+
+    assert _kinds(records) == expected
+
+
+def test_the_idle_challenge_lists_each_honest_way_out():
+    [challenge] = _evaluate([task()], idle(since="2026-10-31T11:00:00Z"))
+
+    for command in (
+        "task assign t1 --to BRIEF",
+        "--to human:NAME --accountable self",
+        "--instead-of t1",
+        "task set-url t1",
+    ):
+        assert command in challenge[6]
+
+
+def test_a_gone_holders_task_goes_to_its_parent_when_no_one_handed_it_over():
+    orphan = task(previous_holder="", sponsor="", holder_parent="Lead.lead")
+    gone = [fact("lemon", "Work.alpha", "available", "false")]
+
+    [found] = _evaluate([orphan], gone)
+
+    assert found[:3] == ("challenge", "t1", "holder-unavailable") and found[5] == "Lead.lead"

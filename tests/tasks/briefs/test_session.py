@@ -1,7 +1,7 @@
 from lemonaid.brief import identity
 from lemonaid.inbox import db
 from lemonaid.tasks.briefs import session
-from lemonaid.tasks.model import holding, ledger
+from lemonaid.tasks.model import ledger
 
 from ..shared import new_task
 
@@ -15,7 +15,7 @@ def _brief(tmp_path, lemon_id):
     return path
 
 
-def test_first_start_starts_the_clock_and_lists_the_acknowledge_command(tmp_path):
+def test_first_start_records_the_start_and_lists_the_tasks(tmp_path):
     path = _brief(tmp_path, "work.Alpha")
     with db.connect() as conn:
         task = new_task(conn, brief_id="work.Alpha")
@@ -23,12 +23,8 @@ def test_first_start_starts_the_clock_and_lists_the_acknowledge_command(tmp_path
         resumed = session.started(conn, path, 900.0)
 
         assert ledger.state(conn, task)["attached_at"] == 500.0
-        assert f"lemonaid task acknowledge {task}" in text
+        assert f"- task:{task} (Do the work)" in text and "task assign" in text
         assert resumed == text
-
-        with ledger.transaction(conn):
-            holding.acknowledge(conn, task, 2, "work.Alpha", "ack", 950.0)
-        assert "acknowledge " not in session.started(conn, path, 999.0).split("\n", 1)[1]
 
 
 def test_no_tasks_and_task_support_off_add_nothing(tmp_path):

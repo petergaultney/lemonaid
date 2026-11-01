@@ -1,12 +1,15 @@
 """Run a checker over a corpus offline and report each task's verdict, and which ones changed."""
 
 import subprocess
+import sys
 import tempfile
 import typing as ty
 from collections import abc
 from pathlib import Path
 
 from . import corpus, protocol
+
+DEFAULT_CHECKER = (sys.executable, "-m", "lemonaid.tasks.checker.default")
 
 # Strongest first: a set with any challenge is a challenge, whatever else it holds.
 _RANK = ("challenge", "adjudicate", "unknown", "wait", "ok")
@@ -38,13 +41,15 @@ def _summary(records: abc.Sequence[protocol.Record]) -> str:
     return next(kind for kind in _RANK if kind in kinds)
 
 
-def run_checker(argv: abc.Sequence[str], text: str, timeout: float) -> str:
-    """The checker's stdout for one evaluate input; raises CalledProcessError or TimeoutExpired."""
+def run_checker(
+    argv: abc.Sequence[str], text: str, timeout: float, operation: str = "evaluate"
+) -> str:
+    """The checker's stdout for one input; raises CalledProcessError or TimeoutExpired."""
     with tempfile.NamedTemporaryFile("w", suffix=".tsv") as handle:
         handle.write(text)
         handle.flush()
         return subprocess.run(
-            [*argv, "evaluate", "--input", handle.name],
+            [*argv, operation, "--input", handle.name],
             capture_output=True,
             text=True,
             timeout=timeout,

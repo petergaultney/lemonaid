@@ -16,8 +16,12 @@ from collections import abc
 from pathlib import Path
 
 from .. import home
+from ..log import get_logger
 from ..messages import store as messages
+from ..tasks.briefs import completion
 from . import active_names, frontmatter, identity, store
+
+_log = get_logger("brief.archive")
 
 _DAY = 24 * 60 * 60
 _INBOXES = "inbox"  # the attic month's archived inboxes: inbox/<Lemon-ID>/<N>/, one per archive
@@ -210,6 +214,9 @@ def archive(
     """
     month = attic_dir() / time.strftime("%Y-%m", time.localtime(last or time.time()))
     target = month / path.name
+    if lemon_id := _lemon_id(conn, path):
+        for line in completion.hand_on_archive(conn, lemon_id):
+            _log.info("%s", line)
     with home.guard.operation():
         conn.execute("BEGIN IMMEDIATE")
         try:
