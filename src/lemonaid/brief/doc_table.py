@@ -10,7 +10,7 @@ from pathlib import Path
 from .. import obsidian
 from . import now_edit, output_doc, sections
 
-_LINK = re.compile(r"\[(?P<label>(?:\\.|[^\]])*)\]\(<?(?P<url>[^>]+?)>?\)")
+LINK = re.compile(r"\[(?P<label>(?:\\.|[^\]])*)\]\(<?(?P<url>[^>]+?)>?\)")
 
 
 class Watch(enum.StrEnum):
@@ -26,7 +26,7 @@ class Row:
 
 
 def path_of(cell: str, vaults: abc.Iterable[Path] = ()) -> Path | None:
-    match = _LINK.search(cell)
+    match = LINK.search(cell)
     value = match["url"] if match else cell.strip().strip("`")
     if value.startswith("obsidian://"):
         query = urllib.parse.parse_qs(urllib.parse.urlparse(value).query)
@@ -34,7 +34,7 @@ def path_of(cell: str, vaults: abc.Iterable[Path] = ()) -> Path | None:
         if label.startswith(("/", "~/")):
             return Path(label).expanduser().resolve()
         root = next((p for p in vaults if p.name == query.get("vault", [""])[0]), None)
-        name = query.get("file", [""])[0]
+        name = query.get("file", [""])[0].partition("#")[0]
         return root / (name if name.endswith(".md") else name + ".md") if root and name else None
 
     if value.startswith("file://"):
@@ -46,7 +46,7 @@ def path_of(cell: str, vaults: abc.Iterable[Path] = ()) -> Path | None:
     if "://" in value or not value:
         return None
 
-    return Path(urllib.parse.unquote(value)).expanduser().resolve()
+    return Path(urllib.parse.unquote(value.partition("#")[0])).expanduser().resolve()
 
 
 def parse(body: abc.Sequence[str]) -> tuple[list[Row], list[str]]:

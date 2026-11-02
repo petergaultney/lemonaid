@@ -16,6 +16,7 @@ _HEADING = re.compile(r"###\s+(?P<label>.+?)\s*#*\s*")
 _TOP_LEVEL_BULLET = re.compile(r"[-*+]\s+(?P<text>.*)")
 _CODE_SPAN = re.compile(r"(`+)(?P<code>.+?)\1")
 _EMPHASIS = re.compile(r"\*+|(?<!\w)_+|_+(?!\w)")  # intraword underscores are not emphasis
+_MD_LINK = re.compile(r"\[(?P<text>[^\]]*)\]\((?:<[^>]*>|[^)]*)\)")
 _SPACES = re.compile(r"\s+")
 _LEAD = re.compile(r":(?:\s|$)")
 
@@ -62,7 +63,8 @@ def _unmarked(text: str) -> str:
 
 
 def _plain(text: str) -> str:
-    return " ".join(_CODE_SPAN.sub(r"\g<code>", _unmarked(text)).split()).casefold()
+    unlinked = _MD_LINK.sub(r"\g<text>", text)
+    return " ".join(_CODE_SPAN.sub(r"\g<code>", _unmarked(unlinked)).split()).casefold()
 
 
 def _lead(text: str) -> str:
@@ -97,20 +99,34 @@ def _bullets(needs: str) -> abc.Iterator[str]:
         yield "\n".join(lines).strip()
 
 
-def items(needs: str, explained: abc.Mapping[str, str]) -> tuple[Item, ...]:
-    """Needs as items, each with the entry explaining it; () when no entry matches one."""
-    found = tuple(
-        next(
-            (
-                Item(text, label, entry)
-                for label, entry in explained.items()
-                if _explains(label, text)
-            ),
-            Item(text),
-        )
-        for text in _bullets(needs)
+def _item(
+    text: str, explained: abc.Mapping[str, str], linked: abc.Callable[[str], str | None]
+) -> Item:
+    """The `## Questions` entry that explains *text*, else the section it links to."""
+    for label, entry in explained.items():
+        if _explains(label, text):
+            return Item(text, label, entry)
+
+    section = linked(text)
+    return (
+        Item(text)
+        if section is None
+        else Item(text, _MD_LINK.sub(r"\g<text>", labels_of(text)), section)
     )
+
+
+def items(
+    needs: str,
+    explained: abc.Mapping[str, str],
+    linked: abc.Callable[[str], str | None] = lambda text: None,
+) -> tuple[Item, ...]:
+    """Needs as items, each with its entry or linked section; () when none has one."""
+    found = tuple(_item(text, explained, linked) for text in _bullets(needs))
     return found if any(item.label for item in found) else ()
+
+
+def labels_of(bullet: str) -> str:
+    return _lead(_unmarked(bullet.splitlines()[0]))
 
 
 def unmatched(needs: str, explained: abc.Mapping[str, str]) -> tuple[str, ...]:
@@ -124,7 +140,7 @@ def unmatched(needs: str, explained: abc.Mapping[str, str]) -> tuple[str, ...]:
 def labels(needs: str, without: str = "") -> list[str]:
     """Each Needs bullet's label, leaving out the bullet the label *without* explains."""
     return [
-        _lead(_unmarked(bullet.splitlines()[0]))
+        labels_of(bullet)
         for bullet in _bullets(needs)
         if not (without and _explains(without, bullet))
     ]

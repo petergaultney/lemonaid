@@ -57,7 +57,7 @@ Every open PR you author or review, or that your children author, gets a row und
 
 Leave the Review cell empty if no review doc exists. Remove a row once its PR merges or closes.
 
-`## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels.
+`## Questions` follows `## Now`. Each question to your user, including an ask in chat, also needs a full entry here so they can answer from the brief alone. Its `###` heading matches the label of its `Needs` bullet (the text before the colon, or the whole bullet if there is no colon). Rewrite the entry when more detail is requested, and remove it once answered. Your overlay may supply the question's prose layout; lemonaid pairs the labels. An ask may link to a section of a document the user edits instead of a `## Questions` entry.
 
 The worker owns `Status:`, `## Now`, `## Questions`, `## Next`, `## PRs`, `## Docs`, `## Done`, `## Executive Summary of Results`, and `## Watching`. In the Markdown brief, put `## Executive Summary of Results` just after `## Goal`; `brief show` renders a populated summary first, before Needs and the rest of the body. The assigning parent owns the task sections from `Parent:` through `## Goal`, `## Context`, `## Acceptance Criteria`, and `## Limits`; preserve them. Keep `## Watching` last, after those sections. The title names the task itself, without a "Brief:" prefix.
 

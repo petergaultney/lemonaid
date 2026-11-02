@@ -148,7 +148,13 @@ def cmd_show(args: argparse.Namespace) -> None:
 
     now = time.time()
     shown = family.added(
-        render.view(found, now, pr.configured(config.brief.pr_state), config.places.roots)
+        render.view(
+            found,
+            now,
+            pr.configured(config.brief.pr_state),
+            config.places.roots,
+            config.brief.vaults,
+        )
     )
     print(render.to_markdown(shown, now, args.questions))
 
