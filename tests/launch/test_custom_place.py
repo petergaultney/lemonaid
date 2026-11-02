@@ -1,5 +1,6 @@
 import argparse
 import json
+import time
 
 import pytest
 
@@ -71,6 +72,9 @@ def test_place_runs_shape_and_custom_lemon_and_attaches_at_shape_slot(
         "new",
         f"Task. Your task file is {path.resolve()}; read it all and do the work.",
     ]
+    deadline = time.monotonic() + 30
+    while not editor_marker.exists() and time.monotonic() < deadline:  # it runs in its own pane
+        time.sleep(0.1)
     assert editor_marker.exists()
     with db.connect() as conn:
         [pending] = conn.execute("SELECT * FROM pending_briefs").fetchall()
