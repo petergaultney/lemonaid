@@ -19,6 +19,7 @@ from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.places import ownership, teardown
 
+from . import pane_paths
 from .brief_archive import shared
 
 
@@ -594,6 +595,7 @@ def test_a_partial_toss_closes_only_the_planned_windows(monkeypatch, tmp_path):
     monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(teardown, "reap_log_path", lambda: tmp_path / "reap.log")
     try:
+        pane_paths.settled(tmux, live, merged, merged, merged)
         panes = [p for p in ownership.panes() if p.path and p.path.resolve() == merged.resolve()]
         doomed = {w: [p for p in panes if p.window == w] for w in {p.window for p in panes}}
         assert len(doomed) == 3

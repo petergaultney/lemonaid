@@ -16,7 +16,8 @@ def test_inbox_and_two_changed_files_arrive_in_one_batch(tmp_path):
         + f"- `lemonaid watch file --wait {one} --interval .01 --quiet 0`\n- `lemonaid watch file --wait {two} --interval .01 --quiet 0`\n"
     )
     sent = []
-    _path, inbox, root, stop, thread, errors = shared.start(tmp_path, text, sent.append)
+    # Quiet long enough for both files' watchers to report on a loaded machine.
+    _path, inbox, root, stop, thread, errors = shared.start(tmp_path, text, sent.append, quiet=1)
     try:
         shared.eventually(lambda: len(list((root / "file").glob("*.reported.json"))) == 2)
         assert sent == []
