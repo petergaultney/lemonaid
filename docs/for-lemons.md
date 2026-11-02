@@ -1127,6 +1127,10 @@ explains: the bullet's text up to its first colon, or the whole bullet, ignoring
 `brief show` displays matched entries under their Needs bullets by default; `--questions` remains
 accepted, and `--no-questions` hides matched entries in text output. A Questions heading with no
 matching Needs bullet is flagged in both text and popup views, and `brief check` reports it.
+A bullet may instead link to a heading in a Markdown file (a path or an `obsidian://` link,
+resolved through `[brief] vaults`); that section's body becomes its entry, and a `## Questions`
+entry for the same bullet wins. `brief check` ignores the `#heading` when matching a linked file
+against `### Docs` rows, and warns when the heading is absent.
 An existing mismatch does not prevent an unrelated `brief status`, `bullet`, `pr`, or `waiter`
 edit; an edit that creates a new mismatch is refused.
 When the person answers from the

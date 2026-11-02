@@ -15,7 +15,7 @@ from collections import abc
 from pathlib import Path
 
 from ..config import PlaceRoot
-from . import display, identity, now, pr, project, questions, status, store, target
+from . import display, identity, linked_asks, now, pr, project, questions, status, store, target
 
 _GENERIC_TITLE_PREFIX = re.compile(r"^brief:\s*", re.IGNORECASE)
 
@@ -126,6 +126,7 @@ def _section(
     detail: str,  # "full" (the task below a rule), "now", or "compact"
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot],
+    vaults: abc.Collection[Path],
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
@@ -154,7 +155,7 @@ def _section(
         tail,
         parsed.needs_label,
         parsed.needs,
-        questions.items(parsed.needs, explained),
+        questions.items(parsed.needs, explained, linked_asks.reader(vaults)),
         questions.unmatched(parsed.needs, explained),
         project.label(roots, lemon.place, lemon.cwd, parts.area) if lemon else parts.area,
         lemon_id=_lemon_id(brief.text),
@@ -240,6 +241,7 @@ def _session_view(
     now_seconds: float,
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot],
+    vaults: abc.Collection[Path],
 ) -> View:
     members = sorted(found.members, key=lambda m: _window_order(m.lemon))
     sections: list[Section] = []
@@ -252,7 +254,7 @@ def _session_view(
 
         taken.add(brief.path)
         detail = "now" if not sections else "compact"
-        sections.append(_section(brief, member.lemon, detail, pr_state, roots))
+        sections.append(_section(brief, member.lemon, detail, pr_state, roots, vaults))
 
     return View(found.header, True, tuple(sections), "")
 
@@ -262,10 +264,14 @@ def view(
     now_seconds: float,
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot] = (),
+    vaults: abc.Collection[Path] = (),
 ) -> View:
-    """*roots* are the `[[places.roots]]` that name each section's project."""
+    """*roots* are the `[[places.roots]]` that name each section's project.
+
+    *vaults* resolve `obsidian://` links in Needs bullets to the sections they ask from.
+    """
     if found.members:
-        return _session_view(found, now_seconds, pr_state, roots)
+        return _session_view(found, now_seconds, pr_state, roots, vaults)
 
     located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
     if isinstance(located, str):
@@ -290,6 +296,7 @@ def view(
                 "full" if len(located) == 1 else "now" if i == 0 or not in_session else "compact",
                 pr_state,
                 roots,
+                vaults,
             )
             for i, brief in enumerate(ordered)
         ),
@@ -430,5 +437,6 @@ def markdown(
     pr_state: pr.Lookup,
     expanded: bool = False,
     roots: abc.Sequence[PlaceRoot] = (),
+    vaults: abc.Collection[Path] = (),
 ) -> str:
-    return to_markdown(view(found, now_seconds, pr_state, roots), now_seconds, expanded)
+    return to_markdown(view(found, now_seconds, pr_state, roots, vaults), now_seconds, expanded)

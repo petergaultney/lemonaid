@@ -472,7 +472,9 @@ class BriefView(scroll_position.StableScroll):
     def update_brief(self, found: target.Target, unread: bool = False) -> None:
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
-        shown = family.added(render.view(found, now, self._pr_states.get, self._roots))
+        shown = family.added(
+            render.view(found, now, self._pr_states.get, self._roots, self._vaults)
+        )
         shown = _turns(shown, now, self._mid_turn_working)
         with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             self._lemons = identity.known(conn)

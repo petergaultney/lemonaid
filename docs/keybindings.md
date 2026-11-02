@@ -189,6 +189,12 @@ Bullets with no entry, and briefs with no `## Questions`, show as before.
 An entry whose heading matches no Needs bullet appears as a warning in the brief view;
 `brief check` reports the same mismatch.
 
+A `Needs` bullet can instead link to a heading in a Markdown file, as a path
+(`decisions.md#Retry policy`) or an `obsidian://` link resolved through `[brief] vaults`.
+That section's body, up to the next heading of the same or a higher level, is the bullet's entry,
+and the question keys work on it unchanged. A `## Questions` entry for the same bullet wins.
+`brief check` warns when a linked heading does not exist.
+
 | Key | Action |
 |-----|--------|
 | `[` | Select the previous question |
