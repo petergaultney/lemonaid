@@ -15,6 +15,8 @@ import pytest
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.places import ownership, target, workspace_purpose
 
+from . import pane_paths
+
 
 def _root(tmp_path: Path) -> PlaceRoot:
     return PlaceRoot(
@@ -724,6 +726,7 @@ def test_the_recheck_sees_a_split_on_a_real_tmux_server(monkeypatch, tmp_path):
         pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
 
     tmux("new-window", "-d", "-t", "katamari", "-c", str(tmp_path / "merged"))
+    pane_paths.settled(tmux, tmp_path / "live", tmp_path / "merged")
     socket = tmux("display-message", "-p", "-t", "katamari", "#{socket_path}").stdout.strip()
     monkeypatch.setenv("TMUX", f"{socket},0,0")
     monkeypatch.delenv("TMUX_PANE", raising=False)
@@ -736,6 +739,7 @@ def test_the_recheck_sees_a_split_on_a_real_tmux_server(monkeypatch, tmp_path):
         assert target.changed_since(config, "merged", planned) == ""
 
         tmux("split-window", "-d", "-t", window, "-c", str(tmp_path / "live"))
+        pane_paths.settled(tmux, tmp_path / "live", tmp_path / "merged", tmp_path / "live")
 
         why = target.changed_since(config, "merged", planned)
 

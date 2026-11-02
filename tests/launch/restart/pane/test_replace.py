@@ -17,7 +17,12 @@ def test_captured_login_shell_can_be_replaced(server, shell):
     pane.run(server.socket, "set-option", "-g", "default-shell", binary)
     pane_id = pane.run(server.socket, "new-window", "-d", "-P", "-F", "#{pane_id}")
     target = pane.by_id(server.socket, pane_id)
-    root = process.inspect(target.pid)
+    deadline = time.monotonic() + 5
+    while True:  # until it execs the shell, the pane's process is a fork of the tmux server
+        root = process.inspect(target.pid)
+        if (root is not None and process.shell(root, [])) or time.monotonic() > deadline:
+            break
+        time.sleep(0.05)
     assert root is not None
     assert process.shell(root, [])
     replacement = pane.replace(target, root, target.cwd, "exec sleep 30", {})

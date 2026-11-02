@@ -10,6 +10,8 @@ import pytest
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.places import ownership, target, toss_cli, workspace_purpose
 
+from . import pane_paths
+
 
 def _workspace(
     monkeypatch, tmp_path, *, owner_lookup="echo {dir}", cd_away=False, duplicate_key=False
@@ -129,6 +131,7 @@ def test_two_roots_cleanup_on_a_private_tmux_server(monkeypatch, tmp_path):
     if started.returncode:
         pytest.skip(f"cannot start tmux: {started.stderr.strip()}")
     try:
+        pane_paths.settled(tmux, directory)
         socket = tmux("display-message", "-p", "-t", "feat", "#{socket_path}").stdout.strip()
         monkeypatch.setenv("TMUX", f"{socket},0,0")
         monkeypatch.setattr(toss_cli, "load_config", lambda: cfg)
