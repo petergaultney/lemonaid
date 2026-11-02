@@ -219,10 +219,44 @@ def test_the_idle_challenge_lists_each_honest_way_out():
         assert command in challenge[6]
 
 
-def test_a_gone_holders_task_goes_to_its_parent_when_no_one_handed_it_over():
-    orphan = task(previous_holder="", sponsor="", holder_parent="Lead.lead")
-    gone = [fact("lemon", "Work.alpha", "available", "false")]
+def _lineage(start: str, *chain: tuple[str, str]) -> list[dict[str, str]]:
+    return [
+        fact("lineage", start, "chain", " ".join(who for who, _ in chain)),
+        *(fact("lemon", who, "live", alive) for who, alive in chain),
+    ]
 
-    [found] = _evaluate([orphan], gone)
 
-    assert found[:3] == ("challenge", "t1", "holder-unavailable") and found[5] == "Lead.lead"
+def test_a_dead_holder_is_reported_to_its_assigner_while_live():
+    gone = [
+        fact("lemon", "Work.alpha", "live", "false"),
+        *_lineage("Review.one", ("Review.one", "true"), ("Lead.lead", "true")),
+    ]
+
+    [found] = _evaluate([task(**{"assignment.by": "Review.one"})], gone)
+
+    assert found[:3] == ("challenge", "t1", "holder-unavailable") and found[5] == "Review.one"
+    assert "lemonaid lemon resume Work.alpha" in found[6]
+
+
+def test_a_dead_assigner_passes_the_report_up_its_lineage_then_the_holders():
+    assigned = task(**{"assignment.by": "Review.one"}, holder_parent="Lead.two")
+    gone = [
+        fact("lemon", "Work.alpha", "live", "false"),
+        *_lineage("Review.one", ("Review.one", "false"), ("Lead.lead", "false")),
+        *_lineage("Lead.two", ("Lead.two", "false"), ("Top.hq", "true")),
+    ]
+
+    [found] = _evaluate([assigned], gone)
+
+    assert found[5] == "Top.hq"
+
+
+def test_a_dead_holder_with_no_live_lemon_above_is_unknown_and_an_unstarted_one_isnt_judged_dead():
+    gone = [
+        fact("lemon", "Work.alpha", "live", "false"),
+        *_lineage("Review.one", ("Review.one", "false")),
+    ]
+
+    assert _kinds(_evaluate([task(**{"assignment.by": "Review.one"})], gone)) == [("unknown",)]
+    unstarted = task(**{"assignment.by": "Review.one", "assignment.attached_at": ""})
+    assert ("holder-unavailable",) not in [k[1:] for k in _kinds(_evaluate([unstarted], gone))]

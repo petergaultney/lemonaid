@@ -1,6 +1,6 @@
 """Facts for what a checker's `describe` declares it watches.
 
-The kinds are task, lemon, pr, brief and file. Anything else is reported as a coverage
+The kinds are task, lemon, lineage, pr, brief and file. Anything else is reported as a coverage
 failure rather than ignored, since the checker would otherwise judge without data it
 said it needs. A file is captured by content: its fact names a copy, keyed by its hash,
 that a later edit to the file can't change.
@@ -16,13 +16,12 @@ from pathlib import Path
 from ... import brief, pr_url
 from ...brief import status
 from ...lemon_facts import facts
-from ...messages import recipient
 from ...watch import pr_activity
 from ..checker import protocol, replay
 from ..model import holding, identities, ledger
-from . import cases, live
+from . import cases, lemon_watches, live
 
-KINDS = frozenset({"task", "lemon", "pr", "brief", "file"})
+KINDS = frozenset({"task", "lemon", "lineage", "pr", "brief", "file"})
 
 
 class Unsupported(ValueError):
@@ -38,45 +37,6 @@ def declared(argv: abc.Sequence[str], text: str, timeout: float) -> list[tuple[s
         raise Unsupported(f"the checker watches {', '.join(unknown)}, which lemonaid can't observe")
 
     return found
-
-
-def _lemon(lemon_id: str, seen: facts.Facts | None, now: float) -> list[live.Fact]:
-    """`attached`, `activity`, `idle_since` and `available` for one lemon; a brief with no
-    running lemon is unattached, and one with no attachment at all is unavailable."""
-    if seen is None:
-        return [
-            live.fact("lemon", lemon_id, "attached", "false", now),
-            live.fact("lemon", lemon_id, "available", "true", now),
-        ]
-
-    gone = seen.archived or seen.state == recipient.DEAD
-    alive = seen.harness_running
-    return [
-        live.fact(
-            "lemon",
-            lemon_id,
-            "attached",
-            str(bool(alive)).lower(),
-            now,
-            "known" if alive is not None else "unknown",
-        ),
-        live.fact("lemon", lemon_id, "available", str(not gone).lower(), now),
-        live.fact(
-            "lemon",
-            lemon_id,
-            "activity",
-            "active" if seen.state == recipient.MID_TURN else "idle",
-            now,
-        ),
-        live.fact(
-            "lemon",
-            lemon_id,
-            "idle_since",
-            live.stamp(seen.last_activity) if seen.last_activity else "",
-            now,
-            "known" if seen.last_activity else "unknown",
-        ),
-    ]
 
 
 def _checks(snap: pr_activity.Snapshot) -> str:
@@ -177,7 +137,11 @@ def facts_for(
             case "task":
                 found += _task(conn, key, now)
             case "lemon":
-                found += _lemon(key, seen.get(identities.current(conn, key) or key), now)
+                found += lemon_watches.lemon(
+                    key, seen.get(identities.current(conn, key) or key), now
+                )
+            case "lineage":
+                found += lemon_watches.lineage(conn, key, seen, now)
             case "pr":
                 found += _pr(key, now, pr)
             case "brief":

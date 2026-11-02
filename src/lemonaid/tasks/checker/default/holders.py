@@ -4,28 +4,32 @@ from .. import checker_input, protocol
 from . import settings
 
 
+def _live(view: checker_input.View, lemon: str) -> str:
+    found = view.facts.get(("lemon", lemon, "live"))
+    return found.value if found is not None and found.availability == "known" else ""
+
+
 def unavailable(view: checker_input.View, brief: str) -> list[protocol.Record]:
-    """A challenge to whoever handed the task over, or else its sponsor or the holder's
-    parent, when its holder's lemon is gone; a task is never left with nobody to move."""
-    available = view.facts.get(("lemon", brief, "available"))
-    if available is None or available.availability != "known" or available.value != "false":
+    """A challenge, once the holder has started with its task and its lemon is no longer
+    live, to whoever assigned the task, or failing that to the nearest live lemon above
+    them, and then above the holder; a task is never left with nobody to move."""
+    if _live(view, brief) != "false" or not view.fields.get("assignment.attached_at"):
         return []
 
-    fallback = next(
+    told = next(
         (
             who
-            for who in (
-                view.fields.get("previous_holder", "").removeprefix("brief:"),
-                view.fields.get("sponsor", ""),
-                view.fields.get("holder_parent", ""),
-            )
-            if who and who != brief and ":" not in who
+            for start in (view.fields.get("assignment.by"), view.fields.get("holder_parent"))
+            if start
+            for who in settings.fact(view, "lineage", start, "chain").split()
+            if who != brief and _live(view, who) == "true"
         ),
         "",
     )
-    if not fallback:
-        raise settings.Unknown(f"{brief} is gone and has no one to hand its task to")
+    if not told:
+        raise settings.Unknown(f"{brief} isn't live, and no lemon above it is")
 
+    task = view.subject
     return [
         (
             "challenge",
@@ -33,7 +37,9 @@ def unavailable(view: checker_input.View, brief: str) -> list[protocol.Record]:
             "holder-unavailable",
             view.fields.get("assignment.transfer_event", view.fields["revision"]),
             "brief",
-            fallback,
-            f"{brief} holds this task but its lemon is gone; take it back or reassign it",
+            told,
+            f"{brief} holds this task, but its lemon isn't live. Resume it with"
+            f" `lemonaid lemon resume {brief}`, or hand the task to a live lemon with"
+            f" `lemonaid task assign {task} --to BRIEF --reason TEXT`.",
         )
     ]

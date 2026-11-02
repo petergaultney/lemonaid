@@ -54,6 +54,9 @@ def fields(
         "subject_url": state["subject_url"],
         "holder_parent": links.parent_of(conn, state["holder"].removeprefix("brief:")),
         "assignment.transfer_event": str(state["assignment_event_id"]),
+        "assignment.by": conn.execute(
+            "SELECT actor FROM task_events WHERE event_id = ?", (state["assignment_event_id"],)
+        ).fetchone()["actor"],
         "assignment.assigned_at": _when(state["assigned_at"]),
         "assignment.attached_at": _when(state["attached_at"]),
         **{
