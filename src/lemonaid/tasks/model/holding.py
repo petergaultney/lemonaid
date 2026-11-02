@@ -2,8 +2,7 @@
 starting, and the open tasks a brief holds.
 
 These run inside a caller's `ledger.transaction`. Brief IDs passed here are already
-resolved to current Lemon-IDs; a holder is a tagged string (`brief:ID`, `human:ID` or
-`external:ID`).
+resolved to current Lemon-IDs; a holder is a tagged string, `brief:ID`.
 """
 
 import sqlite3
@@ -65,29 +64,19 @@ def assign(
     request_id: str,
     at: float,
     *,
-    accountable: str = "",
-    recheck_at: str = "",
     check: bool = False,
 ) -> dict[str, ty.Any]:
     """Make *to* the holder now; the current holder becomes the previous one. With
     *check*, the task waits for *to* to check finished work, and *to* may close it.
 
     Anyone may assign a task. When *actor* isn't its holder, `taken_from` names the holder
-    it was taken from, who should be told. A human holder needs the *accountable* brief that
-    exposes the request; an external one also needs a *recheck_at* time.
+    it was taken from, who should be told.
     """
     current = ledger.state(conn, task)
     if current is None:
         raise LookupError(f"no task:{task}")
 
     new_holder = ids.holder(to)
-    if not new_holder.startswith("brief:"):
-        if not accountable:
-            raise ValueError(f"{new_holder} needs an accountable brief")
-
-        if new_holder.startswith("external:") and not recheck_at:
-            raise ValueError(f"{new_holder} needs a recheck time")
-
     ours = {f"brief:{n}" for n in identities.names(conn, actor)} | {new_holder}
     taken_from = "" if current["holder"] in ours else current["holder"]
     event_id, state = ledger.append(
@@ -100,16 +89,13 @@ def assign(
             "reason": reason,
             "attached": attached,
             "taken_from": taken_from,
-            "accountable_brief_id": accountable,
-            "recheck_at": recheck_at,
             "check": check,
         },
         actor,
         request_id,
         at,
     )
-    if new_holder.startswith("brief:"):
-        associations.record_link(conn, new_holder.removeprefix("brief:"), task, "holder", event_id)
+    associations.record_link(conn, new_holder.removeprefix("brief:"), task, "holder", event_id)
     if current["holder"].startswith("brief:") and current["holder"] != new_holder:
         associations.handed_on(conn, current["holder"].removeprefix("brief:"), task)
     return {
@@ -118,7 +104,6 @@ def assign(
         "holder": new_holder,
         "previous_holder": state["previous_holder"],
         "taken_from": taken_from,
-        "previous_accountable": current["accountable_brief_id"],
     }
 
 
@@ -140,15 +125,13 @@ def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> li
 
 
 def held_by(conn: sqlite3.Connection, brief_id: str) -> list[dict[str, ty.Any]]:
-    """Open tasks *brief_id* holds, or answers for as the accountable brief of a human or
-    external holder."""
+    """Open tasks *brief_id* holds."""
     names = identities.names(conn, brief_id)
-    marks = identities.placeholders(names)
     return [
         dict(row)
         for row in conn.execute(
             "SELECT * FROM tasks WHERE lifecycle != 'closed'"
-            f" AND (holder IN ({marks}) OR accountable_brief_id IN ({marks})) ORDER BY created_at",
-            [*(f"brief:{n}" for n in names), *names],
+            f" AND holder IN ({identities.placeholders(names)}) ORDER BY created_at",
+            [f"brief:{n}" for n in names],
         )
     ]

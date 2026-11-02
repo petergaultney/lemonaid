@@ -55,19 +55,6 @@ def test_a_task_transferred_out_of_the_tree_is_no_longer_a_member():
         assert visiting not in _listed(conn)
 
 
-def test_human_holder_keeps_the_task_in_its_accountable_briefs_tree():
-    with db.connect() as conn:
-        _family(conn)
-        asked = new_task(conn, brief_id="Other.work", sponsor="Other.lead")
-        conn.execute(
-            "UPDATE tasks SET holder = 'human:sam', accountable_brief_id = 'Grand.kid'"
-            " WHERE task_id = ?",
-            (asked,),
-        )
-
-        assert _listed(conn)[asked] == [("Grand.kid", "accountable")]
-
-
 def test_rerolled_ids_resolve_and_closed_tasks_need_include_closed():
     with db.connect() as conn:
         _family(conn)

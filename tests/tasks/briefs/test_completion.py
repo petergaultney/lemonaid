@@ -40,7 +40,7 @@ def _close(capsys, task: str, *extra: str) -> dict:
     return _parsed(capsys, parser, argv)
 
 
-def test_done_hands_the_task_to_the_parent_to_check(capsys):
+def test_done_hands_the_task_to_the_parent_to_check(capsys, dead):
     child = _child(capsys)
 
     done = _done(capsys)
@@ -56,41 +56,8 @@ def test_done_hands_the_task_to_the_parent_to_check(capsys):
     )
 
 
-def test_done_hands_a_task_held_by_a_person_to_the_parent_to_answer_for(capsys, monkeypatch):
-    child = _child(capsys)
-    with db.connect() as conn, ledger.transaction(conn):
-        state = ledger.state(conn, child["task_id"])
-        holding.assign(
-            conn,
-            child["task_id"],
-            state["revision"],
-            "human:Ben",
-            "Ben reviews it",
-            False,
-            child["lemon_id"],
-            "to-ben",
-            2.0,
-            accountable=child["lemon_id"],
-        )
-
-    done = _done(capsys)
-
-    with db.connect() as conn:
-        state = ledger.state(conn, child["task_id"])
-        observed = associations.observed_of(conn, child["lemon_id"])
-    assert done["error"] is None
-    assert (state["lifecycle"], state["holder"], state["accountable_brief_id"]) == (
-        "check",
-        "human:Ben",
-        _PARENT,
-    )
-    assert observed == [child["task_id"]]
-    monkeypatch.setattr(lemonaid.tasks.cli_common, "actor", lambda _conn, channel="": _PARENT)
-    assert _close(capsys, child["task_id"])["error"] is None
-
-
 def test_the_holder_of_a_task_awaiting_its_check_may_close_it_despite_its_own_parent(
-    capsys, monkeypatch
+    capsys, monkeypatch, dead
 ):
     child = _child(capsys)
     _done(capsys)
@@ -111,7 +78,7 @@ def test_the_holder_of_a_task_awaiting_its_check_may_close_it_despite_its_own_pa
     assert retried == closed
 
 
-def test_a_holder_with_a_parent_cant_close_its_own_task_but_a_human_can(capsys, monkeypatch):
+def test_a_holder_with_a_parent_cant_close_its_own_task_but_a_human_can(capsys, monkeypatch, dead):
     child = _child(capsys)
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:worker")
 
@@ -125,7 +92,7 @@ def test_a_holder_with_a_parent_cant_close_its_own_task_but_a_human_can(capsys, 
     assert closed["error"] is None and state["lifecycle"] == "closed"
 
 
-def test_handing_a_task_back_from_its_check_reopens_the_work(capsys):
+def test_handing_a_task_back_from_its_check_reopens_the_work(capsys, dead):
     child = _child(capsys)
     _done(capsys)
     with db.connect() as conn, ledger.transaction(conn):
@@ -144,6 +111,29 @@ def test_handing_a_task_back_from_its_check_reopens_the_work(capsys):
 
     with db.connect() as conn:
         assert ledger.state(conn, child["task_id"])["lifecycle"] == "open"
+
+
+def test_done_skips_a_parent_that_isnt_live_for_the_nearest_live_ancestor(capsys, dead):
+    child = _child(capsys)
+    with db.connect() as conn:
+        links.set_parent(conn, _PARENT, "Top.hq")
+    dead.add(_PARENT)
+
+    _done(capsys)
+
+    with db.connect() as conn:
+        assert ledger.state(conn, child["task_id"])["holder"] == "brief:Top.hq"
+
+
+def test_done_is_refused_while_no_ancestor_is_live(capsys, dead):
+    child = _child(capsys)
+    dead.add(_PARENT)
+
+    refused = _done(capsys)
+
+    assert f"{_PARENT} isn't live" in refused["error"]
+    with db.connect() as conn:
+        assert ledger.state(conn, child["task_id"])["holder"] == f"brief:{child['lemon_id']}"
 
 
 def test_registering_a_task_for_another_running_brief_tells_it(tmp_path):
@@ -168,7 +158,7 @@ def _registered(name: str) -> str:
         return identity.ensure(conn, path)
 
 
-def test_archiving_a_brief_hands_its_open_tasks_to_its_parent():
+def test_archiving_a_brief_hands_its_open_tasks_to_its_parent(dead):
     lead, child = _registered("lead"), _registered("child")
     with db.connect() as conn:
         links.set_parent(conn, child, lead)
@@ -179,17 +169,17 @@ def test_archiving_a_brief_hands_its_open_tasks_to_its_parent():
         assert associations.observed_of(conn, child) == [task]
 
 
-def test_a_task_with_no_one_to_go_to_stops_its_brief_being_archived():
+def test_a_task_with_no_one_to_go_to_stops_its_brief_being_archived(dead):
     alone = _registered("alone")
     with db.connect() as conn:
         task = new_task(conn, brief_id=alone, sponsor="")
 
-        with pytest.raises(ValueError, match="no one to go to"):
+        with pytest.raises(ValueError, match="no live lemon to go to"):
             archive.archive(conn, lemon.brief_of(conn, alone), 0.0)
         assert ledger.state(conn, task)["holder"] == f"brief:{alone}"
 
 
-def test_a_running_parent_handed_an_archived_task_has_started_it():
+def test_a_running_parent_handed_an_archived_task_has_started_it(dead):
     lead, child = _registered("busy-lead"), _registered("child")
     with db.connect() as conn:
         db.add(conn, "claude:lead", "", metadata={})

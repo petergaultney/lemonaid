@@ -26,8 +26,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     subject_url TEXT NOT NULL,
     holder TEXT NOT NULL,
     previous_holder TEXT NOT NULL,
-    accountable_brief_id TEXT NOT NULL,
-    recheck_at TEXT NOT NULL,
     checker_id TEXT NOT NULL,
     revision INTEGER NOT NULL,
     lifecycle TEXT NOT NULL CHECK (lifecycle IN ('open', 'check', 'closed')),

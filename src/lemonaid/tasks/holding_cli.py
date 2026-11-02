@@ -5,15 +5,13 @@ repeated request returns its first result, and its messages went out then.
 """
 
 import argparse
-import sqlite3
 import time
 import typing as ty
 
 from ..inbox import db
 from . import cli_common
-from .briefs import notices
-from .checker import checker_input
-from .model import holding, ids, ledger
+from .briefs import liveness, notices
+from .model import holding, ledger
 
 
 def _cmd_create(args: argparse.Namespace) -> None:
@@ -22,11 +20,13 @@ def _cmd_create(args: argparse.Namespace) -> None:
             spec = cli_common.brief_id(conn, args.brief)
             holder = cli_common.brief_id(conn, args.assign)
             sponsor = cli_common.actor(conn)
-            running = notices.running(conn, holder)
             request_id = args.request_id or f"create:{time.time_ns()}"
             committed: list[bool] = []
 
             def make() -> dict[str, ty.Any]:
+                if not liveness.live(conn, holder):  # a retry returns its first result instead
+                    raise cli_common.Failed(liveness.refusal(holder))
+
                 committed.append(True)
                 return holding.create(
                     conn,
@@ -36,7 +36,7 @@ def _cmd_create(args: argparse.Namespace) -> None:
                     holder_brief_id=holder,
                     subject_url_text=args.url,
                     checker_id="",
-                    attached=running,
+                    attached=True,
                     actor=sponsor,
                     request_id=request_id,
                     at=time.time(),
@@ -59,45 +59,28 @@ def _cmd_create(args: argparse.Namespace) -> None:
         assert state is not None
         said = [
             notices.tell_holder(state, sponsor, "a new task")
-            if committed and running and holder != sponsor
+            if committed and holder != sponsor
             else ""
         ]
     cli_common.report(args, created, said, f"task:{created['task_id']}")
-
-
-def _target(conn: sqlite3.Connection, args: argparse.Namespace) -> tuple[str, str, str]:
-    """The new holder, its accountable brief and its recheck time. Raises Failed."""
-    if args.to.partition(":")[0] not in ids.HOLDER_KINDS:
-        if args.accountable or args.recheck_at:
-            raise cli_common.Failed(
-                "--accountable and --recheck-at are for human and external holders"
-            )
-
-        return f"brief:{cli_common.brief_id(conn, args.to)}", "", ""
-
-    if args.recheck_at:
-        try:
-            checker_input.timestamp(args.recheck_at)
-        except ValueError:
-            raise cli_common.Failed(
-                f"--recheck-at {args.recheck_at!r} is not an RFC 3339 time"
-            ) from None
-
-    accountable = cli_common.brief_id(conn, args.accountable) if args.accountable else ""
-    try:
-        return ids.holder(args.to), accountable, args.recheck_at
-    except ValueError as error:
-        raise cli_common.Failed(str(error)) from None
 
 
 def _cmd_assign(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         try:
             task = cli_common.task_id(args.task)
-            to, accountable, recheck_at = _target(conn, args)
+            brief_id = cli_common.brief_id(conn, args.to)
+            to = f"brief:{brief_id}"
             actor = cli_common.actor(conn)
-            brief_id = to.removeprefix("brief:") if to.startswith("brief:") else ""
-            running = bool(brief_id) and notices.running(conn, brief_id)
+
+            def assign(expected: int, request_id: str, at: float) -> dict[str, ty.Any]:
+                if not liveness.live(conn, brief_id):  # a retry returns its first result instead
+                    raise cli_common.Failed(liveness.refusal(brief_id))
+
+                return holding.assign(
+                    conn, task, expected, to, args.reason, True, actor, request_id, at
+                )
+
             assigned, committed = cli_common.write_once(
                 conn,
                 args,
@@ -106,31 +89,15 @@ def _cmd_assign(args: argparse.Namespace) -> None:
                     "task_id": task,
                     "to": to,
                     "reason": args.reason,
-                    "accountable": accountable,
-                    "recheck_at": recheck_at,
                 },
-                lambda expected, request_id, at: holding.assign(
-                    conn,
-                    task,
-                    expected,
-                    to,
-                    args.reason,
-                    running,
-                    actor,
-                    request_id,
-                    at,
-                    accountable=accountable,
-                    recheck_at=recheck_at,
-                ),
+                assign,
             )
         except cli_common.Failed as error:
             cli_common.fail(args, str(error))
         state = ledger.state(conn, task)
         assert state is not None
         said = [
-            notices.notice(
-                conn, {**assigned, "tell_holder": running and brief_id != actor}, actor, args.reason
-            )
+            notices.notice(conn, {**assigned, "tell_holder": brief_id != actor}, actor, args.reason)
             if committed
             else "",
         ]
@@ -154,20 +121,8 @@ def add_parsers(tasks: argparse._SubParsersAction) -> None:
     assign.add_argument(
         "--to",
         required=True,
-        help="A brief (Lemon-ID, name, path or self), human:ID or external:ID",
+        help="A brief (Lemon-ID, name, path or self); a person's turn is a brief's Status",
     )
     assign.add_argument("--reason", required=True, help="Why it changes hands")
-    assign.add_argument(
-        "--accountable",
-        default="",
-        metavar="BRIEF",
-        help="For a human or external holder: the brief that answers for it",
-    )
-    assign.add_argument(
-        "--recheck-at",
-        default="",
-        metavar="TIME",
-        help="For an external holder: when to look again, as RFC 3339",
-    )
     cli_common.add_write_options(assign)
     assign.set_defaults(func=_cmd_assign)

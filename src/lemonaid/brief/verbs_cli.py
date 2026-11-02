@@ -9,7 +9,6 @@ but no edit may drop one.
 """
 
 import argparse
-import functools
 import sys
 from collections import abc
 from pathlib import Path
@@ -17,7 +16,7 @@ from pathlib import Path
 from .. import obsidian
 from ..config import load_config
 from ..inbox import db
-from ..tasks.briefs import completion, notices
+from ..tasks.briefs import completion
 from . import (
     check,
     command,
@@ -95,14 +94,12 @@ def _cmd_status(args: argparse.Namespace) -> None:
         path, _ = command.own_brief(args)
         with db.connect() as conn:
             lemon_id, held = completion.open_tasks(conn, path) if path else ("", [])
-            handed, held = completion.hand_to_parent(
-                conn, lemon_id, held, functools.partial(notices.running, conn)
-            )
+            handed, held, why = completion.hand_to_parent(conn, lemon_id, held)
         for line in handed:
             print(line, file=sys.stderr)
         if held:
             result = {"path": str(path), "open_tasks": [t["task_id"] for t in held]}
-            command.finish(args, result, completion.refusal(held))
+            command.finish(args, result, completion.refusal(held, why))
 
     if args.state in store.RETIRED:
         print(

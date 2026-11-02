@@ -3,14 +3,13 @@
 import urllib.parse
 import uuid
 
-HOLDER_KINDS = ("brief", "human", "external")
-
 
 def holder(text: str) -> str:
-    """*text* as a tagged holder; raises ValueError for an untagged or empty one."""
+    """*text* as a tagged holder, which is always a brief: a task names the lemon whose
+    move it is, and a person's turn is a brief's Status. Raises ValueError for anything else."""
     kind, _, name = text.partition(":")
-    if kind not in HOLDER_KINDS or not name:
-        raise ValueError(f"holder {text!r} must be brief:ID, human:ID or external:ID")
+    if kind != "brief" or not name:
+        raise ValueError(f"holder {text!r} must be brief:ID; a task is held by a lemon")
 
     return f"{kind}:{name}"
 

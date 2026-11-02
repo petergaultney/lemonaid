@@ -1,8 +1,7 @@
 """What lemonaid tells lemons when a task changes hands, gains an observer, or closes.
 
 Anyone may take, close or reopen a task, so the lemons it affects are told and can
-coordinate if the change surprises them. A human or external holder is reached through
-its accountable brief.
+coordinate if the change surprises them.
 """
 
 import sqlite3
@@ -29,12 +28,9 @@ def observing(task_id: str, holder: str) -> str:
     )
 
 
-def tell(holder: str, accountable: str, body: str, sender: str) -> str:
-    """Queue *body* for *holder*, or for the brief accountable for a human or external one;
-    returns how that went, for the caller's output."""
-    to = holder.removeprefix("brief:") if holder.startswith("brief:") else accountable
-    if not to:
-        return f"{holder} isn't a lemon; tell them yourself"
+def tell(holder: str, body: str, sender: str) -> str:
+    """Queue *body* for *holder*; returns how that went, for the caller's output."""
+    to = holder.removeprefix("brief:")
 
     try:
         store.send(store.inbox_for_id(to), body, sender or "lemonaid")
@@ -44,23 +40,14 @@ def tell(holder: str, accountable: str, body: str, sender: str) -> str:
     return f"{to} has been told"
 
 
-def _reach(holder: str) -> str:
-    return (
-        f": `lemonaid tell {holder.removeprefix('brief:')}`" if holder.startswith("brief:") else "."
-    )
-
-
-def tell_taken(task: Task, taken_from: str, accountable: str, new_holder: str, actor: str) -> str:
+def tell_taken(task: Task, taken_from: str, new_holder: str, actor: str) -> str:
     by = f", assigned by {actor}" if actor and f"brief:{actor}" != new_holder else ""
     body = (
-        f"task:{task['task_id']} ({task['description']}) was taken from"
-        f" {'you' if taken_from.startswith('brief:') else f'{taken_from}, which you answer for'}."
-        f" {new_holder} holds it now{by}. If that surprises you, coordinate with them"
-        f"{_reach(new_holder)}"
+        f"task:{task['task_id']} ({task['description']}) was taken from you."
+        f" {new_holder} holds it now{by}. If that surprises you, coordinate with them:"
+        f" `lemonaid tell {new_holder.removeprefix('brief:')}`"
     )
-    return f"task:{task['task_id']} was taken from {taken_from}; " + tell(
-        taken_from, accountable, body, actor
-    )
+    return f"task:{task['task_id']} was taken from {taken_from}; " + tell(taken_from, body, actor)
 
 
 def tell_holder(task: Task, actor: str, reason: str) -> str:
@@ -68,9 +55,10 @@ def tell_holder(task: Task, actor: str, reason: str) -> str:
     body = (
         f"You now hold task:{task['task_id']} ({task['description']}), assigned by"
         f" {actor or 'lemonaid'}: {reason}. When you are no longer the one to move next on it,"
-        f" hand it on with `lemonaid task assign {task['task_id']} --to BRIEF --reason TEXT`."
+        f" hand it to the lemon that must act on your result (not your parent unless it does)"
+        f" with `lemonaid task assign {task['task_id']} --to BRIEF --reason TEXT`."
     )
-    return tell(task["holder"], "", body, actor)
+    return tell(task["holder"], body, actor)
 
 
 def tell_closed(task: Task, actor: str, reason: str) -> str:
@@ -79,7 +67,7 @@ def tell_closed(task: Task, actor: str, reason: str) -> str:
         f"task:{task['task_id']} ({task['description']}) is now {task['lifecycle']},"
         f" by {actor or 'lemonaid'}: {reason}."
     )
-    return tell(task["holder"], task["accountable_brief_id"], body, actor)
+    return tell(task["holder"], body, actor)
 
 
 def tell_released(parent: Task, child: Task, actor: str, reason: str) -> str:
@@ -88,7 +76,7 @@ def tell_released(parent: Task, child: Task, actor: str, reason: str) -> str:
         f"task:{child['task_id']} ({child['description']}), which your task:{parent['task_id']}"
         f" waits for, was closed: {reason}. Pick up its result and carry on."
     )
-    return tell(parent["holder"], parent["accountable_brief_id"], body, actor)
+    return tell(parent["holder"], body, actor)
 
 
 def notice(
@@ -110,15 +98,7 @@ def notice(
     taken = result.get("taken_from")
     return "\n".join(
         [
-            *(
-                [
-                    tell_taken(
-                        task, taken, result.get("previous_accountable", ""), task["holder"], actor
-                    )
-                ]
-                if taken
-                else []
-            ),
+            *([tell_taken(task, taken, task["holder"], actor)] if taken else []),
             *([tell_holder(task, actor, reason)] if result.get("tell_holder") else []),
         ]
     )

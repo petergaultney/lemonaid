@@ -117,13 +117,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     listing = tasks.add_parser("list", help="Open tasks a brief holds, or its whole tree's")
     which = listing.add_mutually_exclusive_group(required=True)
-    which.add_argument(
-        "--holder", metavar="BRIEF", help="Tasks BRIEF (or self) holds or answers for"
-    )
+    which.add_argument("--holder", metavar="BRIEF", help="Tasks BRIEF (or self) holds")
     which.add_argument(
         "--tree",
         metavar="BRIEF",
-        help="Tasks BRIEF or its descendants hold, specify or answer for",
+        help="Tasks BRIEF or its descendants hold or specify",
     )
     listing.add_argument(
         "--include-closed", action="store_true", help="With --tree, closed ones too"
