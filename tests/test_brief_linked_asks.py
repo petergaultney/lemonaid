@@ -105,3 +105,19 @@ def test_parentheses_in_an_angle_bracket_destination_do_not_end_the_link():
     [item] = questions.items(needs, {"Retry policy": "mine"}, lambda text: "linked")
 
     assert item.entry == "mine"
+
+
+def test_a_linked_section_shows_highlights_without_comment_blocks(tmp_path: Path):
+    (tmp_path / "decisions.md").write_text(
+        '## Retry policy\n\nKeep {==the old one==}{{authorId="a" >>why?<<}} here.\\n'.replace(
+            "\\n", "\n"
+        )
+        + '{{authorId="b" >>stray<<}}\n\nEnd.\n'
+    )
+    needs = _needs(f"- {_link(tmp_path, 'Retry policy')}: which one?")
+
+    [item] = questions.items(needs, {}, linked_asks.reader([tmp_path]))
+
+    assert "{" not in item.entry
+    assert item.entry.startswith("Keep the old one here.")
+    assert item.entry.endswith("End.")
