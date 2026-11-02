@@ -175,21 +175,11 @@ def test_an_idle_holder_is_challenged_unless_its_status_declares_a_wait(said):
     assert _kinds(_evaluate([task()], [*lemon, *brief_says(**said)])) == [("challenge", "progress")]
 
 
-@pytest.mark.parametrize(
-    ("waiting_on", "expected"),
-    [
-        ("- A reviewer for t1", [("wait", "progress")]),
-        ("- A reviewer for t2", [("challenge", "progress")]),
-        ("- A reviewer", [("unknown",)]),
-    ],
-)
-def test_a_declared_wait_covers_only_the_task_it_names_when_the_brief_holds_several(
-    waiting_on, expected
-):
+def test_a_declared_status_covers_every_task_the_brief_holds():
     lemon = [f for f in idle() if f["kind"] == "lemon"]
-    said = brief_says(status="review", waiting_on=waiting_on, held="t1 t2")
+    said = brief_says(status="merge", held="t1 t2")
 
-    assert _kinds(_evaluate([task()], [*lemon, *said])) == expected
+    assert _kinds(_evaluate([task()], [*lemon, *said])) == [("wait", "progress")]
 
 
 @pytest.mark.parametrize(
