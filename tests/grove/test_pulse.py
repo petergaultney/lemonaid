@@ -112,3 +112,11 @@ def test_a_shorter_pulse_cycles_faster_and_never_redraws_faster_than_twenty_time
     assert pulse.tick(2.0) < pulse.tick(pulse.PERIOD)
     assert pulse.tick(0.5) == 1 / 20
     assert pulse.tick(60.0) == 1 / 12
+
+
+def test_every_statuss_dot_is_distinguishable_from_every_crown_shade_at_rest():
+    for status in colors.STATUS:
+        dot = _rgb(colors.lemon_color(dataclasses.replace(lemon("test", status=status)), 0.0))
+        for leaf in colors.LEAF:
+            gap = sum(abs(a - b) for a, b in zip(dot, _rgb(leaf), strict=True))
+            assert gap >= 40, (status, leaf)

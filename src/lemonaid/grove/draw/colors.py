@@ -47,12 +47,11 @@ def tree_status(lemons: tuple[Lemon, ...]) -> str:
     return next((status for status in RANK if status in present), "")
 
 
-_ON_LEAF = {"done": "#6f9fe0"}  # status colors too dark to see on a crown
-
-
 def lemon_color(lemon: Lemon, phase: float) -> str:
-    """A lemon's dot: its status color, grey when it has none, pulsing toward the background mid-turn."""
-    base = _ON_LEAF.get(lemon.status) or STATUS.get(lemon.status, IDLE)
+    """A lemon's dot: its status's text color, which shows on a crown where its fill wouldn't,
+    grey when it has none, pulsing toward the background mid-turn.
+    """
+    base = status_text(lemon.status) if lemon.status in STATUS else IDLE
     if lemon.quiet:
         base = mix(base, BACKGROUND, 0.4)
     return mix(base, BACKGROUND, PULSE_DEPTH * phase) if lemon.working else base
