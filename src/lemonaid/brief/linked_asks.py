@@ -5,6 +5,8 @@ import urllib.parse
 from collections import abc
 from pathlib import Path
 
+from lemonaid.watch import relay_comments
+
 from . import doc_table
 
 _FENCE = re.compile(r" {0,3}(?P<mark>`{3,}|~{3,})")
@@ -59,7 +61,7 @@ def reader(vaults: abc.Collection[Path]) -> abc.Callable[[str], str | None]:
                 continue
 
             if found is not None:
-                return found
+                return relay_comments.body_without_threads(found).strip()
 
         return None
 
