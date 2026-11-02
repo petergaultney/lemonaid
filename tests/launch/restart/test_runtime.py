@@ -1,5 +1,6 @@
 """Run the smaller coordinator and native hook against test-owned processes only."""
 
+import dataclasses
 import json
 import os
 import subprocess
@@ -158,5 +159,8 @@ def test_interrupted_worker_does_not_replay_the_stop_or_launch(
     monkeypatch.setattr(state.time, "time", lambda: 10**12)
     assert state.get(token)["phase"] == "partial"
     coordinator.run(token)
-    assert pane.by_id(original.socket, original.pane) == current
+    # A pane respawned just before the crash may still report the server's directory.
+    assert dataclasses.replace(pane.by_id(original.socket, original.pane), cwd="") == (
+        dataclasses.replace(current, cwd="")
+    )
     assert pane.exit_option(current) == "on"

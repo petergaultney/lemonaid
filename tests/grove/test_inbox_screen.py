@@ -167,6 +167,8 @@ def test_r_on_a_lemon_chosen_in_select_mode_renames_it_from_the_grove(monkeypatc
             for key in typed:
                 await pilot.press(key)
                 await pilot.pause()
+            await pilot.app.workers.wait_for_complete()  # the rename runs on a worker thread
+            await pilot.pause()
             return screen._where.note
 
     assert asyncio.run(run()) == "renamed lemon 5"

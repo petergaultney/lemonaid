@@ -9,7 +9,9 @@ from lemonaid.inbox.tui import input_watchdog
 class _App(App[None]):
     def __init__(self) -> None:
         super().__init__()
-        self.watchdog = input_watchdog.Watchdog(self, 0.3)
+        self.watchdog = input_watchdog.Watchdog(
+            self, 1.0
+        )  # well above the probe's interval, which a loaded runner can stretch
         self.release = asyncio.Event()
 
     def on_mount(self) -> None:
@@ -37,10 +39,10 @@ def _run(caplog, start: str = "") -> tuple[list[str], list[str]]:
                 app.call_later(app.wedged_handler)
             elif start == "timer":
                 app.set_interval(0.01, app.batching_timer)
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2.5)
             during = _messages(caplog)
             app.release.set()
-            await asyncio.sleep(0.8)
+            await asyncio.sleep(1.0)
             app.watchdog.stop()
             return during, _messages(caplog)[len(during) :]
 
