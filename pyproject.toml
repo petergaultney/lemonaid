@@ -53,6 +53,7 @@ packages = ["src/lemonaid"]
 [tool.ruff]
 line-length = 100
 src = ["src"]
+extend-exclude = ["tools/diff-stats"]
 
 [tool.ruff.lint]
 select = [
