@@ -1,7 +1,8 @@
 """Live reads for the inspector: lemons and PR snapshots, and the fact records a checker
 gets. The inspector sends lemons messages but never reads their inboxes.
 
-Each check is a cheap local read, or the PR snapshot the scout host already keeps. What a
+Each check is a cheap local read, or the PR snapshot the scout host already keeps; the
+inspector never reads GitHub itself. What a
 check can't see is recorded as `unknown` or `unavailable`, never guessed, so the checker
 neither grants a wait nor accuses anyone on it.
 """
@@ -18,8 +19,7 @@ from ...lemon_watchers import owners
 from ...lineage import links
 from ...log import get_logger
 from ...messages import recipient
-from ...stalls import inbox as stalls_inbox
-from ...watch import pr_activity, registry
+from ...watch import pr_activity, pr_poller, registry
 from ..checker import checker_input
 
 _log = get_logger("tasks.live")
@@ -76,4 +76,7 @@ def lemons(conn: sqlite3.Connection) -> dict[str, facts.Facts]:
 
 
 def fetch_pr(key: tuple[str, str]) -> pr_activity.Snapshot | None:
-    return stalls_inbox.fetch(key)
+    """The scout host's current snapshot of a PR some lemon watches; None for any other.
+    The inspector makes no GitHub calls of its own: a PR becomes evidence when a lemon names
+    it in its brief, which its scout then watches."""
+    return pr_activity.fetch(key[0], int(key[1]), (), source=pr_poller.snapshot)

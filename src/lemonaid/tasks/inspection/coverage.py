@@ -16,8 +16,9 @@ from ...lineage import links
 from ...messages import recipient
 from ..briefs import registration
 from ..checker import corpus, protocol, replay
+from ..checker.session import Ask
 from ..model import ledger
-from . import cases, live, task_input, watches
+from . import cases, live, memory, task_input, watches
 
 
 def _text(
@@ -64,17 +65,24 @@ def _judge(
     pr: abc.Callable[[tuple[str, str]], ty.Any],
     now: float,
     context: ty.Mapping[str, str],
-    argv: abc.Sequence[str],
-    timeout: float,
-) -> list[protocol.Record]:
-    """The checker's findings for *lemon_id*'s brief. Raises what the checker's run raises."""
+    ask: Ask,
+    remembered: memory.Memory,
+) -> list[protocol.Record] | None:
+    """The checker's findings for *lemon_id*'s brief; None when nothing it was shown has
+    changed and its last findings still hold. Raises what *ask* raises."""
+    subject = f"brief:{lemon_id}"
     parent = _helper(conn, lemon_id)
-    declared = watches.declared(argv, _text(now, context, lemon_id, parent, [], []), timeout)
+    bare = _text(now, context, lemon_id, parent, [], [])
+    declared = memory.watches(remembered, subject, bare, ask, watches.declared)
     found = watches.facts_for(conn, declared, seen, pr, now)
-    open_cases = task_input.case_records(conn, f"brief:{lemon_id}")
+    open_cases = task_input.case_records(conn, subject)
     text = _text(now, context, lemon_id, parent, found, open_cases)
-    records = protocol.parse(replay.run_checker(argv, text, timeout), protocol.EVALUATE)
+    if memory.unchanged(remembered, subject, text, now):
+        return None
+
+    records = protocol.parse(ask("evaluate", text), protocol.EVALUATE)
     replay.check_findings(lemon_id, records)
+    memory.remember(remembered, subject, text, records)
     return records
 
 
@@ -84,8 +92,8 @@ def check(
     pr: abc.Callable[[tuple[str, str]], ty.Any],
     now: float,
     context: ty.Mapping[str, str],
-    argv: abc.Sequence[str],
-    timeout: float,
+    ask: Ask,
+    remembered: memory.Memory,
 ) -> tuple[list[dict[str, ty.Any]], list[tuple[str, str]]]:
     """The cases opened for briefs with no task, and the briefs the checker failed on."""
     opened, failures = [], []
@@ -97,7 +105,7 @@ def check(
         records: list[protocol.Record] = [("ok", lemon_id, "covered")]
         if not registration.disposition(conn, lemon_id):
             try:
-                records = _judge(conn, lemon_id, seen, pr, now, context, argv, timeout)
+                judged = _judge(conn, lemon_id, seen, pr, now, context, ask, remembered)
             except (
                 protocol.ProtocolError,
                 watches.Unsupported,
@@ -107,7 +115,13 @@ def check(
                 with ledger.transaction(conn):
                     cases.failed(conn, subject, 0, str(error) or type(error).__name__, now)
                 failures.append((subject, str(error) or type(error).__name__))
+                memory.forget(remembered, subject)
                 continue
+
+            if judged is None:
+                continue
+
+            records = judged
 
         with ledger.transaction(conn):
             opened += cases.apply(conn, subject, 0, records, now, "")

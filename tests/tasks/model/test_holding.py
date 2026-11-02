@@ -41,11 +41,11 @@ def test_attachment_starts_the_clock_once_and_follows_a_reroll():
         )
         conn.commit()
         with ledger.transaction(conn):
-            assert holding.attach(conn, "New.alpha", "hook", 50.0) == [task]
+            assert holding.attach(conn, "New.alpha", "hook", 150.0) == [task]
         with ledger.transaction(conn):
-            assert holding.attach(conn, "New.alpha", "hook", 60.0) == []
+            assert holding.attach(conn, "New.alpha", "hook", 160.0) == []
 
-        assert ledger.state(conn, task)["attached_at"] == 50.0
+        assert ledger.state(conn, task)["attached_at"] == 150.0
         assert [t["task_id"] for t in holding.held_by(conn, "Work.alpha")] == [task]
 
 

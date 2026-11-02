@@ -16,8 +16,9 @@ from collections import abc
 from ...lemon_facts import facts
 from ...messages import recipient
 from ..checker import corpus, protocol, replay
+from ..checker.session import Ask
 from ..model import dependencies, identities, ledger
-from . import cases, coverage, live, task_input, watches
+from . import cases, coverage, live, memory, task_input, watches
 
 _IDLE_GRACE = 120  # the default policy's default, for released dependencies
 
@@ -45,8 +46,8 @@ def _input(
     context: ty.Mapping[str, str],
     seen: ty.Mapping[str, facts.Facts],
     observers: Observers,
-    argv: abc.Sequence[str],
-    timeout: float,
+    ask: Ask,
+    remembered: memory.Memory,
 ) -> corpus.Input:
     """The task's evaluate input, with the facts its checker declares it watches and the
     task's own release and cycle facts. Raises what `watches.declared` raises."""
@@ -56,7 +57,11 @@ def _input(
     [bare] = corpus.inputs([task_input.snapshot(now, context, task, [], [])])
     found = [
         *watches.facts_for(
-            conn, watches.declared(argv, bare.text, timeout), seen, observers.pr, now
+            conn,
+            memory.watches(remembered, task["task_id"], bare.text, ask, watches.declared),
+            seen,
+            observers.pr,
+            now,
         ),
         *task_input.dependency_facts(
             state["task_id"], releases, dependencies.loop_through(conn, state["task_id"]), now
@@ -71,17 +76,22 @@ def _evaluate(
     conn: sqlite3.Connection,
     state: ty.Mapping[str, ty.Any],
     build: abc.Callable[[], corpus.Input],
-    argv: abc.Sequence[str],
-    timeout: float,
+    ask: Ask,
+    remembered: memory.Memory,
     now: float,
 ) -> tuple[list[dict[str, ty.Any]], str]:
     """(cases opened, failure) for one task; both empty when a newer revision or a newer
-    pass superseded this one."""
+    pass superseded this one, or when nothing the checker was shown has changed since it
+    last judged the task and its findings still hold."""
     task_id, revision = state["task_id"], state["revision"]
     try:
         one = build()
-        records = protocol.parse(replay.run_checker(argv, one.text, timeout), protocol.EVALUATE)
+        if memory.unchanged(remembered, task_id, one.text, now):
+            return [], ""
+
+        records = protocol.parse(ask("evaluate", one.text), protocol.EVALUATE)
         replay.check_findings(task_id, records)
+        memory.remember(remembered, task_id, one.text, records)
         failure = ""
     except (
         protocol.ProtocolError,
@@ -90,6 +100,7 @@ def _evaluate(
         OSError,
     ) as error:
         records, failure = [], str(error) or type(error).__name__
+        memory.forget(remembered, task_id)
 
     subject = f"task:{task_id}"
     with ledger.transaction(conn):
@@ -116,11 +127,14 @@ def _mid_turn(conn: sqlite3.Connection, holder: str, seen: ty.Mapping[str, facts
 def run(
     conn: sqlite3.Connection,
     now: float,
-    argv: abc.Sequence[str],
-    timeout: float,
+    ask: Ask,
     policy: ty.Mapping[str, str],
     observers: Observers = LIVE,
+    remembered: memory.Memory | None = None,
 ) -> Pass:
+    """One pass. A *remembered* memory, kept across passes, skips what hasn't changed; with
+    none, every subject is judged."""
+    remembered = remembered if remembered is not None else memory.new()
     with ledger.transaction(conn):
         cases.superseded(conn, now)
     seen = observers.lemons(conn)
@@ -135,13 +149,13 @@ def run(
         found, failure = _evaluate(
             conn,
             state,
-            lambda s=state: _input(conn, s, now, context, seen, observers, argv, timeout),
-            argv,
-            timeout,
+            lambda s=state: _input(conn, s, now, context, seen, observers, ask, remembered),
+            ask,
+            remembered,
             now,
         )
         opened += found
         if failure:
             failures.append((f"task:{state['task_id']}", failure))
-    covered, uncovered = coverage.check(conn, seen, observers.pr, now, context, argv, timeout)
+    covered, uncovered = coverage.check(conn, seen, observers.pr, now, context, ask, remembered)
     return Pass(len(states), [*opened, *covered], [*failures, *uncovered])

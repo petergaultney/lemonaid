@@ -11,7 +11,7 @@ import sys
 from collections import abc
 from pathlib import Path
 
-from .. import checker_input, protocol
+from .. import checker_input, protocol, stream
 from . import coverage, holders, settings, waits
 
 _REQUIRED = ("lifecycle", "holder", "revision", "assignment.assigned_at")
@@ -155,15 +155,30 @@ def _watches(view: checker_input.View) -> list[tuple[str, str]]:
     ]
 
 
+def respond(operation: str, text: str) -> str:
+    """The output for one `describe` or `evaluate` input; raises ValueError for a malformed
+    input or an unknown operation."""
+    view = checker_input.read(text)
+    if operation == "describe":
+        return protocol.render(("watch", *w) for w in _watches(view))
+
+    if operation != "evaluate":
+        raise ValueError(f"unknown operation {operation!r}")
+
+    return protocol.render(coverage.evaluate(view) if view.kind == "brief" else evaluate(view))
+
+
 def main(argv: abc.Sequence[str] | None = None) -> None:
+    """`describe` or `evaluate` one `--input` file, or `serve` requests on stdin."""
     parser = argparse.ArgumentParser(prog="lemonaid.tasks.checker.default")
-    parser.add_argument("operation", choices=("describe", "evaluate"))
-    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("operation", choices=("describe", "evaluate", "serve"))
+    parser.add_argument("--input", type=Path)
     args = parser.parse_args(argv)
-    view = checker_input.read(args.input.read_text())
-    if args.operation == "describe":
-        sys.stdout.write(protocol.render(("watch", *w) for w in _watches(view)))
+    if args.operation == "serve":
+        stream.serve(respond, sys.stdin, sys.stdout)
         return
 
-    found = coverage.evaluate(view) if view.kind == "brief" else evaluate(view)
-    sys.stdout.write(protocol.render(found))
+    if args.input is None:
+        parser.error(f"{args.operation} needs --input")
+
+    sys.stdout.write(respond(args.operation, args.input.read_text()))

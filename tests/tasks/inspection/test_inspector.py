@@ -8,8 +8,9 @@ from pathlib import Path
 from lemonaid.inbox import db
 from lemonaid.lemon_facts import facts
 from lemonaid.messages import store
-from lemonaid.tasks.checker import corpus, protocol, replay
-from lemonaid.tasks.inspection import cases, challenges, inspect_cli, inspector
+from lemonaid.tasks.checker import corpus, protocol, replay, session
+from lemonaid.tasks.checker.default import rules
+from lemonaid.tasks.inspection import cases, challenges, inspect_cli, inspector, memory, passes
 from lemonaid.tasks.model import associations, dependencies, holding, ledger, lifecycle
 
 from ..shared import new_task
@@ -49,8 +50,16 @@ def _observers(*seen: facts.Facts) -> inspector.Observers:
     return inspector.Observers(lambda _conn: {f.lemon_id: f for f in seen}, lambda _key: None)
 
 
-def _run(conn, *seen: facts.Facts, argv=replay.DEFAULT_CHECKER, **kw) -> inspector.Pass:
-    return inspector.run(conn, _NOW, argv, 30, {}, _observers(*seen, **kw))
+def _ask(argv: tuple[str, ...]) -> session.Ask:
+    """The default checker in-process, or a file-mode checker run once per request."""
+    if not argv:
+        return rules.respond
+
+    return lambda operation, text: replay.run_checker(argv, text, 30, operation)
+
+
+def _run(conn, *seen: facts.Facts, argv=(), remembered=None, **kw) -> inspector.Pass:
+    return inspector.run(conn, _NOW, _ask(argv), {}, _observers(*seen, **kw), remembered)
 
 
 def _brief(conn, brief_id: str, text: str = "# Work\n") -> Path:
@@ -221,6 +230,32 @@ def test_an_unanswered_challenge_is_sent_again_with_doubling_gaps_up_to_the_ceil
     assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 5
 
 
+def test_a_challenge_reopened_after_an_unrelated_turn_keeps_its_backoff():
+    with db.connect() as conn:
+        _started(conn)
+        _run(conn, _seen("Work.alpha"))
+        (case,) = cases.open_cases(conn)
+        record = ("challenge", case["subject"], case["obligation"], case["evidence"], "brief")
+        record += (case["target"], case["reason"])
+
+        def reopened(at: float) -> None:
+            with ledger.transaction(conn):
+                cases.apply(conn, case["subject"], 1, [], _NOW + at - 1, case["basis"])
+                cases.apply(conn, case["subject"], 1, [record], _NOW + at, case["basis"])
+
+        def sent(at: float) -> int:
+            return len(challenges.deliver(conn, 100, 300, (), _NOW + at))
+
+        timeline = [sent(0), sent(100)]
+        reopened(150)
+        timeline += [sent(150), sent(299), sent(300)]
+        record = (*record[:5], "Other.one", record[6])
+        reopened(350)
+        timeline.append(sent(350))
+
+    assert timeline == [1, 1, 0, 0, 1, 1]  # a new recipient starts its own backoff
+
+
 def test_a_custom_checker_writes_the_words_a_brief_with_no_task_reads(tmp_path):
     script = tmp_path / "checker.py"
     script.write_text(
@@ -326,15 +361,21 @@ def test_an_evaluation_older_than_the_latest_is_dropped(monkeypatch):
     with db.connect() as conn:
         task = _started(conn)
 
-        def newer_pass_finishes_first(_argv, _text, _timeout):
+        def newer_pass_finishes_first(_operation, _text):
             with ledger.transaction(conn):
                 cases.apply(conn, f"task:{task}", 2, [("ok", task, "working")], _NOW + 1, "")
             stale = ("challenge", task, "progress", "2", "brief", "Work.alpha", "idle")
             return protocol.render([stale])
 
-        monkeypatch.setattr(replay, "run_checker", newer_pass_finishes_first)
         old = corpus.Input("old", task, "")
-        inspector._evaluate(conn, ledger.state(conn, task), lambda: old, (), 1, _NOW)
+        inspector._evaluate(
+            conn,
+            ledger.state(conn, task),
+            lambda: old,
+            newer_pass_finishes_first,
+            memory.new(),
+            _NOW,
+        )
 
         assert _open(conn) == [] and cases.finding(conn, task) == "ok"
 
@@ -394,8 +435,53 @@ def test_a_checker_watching_something_lemonaid_cant_observe_is_a_failure(tmp_pat
 
 
 def test_a_second_concurrent_pass_is_skipped(capsys):
-    args = argparse.Namespace(json=True, loop=0)
-    with inspect_cli._sole_pass() as mine:
-        inspect_cli._once(args)
+    args = argparse.Namespace(json=True, dry_run=True)
+    with passes.sole() as mine:
+        inspect_cli._cmd_inspect(args)
 
     assert mine and json.loads(capsys.readouterr().out)["skipped"] is True
+
+
+def test_a_remembered_pass_asks_the_checker_again_only_about_what_changed():
+    asked = []
+
+    def counting(operation: str, text: str) -> str:
+        asked.append(operation)
+        return rules.respond(operation, text)
+
+    remembered = memory.new()
+    with db.connect() as conn:
+        _started(conn)
+
+        def run(*seen: facts.Facts) -> None:
+            asked.clear()
+            inspector.run(conn, _NOW, counting, {}, _observers(*seen), remembered)
+
+        run(_seen("Work.alpha"))
+        first = list(asked)
+        run(_seen("Work.alpha"))  # the challenge it opened is new input
+        run(_seen("Work.alpha"))
+        unchanged = list(asked)
+        run(_seen("Work.alpha", last_activity=_LONG_AGO + 60))
+
+    assert first == ["describe", "evaluate"] and unchanged == [] and asked == ["evaluate"]
+
+
+def test_a_bad_time_from_the_checker_fails_that_subject_and_the_pass_goes_on():
+    with db.connect() as conn:
+        bad, good = _started(conn, "Work.alpha"), _started(conn, "Work.bravo")
+
+        def checker(operation: str, text: str) -> str:
+            if operation == "evaluate" and bad in text:
+                return protocol.render([("ok", bad, "x"), ("recheck", bad, "not-a-time")])
+
+            return rules.respond(operation, text)
+
+        found = inspector.run(
+            conn, _NOW, checker, {}, _observers(_seen("Work.alpha"), _seen("Work.bravo"))
+        )
+
+        judged = cases.finding(conn, good)
+
+    assert [s for s, _ in found.failures] == [f"task:{bad}"]
+    assert found.evaluated == 2 and judged != ""
