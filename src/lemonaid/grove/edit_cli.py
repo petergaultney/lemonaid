@@ -21,6 +21,16 @@ def _fail(args: argparse.Namespace, error: str) -> None:
     raise SystemExit(1)
 
 
+def _open_index(args: argparse.Namespace) -> int | None:
+    """N for a BLOCK argument `open:N`, else None."""
+    if not args.block.startswith(edit.OPEN):
+        return None
+    index = args.block.removeprefix(edit.OPEN)
+    if not index.isdigit():
+        _fail(args, f"{args.block!r} isn't open ground; use open:0, open:1, ...")
+    return int(index)
+
+
 def _group(args: argparse.Namespace) -> str:
     """The group a BLOCK argument names: a digit as the grove numbers it, else a group name."""
     if not args.block.isdigit():
@@ -36,13 +46,25 @@ def _group(args: argparse.Namespace) -> str:
 def _apply(
     args: argparse.Namespace, change: abc.Callable[[dict[str, Any], str], dict[str, Any]]
 ) -> None:
-    group = _group(args)
+    index = _open_index(args)
+    if index is not None:
+        live.fresh(load_config(), None)  # lays out, so ground a group just left is marked open
+
+    group = "" if index is not None else _group(args)
+    named: list[str] = []
+
+    def apply(saved: dict[str, Any]) -> dict[str, Any]:
+        key = group if index is None else edit.open_key(saved, index)
+        named.append(key)
+        return change(saved, key)
+
     try:
-        changed = state.update(lambda saved: change(saved, group))
+        changed = state.update(apply)
     except edit.EditError as error:
         _fail(args, str(error))
         raise
-    plot = changed["plots"][group]
+    plot = changed["plots"][named[-1]]
+    group = args.block if index is not None else group
     if args.json:
         print(json.dumps({"group": group, "plot": plot, "error": None}))
     else:
@@ -63,13 +85,23 @@ def _cmd_reshape(args: argparse.Namespace) -> None:
 
 def _cmd_clear_open(args: argparse.Namespace) -> None:
     cleared: list[str] = []
+    index = None
+    if args.open:
+        args.block = args.open
+        index = _open_index(args)
+        if index is None:
+            _fail(args, f"{args.open!r} isn't open ground; use open:0, open:1, ...")
+        live.fresh(load_config(), None)
 
     def clear(saved: dict[str, Any]) -> dict[str, Any]:
-        changed, gone = edit.clear_open(saved)
+        changed, gone = edit.clear_open(saved, index)
         cleared.extend(gone)
         return changed
 
-    state.update(clear)
+    try:
+        state.update(clear)
+    except edit.EditError as error:
+        _fail(args, str(error))
     if args.json:
         print(json.dumps({"cleared": cleared, "error": None}))
     else:
@@ -79,7 +111,9 @@ def _cmd_clear_open(args: argparse.Namespace) -> None:
 def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     def block_parser(name: str, help_text: str) -> argparse.ArgumentParser:
         parser = grove_subparsers.add_parser(name, help=help_text)
-        parser.add_argument("block", help="A block's digit, or a group's name")
+        parser.add_argument(
+            "block", help="A block's digit, a group's name, or open:N for open ground"
+        )
         parser.add_argument("--json", action="store_true", help="Print the result as JSON")
         return parser
 
@@ -98,7 +132,8 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     reshape.set_defaults(func=_cmd_reshape)
 
     clear = grove_subparsers.add_parser(
-        "clear-open", help="Forget open ground left by groups that ended"
+        "clear-open", help="Forget open ground left by groups that ended, or just open:N"
     )
+    clear.add_argument("open", nargs="?", default="", help="One open ground, as open:N")
     clear.add_argument("--json", action="store_true", help="Print the result as JSON")
     clear.set_defaults(func=_cmd_clear_open)

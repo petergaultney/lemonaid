@@ -88,7 +88,7 @@ The prompt line says what you're moving, or why it can't go there. A block can't
 
 The first time lemonaid sees a group it gives it a plot of ground near the middle of the grove, and the first time it sees a tree it gives the tree a spot in its block, as near the block's lead as it fits with room to spare (else near its first tree, and a block's first tree near the packhouse), and a letter, taken from the words that tell it apart. Neither moves after that, unless you drag it. A tree with no room left in its block takes more ground for the block, on whichever side is free of other blocks; when none is, it stands just past the block's edge, where the block's view still shows it, and `lemonaid grove resize` or `move` makes room.
 
-- **A group that ends leaves open ground.** The outline stays, unnamed, and the next new group takes the open ground nearest the middle, so the grove doesn't hollow out.
+- **A group that ends leaves open ground.** The outline stays, unnamed, and the next new group takes the open ground nearest the middle, so the grove doesn't hollow out. You can drag open ground (its middle moves it, its edge resizes it) or address it as `open:N`, its position in `show --json`'s `open` list. A block moved, resized or dropped over open ground takes that ground over.
 - **A tree that goes leaves a bare tree, with no leaves, in its spot.** The spot is kept for 30 days in case its session comes back; the next new tree in that block takes the oldest free spot. You can move a bare tree or clear it away (see [Gardening](#gardening)).
 - **New trees start small.** A tree whose oldest lemon is less than a day old is a sapling, and under three days a young tree. Every tree in a crowded block is drawn smaller, and grows again as the block empties.
 - **Reordering groups renumbers blocks** but doesn't move them, so the digits always match the inbox.
@@ -107,7 +107,9 @@ lemonaid grove show --json       # blocks, trees, spots, letters and lemons
 lemonaid grove move 2 40 10      # put block 2's top-left corner at column 40, row 10
 lemonaid grove resize oria 60 18 # by digit or by group name
 lemonaid grove reshape 2 6       # 2 is an ellipse, 12 nearly a rectangle
+lemonaid grove move open:0 40 10 # open ground is open:N; resize takes it too
 lemonaid grove clear-open        # forget open ground left by groups that ended
+lemonaid grove clear-open open:1 # or just one
 ```
 
 The grove is 210 columns by 60 rows at full size. A larger grove is drawn smaller to fit the screen. `show --json` is meant for lemons: one can read the layout, propose a tidier one, and apply it with `move`, `resize` and `reshape` once you agree.

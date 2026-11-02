@@ -5,6 +5,7 @@ import pytest
 
 from lemonaid.grove.draw import canvas, scene_parts
 from lemonaid.grove.layout import arrange, edit, state
+from lemonaid.grove.model import Plot
 from lemonaid.grove.tui import drop, garden, keys
 from lemonaid.grove.tui.app import GroveApp
 from lemonaid.grove.tui.frame import Grove, render
@@ -320,3 +321,59 @@ def test_every_resize_a_drag_accepts_is_dropped_at_that_size():
             }
             cutting += bool(arrange.cut_off({"w": aim.w, "h": aim.h}, shifted))
     assert cutting
+
+
+def test_open_ground_is_grabbed_and_dragged_like_a_block():
+    plot = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=40)
+    grove = dataclasses.replace(
+        GROVE, arrangement=dataclasses.replace(GROVE.arrangement, open=(plot,))
+    )
+    view = scene_parts.grove_view(_SIZE, grove.arrangement)
+    x0, y0 = view.screen(plot.x, plot.y)
+    x1, y1 = view.screen(plot.x + plot.w, plot.y + plot.h)
+    middle = (round(x0 + x1) // 2, round(y0 + y1) // 2)
+
+    drag = garden.grab(grove, keys.Where(), _SIZE, middle, ())
+    assert drag is not None and drag.open == 0 and drag.sides == frozenset()
+
+    moved = dataclasses.replace(drag, moved=(-3, 2))
+    assert drop.refused(grove, moved) == ""
+    assert drop.dragged(grove, moved).arrangement.open[0].x == 147
+    relay = GROVE.arrangement.plots["relay"]
+    onto_a_block = dataclasses.replace(drag, moved=(relay.x - plot.x, relay.y - plot.y))
+    assert drop.refused(grove, onto_a_block)
+
+
+def _saved_with_open(*plots: tuple[str, Plot]) -> dict:
+    return {
+        "plots": {
+            **{
+                name: {**dataclasses.asdict(plot), "open_since": None}
+                for name, plot in GROVE.arrangement.plots.items()
+            },
+            **{name: {**dataclasses.asdict(plot), "open_since": 1.0} for name, plot in plots},
+        },
+        "trees": {},
+        "roads": [],
+        "stream": [],
+    }
+
+
+def test_a_dropped_open_ground_is_found_again_by_what_it_was_not_its_index():
+    a = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=40, seed=1)
+    b = dataclasses.replace(a, x=150, y=52, seed=2)
+    grove = dataclasses.replace(
+        GROVE, arrangement=dataclasses.replace(GROVE.arrangement, open=(a, b))
+    )
+    drag = dataclasses.replace(
+        garden.Drag(garden._NO_BLOCK, "", frozenset(), (0, 0), (1.0, 1.0), open=0, open_was=a),
+        moved=(0, 2),
+    )
+    both = _saved_with_open(("a", a), ("b", b))
+    only_b = _saved_with_open(("b", b))
+
+    moved = drop.drop(grove, drag)(both)
+    assert moved["plots"]["a"]["y"] == 42 and moved["plots"]["b"]["y"] == 52
+    for gone in (only_b, _saved_with_open()):
+        with pytest.raises(edit.EditError):
+            drop.drop(grove, drag)(gone)

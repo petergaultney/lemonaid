@@ -25,6 +25,13 @@ class Drag:
     moved: tuple[int, int] = (0, 0)  # in grove units
     name: str = ""  # what to type to reach the tree, as 2c, or the block's digit
     stump: bool = False  # *tree* is gone, and this drags the bare tree it left
+    open: int = (
+        -1
+    )  # the index in `arrangement.open` of the open ground dragged; then `block` is blank
+    open_was: Plot | None = None  # that open ground as it was drawn, to find it again when saved
+
+
+_NO_BLOCK = Block("", "", "", ())
 
 
 def _box(plot: Plot, view: scene_parts.View) -> tuple[float, float, float, float]:
@@ -56,6 +63,15 @@ def _edge(
         if inside and _sides(arrangement.plots[block.name], view, col, row):
             return block
     return None
+
+
+def _open_ground(arrangement: Any, view: scene_parts.View, col: int, row: int) -> int:
+    """The index of the open ground whose box holds (*col*, *row*), or -1."""
+    for index, plot in enumerate(arrangement.open):
+        x0, y0, x1, y1 = _box(plot, view)
+        if x0 - _EDGE <= col <= x1 + _EDGE and y0 - _EDGE <= row <= y1 + _EDGE:
+            return index
+    return -1
 
 
 def grab(
@@ -91,7 +107,20 @@ def grab(
             (view.sx, view.sy),
         )
     if block is None:
-        return None
+        index = _open_ground(grove.arrangement, view, *at)
+        if index < 0:
+            return None
+
+        sides = _sides(grove.arrangement.open[index], view, *at)
+        return Drag(
+            _NO_BLOCK,
+            "",
+            sides,
+            at,
+            (view.sx, view.sy),
+            open=index,
+            open_was=grove.arrangement.open[index],
+        )
     return Drag(block, "", frozenset(), at, (view.sx, view.sy))
 
 
@@ -105,6 +134,8 @@ def follow(drag: Drag, at: tuple[int, int]) -> Drag:
 
 def describe(drag: Drag, problem: str) -> str:
     what = f"tree {drag.name}" if drag.tree else f"block {drag.block.digit}"
+    if drag.open >= 0:
+        what = f"open ground {drag.open}"
     doing = ("resizing " if drag.sides else "moving ") + what
     return f"{doing}: {problem}" if problem else f"{doing} · release to drop · esc puts it back"
 

@@ -5,7 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground
-from ..layout import arrange, edit, lead_spot, room, sizes
+from ..layout import arrange, edit, lead_spot, placement, room, sizes
 from ..model import Block, Plot
 from . import garden, stump_drag
 from .frame import Grove
@@ -33,11 +33,20 @@ def _aim(grove: Grove, drag: Drag) -> Aim:
     if drag.tree:
         was = grove.arrangement.trees[(drag.block.name, drag.tree)]
         return was.cx + drag.moved[0], was.cy + drag.moved[1]
+    if drag.open >= 0:
+        return _plot(grove.arrangement.open[drag.open], drag)
     return _plot(grove.arrangement.plots[drag.block.name], drag)
 
 
 def _placed(grove: Grove, drag: Drag, aim: Aim) -> Grove:
     name, arrangement = drag.block.name, grove.arrangement
+    if drag.open >= 0 and isinstance(aim, Plot):
+        grounds = list(arrangement.open)
+        grounds[drag.open] = aim
+        return dataclasses.replace(
+            grove, arrangement=dataclasses.replace(arrangement, open=tuple(grounds))
+        )
+
     if isinstance(aim, tuple):
         spot = dataclasses.replace(arrangement.trees[(name, drag.tree)], cx=aim[0], cy=aim[1])
         trees = {**arrangement.trees, (name, drag.tree): spot}
@@ -97,7 +106,24 @@ def _on_ground_of(plot: Plot, other: Plot) -> bool:
     )
 
 
+def _refused_open(grove: Grove, drag: Drag, aim: Aim) -> str:
+    plot = _placed(grove, drag, aim).arrangement.open[drag.open]
+    if plot.w < 12 or plot.h < 5:
+        return "open ground needs at least 12 columns and 5 rows"
+    if plot.x < 0 or plot.y < 1:
+        return "that's past the grove's edge"
+    if any(
+        placement.overlaps((plot.x, plot.y, plot.w, plot.h), (p.x, p.y, p.w, p.h), 0)
+        for p in grove.arrangement.plots.values()
+    ):
+        return "a block's ground is there"
+    return ""
+
+
 def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
+    if drag.open >= 0:
+        return _refused_open(grove, drag, aim)
+
     name = drag.block.name
     after = _placed(grove, drag, aim).arrangement
     plot = after.plots[name]
@@ -111,7 +137,7 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
         return "a block needs at least 12 columns and 5 rows"
     if plot.x < 0 or plot.y < 1:
         return "that's past the grove's edge"
-    others = [p for other, p in after.plots.items() if other != name] + list(after.open)
+    others = [p for other, p in after.plots.items() if other != name]  # open ground is built over
     if any(_on_ground_of(plot, other) for other in others):
         return "another block's ground is there"
     if drag.sides and _crowded(grove, drag.block, plot):
@@ -132,7 +158,43 @@ def describe(grove: Grove, drag: Drag) -> str:
     return garden.describe(drag, refused(grove, drag))
 
 
+def _still_open(drag: Drag, saved: dict[str, Any]) -> str:
+    """The saved key of the open ground *drag* began on, or raise EditError if it has since gone,
+    been taken over or been moved.
+    """
+    was = drag.open_was
+    for name, plot in saved["plots"].items():
+        if (
+            plot.get("open_since") is not None
+            and was is not None
+            and (plot["x"], plot["y"], plot["w"], plot["h"], plot["seed"])
+            == (was.x, was.y, was.w, was.h, was.seed)
+        ):
+            return name
+    raise edit.EditError("that open ground changed while you dragged; try again")
+
+
+def _index_of(arrangement: arrange.Arrangement, drag: Drag) -> int:
+    for index, plot in enumerate(arrangement.open):
+        if plot == drag.open_was:
+            return index
+    raise edit.EditError("that open ground changed while you dragged; try again")
+
+
+def _edit_open(drag: Drag, aim: Plot) -> abc.Callable[[dict[str, Any]], dict[str, Any]]:
+    def change(saved: dict[str, Any]) -> dict[str, Any]:
+        name = _still_open(drag, saved)
+        if not drag.sides:
+            return edit.move(saved, name, aim.x, aim.y)
+        return edit.reframe(saved, name, aim.x, aim.y, aim.w, aim.h)
+
+    return change
+
+
 def _edit(drag: Drag, aim: Aim) -> abc.Callable[[dict[str, Any]], dict[str, Any]]:
+    if drag.open >= 0 and isinstance(aim, Plot):
+        return _edit_open(drag, aim)
+
     name = drag.block.name
     if isinstance(aim, tuple):
         lead = next(t for t in drag.block.trees if t.key == drag.tree).lead
@@ -143,6 +205,9 @@ def _edit(drag: Drag, aim: Aim) -> abc.Callable[[dict[str, Any]], dict[str, Any]
 
 
 def _stands(arrangement: arrange.Arrangement, drag: Drag) -> Aim:
+    if drag.open >= 0:
+        return arrangement.open[drag.open]
+
     if drag.tree:
         s = arrangement.trees[(drag.block.name, drag.tree)]
         return s.cx, s.cy
@@ -162,12 +227,17 @@ def drop(
     aim = _aim(grove, drag)
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:
+        nonlocal drag
+        if drag.open >= 0:
+            _still_open(drag, saved)
         known = {t.key for t in drag.block.trees} | {lead_spot.KEY}
-        spots = saved["trees"].get(drag.block.name, {})
+        spots = {} if drag.open >= 0 else saved["trees"].get(drag.block.name, {})
         if any(not s.get("gone_since") and key not in known for key, s in spots.items()):
             raise edit.EditError("the grove changed while you dragged; try again")
 
         fresh = Grove(grove.blocks, *arrange.arrange(grove.blocks, saved, now))
+        if drag.open >= 0:
+            drag = dataclasses.replace(drag, open=_index_of(fresh.arrangement, drag))
         problem = _refused(fresh, drag, aim)
         if problem:
             raise edit.EditError(problem)

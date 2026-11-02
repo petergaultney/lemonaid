@@ -9,7 +9,11 @@ back onto it, and a tree too big for it stands afresh inside, squeezed in.
 import copy
 from typing import Any
 
-from . import arrange, lead_spot
+from . import arrange, lead_spot, placement
+
+OPEN = (
+    "open:"  # prefix of an address for open ground: `open:0` is the first in `show --json`'s `open`
+)
 
 
 class EditError(ValueError):
@@ -49,12 +53,54 @@ def _push_back_cut_off(changed: dict[str, Any], group: str) -> dict[str, Any]:
     return changed
 
 
+def _is_open(plot: dict[str, Any]) -> bool:
+    return plot.get("open_since") is not None
+
+
+def open_key(saved: dict[str, Any], index: int) -> str:
+    """The saved key of the *index*th open ground, in the order `show --json` lists them."""
+    keys = [name for name, plot in saved["plots"].items() if _is_open(plot)]
+    if not 0 <= index < len(keys):
+        raise EditError(f"No open ground {index}; there are {len(keys)}")
+
+    return keys[index]
+
+
+def _rect(plot: dict[str, Any]) -> placement.Rect:
+    return plot["x"], plot["y"], plot["w"], plot["h"]
+
+
+def _settle(changed: dict[str, Any], group: str) -> None:
+    """After *group*'s plot changed: a block takes over the open ground it now covers, and open
+    ground can't be put on a block.
+    """
+    plot = changed["plots"][group]
+    if _is_open(plot):
+        for name, other in changed["plots"].items():
+            if (
+                name != group
+                and not _is_open(other)
+                and placement.overlaps(_rect(plot), _rect(other), 0)
+            ):
+                raise EditError(f"That would cover {name or 'the ungrouped block'}")
+        return
+
+    for name in [
+        name
+        for name, other in changed["plots"].items()
+        if name != group and _is_open(other) and placement.overlaps(_rect(plot), _rect(other), 0)
+    ]:
+        del changed["plots"][name]
+        changed["trees"].pop(name, None)
+
+
 def move(saved: dict[str, Any], group: str, x: int, y: int) -> dict[str, Any]:
     if x < 0 or y < 0:
         raise EditError("A plot's corner can't be above or left of the grove")
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(x=x, y=y)
+    _settle(changed, group)
     return changed
 
 
@@ -64,6 +110,7 @@ def resize(saved: dict[str, Any], group: str, w: int, h: int) -> dict[str, Any]:
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(w=w, h=h)
+    _settle(changed, group)
     return _push_back_cut_off(changed, group)
 
 
@@ -81,6 +128,7 @@ def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -
         if "x" in spot:
             spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
     plot.update(x=x, y=y, w=w, h=h)
+    _settle(changed, group)
     return _push_back_cut_off(changed, group)
 
 
@@ -133,12 +181,16 @@ def reshape(saved: dict[str, Any], group: str, roundness: float) -> dict[str, An
     return changed
 
 
-def clear_open(saved: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """The layout without its open ground, and the names of the groups that held it."""
+def clear_open(saved: dict[str, Any], index: int | None = None) -> tuple[dict[str, Any], list[str]]:
+    """The layout without its open ground, or without just the *index*th, and the names of the
+    groups that held what was cleared.
+    """
     changed = copy.deepcopy(saved)
-    cleared = [
-        name for name, plot in changed["plots"].items() if plot.get("open_since") is not None
-    ]
+    cleared = (
+        [open_key(changed, index)]
+        if index is not None
+        else [name for name, plot in changed["plots"].items() if _is_open(plot)]
+    )
     for name in cleared:
         del changed["plots"][name]
         changed["trees"].pop(name, None)
