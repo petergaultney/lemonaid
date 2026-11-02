@@ -777,6 +777,7 @@ enabled = false
 existing_task_templates = ["review"]  # these must name the work's existing task
 checker = []           # the inspector's checker argv; empty runs the default checker
 checker_timeout = 30   # seconds per evaluation
+inspect_interval = 0   # seconds between the scout host's inspector passes; 0 runs none
 challenge_interval = 300        # seconds before an open challenge is sent again, doubling; 0 sends none
 max_challenge_interval = 86400  # the longest gap between re-sends
 
@@ -790,7 +791,7 @@ max_challenge_interval = 86400  # the longest gap between re-sends
 # adjudicator = "human:sam"
 ```
 
-With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. `lemonaid task inspect` reads the rest: it sends each challenge to the brief it names, again with doubling gaps while it stays open, unless `challenge_interval` is 0 or the brief is in `opt_out`. See [tasks](tasks.md).
+With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. With `inspect_interval` above 0, the scout host runs an inspector pass that often, against one long-running checker process; `lemonaid task inspect` runs one now. A pass sends each challenge to the brief it names, again with doubling gaps while it stays open, unless `challenge_interval` is 0 or the brief is in `opt_out`. See [tasks](tasks.md).
 
 ## `[claude.statusline]`
 

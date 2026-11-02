@@ -24,6 +24,7 @@ How to use tasks is in `docs/tasks.md`. This note is for changing the code: what
 - A lemon taking a turn is not inspected; it may be changing its status or handing its task on.
 - An open challenge is sent again with doubling gaps, and stops when a change resolves its case.
 - Nothing here talks to a terminal multiplexer. Whether a lemon is running comes from lemonaid's lemon facts.
+- The scout host runs passes against one long-running checker process, and a pass asks the checker only about subjects whose input changed or whose findings came due. Starting a process per task, or reading GitHub per pass, is the cost this avoids: PR facts come only from the scout host's existing snapshots.
 
 ## Layering
 

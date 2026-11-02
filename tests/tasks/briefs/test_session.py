@@ -1,4 +1,4 @@
-from lemonaid.brief import identity
+from lemonaid.brief import attached, identity
 from lemonaid.inbox import db
 from lemonaid.tasks.briefs import session
 from lemonaid.tasks.model import ledger
@@ -33,3 +33,19 @@ def test_no_tasks_and_task_support_off_add_nothing(tmp_path):
         assert session.started(conn, path, 1.0) == ""
         new_task(conn, brief_id="work.Alpha")
         assert session.context(conn, path, enabled=False) == ""
+
+
+def test_a_brief_attached_after_its_session_started_is_caught_up(tmp_path):
+    path = _brief(tmp_path, "work.Alpha")
+    with db.connect() as conn:
+        waiting = new_task(conn, brief_id="work.Alpha")
+        assigned_later = new_task(conn, brief_id="work.Alpha", request_id="late", at=4e9)
+        unattached = new_task(conn, brief_id="other.Beta", request_id="other")
+        attached.attach(conn, "tmux:work:1", path)
+        since = conn.execute("SELECT attached_at FROM session_briefs").fetchone()[0]
+
+        assert sorted(session.caught_up(conn)) == sorted([waiting, assigned_later])
+        assert ledger.state(conn, waiting)["attached_at"] == since
+        assert ledger.state(conn, assigned_later)["attached_at"] == 4e9
+        assert ledger.state(conn, unattached)["attached_at"] is None
+        assert session.caught_up(conn) == []

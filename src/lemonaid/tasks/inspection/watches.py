@@ -17,7 +17,8 @@ from ... import brief, pr_url
 from ...brief import status
 from ...lemon_facts import facts
 from ...watch import pr_activity
-from ..checker import protocol, replay
+from ..checker import protocol
+from ..checker.session import Ask
 from ..model import holding, identities, ledger
 from . import cases, lemon_watches, live
 
@@ -28,10 +29,10 @@ class Unsupported(ValueError):
     pass
 
 
-def declared(argv: abc.Sequence[str], text: str, timeout: float) -> list[tuple[str, str]]:
-    """The (kind, key) watches the checker declares for the task in *text*. Raises
-    ProtocolError or Unsupported, or the subprocess's own errors."""
-    records = protocol.parse(replay.run_checker(argv, text, timeout, "describe"), protocol.DESCRIBE)
+def declared(ask: Ask, text: str) -> list[tuple[str, str]]:
+    """The (kind, key) watches the checker declares for the subject in *text*. Raises
+    ProtocolError or Unsupported, or what *ask* raises."""
+    records = protocol.parse(ask("describe", text), protocol.DESCRIBE)
     found = [(r[1], r[2]) for r in records]
     if unknown := sorted({kind for kind, _ in found} - KINDS):
         raise Unsupported(f"the checker watches {', '.join(unknown)}, which lemonaid can't observe")

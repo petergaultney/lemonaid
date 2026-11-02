@@ -109,19 +109,20 @@ def assign(
 
 def attach(conn: sqlite3.Connection, brief_id: str, actor: str, at: float) -> list[str]:
     """Record that *brief_id*'s lemon started, for each open assignment still waiting for
-    it; returns their task IDs. Resuming an attached brief changes nothing."""
+    it; returns their task IDs. Resuming an attached brief changes nothing. A lemon that
+    started before an assignment counts as starting when it was assigned."""
     holders = [f"brief:{name}" for name in identities.names(conn, brief_id)]
-    waiting = [
-        (row["task_id"], row["revision"])
-        for row in conn.execute(
-            "SELECT task_id, revision FROM tasks WHERE lifecycle != 'closed' AND attached_at IS NULL"
-            f" AND holder IN ({identities.placeholders(holders)})",
-            holders,
-        )
-    ]
-    for task, revision in waiting:
-        ledger.append(conn, task, revision, "attached", {}, actor, f"attach:{task}:{revision}", at)
-    return [task for task, _ in waiting]
+    waiting = conn.execute(
+        "SELECT task_id, revision, assigned_at FROM tasks"
+        " WHERE lifecycle != 'closed' AND attached_at IS NULL"
+        f" AND holder IN ({identities.placeholders(holders)})",
+        holders,
+    ).fetchall()
+    for row in waiting:
+        task, revision = row["task_id"], row["revision"]
+        key = f"attach:{task}:{revision}"
+        ledger.append(conn, task, revision, "attached", {}, actor, key, max(at, row["assigned_at"]))
+    return [row["task_id"] for row in waiting]
 
 
 def held_by(conn: sqlite3.Connection, brief_id: str) -> list[dict[str, ty.Any]]:

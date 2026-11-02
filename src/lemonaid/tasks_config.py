@@ -10,6 +10,7 @@ class TasksConfig:
     existing_task_templates: tuple[str, ...] = ("review",)  # must name an existing task
     checker: tuple[str, ...] = ()  # argv; empty runs the default checker
     checker_timeout: float = 30.0
+    inspect_interval: float = 0.0  # seconds between the scout host's passes; 0 runs none
     challenge_interval: float = 300.0  # seconds before re-sending an open challenge; 0 sends none
     max_challenge_interval: float = 86400.0  # the backoff's ceiling
     opt_out: dict[str, str] = field(default_factory=dict)  # Lemon-ID -> why it gets no challenges
@@ -75,6 +76,9 @@ def parse(data: dict) -> TasksConfig:
         checker=_strings(data, "checker", ()),
         checker_timeout=_seconds(
             data, "checker_timeout", TasksConfig.checker_timeout, allow_zero=False
+        ),
+        inspect_interval=_seconds(
+            data, "inspect_interval", TasksConfig.inspect_interval, allow_zero=True
         ),
         challenge_interval=_seconds(
             data, "challenge_interval", TasksConfig.challenge_interval, allow_zero=True
