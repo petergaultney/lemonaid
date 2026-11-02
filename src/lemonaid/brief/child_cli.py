@@ -79,6 +79,7 @@ def _create(args: argparse.Namespace, today: datetime.date) -> tuple[Path, str, 
                 template=args.template,
                 existing_task_templates=config.tasks.existing_task_templates,
                 attached=False,
+                subject_url=values.get("pr_url", ""),
             )
         except ledger.Refused as cause:
             raise child.Problem(str(cause)) from None

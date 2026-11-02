@@ -76,7 +76,7 @@ def _record(
         spec_brief_id=brief_id,
         sponsor=sponsor,
         holder_brief_id=brief_id,
-        subject_url_text="",
+        subject_url_text=planned.subject_url,
         checker_id="",
         attached=planned.attached,
         actor=actor,

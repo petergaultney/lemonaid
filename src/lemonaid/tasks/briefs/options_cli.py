@@ -22,6 +22,7 @@ DEFAULTS: ty.Mapping[str, ty.Any] = {
     "no_task": "",
     "for_task": "",
     "independent": False,
+    "task_url": "",
 }
 
 
@@ -105,6 +106,19 @@ def given(args: argparse.Namespace) -> bool:
     return any(getattr(args, name) != unset for name, unset in DEFAULTS.items())
 
 
+def _covering(conn: sqlite3.Connection, url: str) -> str:
+    """An open task about *url*, or ""."""
+    row = (
+        url
+        and conn.execute(
+            "SELECT task_id FROM tasks WHERE subject_url = ? AND lifecycle != 'closed'"
+            " ORDER BY created_at LIMIT 1",
+            (url,),
+        ).fetchone()
+    )
+    return row["task_id"] if row else ""
+
+
 def plan(
     conn: sqlite3.Connection,
     args: argparse.Namespace,
@@ -115,11 +129,13 @@ def plan(
     template: str,
     existing_task_templates: abc.Collection[str],
     attached: bool,
+    subject_url: str = "",
 ) -> planning.Plan | None:
     """The disposition to record, or None with task support off. Raises ledger.Refused.
 
-    A template in *existing_task_templates* (a review, normally) must name its task, or
-    ask for a new one explicitly.
+    A template in *existing_task_templates* (a review, normally) takes the work's task, and
+    makes a task of its own only when asked to and no open task is about *subject_url*: a
+    teammate's PR, say, that no lemon's task covers.
     """
     if not enabled:
         if given(args):
@@ -127,20 +143,31 @@ def plan(
 
         return None
 
-    if template in existing_task_templates and not (args.task or args.new_task):
-        raise ledger.Refused(
-            f"the {template} template takes the work's existing task: pass --task TASK_ID"
-            " (with --observe to leave its holder alone), or --new-task for independent work"
-        )
+    if template in existing_task_templates and not args.task:
+        covering = _covering(conn, subject_url)
+        if covering or not args.new_task:
+            raise ledger.Refused(
+                f"the {template} template takes the work's existing task"
+                + (f", task:{covering}" if covering else "")
+                + ": pass --task TASK_ID, with --observe to leave its holder alone"
+                + ("" if covering else ", or --new-task when no lemon's task covers the work")
+            )
 
     try:
         task = ids.task_id(args.task) if args.task else ""
         parent = ids.task_id(args.for_task) if args.for_task else ""
     except ValueError as error:
         raise ledger.Refused(f"not a task ID: {error}") from None
-    return planning.plan(
+    planned = planning.plan(
         conn, _mode(args), task, args.no_task, sponsor, actor, parent, args.independent, attached
     )
+    if planned.mode != "new":
+        return planned
+
+    if template in existing_task_templates:
+        return planned._replace(subject_url=subject_url)  # so a second review finds it
+
+    return planned._replace(subject_url=args.task_url)
 
 
 def attached_plan(
@@ -224,3 +251,4 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--independent", action="store_true", help="This work doesn't block any task of yours"
     )
+    group.add_argument("--task-url", default="", metavar="URL", help="A new task's subject URL")

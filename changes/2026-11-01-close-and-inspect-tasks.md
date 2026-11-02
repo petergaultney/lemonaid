@@ -8,6 +8,7 @@
 - **A task whose holder dies is reported to whoever assigned it**, or else to the nearest live lemon above them, to resume the holder or hand the task on.
 - **A task is only ever held by a live lemon.** `task assign` refuses a person, an outside party, or a lemon that isn't running; a lemon waiting on a person keeps its task and sets its Status.
 - **A lemon closes a task when its work is finished**, with a reason saying where the result is. The inspector checks each closing, and challenges one whose PR hasn't merged.
+- **A review brief takes the work's existing task** (`--task`), and its reviewer hands the task back to the author when done. `--new-task` is refused when an open task already covers the PR; a review of a teammate's PR holds its own task, with Status `review` or `approve`.
 - **`brief status done` hands a lemon's still-open tasks to its parent, in a new `check` state.** The parent closes each one or hands it back.
 
 #### Fixed

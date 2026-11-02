@@ -122,15 +122,20 @@ def test_a_reviewer_takes_the_task_in_its_registration_and_an_observer_does_not(
     assert f"brief:{reviewer['lemon_id']}" in observer["notice"]
 
 
-def test_the_review_template_needs_an_existing_task_or_an_explicit_new_one(
+def test_the_review_template_makes_its_own_task_only_when_none_covers_the_pr(
     capsys, tmp_path, review
 ):
     refused = _run(capsys, *review, "Review it")
-    independent = _run(capsys, *review, "--new-task", "Independent review")
+    teammates = _run(capsys, *review, "--new-task", "Review a teammate's PR")
+    again = _run(capsys, *review, "--new-task", "Review ours")
 
-    assert "--task TASK_ID" in refused["error"]
+    assert "--task TASK_ID" in refused["error"] and "--new-task" in refused["error"]
+    assert teammates["disposition"] == "new"
+    with db.connect() as conn:
+        assert ledger.state(conn, teammates["task_id"])["subject_url"] == review[3]
+    assert f"task:{teammates['task_id']}" in again["error"]
     assert not list((tmp_path / "briefs").glob("*-review-it.md"))
-    assert independent["disposition"] == "new"
+    assert not list((tmp_path / "briefs").glob("*-review-ours.md"))
 
 
 def test_taking_a_task_from_another_holder_tells_it(capsys, monkeypatch, review):
@@ -284,6 +289,17 @@ def test_an_attached_brief_gets_a_task_with_its_clock_already_running(capsys):
 
 def test_an_attached_brief_takes_the_same_task_options(capsys):
     assert _attached(capsys, "--no-task", "on call", "Pager")["disposition"] == "exempt"
+
+
+def test_repairing_a_review_registration_keeps_the_pr_as_its_tasks_url(capsys, monkeypatch, review):
+    with monkeypatch.context() as patched:
+        patched.setattr(options_cli.registration, "register", _broken)
+        failed = _run(capsys, *review, "--new-task", "Review a teammate's PR")
+
+    repaired = _repair(capsys, failed["error"])
+
+    with db.connect() as conn:
+        assert ledger.state(conn, repaired["task_id"])["subject_url"] == review[3]
 
 
 def test_repair_refuses_options_that_contradict_the_recorded_disposition(capsys):

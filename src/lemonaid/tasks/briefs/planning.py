@@ -23,6 +23,7 @@ class Plan(ty.NamedTuple):
     expected_holder: str = ""
     expected_revision: int = 0
     attached: bool = False
+    subject_url: str = ""  # a new task's URL
 
 
 def _held_directly(conn: sqlite3.Connection, brief_id: str) -> list[str]:
@@ -99,11 +100,13 @@ def repair_flags(planned: Plan) -> str:
         case "exempt":
             return f"--no-task {shlex.quote(planned.reason)}"
         case "new":
-            return (
+            url = f" --task-url {shlex.quote(planned.subject_url)}" if planned.subject_url else ""
+            parent = (
                 f"--for-task {planned.parent_task_id}"
                 if planned.parent_task_id
                 else "--independent"
             )
+            return parent + url
         case "observe":
             return f"--task {planned.task_id} --observe"
     return f"--task {planned.task_id}"

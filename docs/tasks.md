@@ -14,8 +14,9 @@ With tasks enabled, `brief new` gives the new brief exactly one task disposition
 | `--task TASK_ID` | The new brief becomes the existing task's holder. Use this for a reviewer once you're ready to wait on it. Anyone can take a task: if the caller didn't hold it, the former holder gets a message saying who has it now. It's refused if the task changed hands after the command checked it. |
 | `--task TASK_ID --observe` | The brief is linked to the task without taking it, and the command says the holder hasn't changed. |
 | `--no-task REASON` | A standing role (coordination, monitoring, on call) records why it has no task. |
+| `--task-url URL` | With a new task: its subject URL. A review template's new task takes its `--pr`. |
 
-A template listed in `[tasks] existing_task_templates`, `review` by default, refuses to run without `--task TASK_ID` (or `--observe`), or `--new-task` for an independent review, so a reviewer never silently gets a second task for the same work.
+A template listed in `[tasks] existing_task_templates`, `review` by default, takes the work's existing task: it refuses to run without `--task TASK_ID` (add `--observe` to follow the task without taking it). A review is a turn on the work, so the reviewer hands the task back to the author when it is done. `--new-task` is accepted only when no open task has the brief's `--pr` as its URL, as for a teammate's PR that no lemon's task covers; the reviewer then holds that task, with Status `review` or `approve`. Remove `review` from the list to let a review hold a task of its own regardless.
 
 A new child task blocks the parent's own task when the parent holds exactly one; it then counts as the parent waiting for the child. If the parent holds several, choose one with `--for-task TASK_ID`, or say the work blocks none of them with `--independent`. A cycle of tasks waiting on each other is refused.
 
