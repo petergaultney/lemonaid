@@ -102,3 +102,33 @@ def test_a_stump_moves_or_clears_but_a_live_tree_is_not_a_stump():
     assert "b" in saved["trees"]["relay"]
     with pytest.raises(edit.EditError):
         edit.clear_stump(saved, "relay", "a")
+
+
+def test_open_ground_is_addressed_by_its_index_and_moves_like_a_block():
+    name = edit.open_key(SAVED, 0)
+    assert name == "gone"
+    moved = edit.move(SAVED, name, 100, 20)
+    assert moved["plots"]["gone"]["x"] == 100 and moved["plots"]["gone"]["open_since"] == 1.0
+    with pytest.raises(edit.EditError):
+        edit.open_key(SAVED, 1)
+
+
+def test_open_ground_cannot_be_put_on_a_block():
+    with pytest.raises(edit.EditError):
+        edit.move(SAVED, "gone", 20, 6)
+
+
+def test_a_block_moved_over_open_ground_takes_it_over():
+    moved = edit.move(SAVED, "relay", 55, 5)
+    assert "gone" not in moved["plots"] and "gone" not in moved["trees"]
+    reframed = edit.reframe(SAVED, "relay", 10, 5, 70, 12)
+    assert "gone" not in reframed["plots"]
+
+
+def test_clear_open_can_clear_just_one():
+    saved = {
+        "plots": {**SAVED["plots"], "also": {**SAVED["plots"]["gone"], "x": 100}},
+        "trees": SAVED["trees"],
+    }
+    cleared, names = edit.clear_open(saved, 1)
+    assert names == ["also"] and "gone" in cleared["plots"]
