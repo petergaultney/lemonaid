@@ -9,24 +9,16 @@ from collections import Counter, abc
 
 from rich.text import Text
 
+from .... import config, status_registry
 from ... import db
 from . import group_headers
 
-# Where each status's count sits; any other status follows these, by name.
-_ORDER = (
-    "alert",
-    "blocked",
-    "running",
-    "merge",
-    "approve",
-    "review",
-    "done",
-    "active",
-    "idle",
-    "deaf",
-    "dead",
-    "",
-)
+_STATES = ("active", "idle", "deaf", "dead", "")  # after the statuses, for a brief with none
+
+
+def _order() -> tuple[str, ...]:
+    """Where each status's count sits; any other word follows these, by name."""
+    return (*status_registry.names(config.brief_statuses()), *_STATES)
 
 
 def _counts(rows: abc.Iterable[db.Notification], statuses: abc.Mapping[str, str]) -> Counter[str]:
@@ -34,9 +26,8 @@ def _counts(rows: abc.Iterable[db.Notification], statuses: abc.Mapping[str, str]
 
 
 def _ordered(statuses: abc.Iterable[str]) -> list[str]:
-    return sorted(
-        statuses, key=lambda s: (_ORDER.index(s), "") if s in _ORDER else (len(_ORDER), s)
-    )
+    order = _order()
+    return sorted(statuses, key=lambda s: (order.index(s), "") if s in order else (len(order), s))
 
 
 def _part(statuses: abc.Sequence[str], every: Counter[str]) -> Text:

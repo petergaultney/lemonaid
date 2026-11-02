@@ -78,7 +78,7 @@ class Child(ty.NamedTuple):
 class Section:
     lemon: target.Identity | None
     title: str
-    state: str  # one of store.STATES; "" for none, which the inbox draws `active` or `idle`
+    state: str  # one of store.states(); "" for none, which the inbox draws `active` or `idle`
     raw_status: str
     prs: tuple[tuple[str, str], ...]  # (label, live state or "")
     path: Path | None  # None for a lemon with no brief

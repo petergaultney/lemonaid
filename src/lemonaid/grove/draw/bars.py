@@ -1,15 +1,12 @@
 """The title row above the grove and the prompt row below it."""
 
+from ... import config, status_registry
 from . import colors
 from .canvas import BACKGROUND, Canvas, fill, mix, put, text
 
-_LEGEND = (
-    ("alert", "alert"),
-    ("blocked", "blocked"),
-    ("running", "running"),
-    ("merge", "merge"),
-    ("review", "review"),
-)
+
+def _legend() -> tuple[str, ...]:
+    return tuple(s.name for s in config.brief_statuses() if s.name != status_registry.DONE)
 
 
 def title(canvas: Canvas, summary: str, keys: str) -> None:
@@ -22,22 +19,21 @@ def title(canvas: Canvas, summary: str, keys: str) -> None:
 def prompt(canvas: Canvas, line: str, color: str = colors.TEXT) -> None:
     row = canvas.height - 1
     fill(canvas, 0, row, canvas.width, 1, colors.BAR)
-    legend_width = (
-        sum(len(label) + 4 for _, label in _LEGEND) + len("idle") + 4 + len("no jump") + 4
-    )
+    legend = _legend()
+    legend_width = sum(len(label) + 4 for label in legend) + len("idle") + 4 + len("no jump") + 4
     room = canvas.width - legend_width - 4 if canvas.width > legend_width + 60 else canvas.width - 3
     text(canvas, 1, row, f"> {line}", color, colors.BAR, bold=True, limit=room)
     if room == canvas.width - 3:
         return
 
     x = canvas.width - legend_width
-    for status, label in (*_LEGEND, ("", "idle"), ("", "no jump")):
+    for status, label in (*((s, s) for s in legend), ("", "idle"), ("", "no jump")):
         put(
             canvas,
             x,
             row,
             "x" if label == "no jump" else "●",
-            colors.STATUS.get(status, colors.IDLE),
+            colors.fill(status) or colors.IDLE,
             colors.BAR,
             bold=True,
         )
@@ -64,4 +60,4 @@ def flash(canvas: Canvas, target: tuple[str, ...]) -> None:
     for row in canvas.rows:
         for cell in row:
             if cell.target == target:
-                cell.bg = mix(cell.bg or BACKGROUND, colors.STATUS["alert"], 0.55)
+                cell.bg = mix(cell.bg or BACKGROUND, colors.ALERT, 0.55)

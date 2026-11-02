@@ -28,6 +28,7 @@ from . import (
     render,
     session,
     sidebar,
+    statuses_cli,
     target,
     write_cli,
 )
@@ -255,6 +256,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
 
     docs_cli.add_parser(brief_subparsers)
     lemons_cli.add_parser(brief_subparsers)
+    statuses_cli.add_parser(brief_subparsers)
     write_cli.add_parsers(brief_subparsers)
     archive_cli.add_parsers(brief_subparsers)
     handoff_cli.add_parser(brief_subparsers)

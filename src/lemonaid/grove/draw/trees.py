@@ -276,7 +276,7 @@ def draw_tag(
     status = colors.tree_status(tree.lemons)
     working = any(lemon.working for lemon in tree.lemons)
     tag_bg = mix(
-        colors.STATUS.get(status, colors.TAG),
+        colors.fill(status) or colors.TAG,
         "#0b0e13",
         colors.PULSE_DEPTH * phase if working else 0,
     )

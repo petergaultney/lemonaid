@@ -124,7 +124,7 @@ def split(text: str) -> Parts:
             rest.append(line)
 
     state = status.split(maxsplit=1)[0].lower() if status else ""
-    state = state if state in store.STATES else ""
+    state = state if state in store.states() else ""
 
     return Parts(
         title,

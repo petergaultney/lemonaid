@@ -5,6 +5,7 @@ import sqlite3
 from rich.console import Console
 from rich.text import Text
 
+from .. import config, status_registry
 from ..brief import attached, colors, status
 from ..inbox import db
 from ..log import get_logger
@@ -35,7 +36,7 @@ def affected(doomed: target.TossTarget) -> list[tuple[str, str]]:
                 _log.warning("could not read brief %s for toss confirmation: %s", path, e)
                 continue
 
-            if parts.status in {"merge", "approve", "blocked", "alert"}:
+            if parts.status in status_registry.yours(config.brief_statuses()):
                 result[row.channel] = (row.name or parts.title or row.channel, parts.status)
     return list(result.values())
 

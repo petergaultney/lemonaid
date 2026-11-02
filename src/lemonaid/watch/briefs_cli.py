@@ -11,12 +11,23 @@ import pathlib
 import sys
 import time
 
+from .. import config, status_registry
 from ..brief import lemon, store
 from ..inbox import db
 from . import brief_record, briefs_events, cursors, delivery, notes, registry, waiter_lock
 
 CHILD_TO = ("merge", "done")
-_ORPHAN_TO = ("blocked", "alert", "merge", "approve", "review", "done")
+
+
+def _orphan_to() -> tuple[str, ...]:
+    """What a parentless lemon's watcher wakes for: the statuses that are the user's move,
+    a review from outside the grove, and done."""
+    configured = config.brief_statuses()
+    return tuple(
+        s.name
+        for s in configured
+        if s.name in status_registry.yours(configured) or s.name in ("review", "done")
+    )
 
 
 def _wait(
@@ -45,7 +56,7 @@ def run(a: argparse.Namespace) -> int:
     state_dir = a.state_dir or cursors.directory("briefs", a.me, thread)
     state_dir.mkdir(parents=True, exist_ok=True)
     cursor_key = a.me if a.state_dir else ""
-    to = frozenset(a.to or (_ORPHAN_TO if a.orphans else CHILD_TO))
+    to = frozenset(a.to or (_orphan_to() if a.orphans else CHILD_TO))
     lock_path = briefs_events.state_stem(state_dir, parent, cursor_key, to, a.orphans).with_suffix(
         ".lock"
     )
@@ -116,8 +127,8 @@ def _target(value: str) -> str:
             " and never wakes this waiter. Drop it, or name the statuses it moves to"
         )
 
-    if value not in store.STATES:
-        raise argparse.ArgumentTypeError(f"{value!r} is not one of {', '.join(store.STATES)}")
+    if value not in store.states():
+        raise argparse.ArgumentTypeError(f"{value!r} is not one of {', '.join(store.states())}")
 
     return value
 

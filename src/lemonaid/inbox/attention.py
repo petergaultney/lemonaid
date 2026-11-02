@@ -10,6 +10,7 @@ import threading
 from collections import abc
 from pathlib import Path
 
+from .. import config, status_registry
 from ..config import TuiConfig
 from ..log import get_logger
 from . import order
@@ -59,6 +60,6 @@ def save_latest(latest: abc.Callable[[], bool], where: Path | None = None) -> No
 def rule(tui: TuiConfig, on: bool) -> order.FoldRule | None:
     """Attention mode's rule while it is on, which replaces `fold_statuses`."""
     if on:
-        return order.attention_rule(tui.attention_statuses)
+        return order.attention_rule(status_registry.attention(config.brief_statuses()))
 
     return order.status_rule(tui.fold_statuses)

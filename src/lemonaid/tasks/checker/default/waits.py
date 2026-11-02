@@ -17,10 +17,6 @@ _HEALTHY = frozenset({"ok", "wait"})
 
 _UNHEALTHY = frozenset({"challenge", "adjudicate"})
 
-# Brief statuses that say the holder waits on a person or a process; a lemon is waited on
-# through a task instead.
-_DECLARED = frozenset({"blocked", "alert", "review", "merge", "approve", "running"})
-
 
 class _Subject(ty.NamedTuple):
     view: checker_input.View
@@ -129,10 +125,10 @@ def findings(
 def declared(
     view: checker_input.View, policy: settings.Policy, holder: str
 ) -> list[protocol.Record]:
-    """A wait, for every task the holder holds, when its brief's Status says it waits on a
-    person or a process; [] otherwise."""
+    """A wait, for every task the holder holds, when its brief has a Status other than
+    `done`: every status says it waits on a person or a process."""
     state = settings.fact(view, "brief", holder, "status")
-    if state not in _DECLARED:
+    if state in ("", "done"):
         return []
 
     until = settings.at(policy, policy.now + policy.reconcile)

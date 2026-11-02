@@ -6,9 +6,9 @@ something the lemon receives anyway: an answer from the brief view, a message
 queued into a Codex thread, or the first tool call of a Claude turn.
 """
 
+from .. import config, status_registry
 from . import now, questions, status
 
-WAITING_ON_USER = frozenset({"blocked", "alert", "merge", "approve"})
 _ANSWERS = "This answers"
 
 
@@ -19,7 +19,7 @@ def _quoted(labels: list[str]) -> str:
 def note(text: str) -> str:
     """The reminder for a brief whose Status waits on the user, or ""."""
     parts = status.split(text)
-    if parts.status not in WAITING_ON_USER:
+    if parts.status not in status_registry.yours(config.brief_statuses()):
         return ""
 
     found = now.parse(parts.now)
@@ -33,7 +33,7 @@ def note(text: str) -> str:
 def after_answer(text: str, label: str) -> str:
     """The line to append to an answer to *label*, or "" when the Status doesn't wait on the user."""
     parts = status.split(text)
-    if parts.status not in WAITING_ON_USER:
+    if parts.status not in status_registry.yours(config.brief_statuses()):
         return ""
 
     found = now.parse(parts.now)

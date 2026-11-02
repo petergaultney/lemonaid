@@ -185,3 +185,13 @@ def test_a_reading_badge_at_the_purple_end_takes_white_text():
 
     assert text_color(0) == "#ffffff"
     assert text_color(50) == "#000000"
+
+
+def test_a_configured_blocked_fill_colors_its_rows(tmp_path):
+    assert brief_rows.background(CardBrief("blocked", "", 0)).bgcolor.name == "#c9a93a"
+
+    (tmp_path / "config.toml").write_text(
+        '[[brief.statuses]]\nname = "blocked"\ncolor = "#123456"\n'
+    )
+
+    assert brief_rows.background(CardBrief("blocked", "", 0)).bgcolor.name == "#123456"

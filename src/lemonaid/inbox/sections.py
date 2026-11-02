@@ -152,7 +152,7 @@ def layout(
                 len(rows),
                 tuple(
                     (status, represented[status])
-                    for status in order.BAND_NAMES
+                    for status in order.band_names()
                     if status in represented and order.special_status(status)
                 ),
                 sum(n.id not in folded_ids for n in rows),

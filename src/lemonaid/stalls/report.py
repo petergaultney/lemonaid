@@ -4,12 +4,12 @@ import dataclasses
 from collections import abc
 from pathlib import Path
 
+from .. import status_registry
 from ..brief import status as brief_status
 from ..watch import pr_activity, signature
 from . import doc_authors, move, pulls
 
 # A brief on an open PR with one of these says why nothing is moving.
-_EXPLAINED = frozenset({"blocked", "merge", "review", "running"})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -86,7 +86,9 @@ def find(
         if snap is None:
             continue
 
-        if snap.state == "OPEN" and any(lemon.status in _EXPLAINED for lemon in pull.briefs):
+        if snap.state == "OPEN" and any(
+            lemon.status not in ("", status_registry.DONE) for lemon in pull.briefs
+        ):  # every status but done says the next move isn't the lemon's
             continue
 
         stalls += [

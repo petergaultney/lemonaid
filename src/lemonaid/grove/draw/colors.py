@@ -1,23 +1,13 @@
 """The grove's palette: the inbox's status colors, plus leaves, bark and ground."""
 
+from ... import config, status_registry
 from ...brief import colors
 from ...inbox import context_color, provider_color
 from ..model import Lemon
 from .canvas import BACKGROUND, mix
 
-STATUS = {
-    "alert": colors.ALERT_COLOR,
-    "blocked": colors.ATTENTION_COLOR,
-    "running": colors.RUNNING_COLOR,
-    "merge": colors.MERGE_COLOR,
-    "approve": colors.APPROVE_COLOR,
-    "review": colors.REVIEW_COLOR,
-    "done": "#285995",
-}
-ON_STATUS = {"blocked": "#000000", "merge": "#000000"}  # text on a status fill; white otherwise
-# The inbox's order, most urgent first, for a tree that shows one status for all its lemons.
-RANK = ("alert", "blocked", "running", "merge", "approve", "review", "done")
-
+ALERT = colors.ALERT_COLOR  # warnings that aren't a lemon's status
+WARN = colors.ATTENTION_COLOR
 TEXT = "#e6ebf2"
 MUTED = "#7c8696"
 IDLE = "#8b949e"
@@ -37,21 +27,28 @@ def status_text(status: str) -> str:
     return colors.status_text_style(status).removeprefix("bold ") or TEXT
 
 
+def fill(status: str) -> str:
+    """A status's fill color; "" for a word that isn't a configured status."""
+    found = status_registry.by_name(config.brief_statuses()).get(status)
+    return found.fill if found else ""
+
+
 def on_status(status: str) -> str:
-    return ON_STATUS.get(status, "#ffffff")
+    found = status_registry.by_name(config.brief_statuses()).get(status)
+    return found.on_fill if found else "#ffffff"
 
 
 def tree_status(lemons: tuple[Lemon, ...]) -> str:
     """The most urgent status among *lemons*, in the inbox's order; "" when none has one."""
     present = {lemon.status for lemon in lemons}
-    return next((status for status in RANK if status in present), "")
+    return next((s.name for s in config.brief_statuses() if s.name in present), "")
 
 
 def lemon_color(lemon: Lemon, phase: float) -> str:
     """A lemon's dot: its status's text color, which shows on a crown where its fill wouldn't,
     grey when it has none, pulsing toward the background mid-turn.
     """
-    base = status_text(lemon.status) if lemon.status in STATUS else IDLE
+    base = status_text(lemon.status) if fill(lemon.status) else IDLE
     if lemon.quiet:
         base = mix(base, BACKGROUND, 0.4)
     return mix(base, BACKGROUND, PULSE_DEPTH * phase) if lemon.working else base

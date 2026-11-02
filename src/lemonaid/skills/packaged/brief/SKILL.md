@@ -19,17 +19,7 @@ Name the session for the work, with a short area and change, rather than the bri
 
 Set `Status:` only when one of the words below applies, and leave it out otherwise. Without one, lemonaid shows your own state: `active` while you are mid-turn, `idle` between turns, and `deaf` or `dead` if a message sent to you would not be read. `lemonaid brief status --self clear` removes a status that no longer applies. Older briefs may say `working` or `waiting`; both read as no status, and setting either clears it.
 
-`Status:` contains exactly one word. The reason goes in `## Now`. A status says you wait on a person or a process; when you wait on another lemon, set none and use a task instead. Choose by whose move it is:
-
-| Status | When to use it |
-|---|---|
-| `running` | Nothing waits on your user and you are monitoring a named long process. Put the process and its `session:window` under `### Running`. |
-| `review` | A teammate's approving review on GitHub comes next, rather than your user's or a lemon's. Name the teammate and PR under `### Needs <who>`. |
-| `blocked` | Your user can act now: a decision, answer, review, trial, or text to post. Name the move under `### Needs <who>`. Asking your user in your final message counts too. |
-| `alert` | Your user's move is needed and harm grows while it waits. Keep this rare; importance alone does not qualify. Say what is getting worse under `### Needs <who>`. |
-| `merge` | Only your user's merge remains: reviewer approved, no failed CI, out of draft, and no conflicts. Don't wait for CI to go green; your user sees it. Check `gh pr view <n> --json mergeable` says `MERGEABLE` every time you set this. |
-| `approve` | You reviewed a teammate's PR and recommend your user's approval on GitHub. Name the PR and review doc under `### Needs <who>`. A review of a lemon's PR hands the task back to its author instead. |
-| `done` | Your PR merged or closed, or your output was accepted, and no work or waiter remains. |
+`Status:` contains exactly one word. The reason goes in `## Now`. A status says you wait on a person or a process; when you wait on another lemon, set none and use a task instead. Run `lemonaid brief statuses` for the words your user's setup defines and when to use each; by default `blocked`, `alert`, `merge` and `approve` are your user's move, `review` is someone outside the grove's (a teammate's review, a maintainer's reply), `running` is a long process you mind, and `done` ends the work. Name the move under `### Needs <who>`, or the process under `### Running`.
 
 When another lemon comes next, set no status: hand it your task (`lemonaid task assign`), or wait for its task (`lemonaid task depend`). While CI runs on your task's PR, give the task the PR (`lemonaid task set-url`). Name what you wait on under `### Waiting on`. An open PR is never `done`, and being idle does not make you `done`. Keep watching it until it closes.
 

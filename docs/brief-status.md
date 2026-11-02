@@ -6,17 +6,19 @@ asks lemons to write it down.
 
 ## What a brief may say
 
-`Status:` holds one of these words, or is left out:
+`Status:` holds one configured status word, or is left out. Every status says the next move isn't the lemon's own. `lemonaid brief statuses` lists the words with when to use each; the defaults are:
 
 | Status | Whose move |
 |---|---|
-| `blocked` | the user can act now |
 | `alert` | the user's move is needed and harm grows while it waits |
-| `review` | a teammate's approving review |
+| `blocked` | the user can act now |
+| `running` | nobody's; the lemon is minding a long process |
 | `merge` | only the user's merge remains |
 | `approve` | the user's approval of a teammate's PR |
-| `running` | nobody's; the lemon is minding a long process |
+| `review` | someone outside the grove: a teammate's review, a maintainer's reply |
 | `done` | nobody's; the work is finished |
+
+`[[brief.statuses]]` entries in the config change these or add words, each with its colors, glyph, rank and description (see [config](config.md#brief-statuses)); `done` is built in.
 
 With none of these, the lemon's own state is shown. `lemonaid brief new` and child
 briefs start without a `Status:` line.

@@ -13,32 +13,29 @@ from rich.style import Style
 from rich.text import Text
 from textual.color import Color
 
+from .... import config
 from ... import sections
-from ..rows.brief_cards import STATUS_STYLES
+from ..rows import brief_cards
 
-_STATUS_GLYPHS = {
-    "alert": "!",
-    "blocked": "?",
-    "running": "N",
-    "merge": "m",
-    "approve": "✓",
-    "review": "r",
-    "done": "d",
-}
 _SLOT = 4  # a one-digit badge: its glyph and number, one cell of its color either side
 _END = 3  # a card's ` ◀ `, kept clear on every card so a selected one's badges don't move
 _NAME_ROOM = 20  # what a bar keeps for the group's name before giving badges their slots
 
 
+def _glyphs() -> dict[str, str]:
+    """Each configured status's badge glyph, in slot order."""
+    return {s.name: s.glyph for s in config.brief_statuses()}
+
+
 def has_badge(status: str) -> bool:
-    return status in _STATUS_GLYPHS
+    return status in _glyphs()
 
 
 def badge(status: str, count: int) -> Text:
     """*count* lemons of *status* as its glyph and number, filled with the status's color."""
     return Text(
-        f" {_STATUS_GLYPHS[status]}{count} ",
-        STATUS_STYLES[status] + Style(bold=True, underline=False),
+        f" {_glyphs()[status]}{count} ",
+        (brief_cards.status_style(status) or Style()) + Style(bold=True, underline=False),
     )
 
 
@@ -98,10 +95,10 @@ def _placed(header: sections.Header, bins: abc.Sequence[int], slot: int) -> list
             bins,
             [
                 _right_justified([_clickable(s, counts[s])], slot, fill) if s in counts else gap
-                for s in _STATUS_GLYPHS
+                for s in _glyphs()
             ],
         )
-        if _fill(bins, [gap] * len(_STATUS_GLYPHS)) is not None
+        if _fill(bins, [gap] * len(_glyphs())) is not None
         else None
     )
     if placed is None:
@@ -217,7 +214,7 @@ def slot_starts(
         rights = [lefts[i] + widths[i] for i in range(name_cell, len(widths))]
         rooms = [widths[name_cell] - _NAME_ROOM, *widths[name_cell + 1 :]]
     gap = Text(" " * slot)
-    placed = _fill([max(0, room) for room in rooms], [gap] * len(_STATUS_GLYPHS))
+    placed = _fill([max(0, room) for room in rooms], [gap] * len(_glyphs()))
     if placed is None:
         return {}
 
@@ -226,7 +223,7 @@ def slot_starts(
         for right, marks in zip(rights, placed, strict=True)
         for j in range(len(marks))
     ]
-    return dict(zip(_STATUS_GLYPHS, starts, strict=True))
+    return dict(zip(_glyphs(), starts, strict=True))
 
 
 def background(header: sections.Header) -> Style:

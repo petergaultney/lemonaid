@@ -39,7 +39,7 @@ def cleanup_ready(origin: str) -> str:
 def _described() -> dict[str, str]:
     found: dict[str, str] = {}
     for origin, who in ORIGINS.items():
-        for state in (*store.STATES, ""):
+        for state in (*store.states(), ""):
             found[status(origin, state)] = (
                 f"Status of {who} became {state}" if state else f"Status of {who} was cleared"
             )

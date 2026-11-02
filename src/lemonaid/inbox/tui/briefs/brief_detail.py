@@ -14,15 +14,6 @@ from ..rows import backend_indicators, brief_cards
 from . import brief_identity
 
 _SEPARATOR = Text(" · ", style=utils.FIELD_STYLES["backend"])
-_HEADLINE_FILLS = {
-    "alert": f"#ffffff on {brief_cards.ALERT_COLOR}",
-    "blocked": f"#000000 on {utils.ATTENTION_COLOR}",
-    "merge": f"#000000 on {brief_cards.MERGE_COLOR}",
-    "approve": f"#ffffff on {brief_cards.APPROVE_COLOR}",
-    "review": f"#ffffff on {brief_cards.REVIEW_COLOR}",
-    "running": f"#ffffff on {brief_cards.RUNNING_COLOR}",
-    "done": "#ffffff on #285995",
-}
 
 
 def _state_style(state: str, default: str = "") -> str:
@@ -60,7 +51,7 @@ def _headline(section: render.Section, width: int, unread: bool) -> Text:
         left.append(brief_name, style=utils.FIELD_STYLES["backend"])
     left.truncate(max(1, width - model.cell_len - 1), overflow="ellipsis")
     line = left + Text(" " * max(1, width - left.cell_len - model.cell_len)) + model
-    if fill := _HEADLINE_FILLS.get(section.state):
+    if fill := brief_cards.status_style(section.state):
         line.stylize(fill)
         if brief_name and len(left) > suffix_start:
             line.stylize(Style(color="bright_black"), suffix_start, len(left))

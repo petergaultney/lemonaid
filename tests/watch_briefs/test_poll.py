@@ -8,8 +8,8 @@ from lemonaid.watch import briefs_events, delivery
 from .shared import lemon, link, open_watch, poll
 
 
-@pytest.mark.parametrize("before", store.STATES)
-@pytest.mark.parametrize("state", store.STATES)
+@pytest.mark.parametrize("before", store.states())
+@pytest.mark.parametrize("state", store.states())
 def test_default_only_wakes_on_entry_to_merge_or_done(family, before, state):
     _, child, path, _ = family
     path.write_text(path.read_text().replace("Status: working", f"Status: {before}"))

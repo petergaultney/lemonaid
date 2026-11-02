@@ -17,6 +17,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Static
 
+from .... import config, status_registry
 from ....config import PlaceRoot
 from ....grove.source import inbox_keys
 from ....grove.tui.frame import Grove
@@ -402,7 +403,7 @@ class InboxList(Vertical):
                 attention_summary.line(
                     active.rows,
                     counted,
-                    self.config.tui.attention_statuses,
+                    status_registry.attention(config.brief_statuses()),
                     cards,
                     self.config.tui.keybindings.fold[:1],
                     self.fold_open,

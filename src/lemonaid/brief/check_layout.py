@@ -44,9 +44,9 @@ def status_problems(lines: abc.Sequence[str]) -> list[str]:
     if len(values) > 1:
         return [f"{len(values)} `Status:` lines; a brief has one"]
 
-    if values and values[0] not in (*store.STATES, *store.RETIRED):
+    if values and values[0] not in (*store.states(), *store.RETIRED):
         return [
-            f"Status {values[0]!r} is not one word of: {', '.join(store.STATES)};"
+            f"Status {values[0]!r} is not one word of: {', '.join(store.states())};"
             " leave it out to show the lemon's own state"
         ]
 

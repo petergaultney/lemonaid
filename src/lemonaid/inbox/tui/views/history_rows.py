@@ -29,7 +29,7 @@ def history_row(
     if card and card.status:
         name_cell.append(
             f" · {card.status}",
-            style=brief_cards.STATUS_STYLES.get(card.status, "dim"),
+            style=brief_cards.status_style(card.status) or "dim",
         )
 
     cells = [

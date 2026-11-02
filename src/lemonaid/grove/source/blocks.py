@@ -10,12 +10,10 @@ from collections import abc
 
 from ... import brief
 from ...inbox import context_use, db, group_lead, model_label, provider_color, turns
-from ..draw.colors import RANK
 from ..model import Block, Lemon, Tree
 from .inputs import Inputs
 
 UNGROUPED_COLOR = "#c9b79c"
-_SHOWN_STATUSES = {*RANK, "done"}
 
 
 def tree_key(n: db.Notification) -> str:
@@ -44,7 +42,7 @@ def _lemon(
     now: float,
 ) -> Lemon:
     card = inputs.cards.get(n.channel)
-    status = card.status if card and card.status in _SHOWN_STATUSES else ""
+    status = card.status if card and card.status in brief.store.states() else ""
     if n.asks or (card and card.asking):
         status = "blocked"
     working = card.mid_turn if card else turns.mid_turn(n, now)

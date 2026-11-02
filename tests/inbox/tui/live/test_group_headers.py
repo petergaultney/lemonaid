@@ -6,7 +6,7 @@ from rich.console import Console
 from lemonaid import groups
 from lemonaid.inbox import sections
 from lemonaid.inbox.tui.live import group_headers
-from lemonaid.inbox.tui.rows.brief_cards import STATUS_STYLES
+from lemonaid.inbox.tui.rows import brief_cards
 
 
 def _header(statuses=(), collapsed=True, color="#c8a0f0"):
@@ -37,8 +37,8 @@ def test_each_badge_has_colored_padding_after_a_group_colored_gap():
     for offset, (status, _) in enumerate(header.status_counts):
         for cell in range(4):
             badge = text.get_style_at_offset(Console(), start + 4 * offset + cell)
-            assert badge.color == STATUS_STYLES[status].color
-            assert badge.bgcolor == STATUS_STYLES[status].bgcolor
+            assert badge.color == brief_cards.status_style(status).color
+            assert badge.bgcolor == brief_cards.status_style(status).bgcolor
             assert not badge.underline
 
 
@@ -98,7 +98,8 @@ def test_multi_digit_status_counts_stay_inside_the_colored_badge():
     assert text.plain.endswith("  ?12  m2 ")
     start = text.plain.index("?12")
     assert (
-        text.get_style_at_offset(Console(), start + 2).bgcolor == STATUS_STYLES["blocked"].bgcolor
+        text.get_style_at_offset(Console(), start + 2).bgcolor
+        == brief_cards.status_style("blocked").bgcolor
     )
 
 

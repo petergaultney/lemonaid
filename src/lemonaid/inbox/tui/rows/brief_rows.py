@@ -4,14 +4,18 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
+from .... import status_registry
 from ..utils import ATTENTION_COLOR
 from . import context_reading
-from .brief_cards import DOT_STYLES, STATUS_STYLES, CardBrief
+from .brief_cards import CardBrief, dot_style, status_style
 
 _CONSOLE = Console()
 # Deeper than the attention yellow: blocked rows sort first, right under a header
 # that turns that yellow while anything is unread, and the two read as one band.
-_BLOCKED_ROW = "#c9a93a"
+_BLOCKED_ROW = "#c9a93a"  # unless the config changes blocked's fill
+_DEFAULT_BLOCKED = Style(
+    bgcolor=status_registry.by_name(status_registry.DEFAULTS)["blocked"].fill
+).bgcolor
 
 
 def _restyled(cell: Text, style: str | Style, start: int = 0) -> Text:
@@ -22,10 +26,10 @@ def _restyled(cell: Text, style: str | Style, start: int = 0) -> Text:
 
 def background(brief: CardBrief | None) -> Style | None:
     """The row's fill, which the table paints across every cell and its padding."""
-    if brief and brief.shown == "blocked":
+    style = status_style(brief.shown) if brief else None
+    if brief and brief.shown == "blocked" and style and style.bgcolor == _DEFAULT_BLOCKED:
         return Style(bgcolor=_BLOCKED_ROW)
 
-    style = STATUS_STYLES.get(brief.shown) if brief else None
     return Style(bgcolor=style.bgcolor) if style else None
 
 
@@ -51,13 +55,13 @@ def styled(
             cell if i == unread_cell else _restyled(cell, "dim") for i, cell in enumerate(cells)
         ]
 
-    style = STATUS_STYLES.get(brief.shown) if brief else None
+    style = status_style(brief.shown) if brief else None
     if not brief or not style:
         return cells
 
     def recolored(index: int, cell: Text) -> Text:
         if index == unread_cell:
-            dot = DOT_STYLES.get(brief.shown)
+            dot = dot_style(brief.shown)
             return _restyled(cell, dot) if dot else cell
         if index == backend_cell:
             reading, model = context_reading.split(cell)

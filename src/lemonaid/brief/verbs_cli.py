@@ -13,7 +13,7 @@ import sys
 from collections import abc
 from pathlib import Path
 
-from .. import obsidian
+from .. import config, obsidian
 from ..config import load_config
 from ..inbox import db
 from ..tasks.briefs import completion
@@ -202,9 +202,9 @@ def add_parsers(brief_subparsers: argparse._SubParsersAction) -> None:
         "Set the Status line of a lemon's brief; `clear` removes it, so the inbox shows the "
         "lemon's own state",
     )
-    status.epilog = status_guide.GUIDE
+    status.epilog = status_guide.guide(config.brief_statuses())
     status.formatter_class = argparse.RawDescriptionHelpFormatter
-    status.add_argument("state", choices=(*store.STATES, store.CLEAR, *store.RETIRED))
+    status.add_argument("state", choices=(*store.states(), store.CLEAR, *store.RETIRED))
     status.set_defaults(func=_cmd_status)
 
     hide = command.parser(
