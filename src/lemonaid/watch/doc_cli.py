@@ -122,6 +122,20 @@ def run(a: argparse.Namespace) -> int:
         )
         return 0 if running else 1
 
+    watch = (  # before the lock, so a held lock means the baseline is taken
+        None
+        if a.watch_list
+        else doc_events.open_watch(
+            state_dir,
+            a.wait,
+            a.me,
+            a.legacy,
+            a.edits,
+            a.quiet,
+            own_edits.writer_from_env(os.environ, a.codex_thread),
+            cursor_key=cursor_key,
+        )
+    )
     lock = watch_list.hold_waiter(a.watch_list) if a.watch_list else waiter_lock.acquire(lock_path)
     if lock is None:
         print(
@@ -163,7 +177,7 @@ def run(a: argparse.Namespace) -> int:
         with registry.watching(
             a, "doc", (str((a.wait or a.watch_list).resolve()),), a.codex_thread
         ):
-            if a.watch_list:
+            if watch is None:
                 doc_wait.wait_list(
                     state_dir,
                     a.watch_list,
@@ -179,16 +193,7 @@ def run(a: argparse.Namespace) -> int:
                 )
             else:
                 doc_wait.wait_doc(
-                    doc_events.open_watch(
-                        state_dir,
-                        a.wait,
-                        a.me,
-                        a.legacy,
-                        a.edits,
-                        a.quiet,
-                        own_edits.writer_from_env(os.environ, a.codex_thread),
-                        cursor_key=cursor_key,
-                    ),
+                    watch,
                     deliver,
                     once,
                     a.interval,
