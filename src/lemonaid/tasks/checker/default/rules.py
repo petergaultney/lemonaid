@@ -143,6 +143,11 @@ def _watches(view: checker_input.View) -> list[tuple[str, str]]:
         ),
         *([("pr", view.fields["subject_url"])] if view.fields.get("subject_url") else []),
         *(
+            ("lineage", who)
+            for who in (view.fields.get("assignment.by", ""), view.fields.get("holder_parent", ""))
+            if who
+        ),
+        *(
             ("task", f.removeprefix("dependency."))
             for f in view.fields
             if f.startswith("dependency.")
