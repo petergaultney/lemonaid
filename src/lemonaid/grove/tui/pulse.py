@@ -10,9 +10,13 @@ from collections import abc
 
 from ..draw.canvas import Canvas, mix
 
-PERIOD = 4.5  # seconds a pulse takes, from rest to darkest and back
-TICK = 1 / 12  # seconds between frames, often enough that the pulse reads as smooth
+PERIOD = 4.5  # seconds a pulse takes by default, from rest to darkest and back
 _STEPS = 64  # phases a pulse is drawn at, so blended colors repeat and stay cached
+_FRAMES = 54  # frames a pulse is drawn in when that stays within the frame rates below
+_SLOWEST, _FASTEST = (
+    1 / 12,
+    1 / 20,
+)  # seconds between frames: smooth enough, and no faster than a terminal can use
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,9 +41,16 @@ def ends(draw: abc.Callable[[float], Canvas]) -> Ends:
     )
 
 
-def phase(now: float) -> float:
+def tick(period: float) -> float:
+    """Seconds between frames for a pulse of *period* seconds: a shorter pulse gets more frames
+    a second, so it stays smooth, up to 20.
+    """
+    return max(_FASTEST, min(_SLOWEST, period / _FRAMES))
+
+
+def phase(now: float, period: float = PERIOD) -> float:
     """How far into its darkening the pulse is at *now*, in seconds: 0 at rest, 1 darkest."""
-    eased = (1 - math.cos(2 * math.pi * now / PERIOD)) / 2
+    eased = (1 - math.cos(2 * math.pi * now / period)) / 2
     return round(eased * _STEPS) / _STEPS
 
 
