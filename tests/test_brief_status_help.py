@@ -10,7 +10,7 @@ _MEANINGS = {
     "blocked": "the user can act now",
     "alert": "harm grows while it waits",
     "review": "a teammate's approving review",
-    "approve": "sets no status while the PR waits on its author or merge",
+    "approve": "hands the task back to its author instead",
     "merge": "only the user's merge remains",
     "running": "minding a long pipeline or process",
     "done": "an open PR is never done",

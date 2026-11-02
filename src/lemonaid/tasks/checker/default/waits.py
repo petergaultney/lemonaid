@@ -17,7 +17,8 @@ _HEALTHY = frozenset({"ok", "wait"})
 
 _UNHEALTHY = frozenset({"challenge", "adjudicate"})
 
-# Brief statuses that put the next move on someone other than the holder.
+# Brief statuses that say the holder waits on a person or a process; a lemon is waited on
+# through a task instead.
 _DECLARED = frozenset({"blocked", "alert", "review", "merge", "approve", "running"})
 
 
@@ -128,25 +129,11 @@ def findings(
 def declared(
     view: checker_input.View, policy: settings.Policy, holder: str
 ) -> list[protocol.Record]:
-    """A wait when the holder's brief Status puts the move on someone else; [] otherwise.
-
-    The status speaks for this task only when it is the brief's sole open task or the
-    brief's Needs or Waiting on names it. Naming only other tasks leaves this one to be
-    judged, and naming none among several tasks is unknown.
-    """
+    """A wait, for every task the holder holds, when its brief's Status says it waits on a
+    person or a process; [] otherwise."""
     state = settings.fact(view, "brief", holder, "status")
     if state not in _DECLARED:
         return []
-
-    held = settings.fact(view, "brief", holder, "held").split()
-    named = "\n".join(settings.fact(view, "brief", holder, f) for f in ("needs", "waiting_on"))
-    if held != [view.subject] and view.subject not in named:
-        if any(task in named for task in held):
-            return []
-
-        raise settings.Unknown(
-            f"its brief is {state} but doesn't say for which of {len(held)} tasks"
-        )
 
     until = settings.at(policy, policy.now + policy.reconcile)
     s = _Subject(view, policy, holder)

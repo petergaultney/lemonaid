@@ -7,6 +7,7 @@
 - **`lemonaid task depend TASK_ID --on OTHER_TASK_ID` makes a task wait for another lemon's,** so its holder isn't challenged as idle while that one moves.
 - **Tasks can be closed, reopened and given a result.** Closing one tells the holders of tasks that waited for it.
 - **A task whose holder dies is reported to whoever assigned it**, or else to the nearest live lemon above them, to resume the holder or hand the task on.
+- **Waiting on a lemon is a task; waiting on a person or a process is a Status.** A brief's Status now covers every task it holds, and the idle challenge asks who moves next.
 - **A task is only ever held by a live lemon.** `task assign` refuses a person, an outside party, or a lemon that isn't running; a lemon waiting on a person keeps its task and sets its Status.
 - **A lemon closes a task when its work is finished**, with a reason saying where the result is. The inspector checks each closing, and challenges one whose PR hasn't merged.
 - **A review brief takes the work's existing task** (`--task`), and its reviewer hands the task back to the author when done. `--new-task` is refused when an open task already covers the PR; a review of a teammate's PR holds its own task, with Status `review` or `approve`.

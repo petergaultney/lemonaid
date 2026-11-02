@@ -53,24 +53,23 @@ def _unstarted(
 def _idle(task_id: str) -> str:
     return "\n".join(
         [
-            "You are idle holding this task. Do one of these:",
-            "- Act on it.",
-            "- Hand it to the lemon that moves next, the one that must act on your result, which"
-            " isn't your parent unless your parent acts on it:"
-            f" `lemonaid task assign {task_id} --to BRIEF --reason TEXT`.",
-            "- If you are waiting for CI on the task's PR, give the task its PR and the inspector"
-            f" waits while CI runs: `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
-            "- If this task waits on another lemon's task, say so, and the inspector waits while"
-            f" that one moves: `lemonaid task depend {task_id} --on OTHER_TASK_ID`.",
-            "- If another lemon's task already covers this work, follow that one instead:"
-            f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
-            "- If someone else moves next, keep the task and set your brief's Status to say who:"
-            " `blocked` for your user, `merge` when only your user's merge remains, `review`"
-            " for a teammate's review, `approve` for your user's approval, `running` while a"
-            " long process runs. If your brief holds several tasks, also name this one under"
-            f" Waiting on, as task:{task_id}.",
-            "- If the work is finished, close the task, naming where the result is:"
+            "You are idle holding this task. Who moves next?",
+            "- You: act on it.",
+            "- Another lemon: hand it this task, since it must act on your result:"
+            f" `lemonaid task assign {task_id} --to BRIEF --reason TEXT`. If that lemon holds a"
+            " task of its own for what you wait on, wait for that one instead:"
+            f" `lemonaid task depend {task_id} --on OTHER_TASK_ID`. A Status never waits on a"
+            " lemon.",
+            "- A person or a process: keep the task and set your brief's Status to say which:"
+            " `blocked` for your user, `merge` when only your user's merge remains, `approve`"
+            " for your user's approval, `review` for a teammate's review, `running` while a long"
+            " process runs. A Status covers every task you hold.",
+            "- CI on the task's PR: give the task its PR, and the inspector waits while CI runs:"
+            f" `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
+            "- Nobody, because the work is finished: close it, naming where the result is:"
             f" `lemonaid task close {task_id} --reason TEXT`.",
+            "- Another lemon's task already covers this work: follow that one instead:"
+            f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
         ]
     )
 

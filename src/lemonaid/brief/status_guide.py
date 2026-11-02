@@ -1,16 +1,17 @@
 """What `lemonaid brief status --help` tells a lemon about choosing a status."""
 
 GUIDE = """\
-Choose by whose move it is. Leave the status out when the next move is a lemon's or CI's;
-the inbox then shows whether you are active, idle, deaf or dead. `review` is the one case
-where the next move is a teammate's.
+A status says you wait on a person or a process. Leave it out when the next move is yours
+or another lemon's: hand that lemon your task (`task assign`) or wait for its task
+(`task depend`), and give your task its PR while CI runs (`task set-url`). The inbox then
+shows whether you are active, idle, deaf or dead.
 
   blocked   the user can act now: a decision, an answer, something to review or try
   alert     the user's move is needed and harm grows while it waits (prod broken, spend
             running, data at risk); keep it rare
   review    the next move is a teammate's approving review, not the user's
   approve   you reviewed a teammate's PR and recommend the user approve it; a review of a
-            lemon's PR sets no status while the PR waits on its author or merge
+            lemon's PR hands the task back to its author instead
   merge     only the user's merge remains: the PR is approved, has no failed CI (green
             isn't waited for), no conflicts, and is out of draft; check
             `gh pr view <n> --json mergeable`

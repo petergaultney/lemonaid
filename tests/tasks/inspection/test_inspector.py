@@ -181,21 +181,16 @@ def test_only_a_brief_status_that_puts_the_move_elsewhere_avoids_a_challenge():
         assert [target for _, _, target in _open(conn)] == ["Waiting.one", "Silent.one"]
 
 
-def test_a_wait_declared_for_one_task_doesnt_cover_the_holders_other_task():
+def test_a_status_covers_every_task_its_brief_holds():
     with db.connect() as conn:
-        named = _started(conn)
+        one = _started(conn)
         other = new_task(conn, request_id="other")
         with ledger.transaction(conn):
             holding.attach(conn, "Work.alpha", "Work.alpha", 100.0)
-        _brief(
-            conn,
-            "Work.alpha",
-            "---\ntype: Brief\nstatus: review\n---\n# Work\n\n## Now\n\n"
-            f"### Waiting on\n\n- Review of task:{named}\n",
-        )
+        _brief(conn, "Work.alpha", "---\ntype: Brief\nstatus: merge\n---\n# Work\n")
         _run(conn, _seen("Work.alpha"))
 
-        assert (cases.finding(conn, named), cases.finding(conn, other)) == ("wait", "challenge")
+        assert (cases.finding(conn, one), cases.finding(conn, other)) == ("wait", "wait")
 
 
 def test_a_brief_with_no_task_asks_its_nearest_ancestor_that_has_one():
