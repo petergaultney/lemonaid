@@ -55,15 +55,15 @@ def _idle(task_id: str) -> str:
         [
             "You are idle holding this task. Do one of these:",
             "- Act on it.",
-            "- Hand it to the lemon that moves next:"
+            "- Hand it to the lemon that moves next, the one that must act on your result, which"
+            " isn't your parent unless your parent acts on it:"
             f" `lemonaid task assign {task_id} --to BRIEF --reason TEXT`.",
-            "- If a person who holds no task moves next, hand it to them and stay accountable:"
-            f" `lemonaid task assign {task_id} --to human:NAME --accountable self --reason TEXT`.",
             "- If you are waiting for CI on the task's PR, give the task its PR and the inspector"
             f" waits while CI runs: `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
             "- If another lemon's task already covers this work, follow that one instead:"
             f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
-            "- If you are blocked on someone, set your brief's Status (such as `blocked`).",
+            "- If a person moves next, keep the task and set your brief's Status: `blocked` when"
+            " it's your user, `review` when it's a teammate or someone outside the grove.",
         ]
     )
 
@@ -112,7 +112,7 @@ def evaluate(view: checker_input.View) -> list[protocol.Record]:
 
         holder = view.fields["holder"]
         if not holder.startswith("brief:"):
-            return holders.human_or_external(view, policy)
+            raise settings.Unknown(f"{holder} isn't a lemon")
 
         brief = holder.removeprefix("brief:")
         found = (

@@ -1,7 +1,7 @@
-"""Tasks connected to a brief's lemon tree: held, specified or answered for by it or a descendant.
+"""Tasks connected to a brief's lemon tree: held or specified by it or a descendant.
 
 Membership comes from `lemon_parents`, never from task dependencies, and a task leaves the
-listing once nothing in the tree holds, specifies or answers for it.
+listing once nothing in the tree holds or specifies it.
 """
 
 import sqlite3
@@ -13,7 +13,6 @@ from . import dependencies, identities
 _CONNECTIONS = (
     ("holder", "holder"),
     ("spec", "spec_brief_id"),
-    ("accountable", "accountable_brief_id"),
 )
 
 

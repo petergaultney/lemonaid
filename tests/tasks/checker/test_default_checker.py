@@ -59,15 +59,8 @@ def test_unknown_activity_is_never_an_accusation(availability):
     assert _kinds(_evaluate([task()], facts)) == [("unknown",)]
 
 
-def test_external_holder_needs_accountable_brief_and_recheck_date():
-    external = task(holder="external:github", accountable_brief_id="Work.alpha")
-
-    assert _kinds(_evaluate([external], [])) == [("unknown",)]
-    assert _kinds(_evaluate([{**external, "recheck_at": "2026-11-01T00:00:00Z"}], [])) == [
-        ("wait", "next-move")
-    ]
-    [due] = _evaluate([{**external, "recheck_at": "2026-10-31T09:00:00Z"}], [])
-    assert (due[0], due[5]) == ("challenge", "Work.alpha")
+def test_a_holder_that_isnt_a_lemon_is_unknown():
+    assert _kinds(_evaluate([task(holder="human:ben")], [])) == [("unknown",)]
 
 
 def test_missing_required_field_is_unknown_and_closed_task_is_ok():
@@ -84,25 +77,6 @@ def _ci(checks: str, since: str = "2026-10-31T11:50:00Z") -> list[dict[str, str]
         *idle(since=since),
         fact("pr", _URL, "checks", checks),
         fact("pr", _URL, "head", "abc"),
-    ]
-
-
-def test_wait_records_carry_type_before_evidence():
-    external = task(
-        holder="external:github",
-        accountable_brief_id="Work.alpha",
-        recheck_at="2026-11-01T00:00:00Z",
-    )
-    assert _evaluate([external], []) == [
-        (
-            "wait",
-            "t1",
-            "next-move",
-            "external-review",
-            "external:github",
-            "2026-11-01T00:00:00Z",
-            "external:github holds it",
-        )
     ]
 
 
@@ -238,7 +212,7 @@ def test_the_idle_challenge_lists_each_honest_way_out():
 
     for command in (
         "task assign t1 --to BRIEF",
-        "--to human:NAME --accountable self",
+        "set your brief's Status",
         "--instead-of t1",
         "task set-url t1",
     ):

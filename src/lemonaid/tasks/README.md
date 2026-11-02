@@ -4,11 +4,11 @@ How to use tasks is in `docs/tasks.md`. This note is for changing the code: what
 
 ## What a task is
 
-- A brief specifies work; a task records whose move it is. A task has one holder at a time, and the holder is whoever moves next. Handing a task on is the turn passing.
+- A brief specifies work; a task records which lemon moves next, and a brief's Status records when a person's input is needed. Only a live lemon is given a task. A task has one holder at a time, and the holder is whoever moves next. Handing a task on is the turn passing.
 - Tasks are a general concept. Lemonaid knows no roles such as author or reviewer; a user's own instructions may describe them, but the code never does.
 - A brief's Status is the source of truth for a lemon's own state. Nothing infers a status from a brief's prose: Needs and Waiting on only say which of several tasks a status is about.
 - A task always has a holder that can move. A brief that hands a task on observes it until it says otherwise, and archiving a brief hands its open tasks on first.
-- Finishing work takes a second party. A lemon with a parent hands its tasks up when it goes done, into the `check` state (one held by a person stays with them, and the parent answers for it), and the holder of a checked task closes it. A lemon with no parent closes its own; a human can always close or reopen one.
+- Finishing work takes a second party. A lemon with a parent hands its tasks up when it goes done, into the `check` state, and the holder of a checked task closes it. A lemon with no parent closes its own; a human can always close or reopen one.
 
 ## How state is kept
 

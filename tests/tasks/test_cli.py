@@ -6,7 +6,7 @@ from lemonaid.brief import attached
 from lemonaid.inbox import db
 from lemonaid.messages import store
 from lemonaid.tasks import cli, cli_common
-from lemonaid.tasks.model import holding, ledger
+from lemonaid.tasks.model import ledger
 
 from .shared import idle, new_task, snapshot, task
 
@@ -91,7 +91,9 @@ def _known(conn, *lemon_ids: str) -> None:
     conn.commit()
 
 
-def test_assign_by_the_holder_tells_nobody_and_by_anyone_else_tells_the_holder(capsys, monkeypatch):
+def test_assign_tells_the_new_holder_and_a_holder_its_task_was_taken_from(
+    capsys, monkeypatch, dead
+):
     with db.connect() as conn:
         made = new_task(conn)
         _known(conn, "Review.one", "Lead.lead")
@@ -103,55 +105,89 @@ def test_assign_by_the_holder_tells_nobody_and_by_anyone_else_tells_the_holder(c
     assert (pushed["holder"], pushed["taken_from"], pushed["notice"]) == (
         "brief:Review.one",
         "",
-        "",
+        "Review.one has been told",
     )
     assert (taken["holder"], taken["taken_from"]) == ("brief:Lead.lead", "brief:Review.one")
-    told = [p.read_text() for p in store.inbox_for_id("Review.one").glob("*.md")]
-    assert len(told) == 1 and "was taken from you" in told[0]
+    told = sorted(p.read_text() for p in store.inbox_for_id("Review.one").glob("*.md"))
+    assert len(told) == 2 and any("was taken from you" in m for m in told)
     assert not store.inbox_for_id("Work.alpha").exists()
     with db.connect() as conn:
         assert ledger.consistent(conn, made)
 
 
-def test_an_external_holder_needs_a_recheck_and_a_human_one_is_answered_for(capsys):
+def test_assign_takes_only_a_live_lemon(capsys, dead):
+    with db.connect() as conn:
+        made = new_task(conn)
+        _known(conn, "Gone.one")
+    dead.add("Gone.one")
+
+    person = _run(capsys, "assign", made, "--to", "human:sam", "--reason", "x", "--json")
+    gone = _run(capsys, "assign", made, "--to", "Gone.one", "--reason", "x", "--json")
+
+    assert person["error"] and gone["error"]
+    assert "lemonaid lemon resume Gone.one" in gone["error"]
+    with db.connect() as conn:
+        assert ledger.state(conn, made)["holder"] == "brief:Work.alpha"
+
+
+def test_a_retried_assignment_returns_its_result_after_the_receiver_dies(capsys, dead):
+    with db.connect() as conn:
+        made = new_task(conn)
+        _known(conn, "Review.one")
+    take = ("assign", made, "--to", "Review.one", "--reason", "x", "--request-id", "r", "--json")
+
+    first = _run(capsys, *take)
+    dead.add("Review.one")
+    again = _run(capsys, *take)
+
+    assert first["error"] is None and again == {**first, "notice": ""}
+
+
+def test_create_refuses_a_holder_that_isnt_live(capsys, dead):
+    with db.connect() as conn:
+        _known(conn, "Gone.one")
+    dead.add("Gone.one")
+
+    made = _run(
+        capsys,
+        "create",
+        "--brief",
+        "Gone.one",
+        "--assign",
+        "Gone.one",
+        "--description",
+        "x",
+        "--json",
+    )
+
+    assert "lemonaid lemon resume Gone.one" in made["error"]
+
+
+def test_a_closed_task_a_person_held_still_lists_and_shows(capsys):
     with db.connect() as conn:
         made = new_task(conn)
         _known(conn, "Work.alpha")
         with ledger.transaction(conn):
-            holding.assign(
+            ledger.append(
                 conn,
                 made,
                 1,
-                "human:sam",
-                "decide",
-                False,
+                "assigned",
+                {"holder": "human:Ben", "reason": "x"},
                 "Work.alpha",
                 "h",
-                1.0,
-                accountable="Lead.lead",
+                2.0,
             )
+            ledger.append(conn, made, 2, "closed", {"reason": "merged"}, "Work.alpha", "c", 3.0)
 
-    no_recheck = _run(
-        capsys,
-        "assign",
-        made,
-        "--to",
-        "external:ci",
-        "--reason",
-        "x",
-        "--accountable",
-        "Work.alpha",
-        "--json",
-    )
-    back = _run(capsys, "assign", made, "--to", "Work.alpha", "--reason", "decided", "--json")
+    listed = _run(capsys, "list", "--tree", "Work.alpha", "--include-closed", "--json")
+    shown = _run(capsys, "show", made, "--json")
 
-    assert "recheck" in no_recheck["error"]
-    assert back["taken_from"] == "human:sam"
-    told = [p.read_text() for p in store.inbox_for_id("Lead.lead").glob("*.md")]
-    assert len(told) == 1 and "taken from human:sam, which you answer for" in told[0]
+    assert [t["holder"] for t in listed["tasks"] if t["task_id"] == made] == ["human:Ben"]
+    assert (shown["holder"], shown["lifecycle"]) == ("human:Ben", "closed")
 
 
-def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch):
+def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch, dead):
     with db.connect() as conn:
         made = new_task(conn)
         _known(conn, "New.owner", "Work.alpha")
@@ -164,4 +200,4 @@ def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch):
     later = _run(capsys, *take, "--json")
 
     assert (first["taken_from"], again["notice"], later["notice"]) == ("brief:Work.alpha", "", "")
-    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 1
+    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 2  # taken, then given back

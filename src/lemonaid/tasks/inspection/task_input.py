@@ -52,11 +52,7 @@ def fields(
         "sponsor": state["sponsor"],
         "spec_brief_id": state["spec_brief_id"],
         "subject_url": state["subject_url"],
-        "accountable_brief_id": state["accountable_brief_id"],
-        "recheck_at": state["recheck_at"],
-        "holder_parent": links.parent_of(conn, state["holder"].removeprefix("brief:"))
-        if state["holder"].startswith("brief:")
-        else "",
+        "holder_parent": links.parent_of(conn, state["holder"].removeprefix("brief:")),
         "assignment.transfer_event": str(state["assignment_event_id"]),
         "assignment.assigned_at": _when(state["assigned_at"]),
         "assignment.attached_at": _when(state["attached_at"]),

@@ -49,22 +49,16 @@ def test_attachment_starts_the_clock_once_and_follows_a_reroll():
         assert [t["task_id"] for t in holding.held_by(conn, "Work.alpha")] == [task]
 
 
-def test_held_by_includes_tasks_the_brief_answers_for_and_leaves_out_closed_ones():
+def test_held_by_leaves_out_closed_tasks():
     with db.connect() as conn:
         task = new_task(conn)
-        other = new_task(conn, brief_id="Work.bravo")
-        conn.execute(
-            "UPDATE tasks SET holder = 'human:sam', accountable_brief_id = 'Work.alpha'"
-            " WHERE task_id = ?",
-            (other,),
-        )
-        assert [t["task_id"] for t in holding.held_by(conn, "Work.alpha")] == [task, other]
+        assert [t["task_id"] for t in holding.held_by(conn, "Work.alpha")] == [task]
 
         conn.execute("UPDATE tasks SET lifecycle = 'closed' WHERE task_id = ?", (task,))
-        assert [t["task_id"] for t in holding.held_by(conn, "Work.alpha")] == [other]
+        assert holding.held_by(conn, "Work.alpha") == []
 
 
-@pytest.mark.parametrize("text", ["", "alpha", "robot:x", "brief:"])
+@pytest.mark.parametrize("text", ["", "alpha", "robot:x", "brief:", "human:sam", "external:ci"])
 def test_holder_must_be_tagged(text):
     with pytest.raises(ValueError):
         ids.holder(text)
