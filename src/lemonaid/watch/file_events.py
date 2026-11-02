@@ -16,7 +16,10 @@ import time
 import typing as ty
 from collections import abc
 
+from ..log import get_logger
 from . import cursors, path_presence
+
+_log = get_logger("watch.file_events")
 
 Fingerprint = str | dict[str, str] | None  # file hash, directory listing, or absent
 
@@ -73,6 +76,12 @@ def _describe(path: str, old: Fingerprint, new: Fingerprint, ignore_removed: boo
     return f"{path} changed"
 
 
+def _short(state: dict[str, Fingerprint]) -> str:
+    return ", ".join(
+        f"{pathlib.Path(p).name}={fp[:8] if isinstance(fp, str) else fp}" for p, fp in state.items()
+    )
+
+
 @dataclasses.dataclass
 class FileWatch:
     paths: list[pathlib.Path]
@@ -110,6 +119,7 @@ def open_watch(
     reported = {k: saved.get(k, fp) for k, fp in current.items()}
     if reported != saved:
         cursors.write_json(reported_path, reported)
+    _log.info("%s starts from %s", reported_path, _short(reported))
     presence = {
         str(p): path_presence.open_watch(
             stem.with_name(f"{stem.name}-{hashlib.sha1(str(p).encode()).hexdigest()[:16]}"),
@@ -151,4 +161,5 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
 
     w.reported = current
     cursors.write_json(w.reported_path, current)
+    _log.info("%s advanced to %s", w.reported_path, _short(current))
     return bool(message)

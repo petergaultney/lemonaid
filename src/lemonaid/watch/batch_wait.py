@@ -40,12 +40,14 @@ def _reconcile(
     for key in list(running):
         if key not in specs or running[key].spec != specs[key]:
             retired = running.pop(key)
+            _log.info("replacing [%s]: its subscription changed or ended", retired.spec.source)
             retired.stop()
             retired.thread.join(timeout=1)
             pending = [p for p in pending if p.source != retired.spec.source]
     for key, spec in specs.items():
         if key not in running:
             scout = scouts.Scout(spec, root, writer, output, signatures, notes, pacing, detected)
+            _log.info("watching [%s]", spec.source)
             running[key] = scout
             scout.thread.start()
     return pending
