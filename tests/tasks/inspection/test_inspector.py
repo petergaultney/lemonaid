@@ -12,6 +12,7 @@ from lemonaid.tasks.checker import corpus, protocol, replay, session
 from lemonaid.tasks.checker.default import rules
 from lemonaid.tasks.inspection import cases, challenges, inspect_cli, inspector, memory, passes
 from lemonaid.tasks.model import associations, dependencies, holding, ledger, lifecycle
+from lemonaid.watch import pr_activity
 
 from ..shared import new_task
 
@@ -331,6 +332,95 @@ def test_closing_or_reassigning_a_task_resolves_its_old_challenges():
         _run(conn, _seen("Work.alpha"), _seen("Work.bravo"), _seen("Review.one"))
 
         assert sent == [] and _open(conn) == []
+
+
+def test_a_task_closed_on_an_open_pr_is_challenged_once_until_the_pr_merges(dead):
+    url = "https://github.com/acme/widgets/pull/7"
+    states = ["", "OPEN", "OPEN", "MERGED", "MERGED"]  # "" while no snapshot is seen
+
+    def pr(_key):
+        if not states[0]:
+            return None
+
+        return pr_activity.Snapshot("abc", states[0], False, "", [], "main", "MERGEABLE", [])
+
+    with db.connect() as conn:
+        made = _started(conn)
+        with ledger.transaction(conn):
+            lifecycle.set_url(conn, made, 2, url, "its PR", "Work.alpha", "url", _NOW - 5)
+            lifecycle.close(conn, made, 3, "finished", "Work.alpha", "close", _NOW - 4)
+        observers = inspector.Observers(lambda _conn: {"Work.alpha": _seen("Work.alpha")}, pr)
+        judged, found = [], []
+        while states:
+            judged.append(inspector.run(conn, _NOW, rules.respond, {}, observers).evaluated)
+            found.append(_open(conn))
+            states.pop(0)
+
+    assert judged == [1, 1, 1, 1, 0]
+    assert found[0] == [] and found[3:] == [[], []]
+    assert found[1:3] == [[(f"task:{made}", "closed-unmerged", "Work.alpha")]] * 2
+
+
+def test_reopening_or_closing_a_task_again_drops_the_challenge_about_its_closing(dead):
+    url = "https://github.com/acme/widgets/pull/7"
+
+    def pr(_key):
+        return pr_activity.Snapshot("abc", "OPEN", False, "", [], "main", "MERGEABLE", [])
+
+    with db.connect() as conn:
+        made = _started(conn)
+        with ledger.transaction(conn):
+            lifecycle.set_url(conn, made, 2, url, "its PR", "Work.alpha", "url", _NOW - 5)
+            lifecycle.close(conn, made, 3, "finished", "Work.alpha", "close", _NOW - 4)
+        observers = inspector.Observers(lambda _conn: {"Work.alpha": _seen("Work.alpha")}, pr)
+        inspector.run(conn, _NOW, rules.respond, {}, observers)
+        opened = _open(conn)
+        with ledger.transaction(conn):
+            lifecycle.reopen(conn, made, 4, "not finished", "Work.alpha", "reopen", _NOW + 1)
+            lifecycle.close(conn, made, 5, "accepted", "cli", "accepted", _NOW + 2)
+
+        sent = challenges.deliver(conn, 300, 86400, (), _NOW + 3)
+        left = _open(conn)
+
+    assert opened == [(f"task:{made}", "closed-unmerged", "Work.alpha")]
+    assert sent == [] and left == []
+
+
+def test_a_closed_task_is_told_about_once_and_not_while_an_unclosed_task_has_its_pr(dead):
+    url = "https://github.com/acme/widgets/pull/7"
+
+    def pr(_key):
+        return pr_activity.Snapshot("abc", "OPEN", False, "", [], "main", "MERGEABLE", [])
+
+    observers = inspector.Observers(lambda _conn: {"Work.alpha": _seen("Work.alpha")}, pr)
+    with db.connect() as conn:
+        _brief(conn, "Work.alpha")
+        alone, review, _work = (
+            new_task(conn, request_id=name, subject_url_text=pr_url)
+            for name, pr_url in (("alone", url + "0"), ("review", url), ("work", url))
+        )
+        with ledger.transaction(conn):
+            holding.attach(conn, "Work.alpha", "Work.alpha", 100.0)
+            for made in (alone, review):
+                lifecycle.close(conn, made, 2, "finished", "Work.alpha", "close", _NOW - 4)
+            holding.assign(  # a parent's final check still carries the PR
+                conn,
+                _work,
+                2,
+                "brief:Work.alpha",
+                "",
+                True,
+                "Work.alpha",
+                "check",
+                _NOW - 4,
+                check=True,
+            )
+        inspector.run(conn, _NOW, rules.respond, {}, observers)
+        sent = [challenges.deliver(conn, 300, 86400, (), _NOW + d) for d in (0, 3600, 86400)]
+        found = [c for c in _open(conn) if c[1] == "closed-unmerged"]
+
+    assert found == [(f"task:{alone}", "closed-unmerged", "Work.alpha")]
+    assert [sum("closed-unmerged" in line for line in s) for s in sent] == [1, 0, 0]
 
 
 def test_a_parent_gets_the_idle_grace_from_when_its_child_closed():

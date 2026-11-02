@@ -4,7 +4,7 @@ from .. import checker_input, protocol
 from . import settings
 
 
-def _live(view: checker_input.View, lemon: str) -> str:
+def live(view: checker_input.View, lemon: str) -> str:
     found = view.facts.get(("lemon", lemon, "live"))
     return found.value if found is not None and found.availability == "known" else ""
 
@@ -13,7 +13,7 @@ def unavailable(view: checker_input.View, brief: str) -> list[protocol.Record]:
     """A challenge, once the holder has started with its task and its lemon is no longer
     live, to whoever assigned the task, or failing that to the nearest live lemon above
     them, and then above the holder; a task is never left with nobody to move."""
-    if _live(view, brief) != "false" or not view.fields.get("assignment.attached_at"):
+    if live(view, brief) != "false" or not view.fields.get("assignment.attached_at"):
         return []
 
     told = next(
@@ -22,7 +22,7 @@ def unavailable(view: checker_input.View, brief: str) -> list[protocol.Record]:
             for start in (view.fields.get("assignment.by"), view.fields.get("holder_parent"))
             if start
             for who in settings.fact(view, "lineage", start, "chain").split()
-            if who != brief and _live(view, who) == "true"
+            if who != brief and live(view, who) == "true"
         ),
         "",
     )

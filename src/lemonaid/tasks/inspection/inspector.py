@@ -112,7 +112,7 @@ def _evaluate(
             cases.failed(conn, subject, revision, failure, now)
             return [], failure
 
-        return cases.apply(conn, subject, revision, records, now, cases.basis(current)), ""
+        return cases.apply(conn, subject, revision, records, now, cases.basis(conn, task_id)), ""
 
 
 def _mid_turn(conn: sqlite3.Connection, holder: str, seen: ty.Mapping[str, facts.Facts]) -> bool:
@@ -122,6 +122,19 @@ def _mid_turn(conn: sqlite3.Connection, holder: str, seen: ty.Mapping[str, facts
     name = holder.removeprefix("brief:")
     found = seen.get(identities.current(conn, name) or name)
     return found is not None and found.state == recipient.MID_TURN
+
+
+# A closing is judged until a pass reaches a verdict on it, and again while it has an open
+# case; one still inconclusive a day after it closed, such as a PR no lemon watches, is left.
+_CLOSED_UNCHECKED = (
+    "SELECT t.* FROM tasks t LEFT JOIN task_evaluations e ON e.subject = 'task:' || t.task_id"
+    " WHERE t.lifecycle = 'closed' AND (e.revision IS NULL OR e.revision < t.revision"
+    " OR EXISTS (SELECT 1 FROM task_cases c WHERE c.subject = e.subject AND c.resolved_at IS NULL)"
+    " OR (e.outcome IN ('unknown', 'failure') AND (SELECT MAX(at) FROM task_events"
+    " WHERE task_id = t.task_id AND kind = 'closed') > ?))"
+)
+
+_CLOSING_RECHECK = 86400.0
 
 
 def run(
@@ -140,9 +153,12 @@ def run(
     seen = observers.lemons(conn)
     context = {f"policy.{k}": v for k, v in policy.items()}
     states = [
-        dict(r)
-        for r in conn.execute("SELECT * FROM tasks WHERE lifecycle != 'closed'")
-        if not _mid_turn(conn, r["holder"], seen)
+        *(
+            dict(r)
+            for r in conn.execute("SELECT * FROM tasks WHERE lifecycle != 'closed'")
+            if not _mid_turn(conn, r["holder"], seen)
+        ),
+        *(dict(r) for r in conn.execute(_CLOSED_UNCHECKED, (now - _CLOSING_RECHECK,))),
     ]
     opened, failures = [], []
     for state in states:

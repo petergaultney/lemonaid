@@ -50,18 +50,27 @@ def _evaluated(
     )
 
 
-def basis(state: ty.Mapping[str, ty.Any]) -> str:
-    """What a task's cases are about: its current assignment and subject URL."""
-    return f"{state['assignment_event_id']}|{state['subject_url']}"
+_BASIS = (
+    "t.assignment_event_id || '|' || t.subject_url || CASE WHEN t.lifecycle = 'closed'"
+    " THEN '|closed:' || (SELECT MAX(e.event_id) FROM task_events e"
+    " WHERE e.task_id = t.task_id AND e.kind = 'closed') ELSE '' END"
+)
+
+
+def basis(conn: sqlite3.Connection, task_id: str) -> str:
+    """What a task's cases are about: its current assignment and subject URL, and for a
+    closed task, the closing, so reopening or closing it again drops cases about another."""
+    return conn.execute(f"SELECT {_BASIS} FROM tasks t WHERE t.task_id = ?", (task_id,)).fetchone()[
+        0
+    ]
 
 
 def superseded(conn: sqlite3.Connection, at: float) -> int:
-    """Resolve open task cases whose task closed or whose basis moved on; returns how many."""
+    """Resolve open task cases whose basis moved on; returns how many."""
     return conn.execute(
         "UPDATE task_cases SET resolved_at = ? WHERE resolved_at IS NULL"
         " AND subject LIKE 'task:%' AND NOT EXISTS (SELECT 1 FROM tasks t"
-        " WHERE 'task:' || t.task_id = task_cases.subject AND t.lifecycle != 'closed'"
-        " AND t.assignment_event_id || '|' || t.subject_url = task_cases.basis)",
+        f" WHERE 'task:' || t.task_id = task_cases.subject AND {_BASIS} = task_cases.basis)",
         (at,),
     ).rowcount
 

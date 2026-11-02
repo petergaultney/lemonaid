@@ -8,7 +8,7 @@ How to use tasks is in `docs/tasks.md`. This note is for changing the code: what
 - Tasks are a general concept. Lemonaid knows no roles such as author or reviewer; a user's own instructions may describe them, but the code never does.
 - A brief's Status is the source of truth for a lemon's own state. Nothing infers a status from a brief's prose: Needs and Waiting on only say which of several tasks a status is about.
 - A task always has a holder that can move. A brief that hands a task on observes it until it says otherwise, and archiving a brief hands its open tasks on first.
-- Finishing work takes a second party. A lemon with a parent hands its tasks up when it goes done, into the `check` state, and the holder of a checked task closes it. A lemon with no parent closes its own; a human can always close or reopen one.
+- A lemon closes a task when its work is finished, with a reason saying where the result is. The inspector checks each closing once it sees it: by default, a task about a PR that hasn't merged is challenged. A lemon that goes done with tasks still open hands them up to its parent, in the `check` state, to close or hand back.
 
 ## How state is kept
 

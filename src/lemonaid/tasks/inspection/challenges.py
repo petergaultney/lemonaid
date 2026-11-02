@@ -2,7 +2,8 @@
 
 A case is checked again just before it is sent, so a task closed, reassigned or given a
 disposition since its evaluation sends nothing. A case still open is sent again after
-the interval, then twice it, four times... up to the ceiling. A case reopened with the
+the interval, then twice it, four times... up to the ceiling; one about a closed task is
+sent once. A case reopened with the
 same accusation against the same assignment, to the same recipient, keeps its place in that backoff.
 """
 
@@ -28,6 +29,13 @@ def _body(case: ty.Mapping[str, ty.Any]) -> str:
     return (
         f"The task inspector, about {case['subject']} ({case['obligation']}):\n\n{case['reason']}"
     )
+
+
+def _about_closed_task(conn: sqlite3.Connection, case: ty.Mapping[str, ty.Any]) -> bool:
+    """Nobody holds a closed task to keep answering, so its case is sent once."""
+    kind, _, task_id = case["subject"].partition(":")
+    row = conn.execute("SELECT lifecycle FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
+    return kind == "task" and row is not None and row["lifecycle"] == "closed"
 
 
 def _due(case: ty.Mapping[str, ty.Any], interval: float, ceiling: float, now: float) -> bool:
@@ -56,6 +64,7 @@ def deliver(
         if (
             not still
             or not _due(case, interval, ceiling, now)
+            or (case["notices"] and _about_closed_task(conn, case))
             or case["kind"] != "challenge"
             or case["target_kind"] != "brief"
             or any(name in opted_out for name in identities.names(conn, target))

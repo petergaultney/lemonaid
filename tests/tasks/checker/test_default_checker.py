@@ -260,3 +260,42 @@ def test_a_dead_holder_with_no_live_lemon_above_is_unknown_and_an_unstarted_one_
     assert _kinds(_evaluate([task(**{"assignment.by": "Review.one"})], gone)) == [("unknown",)]
     unstarted = task(**{"assignment.by": "Review.one", "assignment.attached_at": ""})
     assert ("holder-unavailable",) not in [k[1:] for k in _kinds(_evaluate([unstarted], gone))]
+
+
+_PR = "https://github.com/acme/widgets/pull/7"
+
+
+def _closed(by: str = "Work.alpha", url: str = _PR) -> dict[str, str]:
+    return task(lifecycle="closed", subject_url=url, **{"closed.by": by})
+
+
+def test_a_task_closed_on_an_open_pr_is_put_to_its_closer_or_the_nearest_live_lemon_above():
+    live = [fact("pr", _PR, "state", "OPEN"), *_lineage("Work.alpha", ("Work.alpha", "true"))]
+    dead = [
+        fact("pr", _PR, "state", "OPEN"),
+        *_lineage("Work.alpha", ("Work.alpha", "false"), ("Lead.lead", "true")),
+    ]
+
+    [told] = _evaluate([_closed()], live)
+    [passed_up] = _evaluate([_closed()], dead)
+
+    assert told[:3] == ("challenge", "t1", "closed-unmerged") and told[5] == "Work.alpha"
+    assert "lemonaid task reopen t1" in told[6] and "is still open" in told[6]
+    assert passed_up[5] == "Lead.lead"
+
+
+def test_a_closing_is_accepted_once_the_pr_merged_or_closed_by_a_person_or_without_a_pr():
+    merged = [fact("pr", _PR, "state", "MERGED")]
+    abandoned = [fact("pr", _PR, "state", "CLOSED")]
+
+    assert _kinds(_evaluate([_closed()], merged)) == [("ok",)]
+    assert _kinds(_evaluate([_closed()], abandoned)) == [("ok",)]
+    assert _kinds(_evaluate([_closed(by="cli")], [])) == [("ok",)]
+    assert _kinds(_evaluate([_closed(url="https://example.com/doc")], [])) == [("ok",)]
+    assert _kinds(_evaluate([_closed()], [])) == [("unknown",)]
+
+
+def test_a_task_closed_while_another_open_task_carries_its_pr_is_accepted():
+    review = {**_closed(), "closed.carried_by": "t2"}
+
+    assert _kinds(_evaluate([review], [fact("pr", _PR, "state", "OPEN")])) == [("ok",)]
