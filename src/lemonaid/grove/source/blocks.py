@@ -78,24 +78,38 @@ def _lemon(
     )
 
 
-def main_first(lemons: abc.Iterable[Lemon], lead: str = "") -> tuple[Lemon, ...]:
+def main_first(
+    lemons: abc.Iterable[Lemon], lead: str = "", parents: abc.Mapping[str, str] | None = None
+) -> tuple[Lemon, ...]:
     """A tree's lemons with its main lemon first, so its lowercase letter always reaches it.
 
     The group's lead (channel *lead*) comes first; then a lemon whose brief is hidden (a
-    reviewer's) comes after one that isn't, then the lower window comes first, then the older
-    lemon; the channel settles any tie.
+    reviewer's) comes after one that isn't, then a lemon comes after its ancestors in the tree
+    (per *parents*, child channel to parent channel), then the lower window comes first, then
+    the older lemon; the channel settles any tie.
     """
+    members = tuple(lemons)
+    here = {m.channel for m in members}
+
+    def depth(lemon: Lemon) -> int:
+        return len(group_lead.ancestors(lemon.channel, parents or {}) & here)
 
     def window(lemon: Lemon) -> int:
         return int(lemon.window) if lemon.window.isdigit() else 1_000_000
 
     return tuple(
-        sorted(lemons, key=lambda m: (m.channel != lead, m.hidden, window(m), m.born, m.channel))
+        sorted(
+            members,
+            key=lambda m: (m.channel != lead, m.hidden, depth(m), window(m), m.born, m.channel),
+        )
     )
 
 
 def _trees(
-    rows: abc.Sequence[db.Notification], lemons: abc.Mapping[str, Lemon], lead: str
+    rows: abc.Sequence[db.Notification],
+    lemons: abc.Mapping[str, Lemon],
+    lead: str,
+    parents: abc.Mapping[str, str],
 ) -> tuple[Tree, ...]:
     by_key: dict[str, list[Lemon]] = {}
     for n in rows:
@@ -104,7 +118,7 @@ def _trees(
         Tree(
             key,
             key,
-            main_first(members, lead),
+            main_first(members, lead, parents),
             any(m.channel == lead for m in members),
         )
         for key, members in by_key.items()
@@ -137,7 +151,12 @@ def blocks(
         if rows:
             lead = group_lead.find(rows, inputs.parents)
             found.append(
-                Block(group.name, str(len(found) + 1), group.color, _trees(rows, lemons, lead))
+                Block(
+                    group.name,
+                    str(len(found) + 1),
+                    group.color,
+                    _trees(rows, lemons, lead, inputs.parents),
+                )
             )
     loose = [n for n in inputs.rows if n.channel not in first_group]
     if loose:
@@ -146,7 +165,12 @@ def blocks(
                 "",
                 "0",
                 UNGROUPED_COLOR,
-                _trees(loose, lemons, _packhouse_lead(loose, inputs.rows, inputs.parents)),
+                _trees(
+                    loose,
+                    lemons,
+                    _packhouse_lead(loose, inputs.rows, inputs.parents),
+                    inputs.parents,
+                ),
             )
         )
     return tuple(found)

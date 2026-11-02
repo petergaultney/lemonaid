@@ -29,3 +29,23 @@ def test_the_groups_lead_comes_first_on_its_tree():
         "claude:lead",
         "claude:other",
     ]
+
+
+def test_a_lemon_comes_after_its_parent_even_in_a_higher_window():
+    parent = dataclasses.replace(lemon("claude:clean-all", born=NOW), window="4")
+    child = dataclasses.replace(lemon("claude:local-run", born=NOW - 3600), window="2")
+    parents = {"claude:local-run": "claude:clean-all"}
+    assert [m.channel for m in main_first([child, parent], parents=parents)] == [
+        "claude:clean-all",
+        "claude:local-run",
+    ]
+
+
+def test_a_parent_outside_the_tree_does_not_reorder_it():
+    late = dataclasses.replace(lemon("claude:late", born=NOW), window="5")
+    early = dataclasses.replace(lemon("claude:early", born=NOW), window="2")
+    parents = {"claude:early": "claude:elsewhere"}
+    assert [m.channel for m in main_first([late, early], parents=parents)] == [
+        "claude:early",
+        "claude:late",
+    ]
