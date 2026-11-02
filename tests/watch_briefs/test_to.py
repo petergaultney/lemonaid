@@ -8,8 +8,8 @@ from lemonaid.watch import briefs_cli, briefs_events, delivery, waiter_lock
 from .shared import args, lemon, link, open_watch, poll
 
 
-@pytest.mark.parametrize("target", store.STATES)
-@pytest.mark.parametrize("state", store.STATES)
+@pytest.mark.parametrize("target", store.states())
+@pytest.mark.parametrize("state", store.states())
 def test_only_selected_destination_wakes(family, target, state):
     _, child, path, _ = family
     w = open_watch(family, to=frozenset({target}))
@@ -75,7 +75,7 @@ def test_cli_rejects_unknown_target(family, capsys):
     with pytest.raises(SystemExit) as error:
         args(family[3], family[0], "--to", "finished")
     assert error.value.code == 2
-    assert "is not one of running" in capsys.readouterr().err
+    assert "is not one of alert, blocked" in capsys.readouterr().err
 
 
 def test_filtered_delivery_failure_is_retried(family):

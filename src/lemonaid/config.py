@@ -18,6 +18,7 @@ from . import (
     launch_config,
     messages_config,
     palette,
+    status_registry,
     tasks_config,
     watch_config,
 )
@@ -202,11 +203,6 @@ class TuiConfig:
     # Brief statuses whose read, unpinned sessions fold into one group at the
     # bottom of the list. Empty folds nothing.
     fold_statuses: list[str] = field(default_factory=list)
-    # In attention mode (`attention` key), the brief statuses whose sessions keep a row;
-    # see docs/config.md for the other rows that stay.
-    attention_statuses: list[str] = field(
-        default_factory=lambda: ["alert", "blocked", "merge", "approve", "running"]
-    )
     # A group's lead (the member with the most descendants in it) sorts first among the group's rows.
     group_lead_first: bool = True
     # The scratch pane's title bar and bottom edge while it will receive keys.
@@ -268,6 +264,9 @@ class BriefConfig:
     # Who a new top-level brief names in `responsible-parties`. Unset is the
     # account's full name; a child copies its parent's.
     responsible_parties: tuple[str, ...] = ()
+    # The Status words, most urgent first: the defaults changed or added to by
+    # `[[brief.statuses]]` entries. See `lemonaid brief statuses`.
+    statuses: tuple[status_registry.Status, ...] = status_registry.DEFAULTS
 
 
 @dataclass
@@ -434,6 +433,23 @@ def _group_colors(raw: object) -> dict[str, str]:
         )
 
     return colors
+
+
+@functools.cache
+def _statuses_as_of(path: Path, changed: float) -> tuple[status_registry.Status, ...]:
+    return load_config(path).brief.statuses
+
+
+def brief_statuses() -> tuple[status_registry.Status, ...]:
+    """The configured statuses, read again only when the config file changes; for drawing,
+    which happens too often to load the config each time."""
+    path = get_config_path()
+    try:
+        changed = path.stat().st_mtime
+    except OSError:
+        return status_registry.DEFAULTS
+
+    return _statuses_as_of(path, changed)
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -702,6 +718,12 @@ def _parse_config(data: dict[str, Any]) -> Config:
     )
 
     tui_data = data.get("tui", {})
+    if "attention_statuses" in tui_data:
+        print(
+            "Warning: tui.attention_statuses is replaced by attention = true on a"
+            " [[brief.statuses]] entry; see `lemonaid brief statuses`",
+            file=sys.stderr,
+        )
     keybindings_data = tui_data.get("keybindings", {})
     # Use dataclass defaults for any unspecified keybindings
     defaults = KeybindingsConfig()
@@ -729,9 +751,6 @@ def _parse_config(data: dict[str, Any]) -> Config:
             {"waiting": "idle", "working": "active"}.get(status, status)
             for status in tui_data.get("fold_statuses", [])
         ],
-        attention_statuses=list(
-            tui_data.get("attention_statuses", ["alert", "blocked", "merge", "approve", "running"])
-        ),
         group_lead_first=tui_data.get("group_lead_first", True),
         focus_color=tui_data.get("focus_color", "#2bd9cf"),
         grove_pan_columns=max(1, int(tui_data.get("grove_pan_columns", 2))),
@@ -762,6 +781,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         archive_idle_days=_idle_days(brief_data.get("archive_idle_days", 14), "archive_idle_days"),
         vaults=_vaults(brief_data.get("vaults")),
         responsible_parties=tuple(str(p) for p in brief_data.get("responsible_parties", ())),
+        statuses=status_registry.parse(brief_data.get("statuses")),
     )
 
     inbox_data = data.get("inbox", {})

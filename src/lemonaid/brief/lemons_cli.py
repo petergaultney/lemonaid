@@ -6,9 +6,9 @@ from . import command, lemon_table, store, verbs_cli
 
 
 def _to(value: str) -> str:
-    if value != lemon_table.NEEDS and value not in store.STATES:
+    if value != lemon_table.NEEDS and value not in store.states():
         raise argparse.ArgumentTypeError(
-            f"{value!r} is not one of {', '.join((*store.STATES, lemon_table.NEEDS))}"
+            f"{value!r} is not one of {', '.join((*store.states(), lemon_table.NEEDS))}"
         )
 
     return value

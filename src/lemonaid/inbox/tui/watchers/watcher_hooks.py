@@ -5,7 +5,7 @@ import time
 import typing as ty
 from collections import abc
 
-from .... import claude, codex, handlers, openclaw, opencode
+from .... import claude, codex, config, handlers, openclaw, opencode, status_registry
 from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
@@ -111,7 +111,7 @@ def protected_brief_channels(brief_cache: brief_cards.BriefCache) -> set[str]:
         channel
         for channel, path in paths.items()
         if (card := brief_cache.get(path)) is not None
-        and card.status in {"merge", "approve", "blocked", "alert"}
+        and card.status in status_registry.yours(config.brief_statuses())
     }
 
 

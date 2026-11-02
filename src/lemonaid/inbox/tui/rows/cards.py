@@ -198,15 +198,15 @@ def as_card(
                     name_offset + span.end,
                 )
     else:
-        if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
+        if card_brief and brief_cards.status_style(card_brief.shown):
             backend = context_reading.padded_model(
                 reading, backend, backend.get_style_at_offset(_CONSOLE, 0)
             )
             reading = context_reading.filled(reading)
         headline = _right_aligned(headline, reading + backend, width)
 
-    if card_brief and card_brief.shown in brief_cards.STATUS_STYLES:
-        headline.stylize(brief_cards.STATUS_STYLES[card_brief.shown])
+    if card_brief and (fill := brief_cards.status_style(card_brief.shown)):
+        headline.stylize(fill)
         if backend.plain:
             # The model keeps its provider colour, as a badge, like the column row's.
             provider = backend.get_style_at_offset(_CONSOLE, 0).color
@@ -217,7 +217,7 @@ def as_card(
         _overlay(headline, reading, len(headline) - len(backend) - len(reading))
         if marker.plain:
             headline.stylize(
-                brief_cards.DOT_STYLES.get(card_brief.shown, utils.unread_marker_style()),
+                brief_cards.dot_style(card_brief.shown) or utils.unread_marker_style(),
                 2,
                 3,
             )

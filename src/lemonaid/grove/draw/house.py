@@ -29,8 +29,8 @@ def _bay(
     canvas.target = (block.digit, letter)
     status = colors.tree_status(tree.lemons)
     key = f" {block.digit}{letter} "
-    if status in colors.STATUS:
-        text(canvas, x, y, key, colors.on_status(status), colors.STATUS[status], bold=True)
+    if background := colors.fill(status):
+        text(canvas, x, y, key, colors.on_status(status), background, bold=True)
     else:  # as a tree's tag draws its key cap without a status
         text(canvas, x, y, key, colors.TAG, colors.TEXT, bold=True)
     dots = len(tree.lemons) * 2
@@ -78,9 +78,9 @@ def _rows(block: Block, arrangement: Arrangement, room: int) -> list[tuple[Tree,
         return [(t, i * 2) for i, t in enumerate(trees)]
 
     if len(trees) <= room:
-        return list(zip(trees, range(room)))
+        return list(zip(trees, range(room), strict=False))
 
-    return list(zip(trees[: room - 1], range(room - 1)))
+    return list(zip(trees[: room - 1], range(room - 1), strict=False))
 
 
 def draw(
@@ -107,7 +107,9 @@ def draw(
     for tree, row in _rows(block, arrangement, h - 3):
         canvas.dim = fade(tree)
         standing = arrangement.trees[(block.name, tree.key)]
-        _bay(canvas, block, tree, standing.letter, standing.label, x0 + 2, y0 + 2 + row, w - 4, phase)
+        _bay(
+            canvas, block, tree, standing.letter, standing.label, x0 + 2, y0 + 2 + row, w - 4, phase
+        )
         canvas.dim = 0.0
     shown = len(_rows(block, arrangement, h - 3))
     if shown < len(block.trees):

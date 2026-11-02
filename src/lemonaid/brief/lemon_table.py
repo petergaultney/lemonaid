@@ -32,7 +32,7 @@ class Row:
 def _words(cell: str) -> tuple[tuple[str, ...], str]:
     """The Watch cell's words, and what is wrong with them."""
     words = tuple(w.strip().lower() for w in cell.split(",") if w.strip())
-    unknown = [w for w in words if w not in (*store.STATES, NEEDS)]
+    unknown = [w for w in words if w not in (*store.states(), NEEDS)]
     return words, f"{', '.join(unknown)} is not a status or `needs`" if unknown else ""
 
 

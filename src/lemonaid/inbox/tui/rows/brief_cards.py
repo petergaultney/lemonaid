@@ -7,21 +7,13 @@ from pathlib import Path
 from rich.style import Style
 from rich.text import Text
 
+from .... import config, status_registry
 from ....brief import colors, hidden
 from ....brief import now as brief_now
 from ....brief import status as brief_status
-from ....brief.colors import (
-    ALERT_COLOR,
-    APPROVE_COLOR,
-    MERGE_COLOR,
-    REVIEW_COLOR,
-    RUNNING_COLOR,
-    RUNNING_TEXT_COLOR,
-    RUNNING_TEXT_COLOR_LIGHT,
-)
+from ....brief.colors import RUNNING_TEXT_COLOR, RUNNING_TEXT_COLOR_LIGHT
 from ... import turns
 from .. import utils
-from ..utils import ATTENTION_COLOR
 
 
 def status_text_style(state: str, default: str = "") -> str:
@@ -37,29 +29,17 @@ def running_text() -> str:
     return RUNNING_TEXT_COLOR_LIGHT if utils.light_theme() else RUNNING_TEXT_COLOR
 
 
-# Headline colours for the statuses that want a look: an alert lemon needs you
-# urgently, a blocked one waits on you, a merge one waits only on your merge, an
-# approve one waits only on your approval of a teammate's PR, a review one waits
-# on a teammate's approving review, a running one is minding a long process, and
-# a done one is ready to clean up.
-STATUS_STYLES = {
-    "alert": Style(color="#ffffff", bgcolor=ALERT_COLOR),
-    "blocked": Style(color="#000000", bgcolor=ATTENTION_COLOR),
-    "merge": Style(color="#000000", bgcolor=MERGE_COLOR),
-    "approve": Style(color="#ffffff", bgcolor=APPROVE_COLOR),
-    "review": Style(color="#ffffff", bgcolor=REVIEW_COLOR),
-    "running": Style(color="#ffffff", bgcolor=RUNNING_COLOR),
-    "done": Style(color="#ffffff", bgcolor="#285995"),
-}
-# The unread dot on a filled headline or row, where the yellow one would vanish.
-DOT_STYLES = {
-    "alert": "bold #ffffff",
-    "blocked": "bold #000000",
-    "merge": "bold #000000",
-    "approve": "bold #ffffff",
-    "review": "bold #ffffff",
-    "running": "bold #ffffff",
-}
+def status_style(status: str) -> Style | None:
+    """A status's headline fill, from the configured statuses; None for no status."""
+    found = status_registry.by_name(config.brief_statuses()).get(status)
+    return Style(color=found.on_fill, bgcolor=found.fill) if found else None
+
+
+def dot_style(status: str) -> str:
+    """The unread dot on a filled headline or row, where the yellow one would vanish; ""
+    when *status* fills nothing, or is done."""
+    found = status_registry.by_name(config.brief_statuses()).get(status)
+    return f"bold {found.on_fill}" if found and found.name != status_registry.DONE else ""
 
 
 def _waited(seconds: float) -> str:

@@ -16,17 +16,21 @@ import tempfile
 from collections import abc
 from pathlib import Path
 
-from .. import home
+from .. import config, home, status_registry
 from . import frontmatter, frontmatter_edit, name_words, names, responsible
 
-# The statuses a lemon sets. Without one, the inbox shows the lemon's own state
-# (active, idle, deaf or dead); see docs/brief-status.md.
-STATES = ("running", "done", "blocked", "merge", "approve", "alert", "review")
 # Statuses lemons once set by hand, now read as no status.
 RETIRED = ("working", "waiting")
 CLEAR = "clear"
 
 _EDIT_ATTEMPTS = 5
+
+
+def states() -> tuple[str, ...]:
+    """The status words a lemon may set, from the config. Without one, the inbox shows the
+    lemon's own state (active, idle, deaf or dead); see `lemonaid brief statuses`."""
+    return status_registry.names(config.brief_statuses())
+
 
 _STATUS_LINE = re.compile(r"status:\s*.*", re.IGNORECASE)
 _NOW_HEADING = re.compile(r"##\s+now\s*", re.IGNORECASE)

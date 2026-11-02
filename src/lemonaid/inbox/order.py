@@ -1,8 +1,8 @@
 """The order the inbox lists sessions in, the same in the wide table and the sidebar.
 
-Pins come first. Below them, `alert` sessions, then `blocked`, then `running`,
-then `merge`, then `approve`, then `review`, then `done` sessions, unread above
-read, then every other unread session, then everything else read: a brief
+Pins come first. Below them, each configured status in rank order (by default `alert`,
+then `blocked`, `running`, `merge`, `approve` and `review`), then `done` sessions, unread
+above read, then every other unread session, then everything else read: a brief
 without a status (`active`, `idle`, `deaf` or `dead`), and no brief. Within each band rows keep `db.get_active` order: pins
 by position, everything else unread first and then newest first.
 
@@ -13,60 +13,40 @@ attention mode names the ones that stay.
 
 from collections import abc
 
+from .. import config, status_registry
 from . import db
 
-_ALERT = 0
-_BLOCKED = 1
-_RUNNING = 2
-_MERGE = 3
-_APPROVE = 4
-_REVIEW = 5
-_UNREAD_DONE = 6
-_DONE = 7
-_UNREAD = 8  # a brief without a status, or no brief
-_READ = 9
-_BANDS = {
-    "alert": _ALERT,
-    "blocked": _BLOCKED,
-    "running": _RUNNING,
-    "merge": _MERGE,
-    "approve": _APPROVE,
-    "review": _REVIEW,
-}
+_TAIL = ("unread done", "done", "unread", "read")  # after the statuses' own bands
 
 
-def _band(status: str, is_unread: bool) -> int:
-    if status in _BANDS:
-        return _BANDS[status]
+def band_names() -> tuple[str, ...]:
+    """Every band in order: one per configured status but `done`, most urgent first, then
+    unread done, done, every other unread row, and everything else read."""
+    return (
+        *(s.name for s in config.brief_statuses() if s.name != status_registry.DONE),
+        *_TAIL,
+    )
 
-    if status == "done":
-        return _UNREAD_DONE if is_unread else _DONE
 
-    return _UNREAD if is_unread else _READ
+def _band(status: str, is_unread: bool, names: tuple[str, ...]) -> int:
+    if status in names[: -len(_TAIL)]:
+        return names.index(status)
 
+    if status == status_registry.DONE:
+        return names.index("unread done" if is_unread else "done")
 
-BAND_NAMES = (
-    "alert",
-    "blocked",
-    "running",
-    "merge",
-    "approve",
-    "review",
-    "unread done",
-    "done",
-    "unread",
-    "read",
-)
+    return names.index("unread" if is_unread else "read")
 
 
 def band(status: str, is_unread: bool, is_pinned: bool) -> str:
     """The name of the band `by_status` puts a row in: "pinned", "alert", ... "read"."""
-    return "pinned" if is_pinned else BAND_NAMES[_band(status, is_unread)]
+    names = band_names()
+    return "pinned" if is_pinned else names[_band(status, is_unread, names)]
 
 
 def special_status(status: str) -> bool:
     """Whether a brief status has its own inbox band, ahead of ordinary rows."""
-    return status in _BANDS or status == "done"
+    return status in status_registry.names(config.brief_statuses())
 
 
 def by_status(
@@ -78,10 +58,11 @@ def by_status(
 
     The sort is stable, so pins and each band keep the order they came in.
     """
+    names = band_names()
     return sorted(
         rows,
         key=lambda n: (
-            -1 if n.channel in pinned else _band(statuses.get(n.channel, ""), n.is_unread)
+            -1 if n.channel in pinned else _band(statuses.get(n.channel, ""), n.is_unread, names)
         ),
     )
 

@@ -3,10 +3,12 @@
 import dataclasses
 from pathlib import Path
 
+from lemonaid import status_registry
 from lemonaid.brief import render, target
 from lemonaid.inbox.tui import utils
 from lemonaid.inbox.tui.briefs import brief_detail
-from lemonaid.inbox.tui.rows import brief_cards
+
+_FILLS = {s.name: s.fill for s in status_registry.DEFAULTS}
 
 _LEMON = target.Identity(
     name="author",
@@ -119,31 +121,31 @@ def test_the_session_bar_spans_the_width():
 
 def test_merge_and_alert_fill_the_headline_green_and_red():
     assert any(
-        brief_cards.MERGE_COLOR in s
+        _FILLS["merge"] in s
         for s in _styles(brief_detail.header(_section("merge"), True, 0, 40), "author")
     )
     assert any(
-        brief_cards.ALERT_COLOR in s
+        _FILLS["alert"] in s
         for s in _styles(brief_detail.header(_section("alert"), True, 0, 40), "author")
     )
 
 
 def test_review_fills_the_headline_brown():
     assert any(
-        brief_cards.REVIEW_COLOR in s
+        _FILLS["review"] in s
         for s in _styles(brief_detail.header(_section("review"), True, 0, 40), "author")
     )
 
 
 def test_approve_fills_the_headline_purple():
     assert any(
-        brief_cards.APPROVE_COLOR in s
+        _FILLS["approve"] in s
         for s in _styles(brief_detail.header(_section("approve"), True, 0, 40), "author")
     )
 
 
 def test_running_fills_the_headline_teal():
     assert any(
-        brief_cards.RUNNING_COLOR in s
+        _FILLS["running"] in s
         for s in _styles(brief_detail.header(_section("running"), True, 0, 40), "author")
     )

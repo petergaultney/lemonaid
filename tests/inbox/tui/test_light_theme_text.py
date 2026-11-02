@@ -63,7 +63,7 @@ def test_a_light_theme_darkens_text_but_not_fills():
 
     assert utils.attention_text() == utils.ATTENTION_TEXT_LIGHT
     assert brief_cards.running_text() == brief_cards.RUNNING_TEXT_COLOR_LIGHT
-    assert brief_cards.STATUS_STYLES["blocked"].bgcolor.name == utils.ATTENTION_COLOR
+    assert brief_cards.status_style("blocked").bgcolor.name == utils.ATTENTION_COLOR
 
 
 @pytest.mark.parametrize(

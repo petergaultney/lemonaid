@@ -32,7 +32,7 @@ def _summary(grove: Grove) -> str:
 def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]:
     selects = f"{select_view.key_name(select_key)} selects"
     if where.note:
-        return where.note, colors.STATUS["blocked"]
+        return where.note, colors.WARN
     if chosen := select_view.prompt(where, grove.blocks, grove.arrangement, select_key):
         return chosen, colors.TEXT
     if picked := picking.prompt(where, grove.blocks):
@@ -45,7 +45,7 @@ def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]
             return f"/{where.search}  no match · esc cancels", colors.TEXT
         chosen = found[where.chosen % len(found)]
         if chosen.lemon.jump_problem:
-            return f"no jump: {chosen.lemon.jump_problem}", colors.STATUS["blocked"]
+            return f"no jump: {chosen.lemon.jump_problem}", colors.WARN
 
         blocks = len({m.block.digit for m in found})
         letter = grove.arrangement.trees[(chosen.block.name, chosen.tree.key)].letter

@@ -9,7 +9,7 @@ from lemonaid.brief import store, verbs_cli
 _MEANINGS = {
     "blocked": "the user can act now",
     "alert": "harm grows while it waits",
-    "review": "a teammate's approving review",
+    "review": "a response from someone outside the grove",
     "approve": "hands the task back to its author instead",
     "merge": "only the user's merge remains",
     "running": "minding a long pipeline or process",
@@ -27,7 +27,7 @@ def _status_help(capsys) -> str:
 
 
 def test_help_describes_every_status_a_lemon_may_set(capsys):
-    assert set(_MEANINGS) == set(store.STATES)
+    assert set(_MEANINGS) == set(store.states())
 
     out = _status_help(capsys)
 

@@ -1,26 +1,38 @@
-"""What `lemonaid brief status --help` tells a lemon about choosing a status."""
+"""What `lemonaid brief status --help` and `lemonaid brief statuses` tell a lemon about
+choosing a status, from the configured statuses."""
 
-GUIDE = """\
+import textwrap
+from collections import abc
+
+from .. import status_registry
+
+_INTRO = """\
 A status says you wait on a person or a process. Leave it out when the next move is yours
 or another lemon's: hand that lemon your task (`task assign`) or wait for its task
 (`task depend`), and give your task its PR while CI runs (`task set-url`). The inbox then
-shows whether you are active, idle, deaf or dead.
-
-  blocked   the user can act now: a decision, an answer, something to review or try
-  alert     the user's move is needed and harm grows while it waits (prod broken, spend
-            running, data at risk); keep it rare
-  review    the next move is a teammate's approving review, not the user's
-  approve   you reviewed a teammate's PR and recommend the user approve it; a review of a
-            lemon's PR hands the task back to its author instead
-  merge     only the user's merge remains: the PR is approved, has no failed CI (green
-            isn't waited for), no conflicts, and is out of draft; check
-            `gh pr view <n> --json mergeable`
-  running   nobody's move; you are minding a long pipeline or process, named under
-            `### Running` in `## Now` (your own test suite is not one)
-  done      nothing is left: the PR is merged or closed, or the output accepted, and no
-            waiter runs; an open PR is never done
-
-Several lemons waiting on the same move from the user: only the one that owns it is
-`blocked` (or `merge`); the others set no status and name it under `### Waiting on`.
-Put the reason in `## Now`, never on the `Status:` line. See docs/brief-status.md.
+shows whether you are active, idle, deaf or dead. `done` ends the work.
 """
+
+_OUTRO = """\
+Several lemons waiting on the same move from the user: only the one that owns it sets the
+status; the others set none and name it under `### Waiting on`. Put the reason in `## Now`,
+never on the `Status:` line. `lemonaid brief statuses` lists these with their properties.
+"""
+
+
+def table(statuses: abc.Iterable[status_registry.Status]) -> str:
+    """Each status and when to use it, one per paragraph."""
+    width = max((len(s.name) for s in statuses), default=0) + 2
+    return "\n".join(
+        textwrap.fill(
+            s.description,
+            90,
+            initial_indent=f"  {s.name.ljust(width)}",
+            subsequent_indent=" " * (width + 2),
+        )
+        for s in statuses
+    )
+
+
+def guide(statuses: abc.Sequence[status_registry.Status]) -> str:
+    return f"{_INTRO}\n{table(statuses)}\n\n{_OUTRO}"

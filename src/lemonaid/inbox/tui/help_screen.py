@@ -73,7 +73,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             (
                 "attention",
                 "Attention mode: rows only for what needs you or is selected"
-                " (tui.attention_statuses)",
+                " (statuses with attention = true)",
             ),
             ("history", "Toggle session history"),
             ("snoozed_list", "Show snoozed sessions"),

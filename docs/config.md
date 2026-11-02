@@ -226,7 +226,6 @@ The name may come from the interpreter's command line or the pane title. Add
 | `active_row_color` | *(unset)* | Override the selected inbox row background with any Textual colour, applied at startup. By default, dark themes use a deeper blue; light themes keep their current highlight. |
 | `inactive_row_color` | *(unset)* | The selected inbox row background while the scratch pane is not receiving keys. By default, the selected row's colour blended 70% toward the background. Has no effect outside scratch mode, where the pane cannot be asked. |
 | `fold_statuses` | `[]` | Brief statuses whose sessions fold into one group at the bottom of the list (see below). |
-| `attention_statuses` | `["alert", "blocked", "merge", "approve", "running"]` | In attention mode, the brief statuses whose sessions keep a row (see [Attention mode](#attention-mode)). |
 | `group_lead_first` | `true` | Sort a group's lead, the member with the most descendants in the group, first among the group's rows, mark it with `♛`, and draw a drawn member's ancestors in that group. See [Groups](groups.md#in-the-inbox). |
 | `focus_color` | `"#2bd9cf"` | The scratch pane's title bar and bottom edge while its tmux pane will receive keys. Any Textual colour; the title text turns black or white to contrast with it. |
 | `grove_pan_columns` | `2` | Screen columns an arrow key moves the grove view across. |
@@ -322,14 +321,14 @@ fold_statuses = ["idle"]
 
 `!` (the `attention` key) turns attention mode on and off in the inbox. With it on, a lemon keeps a row only when it needs you or is running:
 
-- its brief Status is in `attention_statuses`, by default `alert`, `blocked`, `merge`, `approve` and `running`;
+- its brief Status has `attention = true` (see [Brief statuses](#brief-statuses)), by default `alert`, `blocked`, `merge`, `approve` and `running`;
 - it is pinned, marked `deaf`, or its pane is focused;
 - the cursor is on its row: it keeps the row until the cursor moves off it, so a lemon whose status changes while you look at it doesn't vanish, and neither does one you found with a search;
 - it is an ancestor of a lemon drawn in the same group, such as a lead above its child, while [`group_lead_first`](#tui) is on.
 
 Everything else folds, unread or not: `review`, `done`, idle, active, dead, and lemons without a brief. The aim is a list short enough to need no scrollbar. Its rule replaces `fold_statuses` while it is on. An [`[inbox] arrange`](arrange.md) program still decides over both.
 
-In place of the fold line at the bottom, one line at the top of the list counts every lemon by status. Each count is the badge its group header draws, the status's glyph and number in its color (`!` alert, `?` blocked, `N` running, `m` merge, `✓` approve, `r` review, `d` done), in the same column as on the group bars. Lemons without one of those statuses share one dim `○` count, at the left with the `w` hint:
+In place of the fold line at the bottom, one line at the top of the list counts every lemon by status. Each count is the badge its group header draws, the status's glyph and number in its color (by default `!` alert, `?` blocked, `N` running, `m` merge, `✓` approve, `r` review, `d` done), in the same column as on the group bars. Lemons without one of those statuses share one dim `○` count, at the left with the `w` hint:
 
 ```
  ○11   w shows all                          ?1  N1          r4  d6
@@ -342,8 +341,9 @@ Where the group bars pack their badges instead, as in a narrow sidebar, the line
 Lemonaid saves the choice in `inbox.json` in its state directory, so it survives restarts. It starts off; there is no setting that turns it on.
 
 ```toml
-[tui]
-attention_statuses = ["alert", "blocked", "merge", "approve"]  # running lemons fold too
+[[brief.statuses]]
+name = "running"
+attention = false  # running lemons fold too
 ```
 
 With `card_unread_style = "bar"`, an unread card without a brief (see above)
@@ -511,6 +511,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `archive_idle_days` | `14` | Days a brief can go unused before a daily sweep moves it and its inbox to `~/.lemons/attic/YYYY-MM/`; `0` never sweeps. In use means a live session, or within the window: created, Status changed, session activity, attached, or a message in its inbox. `place toss` archives the briefs of the lemons it ends at once. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 | `responsible_parties` | `[]` | Who a new top-level brief's `responsible-parties` names; unset is the account's full name. A child copies its parent's. |
+| `statuses` | the defaults below | The Status words lemons may set; see [Brief statuses](#brief-statuses). |
 
 The brief popup and sidebar run `pr_state` for each `PR #N` or pull-request URL
 in a brief (up to three), in the lemon's place, so a bare number resolves against
@@ -562,6 +563,34 @@ clickable in a terminal.
 ```toml
 [brief]
 vaults = ["~/notes", "~/work/kb"]
+```
+
+
+### Brief statuses
+
+Every status says the next move isn't the lemon's own; a brief with no status is the lemon's to move. `done` is built in, ends the work, and can't be changed. The other words are defaults that `[[brief.statuses]]` entries change, or add to; `lemonaid brief statuses` prints the result.
+
+| Field | Meaning |
+|---|---|
+| `name` | The word: a lowercase letter, then letters, digits, `-` or `_`; required. Naming a default changes only the fields given. |
+| `description` | When to use it, shown by `lemonaid brief statuses` and `brief status --help`. |
+| `color` | Its fill, and its text on dark and light backgrounds, as `#rrggbb`; required for a new word. `fill`, `text` and `text_light` set those apart, and `on_fill` is the text drawn on the fill (default white). |
+| `glyph` | One character for its group-header badge; default its first letter. |
+| `rank` | Its place in inbox and grove order, lowest first. The defaults run 10 (`alert`) to 60 (`review`); a new word defaults to 500. |
+| `attention` | Keep its lemons as rows in [attention mode](#attention-mode). |
+| `yours` | It is the user's move: lemonaid reminds the lemon to keep it true, and names it before a `place toss`. |
+
+```toml
+[[brief.statuses]]
+name = "waiting-on-vendor"
+description = "an outside party owes a reply; say who under `### Waiting on`"
+color = "#8d6e63"
+glyph = "v"
+rank = 65
+
+[[brief.statuses]]
+name = "review"
+attention = true
 ```
 
 ## `[inbox]`
