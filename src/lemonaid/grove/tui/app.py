@@ -5,7 +5,7 @@ from collections import abc
 from textual import events
 from textual.app import App
 
-from . import flip, selecting
+from . import flip, pulse, selecting
 from .frame import Grove, Lists
 from .screen import Edit, GroveScreen
 
@@ -39,6 +39,7 @@ class GroveApp(App[str]):
         select_key: str = selecting.DEFAULT_KEY,
         zoom_to: abc.Callable[[], str] | None = None,
         start_held: bool = False,
+        pulse_seconds: float = pulse.PERIOD,
     ) -> None:
         super().__init__()
         self._zoom_to = zoom_to
@@ -56,6 +57,7 @@ class GroveApp(App[str]):
         self._big_trees = big_trees
         self._flips = flips
         self._select_key = select_key
+        self._pulse_seconds = pulse_seconds
         self._lists: Lists = {}  # where lemon lists went, kept from one grove shown to the next
 
     def on_mount(self) -> None:
@@ -87,6 +89,7 @@ class GroveApp(App[str]):
                 grove,
                 self._select_key,
                 self._zoom_waiting,
+                self._pulse_seconds,
             ),
             self._after_screen,
         )

@@ -57,6 +57,7 @@ class GroveScreen(ModalScreen[str]):
         grove: Grove | None = None,
         select_key: str = selecting.DEFAULT_KEY,
         block: str = "",
+        pulse_seconds: float = pulse.PERIOD,
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
@@ -66,7 +67,8 @@ class GroveScreen(ModalScreen[str]):
         *big_trees* lets a zoomed block's trees grow past a grown tree's size. *flips* says which
         key flips the lemon lists to their other page, and how. A *grove* already loaded is
         shown first, in place of loading one here. *select_key* enters and leaves select mode.
-        It opens zoomed into the block numbered *block*, if there is one.
+        It opens zoomed into the block numbered *block*, if there is one. A working lemon's pulse
+        takes *pulse_seconds*.
         """
         super().__init__()
         self._load = load
@@ -78,6 +80,7 @@ class GroveScreen(ModalScreen[str]):
             if any(b.digit == block for b in self._grove.blocks)
             else keys.Where(note=note, pan=pan)
         )
+        self._pulse_seconds = pulse_seconds
         self._keep_pan = keep_pan
         self._nudge = nudge
         self._big_trees = big_trees
@@ -105,7 +108,9 @@ class GroveScreen(ModalScreen[str]):
         yield GroveMap()
 
     def on_mount(self) -> None:
-        self._pulse_timer = self.set_interval(pulse.TICK, self._pulse, pause=self._held)
+        self._pulse_timer = self.set_interval(
+            pulse.tick(self._pulse_seconds), self._pulse, pause=self._held
+        )
         self.set_interval(self._refresh_every, self._reload)
         self._redraw()
         self._reload()  # what it was given may be a while old
@@ -155,7 +160,8 @@ class GroveScreen(ModalScreen[str]):
             self._ends[self._flipped] = pulse.ends(self._draw)
         grove_map = self.query_one(GroveMap)
         grove_map.picture = pulse.frame(
-            self._ends[self._flipped], 0.0 if self._held else pulse.phase(time.monotonic())
+            self._ends[self._flipped],
+            0.0 if self._held else pulse.phase(time.monotonic(), self._pulse_seconds),
         )
         grove_map.refresh()
 

@@ -22,6 +22,7 @@ def run(config: Config, switch_source: str | None) -> None:
         keep_pan=view.save,
         nudge=(config.tui.grove_pan_columns, config.tui.grove_pan_rows),
         big_trees=config.tui.grove_big_trees,
+        pulse_seconds=config.tui.grove_pulse_seconds,
         flips=flip.configured(config),
         select_key=config.tui.grove_select_key,
     ).run()
