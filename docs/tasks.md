@@ -38,6 +38,14 @@ An open task always has a holder that can move. Archiving a brief (by hand, by t
 
 When a brief's lemon first starts, the session's launch context lists its open tasks and records the start; until then, the default checker gives the task's creator a launch grace before challenging it. Resuming the session does neither again. There is no separate acceptance step: a holder that idles with a task is challenged by the idle rule.
 
+## Waiting for another task
+
+```bash
+lemonaid task depend TASK_ID --on OTHER_TASK_ID
+```
+
+A task can wait for another lemon's task: its holder isn't idle while that task moves, and when it closes, the holder is told to pick up its result. A cycle is refused. `brief new --for-task` records the same wait for a child's task.
+
 ## Results, closing and done
 
 ```bash
@@ -60,6 +68,7 @@ lemonaid task create --brief BRIEF --assign BRIEF --description TEXT [--url URL]
 lemonaid task assign TASK_ID --to BRIEF --reason TEXT
 lemonaid task observe TASK_ID [--instead-of OWN_TASK_ID]
 lemonaid task unobserve TASK_ID
+lemonaid task depend TASK_ID --on OTHER_TASK_ID  # it waits for that task
 lemonaid task result|close|reopen TASK_ID ...
 lemonaid task inspect [--dry-run]                  # run one inspector pass now
 lemonaid task set-url TASK_ID URL --reason TEXT  # a successor PR keeps the task's ID
