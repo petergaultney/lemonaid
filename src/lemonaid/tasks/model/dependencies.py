@@ -52,6 +52,10 @@ def depend(
     if parent_task_id == child_task_id:
         raise ledger.Refused("a task can't wait for itself")
 
+    child = ledger.state(conn, child_task_id)
+    if child is None or child["lifecycle"] == "closed":
+        raise ledger.Refused(f"task:{child_task_id} isn't an open task to wait for")
+
     if cycle := path(conn, child_task_id, parent_task_id):
         raise ledger.Refused(
             f"dependency cycle: {' -> '.join(f'task:{t}' for t in [parent_task_id, *cycle])}"

@@ -60,6 +60,8 @@ def _idle(task_id: str) -> str:
             f" `lemonaid task assign {task_id} --to BRIEF --reason TEXT`.",
             "- If you are waiting for CI on the task's PR, give the task its PR and the inspector"
             f" waits while CI runs: `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
+            "- If this task waits on another lemon's task, say so, and the inspector waits while"
+            f" that one moves: `lemonaid task depend {task_id} --on OTHER_TASK_ID`.",
             "- If another lemon's task already covers this work, follow that one instead:"
             f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
             "- If someone else moves next, keep the task and set your brief's Status to say who:"

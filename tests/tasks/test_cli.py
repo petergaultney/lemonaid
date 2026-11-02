@@ -6,7 +6,7 @@ from lemonaid.brief import attached
 from lemonaid.inbox import db
 from lemonaid.messages import store
 from lemonaid.tasks import cli, cli_common
-from lemonaid.tasks.model import ledger
+from lemonaid.tasks.model import dependencies, ledger, lifecycle
 
 from .shared import idle, new_task, snapshot, task
 
@@ -201,3 +201,24 @@ def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch, d
 
     assert (first["taken_from"], again["notice"], later["notice"]) == ("brief:Work.alpha", "", "")
     assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 2  # taken, then given back
+
+
+def test_depend_waits_only_for_another_open_task_and_refuses_a_cycle(capsys):
+    with db.connect() as conn:
+        mine = new_task(conn)
+        theirs = new_task(conn, brief_id="Other.one", request_id="theirs")
+
+        done = new_task(conn, brief_id="Done.one", request_id="done")
+        with ledger.transaction(conn):
+            lifecycle.close(conn, done, 1, "finished", "Done.one", "close", 200.0)
+
+    waits = _run(capsys, "depend", mine, "--on", f"task:{theirs}", "--json")
+    cycle = _run(capsys, "depend", theirs, "--on", mine, "--json")
+    missing = _run(capsys, "depend", mine, "--on", "00000000-0000-0000-0000-000000000000", "--json")
+    closed = _run(capsys, "depend", mine, "--on", done, "--json")
+
+    assert waits["error"] is None and waits["on"] == theirs
+    assert "cycle" in cycle["error"]
+    assert "isn't an open task" in missing["error"] and "isn't an open task" in closed["error"]
+    with db.connect() as conn:
+        assert dependencies.waits_for(conn, mine) == [theirs]

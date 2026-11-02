@@ -1,4 +1,4 @@
-"""`lemonaid task set-url|result|close|reopen`.
+"""`lemonaid task set-url|depend|result|close|reopen`.
 
 Messages go out only when this call committed the change: a repeated request returns its
 first result, and its messages went out then.
@@ -10,7 +10,7 @@ import typing as ty
 from ..inbox import db
 from . import cli_common
 from .briefs import notices
-from .model import ledger, lifecycle
+from .model import dependencies, ledger, lifecycle
 
 
 def _cmd_set_url(args: argparse.Namespace) -> None:
@@ -29,6 +29,29 @@ def _cmd_set_url(args: argparse.Namespace) -> None:
         except cli_common.Failed as error:
             cli_common.fail(args, str(error))
     cli_common.emit(args, changed, f"task:{task} now at {args.url or 'no URL'}")
+
+
+def _cmd_depend(args: argparse.Namespace) -> None:
+    with db.connect() as conn:
+        try:
+            task = cli_common.task_id(args.task)
+            other = cli_common.task_id(args.on)
+            actor = cli_common.actor(conn)
+            waits = cli_common.write(
+                conn,
+                args,
+                {"op": "depend", "task_id": task, "on": other},
+                lambda expected, request_id, at: {
+                    "task_id": task,
+                    "on": other,
+                    "revision": dependencies.depend(
+                        conn, task, expected, other, actor, request_id, at
+                    ),
+                },
+            )
+        except cli_common.Failed as error:
+            cli_common.fail(args, str(error))
+    cli_common.emit(args, waits, f"task:{task} waits for task:{other}")
 
 
 def _cmd_result(args: argparse.Namespace) -> None:
@@ -115,6 +138,16 @@ def add_parsers(tasks: argparse._SubParsersAction) -> None:
     set_url.add_argument("--reason", required=True, help="Why it changed, such as a successor PR")
     cli_common.add_write_options(set_url)
     set_url.set_defaults(func=_cmd_set_url)
+
+    depend = tasks.add_parser(
+        "depend", help="Make a task wait for another, so its holder isn't idle while that one moves"
+    )
+    depend.add_argument("task", metavar="TASK_ID")
+    depend.add_argument(
+        "--on", required=True, metavar="OTHER_TASK_ID", help="The task it waits for"
+    )
+    cli_common.add_write_options(depend)
+    depend.set_defaults(func=_cmd_depend)
 
     result = tasks.add_parser("result", help="Record a result without closing the task")
     result.add_argument("task", metavar="TASK_ID")
