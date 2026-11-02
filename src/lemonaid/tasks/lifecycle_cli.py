@@ -5,13 +5,12 @@ first result, and its messages went out then.
 """
 
 import argparse
-import sqlite3
 import typing as ty
 
 from ..inbox import db
 from . import cli_common
-from .briefs import completion, notices
-from .model import identities, ledger, lifecycle
+from .briefs import notices
+from .model import ledger, lifecycle
 
 
 def _cmd_set_url(args: argparse.Namespace) -> None:
@@ -54,22 +53,6 @@ def _not_mine(state: ty.Mapping[str, ty.Any], actor: str) -> bool:
     return state["holder"] != f"brief:{actor}"
 
 
-def _own_close(conn: sqlite3.Connection, task: str, actor: str) -> None:
-    """Raises Failed when *actor* holds *task* to work on it and has a parent to check it;
-    a task held in the `check` state may be closed by its holder."""
-    state = ledger.state(conn, task)
-    mine = {f"brief:{name}" for name in identities.names(conn, actor)} if actor != "cli" else set()
-    if not state or state["holder"] not in mine or state["lifecycle"] == "check":
-        return
-
-    if parent := completion.checker(conn, actor):
-        raise cli_common.Failed(
-            f"task:{task} is yours, and {parent} checks it: mark your brief done, which hands"
-            f" it to {parent}, or hand it on with `lemonaid task assign {task} --to BRIEF"
-            " --reason TEXT`"
-        )
-
-
 def _cmd_close(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         try:
@@ -77,7 +60,6 @@ def _cmd_close(args: argparse.Namespace) -> None:
             actor = cli_common.actor(conn)
 
             def close(expected: int, request_id: str, at: float) -> dict[str, ty.Any]:
-                _own_close(conn, task, actor)  # a retry of a committed close skips this
                 return lifecycle.close(conn, task, expected, args.reason, actor, request_id, at)
 
             closed, committed = cli_common.write_once(
@@ -144,7 +126,9 @@ def add_parsers(tasks: argparse._SubParsersAction) -> None:
 
     close = tasks.add_parser("close", help="Close a task, releasing tasks that wait for it")
     close.add_argument("task", metavar="TASK_ID")
-    close.add_argument("--reason", required=True, help="Why it's finished")
+    close.add_argument(
+        "--reason", required=True, help="Why it's finished, naming where the result is"
+    )
     cli_common.add_write_options(close)
     close.set_defaults(func=_cmd_close)
 

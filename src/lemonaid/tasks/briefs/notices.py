@@ -56,7 +56,9 @@ def tell_holder(task: Task, actor: str, reason: str) -> str:
         f"You now hold task:{task['task_id']} ({task['description']}), assigned by"
         f" {actor or 'lemonaid'}: {reason}. When you are no longer the one to move next on it,"
         f" hand it to the lemon that must act on your result (not your parent unless it does)"
-        f" with `lemonaid task assign {task['task_id']} --to BRIEF --reason TEXT`."
+        f" with `lemonaid task assign {task['task_id']} --to BRIEF --reason TEXT`. When the work"
+        f" is finished, close it with `lemonaid task close {task['task_id']} --reason TEXT`,"
+        " naming where the result is."
     )
     return tell(task["holder"], body, actor)
 

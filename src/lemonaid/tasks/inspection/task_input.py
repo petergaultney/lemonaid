@@ -36,6 +36,24 @@ def released(
     }
 
 
+def _closing(conn: sqlite3.Connection, state: ty.Mapping[str, ty.Any]) -> dict[str, str]:
+    """Who closed *state* and when, and `closed.carried_by`, the unclosed tasks with its URL."""
+    row = conn.execute(
+        "SELECT actor, at FROM task_events WHERE task_id = ? AND kind = 'closed'"
+        " ORDER BY revision DESC LIMIT 1",
+        (state["task_id"],),
+    ).fetchone()
+    carriers = conn.execute(
+        "SELECT task_id FROM tasks WHERE subject_url = ? AND subject_url != ''"
+        " AND lifecycle != 'closed' ORDER BY task_id",
+        (state["subject_url"],),
+    )
+    return {
+        **({"closed.by": row["actor"], "closed.at": _when(row["at"])} if row else {}),
+        "closed.carried_by": ",".join(r["task_id"] for r in carriers),
+    }
+
+
 def fields(
     conn: sqlite3.Connection,
     state: ty.Mapping[str, ty.Any],
@@ -64,6 +82,7 @@ def fields(
             for child in dependencies.waits_for(conn, state["task_id"])
         },
         **{f"dependency.{child}": "released" for child in releases},
+        **(_closing(conn, state) if state["lifecycle"] == "closed" else {}),
     }
 
 

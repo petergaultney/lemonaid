@@ -78,15 +78,12 @@ def test_the_holder_of_a_task_awaiting_its_check_may_close_it_despite_its_own_pa
     assert retried == closed
 
 
-def test_a_holder_with_a_parent_cant_close_its_own_task_but_a_human_can(capsys, monkeypatch, dead):
+def test_a_holder_with_a_parent_closes_its_own_finished_task(capsys, monkeypatch, dead):
     child = _child(capsys)
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:worker")
 
-    refused = _close(capsys, child["task_id"])
-    monkeypatch.delenv("LEMONAID_CHANNEL")
     closed = _close(capsys, child["task_id"])
 
-    assert "mark your brief done" in refused["error"]
     with db.connect() as conn:
         state = ledger.state(conn, child["task_id"])
     assert closed["error"] is None and state["lifecycle"] == "closed"

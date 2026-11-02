@@ -12,7 +12,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import checker_input, protocol, stream
-from . import coverage, holders, settings, waits
+from . import closing, coverage, holders, settings, waits
 
 _REQUIRED = ("lifecycle", "holder", "revision", "assignment.assigned_at")
 
@@ -62,8 +62,13 @@ def _idle(task_id: str) -> str:
             f" waits while CI runs: `lemonaid task set-url {task_id} PR_URL --reason TEXT`.",
             "- If another lemon's task already covers this work, follow that one instead:"
             f" `lemonaid task observe OTHER_TASK_ID --instead-of {task_id}`.",
-            "- If a person moves next, keep the task and set your brief's Status: `blocked` when"
-            " it's your user, `review` when it's a teammate or someone outside the grove.",
+            "- If someone else moves next, keep the task and set your brief's Status to say who:"
+            " `blocked` for your user, `merge` when only your user's merge remains, `review`"
+            " for a teammate's review, `approve` for your user's approval, `running` while a"
+            " long process runs. If your brief holds several tasks, also name this one under"
+            f" Waiting on, as task:{task_id}.",
+            "- If the work is finished, close the task, naming where the result is:"
+            f" `lemonaid task close {task_id} --reason TEXT`.",
         ]
     )
 
@@ -108,7 +113,7 @@ def evaluate(view: checker_input.View) -> list[protocol.Record]:
 
         policy = settings.read(view.context)
         if view.fields["lifecycle"] == "closed":
-            return [("ok", view.subject, "closed")]
+            return closing.evaluate(view)
 
         holder = view.fields["holder"]
         if not holder.startswith("brief:"):
@@ -134,6 +139,13 @@ def _watches(view: checker_input.View) -> list[tuple[str, str]]:
         return [("lemon", view.subject), ("brief", view.subject)]
 
     holder = view.fields.get("holder", "")
+    if view.fields.get("lifecycle") == "closed":
+        return [
+            ("task", view.subject),
+            *([("pr", view.fields["subject_url"])] if view.fields.get("subject_url") else []),
+            *([("lineage", view.fields["closed.by"])] if view.fields.get("closed.by") else []),
+        ]
+
     return [
         ("task", view.subject),
         *(
