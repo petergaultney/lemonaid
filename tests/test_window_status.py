@@ -151,3 +151,31 @@ def test_python_task_title_does_not_become_process_name():
     assert "Review" not in formatted
     assert formatted.startswith("$")
     assert "main" in formatted
+
+
+def test_an_osc7_url_shows_its_directory_decoded():
+    formatted = window_status.format_window("file://host.local/work/with%20space", "zsh")
+
+    assert "with space" in formatted
+    assert "%20" not in formatted
+
+
+def test_an_escaped_percent_in_an_osc7_url_shows_as_a_percent():
+    formatted = window_status.format_window("file://host.local/work/%2541", "zsh")  # dir `%41`
+
+    assert "%41" in formatted
+
+
+def test_a_plain_path_keeps_its_percent_escapes():
+    formatted = window_status.format_window("/work/with%20space", "zsh")
+
+    assert "with%20space" in formatted
+
+
+def test_a_title_naming_an_encoded_osc7_directory_is_not_an_app():
+    formatted = window_status.format_window(
+        "file://host.local/work/caf%C3%A9", "python3.14", "café"
+    )
+
+    assert formatted.startswith("$")
+    assert "café:" not in formatted

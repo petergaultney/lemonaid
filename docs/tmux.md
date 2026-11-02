@@ -487,6 +487,7 @@ To set `#{pane_path}`, make your shell print a plain OSC 7 before each prompt:
 
 - **Use a plain sequence.** Do not wrap OSC 7 in `\ePtmux;...\e\\`. tmux sends a wrapped sequence to the outer terminal, or discards it when `allow-passthrough` is off. tmux does not read it.
 - **Print it before each prompt, not only after `cd`.** A program in the pane, such as `ssh`, can print its own OSC 7. `#{pane_path}` keeps that value until your shell prints OSC 7 again. If your shell never prints OSC 7, the label keeps that program's directory after the program exits, even after a `cd`.
+- **Escape each `%` in the path as `%25`.** OSC 7 sends a URL, so the label decodes `%XX` escapes in it. Without the escape, a directory named `%41` shows as `A`. The snippets below escape only `%`. The label shows other characters, such as spaces, as they are.
 
 Some shells and frameworks already print OSC 7. oh-my-zsh prints it before each prompt, but not over SSH or when `INSIDE_EMACS` is set (see its `lib/termsupport.zsh`). Since 0.23, xonsh prints it at startup and after each directory change, but not before each prompt. You can add a snippet below with them. A second OSC 7 does no harm.
 
@@ -496,7 +497,7 @@ Some shells and frameworks already print OSC 7. oh-my-zsh prints it before each 
 # Add to ~/.bashrc
 if [ -n "$TMUX" ]; then
     __tmux_osc7() {
-        printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"
+        printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "${PWD//\%/%25}"
     }
     PROMPT_COMMAND="__tmux_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi
@@ -509,7 +510,7 @@ fi
 if [[ -n "$TMUX" ]]; then
     autoload -Uz add-zsh-hook
     __tmux_osc7() {
-        printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD"
+        printf '\e]7;file://%s%s\e\\' "$HOST" "${PWD//\%/%25}"
     }
     add-zsh-hook precmd __tmux_osc7
 fi
@@ -521,7 +522,7 @@ fi
 # Add to ~/.config/fish/config.fish
 if set -q TMUX
     function __tmux_osc7 --on-event fish_prompt
-        printf '\e]7;file://%s%s\e\\\\' (hostname) "$PWD"
+        printf '\e]7;file://%s%s\e\\\\' (hostname) (string replace -a '%' '%25' -- $PWD)
     end
 end
 ```
@@ -537,7 +538,7 @@ import platform
 if "TMUX" in ${...}:
     @events.on_pre_prompt
     def _report_cwd_to_tmux(**kw):
-        print(f"\x1b]7;file://{platform.node()}{os.getcwd()}\x1b\\", end="", flush=True)
+        print(f"\x1b]7;file://{platform.node()}{os.getcwd().replace('%', '%25')}\x1b\\", end="", flush=True)
 ```
 
 ### App title integration

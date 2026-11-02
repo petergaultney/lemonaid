@@ -38,6 +38,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Collection
+from urllib.parse import unquote
 
 from . import palette
 from .config import load_config
@@ -136,28 +137,31 @@ def _detect_named_app(pane_pid: str, names: Collection[str]) -> str | None:
     return None
 
 
+def _plain_path(path: str) -> str:
+    """The decoded path of an OSC 7 `file://host/path` URL, or *path* unchanged.
+
+    OSC 7 sends a URL, so shells such as oh-my-zsh and xonsh percent-encode its path.
+    `#{pane_current_path}` comes from the operating system as a plain path, so a `%` in
+    it, or in an OSC 7 path sent without `file://`, is part of a directory name.
+    """
+    if not path.startswith("file://"):
+        return path
+
+    host, slash, rest = path.removeprefix("file://").partition("/")  # e.g. MBP-0097.local
+    return unquote(slash + rest) if slash else host
+
+
 def get_color(name: str) -> str:
     """Get a deterministic color for a directory/file name."""
     return DIR_COLORS.get(name, palette.color_for(name))
 
 
 def format_path(path: str) -> str:
-    """Format a path with tmux color codes.
-
-    Args:
-        path: A filesystem path (can be file:// URL or regular path)
+    """Format a plain path with tmux color codes.
 
     Returns:
         Tmux-formatted string with color codes like #[fg=#FF5555]
     """
-    # Normalize: strip file://hostname prefix (e.g., file://MBP-0097.local/Users/...)
-    if path.startswith("file://"):
-        path = path[7:]  # Remove "file://"
-        # Find the first "/" which starts the actual path (after hostname)
-        slash_idx = path.find("/")
-        if slash_idx != -1:
-            path = path[slash_idx:]  # Keep from "/" onwards
-
     # Replace $HOME with ~
     home = os.environ.get("HOME", "")
     if home and path.startswith(home):
@@ -264,6 +268,7 @@ def format_window(
     named_processes: Collection[str] = (),
 ) -> str:
     named_processes = frozenset(named_processes)
+    path = _plain_path(path)
 
     # Normalize version strings (like "2.1.12") to "claude"
     if process and re.match(r"^\d+\.\d+\.\d+$", process):
