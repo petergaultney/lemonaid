@@ -1,6 +1,6 @@
 import pytest
 
-from lemonaid.tasks.checker import checker_input, corpus
+from lemonaid.tasks.checker import checker_input, corpus, protocol
 from lemonaid.tasks.checker.default import rules
 
 from ..shared import brief_says, fact, idle, snapshot, task
@@ -289,3 +289,53 @@ def test_a_task_closed_while_another_open_task_carries_its_pr_is_accepted():
     review = {**_closed(), "closed.carried_by": "t2"}
 
     assert _kinds(_evaluate([review], [fact("pr", _PR, "state", "OPEN")])) == [("ok",)]
+
+
+def _claim(status: str, lifecycle: str = "open", **pr: str) -> list[protocol.Record]:
+    lemon = [f for f in idle() if f["kind"] == "lemon"]
+    facts = [*lemon, *brief_says(status=status), *(fact("pr", _PR, k, v) for k, v in pr.items())]
+    held = task(subject_url=_PR, lifecycle=lifecycle, previous_holder="brief:Work.beta")
+    return _evaluate([held], facts)
+
+
+@pytest.mark.parametrize(
+    ("status", "pr", "said"),
+    [
+        ("done", {"state": "OPEN"}, "aren't done until it merges"),
+        ("merge", {"state": "OPEN", "draft": "true"}, f"gh pr ready {_PR}"),
+        ("merge", {"state": "OPEN", "draft": "false", "checks": "failure"}, "CI failed"),
+        ("merge", {"state": "MERGED"}, "lemonaid task close t1"),
+    ],
+)
+def test_a_status_its_tasks_pr_contradicts_is_put_to_the_holder(status, pr, said):
+    [challenge] = _claim(status, **pr)
+
+    assert challenge[:3] == ("challenge", "t1", "status-claim") and challenge[5] == "Work.alpha"
+    assert said in challenge[6]
+
+
+@pytest.mark.parametrize(
+    ("status", "pr"),
+    [
+        ("done", {"state": "MERGED"}),
+        ("merge", {"state": "OPEN", "draft": "false", "checks": "success"}),
+        ("merge", {}),
+    ],
+)
+def test_a_status_its_tasks_pr_agrees_with_or_that_nothing_is_known_about_stands(status, pr):
+    assert ("challenge", "status-claim") not in _kinds(_claim(status, **pr))
+
+
+def test_a_task_in_check_on_an_open_pr_is_put_to_its_checker_to_hand_back():
+    [challenge] = _claim("", lifecycle="check", state="OPEN")
+    merged = _claim("", lifecycle="check", state="MERGED")
+
+    assert challenge[2] == "status-claim" and challenge[5] == "Work.alpha"
+    assert "lemonaid task assign t1 --to Work.beta" in challenge[6]
+    assert ("challenge", "status-claim") not in _kinds(merged)
+
+
+def test_a_running_ci_wait_does_not_hide_a_contradicted_status():
+    [challenge] = _claim("merge", state="OPEN", draft="true", checks="pending", head="abc")
+
+    assert challenge[:3] == ("challenge", "t1", "status-claim")

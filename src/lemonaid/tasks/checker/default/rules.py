@@ -12,7 +12,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import checker_input, protocol, stream
-from . import closing, coverage, holders, settings, waits
+from . import closing, coverage, holders, settings, status_claims, waits
 
 _REQUIRED = ("lifecycle", "holder", "revision", "assignment.assigned_at")
 
@@ -80,7 +80,8 @@ def _progress(
     if settings.fact(view, "lemon", brief, "activity") == "active":
         return [("recheck", view.subject, settings.at(policy, policy.now + policy.idle_grace))]
 
-    if found := waits.findings(view, policy, brief):
+    contradicted = status_claims.contradicted(view, brief)
+    if not contradicted and (found := waits.findings(view, policy, brief)):
         return found
 
     idle_since = max(
@@ -89,6 +90,9 @@ def _progress(
     )  # the clock starts no earlier than the assignment, or the lemon's start with it
     if idle_since + policy.idle_grace > policy.now:
         return [("recheck", view.subject, settings.at(policy, idle_since + policy.idle_grace))]
+
+    if contradicted:
+        return contradicted  # no CI or dependency wait makes a contradicted Status true
 
     if found := waits.declared(view, policy, brief):
         return found

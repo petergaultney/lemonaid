@@ -54,17 +54,18 @@ def _checks(snap: pr_activity.Snapshot) -> str:
 def _pr(
     url: str, now: float, fetch: abc.Callable[[tuple[str, str]], pr_activity.Snapshot | None]
 ) -> list[live.Fact]:
-    """`checks`, `head` and `state` (OPEN, MERGED or CLOSED) for a PR."""
+    """`checks`, `draft`, `head` and `state` (OPEN, MERGED or CLOSED) for a PR."""
     key = pr_url.parse(url)
     snap = fetch(key) if key else None
     if snap is None:
         return [
             live.fact("pr", url, field, "", now, "unavailable")
-            for field in ("checks", "head", "state")
+            for field in ("checks", "draft", "head", "state")
         ]
 
     return [
         live.fact("pr", url, "checks", _checks(snap), now),
+        live.fact("pr", url, "draft", str(snap.draft).lower(), now),
         live.fact("pr", url, "head", snap.head, now),
         live.fact("pr", url, "state", snap.state, now),
     ]
