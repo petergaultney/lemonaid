@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from ..config import load_config
+from ..tasks.briefs import subject_hints
 from . import command, doc_table, verbs_cli
 
 
@@ -19,7 +20,12 @@ def _cmd(args: argparse.Namespace) -> None:
                 else doc_table.remove(text, args.path, vaults)
             ),
         )
-    command.finish(args, {"path": str(path) if path else None}, error, str(path))
+    hint = (
+        subject_hints.for_brief(path, str(args.path.expanduser().resolve()))
+        if path and not error and args.verb == "add"
+        else ""
+    )
+    command.finish(args, {"path": str(path) if path else None}, error, str(path), hint)
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> None:

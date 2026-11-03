@@ -76,6 +76,8 @@ lemonaid task export                             # every task with its events, a
 lemonaid brief task ensure BRIEF
 ```
 
+A task's URL is its subject: usually a PR or a document, set once the work becomes one. An absolute file path is stored as its `file://` URL. Its subject and its holder's brief are usually kept together, so lemonaid hints, and never refuses, in both directions. Setting a task's PR or file URL (`task create --url`, `task set-url`) prints the `brief pr add` or `brief doc add` command when the holder's brief doesn't list it under PRs or Docs. Adding a PR or document to a brief (`brief pr add`, `brief doc add`) prints the `task set-url` command for each task the brief holds with no URL, unless one of its tasks already has that URL. A hint goes to stderr, or to `hint` or `notice` in `--json`.
+
 `--tree` follows parent links (see [lineage](lineage.md)), not task dependencies. Each task appears once, with every tree brief it connects to as `holder` or `spec`. Closed tasks need `--include-closed`.
 
 Every change is conditional on the task's revision. A command reads the current revision once; `--expect-revision N` pins it instead. A conflict reports the current holder and revision and changes nothing. `--request-id` makes a command safe to repeat: a request that already committed returns its first result, and reusing an ID for a different change is refused.

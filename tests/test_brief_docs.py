@@ -1,9 +1,23 @@
 import argparse
+import json
+import shlex
 from pathlib import Path
 
 import pytest
 
-from lemonaid.brief import check, doc_table, docs_cli, now_edit, sections, store, verbs_cli
+from lemonaid.brief import (
+    attached,
+    check,
+    doc_table,
+    docs_cli,
+    now_edit,
+    sections,
+    store,
+    verbs_cli,
+)
+from lemonaid.inbox import db
+
+from .tasks.shared import new_task
 
 
 def test_output_row_and_added_doc_are_watched_and_removable(tmp_path):
@@ -83,3 +97,25 @@ def test_edits_refuse_an_unparsed_docs_table_without_losing_rows(operation, colu
     error = verbs_cli.edit(path, change)
     assert "Cannot rewrite ### Docs" in error
     assert path.read_text() == original
+
+
+def test_doc_add_hints_at_a_task_with_no_url(capsys, monkeypatch, tmp_path):
+    path = store.briefs_dir() / "work.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Work\n\nBrief-ID: Work.alpha\n\n## Goal\n\nWrite it.\n")
+    with db.connect() as conn:
+        db.add(conn, "claude:work", "")
+        attached.attach(conn, "claude:work", path)
+        made = new_task(conn)
+    monkeypatch.setenv("LEMONAID_CHANNEL", "claude:work")
+    parser = argparse.ArgumentParser()
+    docs_cli.add_parser(parser.add_subparsers())
+    doc = (tmp_path / "My Design.md").resolve()
+
+    args = parser.parse_args(["doc", "add", "--self", str(doc), "Design", "--json"])
+    args.func(args)
+    result = json.loads(capsys.readouterr().out)
+    suggested = shlex.split(result["hint"].split("`")[1])
+
+    assert result["error"] is None
+    assert suggested == ["lemonaid", "task", "set-url", made, str(doc), "--reason", "TEXT"]

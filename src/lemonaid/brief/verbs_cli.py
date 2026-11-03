@@ -16,7 +16,7 @@ from pathlib import Path
 from .. import config, obsidian
 from ..config import load_config
 from ..inbox import db
-from ..tasks.briefs import completion
+from ..tasks.briefs import completion, subject_hints
 from . import (
     check,
     command,
@@ -172,7 +172,11 @@ def _cmd_pr(args: argparse.Namespace) -> None:
             brief, Path(args.review), f"Review of {url}", config.vaults
         )
 
-    edited(args, change)
+    path, error = command.own_brief(args)
+    if path:
+        error = edit(path, change)
+    hint = subject_hints.for_brief(path, url) if path and not error else ""
+    command.finish(args, {"path": str(path) if path else None}, error, str(path), hint)
 
 
 def _verbs(
