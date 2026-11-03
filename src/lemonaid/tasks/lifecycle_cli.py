@@ -9,7 +9,7 @@ import typing as ty
 
 from ..inbox import db
 from . import cli_common
-from .briefs import notices
+from .briefs import notices, subject_hints
 from .model import dependencies, ledger, lifecycle
 
 
@@ -28,7 +28,11 @@ def _cmd_set_url(args: argparse.Namespace) -> None:
             )
         except cli_common.Failed as error:
             cli_common.fail(args, str(error))
-    cli_common.emit(args, changed, f"task:{task} now at {args.url or 'no URL'}")
+        state = ledger.state(conn, task)
+        assert state is not None
+        url = state["subject_url"]
+        hint = subject_hints.unwatched(conn, state["holder"], url) if url else ""
+    cli_common.report(args, changed, [hint], f"task:{task} now at {url or 'no URL'}")
 
 
 def _cmd_depend(args: argparse.Namespace) -> None:

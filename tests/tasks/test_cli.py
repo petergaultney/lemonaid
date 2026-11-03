@@ -1,7 +1,9 @@
 import argparse
 import contextlib
 import json
+import shlex
 
+from lemonaid import brief
 from lemonaid.brief import attached
 from lemonaid.inbox import db
 from lemonaid.messages import store
@@ -222,3 +224,26 @@ def test_depend_waits_only_for_another_open_task_and_refuses_a_cycle(capsys):
     assert "isn't an open task" in missing["error"] and "isn't an open task" in closed["error"]
     with db.connect() as conn:
         assert dependencies.waits_for(conn, mine) == [theirs]
+
+
+def test_set_url_takes_a_file_path_and_hints_when_the_holders_brief_doesnt_watch_it(
+    capsys, tmp_path
+):
+    path = brief.store.briefs_dir() / "work.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# Work\n\nBrief-ID: Work.alpha\n\n## Goal\n")
+    doc = (tmp_path / "My Design.md").resolve()
+    with db.connect() as conn:
+        made = new_task(conn)
+        conn.execute(
+            "INSERT INTO lemon_identities (lemon_id, path) VALUES ('Work.alpha', ?)", (str(path),)
+        )
+        conn.commit()
+
+    changed = _run(capsys, "set-url", made, str(doc), "--reason", "its doc", "--json")
+    shown = _run(capsys, "show", f"task:{made}", "--json")
+
+    assert shown["subject_url"] == doc.as_uri()
+    suggested = shlex.split(changed["notice"].split("`")[1])
+
+    assert suggested == ["lemonaid", "brief", "doc", "add", "--self", str(doc), "PURPOSE"]

@@ -10,7 +10,7 @@ import typing as ty
 
 from ..inbox import db
 from . import cli_common
-from .briefs import liveness, notices
+from .briefs import liveness, notices, subject_hints
 from .model import holding, ledger
 
 
@@ -60,7 +60,10 @@ def _cmd_create(args: argparse.Namespace) -> None:
         said = [
             notices.tell_holder(state, sponsor, "a new task")
             if committed and holder != sponsor
-            else ""
+            else "",
+            subject_hints.unwatched(conn, state["holder"], state["subject_url"])
+            if state["subject_url"]
+            else "",
         ]
     cli_common.report(args, created, said, f"task:{created['task_id']}")
 

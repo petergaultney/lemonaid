@@ -9,13 +9,24 @@ from ..inbox import db
 from . import attached, selector, store
 
 
-def finish(args: argparse.Namespace, result: dict, error: str, message: str = "") -> None:
+def finish(
+    args: argparse.Namespace, result: dict, error: str, message: str = "", hint: str = ""
+) -> None:
+    """*hint* goes to stderr, or into the JSON, so a caller reading the output isn't misled."""
     if args.json:
-        print(json.dumps({**result, "error": error or None}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {**result, "error": error or None, **({"hint": hint} if hint else {})},
+                ensure_ascii=False,
+            )
+        )
     elif error:
         print(error, file=sys.stderr)
-    elif message:
-        print(message)
+    else:
+        if message:
+            print(message)
+        if hint:
+            print(hint, file=sys.stderr)
 
     if error:
         sys.exit(1)
