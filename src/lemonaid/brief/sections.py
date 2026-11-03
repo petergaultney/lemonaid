@@ -64,8 +64,13 @@ def scan(text: str) -> list[Heading]:
     ]
 
 
+def bare(name: str) -> str:
+    """*name* without a leading `##`-style marker, so `'## Waiters'` names the Waiters heading."""
+    return name.strip().lstrip("#").strip()
+
+
 def find(text: str, name: str) -> Heading | None:
-    matches = [h for h in scan(text) if h.name.casefold() == name.strip().casefold()]
+    matches = [h for h in scan(text) if h.name.casefold() == bare(name).casefold()]
     if len(matches) > 1:
         candidates = ", ".join(
             f"{'#' * h.level} {h.name} (under {h.parent or 'header'}, line {h.start + 1})"

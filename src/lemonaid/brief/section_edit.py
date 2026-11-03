@@ -14,6 +14,7 @@ def change(
     parent: str = "Now",
     keep_empty: bool = False,
 ) -> str:
+    name = sections.bare(name)
     heading = sections.find(text, name)
     lines = tuple(update(sections.body(text, heading) if heading else ()))
     if heading:
@@ -29,6 +30,7 @@ def item(bullet: str) -> tuple[str, ...]:
 
 
 def add(text: str, name: str, bullet: str) -> str:
+    name = sections.bare(name)
     heading = sections.find(text, name)
     if heading:
         direct = sections.body(text, heading, direct=True)
