@@ -1,4 +1,4 @@
-"""One GraphQL snapshot of a PR: head, state, draft, review decision, mergeability, checks, and the review comments a lemon should answer.
+"""One GraphQL snapshot of a PR: head, state, draft, review decision, assignees and approving reviewers, mergeability, checks, and the review comments a lemon should answer.
 
 Lemons post with their human's GitHub account, so authorship can't tell them apart. Each
 lemon signs right after the lemon marker (`🍋 StateJob (Reviewer): ...`), and a comment is
@@ -11,7 +11,7 @@ the watcher explicitly skips them.
 import typing as ty
 from collections import abc
 
-from . import github_api, pr_comments
+from . import github_api, pr_comments, pr_reviewers
 
 _ROLLUP = """
       statusCheckRollup { contexts(first: 100, after: $after) {
@@ -42,8 +42,9 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
       state
       isDraft
       reviewDecision
-      mergeable
-      commits(last: 1) { nodes { commit { oid"""
+      mergeable"""
+    + pr_reviewers.QUERY
+    + """      commits(last: 1) { nodes { commit { oid"""
     + _ROLLUP
     + """} } }
       reviewThreads(last: 100) {
@@ -78,6 +79,10 @@ class Snapshot(ty.NamedTuple):
     mergeable: str  # MERGEABLE, CONFLICTING, or UNKNOWN while GitHub computes it
     checks: list[Check]  # on the head commit
     visibility: str = ""  # PUBLIC, PRIVATE or INTERNAL
+    authored: bool = False  # by the GitHub account lemonaid reads as
+    assigned: tuple[str, ...] | None = ()  # people other than the author; None if not fetched
+    approved: tuple[str, ...] | None = ()  # by latest verdict; None if reviews were cut off
+    objecting: tuple[str, ...] | None = ()  # latest verdict requests changes; likewise
 
 
 _FAILED = frozenset(
@@ -190,6 +195,10 @@ def parse(
         pr["mergeable"],
         [_check(n) for n in _contexts(commit)["nodes"] if n],
         r.get("visibility") or "",
+        bool(pr.get("viewerDidAuthor")),
+        pr_reviewers.assigned(pr),
+        pr_reviewers.verdicts(pr, "APPROVED"),
+        pr_reviewers.verdicts(pr, "CHANGES_REQUESTED"),
     )
 
 

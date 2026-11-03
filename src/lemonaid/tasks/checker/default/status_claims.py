@@ -1,5 +1,7 @@
 """The default checker's rule for a Status that its task's PR contradicts: `done` while the
-PR is open, or `merge` while it is a draft, its CI failed, or it is already merged or closed.
+PR is open; `merge` while it is a draft, its CI failed, it is already merged or closed, or,
+on the user's own PR, a person assigned to it hasn't approved it; and `review` on the user's
+own PR once a person has approved it and every assignee has.
 
 A task in `check` was said to be done by its previous holder, so an open PR there is put to
 the checking holder, who hands it back. An unknown PR fact never supports a challenge.
@@ -13,23 +15,64 @@ def _known(view: checker_input.View, kind: str, key: str, field: str) -> str:
     return found.value if found is not None and found.availability == "known" else ""
 
 
-def _merge(task: str, url: str, state: str, draft: str, checks: str) -> str:
+def _people(view: checker_input.View, url: str, field: str) -> list[str] | None:
+    found = view.facts.get(("pr", url, field))
+    return found.value.split() if found is not None and found.availability == "known" else None
+
+
+def _merge(view: checker_input.View, task: str, url: str, state: str) -> tuple[str, str]:
+    """What contradicts `merge`, as (evidence, reason); ("", "") for nothing."""
     if state in ("MERGED", "CLOSED"):
-        return (
+        return state, (
             f"its PR {url} is {state.lower()}. If the work is finished, close the task with"
             f" `lemonaid task close {task} --reason TEXT`, and change the Status."
         )
 
-    if draft == "true":
-        return (
+    if _known(view, "pr", url, "draft") == "true":
+        return "draft", (
             f"its PR {url} is still a draft. Once review approves it, mark it ready with"
             f" `gh pr ready {url}`; until then the Status isn't `merge`."
         )
 
-    if checks == "failure":
-        return f"CI failed on its PR {url}. Clear `merge`, fix it and push."
+    if _known(view, "pr", url, "checks") == "failure":
+        return "ci-failed", f"CI failed on its PR {url}. Clear `merge`, fix it and push."
 
-    return ""
+    assigned, approved = _people(view, url, "assigned"), _people(view, url, "approved")
+    if (
+        _known(view, "pr", url, "authored") == "true"
+        and assigned
+        and approved is not None
+        and (pending := [who for who in assigned if who not in approved])
+    ):
+        who = ", ".join(pending)
+        return f"unapproved={who}", (
+            f"{who} is assigned to its PR {url} and hasn't approved it. Set `review` until they"
+            " approve."
+        )
+
+    return "", ""
+
+
+def _review(view: checker_input.View, url: str, state: str) -> tuple[str, str]:
+    """What contradicts `review` on the user's own PR, as (evidence, reason); ("", "") for
+    nothing. A review of a teammate's PR isn't judged, and a person still requesting
+    changes keeps review open."""
+    assigned, approved = _people(view, url, "assigned"), _people(view, url, "approved")
+    if (
+        state != "OPEN"
+        or _known(view, "pr", url, "authored") != "true"
+        or assigned is None
+        or _people(view, url, "objecting") != []
+        or not approved
+        or any(who not in approved for who in assigned)
+    ):
+        return "", ""
+
+    who = ", ".join(approved)
+    return f"approved={who}", (
+        f"{who} approved its PR {url}, every assignee has approved, and nobody requests changes. If only your user's"
+        " merge remains, set `merge`."
+    )
 
 
 def _challenge(task: str, evidence: str, brief: str, reason: str) -> protocol.Record:
@@ -69,18 +112,21 @@ def contradicted(view: checker_input.View, brief: str) -> list[protocol.Record]:
             )
         ]
 
-    if claimed != "merge":
+    evidence, reason = (
+        _merge(view, task, url, state)
+        if claimed == "merge"
+        else _review(view, url, state)
+        if claimed == "review"
+        else ("", "")
+    )
+    if not reason:
         return []
 
-    draft, checks = _known(view, "pr", url, "draft"), _known(view, "pr", url, "checks")
-    if reason := _merge(task, url, state, draft, checks):
-        return [
-            _challenge(
-                task,
-                f"{url} {state} draft={draft} checks={checks} merge",
-                brief,
-                f"Your brief's Status is `merge`, but {reason}",
-            )
-        ]
-
-    return []
+    return [
+        _challenge(
+            task,
+            f"{url} {claimed} {evidence}",
+            brief,
+            f"Your brief's Status is `{claimed}`, but {reason}",
+        )
+    ]

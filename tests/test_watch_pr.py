@@ -320,6 +320,7 @@ def _write_snapshot(path, head):
                                 "nodes": [{"commit": {"oid": head, "statusCheckRollup": None}}]
                             },
                             "reviewThreads": {"nodes": []},
+                            "assignees": {"nodes": []},
                             "reviews": {"nodes": []},
                             "comments": {"nodes": []},
                         },

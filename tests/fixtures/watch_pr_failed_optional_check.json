@@ -51,6 +51,7 @@
         "reviewThreads": {
           "nodes": []
         },
+        "assignees": {"nodes": []},
         "reviews": {
           "nodes": []
         },

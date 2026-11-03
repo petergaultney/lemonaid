@@ -61,6 +61,7 @@ def test_a_pr_the_scout_host_keeps_is_not_read_from_github_again(monkeypatch):
             "mergeable": "MERGEABLE",
             "commits": {"nodes": [{"commit": {"oid": "abc1234def", "statusCheckRollup": None}}]},
             "reviewThreads": {"nodes": []},
+            "assignees": {"nodes": []},
             "reviews": {"nodes": []},
             "comments": {"nodes": []},
         },
