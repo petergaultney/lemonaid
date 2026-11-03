@@ -7,6 +7,20 @@ from ..inbox import db
 from . import attached, command, migrate, section_edit, sections, store, verbs_cli
 
 
+def _change(text: str, args: argparse.Namespace, body: str) -> str:
+    if args.verb == "rm" and sections.find(text, args.heading) is None:
+        raise ValueError(f"No heading {args.heading!r}")
+
+    return section_edit.change(
+        text,
+        args.heading,
+        lambda _: body.splitlines(),
+        level=getattr(args, "level", 2),
+        parent=getattr(args, "parent", "Now"),
+        keep_empty=args.verb == "set",
+    )
+
+
 def _section(args: argparse.Namespace) -> None:
     if args.verb == "show":
         path, error = command.own_brief(args)
@@ -27,17 +41,7 @@ def _section(args: argparse.Namespace) -> None:
         if args.verb == "set" and args.markdown == "-"
         else getattr(args, "markdown", "")
     )
-    verbs_cli.edited(
-        args,
-        lambda text: section_edit.change(
-            text,
-            args.heading,
-            lambda _: body.splitlines(),
-            level=getattr(args, "level", 2),
-            parent=getattr(args, "parent", "Now"),
-            keep_empty=args.verb == "set",
-        ),
-    )
+    verbs_cli.edited(args, lambda text: _change(text, args, body))
 
 
 def _migrate(args: argparse.Namespace) -> None:

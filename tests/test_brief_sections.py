@@ -1,6 +1,18 @@
+import argparse
+
 import pytest
 
-from lemonaid.brief import check, doc_table, migrate, now, now_edit, section_edit, sections, status
+from lemonaid.brief import (
+    check,
+    doc_table,
+    migrate,
+    now,
+    now_edit,
+    section_edit,
+    sections,
+    sections_cli,
+    status,
+)
 from lemonaid.watch import subscriptions, wait_requirements
 
 LEGACY = """# task
@@ -193,3 +205,16 @@ def test_now_refusal_does_not_treat_example_headings_as_promoted_sections():
     )
     assert "```markdown\n### Next\n\n- example\n```" in out
     assert sections.body(out, sections.find(out, "Next")) == ("- write docs",)
+
+
+def test_heading_names_accept_leading_hashes():
+    text = "# T\n\n## Now\n\nx\n\n## Waiters\n\n- a\n"
+
+    assert sections.find(text, "## Waiters") == sections.find(text, "Waiters")
+    assert "Waiters" not in section_edit.change(text, "## Waiters", lambda _: ())
+
+
+def test_section_rm_of_missing_heading_fails():
+    args = argparse.Namespace(verb="rm", heading="## Nope")
+    with pytest.raises(ValueError, match="No heading"):
+        sections_cli._change("# T\n\n## Now\n\nx\n", args, "")
