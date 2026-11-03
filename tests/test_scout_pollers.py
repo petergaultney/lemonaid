@@ -2,6 +2,7 @@ import os
 import threading
 import time
 
+from lemonaid import pr_states
 from lemonaid.watch import (
     github_api,
     github_failures,
@@ -42,6 +43,21 @@ def test_an_already_closed_pr_is_silent_and_stops_being_polled(tmp_path, monkeyp
     poll()
     assert len(fetched) == 1
     assert sent == []
+
+
+def test_a_closed_pr_is_still_read_and_its_recorded_state_follows_a_reopen(tmp_path, monkeypatch):
+    states = iter(["CLOSED", "OPEN"])
+
+    def fetch(*args, **kwargs):
+        return pr_activity.Snapshot("a" * 40, next(states), False, "", [], "main", "MERGEABLE", [])
+
+    monkeypatch.setattr(pr_activity, "fetch", fetch)
+    spec = subscriptions.Subscription("pr", ("owner/repo", "12"), comments=True, ci=True)
+    poll = scout_pollers.open_poller(spec, tmp_path / "cursors", "", lambda message: True, ())
+    poll()
+    assert pr_states.is_finished("owner/repo", "12")
+    poll()
+    assert not pr_states.is_finished("owner/repo", "12")
 
 
 def test_an_outage_is_told_once_per_lemon_after_the_debounce_and_again_after_recovery(

@@ -6,6 +6,7 @@ from collections import abc
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .... import pr_states
 from ....brief import attached, pr_table, sections
 from ....config import PlaceRoot, PlacesConfig
 from ....log import get_logger
@@ -55,27 +56,38 @@ def branch_map(lines: abc.Iterable[str]) -> dict[str, PR]:
     return result
 
 
-def brief_numbers(text: str) -> tuple[PR, ...]:
+def _brief_rows(text: str) -> tuple[tuple[str, PR], ...]:
+    """(`owner/repo`, PR) per row of the brief's one valid `## PRs` table."""
     tables = [section for section in sections.behavior(text) if section.heading.lower() == "prs"]
     if len(tables) != 1:
         return ()
 
     rows, problems = pr_table.parse(tables[0].body)
-    if problems or len(rows) > 2:
+    if problems:
         return ()
 
     return tuple(
-        PR(found[1], pr_table.url(row.pr) or "")
+        (found[0], PR(found[1], pr_table.url(row.pr) or ""))
         for row in rows
         if (found := pr_table.target(row.pr))
     )
+
+
+def _open_only(rows: abc.Iterable[tuple[str, PR]]) -> tuple[PR, ...]:
+    """The PRs not recorded as merged or closed, or nothing when more than two remain."""
+    open_prs = tuple(pr for repo, pr in rows if not pr_states.is_finished(repo, pr.number))
+    return open_prs if len(open_prs) <= 2 else ()
+
+
+def brief_numbers(text: str) -> tuple[PR, ...]:
+    return _open_only(_brief_rows(text))
 
 
 class Cache:
     """Mutated only on the UI thread; workers return maps through `store`."""
 
     def __init__(self) -> None:
-        self._briefs: dict[Path, tuple[int, int, tuple[PR, ...]]] = {}
+        self._briefs: dict[Path, tuple[int, int, tuple[tuple[str, PR], ...]]] = {}
         self._maps: dict[tuple[Path, str], tuple[float, dict[str, PR]]] = {}
         self._pending: set[tuple[Path, str]] = set()
 
@@ -84,16 +96,16 @@ class Cache:
             stat = path.stat()
             cached = self._briefs.get(path)
             if cached and cached[:2] == (stat.st_mtime_ns, stat.st_size):
-                return cached[2]
+                return _open_only(cached[2])
 
-            number = brief_numbers(path.read_text())
+            rows = _brief_rows(path.read_text())
         except (OSError, UnicodeError) as error:
             _log.warning("could not read brief %s: %s", path, error)
             self._briefs.pop(path, None)
             return ()
 
-        self._briefs[path] = (stat.st_mtime_ns, stat.st_size, number)
-        return number
+        self._briefs[path] = (stat.st_mtime_ns, stat.st_size, rows)
+        return _open_only(rows)
 
     def due(self, roots: abc.Iterable[PlaceRoot], now: float) -> list[PlaceRoot]:
         due = []

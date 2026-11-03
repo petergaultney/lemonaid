@@ -18,7 +18,7 @@ def test_brief_cache_reads_migrated_tables_and_reuses_unchanged_file(tmp_path, m
     def unexpected_read(*args):
         raise AssertionError("Unchanged briefs should use the cache")
 
-    monkeypatch.setattr(pr_numbers, "brief_numbers", unexpected_read)
+    monkeypatch.setattr(pr_numbers, "_brief_rows", unexpected_read)
     assert cache.brief(path) == expected
 
 
