@@ -51,16 +51,32 @@ def _checks(snap: pr_activity.Snapshot) -> str:
     return "failure" if "failed" in outcomes else "success"
 
 
+def _known(found: object) -> str:
+    return "unknown" if found is None else "known"
+
+
 def _pr(
     url: str, now: float, fetch: abc.Callable[[tuple[str, str]], pr_activity.Snapshot | None]
 ) -> list[live.Fact]:
-    """`checks`, `draft`, `head` and `state` (OPEN, MERGED or CLOSED) for a PR."""
+    """`checks`, `draft`, `head` and `state` (OPEN, MERGED or CLOSED) for a PR; `authored`,
+    whether the user's account opened it; and `assigned`, `approved` and `objecting`,
+    space-separated logins of the people assigned to it, those who approved it, and those
+    still requesting changes."""
     key = pr_url.parse(url)
     snap = fetch(key) if key else None
     if snap is None:
         return [
             live.fact("pr", url, field, "", now, "unavailable")
-            for field in ("checks", "draft", "head", "state")
+            for field in (
+                "checks",
+                "draft",
+                "head",
+                "state",
+                "authored",
+                "assigned",
+                "approved",
+                "objecting",
+            )
         ]
 
     return [
@@ -68,6 +84,15 @@ def _pr(
         live.fact("pr", url, "draft", str(snap.draft).lower(), now),
         live.fact("pr", url, "head", snap.head, now),
         live.fact("pr", url, "state", snap.state, now),
+        live.fact("pr", url, "authored", str(snap.authored).lower(), now),
+        *(
+            live.fact("pr", url, field, " ".join(people or ()), now, _known(people))
+            for field, people in (
+                ("assigned", snap.assigned),
+                ("approved", snap.approved),
+                ("objecting", snap.objecting),
+            )
+        ),
     ]
 
 

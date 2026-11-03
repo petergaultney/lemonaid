@@ -106,6 +106,7 @@
             }
           ]
         },
+        "assignees": {"nodes": []},
         "reviews": {
           "nodes": [
             {

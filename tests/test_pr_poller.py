@@ -34,6 +34,7 @@ def _repository(head: str, check: str = "COMPLETED") -> dict:
             "mergeable": "MERGEABLE",
             "commits": {"nodes": [{"commit": {"oid": head, "statusCheckRollup": rollup}}]},
             "reviewThreads": {"nodes": []},
+            "assignees": {"nodes": []},
             "reviews": {"nodes": []},
             "comments": {"nodes": []},
         },
