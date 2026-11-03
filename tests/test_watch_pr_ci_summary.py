@@ -55,7 +55,8 @@ def test_optional_failure_never_reports_pass(tmp_path, monkeypatch, paginated, c
     pr_events.poll(stem, 90, pending, sent.append, comments=comments, ci=ci)
     for current in (snap, snap, passed, passed, snap):
         pr_events.poll(stem, 90, current, sent.append, comments=comments, ci=ci)
-    assert sent[0].startswith(f"PR #90 CI failed at {snap.head[:10]}: optional plan:")
+    assert sent[0].startswith(f"PR #90 CI failed at {snap.head[:10]}:")
+    assert "\n- optional plan" in sent[0]
     assert len(sent) == (2 if ci else 1)
     if ci:
         assert sent[1] == f"PR #90 CI passed at {snap.head[:10]}"

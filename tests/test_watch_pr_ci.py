@@ -137,7 +137,8 @@ def test_ci_includes_optional_failures_after_all_checks_finish(tmp_path):
         ]
     )
     (message,) = _wait(tmp_path / "pr", [done, done])
-    assert message.startswith(f"PR #90 CI failed at {_HEAD[:10]}: optional:")
+    assert message.startswith(f"PR #90 CI failed at {_HEAD[:10]}:")
+    assert message.endswith("Failed:\n- optional")
 
 
 def test_pass_waits_for_a_stable_set_of_checks(tmp_path):
