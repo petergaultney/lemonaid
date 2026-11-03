@@ -176,9 +176,8 @@ def test_ci_is_reported_once_every_check_has_finished(stem):
 
     assert len(sent) == 1
     assert sent[0].endswith(
-        f"PR #90 CI failed at {'a' * 10}: lint: clear a `merge` status,"
-        " read `gh pr checks 90`, fix it and push (or rerun a flaky job),"
-        " then tell your reviewer"
+        f"PR #90 CI failed at {'a' * 10}: clear a `merge` status, fix it and push"
+        " (or rerun a flaky job), then tell your reviewer. Failed:\n- lint"
     )
     assert (
         merge_health.events(

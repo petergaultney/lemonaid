@@ -16,6 +16,7 @@ author that cleared its `merge` status while CI ran hears that it can restore it
 
 import json
 import pathlib
+import re
 import typing as ty
 
 from . import cursors, pr_activity, roles
@@ -53,6 +54,30 @@ def _failed(checks: ty.Sequence[pr_activity.Check]) -> list[pr_activity.Check]:
         return []
 
     return [c for c in checks if c.outcome == "failed"]
+
+
+_EXIT_CODE = re.compile(r"Process completed with exit code \d+\.?$")  # says nothing new
+_JOB = re.compile(r"/job/(\d+)")
+_SHOWN = 3  # errors per check
+_WIDTH = 300  # characters per error
+
+
+def _detail(check: pr_activity.Check) -> str:
+    errors = [" ".join(e.split())[:_WIDTH] for e in check.errors if not _EXIT_CODE.search(e)]
+    job = _JOB.search(check.url)
+    return "".join(
+        [
+            f"\n- {check.name}",
+            *([f" ({check.url})"] if check.url else []),
+            *(f"\n  - {e}" for e in errors[:_SHOWN]),
+            *([f"\n  - and {len(errors) - _SHOWN} more"] if len(errors) > _SHOWN else []),
+            *(
+                [f"\n  - its log: `gh run view --job {job[1]} --log-failed`"]
+                if job and not errors
+                else []
+            ),
+        ]
+    )
 
 
 def _failure_id(head: str, failed: ty.Sequence[pr_activity.Check]) -> str:
@@ -105,9 +130,10 @@ def events(
             [
                 roles.Event(
                     roles.CI_FAILED,
-                    f"PR #{pr} CI failed at {snap.head[:10]}: {', '.join(c.name for c in failed[:5])}: clear a `merge` status,"
-                    f" read `gh pr checks {pr}`, fix it and push (or rerun a flaky job),"
-                    " then tell your reviewer",
+                    f"PR #{pr} CI failed at {snap.head[:10]}: clear a `merge` status, fix it and push"
+                    " (or rerun a flaky job), then tell your reviewer. Failed:"
+                    + "".join(_detail(c) for c in failed[:5])
+                    + (f"\n- and {len(failed) - 5} more" if len(failed) > 5 else ""),
                 )
             ]
             if failed

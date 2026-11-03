@@ -18,8 +18,10 @@ _ROLLUP = """
         pageInfo { hasNextPage endCursor }
         nodes {
           __typename
-          ... on CheckRun { name status conclusion completedAt isRequired(pullRequestNumber: $number) }
-          ... on StatusContext { context state createdAt isRequired(pullRequestNumber: $number) }
+          ... on CheckRun { name status conclusion completedAt detailsUrl
+            isRequired(pullRequestNumber: $number)
+            annotations(first: 10) { nodes { path message annotationLevel location { start { line } } } } }
+          ... on StatusContext { context state createdAt targetUrl isRequired(pullRequestNumber: $number) }
         }
       } }
 """
@@ -62,6 +64,8 @@ class Check(ty.NamedTuple):
     required: bool
     outcome: ty.Literal["pending", "failed", "passed"]
     finished: str = ""  # when this result was produced; a re-run gives a later one
+    url: str = ""
+    errors: tuple[str, ...] = ()  # failure annotations, as `path:line: message`
 
 
 class Snapshot(ty.NamedTuple):
@@ -83,21 +87,29 @@ _FAILED = frozenset(
 _PASSED = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
 
 
+def _error(annotation: dict) -> str:
+    line = ((annotation.get("location") or {}).get("start") or {}).get("line")
+    return f"{annotation['path']}{f':{line}' if line else ''}: {annotation['message']}"
+
+
 def _check(node: dict) -> Check:
     if node["__typename"] == "CheckRun":
         name, result = node["name"], node["conclusion"] if node["status"] == "COMPLETED" else None
-        finished = node.get("completedAt") or ""
+        finished, url = node.get("completedAt") or "", node.get("detailsUrl") or ""
+        annotations = (node.get("annotations") or {}).get("nodes") or []
     else:
         name, result = (
             node["context"],
             None if node["state"] in ("PENDING", "EXPECTED") else node["state"],
         )
-        finished = node.get("createdAt") or ""
+        finished, url, annotations = node.get("createdAt") or "", node.get("targetUrl") or "", []
     return Check(
         name,
         bool(node["isRequired"]),
         "passed" if result in _PASSED else "failed" if result in _FAILED else "pending",
         finished,
+        url,
+        tuple(_error(a) for a in annotations if a and a.get("annotationLevel") == "FAILURE"),
     )
 
 
