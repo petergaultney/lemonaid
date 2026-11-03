@@ -47,7 +47,7 @@ Use this section order, omitting empty sections: header, `## Now`, `## Questions
 
 Put a blank line above and below each heading and around its bullets or table. Write for scanning: one item per bullet, opening with its point in a few words. Keep each item to one or two sentences. Do not join separate items with semicolons or inline numbered lists. Put commits, test counts, and paths at the end, or omit them. Replace stale lines instead of appending news, and shrink finished items to one line. Older `- Label:` briefs still work; keep them unless you explicitly migrate the layout.
 
-Every open PR you author or review, or that your children author, gets a row under `## PRs`:
+Every open PR you author or review gets a row under `## PRs`:
 
 ```markdown
 | Work | PR | Review |
