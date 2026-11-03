@@ -4,7 +4,7 @@ import time
 from collections import abc
 from pathlib import Path
 
-from .. import pr_url, watch_config
+from .. import pr_states, pr_url, watch_config
 from ..config import load_config
 from ..log import get_logger
 from . import (
@@ -160,12 +160,12 @@ def open_poller(
     wake = roles.wake(spec.role or roles.AUTHOR, settings.roles)
     if writer:
         own_pushes.register(own_edits.root(), writer)
-    head, closed, retry_at = spec.head, False, 0.0
+    head, merged, retry_at = spec.head, False, 0.0
     failed = failure_state.path(root, spec, "github")
 
     def pr() -> None:
-        nonlocal head, closed, retry_at
-        if closed or time.monotonic() < retry_at:
+        nonlocal head, merged, retry_at
+        if merged or time.monotonic() < retry_at:
             return
 
         pr_poller.interested(repo, int(number), root.name)
@@ -185,6 +185,7 @@ def open_poller(
             return
 
         github_failures.recovered(root, failed)
+        pr_states.record(repo, number, snapshot.state)
         pr_events.poll(
             stem,
             int(number),
@@ -198,6 +199,6 @@ def open_poller(
             wake=wake,
         )
         head = ""
-        closed = snapshot.state != "OPEN"
+        merged = snapshot.state == "MERGED"  # a closed PR can reopen, so it is still read
 
     return pr
