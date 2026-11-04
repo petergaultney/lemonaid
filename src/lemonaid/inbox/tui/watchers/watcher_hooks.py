@@ -98,6 +98,18 @@ def recorded_tmux_session_orders() -> dict[str, _SessionOrder]:
         return orders
 
 
+def recorded_tmux_pane_ids() -> dict[str, str]:
+    """Each active channel's recorded tmux pane id, if its own hook recorded one."""
+    with db.connect() as conn:
+        return {
+            n.channel: value[0]
+            for n in db.get_active(conn, switch_source="tmux")
+            if isinstance(value := n.metadata.get("tmux_pane_identity"), list)
+            and value
+            and isinstance(value[0], str)
+        }
+
+
 def protected_brief_channels(brief_cache: brief_cards.BriefCache) -> set[str]:
     """Channels whose attached brief is waiting for a person to act."""
     with db.connect() as conn:
@@ -217,6 +229,7 @@ def start(
         models=recorded_models,
         sockets=recorded_sockets,
         session_orders=recorded_tmux_session_orders,
+        pane_ids=recorded_tmux_pane_ids,
         locate_sessions=locate_sessions,
         auto_read_patterns=config.inbox.auto_read,
         mark_read_after_turn=mark_channel_read_after_turn,
