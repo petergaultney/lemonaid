@@ -19,7 +19,7 @@ from .. import home
 from ..log import get_logger
 from ..messages import store as messages
 from ..tasks.briefs import completion
-from . import active_names, frontmatter, identity, store
+from . import active_names, archived_channel, frontmatter, identity, store
 
 _log = get_logger("brief.archive")
 
@@ -226,6 +226,8 @@ def archive(
                 raise ValueError(f"{target} already exists")
 
             lemon_id = _lemon_id(conn, path)
+            if lemon_id:
+                archived_channel.remember(conn, lemon_id, str(path))
             _repoint(conn, path, target)
             conn.execute("DELETE FROM session_briefs WHERE path = ?", (str(path),))
             conn.execute("DELETE FROM pending_briefs WHERE path = ?", (str(path),))

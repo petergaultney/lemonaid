@@ -381,6 +381,20 @@ you decided. A lemon that is listening or mid-turn is left alone (exit 0); one s
 question for its user is refused, as is one started too often recently (exit 1). Each start,
 and each failed start, adds a line to the user's inbox.
 
+A toss archives the lemon's brief, closes its tmux session and may release its directory, so
+plain `lemon resume` can't bring that lemon back. Add `--recreate` to put those back first:
+
+- Its archived brief is revived from the attic and attached to the session it was attached
+  to when it was archived. A lemon may then be named by its Lemon-ID or either half of it.
+- A missing directory is recreated through its root's `path_of` and `create` hooks, under the
+  key the places log last opened or tossed it with. When the log names no place holding the
+  directory, or the hooks put the key somewhere else, it refuses (exit 1) instead of
+  resuming in a parent directory.
+- A missing tmux session is recreated under its recorded name, on its recorded server, with
+  a shell window; the lemon is resumed in a window of its own. No fresh lemon starts there.
+
+Without `--recreate`, a lemon whose brief is archived is refused with the command to run.
+
 ### Restarting one live lemon: `lemon restart`
 
 ```sh

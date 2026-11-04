@@ -3,6 +3,9 @@
 Unlike `tell`'s autoresume, this resumes a lemon marked done or archived, and
 ignores `[messages] autoresume`: the caller has decided. It shares the start
 limit, so a lemon that keeps dying is refused here too.
+
+With `--recreate` it also puts back what a toss took: the brief, the place's
+directory and the tmux session (see `recreate`).
 """
 
 import argparse
@@ -11,9 +14,9 @@ import sys
 import typing as ty
 
 from .. import brief
-from ..config import load_config
+from ..config import Config, load_config
 from ..inbox import db
-from . import autoresume, recipient, revive, store
+from . import autoresume, autoresume_tmux, recipient, recreate, revive, store
 
 _PROMPT = (
     "You were resumed by {who}: run `lemonaid mailbox next --self` to read any messages, "
@@ -39,13 +42,46 @@ def _caller(explicit_channel: str) -> str:
             return channel
 
 
-def cmd_resume(args: argparse.Namespace) -> None:
+def _found(target: str, recreating: bool) -> tuple[brief.attached.Attachment, str, list[str]]:
     with db.connect() as conn:
         try:
-            found = brief.lemon.attachment(conn, args.lemon)
-            lemon_id = brief.identity.ensure(conn, found.path)
+            found = brief.lemon.attachment(conn, target)
+            return found, brief.identity.ensure(conn, found.path), []
         except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
-            _fail(str(error))
+            lemon_id = recreate.archived_id(conn, target)
+            if not lemon_id:
+                _fail(str(error))
+            if not recreating:
+                _fail(
+                    f"{lemon_id}'s brief is archived. `lemonaid lemon resume {lemon_id} "
+                    "--recreate` brings it back with the lemon"
+                )
+
+        try:
+            path = recreate.brief(conn, lemon_id)
+            found = brief.lemon.attachment(conn, lemon_id)
+        except (LookupError, ValueError, OSError, brief.store.ChangedUnderneath) as error:
+            _fail(f"could not resume {lemon_id}: {error}")
+    return found, lemon_id, [f"revived {path.name} from the attic, attached to {found.channel}"]
+
+
+def _recreated(lemon_id: str, row: db.Notification, config: Config) -> list[str]:
+    cwd = str(row.metadata.get("cwd") or "")
+    made_directory, why = recreate.directory(cwd, config)
+    if why:
+        _fail(f"could not resume {lemon_id}: {why}")
+
+    made_session, why = autoresume_tmux.recreate(row, cwd)
+    if why:
+        _fail(f"could not resume {lemon_id}: {why}")
+
+    return [line for line in (made_directory, made_session) if line]
+
+
+def cmd_resume(args: argparse.Namespace) -> None:
+    found, lemon_id, done = _found(args.lemon, args.recreate)
+    for line in done:
+        print(line)
     if found.notification is None:
         _fail(f"{lemon_id} has no session recorded, so there is nothing to resume")
 
@@ -60,11 +96,13 @@ def cmd_resume(args: argparse.Namespace) -> None:
 
     who = _caller(args.channel or "")
     dead = state.state == recipient.DEAD
+    config = load_config()
+    if dead and args.recreate:
+        for line in _recreated(lemon_id, row, config):
+            print(line)
     with db.connect() as conn:
         warning = brief.name_clash.warn(conn, lemon_id)
-    outcome = revive.revive(
-        row, mailbox, dead, load_config(), args.prompt or _PROMPT.format(who=who)
-    )
+    outcome = revive.revive(row, mailbox, dead, config, args.prompt or _PROMPT.format(who=who))
     if outcome.kind == revive.STARTING:
         print(f"{lemon_id} is already being started.")
         return
@@ -95,9 +133,19 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Resume a lemon in a new window of the terminal it ran in, or type a "
         "prompt into one that is idle with no mailbox waiter. A lemon that is listening or "
         "mid-turn is left alone. This resumes lemons marked done or archived too, and "
-        "counts against the same limit as tell's autoresume ([messages] autoresume_max).",
+        "counts against the same limit as tell's autoresume ([messages] autoresume_max). "
+        "Without --recreate, a lemon whose tmux session is gone can't be resumed, and one "
+        "whose directory is gone is resumed in the nearest directory that still exists.",
     )
     parser.add_argument("lemon", help="A Lemon-ID, channel, or attached brief name")
     parser.add_argument("--prompt", help="What to tell it on waking (default: read your mailbox)")
     parser.add_argument("--channel", help="This lemon's channel, overriding self detection")
+    parser.add_argument(
+        "--recreate",
+        action="store_true",
+        help="Put back what a toss took first: revive its archived brief and attach it to its "
+        "session, recreate its place's directory through the root's hooks (refusing when "
+        "the places log doesn't say which place it was), and recreate its tmux session "
+        "under the recorded name and server",
+    )
     parser.set_defaults(func=cmd_resume)
