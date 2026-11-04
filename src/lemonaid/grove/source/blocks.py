@@ -1,14 +1,14 @@
 """The grove's blocks, trees and lemons from what the inbox read.
 
 A lemon in several groups stands in the first, so it has exactly one place in the grove.
-Lemons share a tree when they run in the same terminal container (a tmux session), or
-otherwise in the same directory.
+Lemons share a tree when they run in the same terminal workspace (a tmux session or a
+WezTerm workspace), or otherwise in the same directory.
 """
 
 import time
 from collections import abc
 
-from ... import brief
+from ... import brief, front_end
 from ...inbox import context_use, db, group_lead, model_label, provider_color, turns
 from ..model import Block, Lemon, Tree
 from .inputs import Inputs
@@ -16,8 +16,19 @@ from .inputs import Inputs
 UNGROUPED_COLOR = "#c9b79c"
 
 
-def tree_key(n: db.Notification) -> str:
-    return str(n.metadata.get("tmux_session") or n.metadata.get("cwd") or n.channel)
+def _tree(n: db.Notification) -> tuple[str, str]:
+    """(key, label) of *n*'s tree. A tmux tree's key is its session, which renaming the tree
+    renames; another front end's key holds its instance too, so equal names never merge.
+    """
+    where = front_end.location.of(n.metadata, n.switch_source)
+    if where.front_end == "tmux" and where.workspace:
+        return where.workspace, where.workspace
+
+    if where.workspace:
+        return f"{where.front_end}:{where.instance}:{where.workspace}", where.workspace
+
+    place = str(n.metadata.get("cwd") or n.channel)
+    return place, place
 
 
 def _context(n: db.Notification, thresholds: abc.Mapping[str, context_use.Threshold]) -> str:
@@ -111,12 +122,14 @@ def _trees(
     parents: abc.Mapping[str, str],
 ) -> tuple[Tree, ...]:
     by_key: dict[str, list[Lemon]] = {}
+    labels: dict[str, str] = {}
     for n in rows:
-        by_key.setdefault(tree_key(n), []).append(lemons[n.channel])
+        key, labels[key] = _tree(n)
+        by_key.setdefault(key, []).append(lemons[n.channel])
     trees = [
         Tree(
             key,
-            key,
+            labels[key],
             main_first(members, lead, parents),
             any(m.channel == lead for m in members),
         )

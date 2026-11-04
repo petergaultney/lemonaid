@@ -22,6 +22,10 @@ Selecting a notification focuses the surface found with `cmux focus-panel`, whic
 
 The watcher asks `cmux tree --all` once per tick, with a half-second timeout. Step 2 needs a `cmux list-panels` for each workspace, about 0.7 s for 30 of them, so it runs only for a session that is not where it was recorded, and the watcher reuses that answer for 10 seconds. A session found on another tty is judged there; a session found nowhere is archived. If cmux does not answer, nothing is archived, and that is logged once until cmux answers again.
 
+### Starting a lemon
+
+`lemonaid lemon start --brief <file>`, run with no window in cmux, opens a new workspace in the current directory, named for `--name` or the directory, without switching to it. The lemon's shell gets a `LEMONAID_LAUNCH_TOKEN`; its hooks record it, and the brief goes to the first lemon that does. lemonaid can't type into a cmux surface, so the line is cmux's workspace command, and the workspace is not checked for a startup dialog.
+
 ## Requirements
 
 Lemonaid calls the `cmux` CLI, so it must be on `PATH` and able to reach the cmux socket. Processes started inside cmux can; for anything else, see cmux's socket settings (`cmux docs settings`).

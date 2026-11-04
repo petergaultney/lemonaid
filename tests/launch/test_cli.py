@@ -261,11 +261,40 @@ def test_the_plain_output_says_where_the_lemon_went(capsys, tmux, monkeypatch):
     assert capsys.readouterr().out.startswith("started default in tmux window work:")
 
 
-def test_no_target_outside_tmux_and_wezterm_is_an_error(capsys, monkeypatch):
-    monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.delenv("WEZTERM_PANE", raising=False)
+def test_no_target_outside_tmux_wezterm_and_cmux_is_an_error(capsys, monkeypatch):
+    for variable in ("TMUX_PANE", "WEZTERM_PANE", "CMUX_SURFACE_ID"):
+        monkeypatch.delenv(variable, raising=False)
 
-    assert "Not in tmux or WezTerm" in _start(capsys)["error"]
+    assert "Not in tmux, WezTerm or cmux" in _start(capsys)["error"]
+
+
+def test_no_target_in_cmux_opens_a_workspace_that_waits_on_its_token(capsys, monkeypatch, tmp_path):
+    for variable in ("TMUX_PANE", "WEZTERM_PANE"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("CMUX_SURFACE_ID", "S1")
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    monkeypatch.chdir(tmp_path)
+    opened = []
+    monkeypatch.setattr(
+        cli.where.cmux.navigation,
+        "open_workspace",
+        lambda cwd, argv, name, focus=True: opened.append((cwd, argv, name, focus)) or True,
+    )
+    _brief("review")
+
+    started = _start(capsys, "--brief", "review", "--name", "REVIEW")
+
+    assert (started["error"], started["front_end"], started["where"]) == (
+        None,
+        "cmux",
+        "cmux workspace REVIEW",
+    )
+    [(cwd, argv, name, focus)] = opened
+    [waiting] = _pending()
+    assert (cwd, name, focus) == (str(tmp_path), "REVIEW", False)
+    assert argv[0] == "env" and argv[-3:-1] == ["/bin/zsh", "-c"]
+    assert f"LEMONAID_LAUNCH_TOKEN={waiting['launch_token']}" in argv
+    assert argv[-1].startswith("env -u LEMONAID_PROMPT echo lemon")
 
 
 @pytest.fixture

@@ -350,7 +350,8 @@ lemon whose window died), use `lemon start` rather than typing a launch line int
 `:4` is window 4 of your own tmux session, found from your pane, so it keeps working after the
 session is renamed; `<session>:4` names another session.
 With no window at all, it starts beside you, in the current directory: a new window of your
-own tmux session in tmux, or a new tab beside your pane in WezTerm. It says where.
+own tmux session in tmux, a new tab beside your pane in WezTerm, or a new unfocused workspace
+in cmux, named for `--name` or the directory. It says where.
 
 ```bash
 lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
@@ -366,7 +367,7 @@ Afterwards it checks a tmux pane once and fails if the lemon is stuck at a start
 `--no-check` skips that. `--json` returns `{"front_end", "where", "dir", "harness", "brief",
 "lemon_id", "parent", "name", "error"}`, where `front_end` is `tmux` or `wezterm` and `where` is
 a phrase like `tmux window work:5`, plus the front end's own keys: `session`, `window` and
-`window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm.
+`window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm, `cmux_workspace` for cmux.
 
 `brief handoff --to NAME` accepts a named lemon running Claude or Codex, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
 
