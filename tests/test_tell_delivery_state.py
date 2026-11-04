@@ -51,7 +51,7 @@ def _tell(target: str) -> int:
 
 def test_claude_with_an_armed_waiter_is_listening(capsys):
     lemon_id = _attach("claude:listener", {})
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _tell("claude:listener") == 0
 
     assert "listening" in capsys.readouterr().err
@@ -84,14 +84,14 @@ def test_idle_codex_with_a_live_harness_and_no_waiter_is_deaf(capsys, monkeypatc
     _attach("codex:idle", {"tty": "/dev/ttys998"})
 
     assert _tell("codex:idle") == 1
-    assert "is deaf (it is idle with no inbox waiter" in capsys.readouterr().err
+    assert "is deaf (it is idle with no mailbox waiter" in capsys.readouterr().err
 
 
 def test_codex_with_a_live_harness_and_armed_waiter_is_listening(capsys, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
     lemon_id = _attach("codex:live", {"tty": "/dev/ttys998"})
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _tell("codex:live") == 0
 
     assert "listening" in capsys.readouterr().err
@@ -106,7 +106,7 @@ def test_codex_stopped_at_a_question_is_asking_even_with_an_armed_waiter(capsys,
         )
         conn.commit()
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _tell("codex:asking") == 1
 
     assert "stopped mid-turn to ask its user" in capsys.readouterr().err
@@ -117,7 +117,7 @@ def test_message_is_queued_even_when_it_will_not_be_read(capsys):
 
     _tell("claude:deaf")
 
-    assert store.peek_next(store.inbox_for_id(lemon_id)) is not None
+    assert store.peek_next(store.mailbox_for_id(lemon_id)) is not None
 
 
 @pytest.mark.parametrize(
@@ -212,7 +212,7 @@ def test_an_idle_claude_whose_scout_starts_is_listening(capsys, monkeypatch):
 
     def ensure(session_id: str, recipient_id: str) -> bool:
         started.append((session_id, recipient_id))
-        scout.enter_context(waiter.armed(store.inbox_for_id(recipient_id)))
+        scout.enter_context(waiter.armed(store.mailbox_for_id(recipient_id)))
         return True
 
     monkeypatch.setattr(cli.push_scout, "ensure", ensure)

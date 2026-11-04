@@ -14,7 +14,7 @@ import sqlite3
 from pathlib import Path
 
 from ..inbox import db
-from . import copying, guard, inventory, journal, layout
+from . import copying, guard, inventory, journal, layout, mailbox_move
 
 
 @dataclasses.dataclass(frozen=True)
@@ -47,7 +47,7 @@ def pause() -> Outcome:
     layout.lemons_dir().mkdir(parents=True, exist_ok=True)
     with marker.open("x") as f:
         f.write(_stamp() + "\n")
-    return Outcome(True, True, ["Paused; stop inbox waiters, then `lemonaid home migrate`"])
+    return Outcome(True, True, ["Paused; stop mailbox waiters, then `lemonaid home migrate`"])
 
 
 def _start() -> tuple[journal.Journal | None, Outcome | None]:
@@ -122,15 +122,24 @@ def _verified(record: journal.Journal) -> str:
             return f"{new} no longer matches {kept}"
 
     armed = [
-        *inventory.armed_waiters(layout.lemons_dir() / "inbox"),
+        *inventory.armed_waiters(layout.lemons_dir() / layout.MAILBOX),
         *inventory.armed_waiters(record.backup / "inbox"),
     ]
     if armed:
-        return f"An inbox waiter armed during the migration, for {', '.join(armed)}"
+        return f"A mailbox waiter armed during the migration, for {', '.join(armed)}"
 
     with db.connect() as conn:
         stale = list(inventory.db_paths(conn, record.old))
     return f"{stale[0][0]} still names {stale[0][1]}" if stale else ""
+
+
+def _normalized_mailbox() -> str:
+    """Move copies an older lemonaid made into the new home's `inbox/` to `mailbox/`.
+
+    Returns why it couldn't, or "".
+    """
+    mailbox_move.move(layout.lemons_dir())
+    return mailbox_move.split(layout.lemons_dir())
 
 
 def run() -> Outcome:
@@ -140,6 +149,9 @@ def run() -> Outcome:
     record, refused = _start()
     if refused or record is None:
         return refused or _stopped("No journal")
+
+    if split := _normalized_mailbox():
+        return _stopped(split)
 
     if record.old.exists():
         if error := copying.copy_all(record) or _sources_unchanged(record):
@@ -179,6 +191,9 @@ def abort() -> Outcome:
 
     if not record.old.exists():
         return _stopped(f"{record.old} is already moved aside; rerun to finish instead")
+
+    if split := _normalized_mailbox():
+        return _stopped(split)
 
     if unsafe := inventory.unsafe_destinations(
         inventory.destination(record.old, e.relative) for e in record.entries

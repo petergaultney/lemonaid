@@ -11,6 +11,7 @@ from collections import abc
 from ..brief import attached, doc_table, identity, lemon, store, verbs_cli, waiters
 from ..codex import channels
 from ..inbox import db
+from ..messages import mailbox_command
 from . import record_context, registry
 
 
@@ -107,13 +108,6 @@ def _upsert(
     )
 
 
-def _is_inbox_watch(command: str) -> bool:
-    try:
-        return shlex.split(command)[:3] == ["lemonaid", "inbox", "watch"]
-    except ValueError:
-        return False
-
-
 def _context_path(path: pathlib.Path) -> pathlib.Path:
     return path.with_name(f".{path.name}.waiter-context.json")
 
@@ -124,8 +118,8 @@ def forget(path: pathlib.Path, stopped: abc.Sequence[registry.Waiter]) -> str:
 
     def change(text: str) -> str:
         sames = [
-            _is_inbox_watch
-            if w.kind == "inbox"
+            mailbox_command.runs_watch
+            if w.kind == "mailbox"
             else _same_watch(text, w.command, w.repo, pathlib.Path(w.cwd), contexts)
             for w in stopped
         ]

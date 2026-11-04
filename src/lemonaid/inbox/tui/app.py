@@ -518,7 +518,7 @@ class LemonaidApp(CrashLoggedApp):
         if self._changes is None:
             self._changes = changes.Changes(
                 db.get_db_path(),
-                (brief.store.briefs_dir(), messages.store.inbox_root()),
+                (brief.store.briefs_dir(), messages.store.mailbox_root()),
                 changes.hub(),
             )
             inbox.fetched = self._changes.mark

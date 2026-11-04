@@ -80,7 +80,7 @@ def test_a_listening_lemon_is_left_alone(capsys, started, monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
     lemon_id = _attach("codex:live", "# t\n\nStatus: working\n")
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _resume("codex:live") == 0
         assert started == []
         assert "Nothing to resume" in capsys.readouterr().out
@@ -118,7 +118,7 @@ def test_a_codex_asking_its_user_is_not_typed_into_with_an_armed_waiter(
         )
         conn.commit()
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         assert _resume("codex:asking") == 1
 
     assert started == []
@@ -130,14 +130,14 @@ def test_the_start_limit_applies(capsys, started, monkeypatch):
         resume_cli, "load_config", lambda: Config(messages=MessagesConfig(autoresume_max=1))
     )
     lemon_id = _attach("claude:looping", "# t\n\nStatus: working\n")
-    inbox = store.inbox_for_id(lemon_id)
-    inbox.mkdir(parents=True, exist_ok=True)
-    (inbox / ".autoresumed").write_text(f"{time.time() - 600} start\n")
+    mailbox = store.mailbox_for_id(lemon_id)
+    mailbox.mkdir(parents=True, exist_ok=True)
+    (mailbox / ".autoresumed").write_text(f"{time.time() - 600} start\n")
 
     assert _resume("claude:looping") == 1
     assert started == []
     assert "started too often recently" in capsys.readouterr().err
-    assert _posted() == ""  # a caller retrying in a loop doesn't fill the inbox
+    assert _posted() == ""  # a caller retrying in a loop doesn't fill the mailbox
 
 
 def test_a_lemon_whose_terminal_runs_another_lemon_is_started_not_prompted(started, monkeypatch):

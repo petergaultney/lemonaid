@@ -1,7 +1,7 @@
 """Deliver pending messages to Codex lemons by queueing them into their threads.
 
-One service runs at a time, held by a lock beside the inboxes. `tell` starts it
-when it writes to a Codex lemon, and it exits once no Codex inbox has anything
+One service runs at a time, held by a lock beside the mailboxes. `tell` starts it
+when it writes to a Codex lemon, and it exits once no Codex mailbox has anything
 pending, so no lemon has to arm a waiter and nothing lingers.
 """
 
@@ -25,7 +25,7 @@ _log = get_logger("messages.service")
 
 
 def _lock_path() -> Path:
-    root = store.inbox_root()
+    root = store.mailbox_root()
     root.mkdir(parents=True, exist_ok=True)
     return root / ".delivery.lock"
 
@@ -41,10 +41,10 @@ def _try_lock() -> ty.IO | None:
     return lock
 
 
-def _inbox(path: Path) -> Path | None:
+def _mailbox(path: Path) -> Path | None:
     try:
         lemon_id = brief.identity.from_path(path)
-        return store.inbox_for_id(lemon_id) if lemon_id else None
+        return store.mailbox_for_id(lemon_id) if lemon_id else None
     except (OSError, ValueError) as error:
         _log.warning("Skipping brief %s: %s", path, error)
         return None
@@ -59,13 +59,13 @@ def _claimed_recipients(
             continue
 
         thread = found.metadata.get("session_id") or ""
-        inbox = _inbox(entry.path)
-        if thread and inbox is not None:
-            yield inbox, thread
+        mailbox = _mailbox(entry.path)
+        if thread and mailbox is not None:
+            yield mailbox, thread
 
 
 def codex_recipients(conn: sqlite3.Connection) -> abc.Iterator[tuple[Path, str]]:
-    """(inbox, thread) for each live Codex lemon with an attached brief.
+    """(mailbox, thread) for each live Codex lemon with an attached brief.
 
     An archived session is skipped: its messages stay pending in files until
     the lemon is seen again.
@@ -76,33 +76,33 @@ def codex_recipients(conn: sqlite3.Connection) -> abc.Iterator[tuple[Path, str]]
 
 def has_pending(conn: sqlite3.Connection, channel: str) -> bool:
     path = brief.attached.by_channel(conn, [channel]).get(channel)
-    inbox = _inbox(path) if path is not None else None
-    return inbox is not None and store.peek_next(inbox) is not None
+    mailbox = _mailbox(path) if path is not None else None
+    return mailbox is not None and store.peek_next(mailbox) is not None
 
 
-def _first_thread(entries: "abc.Iterable[brief.attached.Attachment]", inbox: Path) -> str:
-    return next((t for found, t in _claimed_recipients(entries) if found == inbox), "")
+def _first_thread(entries: "abc.Iterable[brief.attached.Attachment]", mailbox: Path) -> str:
+    return next((t for found, t in _claimed_recipients(entries) if found == mailbox), "")
 
 
-def _thread_for(conn: sqlite3.Connection, inbox: Path) -> str:
-    """The thread *inbox* goes to now, or "".
+def _thread_for(conn: sqlite3.Connection, mailbox: Path) -> str:
+    """The thread *mailbox* goes to now, or "".
 
     Only its own brief is read, unless that finds no thread: then every attachment is.
     """
-    path = brief.lemon.brief_of(conn, inbox.name)  # an inbox is named by its Lemon-ID
+    path = brief.lemon.brief_of(conn, mailbox.name)  # a mailbox is named by its Lemon-ID
     own = brief.attached.for_paths(conn, [path]) if path else []
-    return _first_thread(own, inbox) or _first_thread(brief.attached.everything(conn), inbox)
+    return _first_thread(own, mailbox) or _first_thread(brief.attached.everything(conn), mailbox)
 
 
-def _current_thread(inbox: Path) -> str:
+def _current_thread(mailbox: Path) -> str:
     with db.connect() as conn:
         brief.attached.claim_pending(conn)
-        return _thread_for(conn, inbox)
+        return _thread_for(conn, mailbox)
 
 
 @contextlib.contextmanager
-def _while_current(inbox: Path, thread: str) -> abc.Iterator[bool]:
-    """Whether `thread` still receives `inbox`, with attachment and archive writes held off.
+def _while_current(mailbox: Path, thread: str) -> abc.Iterator[bool]:
+    """Whether `thread` still receives `mailbox`, with attachment and archive writes held off.
 
     The caller moves the message to done/ inside this, so a brief cannot move
     between the check and the move. Pending attachments are not claimed here:
@@ -111,23 +111,23 @@ def _while_current(inbox: Path, thread: str) -> abc.Iterator[bool]:
     with db.connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            yield _thread_for(conn, inbox) == thread
+            yield _thread_for(conn, mailbox) == thread
         finally:
             conn.rollback()
 
 
-def _deliver_all(inbox: Path, thread: str) -> None:
+def _deliver_all(mailbox: Path, thread: str) -> None:
     """Stops as soon as the brief moves to another session or this one is archived.
 
     A move while `codex queue` runs leaves that message pending too, so the new
     session gets it as well as the old one.
     """
-    while _current_thread(inbox) == thread:
-        if wait_state.is_armed(inbox.name):
+    while _current_thread(mailbox) == thread:
+        if wait_state.is_armed(mailbox.name):
             return
 
         delivered = codex_delivery.deliver_next(
-            inbox, thread, lambda: _while_current(inbox, thread)
+            mailbox, thread, lambda: _while_current(mailbox, thread)
         )
         if delivered is None:
             return
@@ -141,21 +141,21 @@ def _pass(retry_at: dict[Path, float], retry: float) -> bool:
         recipients = list(codex_recipients(conn))
 
     pending = False
-    for inbox, thread in recipients:
-        if store.peek_next(inbox) is None:
+    for mailbox, thread in recipients:
+        if store.peek_next(mailbox) is None:
             continue
 
-        if retry_at.get(inbox, 0.0) <= time.monotonic():
+        if retry_at.get(mailbox, 0.0) <= time.monotonic():
             try:
-                _deliver_all(inbox, thread)
-                retry_at.pop(inbox, None)
+                _deliver_all(mailbox, thread)
+                retry_at.pop(mailbox, None)
             except RuntimeError as error:
                 _log.warning(
-                    "delivery to %s failed; retrying in %.0fs: %s", inbox.name, retry, error
+                    "delivery to %s failed; retrying in %.0fs: %s", mailbox.name, retry, error
                 )
-                retry_at[inbox] = time.monotonic() + retry
+                retry_at[mailbox] = time.monotonic() + retry
 
-        pending = pending or store.peek_next(inbox) is not None
+        pending = pending or store.peek_next(mailbox) is not None
 
     return pending
 
@@ -197,7 +197,7 @@ def ensure_running() -> None:
 
     lock.close()
     subprocess.Popen(
-        [sys.executable, "-m", "lemonaid", "inbox", "deliver"],
+        [sys.executable, "-m", "lemonaid", "mailbox", "deliver"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

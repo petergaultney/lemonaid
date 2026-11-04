@@ -49,7 +49,7 @@ def _lemon(name: str, channel: str, thread: str = "") -> Path:
     with db.connect() as conn:
         db.add(conn, channel, "", metadata={"session_id": thread} if thread else {})
         attached.attach(conn, channel, path)
-        return store.inbox_for_id(identity.ensure(conn, path))
+        return store.mailbox_for_id(identity.ensure(conn, path))
 
 
 def _queued_threads(args_file: Path) -> list[str]:
@@ -62,20 +62,20 @@ def _serve() -> bool:
 
 
 def test_pending_messages_are_queued_into_the_full_thread_and_moved_to_done(fake_codex):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "First.", "claude:sender")
-    store.send(inbox, "Second.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "First.", "claude:sender")
+    store.send(mailbox, "Second.", "claude:sender")
 
     assert _serve()
 
     assert _queued_threads(fake_codex) == ["01a0d8ce-long-thread-id"] * 2
-    assert not list(inbox.glob("*.md"))
-    assert len(list((inbox / "done").glob("*.md"))) == 2
+    assert not list(mailbox.glob("*.md"))
+    assert len(list((mailbox / "done").glob("*.md"))) == 2
 
 
 def test_restarting_the_service_delivers_nothing_twice(fake_codex):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "Once.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "Once.", "claude:sender")
 
     assert _serve()
     assert _serve()
@@ -92,32 +92,32 @@ def test_a_second_service_exits_while_one_holds_the_lock(fake_codex):
 
 
 def test_failed_queue_leaves_the_message_pending_and_is_retried(fake_codex, monkeypatch):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "Please review.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "Please review.", "claude:sender")
     monkeypatch.setenv("FAKE_CODEX_EXIT", "1")
     retry_at: dict[Path, float] = {}
 
     assert service._pass(retry_at, retry=0.0)
-    assert len(list(inbox.glob("*.md"))) == 1
+    assert len(list(mailbox.glob("*.md"))) == 1
 
     monkeypatch.setenv("FAKE_CODEX_EXIT", "0")
     assert not service._pass(retry_at, retry=0.0)
-    assert len(list((inbox / "done").glob("*.md"))) == 1
+    assert len(list((mailbox / "done").glob("*.md"))) == 1
 
 
 def test_claude_and_archived_codex_lemons_are_left_alone(fake_codex):
-    claude_inbox = _lemon("claude-lemon", "claude:abcd1234", "abcd1234-session")
-    archived_inbox = _lemon("gone", "codex:deadbeef", "deadbeef-thread")
+    claude_mailbox = _lemon("claude-lemon", "claude:abcd1234", "abcd1234-session")
+    archived_mailbox = _lemon("gone", "codex:deadbeef", "deadbeef-thread")
     with db.connect() as conn:
         db.archive(conn, db.get_by_channel(conn, "codex:deadbeef", unread_only=False).id)
-    store.send(claude_inbox, "For Claude.", "claude:sender")
-    store.send(archived_inbox, "For later.", "claude:sender")
+    store.send(claude_mailbox, "For Claude.", "claude:sender")
+    store.send(archived_mailbox, "For later.", "claude:sender")
 
     assert _serve()
 
     assert not fake_codex.exists()
-    assert len(list(claude_inbox.glob("*.md"))) == 1
-    assert len(list(archived_inbox.glob("*.md"))) == 1
+    assert len(list(claude_mailbox.glob("*.md"))) == 1
+    assert len(list(archived_mailbox.glob("*.md"))) == 1
 
 
 def _tell(target: str, message: str) -> None:
@@ -130,14 +130,14 @@ def _tell(target: str, message: str) -> None:
 def test_telling_a_codex_lemon_starts_the_service(capsys, monkeypatch):
     started: list[bool] = []
     monkeypatch.setattr(service, "ensure_running", lambda: started.append(True))
-    inbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    mailbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
     _lemon("claude-lemon", "claude:abcd1234", "abcd1234-session")
 
     with pytest.raises(SystemExit):
         _tell("claude:abcd1234", "No service for Claude.")  # idle with no waiter, so tell fails
     assert not started
 
-    with waiter.armed(inbox):
+    with waiter.armed(mailbox):
         _tell("codex:01a0d8ce-long-thread-id", "Please review.")
     assert started == [True]
 
@@ -150,13 +150,13 @@ def test_a_codex_turn_with_mail_waiting_starts_the_service(monkeypatch, tmp_path
     monkeypatch.setattr(codex_utils, "get_sessions_root", lambda: tmp_path)
     started: list[bool] = []
     monkeypatch.setattr(service, "ensure_running", lambda: started.append(True))
-    inbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    mailbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
     payload = '{"type": "agent-turn-complete", "thread-id": "01a0d8ce-long-thread-id"}'
 
     codex_notify.handle_notification(payload, session_id="01a0d8ce-long-thread-id", cwd="/tmp")
     assert not started
 
-    store.send(inbox, "Waited while archived.", "claude:sender")
+    store.send(mailbox, "Waited while archived.", "claude:sender")
     codex_notify.handle_notification(payload, session_id="01a0d8ce-long-thread-id", cwd="/tmp")
     assert started == [True]
 
@@ -175,7 +175,7 @@ def test_ensure_running_spawns_one_detached_service_only_when_none_holds_the_loc
         held.close()
 
     assert len(spawned) == 1
-    assert spawned[0][1:] == ["-m", "lemonaid", "inbox", "deliver"]
+    assert spawned[0][1:] == ["-m", "lemonaid", "mailbox", "deliver"]
 
 
 def _after_first_delivery(monkeypatch, change) -> None:
@@ -190,9 +190,9 @@ def _after_first_delivery(monkeypatch, change) -> None:
 
 
 def test_archiving_mid_pass_leaves_the_rest_pending(fake_codex, monkeypatch):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "First.", "claude:sender")
-    store.send(inbox, "Second.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "First.", "claude:sender")
+    store.send(mailbox, "Second.", "claude:sender")
 
     def archive() -> None:
         with db.connect() as conn:
@@ -204,14 +204,14 @@ def test_archiving_mid_pass_leaves_the_rest_pending(fake_codex, monkeypatch):
     service._pass({}, retry=0.0)
 
     assert len(_queued_threads(fake_codex)) == 1
-    assert len(list(inbox.glob("*.md"))) == 1
+    assert len(list(mailbox.glob("*.md"))) == 1
 
 
 def test_a_brief_moved_mid_pass_sends_the_rest_to_its_new_thread(fake_codex, monkeypatch):
     real = service.codex_delivery.deliver_next
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "First.", "claude:sender")
-    store.send(inbox, "Second.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "First.", "claude:sender")
+    store.send(mailbox, "Second.", "claude:sender")
 
     def reattach() -> None:
         with db.connect() as conn:
@@ -229,7 +229,7 @@ def test_a_brief_moved_mid_pass_sends_the_rest_to_its_new_thread(fake_codex, mon
     service._pass({}, retry=0.0)
 
     assert _queued_threads(fake_codex) == ["01a0d8ce-long-thread-id"]
-    assert len(list(inbox.glob("*.md"))) == 1
+    assert len(list(mailbox.glob("*.md"))) == 1
 
     monkeypatch.setattr(service.codex_delivery, "deliver_next", real)
     service._pass({}, retry=0.0)
@@ -239,8 +239,8 @@ def test_a_brief_moved_mid_pass_sends_the_rest_to_its_new_thread(fake_codex, mon
 def test_a_brief_moved_while_the_queue_runs_stays_pending_for_the_new_thread(
     fake_codex, monkeypatch
 ):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "In flight.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "In flight.", "claude:sender")
     real_queue = service.codex_delivery._queue
 
     def queue_then_reattach(thread: str, path: Path, message: str) -> None:
@@ -259,18 +259,18 @@ def test_a_brief_moved_while_the_queue_runs_stays_pending_for_the_new_thread(
     monkeypatch.setattr(service.codex_delivery, "_queue", queue_then_reattach)
     service._pass({}, retry=0.0)
 
-    assert len(list(inbox.glob("*.md"))) == 1
+    assert len(list(mailbox.glob("*.md"))) == 1
 
     monkeypatch.setattr(service.codex_delivery, "_queue", real_queue)
     service._pass({}, retry=0.0)
 
     assert _queued_threads(fake_codex) == ["01a0d8ce-long-thread-id", "02b1e9df-new-thread"]
-    assert len(list((inbox / "done").glob("*.md"))) == 1
+    assert len(list((mailbox / "done").glob("*.md"))) == 1
 
 
 def test_a_reattach_waits_for_the_final_check_and_move(fake_codex, monkeypatch):
-    inbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
-    store.send(inbox, "At the boundary.", "claude:sender")
+    mailbox = _lemon("recipient", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")
+    store.send(mailbox, "At the boundary.", "claude:sender")
     real_mark_done = store.mark_done
     reattach: list[threading.Thread] = []
 
@@ -300,6 +300,6 @@ def test_a_reattach_waits_for_the_final_check_and_move(fake_codex, monkeypatch):
 
     assert not reattach[0].is_alive()
     assert _queued_threads(fake_codex) == ["01a0d8ce-long-thread-id"]
-    assert len(list((inbox / "done").glob("*.md"))) == 1
+    assert len(list((mailbox / "done").glob("*.md"))) == 1
     with db.connect() as conn:
         assert attached.by_channel(conn, ["codex:02b1e9df-new-thread"])

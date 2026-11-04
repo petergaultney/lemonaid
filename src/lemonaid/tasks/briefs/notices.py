@@ -33,7 +33,7 @@ def tell(holder: str, body: str, sender: str) -> str:
     to = holder.removeprefix("brief:")
 
     try:
-        store.send(store.inbox_for_id(to), body, sender or "lemonaid")
+        store.send(store.mailbox_for_id(to), body, sender or "lemonaid")
     except (ValueError, OSError) as error:
         return f"telling {to} failed: {error}"
 

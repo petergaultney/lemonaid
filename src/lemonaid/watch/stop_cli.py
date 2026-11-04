@@ -10,7 +10,7 @@ from ..inbox import db
 from . import brief_record, own_edits, registry, stopping
 
 _HELP = """\
-Stop your own running waiters of any kind - inbox watch, watch pr, doc, file and
+Stop your own running waiters of any kind - mailbox watch, watch pr, doc, file and
 briefs - and remove each from your brief's `## Waiters`. With no KIND, stops all
 of them; with a KIND and TARGET (a PR number, a path, a Lemon-ID), only that one.
 
@@ -76,7 +76,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--self", dest="use_self", action="store_true", required=True)
     parser.add_argument("--channel", help="Your channel, overriding self detection")
-    parser.add_argument("kind", nargs="?", choices=registry.KINDS, help="Stop only this kind")
+    parser.add_argument(
+        "kind",
+        nargs="?",
+        type=registry.canonical_kind,
+        choices=registry.KINDS,
+        help="Stop only this kind",
+    )
     parser.add_argument(
         "target", nargs="?", help="Stop only the waiter watching this PR, path or lemon"
     )

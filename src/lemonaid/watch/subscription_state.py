@@ -36,7 +36,7 @@ def read(
             + (
                 "keeping the last readable list."
                 if previous
-                else "no saved list; still watching the inbox."
+                else "no saved list; still watching the mailbox."
             )
         ]
     else:

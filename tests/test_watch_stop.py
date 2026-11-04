@@ -62,15 +62,15 @@ def _stop(capsys, channel: str, *selector: str) -> str:
 def test_stop_ends_only_the_callers_waiters_and_drops_their_entries(capsys, tmp_path):
     watched = tmp_path / "watched.md"
     watched.write_text("one\n")
-    brief = _briefed("claude:mine", "mine", "- `lemonaid inbox watch --self`\n")
+    brief = _briefed("claude:mine", "mine", "- `lemonaid mailbox watch --self`\n")
     _briefed("claude:other", "other")
-    mine_inbox = _start("claude:mine", tmp_path, "inbox", "watch", "--self")
+    mine_mailbox = _start("claude:mine", tmp_path, "mailbox", "watch", "--self")
     mine_file = _start("claude:mine", tmp_path, "watch", "file", "--wait", str(watched))
-    other_inbox = _start("claude:other", tmp_path, "inbox", "watch", "--self")
+    other_mailbox = _start("claude:other", tmp_path, "mailbox", "watch", "--self")
     try:
-        assert _registered("claude:mine", "inbox")
+        assert _registered("claude:mine", "mailbox")
         assert _registered("claude:mine", "file")
-        assert _registered("claude:other", "inbox")
+        assert _registered("claude:other", "mailbox")
         assert any("watch file" in c for c in waiters.commands(brief.read_text()))
 
         assert f"pid {mine_file.pid}" in _stop(capsys, "claude:mine", "file", str(watched))
@@ -78,16 +78,16 @@ def test_stop_ends_only_the_callers_waiters_and_drops_their_entries(capsys, tmp_
         assert mine_file.returncode == 143
         assert "stopped by SIGTERM from `lemonaid watch stop`, run by claude:mine" in err
         assert f"lemonaid watch file --wait {watched}" in err
-        assert mine_inbox.poll() is None
+        assert mine_mailbox.poll() is None
 
-        assert f"pid {mine_inbox.pid}" in _stop(capsys, "claude:mine")
-        assert mine_inbox.wait(timeout=30) == 143
+        assert f"pid {mine_mailbox.pid}" in _stop(capsys, "claude:mine")
+        assert mine_mailbox.wait(timeout=30) == 143
         assert waiters.commands(brief.read_text()) == []
 
-        assert other_inbox.poll() is None
-        assert [w.pid for w in registry.mine("claude:other")] == [other_inbox.pid]
+        assert other_mailbox.poll() is None
+        assert [w.pid for w in registry.mine("claude:other")] == [other_mailbox.pid]
     finally:
-        for process in (mine_inbox, mine_file, other_inbox):
+        for process in (mine_mailbox, mine_file, other_mailbox):
             process.kill()
             process.wait()
 
@@ -109,7 +109,7 @@ def test_an_entry_nobody_holds_is_never_signalled():
                 "channel": "claude:mine",
                 "kind": "inbox",
                 "targets": ["mine"],
-                "command": "lemonaid inbox watch --self",
+                "command": "lemonaid mailbox watch --self",
                 "cwd": "/",
             }
         )
@@ -148,9 +148,9 @@ def test_by_lemon_finds_what_mine_finds():
 
 def test_a_waiter_signalled_outside_lemonaid_says_so(tmp_path):
     _briefed("claude:mine", "mine")
-    waiter = _start("claude:mine", tmp_path, "inbox", "watch", "--self")
+    waiter = _start("claude:mine", tmp_path, "mailbox", "watch", "--self")
     try:
-        assert _registered("claude:mine", "inbox")
+        assert _registered("claude:mine", "mailbox")
 
         waiter.send_signal(signal.SIGTERM)  # what a stray `pkill -f` does
         _, err = waiter.communicate(timeout=30)
@@ -167,12 +167,12 @@ def test_a_descendant_arming_its_waiters_leaves_its_ancestors_alone(tmp_path):
         ids = [identity.ensure(conn, _briefed(c, c.split(":")[1])) for c in lemons]
         links.set_parent(conn, ids[1], ids[0])
         links.set_parent(conn, ids[2], ids[1])
-    ancestors = [_start(c, tmp_path, "inbox", "watch", "--self") for c in lemons[:2]]
-    grandchild = _start(lemons[2], tmp_path, "inbox", "watch", "--self")
+    ancestors = [_start(c, tmp_path, "mailbox", "watch", "--self") for c in lemons[:2]]
+    grandchild = _start(lemons[2], tmp_path, "mailbox", "watch", "--self")
     try:
-        assert all(_registered(c, "inbox") for c in lemons)
+        assert all(_registered(c, "mailbox") for c in lemons)
         added = _start(
-            lemons[2], tmp_path, "brief", "waiter", "add", "--self", "lemonaid inbox watch --self"
+            lemons[2], tmp_path, "brief", "waiter", "add", "--self", "lemonaid mailbox watch --self"
         )
         assert added.wait(timeout=30) == 0
 

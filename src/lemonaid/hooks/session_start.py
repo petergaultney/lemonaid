@@ -94,7 +94,7 @@ def _watching(harness: str, path: Path, session: str, moved: str) -> str:
         return (
             moved + f"Your brief is {path}. Read it and the current state of your work first. "
             "lemonaid is watching for you: it reads your Watching section, PRs, Docs, children "
-            "and inbox, and pushes every pending change into this session together. Handle "
+            "and mailbox, and pushes every pending change into this session together. Handle "
             "each batch as it arrives. "
             "Keep document rows watched while this session exists, including when its Status is done."
         )
@@ -104,7 +104,7 @@ def _watching(harness: str, path: Path, session: str, moved: str) -> str:
         + _not_pushing(path, session, harness)
         + f"Your brief is {path}. Read it and the current state of your work first. "
         f"Check `lemonaid watch --self --status`; if none is running, {stop_check.ARM[harness]} "
-        "It reads your Watching section, PRs, Docs, children and inbox, reports every pending "
+        "It reads your Watching section, PRs, Docs, children and mailbox, reports every pending "
         "change together, and exits. Handle the whole batch and rearm it before ending that turn. "
         "Keep document rows watched while this session exists, including when its Status is done."
     )

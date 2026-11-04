@@ -50,12 +50,12 @@ def test_brief_verbs_find_the_codex_thread_without_tmux(capsys):
     brief = _brief()
 
     attached = _run(capsys, write_cli.add_parsers, "attach", "--self", str(brief))
-    added = _run(capsys, write_cli.add_parsers, "waiter", "add", "--self", "lemonaid inbox watch")
+    added = _run(capsys, write_cli.add_parsers, "waiter", "add", "--self", "lemonaid mailbox watch")
     checked = _run(capsys, write_cli.add_parsers, "check", "--self")
 
     assert attached["channel"] == CHANNEL
     assert added["error"] is None
-    assert "lemonaid inbox watch" in brief.read_text()
+    assert "lemonaid mailbox watch" in brief.read_text()
     assert checked["error"] is None and checked["path"] == str(brief)
 
 

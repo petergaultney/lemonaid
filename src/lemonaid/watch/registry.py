@@ -23,7 +23,12 @@ from ..codex import channels
 from ..inbox import db
 from . import scout_roster, stop_sender, termination, waiter_lock
 
-KINDS = ("wait", "inbox", "pr", "repo", "doc", "file", "briefs")
+KINDS = ("wait", "mailbox", "pr", "repo", "doc", "file", "briefs")
+_OLD_KINDS = {"inbox": "mailbox"}  # as waiters from before 0.142 registered themselves
+
+
+def canonical_kind(kind: str) -> str:
+    return _OLD_KINDS.get(kind, kind)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,7 +131,8 @@ def _read(path: pathlib.Path) -> Waiter | None:
         saved = json.loads(path.read_text())
         known = {f.name for f in dataclasses.fields(Waiter)} - {"targets", "code_paths"}
         waiter = Waiter(
-            **{k: v for k, v in saved.items() if k in known},
+            **{k: v for k, v in saved.items() if k in known}
+            | {"kind": canonical_kind(saved["kind"])},
             targets=tuple(saved["targets"]),
             code_paths=tuple(saved.get("code_paths", ())),
         )

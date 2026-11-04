@@ -19,12 +19,12 @@ def old_home_with_work() -> dict[str, Path]:
         attached.attach(conn, "claude:work", work.resolve())
         lemon_id = identity.ensure(conn, work.resolve())
         attached.attach_pending(conn, "fresh", "2", waiting.resolve(), [])
-    inbox = store.inbox_for_id(lemon_id)
-    unread = store.send(inbox, "Unread", "tester")
-    (inbox / "done").mkdir()
-    read = inbox / "done" / "read.md"
+    mailbox = store.mailbox_for_id(lemon_id)
+    unread = store.send(mailbox, "Unread", "tester")
+    (mailbox / "done").mkdir()
+    read = mailbox / "done" / "read.md"
     read.write_text("From: tester\n\nRead\n")
-    return {"work": work, "waiting": waiting, "unread": unread, "read": read, "inbox": inbox}
+    return {"work": work, "waiting": waiting, "unread": unread, "read": read, "mailbox": mailbox}
 
 
 def db_paths() -> set[str]:

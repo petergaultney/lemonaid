@@ -12,12 +12,12 @@ def test_the_old_home_stays_active_until_cutover():
     (layout.lemons_dir() / "brief").mkdir(parents=True)
 
     assert store.briefs_dir() == layout.legacy_dir()
-    assert message_store.inbox_root() == layout.legacy_dir() / "inbox"
+    assert message_store.mailbox_root() == layout.legacy_dir() / "inbox"
 
     (layout.lemons_dir() / layout.CUTOVER).write_text("x\n")
 
     assert store.briefs_dir() == layout.lemons_dir() / "brief"
-    assert message_store.inbox_root() == layout.lemons_dir() / "inbox"
+    assert message_store.mailbox_root() == layout.lemons_dir() / "mailbox"
 
 
 def test_a_machine_that_never_had_the_old_home_uses_the_new_one():

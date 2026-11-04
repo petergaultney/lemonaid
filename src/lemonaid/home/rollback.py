@@ -9,14 +9,14 @@ import os
 from pathlib import Path
 
 from ..inbox import db
-from . import guard, inventory, journal, layout
+from . import guard, inventory, journal, layout, mailbox_move
 from .migrate import Outcome
 
 
 def _unchanged(record: journal.Journal) -> str:
     """Why the new home differs from what was copied into it, or ""."""
     expected = {inventory.destination(record.old, e.relative): e for e in record.entries}
-    for root in (layout.lemons_dir() / "brief", layout.lemons_dir() / "inbox"):
+    for root in (layout.lemons_dir() / "brief", layout.lemons_dir() / layout.MAILBOX):
         for path in root.rglob("*") if root.is_dir() else ():
             entry = expected.get(path)
             if entry is None:
@@ -34,6 +34,9 @@ def _unchanged(record: journal.Journal) -> str:
 
 
 def _refusal(record: journal.Journal) -> str:
+    if split := mailbox_move.split(layout.lemons_dir()):
+        return split
+
     if record.old.exists() or record.old.is_symlink():
         return f"{record.old} exists again"
 
@@ -45,8 +48,8 @@ def _refusal(record: journal.Journal) -> str:
     ):
         return unsafe[0]
 
-    if armed := inventory.armed_waiters(layout.lemons_dir() / "inbox"):
-        return f"An inbox waiter is armed for {', '.join(armed)}"
+    if armed := inventory.armed_waiters(layout.lemons_dir() / layout.MAILBOX):
+        return f"A mailbox waiter is armed for {', '.join(armed)}"
 
     return _unchanged(record)
 
@@ -68,6 +71,7 @@ def run() -> Outcome:
         return Outcome(False, False, ["A migration is in progress; finish or abort it first"])
 
     guard.drain()
+    mailbox_move.move(layout.lemons_dir())  # a home an older lemonaid migrated has `inbox/`
     if refused := _refusal(record):
         marker.unlink()
         return Outcome(
@@ -92,6 +96,9 @@ def run() -> Outcome:
         target = inventory.destination(record.old, entry.relative)
         if entry.directory and target.is_dir() and not any(target.iterdir()):
             target.rmdir()
+    link = layout.lemons_dir() / layout.OLD_MAILBOX
+    if link.is_symlink() and not link.exists():
+        link.unlink()
     cutover.unlink()
     marker.unlink()
     return Outcome(

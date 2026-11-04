@@ -36,7 +36,7 @@ The command adds one initial instruction:
 
 > You were just restarted in the same native session. Keep your existing task
 > and brief. Rearm any watchers or other transient state you need to manage,
-> read your pending inbox messages, and continue your existing work.
+> read your pending mailbox messages, and continue your existing work.
 
 Both supported native harnesses accept that initial prompt through the existing
 resume builder. The lemon rearms its own watcher and other transient state.

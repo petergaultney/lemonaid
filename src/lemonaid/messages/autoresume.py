@@ -27,7 +27,7 @@ class Recipient(ty.NamedTuple):
     parent: str  # its parent's Lemon-ID, or ""
     row: db.Notification
     brief_text: str
-    inbox: Path
+    mailbox: Path
 
 
 def plan(
@@ -83,7 +83,7 @@ def started(found: Recipient, action: str) -> str:
         )
 
     return (
-        f"{found.lemon_id} was idle with no inbox waiter; lemonaid prompted it to read "
+        f"{found.lemon_id} was idle with no mailbox waiter; lemonaid prompted it to read "
         f"the message.{snoozed}"
     )
 
@@ -126,7 +126,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
     if state.state == recipient.MOVED:
         return (
             f"queued, but {found.lemon_id} {state.detail}, so lemonaid won't start a second "
-            "copy or type into the old one. It reads the message once its inbox waiter is armed; "
+            "copy or type into the old one. It reads the message once its mailbox waiter is armed; "
             "`lemonaid restore tmux` points its row at its pane."
         ), False
     action = plan(
@@ -150,7 +150,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
 
     with db.connect() as conn:
         name_clash.warn(conn, found.lemon_id)
-    outcome = revive.revive(found.row, found.inbox, action == START, config, wake.PROMPT)
+    outcome = revive.revive(found.row, found.mailbox, action == START, config, wake.PROMPT)
     if outcome.kind == revive.STARTING:
         return (
             f"{found.lemon_id} is already being started, and reads the message once it is up.",

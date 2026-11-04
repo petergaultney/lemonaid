@@ -31,7 +31,7 @@ def _stop(capsys) -> dict | None:
     return json.loads(out) if out else None
 
 
-def test_a_codex_lemon_needs_no_inbox_waiter(capsys):
+def test_a_codex_lemon_needs_no_mailbox_waiter(capsys):
     _briefed()
 
     assert _stop(capsys) is None
@@ -116,7 +116,7 @@ def test_inbox_only_is_not_enough_for_a_brief_with_pr_subscriptions(capsys, harn
         channel=channel,
         body="\n## Watching\n\n- `lemonaid watch pr --wait https://github.com/o/r/pull/12`\n",
     )
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         reason = stop_check.reason_to_block({"session_id": session}, 0, harness)
     assert "lemonaid watch --self" in reason
     assert "--keep-subscriptions" in reason

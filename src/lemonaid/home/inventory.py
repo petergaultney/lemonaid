@@ -29,11 +29,11 @@ class Entry:
 class Plan:
     old: Path
     new_briefs: Path
-    new_inbox: Path
+    new_mailbox: Path
     entries: list[Entry]
     db_rows: dict[str, int]  # table -> rows whose path is under the old home
     blockers: list[str]
-    armed: list[str]  # Lemon-IDs whose inbox waiter holds its lock
+    armed: list[str]  # Lemon-IDs whose mailbox waiter holds its lock
 
 
 def sha256(path: Path) -> str:
@@ -45,10 +45,14 @@ def sha256(path: Path) -> str:
 
 
 def destination(old: Path, relative: str) -> Path:
-    """Where *relative* goes: `inbox/...` to the new inbox, everything else to `brief/`."""
+    """Where *relative* goes: `inbox/...` to the new mailbox root, everything else to `brief/`."""
     first, _, rest = relative.partition("/")
-    if first == "inbox":
-        return layout.lemons_dir() / "inbox" / rest if rest else layout.lemons_dir() / "inbox"
+    if first == layout.OLD_MAILBOX:
+        return (
+            layout.lemons_dir() / layout.MAILBOX / rest
+            if rest
+            else layout.lemons_dir() / layout.MAILBOX
+        )
 
     return layout.lemons_dir() / "brief" / relative
 
@@ -86,11 +90,11 @@ def _held(lock: Path) -> bool:
         return False
 
 
-def armed_waiters(inbox_root: Path) -> list[str]:
-    if not inbox_root.is_dir():
+def armed_waiters(mailbox_root: Path) -> list[str]:
+    if not mailbox_root.is_dir():
         return []
 
-    return sorted(p.name for p in inbox_root.iterdir() if p.is_dir() and waiter.is_armed(p))
+    return sorted(p.name for p in mailbox_root.iterdir() if p.is_dir() and waiter.is_armed(p))
 
 
 def db_paths(conn: sqlite3.Connection, old: Path) -> abc.Iterator[tuple[str, str]]:
@@ -128,7 +132,7 @@ def plan(conn: sqlite3.Connection) -> Plan:
         empty = Plan(
             layout.legacy_dir(),
             layout.lemons_dir() / "brief",
-            layout.lemons_dir() / "inbox",
+            layout.lemons_dir() / layout.MAILBOX,
             [],
             {},
             [],
@@ -144,7 +148,7 @@ def plan(conn: sqlite3.Connection) -> Plan:
         [destination(old, e.relative) for e in entries]
         + [
             layout.lemons_dir() / "brief" / "x",
-            layout.lemons_dir() / "inbox" / "x",
+            layout.lemons_dir() / layout.MAILBOX / "x",
             layout.lemons_dir() / "migrations" / "x",
         ]
     )
@@ -167,14 +171,14 @@ def plan(conn: sqlite3.Connection) -> Plan:
             blockers.append(f"{table} names {path}, which does not exist")
 
     armed = armed_waiters(old / "inbox")
-    blockers += [f"An inbox waiter is armed for {lemon_id}" for lemon_id in armed]
+    blockers += [f"A mailbox waiter is armed for {lemon_id}" for lemon_id in armed]
     if _held(old / "inbox" / ".delivery.lock"):
         blockers.append("The Codex delivery service is running")
 
     return Plan(
         old,
         layout.lemons_dir() / "brief",
-        layout.lemons_dir() / "inbox",
+        layout.lemons_dir() / layout.MAILBOX,
         entries,
         rows,
         blockers,
@@ -187,7 +191,7 @@ def to_json(found: Plan) -> str:
         {
             "old": str(found.old),
             "new_briefs": str(found.new_briefs),
-            "new_inbox": str(found.new_inbox),
+            "new_mailbox": str(found.new_mailbox),
             "files": sum(not e.directory for e in found.entries),
             "directories": sum(e.directory for e in found.entries),
             "bytes": sum(e.size for e in found.entries),

@@ -1,7 +1,7 @@
 """Moving briefs nobody uses out of the briefs directory, and back.
 
 An archived brief goes to the attic, in a folder for the month it was last used, with its
-inbox beside it. It keeps its Lemon-ID: `lemon_identities` points at its new place, so a
+mailbox beside it. It keeps its Lemon-ID: `lemon_identities` points at its new place, so a
 lookup by ID still finds it, while nothing that scans attachments sees it again.
 """
 
@@ -24,7 +24,6 @@ from . import active_names, frontmatter, identity, store
 _log = get_logger("brief.archive")
 
 _DAY = 24 * 60 * 60
-_INBOXES = "inbox"  # the attic month's archived inboxes: inbox/<Lemon-ID>/<N>/, one per archive
 
 
 class Idle(ty.NamedTuple):
@@ -44,12 +43,12 @@ def is_archived(path: Path) -> bool:
     return path.resolve().is_relative_to(attic_dir().resolve())
 
 
-def _inbox_touched(lemon_id: str) -> float:
+def _mailbox_touched(lemon_id: str) -> float:
     if not lemon_id:
         return 0.0
 
-    inbox = messages.inbox_root() / lemon_id
-    return max(active_names.modified(inbox), active_names.modified(inbox / "done"))
+    mailbox = messages.mailbox_root() / lemon_id
+    return max(active_names.modified(mailbox), active_names.modified(mailbox / "done"))
 
 
 def _held(conn: sqlite3.Connection, path: Path) -> float:
@@ -104,7 +103,7 @@ def _last(conn: sqlite3.Connection, path: Path, use: active_names.Usage | None) 
     """When *path* was last in use; inf while a session attached to it is live.
 
     In use: it was created, its Status changed, a session attached to it was active, it
-    was attached or requested, or its inbox got a message. The file's mtime doesn't
+    was attached or requested, or its mailbox got a message. The file's mtime doesn't
     count: lemonaid's own migrations rewrite every brief.
     """
     if use is not None and use.live:
@@ -115,7 +114,7 @@ def _last(conn: sqlite3.Connection, path: Path, use: active_names.Usage | None) 
         _created(path),
         _status_changed(conn, path),
         _held(conn, path),
-        _inbox_touched(use.lemon_id if use else ""),
+        _mailbox_touched(use.lemon_id if use else ""),
     )
 
 
@@ -164,7 +163,7 @@ def _free(folder: Path) -> Path:
     return next(slot for n in itertools.count(1) if not (slot := folder / str(n)).exists())
 
 
-def _archived_inboxes(folder: Path) -> list[Path]:
+def _archived_mailboxes(folder: Path) -> list[Path]:
     """The slots `_free` filled in *folder*, oldest first."""
     return sorted(
         (slot for slot in folder.glob("*") if slot.is_dir() and slot.name.isdigit()),
@@ -172,7 +171,7 @@ def _archived_inboxes(folder: Path) -> list[Path]:
     )
 
 
-def _merge_inbox(source: Path, dest: Path) -> None:
+def _merge_mailbox(source: Path, dest: Path) -> None:
     """Move *source*'s messages into *dest*, keeping any already there.
 
     Lock files are the receivers' and are dropped when *dest* has its own. A message both
@@ -206,7 +205,7 @@ def archive(
     last: float,
     closing: abc.Set[str] = frozenset(),
 ) -> Path:
-    """Move *path* and its inbox to the attic and detach it; where the brief went.
+    """Move *path* and its mailbox to the attic and detach it; where the brief went.
 
     *last* names the attic month. Sessions in *closing* are ending and don't hold it.
     Raises ValueError when another session still holds it, the attic already has a brief
@@ -232,11 +231,12 @@ def archive(
             conn.execute("DELETE FROM pending_briefs WHERE path = ?", (str(path),))
             month.mkdir(parents=True, exist_ok=True)
             path.rename(target)
-            inbox = messages.inbox_root() / lemon_id if lemon_id else None
-            if inbox is not None and inbox.is_dir() and not inbox.is_symlink():
+            mailbox = messages.mailbox_root() / lemon_id if lemon_id else None
+            if mailbox is not None and mailbox.is_dir() and not mailbox.is_symlink():
                 try:
-                    (month / _INBOXES / lemon_id).mkdir(parents=True, exist_ok=True)
-                    inbox.rename(_free(month / _INBOXES / lemon_id))
+                    kept = month / home.layout.MAILBOX / lemon_id
+                    kept.mkdir(parents=True, exist_ok=True)
+                    mailbox.rename(_free(kept))
                 except OSError:
                     target.rename(path)
                     raise
@@ -248,7 +248,7 @@ def archive(
 
 
 def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
-    """Move an archived brief and its inbox back to the briefs directory; where it went.
+    """Move an archived brief and its mailbox back to the briefs directory; where it went.
 
     It comes back unattached. Raises LookupError when *lemon_id* has no archived brief and
     ValueError when the briefs directory already has one of that name or a home migration
@@ -273,9 +273,10 @@ def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
             conn.rollback()
             raise
         conn.commit()
-        kept = path.parent / _INBOXES / lemon_id
-        for archived in _archived_inboxes(kept):
-            _merge_inbox(archived, messages.inbox_root() / lemon_id)
-        with contextlib.suppress(OSError):
-            kept.rmdir()
+        for name in (home.layout.OLD_MAILBOX, home.layout.MAILBOX):
+            kept = path.parent / name / lemon_id
+            for archived in _archived_mailboxes(kept):
+                _merge_mailbox(archived, messages.mailbox_root() / lemon_id)
+            with contextlib.suppress(OSError):
+                kept.rmdir()
     return target

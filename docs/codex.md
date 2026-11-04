@@ -95,8 +95,8 @@ With `approvals_reviewer = "auto_review"` in `~/.codex/config.toml`, Codex can r
 ```text
 prefix_rule(pattern=["lemonaid", "brief"], decision="allow")
 prefix_rule(pattern=["lemonaid", "tell"], decision="allow")
-prefix_rule(pattern=["lemonaid", "inbox", "watch"], decision="allow")
-prefix_rule(pattern=["lemonaid", "inbox", "next"], decision="allow")
+prefix_rule(pattern=["lemonaid", "mailbox", "watch"], decision="allow")
+prefix_rule(pattern=["lemonaid", "mailbox", "next"], decision="allow")
 prefix_rule(pattern=["lemonaid", "watch"], decision="allow")
 ```
 

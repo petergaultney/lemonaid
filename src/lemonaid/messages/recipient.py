@@ -1,7 +1,7 @@
 """Whether a message's recipient will read it, judged at send time from what is running now.
 
-A Codex lemon reads queued messages while its inbox waiter holds the lock, or
-from its active turn; a Claude lemon reads while its inbox waiter holds the
+A Codex lemon reads queued messages while its mailbox waiter holds the lock, or
+from its active turn; a Claude lemon reads while its mailbox waiter holds the
 lock, or when its turn ends and its Stop hook makes it arm one. Neither reads
 anything once its harness has exited.
 """
@@ -123,13 +123,13 @@ def classify(
     """The recipient's state, from facts already gathered.
 
     *alive* is None when the terminal can't be checked; *armed* is whether a
-    waiter holds the recipient's inbox lock.
+    waiter holds the recipient's mailbox lock.
     """
     if not channel:
-        return State(NOT_STARTED, "it reads its inbox when it starts")
+        return State(NOT_STARTED, "it reads its mailbox when it starts")
 
     if not channel.startswith(("claude:", "codex:")):
-        return State(UNKNOWN, "lemonaid can't tell whether this harness reads its inbox")
+        return State(UNKNOWN, "lemonaid can't tell whether this harness reads its mailbox")
 
     if row is None or alive is False:
         return State(DEAD, "its harness is not running")
@@ -138,7 +138,7 @@ def classify(
         detail = (
             "the delivery service queues messages into its thread"
             if channel.startswith("codex:")
-            else "it reads its inbox when this turn ends"
+            else "it reads its mailbox when this turn ends"
         )
         return State(MID_TURN, detail)
 
@@ -146,12 +146,12 @@ def classify(
         return State(ASKING, "it stopped mid-turn to ask its user something")
 
     if armed:
-        return State(LISTENING, "its inbox waiter is armed")
+        return State(LISTENING, "its mailbox waiter is armed")
 
     detail = (
-        "it is idle with no inbox waiter to start a turn from queued messages"
+        "it is idle with no mailbox waiter to start a turn from queued messages"
         if channel.startswith("codex:")
-        else "it is idle with no inbox waiter"
+        else "it is idle with no mailbox waiter"
     )
     return State(DEAF, detail)
 
@@ -182,7 +182,7 @@ def confirmed(row: db.Notification, state: State) -> State:
     return state
 
 
-def probe(channel: str, row: db.Notification | None, inbox: Path) -> State:
+def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
     if not channel:
         return classify(channel, row, None, False, time.time())
 
@@ -190,7 +190,7 @@ def probe(channel: str, row: db.Notification | None, inbox: Path) -> State:
         channel,
         row,
         harness_alive(row) if row is not None else False,
-        waiter.is_armed(inbox),
+        waiter.is_armed(mailbox),
         time.time(),
     )
 

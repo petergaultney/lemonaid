@@ -24,13 +24,13 @@ def hub(monkeypatch) -> kqueue_waits.Hub:
 def _waiting(tmp_path, hub, text: str) -> tuple[threading.Thread, list[str]]:
     path = tmp_path / "brief.md"
     path.write_text(text)
-    inbox = store.inbox_for_id("task.IndexElf")
-    inbox.mkdir(parents=True, exist_ok=True)
+    mailbox = store.mailbox_for_id("task.IndexElf")
+    mailbox.mkdir(parents=True, exist_ok=True)
     sent: list[str] = []
     thread = threading.Thread(
         target=lambda: batch_wait.wait(
             path,
-            inbox,
+            mailbox,
             tmp_path / "cursors",
             "",
             sent.append,
@@ -50,7 +50,7 @@ def _waiting(tmp_path, hub, text: str) -> tuple[threading.Thread, list[str]]:
 def test_a_message_reaches_an_idle_loop_at_once(tmp_path, hub):
     thread, sent = _waiting(tmp_path, hub, _BRIEF)
 
-    store.send(store.inbox_for_id("task.IndexElf"), "hello", "other.IndexElf")
+    store.send(store.mailbox_for_id("task.IndexElf"), "hello", "other.IndexElf")
 
     thread.join(5)
     assert not thread.is_alive() and "hello" in sent[0]

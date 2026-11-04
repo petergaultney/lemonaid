@@ -117,12 +117,12 @@ def run(
     if lock is None:
         return "retry"
 
-    inbox = store.inbox_for_id(lemon_id)
+    mailbox = store.mailbox_for_id(lemon_id)
     session_gate.mark(own_edits.root(), harness.writer, path)
     try:
         wait_state.clear_delivery(lemon_id)
         with (
-            waiter.armed(inbox),
+            waiter.armed(mailbox),
             push_scout.logged(lemon_id, harness.session, stopping)
             if harness.session
             else contextlib.nullcontext(),
@@ -133,7 +133,7 @@ def run(
             while still():
                 batch_wait.wait(
                     path,
-                    inbox,
+                    mailbox,
                     cursors.root() / lemon_id,
                     harness.writer,
                     gates.deliver(channel, harness.output),

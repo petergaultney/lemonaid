@@ -20,7 +20,7 @@ How to use tasks is in `docs/tasks.md`. This note is for changing the code: what
 
 - The checker judges; lemonaid observes and delivers. All challenge logic and every word a lemon reads come from the checker, any program speaking the line protocol (`checker/protocol.py`). Lemonaid gathers the facts the checker declares it watches, finds working briefs that have no task, keeps the cases, and sends the messages.
 - An unknown fact never supports an accusation. What lemonaid can't see is recorded as `unknown` or `unavailable`, never guessed.
-- Messaging is the inspector's channel to a lemon, and it only writes to it: the inspector sends messages to inboxes but never reads an inbox. Timing comes from a task's own events (assignment, start, close) and from what lemonaid observes about a lemon, never from whether a message was read.
+- Messaging is the inspector's channel to a lemon, and it only writes to it: the inspector sends messages to mailboxes but never reads a mailbox. Timing comes from a task's own events (assignment, start, close) and from what lemonaid observes about a lemon, never from whether a message was read.
 - A lemon taking a turn is not inspected; it may be changing its status or handing its task on.
 - An open challenge is sent again with doubling gaps, and stops when a change resolves its case.
 - Nothing here talks to a terminal multiplexer. Whether a lemon is running comes from lemonaid's lemon facts.

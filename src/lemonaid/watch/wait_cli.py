@@ -1,4 +1,4 @@
-"""One one-shot waiter for a lemon's brief subscriptions and inbox."""
+"""One one-shot waiter for a lemon's brief subscriptions and mailbox."""
 
 import argparse
 import functools
@@ -50,7 +50,7 @@ def run(args: argparse.Namespace) -> int:
             lemon_id = identity.ensure(conn, path) if path else ""
         if path is None:
             raise ValueError("No brief attached to this lemon")
-        inbox = store.inbox_for_id(lemon_id)
+        mailbox = store.mailbox_for_id(lemon_id)
     except (ValueError, LookupError, OSError) as error:
         print(f"not started: {error}")
         return 2
@@ -112,7 +112,7 @@ def run(args: argparse.Namespace) -> int:
     try:
         with (
             restart.listening(),
-            waiter.armed(inbox),
+            waiter.armed(mailbox),
             registry.registered(
                 "wait",
                 (lemon_id,),
@@ -126,7 +126,7 @@ def run(args: argparse.Namespace) -> int:
             pr_poller.ensure_running()
             restarting = batch_wait.wait(
                 path,
-                inbox,
+                mailbox,
                 cursors.root() / lemon_id,
                 writer,
                 deliver,
@@ -173,7 +173,7 @@ def add_arguments(parser: argparse.ArgumentParser, *, require_self: bool = False
         "--status", action="store_true", help="Check whether the unified watcher is running"
     )
     parser.add_argument(
-        "--interval", type=float, default=0.5, help="Seconds between subscription and inbox reads"
+        "--interval", type=float, default=0.5, help="Seconds between subscription and mailbox reads"
     )
     parser.add_argument(
         "--quiet", type=float, default=2, help="Seconds to gather a batch after the last event"
@@ -182,7 +182,7 @@ def add_arguments(parser: argparse.ArgumentParser, *, require_self: bool = False
         push_scout.FLAG,
         dest="push",
         action="store_true",
-        help="have the scout host push each batch into this session (Claude: its inbox "
+        help="have the scout host push each batch into this session (Claude: its mailbox "
         "socket; Codex: `codex queue`), unless a watcher already runs",
     )
     parser.add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)

@@ -366,7 +366,7 @@ that. `--json` returns `{"session", "window", "window_id", "dir", "harness", "br
 
 ### Bringing one back: `lemon resume`
 
-To bring back a lemon whose harness exited, or a Claude that is idle with no inbox waiter, in
+To bring back a lemon whose harness exited, or a Claude that is idle with no mailbox waiter, in
 the terminal it ran in:
 
 ```bash
@@ -429,12 +429,12 @@ for a lemon that has since started.
 |---|---|---|
 | `state`, `state_detail` | The same check `tell` makes | See [messages](messages.md#will-it-be-read) |
 | `harness_running` | A `claude` or `codex` process on the terminal the lemon last reported, and not another lemon's (by its Claude session file or Codex open thread); cmux is asked where its session is now | `null` when the terminal can't be checked |
-| `inbox_waiter` | The lock its `inbox watch` holds | Codex lemons don't need one |
+| `mailbox_waiter` | The lock its `mailbox watch` holds; `inbox_waiter` repeats it for older readers | Codex lemons don't need one |
 | `pane` | `empty prompt`, `dialog: <what>`, or `other`, from a capture of its tmux pane | `other` covers working, a draft, and a permission prompt alike |
 | `exited_at`, `exit_reason` | The `SessionEnd` hook (`claude hooks --session-end`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; missing when the hook isn't installed, for Codex, and for a session that was killed or crashed |
 | `last_activity` | The transcript file's last write | A lemon waiting on a long process writes nothing |
 | `waiters_listed`, `waiters_running` | The brief's `## Watching` bullets, and the waiters registered under its channel | Listed commands are as written, so compare them by hand |
-| `messages_queued` | Unread messages in its inbox | |
+| `messages_queued` | Unread messages in its mailbox | |
 | `recent_starts` | Starts by autoresume or `lemon resume` within `autoresume_window` | |
 
 Acting on what you find is up to you: `lemon resume` brings a lemon back, `tell` reaches one
@@ -592,7 +592,7 @@ lemonaid brief now --self "Current progress..."       # replace progress, keep o
                                                # refuses to drop other sub-headings unless --replace-all
 lemonaid brief hide --self [--show]          # add or remove `Hidden: yes`: out of the inbox default list
 lemonaid brief detach --self                   # the file stays
-lemonaid brief archive <Lemon-ID|brief>        # move it and its inbox to ~/.lemons/attic/YYYY-MM/
+lemonaid brief archive <Lemon-ID|brief>        # move it and its mailbox to ~/.lemons/attic/YYYY-MM/
 lemonaid brief archive --idle-days 30 --dry-run  # every brief unused for 30 days (drop --dry-run to move them)
 lemonaid brief revive <Lemon-ID>               # move it back, unattached
 lemonaid brief list --json                     # every brief file and the session it belongs to
@@ -769,7 +769,7 @@ to reuse a particular window. Its manual mode provides the prompt and command
 for the app or terminal to run sequentially.
 
 While a handoff is pending and unexpired, Claude's Stop hook allows the outgoing
-session to stop its inbox waiter. Brief validation still runs. If the handoff
+session to stop its mailbox waiter. Brief validation still runs. If the handoff
 fails before replacement, the usual waiter requirement returns and lemonaid
 prompts the outgoing Claude in its original pane to rearm. After replacement,
 tmux retains the pane if the target exits. A target exit or acceptance timeout
@@ -995,19 +995,19 @@ stderr which it did. A word that is not five or three letters is an error on
 
 A lemon idle past the window can come back to find a newer lemon holding its name.
 It keeps the name. `brief attach`, `place open --brief`, `lemon start --brief`,
-`resume` and the inbox's resume put a warning in its inbox and print it; `brief check`
+`resume` and the inbox's resume put a warning in its mailbox and print it; `brief check`
 warns on both briefs, `watch doc` warns when its `--me` is shared, and the inbox
 marks the name `(shared)`. `brief id --self --reroll` on either lemon clears them.
 
 Attaching or messaging an existing brief adds the line if it is missing. The ID names its
-message inbox and stays with the brief when its filename or attached channel changes.
+mailbox and stays with the brief when its filename or attached channel changes.
 `brief id` also backfills an existing attached brief.
-`brief id --reroll` (or `--set <name>`) replaces the name and moves the inbox, parent
+`brief id --reroll` (or `--set <name>`) replaces the name and moves the mailbox, parent
 links, and brief line to the new ID; the old ID stays an alias, so messages sent to it still
 arrive. It prints `old -> new`; with `--json`, `lemon_id`, `old_lemon_id`, `signing_name`, and
-`old_signing_name`. Pass the old signing name to doc waiters as `--legacy`, and rearm your inbox
+`old_signing_name`. Pass the old signing name to doc waiters as `--legacy`, and rearm your mailbox
 waiter, which exits. See `docs/messages.md`.
-Older hexadecimal and hand-made IDs remain valid and keep their inbox folders.
+Older hexadecimal and hand-made IDs remain valid and keep their mailbox folders.
 An ID's shape is not validated; only folder safety is checked. It must be
 non-empty, at most 255 UTF-8 bytes, and have no slash, backslash, control
 character, or leading dot.
@@ -1134,7 +1134,7 @@ against `### Docs` rows, and warns when the heading is absent.
 An existing mismatch does not prevent an unrelated `brief status`, `bullet`, `pr`, or `waiter`
 edit; an edit that creates a new mismatch is refused.
 When the person answers from the
-brief view, or asks for more detail, the lemon gets a message in its inbox:
+brief view, or asks for more detail, the lemon gets a message in its mailbox:
 `Answer to <label>: <text>`, or `More detail needed on <label>: rewrite that entry in
 ## Questions`, from the person's `$USER`. While your Status is `blocked`, `alert`, `merge` or
 `approve`, an answer ends with a line naming the `Needs` labels it leaves, as a reminder to update
@@ -1201,23 +1201,23 @@ With `[tasks] enabled = true`, each brief made with `brief new` holds a task, ta
 ## Lemon-to-lemon messages
 
 With a brief attached to the recipient's channel, `lemonaid tell <lemon-id-or-channel-or-brief>
-"<message>"` writes a Markdown file to its inbox. Set `LEMONAID_CHANNEL` to
-your own channel to identify the sender and to use `lemonaid inbox next --self`
-or `lemonaid inbox watch --self`. An exported Claude session ID or Codex thread
+"<message>"` writes a Markdown file to its mailbox. Set `LEMONAID_CHANNEL` to
+your own channel to identify the sender and to use `lemonaid mailbox next --self`
+or `lemonaid mailbox watch --self`. An exported Claude session ID or Codex thread
 ID also identifies self without tmux. Otherwise, lemonaid resolves the current
 tmux pane and refuses ambiguous matches. Pass `--channel <your-channel>` to
 override receive identity. Both print one message and move it to `done/`;
 watch waits until one exists, or use `--timeout <seconds>` to bound the wait.
 `tell` also prints on stderr whether the recipient will read the message. A
-recipient whose harness exited (`dead`), or an idle Claude or Codex lemon with no inbox
-waiter (`deaf`), is started on a prompt to read its inbox, unless its brief
+recipient whose harness exited (`dead`), or an idle Claude or Codex lemon with no mailbox
+waiter (`deaf`), is started on a prompt to read its mailbox, unless its brief
 says `done` or its row is archived. In tmux, an idle prompt is recognized from
 the empty composer; Codex shows this as `› Ask Codex to do anything`. `tell` exits 1 when the recipient still
 won't read it, and its stderr line says what to do instead. The message stays
 queued either way, so don't send it again. Each such message is also logged to
-`dead-letters.jsonl` in the inbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.
-A Codex lemon with an armed inbox waiter can receive queued messages while
-idle. Without one, `tell` treats it as deaf and prompts it to read its inbox.
+`dead-letters.jsonl` in the mailbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.
+A Codex lemon with an armed mailbox waiter can receive queued messages while
+idle. Without one, `tell` treats it as deaf and prompts it to read its mailbox.
 During an active turn, lemonaid's delivery service queues messages into the
 thread with `codex queue`.
 A lemon with children gets their status changes in the same `lemonaid watch --self` batches as
@@ -1226,7 +1226,7 @@ reminder to stderr when they link a child, saying to check
 `lemonaid watch --self --status` (a Codex lemon runs `--push` with escalated permissions). A Claude
 lemon's `waiter-check` Stop hook refuses to let the turn end while it has a child with a brief
 and no watcher is running. A Codex lemon has no Stop hook, so the reminder is all it gets.
-A Claude lemon with a brief keeps `lemonaid inbox watch --self` running as a
+A Claude lemon with a brief keeps `lemonaid mailbox watch --self` running as a
 background task; if the `waiter-check` Stop hook is installed, it refuses to
 let your turn end until that watch is running. Start it with
 `run_in_background` and `timeout: 2147483647`: since Claude Code 2.1.285 a
@@ -1238,19 +1238,19 @@ restart a task that already had the maximum timeout. The same goes for
 `watch doc` and `watch pr` waiters.
 
 When Codex uses the automatic approval reviewer, set up the `lemonaid brief`,
-`lemonaid tell`, `lemonaid inbox watch`, and `lemonaid inbox next` allow rules
+`lemonaid tell`, `lemonaid mailbox watch`, and `lemonaid mailbox next` allow rules
 described in [Codex setup](codex.md#3-allow-brief-and-message-commands-under-the-automatic-approval-reviewer).
 
 ### Stopping your waiters
 
-`lemonaid watch stop --self` stops every waiter you started (`inbox watch`, `watch pr`,
+`lemonaid watch stop --self` stops every waiter you started (`mailbox watch`, `watch pr`,
 `doc`, `file` and `briefs`) and removes each from your brief's `## Watching`. Name one to stop
-only that: `lemonaid watch stop --self pr 12`, `... doc <path>`, `... inbox`. Each waiter
+only that: `lemonaid watch stop --self pr 12`, `... doc <path>`, `... mailbox`. Each waiter
 registers under your channel while it runs and holds that entry locked, so `stop` signals
 only processes that are still your waiters. A waiter started before lemonaid 0.90.1 isn't
 registered; stop it with `TaskStop` or its pid.
 
-Never use `pkill -f` with a waiter command such as `lemonaid inbox watch --self`: the
+Never use `pkill -f` with a waiter command such as `lemonaid mailbox watch --self`: the
 pattern matches every lemon's waiter on the machine.
 
 `lemonaid watch restart --self` (or Lemon-IDs, or `--all`) restarts a running `watch --self`
@@ -1332,7 +1332,7 @@ validated, then remove it. Every check counts, including checks that are not req
 `lemonaid watch file --wait <path> [--wait <path> ...] --me <name> --once` waits for a file
 to change, or for a file directly in a directory to be added, removed, or rewritten.
 Add `--ignore-removed` to wake only on arrivals and changes: a lemon that handles a
-message by moving it into a subfolder (as `inbox watch` does into `done/`) is then not woken
+message by moving it into a subfolder (as `mailbox watch` does into `done/`) is then not woken
 again by that removal.
 
 ## Watching children
@@ -1397,7 +1397,7 @@ Bash task, and a Codex lemon runs `lemonaid watch --self --codex-thread` as an e
 exec_command session.
 
 The watcher rereads Watching commands, PRs (comments and failed CI), local PR Review documents,
-Docs rows, inbox and direct children. Without a scout, it delivers one batch and exits;
+Docs rows, mailbox and direct children. Without a scout, it delivers one batch and exits;
 handle every source, then rearm. First subscriptions take current state as seen except unanswered document
 threads. Saved cursors bridge rearms and advance only after delivery succeeds.
 `lemonaid wait --self` remains an alias sharing the same lock and cursors.

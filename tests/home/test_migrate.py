@@ -37,8 +37,8 @@ def test_a_migration_moves_briefs_messages_and_db_paths_and_keeps_a_backup():
     assert (backup / "brief-lemons" / work["work"].name).read_bytes() == texts["work"]
     assert (backup / "lemonaid.db").exists()
     assert store.briefs_dir() == layout.lemons_dir() / "brief"
-    assert message_store.inbox_root() == layout.lemons_dir() / "inbox"
-    assert message_store.take_next(message_store.inbox_for_id(work["inbox"].name))[1].endswith(
+    assert message_store.mailbox_root() == layout.lemons_dir() / "mailbox"
+    assert message_store.take_next(message_store.mailbox_for_id(work["mailbox"].name))[1].endswith(
         "Unread\n"
     )
 
@@ -52,7 +52,7 @@ def test_blockers_refuse_the_migration_and_change_nothing():
     taken.write_text("someone else's\n")
     before = db_paths()
 
-    with waiter.armed(work["inbox"]):
+    with waiter.armed(work["mailbox"]):
         outcome = migrate.run()
 
     assert not outcome.done and not outcome.paused
@@ -150,7 +150,7 @@ def test_a_pause_stops_waiters_arming_and_the_migration_continues_from_it():
     assert migrate.pause().paused
 
     with pytest.raises(ValueError, match="migration is in progress"):
-        message_store.inbox_for_id(work["inbox"].name)
+        message_store.mailbox_for_id(work["mailbox"].name)
 
     outcome = migrate.run()
 
@@ -162,7 +162,7 @@ def test_a_blocker_after_a_pause_keeps_the_pause():
     work = old_home_with_work()
     migrate.pause()
 
-    with waiter.armed(work["inbox"]):
+    with waiter.armed(work["mailbox"]):
         outcome = migrate.run()
 
     assert outcome.paused and "waiter is armed" in "\n".join(outcome.messages)

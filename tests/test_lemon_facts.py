@@ -14,13 +14,13 @@ def _row(**metadata) -> db.Notification:
 def test_listed_waiters_are_the_commands_in_waiters_bullets():
     text = (
         "# t\n\n## Now\n\n- `not a waiter`\n\n## Waiters\n\n"
-        "- inbox: `lemonaid inbox watch --self` (background)\n"
+        "- inbox: `lemonaid mailbox watch --self` (background)\n"
         "- ``lemonaid watch pr --wait 12 --me `x` ``\n"
         "Arm these after a restart.\n"
     )
 
     assert facts._listed_waiters(text) == [
-        "lemonaid inbox watch --self",
+        "lemonaid mailbox watch --self",
         "lemonaid watch pr --wait 12 --me `x`",
     ]
 

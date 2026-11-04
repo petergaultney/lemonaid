@@ -182,8 +182,6 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     snooze_cli.add_parser(inbox_subparsers)
     pin_cli.add_parsers(inbox_subparsers)
     lemonaid.inbox.arrange.cli.add_parser(inbox_subparsers)
-    lemonaid.messages.cli.add_inbox_parsers(inbox_subparsers)
-    lemonaid.messages.service_cli.add_parser(inbox_subparsers)
 
     # inbox snoozed
     snoozed_parser = inbox_subparsers.add_parser(

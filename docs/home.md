@@ -1,18 +1,18 @@
 # Where briefs and messages live
 
-Briefs and message inboxes live in `~/.lemons/`:
+Briefs and mailboxes live in `~/.lemons/`:
 
 ```text
 ~/.lemons/
   brief/                one Markdown brief per unit of work
-  inbox/<lemon-id>/     unread messages for that lemon; done/ holds read ones
+  mailbox/<lemon-id>/   unread messages for that lemon; done/ holds read ones
   migrations/<stamp>/   a migration's inventory, database backup, and the old home
   cutover               written by the migration; marks ~/.lemons/ as active
 ```
 
-Older installs kept both in `~/.brief-lemons/` (briefs at its top level, inboxes in `inbox/`). Lemonaid keeps using `~/.brief-lemons/` until `lemonaid home migrate` has moved it, so upgrading changes nothing by itself. A machine that never had `~/.brief-lemons/` uses `~/.lemons/` from the start.
+Older installs kept both in `~/.brief-lemons/` (briefs at its top level, mailboxes in `inbox/`). Lemonaid keeps using `~/.brief-lemons/` until `lemonaid home migrate` has moved it, so upgrading changes nothing by itself. A machine that never had `~/.brief-lemons/` uses `~/.lemons/` from the start.
 
-Only the active home counts: brief commands refuse a brief outside it, and messages go to its inbox. Other files under `~/.lemons/`, including a `brief/` folder made by hand, don't make it active; only `cutover` does.
+Only the active home counts: brief commands refuse a brief outside it, and messages go to its `mailbox/`. Other files under `~/.lemons/`, including a `brief/` folder made by hand, don't make it active; only `cutover` does.
 
 ## Migrating
 
@@ -29,7 +29,7 @@ Every form takes `--json`.
 
 **What stops a migration.** A real run refuses, changing nothing, while any of these is true. `--dry-run` lists them all:
 
-- an inbox waiter holds its lock (the dry run names each Lemon-ID);
+- an mailbox waiter holds its lock (the dry run names each Lemon-ID);
 - the Codex delivery service is running;
 - a file under `~/.brief-lemons/` is a symlink, or isn't a regular file or directory;
 - `~/.brief-lemons` itself is a symlink;
@@ -38,7 +38,7 @@ Every form takes `--json`.
 - the database names a brief under `~/.brief-lemons/` that doesn't exist;
 - the migration has already run.
 
-**While it runs.** Every brief and message write holds a shared lock (`home.lock` in lemonaid's state directory) and checks for the pause while holding it. The migration writes the pause and then takes that lock exclusively, so it waits for every write that got in first, however long it takes. After that, brief and message commands refuse with "migration in progress", and the brief view shows the same. That includes reading a brief, sending, and arming an inbox waiter. Only commands from this version check the pause. So an old `lma`, scratch pane, or waiter must be restarted on the new install first. The waiter check sees old waiters too, since it tests the lock they hold.
+**While it runs.** Every brief and message write holds a shared lock (`home.lock` in lemonaid's state directory) and checks for the pause while holding it. The migration writes the pause and then takes that lock exclusively, so it waits for every write that got in first, however long it takes. After that, brief and message commands refuse with "migration in progress", and the brief view shows the same. That includes reading a brief, sending, and arming an mailbox waiter. Only commands from this version check the pause. So an old `lma`, scratch pane, or waiter must be restarted on the new install first. The waiter check sees old waiters too, since it tests the lock they hold.
 
 **The steps.**
 

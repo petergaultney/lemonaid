@@ -16,7 +16,7 @@ from ..inbox import db
 from . import autoresume, recipient, revive, store
 
 _PROMPT = (
-    "You were resumed by {who}: run `lemonaid inbox next --self` to read any messages, "
+    "You were resumed by {who}: run `lemonaid mailbox next --self` to read any messages, "
     "rearm the waiters your brief lists under ## Waiters, and carry on."
 )
 _NOTHING_TO_DO = frozenset({recipient.LISTENING, recipient.MID_TURN})
@@ -49,8 +49,8 @@ def cmd_resume(args: argparse.Namespace) -> None:
     if found.notification is None:
         _fail(f"{lemon_id} has no session recorded, so there is nothing to resume")
 
-    row, inbox = found.notification, store.inbox_for_id(lemon_id)
-    state = recipient.confirmed(row, recipient.probe(found.channel, row, inbox))
+    row, mailbox = found.notification, store.mailbox_for_id(lemon_id)
+    state = recipient.confirmed(row, recipient.probe(found.channel, row, mailbox))
     if state.state in _NOTHING_TO_DO:
         print(f"{lemon_id} is {state.state}: {state.detail}. Nothing to resume.")
         return
@@ -62,7 +62,9 @@ def cmd_resume(args: argparse.Namespace) -> None:
     dead = state.state == recipient.DEAD
     with db.connect() as conn:
         warning = brief.name_clash.warn(conn, lemon_id)
-    outcome = revive.revive(row, inbox, dead, load_config(), args.prompt or _PROMPT.format(who=who))
+    outcome = revive.revive(
+        row, mailbox, dead, load_config(), args.prompt or _PROMPT.format(who=who)
+    )
     if outcome.kind == revive.STARTING:
         print(f"{lemon_id} is already being started.")
         return
@@ -78,7 +80,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
         line = (
             f"{who} resumed {lemon_id} in a new window"
             if dead
-            else f"{who} prompted {lemon_id}, which was idle with no inbox waiter"
+            else f"{who} prompted {lemon_id}, which was idle with no mailbox waiter"
         )
         autoresume.post(conn, line)
     print(line)
@@ -91,11 +93,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "resume",
         help="Resume a lemon whose harness exited, or prompt one that is deaf",
         description="Resume a lemon in a new window of the terminal it ran in, or type a "
-        "prompt into one that is idle with no inbox waiter. A lemon that is listening or "
+        "prompt into one that is idle with no mailbox waiter. A lemon that is listening or "
         "mid-turn is left alone. This resumes lemons marked done or archived too, and "
         "counts against the same limit as tell's autoresume ([messages] autoresume_max).",
     )
     parser.add_argument("lemon", help="A Lemon-ID, channel, or attached brief name")
-    parser.add_argument("--prompt", help="What to tell it on waking (default: read your inbox)")
+    parser.add_argument("--prompt", help="What to tell it on waking (default: read your mailbox)")
     parser.add_argument("--channel", help="This lemon's channel, overriding self detection")
     parser.set_defaults(func=cmd_resume)

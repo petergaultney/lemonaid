@@ -4,7 +4,7 @@ from .shared import lemon, run
 
 
 def _messages(lemon_id: str) -> list[str]:
-    return [p.read_text() for p in sorted(store.inbox_for_id(lemon_id).glob("*.md"))]
+    return [p.read_text() for p in sorted(store.mailbox_for_id(lemon_id).glob("*.md"))]
 
 
 def test_tell_parent_reaches_the_parent_by_its_link(capsys, monkeypatch):
@@ -40,7 +40,7 @@ def test_tell_child_refuses_a_lemon_that_is_not_a_child(capsys, monkeypatch):
     refused = run(capsys, "tell", "--child", stranger, "hello")
 
     assert "not a child" in refused["err"]
-    assert not store.inbox_for_id(stranger).exists()
+    assert not store.mailbox_for_id(stranger).exists()
 
 
 def test_tell_parent_without_a_link_says_how_to_add_one(capsys, monkeypatch):

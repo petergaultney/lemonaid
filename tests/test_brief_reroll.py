@@ -1,4 +1,4 @@
-"""A rerolled Lemon-ID carries its brief, inbox, links, and old name with it."""
+"""A rerolled Lemon-ID carries its brief, mailbox, links, and old name with it."""
 
 import argparse
 import json
@@ -33,8 +33,7 @@ def _run(*argv: str) -> None:
     subparsers = parser.add_subparsers()
     cli.add_tell_parser(subparsers)
     write_cli.add_parsers(subparsers)
-    inbox = subparsers.add_parser("inbox")
-    cli.add_inbox_parsers(inbox.add_subparsers())
+    cli.setup_parser(subparsers)
     args = parser.parse_args(argv)
     args.func(args)
 
@@ -44,24 +43,24 @@ def _reroll(name: str, chosen: str = "") -> reroll.Rerolled:
         return reroll.reroll(conn, store.briefs_dir() / f"{name}.md", chosen)
 
 
-def test_reroll_carries_the_inbox_links_and_brief_to_the_new_id():
+def test_reroll_carries_the_mailbox_links_and_brief_to_the_new_id():
     parent = _lemon("parent", "claude:parent")
     child = _lemon("child", "claude:child")
     old = _lemon("center", "claude:center")
     with db.connect() as conn:
         lineage.links.set_parent(conn, old, parent)
         lineage.links.set_parent(conn, child, old)
-    old_inbox = message_store.inbox_for_id(old)
-    message_store.send(old_inbox, "pending", "someone")
-    message_store.mark_done(message_store.send(old_inbox, "read", "someone"))
+    old_mailbox = message_store.mailbox_for_id(old)
+    message_store.send(old_mailbox, "pending", "someone")
+    message_store.mark_done(message_store.send(old_mailbox, "read", "someone"))
 
     rerolled = _reroll("center", "quickodd")
 
     assert rerolled == reroll.Rerolled("center.BloodKeg", "QuickOdd.center")
-    new_inbox = message_store.inbox_for_id(rerolled.new_id)
-    assert [p.read_text().endswith("pending\n") for p in new_inbox.glob("*.md")] == [True]
-    assert len(list((new_inbox / "done").glob("*.md"))) == 1
-    assert not list(old_inbox.glob("*.md"))
+    new_mailbox = message_store.mailbox_for_id(rerolled.new_id)
+    assert [p.read_text().endswith("pending\n") for p in new_mailbox.glob("*.md")] == [True]
+    assert len(list((new_mailbox / "done").glob("*.md"))) == 1
+    assert not list(old_mailbox.glob("*.md"))
     assert identity.from_path(store.briefs_dir() / "center.md") == rerolled.new_id
     with db.connect() as conn:
         assert lineage.links.parent_of(conn, rerolled.new_id) == parent
@@ -70,22 +69,22 @@ def test_reroll_carries_the_inbox_links_and_brief_to_the_new_id():
         assert lemon.lemon_id(conn, old) == rerolled.new_id
 
 
-def test_tell_to_the_old_id_reaches_the_new_inbox(capsys, monkeypatch):
+def test_tell_to_the_old_id_reaches_the_new_mailbox(capsys, monkeypatch):
     old = _lemon("center", "claude:center")
-    stale_inbox = message_store.inbox_for_id(old)  # a sender that resolved before the reroll
+    stale_mailbox = message_store.mailbox_for_id(old)  # a sender that resolved before the reroll
     new = _reroll("center").new_id
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
 
-    with waiter.armed(message_store.inbox_for_id(new)):
+    with waiter.armed(message_store.mailbox_for_id(new)):
         _run("tell", old, "by old name")
-    message_store.send(stale_inbox, "resolved early", "claude:sender")
+    message_store.send(stale_mailbox, "resolved early", "claude:sender")
 
-    new_inbox = message_store.inbox_for_id(new)
-    assert sorted(p.read_text().rsplit("\n", 2)[-2] for p in new_inbox.glob("*.md")) == [
+    new_mailbox = message_store.mailbox_for_id(new)
+    assert sorted(p.read_text().rsplit("\n", 2)[-2] for p in new_mailbox.glob("*.md")) == [
         "by old name",
         "resolved early",
     ]
-    assert not list(stale_inbox.glob("*.md"))
+    assert not list(stale_mailbox.glob("*.md"))
 
 
 def test_a_second_reroll_keeps_every_earlier_id_one_hop_away():
@@ -96,8 +95,8 @@ def test_a_second_reroll_keeps_every_earlier_id_one_hop_away():
     with db.connect() as conn:
         assert lemon.current(conn, first) == third
         assert lemon.current(conn, second) == third
-    message_store.send(message_store.inbox_for_id(first), "oldest", "someone")
-    assert len(list(message_store.inbox_for_id(third).glob("*.md"))) == 1
+    message_store.send(message_store.mailbox_for_id(first), "oldest", "someone")
+    assert len(list(message_store.mailbox_for_id(third).glob("*.md"))) == 1
 
 
 @pytest.mark.parametrize(
@@ -124,7 +123,7 @@ def test_set_refuses_a_bad_or_taken_wordybin(chosen, error):
 
 def test_a_failed_brief_rewrite_leaves_everything_as_it_was(monkeypatch):
     old = _lemon("center", "claude:center")
-    message_store.send(message_store.inbox_for_id(old), "pending", "someone")
+    message_store.send(message_store.mailbox_for_id(old), "pending", "someone")
 
     def refuse(path, change):
         raise store.ChangedUnderneath("busy")
@@ -133,10 +132,10 @@ def test_a_failed_brief_rewrite_leaves_everything_as_it_was(monkeypatch):
     with pytest.raises(store.ChangedUnderneath):
         _reroll("center", "QuickOdd")
 
-    inbox = message_store.inbox_for_id(old)
-    assert len(list(inbox.glob("*.md"))) == 1
-    assert not (inbox / message_store.FORWARD).exists()
-    assert not message_store.inbox_for_id("QuickOdd.center").exists()
+    mailbox = message_store.mailbox_for_id(old)
+    assert len(list(mailbox.glob("*.md"))) == 1
+    assert not (mailbox / message_store.FORWARD).exists()
+    assert not message_store.mailbox_for_id("QuickOdd.center").exists()
     with db.connect() as conn:
         assert lemon.brief_of(conn, old) is not None
         assert lemon.current(conn, old) == old
@@ -145,13 +144,13 @@ def test_a_failed_brief_rewrite_leaves_everything_as_it_was(monkeypatch):
 def test_the_old_waiter_exits_asking_to_rearm(capsys, monkeypatch):
     _lemon("center", "claude:center")
 
-    def rerolled_watch(inbox_path, still_attached, timeout, find):
+    def rerolled_watch(mailbox_path, still_attached, timeout, find):
         _reroll("center", "QuickOdd")
         still_attached()
 
     monkeypatch.setattr(message_store, "watch_next", rerolled_watch)
     with pytest.raises(SystemExit, match="1"):
-        _run("inbox", "watch", "--self", "--channel", "claude:center")
+        _run("mailbox", "watch", "--self", "--channel", "claude:center")
 
     assert "Lemon-ID changed to QuickOdd.center; rearm" in capsys.readouterr().err
 
@@ -167,16 +166,16 @@ def test_cli_prints_old_and_new_signing_names(capsys):
     assert (result["signing_name"], result["old_signing_name"]) == ("QuickOdd", "BloodKeg")
 
 
-def test_a_failed_forward_write_puts_the_inbox_back(monkeypatch):
+def test_a_failed_forward_write_puts_the_mailbox_back(monkeypatch):
     old = _lemon("center", "claude:center")
-    message_store.send(message_store.inbox_for_id(old), "pending", "someone")
+    message_store.send(message_store.mailbox_for_id(old), "pending", "someone")
     monkeypatch.setattr(message_store, "FORWARD", "missing/.forward")
 
     with pytest.raises(FileNotFoundError):
         _reroll("center", "QuickOdd")
 
-    assert len(list(message_store.inbox_for_id(old).glob("*.md"))) == 1
-    assert not message_store.inbox_for_id("QuickOdd.center").exists()
+    assert len(list(message_store.mailbox_for_id(old).glob("*.md"))) == 1
+    assert not message_store.mailbox_for_id("QuickOdd.center").exists()
     assert identity.from_path(store.briefs_dir() / "center.md") == old
 
 

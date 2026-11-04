@@ -349,7 +349,7 @@ Whatever the Watch column says, every watched lemon also reports, once per occur
 
 - Its harness exited (the SessionEnd hook recorded it, or no harness runs on its terminal).
 - Its tmux session or its directory is gone, or no session is attached to its brief.
-- It is deaf: idle with no inbox waiter for 60 seconds, as `lemonaid lemon doctor` derives it.
+- It is deaf: idle with no mailbox waiter for 60 seconds, as `lemonaid lemon doctor` derives it.
 
 A report repeats only after the lemon was healthy (or had a different problem) in between,
 so a second exit is a second report. A lemon whose brief is `done` is never reported, since
@@ -460,10 +460,10 @@ The entry survives one-shot events, interrupted waits, and delivery failures so 
 ```bash
 lemonaid watch stop --self              # every waiter you started
 lemonaid watch stop --self pr 12        # one kind and target: a PR number, a path, a Lemon-ID
-lemonaid watch stop --self inbox        # your `lemonaid inbox watch --self`
+lemonaid watch stop --self mailbox        # your `lemonaid mailbox watch --self`
 ```
 
-While it runs, each waiter (`inbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Watching`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
+While it runs, each waiter (`mailbox watch` and every `watch` kind but `openclaw`) keeps a file under `$LEMONAID_STATE_DIR/waiters/` locked. The file holds its pid, the channel of the lemon that started it, what it watches, and the command that rearms it. `stop` signals only waiters registered under the caller's channel whose file is still locked, so it never reaches another lemon's waiter or a process that has since reused the pid. It waits for each to exit, then removes the stopped waiters from the caller's `## Watching`. Waiters started by lemonaid before 0.90.1 aren't registered; stop those by their task or pid.
 
 A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter it was, who stopped it and the command that rearms it, then exits 143. Who is the lemon and pid that ran `watch stop`, or "a process outside lemonaid" for a `kill`, a `pkill` pattern or the harness; the lemonaid log records the same line. Never `pkill -f` a waiter command: the pattern matches every lemon's waiter on the machine.
 
@@ -473,7 +473,7 @@ A waiter stopped by SIGTERM, from `stop` or anything else, prints which waiter i
 is the source of subscriptions; the watcher reads it again while running, gathers
 pending changes into one message, delivers that message and exits. Handle the whole
 message, then rearm. `lemonaid wait --self` remains a compatibility alias, sharing
-the same lock, inbox and cursors.
+the same lock, mailbox and cursors.
 
 ### Declare what to watch
 
@@ -522,7 +522,7 @@ The rows and commands declare these sources:
 | `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. A pass is reported as `ci-green` after CI was seen running or failed, and otherwise only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
 | A PR's Review cell | A local review document's unanswered comments and body edits, whatever its Docs row says, because reviewers write findings and verdicts in the body. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |
-| Inbox | Every pending message for this lemon, included in the same batch as source changes. |
+| Mailbox | Every pending message for this lemon, included in the same batch as source changes. |
 | Children | Direct children entering `merge` or `done`, using the existing child cursor; a child that goes `blocked` or writes a Needs ask for its user doesn't wake its parent, which a `### Lemons` row for that child can change. Also and any child whose harness exits, whose session or place is gone, or that is deaf or dead (see [Watching other lemons](#watching-other-lemons)). An explicit `watch briefs` line selects other statuses or orphan behavior. |
 | `### Lemons` | Each listed lemon, child or not, like a child: its Status and Needs changes and its liveness. A row for a child sets that child's wake statuses. |
 
@@ -607,7 +607,7 @@ The unified command accepts:
 | `--status` | Check the shared lock: exit 0 when running, 1 when absent. |
 | `--push` | Register a push scout with the scout host and return, unless a watcher already runs. |
 | `--codex-thread [THREAD_ID]` | Deliver into Codex; bare means the current thread. |
-| `--interval SECONDS` | Brief/inbox read interval, default 0.5. |
+| `--interval SECONDS` | Brief/mailbox read interval, default 0.5. |
 | `--quiet SECONDS` | Batch gathering quiet period, default 2. |
 
 A normal run exits 0 after successful delivery or detachment; exit 2 means startup
@@ -622,18 +622,18 @@ A batch can look like this:
 
 [doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all); Sam: clarify the defaults; Reviewer: check the migration
 
-[inbox] From: another-lemon.MovieLay
+[mailbox] From: another-lemon.MovieLay
 Sent: 2026-10-14T13:00:00+00:00
 
 The review is ready.
 ```
 
 Read every changed source, answer all pending document threads and act on the
-inbox messages, then run the same unified command again. An unchanged unanswered
+mailbox messages, then run the same unified command again. An unchanged unanswered
 thread does not create a fresh wake on every rearm. The session may remain idle
 with the watcher armed; it does not need repeated model turns to poll.
 
-`--interval` controls brief and inbox checks (default 0.5 seconds). Unchanged briefs
+`--interval` controls brief and mailbox checks (default 0.5 seconds). Unchanged briefs
 reuse their parsed subscriptions; brief edits, saved-state changes and child PR
 changes refresh the list. Linked paths are resolved again at least every 30 seconds
 so a retargeted symlink is eventually followed. `--quiet` controls
@@ -659,7 +659,7 @@ registrations written against its own database, state and Claude directories, an
 after a minute with none.
 
 On macOS (and BSD) the host's scouts sleep on kqueue events instead of polling. An idle
-scout wakes when its brief, its inbox directory, a watched doc or file, its children's
+scout wakes when its brief, its mailbox directory, a watched doc or file, its children's
 briefs, its Claude session's listing or the session's process changes,
 and otherwise checks everything every 45 seconds, so a missed event delays a batch by at
 most that long. After a change, a scout polls at its usual intervals until the change
@@ -716,8 +716,8 @@ re-execs itself, and starts them again from their registrations. Each waiter rec
 `SIGUSR1`, even with a batch detected but not yet delivered (cursors advance only on
 delivery, so the new process detects it again): it leaves its
 loop (a scout logs `exited normally` with reason `restarting on request`) and
-re-execs itself with the same arguments. Inbox messages it hadn't delivered stay in
-the inbox for the new process. Nothing polls for this: the first lemonaid command of
+re-execs itself with the same arguments. Mailbox messages it hadn't delivered stay in
+the mailbox for the new process. Nothing polls for this: the first lemonaid command of
 a new version records that version and sends the signal to each waiter that runs from
 the same install (`sys.prefix`) and whose loaded lemonaid modules differ from the
 installed ones. Each waiter records a digest of the modules it imported, so an install
@@ -780,8 +780,8 @@ install pass off.
 
 - **First arm:** take the source's current state as seen, including already completed CI. Unanswered document comments are the exception: they are reported on first arm.
 - **Between arms:** per-lemon cursors remember delivered changes, including edits and pushes while no watcher ran. An explicit PR `--head` seeds a missing cursor; it does not override a saved head on each rearm.
-- **Successful delivery:** advance event cursors and move delivered inbox messages to `done/` only after delivery succeeds. Source detector threads wait for that acknowledgement.
-- **Failed delivery:** keep inbox messages and event cursors pending so the next arm can deliver them. No event is acknowledged merely because it was detected.
+- **Successful delivery:** advance event cursors and move delivered mailbox messages to `done/` only after delivery succeeds. Source detector threads wait for that acknowledgement.
+- **Failed delivery:** keep mailbox messages and event cursors pending so the next arm can deliver them. No event is acknowledged merely because it was detected.
 - **Brief edits:** add or remove subscriptions without restarting. Each invalid line or table error is reported once while valid sources keep running; an incomplete brief write retains the previous readable list. Custom shell commands are not executed.
 - **Source failures:** persist the reported failure across rearms and clear it when the source recovers. Each failed GitHub read doubles the wait before that subscription's next read, up to 10 minutes. When GitHub refuses a read for quota, or reports fewer than 100 points left, every GitHub read on the machine pauses until the reset GitHub names, recorded in `$LEMONAID_STATE_DIR/github/paused-until.json`. A lemon hears about an outage or pause once, covering all its GitHub subscriptions, and only after reads have failed for `[watch] github_debounce` (10 minutes by default) with none succeeding; a read that succeeds ends the outage, so a shorter one wakes nobody.
 - **Shared PR reads:** unified watchers on one machine share their PR reads. The watcher holding `$LEMONAID_STATE_DIR/github/pr-poller.lock` checks every PR a scout watched in the last 5 minutes once a minute, in one small query, and re-reads a PR in full only when it changed, has checks running, or was last read 15 minutes ago. Scouts read its snapshots from `$LEMONAID_STATE_DIR/github/pr/`, and read GitHub themselves when a snapshot is missing or over 3 minutes old. If that watcher exits, another takes the lock within a minute. Standalone `watch pr` and `watch repo` waiters still read GitHub directly.
@@ -793,8 +793,8 @@ uses the existing detector cursors where their source and options match, includi
 the default direct-child cursor. Deleting cursors loses that history. Own-change
 records live separately under `~/.local/state/lemonaid/own-edits/`.
 
-There is one unified lock per lemon. Codex's inbox delivery service yields while
-it is held so it cannot deliver the same inbox batch independently. A Codex rearm
+There is one unified lock per lemon. Codex's mailbox delivery service yields while
+it is held so it cannot deliver the same mailbox batch independently. A Codex rearm
 waits briefly for a holder that has already delivered to finish saving its cursors;
 all post-delivery joins share one deadline.
 
@@ -810,7 +810,7 @@ lemonaid watch --self --push                  # a running push scout needs no ar
 
 The SessionStart hook tells attached lemons to read current work and arm the unified
 watcher. The Stop hook, for Claude and Codex, requires it when the brief has subscriptions;
-a separate inbox-only watcher is insufficient. Legacy inbox-only Claude waiting remains
+a separate mailbox-only watcher is insufficient. Legacy mailbox-only Claude waiting remains
 accepted for a brief without other sources.
 
 After upgrading the installed tool, run `lemonaid hooks install` to replace older

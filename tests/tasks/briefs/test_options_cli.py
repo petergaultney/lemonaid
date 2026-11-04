@@ -149,7 +149,7 @@ def test_taking_a_task_from_another_holder_tells_it(capsys, monkeypatch, review)
         assert ledger.state(conn, work)["holder"] == f"brief:{taken['lemon_id']}"
     assert taken["taken_from"] == "brief:Other.lead"
     assert "has been told" in taken["notice"]
-    told = [p.read_text() for p in store.inbox_for_id("Other.lead").glob("*.md")]
+    told = [p.read_text() for p in store.mailbox_for_id("Other.lead").glob("*.md")]
     assert len(told) == 1
     assert f"task:{work}" in told[0] and f"lemonaid tell {taken['lemon_id']}" in told[0]
     assert "From: Unrelated.lead" in told[0]
@@ -347,7 +347,7 @@ def test_assigning_to_a_running_brief_starts_its_clock_and_tells_it(capsys):
 
     with db.connect() as conn:
         assert ledger.state(conn, work)["attached_at"] is not None
-    told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
+    told = [p.read_text() for p in store.mailbox_for_id(running["lemon_id"]).glob("*.md")]
     assert len(told) == 1 and f"lemonaid task assign {work}" in told[0]
     assert f"{running['lemon_id']} has been told" in assigned["notice"]
 
@@ -402,5 +402,5 @@ def test_creating_a_task_for_a_running_brief_tells_it(capsys):
     with db.connect() as conn:
         state = ledger.state(conn, created["task_id"])
     assert state["attached_at"] is not None
-    told = [p.read_text() for p in store.inbox_for_id(running["lemon_id"]).glob("*.md")]
+    told = [p.read_text() for p in store.mailbox_for_id(running["lemon_id"]).glob("*.md")]
     assert len(told) == 1 and f"You now hold task:{created['task_id']}" in told[0]

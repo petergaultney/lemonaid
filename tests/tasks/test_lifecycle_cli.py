@@ -21,7 +21,7 @@ def _run(capsys, *argv: str) -> dict:
 
 
 def _told(lemon_id: str) -> list[str]:
-    return [p.read_text() for p in store.inbox_for_id(lemon_id).glob("*.md")]
+    return [p.read_text() for p in store.mailbox_for_id(lemon_id).glob("*.md")]
 
 
 def _family(conn) -> tuple[str, str]:
@@ -59,7 +59,7 @@ def test_the_holder_closing_its_own_task_isnt_told(capsys, monkeypatch):
 
     assert "already closed" in again["error"]
     assert reopened["holder"] == "brief:Work.alpha"
-    assert not store.inbox_for_id("Work.alpha").exists()
+    assert not store.mailbox_for_id("Work.alpha").exists()
 
 
 def test_a_result_needs_evidence_and_leaves_the_task_open(capsys):

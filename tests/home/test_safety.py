@@ -68,7 +68,7 @@ def test_a_symlinked_destination_directory_refuses_the_migration(tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     layout.lemons_dir().mkdir()
-    (layout.lemons_dir() / "inbox").symlink_to(elsewhere)
+    (layout.lemons_dir() / "mailbox").symlink_to(elsewhere)
 
     outcome = migrate.run()
 
@@ -128,14 +128,14 @@ def test_a_file_written_to_the_old_home_after_the_recheck_stops_before_cutover(m
 def test_rollback_waits_for_a_send_already_under_way_and_then_refuses():
     work = old_home_with_work()
     assert migrate.run().done
-    inbox = message_store.inbox_root() / work["inbox"].name
+    mailbox = message_store.mailbox_root() / work["mailbox"].name
     in_flight = threading.Event()
 
     def slow_send():  # `tell -` still reading its stdin when the pause starts
         with guard.operation():
             in_flight.set()
             time.sleep(0.3)
-            message_store._write(inbox, "Sent while rollback paused", "tester")
+            message_store._write(mailbox, "Sent while rollback paused", "tester")
 
     sender = threading.Thread(target=slow_send)
     sender.start()
@@ -146,19 +146,19 @@ def test_rollback_waits_for_a_send_already_under_way_and_then_refuses():
     assert not outcome.done and "added after the migration" in outcome.messages[0]
     assert not layout.paused()
     assert layout.cut_over()
-    assert any("while rollback paused" in p.read_text() for p in inbox.glob("*.md"))
+    assert any("while rollback paused" in p.read_text() for p in mailbox.glob("*.md"))
 
 
 def test_a_send_after_the_pause_is_refused_rather_than_written():
     work = old_home_with_work()
     assert migrate.run().done
-    inbox = message_store.inbox_root() / work["inbox"].name
+    mailbox = message_store.mailbox_root() / work["mailbox"].name
     (layout.lemons_dir() / layout.MIGRATING).write_text("x\n")
 
     with pytest.raises(guard.Paused):
-        message_store.send(inbox, "late", "tester")
+        message_store.send(mailbox, "late", "tester")
 
-    assert not any(p.read_text().endswith("late\n") for p in inbox.glob("*.md"))
+    assert not any(p.read_text().endswith("late\n") for p in mailbox.glob("*.md"))
 
 
 def test_files_with_partial_looking_names_that_the_migration_did_not_write_survive(monkeypatch):
@@ -193,11 +193,11 @@ def test_rollback_keeps_the_copies_it_takes_out_of_the_new_home():
 def test_a_symlinked_new_home_refuses_rollback(tmp_path):
     work = old_home_with_work()
     assert migrate.run().done
-    inbox = layout.lemons_dir() / "inbox"
-    shutil.move(inbox, tmp_path / "moved-inbox")
-    inbox.symlink_to(tmp_path / "moved-inbox")
+    mailbox = layout.lemons_dir() / "mailbox"
+    shutil.move(mailbox, tmp_path / "moved-mailbox")
+    mailbox.symlink_to(tmp_path / "moved-mailbox")
 
     outcome = rollback.run()
 
     assert not outcome.done and "is a symlink" in outcome.messages[0]
-    assert (tmp_path / "moved-inbox" / work["inbox"].name).is_dir()
+    assert (tmp_path / "moved-mailbox" / work["mailbox"].name).is_dir()

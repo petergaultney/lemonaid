@@ -15,7 +15,7 @@ _log = get_logger("messages.dead_letters")
 
 
 def path() -> Path:
-    return store.inbox_root() / "dead-letters.jsonl"
+    return store.mailbox_root() / "dead-letters.jsonl"
 
 
 def record(sender: str, lemon_id: str, state: str, said: str, message: Path) -> None:

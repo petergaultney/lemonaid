@@ -73,4 +73,4 @@ So `child.done` is for a parent whose child goes `done`, and `orphan.done` is fo
 watching orphans. A note never changes which events wake a lemon. A note for `child.blocked`
 appears only if the parent's watcher wakes on `blocked`.
 
-Other watcher events (PRs, documents, repos, files and inbox messages) don't carry notes yet.
+Other watcher events (PRs, documents, repos, files and mailbox messages) don't carry notes yet.

@@ -142,7 +142,7 @@ def test_registering_a_task_for_another_running_brief_tells_it(tmp_path):
         recorded = registration.register(conn, plan, "busy.Worker", _PARENT, "More work", 5.0)
         said = notices.notice(conn, recorded, _PARENT)
 
-    [message] = store.inbox_for_id("busy.Worker").glob("*.md")
+    [message] = store.mailbox_for_id("busy.Worker").glob("*.md")
     assert "has been told" in said
     assert f"You now hold task:{recorded['task_id']}" in message.read_text()
 

@@ -89,7 +89,7 @@ def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None)
         if (
             status.split(text).status == "done"
             or wait_state.is_armed(lemon_id)
-            or waiter.is_armed(store.inbox_for_id(lemon_id))
+            or waiter.is_armed(store.mailbox_for_id(lemon_id))
             or handoff_state.pending_source(conn, entry.path, entry.channel, time.time())
         ):
             continue

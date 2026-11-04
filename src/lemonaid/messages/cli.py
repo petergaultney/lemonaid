@@ -13,10 +13,20 @@ from ..inbox import db
 from ..launch.restart import state
 from ..log import get_logger
 from ..watch import push_scout, registry
-from . import autoresume, codex_delivery, dead_letters, recipient, service, store, waiter
+from . import (
+    autoresume,
+    codex_delivery,
+    dead_letters,
+    mailbox_command,
+    recipient,
+    service,
+    service_cli,
+    store,
+    waiter,
+)
 
 _log = get_logger("messages.cli")
-_INBOX_WATCH = ["lemonaid", "inbox", "watch", "--self"]
+_MAILBOX_WATCH = [*mailbox_command.WATCH, "--self"]
 
 
 def _fail(message: str) -> None:
@@ -105,8 +115,8 @@ def cmd_tell(args: argparse.Namespace) -> None:
             except (ValueError, brief.store.ChangedUnderneath) as error:
                 _fail(str(error))
     try:
-        inbox = store.inbox_for_id(lemon_id)
-        path = store.send(inbox, sys.stdin.read() if message == "-" else message, sender)
+        mailbox = store.mailbox_for_id(lemon_id)
+        path = store.send(mailbox, sys.stdin.read() if message == "-" else message, sender)
     except ValueError as error:
         _fail(str(error))
 
@@ -120,7 +130,7 @@ def cmd_tell(args: argparse.Namespace) -> None:
     elif channel.startswith("claude:") and row is not None:
         push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
     print(path)
-    found_state = recipient.probe(channel, row, inbox)
+    found_state = recipient.probe(channel, row, mailbox)
     if found_state.state not in recipient.UNREAD:
         print(recipient.describe(lemon_id, found_state), file=sys.stderr)
         return
@@ -129,7 +139,7 @@ def cmd_tell(args: argparse.Namespace) -> None:
         (autoresume.off(lemon_id, parent, found_state), False)  # no record of its session to start
         if row is None or brief_path is None
         else autoresume.respond(
-            autoresume.Recipient(lemon_id, parent, row, _text(brief_path), inbox),
+            autoresume.Recipient(lemon_id, parent, row, _text(brief_path), mailbox),
             found_state,
             load_config(),
         )
@@ -155,11 +165,11 @@ def own_lemon(explicit_channel: str) -> tuple[str, str]:
             raise
 
 
-def _take_and_print(inbox: Path, channel: str):
+def _take_and_print(mailbox: Path, channel: str):
     with state.admission(channel) as allowed:
         if not allowed:
             return None
-        result = store.take_next(inbox)
+        result = store.take_next(mailbox)
         if result is not None:
             path, message = result
             try:
@@ -173,7 +183,7 @@ def _take_and_print(inbox: Path, channel: str):
 
 def _receive(args: argparse.Namespace, wait: bool) -> None:
     channel, lemon_id = own_lemon(args.channel or "")
-    inbox = store.inbox_for_id(lemon_id)
+    mailbox = store.mailbox_for_id(lemon_id)
 
     if wait:
 
@@ -196,22 +206,22 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
         codex_thread = args.codex_thread or codex_delivery.own_thread(channel)
         try:
             with (
-                waiter.armed(inbox),
+                waiter.armed(mailbox),
                 registry.registered(
-                    "inbox",
+                    "mailbox",
                     (lemon_id,),
                     channel,
-                    shlex.join(getattr(args, "invocation", None) or _INBOX_WATCH),
+                    shlex.join(getattr(args, "invocation", None) or _MAILBOX_WATCH),
                 ),
             ):
                 result = store.watch_next(
-                    inbox,
+                    mailbox,
                     still_attached,
                     args.timeout,
                     find=(
-                        (lambda inbox: codex_delivery.deliver_next(inbox, codex_thread))
+                        (lambda mailbox: codex_delivery.deliver_next(mailbox, codex_thread))
                         if codex_thread
-                        else lambda inbox: _take_and_print(inbox, channel)
+                        else lambda mailbox: _take_and_print(mailbox, channel)
                     ),
                 )
         except (ValueError, TimeoutError, RuntimeError, waiter.AlreadyArmed) as error:
@@ -221,7 +231,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
             print(result[1], end="")
             return
     else:
-        result = _take_and_print(inbox, channel)
+        result = _take_and_print(mailbox, channel)
 
     if result is None:
         raise SystemExit(1)
@@ -237,8 +247,8 @@ def cmd_watch(args: argparse.Namespace) -> None:
 
 _TELL_EPILOG = """\
 The message is always queued. tell then says on stderr whether the recipient
-will read it. A lemon whose harness exited, or an idle Claude with no inbox
-waiter, is started on a prompt to read its inbox, unless it is done or
+will read it. A lemon whose harness exited, or an idle Claude with no mailbox
+waiter, is started on a prompt to read its mailbox, unless it is done or
 archived ([messages] autoresume). tell exits 1 when the recipient still won't
 read it. On exit 1, don't resend or wait for a reply; follow the next step
 that line gives.
@@ -248,7 +258,7 @@ that line gives.
 def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "tell",
-        help="Send a Markdown message to a lemon's inbox",
+        help="Send a Markdown message to a lemon's mailbox",
         epilog=_TELL_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -267,7 +277,7 @@ def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(func=cmd_tell)
 
 
-def add_inbox_parsers(subparsers: argparse._SubParsersAction) -> None:
+def _add_receive_parsers(subparsers: argparse._SubParsersAction) -> None:
     for name, command, help_text in (
         ("next", cmd_next, "Print and handle the next message, if any"),
         ("watch", cmd_watch, "Wait for one message, print it, and handle it"),
@@ -283,3 +293,14 @@ def add_inbox_parsers(subparsers: argparse._SubParsersAction) -> None:
                 help="Queue the message into this Codex thread (default: $CODEX_THREAD_ID when watching that thread)",
             )
         parser.set_defaults(func=command, codex_thread="")
+
+
+def setup_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        mailbox_command.COMMAND,
+        help="Read the messages `tell` sends to this lemon",
+        description="A lemon's mailbox holds the messages sent to it with `tell`.",
+    )
+    mailbox_subparsers = parser.add_subparsers(dest="mailbox_command", required=True)
+    _add_receive_parsers(mailbox_subparsers)
+    service_cli.add_parser(mailbox_subparsers)

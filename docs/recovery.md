@@ -8,7 +8,7 @@ When many processes die at once, such as a `pkill -f` that matched too much or a
 lemonaid lemon doctor --all
 ```
 
-It lists lemons that are `deaf` (alive, but with no inbox waiter, so a `tell` to them won't be read) or `dead` (the harness exited). Its facts and their limits are in [for-lemons](for-lemons.md#checking-on-lemons-lemon-doctor). `lemonaid tell` also exits 1 when the recipient won't read the message, and logs it to `dead-letters.jsonl` in the inbox root.
+It lists lemons that are `deaf` (alive, but with no mailbox waiter, so a `tell` to them won't be read) or `dead` (the harness exited). Its facts and their limits are in [for-lemons](for-lemons.md#checking-on-lemons-lemon-doctor). `lemonaid tell` also exits 1 when the recipient won't read the message, and logs it to `dead-letters.jsonl` in the mailbox root.
 
 `doctor` does not compare a brief's `## Watching` with the waiters actually running, or look for a frozen terminal. For a lemon it calls healthy but that has gone quiet:
 
@@ -20,7 +20,7 @@ Don't trust `pane_current_command`. Claude Code titles itself with its version, 
 
 ## Bring them back
 
-- **A lemon with missing waiters:** `lemonaid tell <lemon> "rearm the waiters in your brief"`. A Claude lemon reads it only if its inbox waiter is armed; otherwise resume it.
+- **A lemon with missing waiters:** `lemonaid tell <lemon> "rearm the waiters in your brief"`. A Claude lemon reads it only if its mailbox waiter is armed; otherwise resume it.
 - **A dead lemon:** `lemonaid lemon resume <lemon>`.
 - **A dead Claude, by hand:** `claude --resume <id> "<prompt>"` with a prompt telling it to rearm its waiters. A session that ended in the middle of a tool call can refuse to resume without one.
 - **A dead Codex, by hand:** `codex --no-daemon resume <id>`.

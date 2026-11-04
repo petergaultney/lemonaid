@@ -78,7 +78,7 @@ def cmd_status_note(args: argparse.Namespace) -> None:
 
 
 def cmd_waiter_check(args: argparse.Namespace) -> None:
-    """Handle the Stop hook that keeps a briefed lemon's inbox waiter armed."""
+    """Handle the Stop hook that keeps a briefed lemon's mailbox waiter armed."""
     stop_check.handle()
 
 
@@ -256,7 +256,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--waiter-check",
         action="store_true",
         help="Act on the Stop hook that blocks a briefed lemon from ending a turn "
-        "without `lemonaid inbox watch --self` running",
+        "without `lemonaid mailbox watch --self` running",
     )
     hooks_parser.add_argument(
         "--session-end",
@@ -297,7 +297,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     # claude waiter-check
     waiter_check_parser = claude_subparsers.add_parser(
         "waiter-check",
-        help="Block a Stop until a briefed lemon's inbox waiter is armed (reads JSON from stdin)",
+        help="Block a Stop until a briefed lemon's mailbox waiter is armed (reads JSON from stdin)",
     )
     waiter_check_parser.set_defaults(func=cmd_waiter_check)
 

@@ -71,7 +71,7 @@ def test_unified_watch_arms_alias_inbox_and_delivers_to_real_thread(alias, monke
 
     def batch(*args, **kwargs):
         assert args[0] == path
-        assert args[1] == messages.inbox_for_id(lemon_id)
+        assert args[1] == messages.mailbox_for_id(lemon_id)
         assert args[2] == cursors.root() / lemon_id
         assert args[5]()  # still attached to the alias, not the raw thread
         assert waiter.is_armed(args[1])
@@ -85,7 +85,7 @@ def test_unified_watch_arms_alias_inbox_and_delivers_to_real_thread(alias, monke
     monkeypatch.setattr(batch_wait, "wait", batch)
     assert wait_cli.run(args) == 0
     assert queued == [(_ROOT, "one pending batch")]
-    assert not waiter.is_armed(messages.inbox_for_id(lemon_id))
+    assert not waiter.is_armed(messages.mailbox_for_id(lemon_id))
     assert not wait_state.is_armed(lemon_id)
 
 
@@ -111,7 +111,7 @@ def test_alias_inbox_delivery_queues_real_thread(alias, monkeypatch):
     channel, path, lemon_id = alias
     assert codex_delivery.own_thread(channel) == _ROOT
     assert codex_delivery.own_thread("codex:other") == ""
-    inbox = messages.inbox_for_id(lemon_id)
+    inbox = messages.mailbox_for_id(lemon_id)
     with db.connect() as conn:
         assert list(service.codex_recipients(conn)) == [(inbox, _ROOT)]
     messages.send(inbox, "review this", "sender.IndexElf")
@@ -178,7 +178,7 @@ def test_explicit_raw_channel_names_alias_for_brief_tell_and_doctor(alias, monke
     messages_cli.cmd_tell(
         argparse.Namespace(parent=False, child="", target=raw, message="alias target", channel="")
     )
-    assert "alias target" in messages.peek_next(messages.inbox_for_id(lemon_id))[1]
+    assert "alias target" in messages.peek_next(messages.mailbox_for_id(lemon_id))[1]
 
 
 def test_stop_before_first_notify_resolves_unbound_alias_and_blocks(setup, monkeypatch, capsys):
@@ -301,7 +301,7 @@ def test_the_scout_host_actually_arms_alias_inbox(alias, monkeypatch, tmp_path):
         scout_roster.register(lemon_id, channel, _ROOT, str(tmp_path))
         _REAL_SPAWN()
         assert wait_state.is_armed(lemon_id, grace=10)
-        assert waiter.is_armed(messages.inbox_for_id(lemon_id), grace=1)
+        assert waiter.is_armed(messages.mailbox_for_id(lemon_id), grace=1)
         assert registry.mine(channel, "wait")
         [host] = [w for w in registry.running() if w.kind == "host"]
 

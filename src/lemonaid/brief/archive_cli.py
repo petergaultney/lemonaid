@@ -116,7 +116,7 @@ def daily() -> None:
 def add_parsers(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "archive",
-        help="Move a brief, or every brief unused for --idle-days, and its inbox to the attic",
+        help="Move a brief, or every brief unused for --idle-days, and its mailbox to the attic",
     )
     parser.add_argument("target", nargs="?", help="A Lemon-ID, or a brief's name or path")
     parser.add_argument(
@@ -126,7 +126,7 @@ def add_parsers(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(func=_cmd_archive)
 
     revive = subparsers.add_parser(
-        "revive", help="Move an archived brief and its inbox back, unattached"
+        "revive", help="Move an archived brief and its mailbox back, unattached"
     )
     revive.add_argument("lemon_id")
     revive.set_defaults(func=_cmd_revive)

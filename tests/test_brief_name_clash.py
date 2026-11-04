@@ -22,7 +22,7 @@ def _two_lemons_one_name():
 
 
 def _pending(lemon_id: str) -> list[str]:
-    return [p.read_text() for p in message_store.inbox_for_id(lemon_id).glob("*.md")]
+    return [p.read_text() for p in message_store.mailbox_for_id(lemon_id).glob("*.md")]
 
 
 def test_the_warning_is_queued_once_however_often_the_lemon_comes_back():

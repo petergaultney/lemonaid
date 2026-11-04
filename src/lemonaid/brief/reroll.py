@@ -1,6 +1,6 @@
 """Give a lemon a new name, carrying over everything recorded against its old Lemon-ID.
 
-The old ID stays an alias of the new one, and its inbox folder is left holding
+The old ID stays an alias of the new one, and its mailbox folder is left holding
 only a forward, so a message addressed to it still reaches the lemon.
 """
 
@@ -30,7 +30,7 @@ def _taken(conn: sqlite3.Connection, name: str, slug: str) -> bool:
             " UNION SELECT 1 FROM lemon_aliases WHERE old_id = ?",
             (lemon_id, lemon_id),
         ).fetchone()
-        if row is not None or messages.store.inbox_for_id(lemon_id).exists():
+        if row is not None or messages.store.mailbox_for_id(lemon_id).exists():
             return True
 
     return False
@@ -82,9 +82,9 @@ def _relabel(conn: sqlite3.Connection, path: Path, old_id: str, new_id: str) -> 
     conn.execute("INSERT INTO lemon_aliases (old_id, lemon_id) VALUES (?, ?)", (old_id, new_id))
 
 
-def _move_inbox(old_id: str, new_id: str) -> None:
+def _move_mailbox(old_id: str, new_id: str) -> None:
     """One rename carries pending messages, done/, and the lock files together."""
-    old, new = messages.store.inbox_for_id(old_id), messages.store.inbox_for_id(new_id)
+    old, new = messages.store.mailbox_for_id(old_id), messages.store.mailbox_for_id(new_id)
     if old.is_dir():
         old.rename(new)
     else:
@@ -93,9 +93,9 @@ def _move_inbox(old_id: str, new_id: str) -> None:
     (old / messages.store.FORWARD).write_text(new_id + "\n")
 
 
-def _unmove_inbox(old_id: str, new_id: str) -> None:
-    """Undo as much of `_move_inbox` as it got through."""
-    old, new = messages.store.inbox_for_id(old_id), messages.store.inbox_for_id(new_id)
+def _unmove_mailbox(old_id: str, new_id: str) -> None:
+    """Undo as much of `_move_mailbox` as it got through."""
+    old, new = messages.store.mailbox_for_id(old_id), messages.store.mailbox_for_id(new_id)
     if not new.is_dir():
         return
 
@@ -125,7 +125,7 @@ def reroll(
             new_id = _new_id(conn, path, old_id, chosen, words)
             _relabel(conn, path, old_id, new_id)
             moved = True
-            _move_inbox(old_id, new_id)
+            _move_mailbox(old_id, new_id)
             store.edit(path, lambda text: _with_id(text, old_id, new_id))
             rewritten = True
             conn.commit()
@@ -134,7 +134,7 @@ def reroll(
             if rewritten:
                 store.edit(path, lambda text: _with_id(text, new_id, old_id))
             if moved:
-                _unmove_inbox(old_id, new_id)
+                _unmove_mailbox(old_id, new_id)
             raise
 
     return Rerolled(old_id, new_id)

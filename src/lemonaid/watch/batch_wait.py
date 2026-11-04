@@ -17,10 +17,10 @@ _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 _log = get_logger("watch.batch_wait")
 
 
-def _messages(inbox: Path) -> list[tuple[Path, str]]:
+def _messages(mailbox: Path) -> list[tuple[Path, str]]:
     return [
         (path, path.read_text())
-        for path in sorted(inbox.glob("*.md"))
+        for path in sorted(mailbox.glob("*.md"))
         if path.is_file() and not path.is_symlink()
     ]
 
@@ -92,7 +92,7 @@ def _collect(
 
 def wait(
     path: Path,
-    inbox: Path,
+    mailbox: Path,
     root: Path,
     writer: str,
     deliver: delivery.Deliver,
@@ -110,19 +110,19 @@ def wait(
     """Deliver one batch; True instead when a restart was requested.
 
     Cursors advance only on delivery, so the restarted waiter detects again whatever was
-    pending, and undelivered inbox messages stay on disk for it. With nothing pending, a
-    loop with event *pacing* sleeps until its brief, inbox, a detector or the *harness* files
+    pending, and undelivered mailbox messages stay on disk for it. With nothing pending, a
+    loop with event *pacing* sleeps until its brief, mailbox, a detector or the *harness* files
     and pids change, or `waits.idle` passes.
     """
     vaults = tuple(load_config().brief.vaults)
-    read_subscriptions = subscription_state.reader(path, root, cwd, inbox.name, vaults)
-    wordy = identity.brief_name(inbox.name) or inbox.name
+    read_subscriptions = subscription_state.reader(path, root, cwd, mailbox.name, vaults)
+    wordy = identity.brief_name(mailbox.name) or mailbox.name
     signatures = tuple(f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead"))
     output: queue.Queue[scouts.Pending] = queue.Queue()
     running: dict[tuple, scouts.Scout] = {}
     pending: list[scouts.Pending] = []
     wake = threading.Event()
-    unwatch = pacing.watch([path, inbox, *harness[0]], harness[1], wake)
+    unwatch = pacing.watch([path, mailbox, *harness[0]], harness[1], wake)
     since, last_messages = 0.0, ()
     children: frozenset[tuple[str, ...]] = frozenset()
     children_at = -_CHILDREN_EVERY
@@ -131,7 +131,7 @@ def wait(
             beat()
             if time.monotonic() - children_at >= _CHILDREN_EVERY:
                 children, children_at = (
-                    pr_roles.children_author(inbox.name, cwd, vaults),
+                    pr_roles.children_author(mailbox.name, cwd, vaults),
                     time.monotonic(),
                 )
             listed, problem = read_subscriptions(children)
@@ -150,8 +150,8 @@ def wait(
             if restart_requested():
                 return True
 
-            with store.receive_lock(inbox, wait=False) as held:
-                messages = _messages(inbox) if held else []
+            with store.receive_lock(mailbox, wait=False) as held:
+                messages = _messages(mailbox) if held else []
                 names = tuple(p.name for p, _ in messages)
                 if names != last_messages:
                     last_messages, since = names, time.monotonic()
@@ -163,12 +163,12 @@ def wait(
                 if (pending or messages) and armed and time.monotonic() - since >= quiet:
                     _log.info(
                         "delivering to %s: %s",
-                        inbox.name,
+                        mailbox.name,
                         ", ".join(
                             [
                                 *(f"[{p.source}] {time.time() - p.detected:.1f}s" for p in pending),
                                 *(
-                                    f"[inbox] {time.time() - m.stat().st_mtime:.1f}s"
+                                    f"[mailbox] {time.time() - m.stat().st_mtime:.1f}s"
                                     for m, _ in messages
                                 ),
                             ]
@@ -178,7 +178,7 @@ def wait(
                         "\n\n".join(
                             [
                                 *(f"[{p.source}] {p.message}" for p in pending),
-                                *(f"[inbox] {body.rstrip()}" for _, body in messages),
+                                *(f"[mailbox] {body.rstrip()}" for _, body in messages),
                             ]
                         )
                     )

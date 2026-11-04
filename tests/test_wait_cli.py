@@ -8,15 +8,15 @@ from lemonaid.watch import batch_wait, cli, codex_scout, delivery, wait_cli, wai
 from tests.scout_host import shared as hosted
 
 
-def test_wait_is_registered_holds_one_lock_and_delivers_inbox(monkeypatch, capsys):
+def test_wait_is_registered_holds_one_lock_and_delivers_mailbox(monkeypatch, capsys):
     path = store.briefs_dir() / "task.md"
     path.parent.mkdir(parents=True)
     path.write_text("# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n")
     with db.connect() as conn:
         db.add(conn, "codex:test", "", metadata={})
         attached.attach(conn, "codex:test", path)
-    inbox = messages.inbox_for_id("task.IndexElf")
-    messages.send(inbox, "one message", "other.IndexElf")
+    mailbox = messages.mailbox_for_id("task.IndexElf")
+    messages.send(mailbox, "one message", "other.IndexElf")
     args = argparse.Namespace(
         codex_thread="",
         channel="codex:test",
@@ -62,7 +62,7 @@ def test_an_archived_session_stops_watching_its_brief():
 
 
 def test_a_scout_keeps_watching_an_archived_session_whose_thread_runs(monkeypatch):
-    """The inbox archives a lemon's row when its process exits; a resumed lemon keeps it."""
+    """The mailbox archives a lemon's row when its process exits; a resumed lemon keeps it."""
     path = store.briefs_dir() / "task.md"
     path.parent.mkdir(parents=True)
     path.write_text("# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n")

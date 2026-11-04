@@ -1,4 +1,4 @@
-"""`lemonaid inbox deliver`: run the Codex delivery service in the foreground."""
+"""`lemonaid mailbox deliver`: run the Codex delivery service in the foreground."""
 
 import argparse
 import sys
@@ -29,6 +29,6 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "--retry",
         type=float,
         default=30.0,
-        help="Seconds before retrying an inbox whose queue failed (default: 30)",
+        help="Seconds before retrying a mailbox whose queue failed (default: 30)",
     )
     parser.set_defaults(func=cmd_deliver)

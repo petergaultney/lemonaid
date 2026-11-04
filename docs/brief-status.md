@@ -36,7 +36,7 @@ A brief without a manual status is shown as one of:
 |---|---|
 | `active` | the lemon is mid-turn |
 | `idle` | the lemon is between turns and will read a message sent to it |
-| `deaf` | a lemon is between turns with no inbox waiter armed |
+| `deaf` | a lemon is between turns with no mailbox waiter armed |
 | `dead` | no harness is running on the terminal the lemon last reported from |
 
 The inbox confirms a missing harness with the same recipient check used by
@@ -45,15 +45,15 @@ an unarmed waiter, or a stale recorded tmux window does not make a lemon `dead`.
 For cmux sessions, the check follows the current session rather than its old tty.
 
 These come from the facts `lemonaid tell` already uses to say whether a message will
-be read (`docs/messages.md`). An idle Codex lemon needs its inbox waiter armed to
+be read (`docs/messages.md`). An idle Codex lemon needs its mailbox waiter armed to
 start a turn from queued messages.
-A Claude lemon listens while its inbox waiter holds the lock, and its Stop hook
+A Claude lemon listens while its mailbox waiter holds the lock, and its Stop hook
 refuses to end a turn without one. So a held lock means the lemon is reachable,
 not that it waits on anything in particular: what it waits on is the `### Waiting
 on` part of `## Now`, which an `idle` card shows. Harnesses lemonaid can't probe
 (OpenCode, OpenClaw) show `active` or `idle` only.
 
-A Claude lemon is briefly deaf each time its inbox waiter hands it a message,
+A Claude lemon is briefly deaf each time its mailbox waiter hands it a message,
 until it rearms one, so the inbox marks `deaf` only after 15 seconds of it.
 
 A lemon marked `deaf` (never a `done` one, see below) is never hidden in the inbox: not by `fold_statuses`, a collapsed

@@ -8,6 +8,7 @@ from collections import abc
 from pathlib import Path
 
 from ..brief import doc_table, identity, lemon_table, output_doc, pr_table, sections, waiters
+from ..messages import mailbox_command
 from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
 
 
@@ -60,8 +61,7 @@ class Subscription:
 def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None:
     command = re.sub(r"--head\s+<[^>]+>", "", command)
     words = shlex.split(command)
-    if words[:3] in [
-        ["lemonaid", "inbox", "watch"],
+    if mailbox_command.is_watch(words) or words[:3] in [
         ["lemonaid", "wait", "--self"],
         ["lemonaid", "watch", "--self"],
     ]:
