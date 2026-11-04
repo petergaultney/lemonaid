@@ -63,7 +63,7 @@ def _briefed() -> Path:
     return messages.mailbox_for_id(_LEMON)
 
 
-def _session(sock: str) -> Path:
+def _session(sock: str, parked_job: str = "") -> Path:
     listing = session_socket.claude_dir() / "sessions" / f"{os.getpid()}.json"
     listing.parent.mkdir(parents=True, exist_ok=True)
     listing.write_text(
@@ -73,6 +73,7 @@ def _session(sock: str) -> Path:
                 "sessionId": _SESSION,
                 "cwd": os.getcwd(),
                 "messagingSocketPath": sock,
+                **({"parkedJobId": parked_job} if parked_job else {}),
             }
         )
     )
@@ -181,6 +182,23 @@ def test_no_scout_for_a_session_that_would_hold_the_message(monkeypatch, capsys)
     assert wait_cli.run(_args()) == 2
     assert "crossSessionInbound" in capsys.readouterr().out
     assert hosted.run(_LEMON, _CHANNEL) == "ended"
+
+
+def test_no_scout_for_a_parked_session_and_its_messages_stay_pending(caplog, capsys):
+    mailbox = _briefed()
+    sock, received = _listener()
+    _session(sock, parked_job="1eb3e867")
+    messages.send(mailbox, "kept", "other.IndexElf")
+
+    with caplog.at_level(logging.INFO):
+        assert hosted.run(_LEMON, _CHANNEL) == "ended"
+        assert not push_scout.ensure("abcd1234", _LEMON, grace=0)
+
+    assert messages.pending_count(mailbox) == 1
+    assert received == []
+    assert any("background job 1eb3e867" in r.getMessage() for r in caplog.records)
+    assert wait_cli.run(_args()) == 2
+    assert "background job 1eb3e867" in capsys.readouterr().out
 
 
 def test_ensure_starts_a_scout_only_for_a_session_that_accepts(monkeypatch):
@@ -348,6 +366,27 @@ def test_a_refused_push_logs_an_abnormal_exit(caplog):
 
     [(level, message)] = _exits(caplog)
     assert level == "WARNING" and "Failed" in message
+
+
+def test_a_scout_stops_when_claude_code_parks_its_session(caplog):
+    mailbox = _briefed()
+    sock, received = _listener()
+    listing = _session(sock)
+    with caplog.at_level(logging.INFO):
+        scout = hosted.start(_LEMON, _CHANNEL)
+        _until(lambda: len(received) == 1)  # the announcement
+
+        _session(sock, parked_job="1eb3e867")
+        assert scout.join() == "ended"
+    messages.send(mailbox, "kept", "other.IndexElf")
+    time.sleep(0.2)
+
+    assert len(received) == 1
+    assert messages.pending_count(mailbox) == 1
+    assert not wait_state.is_armed(_LEMON)
+    [(level, message)] = _exits(caplog)
+    assert level == "INFO" and "session parked" in message and "1eb3e867" in message
+    listing.unlink()
 
 
 def test_push_registers_the_scout_with_the_host_and_returns(capsys):

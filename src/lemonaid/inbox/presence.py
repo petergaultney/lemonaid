@@ -5,7 +5,8 @@ for every row at once and kept for a few seconds, since the inbox redraws
 several times a second.
 
 A Claude lemon is deaf for a moment each time its mailbox waiter delivers a
-message and before it rearms one, so `deaf` waits until it has lasted.
+message and before it rearms one, so `deaf` waits until it has lasted. A lemon
+whose conversation Claude Code parked in a background job is marked `deaf` at once.
 """
 
 import threading
@@ -25,7 +26,7 @@ DEAD = "dead"
 
 _TTL_SECONDS = 10.0
 DEAF_AFTER_SECONDS = 15.0
-_MARKS = {recipient.DEAF: DEAF, recipient.DEAD: DEAD}
+_MARKS = {recipient.DEAF: DEAF, recipient.PARKED: DEAF, recipient.DEAD: DEAD}
 
 
 def _harness_ttys() -> frozenset[str] | None:
@@ -58,6 +59,7 @@ class _Listing(ty.NamedTuple):
     at: float
     ttys: frozenset[str] | None
     confirmed: dict[str, tuple[db.Notification, bool | None]]
+    parked: dict[str, str]  # `recipient.parked_jobs`
 
 
 def _confirming(row: db.Notification, listing: _Listing) -> bool:
@@ -68,7 +70,8 @@ def _confirming(row: db.Notification, listing: _Listing) -> bool:
 
 
 class Probe:
-    """Caches the `ps` listing the marks come from for `_TTL_SECONDS`; waiter locks are read every time.
+    """Caches the `ps` listing and the parked sessions the marks come from for `_TTL_SECONDS`;
+    waiter locks are read every time.
 
     A lemon is marked `deaf` once it has been deaf for *deaf_after* seconds of calls.
     Batch misses are confirmed with the same recipient probe as `lemon doctor`.
@@ -79,7 +82,7 @@ class Probe:
     """
 
     def __init__(self, deaf_after: float = 0.0, background: bool = False) -> None:
-        self._listing = _Listing(float("-inf"), None, {})
+        self._listing = _Listing(float("-inf"), None, {}, {})
         self._listing_pending = False
         self._background = background
         self._deaf_after = deaf_after
@@ -87,7 +90,7 @@ class Probe:
 
     def _list(self, rows: abc.Sequence[db.Notification], now: float) -> None:
         try:
-            listing = _Listing(now, _harness_ttys(), {})
+            listing = _Listing(now, _harness_ttys(), {}, recipient.parked_jobs())
             for row in rows:
                 if _confirming(row, listing):
                     listing.confirmed[row.channel] = (row, recipient.harness_alive(row))
@@ -99,7 +102,7 @@ class Probe:
 
     def _relist(self, rows: abc.Sequence[db.Notification], now: float) -> None:
         if not self._background:
-            self._listing = _Listing(now, _harness_ttys(), {})
+            self._listing = _Listing(now, _harness_ttys(), {}, recipient.parked_jobs())
             return
 
         if not self._listing_pending:
@@ -141,7 +144,14 @@ class Probe:
         found = {}
         deaf_since = {}
         for row, armed in candidates:
-            state = recipient.classify(row.channel, row, self._alive(row), armed, now)
+            state = recipient.classify(
+                row.channel,
+                row,
+                self._alive(row),
+                armed,
+                now,
+                self._listing.parked.get(row.channel, ""),
+            )
             if state.state == recipient.DEAF:
                 deaf_since[row.channel] = self._deaf_since.get(row.channel, now)
                 if now - deaf_since[row.channel] < self._deaf_after:

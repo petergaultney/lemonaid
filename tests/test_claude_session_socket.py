@@ -14,12 +14,20 @@ from lemonaid.claude import session_socket
 _SESSION = "abcd1234-1111-2222-3333-444455556666"
 
 
-def _listed(pid: int, session_id: str = _SESSION, sock: str = "/tmp/cc-socks/x.sock") -> None:
+def _listed(
+    pid: int, session_id: str = _SESSION, sock: str = "/tmp/cc-socks/x.sock", parked_job: str = ""
+) -> None:
     sessions = session_socket.claude_dir() / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     (sessions / f"{pid}.json").write_text(
         json.dumps(
-            {"pid": pid, "sessionId": session_id, "cwd": "/work", "messagingSocketPath": sock}
+            {
+                "pid": pid,
+                "sessionId": session_id,
+                "cwd": "/work",
+                "messagingSocketPath": sock,
+                **({"parkedJobId": parked_job} if parked_job else {}),
+            }
         )
     )
 
@@ -99,3 +107,42 @@ def test_send_writes_one_line_to_the_socket():
 def test_a_missing_socket_is_refused(tmp_path: Path):
     with pytest.raises(session_socket.Refused):
         session_socket.send(session_socket.Session(1, _SESSION, "", str(tmp_path / "no.sock")), "x")
+
+
+def test_a_parked_session_is_still_alive_and_names_its_job():
+    _listed(os.getpid(), parked_job="1eb3e867")
+
+    found = session_socket.find(_SESSION[:8])
+
+    assert found is not None and found.parked_job == "1eb3e867"
+    assert session_socket.alive(found)
+    assert session_socket.parked(found) == "1eb3e867"
+
+
+def test_send_refuses_a_session_parked_after_it_was_found():
+    path, received, thread = _listener()
+    _listed(os.getpid(), sock=path)
+    entry = session_socket.find(_SESSION[:8])
+    assert entry is not None and not session_socket.parked(entry)
+
+    _listed(os.getpid(), sock=path, parked_job="1eb3e867")
+    with pytest.raises(session_socket.Refused, match="background job 1eb3e867"):
+        session_socket.send(entry, "wake up")
+
+    session_socket.send(session_socket.Session(1, _SESSION, "", path), "unparked")  # ends accept()
+    thread.join(timeout=5)
+    assert [json.loads(line)["message"]["content"].splitlines()[1] for line in received] == [
+        "unparked"
+    ]
+
+
+def test_send_writes_to_a_listed_session_that_is_not_parked():
+    path, received, thread = _listener()
+    _listed(os.getpid(), sock=path)
+    entry = session_socket.find(_SESSION[:8])
+    assert entry is not None
+
+    session_socket.send(entry, "wake up")
+    thread.join(timeout=5)
+
+    assert json.loads(received[0])["message"]["content"].splitlines()[1] == "wake up"

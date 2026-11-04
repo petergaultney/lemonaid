@@ -40,10 +40,18 @@ def problem(entry: session_socket.Session | None) -> str:
     if entry is None:
         return "no running Claude session with an inbox socket"
 
+    if job := session_socket.parked(entry):
+        return session_socket.parked_reason(job)
+
     if not inbound.session_accepts(entry):
         return 'the session would hold pushed messages; set "crossSessionInbound": "accept"'
 
     return ""
+
+
+def serving(entry: session_socket.Session) -> bool:
+    """Whether *entry* still runs its conversation in its pane, so a push starts a turn."""
+    return session_socket.alive(entry) and not session_socket.parked(entry)
 
 
 def to_session(entry: session_socket.Session) -> delivery.Deliver:
@@ -102,6 +110,17 @@ def running(lemon_id: str, session_id: str = "") -> bool:
     return channel_id("claude", session_id) in channels if session_id else bool(channels)
 
 
+def _ended(entry: session_socket.Session, restarting: bool) -> str:
+    if restarting:
+        return "restarting on request"
+
+    if not session_socket.alive(entry):
+        return "session ended"
+
+    job = session_socket.parked(entry)
+    return f"session parked; {session_socket.parked_reason(job)}" if job else "brief detached"
+
+
 @contextlib.contextmanager
 def logged(
     lemon_id: str,
@@ -110,8 +129,8 @@ def logged(
 ) -> abc.Iterator[None]:
     """One line when the scout starts and one when it exits, saying whether the exit was normal.
 
-    Normal: its session ended, its brief was detached, it is restarting on request (see
-    `restart`), or `lemonaid watch stop` stopped it.
+    Normal: its session ended or was parked in a background job, its brief was detached, it
+    is restarting on request (see `restart`), or `lemonaid watch stop` stopped it.
     A scout killed outright logs only its start line.
     """
     fields = f"lemon={lemon_id} session={entry.session_id} pid={os.getpid()}"
@@ -130,14 +149,7 @@ def logged(
         _exit(fields, f"{type(error).__name__}: {error}", False)
         raise
     else:
-        reason = (
-            "restarting on request"
-            if restarting()
-            else "brief detached"
-            if session_socket.alive(entry)
-            else "session ended"
-        )
-        _exit(fields, reason, True)
+        _exit(fields, _ended(entry, restarting()), True)
 
 
 def _exit(fields: str, reason: str, normal: bool) -> None:

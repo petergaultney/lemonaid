@@ -73,11 +73,11 @@ def _scope(conn: sqlite3.Connection, args: argparse.Namespace) -> list[str]:
 
 
 def _unreachable(found: facts.Facts) -> bool:
-    """Deaf or dead, with a brief that isn't done and a row that isn't archived."""
+    """Deaf, dead or parked, with a brief that isn't done and a row that isn't archived."""
     return (
         found.status != "done"
         and not found.archived
-        and found.state in (recipient.DEAF, recipient.DEAD)
+        and found.state in (recipient.DEAF, recipient.DEAD, recipient.PARKED)
     )
 
 
@@ -132,6 +132,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         gathered, skipped = [], []
         running, attachment = owners.running(), brief.lemon.finder(conn)
         waiters, commands = registry.by_lemon(conn), recipient.tty_commands()
+        parked = recipient.parked_jobs()
         for lemon_id in ids:
             try:
                 found = attachment(lemon_id)
@@ -148,6 +149,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
                     running,
                     waiters(found.channel),
                     commands,
+                    parked,
                 )
             )
 

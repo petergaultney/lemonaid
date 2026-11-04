@@ -433,12 +433,12 @@ lemonaid lemon doctor --stalls                      # open PRs whose next move i
 `doctor` reports what lemonaid can see and leaves the judging to you. An orphan is a lemon with
 no parent, or whose parent's tmux session is gone, as in `watch briefs --orphans`; a lead's
 children become orphans when it dies. `--all` takes every attached lemon, at the cost of a `ps`
-and a pane capture each. Text output starts with a count, then lists only lemons that are `deaf`
-or `dead` and whose brief isn't `done` or archived; a lemon `asking` its user is left out, since
+and a pane capture each. Text output starts with a count, then lists only lemons that are `deaf`,
+`parked` or `dead` and whose brief isn't `done` or archived; a lemon `asking` its user is left out, since
 that is how a lemon waiting on a person looks. `--verbose` lists every lemon. `--json` gives
 `{"lemons", "skipped", "error"}`, with every fact for every lemon in scope, and `skipped` the
-names that matched no attached lemon. It exits 1 when any lemon in scope is `deaf` or `dead` and
-not `done` or archived, and 2 on an error. Like every brief lookup, it attaches a brief waiting
+names that matched no attached lemon. It exits 1 when any lemon in scope is `deaf`, `parked` or
+`dead` and not `done` or archived, and 2 on an error. Like every brief lookup, it attaches a brief waiting
 for a lemon that has since started.
 
 | Fact | Where it comes from | How it misleads |
@@ -1228,7 +1228,9 @@ watch waits until one exists, or use `--timeout <seconds>` to bound the wait.
 recipient whose harness exited (`dead`), or an idle Claude or Codex lemon with no mailbox
 waiter (`deaf`), is started on a prompt to read its mailbox, unless its brief
 says `done` or its row is archived. In tmux, an idle prompt is recognized from
-the empty composer; Codex shows this as `› Ask Codex to do anything`. `tell` exits 1 when the recipient still
+the empty composer; Codex shows this as `› Ask Codex to do anything`. A Claude
+lemon whose conversation Claude Code moved to a background job (`parked`) is
+left alone. `tell` exits 1 when the recipient still
 won't read it, and its stderr line says what to do instead. The message stays
 queued either way, so don't send it again. Each such message is also logged to
 `dead-letters.jsonl` in the mailbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.

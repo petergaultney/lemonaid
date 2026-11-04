@@ -68,7 +68,7 @@ def _harness(registration: scout_roster.Registration) -> _Harness | str:
     assert session is not None  # problem() names a missing session
     return _Harness(
         push_scout.to_session(session),
-        functools.partial(session_socket.alive, session),
+        functools.partial(push_scout.serving, session),
         own_edits.claude_writer(session.session_id),
         session,
         ((session_socket.claude_dir() / "sessions" / f"{session.pid}.json",), (session.pid,)),
