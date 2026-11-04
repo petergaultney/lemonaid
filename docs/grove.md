@@ -113,3 +113,5 @@ lemonaid grove clear-open open:1 # or just one
 ```
 
 The grove is 210 columns by 60 rows at full size. A larger grove is drawn smaller to fit the screen. `show --json` is meant for lemons: one can read the layout, propose a tidier one, and apply it with `move`, `resize` and `reshape` once you agree.
+
+To tell a lemon "clean up 5e", see [Naming a lemon by its key](keybindings.md#naming-a-lemon-by-its-key).

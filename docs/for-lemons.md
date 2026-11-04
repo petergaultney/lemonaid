@@ -888,6 +888,28 @@ lemonaid group add "Inbox work" <lemon> --tree    # a lemon and its descendants
 Lemonaid keeps a `Groups:` line in each member brief's header. Change groups with `lemonaid
 group`, not by editing the line: `brief check` reports a line that disagrees with the database.
 
+### Lemons named by key
+
+When the person names a lemon by its key, as "clean up 5e" or "what's 5.e2 doing", resolve
+the key before acting on it, and name the lemon you found (its Lemon-ID and place) in your reply
+so they can catch a wrong match:
+
+```bash
+lemonaid key 5e           # tree e of block 5: all its lemons, main one first
+lemonaid key 5.e2 --json  # one lemon: Lemon-ID, name, status, place, directory, session, brief
+lemonaid keys             # every lemon's key, one per line
+```
+
+The inbox and the grove share one set of keys: the key in front of each inbox row, as `5s`, is
+that lemon's key in the grove, a group header shows its block's digit, and typing a key in
+either one switches to its lemon. An inbox lists only the lemons it can switch to, so its block
+digits depend on the terminal it runs in. The command reads the keys of an inbox in your own
+terminal; pass `--terminal tmux|wezterm|cmux|any` for another, and it refuses to guess when it
+can't tell. When another terminal's inbox reads the key differently, it says so: ask which
+inbox the person means. A tree's letter stays put, but a block's digit follows the group order
+and a lemon's number follows its place on the tree, so resolve the key when you're told it
+rather than reusing an old answer. If nothing matches, ask which lemon they mean.
+
 ### The grove
 
 The grove (`Space` in `lma`, `docs/grove.md`) draws each group as a block and each session as a
