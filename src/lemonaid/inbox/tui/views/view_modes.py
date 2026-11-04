@@ -27,7 +27,6 @@ HISTORY = Mode(
     ("copy_resume", "filter_history", "tmux_resume"),
 )
 SNOOZED = Mode("#snoozed_table", "snoozed", "toggle_snoozed", "Snoozed", "Wake", INBOX_ONLY_ACTIONS)
-USAGE = Mode("#usage_table", "usage", "toggle_usage", "Usage", "", INBOX_ONLY_ACTIONS)
 
 
 def footer(mode: Mode, enabled: bool) -> abc.Iterator[tuple[str, bool | None, str | None]]:

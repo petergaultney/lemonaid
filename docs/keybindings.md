@@ -30,7 +30,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `A` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
-| `U` | Toggle usage view: each limit window's pace, projection and reset, worst first |
+| `U` | Show usage over the inbox or a brief: each limit window's pace, projection and reset, worst first; `U`, `q` or `Escape` closes it |
 | `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set or attention mode is on |
 | `!` | Turn [attention mode](config.md#attention-mode) on or off: rows only for what needs you, with a count of everything at the top |
@@ -59,7 +59,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 or removes that line to unhide. The list updates immediately, selecting the next
 row or the previous one at the end. A lemon without an attached brief gets a notice.
 The status line reports each toggle for ten seconds, including why a hidden lemon
-stays visible. In history, snoozed and usage views, return to the inbox before
+stays visible. In history and snoozed views, return to the inbox before
 using `H`. While the search box has focus, `H` types a search character; move to
 a result with Down to hide or unhide it.
 
