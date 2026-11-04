@@ -80,14 +80,8 @@ def fill_table(usage_table: DataTable, rows: list[table.Row], config: settings.U
 
 
 def show(
-    header: UsageHeader,
-    usage_table: DataTable | None,
-    current: dict[str, samples.Sample],
-    config: settings.UsageConfig,
+    header: UsageHeader, current: dict[str, samples.Sample], config: settings.UsageConfig
 ) -> None:
-    now = time.time()
     header.show_usage(
-        overall.overall(current, now, config) if config.overall_pace else None, config
+        overall.overall(current, time.time(), config) if config.overall_pace else None, config
     )
-    if usage_table is not None:
-        fill_table(usage_table, table.rows(current, now, config), config)

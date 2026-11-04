@@ -1,4 +1,4 @@
-"""`U` swaps the inbox for the usage view; the header shows the overall pace."""
+"""`U` opens the usage view over the inbox; the header shows the overall pace."""
 
 import asyncio
 import time
@@ -10,6 +10,7 @@ from lemonaid import config as config_mod
 from lemonaid.inbox.tui import app as app_mod
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.views import usage_view
+from lemonaid.inbox.tui.views.usage_screen import UsageScreen
 from lemonaid.usage import samples
 
 from ..shared import until
@@ -47,11 +48,12 @@ def test_u_opens_the_usage_table_and_back(monkeypatch):
         app = LemonaidApp()
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.press("U")
-            table = app.query_one("#usage_table", DataTable)
+            await until(pilot, lambda: isinstance(app.screen, UsageScreen))
+            table = app.screen.query_one(DataTable)
             await until(pilot, lambda: table.row_count == 2)
-            assert table.display and not app.query_one("#inbox_list").display
 
             await pilot.press("q")
-            await until(pilot, lambda: not table.display and app.query_one("#inbox_list").display)
+            await until(pilot, lambda: not isinstance(app.screen, UsageScreen))
+            assert app.query_one("#inbox_list").display and app.is_running
 
     asyncio.run(check())

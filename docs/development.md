@@ -129,8 +129,8 @@ The subpackages, each named for what it owns:
 - `briefs/`: the brief opened up: the scratch pane's brief view, its questions,
   `brief_pane.py` (`BriefPane`, the brief shown in place of the inbox), and the popup.
 - `edits/`: undoable changes to a row, groups and pins, and the dialogs that ask for them.
-- `views/`: the history, snoozed and usage views, and `view_modes.py`, which says how each
-  changes the footer.
+- `views/`: the history and snoozed views, `view_modes.py`, which says how each changes
+  the footer, and the usage window `U` opens.
 - `switching/`: putting the terminal on a session, resuming one from history, and what to
   show when either fails.
 

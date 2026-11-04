@@ -17,7 +17,7 @@ CSS = (
 
 /* Shown by the app when a view, a search or the rows call for them. */
 #history_filter, #fold_label, #attention_summary, #other_sources_label, #other_sources_table,
-#search_archive_label, #history_table, #snoozed_table, #usage_table {
+#search_archive_label, #history_table, #snoozed_table {
     display: none;
 }
 
@@ -130,7 +130,7 @@ App.-search-archive #inbox_list, App.-search-archive #main_table {
     height: auto;
 }
 
-#snoozed_table, #usage_table {
+#snoozed_table {
     height: 1fr;
 }
 """

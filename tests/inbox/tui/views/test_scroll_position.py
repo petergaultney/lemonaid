@@ -44,13 +44,18 @@ def test_view_refill_keeps_visible_row(monkeypatch, tmp_path, mode):
                 table_id = "snoozed"
             elif mode == "usage":
                 app.action_toggle_usage()
-                refresh = app._refresh_usage
-                table_id = "usage"
+                await pilot.pause()
+                screen = app.screen
+                refresh = lambda: screen._fill(current)  # noqa: E731
             else:
                 refresh = app._refresh_notifications
                 table_id = "other_sources"
             await pilot.pause()
-            table = app.query_one(f"#{table_id}_table", DataTable)
+            table = (
+                screen.query_one(DataTable)
+                if mode == "usage"
+                else app.query_one(f"#{table_id}_table", DataTable)
+            )
             assert table.row_count >= 35
             table.move_cursor(row=0)
             table.scroll_to(y=8, animate=False)

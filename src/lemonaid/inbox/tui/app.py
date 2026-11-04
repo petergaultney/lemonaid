@@ -72,7 +72,6 @@ from .rows import brief_cards, row_parts
 from .status_notice import StatusLine
 from .switching import double_activate, history_resume, inbox_switch
 from .tables import row_keys, table_nav
-from .tables.scroll_position import StableTable
 from .tables.table import ClickToActTable
 from .utils import set_terminal_title
 from .views import usage_view, view_modes
@@ -201,7 +200,6 @@ class LemonaidApp(CrashLoggedApp):
                     id="history_table",
                 ),
                 SnoozedTable(lists, self._refresh_snoozed, id="snoozed_table"),
-                StableTable(id="usage_table"),
                 *(
                     []
                     if self.config.tui.notes is None
@@ -232,7 +230,7 @@ class LemonaidApp(CrashLoggedApp):
             self._update_active_row_background()
 
     def _refresh_usage(self) -> None:
-        if not (self.config.usage.overall_pace or self._mode is view_modes.USAGE):
+        if not self.config.usage.overall_pace:
             return
 
         def load() -> None:
@@ -241,12 +239,7 @@ class LemonaidApp(CrashLoggedApp):
         self.run_worker(load, thread=True, group="usage", exclusive=True)
 
     def _show_usage(self, current: dict) -> None:
-        usage_view.show(
-            self.query_one(UsageHeader),
-            self.query_one("#usage_table", DataTable) if self._mode is view_modes.USAGE else None,
-            current,
-            self.config.usage,
-        )
+        usage_view.show(self.query_one(UsageHeader), current, self.config.usage)
 
     def on_mount(self) -> None:
         self._loop_watchdog.start()
@@ -281,8 +274,6 @@ class LemonaidApp(CrashLoggedApp):
         self._content.build_tables(
             self._content.wants_cards(self.size.width, self.size.height), history_marker=False
         )
-
-        usage_view.setup_table(self.query_one("#usage_table", DataTable))
 
         self._refresh_notifications()
         self.query_one("#main_table", DataTable).focus()
@@ -649,7 +640,7 @@ class LemonaidApp(CrashLoggedApp):
 
         nothing_open = (
             self._brief_target is None
-            and self._mode not in (view_modes.SNOOZED, view_modes.USAGE)
+            and self._mode is not view_modes.SNOOZED
             and not self._search_mode
         )
         if self._scratch_mode and nothing_open:
@@ -667,7 +658,7 @@ class LemonaidApp(CrashLoggedApp):
             self.query_one(BriefPane).dismiss()
             return
 
-        if self._mode in (view_modes.SNOOZED, view_modes.USAGE):
+        if self._mode is view_modes.SNOOZED:
             self._set_mode(self._mode, False)
             return
 
@@ -725,11 +716,7 @@ class LemonaidApp(CrashLoggedApp):
             self._activate_lemon(notification)
 
     def action_toggle_usage(self) -> None:
-        if self._brief_target is not None:
-            self.push_screen(UsageScreen(self.config))
-            return
-
-        self._toggle_mode(view_modes.USAGE)
+        self.push_screen(UsageScreen(self.config))
 
     def action_toggle_snoozed(self) -> None:
         self._toggle_mode(view_modes.SNOOZED)
@@ -813,8 +800,6 @@ class LemonaidApp(CrashLoggedApp):
             self._refresh_history()
         elif mode is view_modes.SNOOZED:
             self._refresh_snoozed()
-        else:
-            self._refresh_usage()
         if enabled:
             self.query_one(mode.table_id, DataTable).focus()
 

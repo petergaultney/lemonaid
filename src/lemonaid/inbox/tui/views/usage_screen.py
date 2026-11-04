@@ -1,4 +1,4 @@
-"""The usage view as a modal, for the brief view, which has no inbox views behind it to switch to."""
+"""The usage view: each limit window's pace, projection and reset, as a modal over the inbox or a brief."""
 
 import time
 
@@ -9,6 +9,7 @@ from textual.widgets import DataTable, Label
 
 from ....config import Config
 from ....usage import table
+from ..tables.scroll_position import StableTable
 from . import usage_view
 
 
@@ -35,6 +36,7 @@ class UsageScreen(ModalScreen[None]):
 
     UsageScreen DataTable {
         height: auto;
+        max-height: 85vh;  /* scrolls itself, leaving room for the title and border */
     }
     """
 
@@ -47,7 +49,7 @@ class UsageScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("Usage", classes="title")
-            yield DataTable(id="usage_modal_table", cursor_type="none")
+            yield StableTable(id="usage_modal_table", cursor_type="none")
 
     def on_mount(self) -> None:
         usage_view.setup_table(self.query_one(DataTable))
