@@ -93,16 +93,16 @@ The checker reads and writes a tab-separated line protocol, version 1. Each file
 A checker sees only the facts it declares it watches. Beyond a PR's `state`, `draft`, `checks` and `head`, and its assignees and approvals, lemonaid observes:
 
 - `pr URL mergeable`: `MERGEABLE`, `CONFLICTING`, or `UNKNOWN` while GitHub computes it.
-- `pr URL unresolved`: one space-separated entry per unresolved review thread, naming who spoke last in it: a lemon's signing name (`StateJob` for `🍋 StateJob (Reviewer): ...`), or `@login` for anyone else.
+- `pr URL unresolved`: one line per unresolved review thread, saying who spoke last in it: `user` or `other` (whether the user's own account wrote the comment), the GitHub login, and the lemon name signing it, if it is signed (`StateJob` for `🍋 StateJob (Reviewer): ...`). Lemons comment through the user's account, so only a signature tells a lemon's comment from the user's.
 - `pr URL user_verdict`: the state of the user's own account's latest review on the PR, or empty for none.
-- `brief ID signing_name`: the name the brief's lemon signs comments with.
+- `brief ID signing_names`: every name the brief's lemon has signed comments with, current first, space-separated. A rerolled Brief-ID adds a name.
 - `brief ID status_since` and `brief ID needs_since`: when lemonaid first saw the current Status and the current `Needs` text, from the brief's modification time when it saw them.
 - `brief ID needs_links`: each local file the brief's `Needs` links to, one per line, as `PATH` or `PATH#HEADING`. An `obsidian://` link resolves through `[brief] vaults`; a web link is left out.
 - For each file in `needs_links`, and for any watched `file`: `exists` (`true` or `false`), `modified_at`, `headings` (its Markdown headings, one per line, Relay comments removed), `sha256`, and `captured`.
 
 The default checker builds these rules on them, each a `status-claim` challenge to the holder once it has idled past its grace:
 
-- `merge` while the PR conflicts with its base, or while a review thread on it is unresolved and the holder didn't have the last word in it.
+- `merge` while the PR conflicts with its base, or while an unresolved review thread's last word is someone else's: signed by another lemon, or unsigned from another account. An unsigned comment from the user's own account could be the holder's or the user's, so it never counts.
 - `approve` once the user's own latest review approved the PR.
 - `blocked` or `alert` with no `Needs`, or with a `Needs` link to a file that doesn't exist or a heading that file doesn't have. A file edited within `policy.file_quiet` (60 seconds) isn't judged yet, and the rule never reads what a linked section says.
 

@@ -49,7 +49,7 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
     + """} } }
       reviewThreads(last: 100) {
         nodes { isResolved isOutdated path line
-          comments(last: 50) { nodes { id body state authorAssociation author { login __typename } } } }
+          comments(last: 50) { nodes { id body state viewerDidAuthor authorAssociation author { login __typename } } } }
       }
       reviews(last: 50) { nodes { id body state authorAssociation author { login __typename } } }
       comments(last: 100) { nodes { id body authorAssociation author { login __typename } } }
@@ -84,7 +84,7 @@ class Snapshot(ty.NamedTuple):
     approved: tuple[str, ...] | None = ()  # by latest verdict; None if reviews were cut off
     objecting: tuple[str, ...] | None = ()  # latest verdict requests changes; likewise
     user_verdict: str | None = ""  # the user's account's latest review state; None if not read
-    unresolved: tuple[str, ...] = ()  # each unresolved thread's last word, see pr_threads
+    unresolved: tuple[str, ...] | None = ()  # each unresolved thread's last word, see pr_threads
 
 
 _FAILED = frozenset(
