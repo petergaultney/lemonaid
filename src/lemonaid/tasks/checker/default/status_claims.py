@@ -1,8 +1,9 @@
 """The default checker's rule for a Status that its task's PR contradicts: `done` while the
 PR is open; `merge` while it is a draft, its CI failed, it is already merged or closed, it
-conflicts with its base, an unresolved review thread's last word is someone else's, or, on the user's own PR, a person assigned to it hasn't approved it; `review` on
-the user's own PR once a person has approved it and every assignee has; and `approve` once
-the user has approved the PR.
+conflicts with its base, an unresolved review thread's last word is someone else's, or, on
+the user's own PR, a person assigned to it hasn't approved it; `review` on the user's own
+PR once a person has approved it and every assignee has; and `approve` once the user has
+approved the PR.
 
 A task in `check` was said to be done by its previous holder, so an open PR there is put to
 the checking holder, who hands it back. An unknown PR fact never supports a challenge.
