@@ -264,6 +264,12 @@ one cannot switch to, so a key would name a row it cannot act on.
 
 Set `jump_by_number = false` to leave the digits unbound.
 
+### Naming a lemon by its key
+
+The keys also name lemons when you talk to one: tell a lemon "clean up 5e" and it runs `lemonaid key 5e` to find out what that reaches. A tree's key (`5e`) lists every lemon on the tree, main one first; a dotted key (`5.e2`) just that lemon; a block's digit the whole block. `lemonaid keys` lists every lemon's key.
+
+An inbox lists only the lemons it can switch to, so its block digits depend on the terminal it runs in. `lemonaid key` reads the keys of an inbox in its own terminal, takes `--terminal tmux|wezterm|cmux|any` for another, and notes when another terminal's inbox reads the key differently. `--json` prints each lemon's key, group, tree, channel, name, Lemon-ID, status, place, directory, session and brief, the terminal, and any other terminal's reading. It saves nothing.
+
 ## Undo
 
 `Z` reverses the last change you made to the inbox, and keeps going back through

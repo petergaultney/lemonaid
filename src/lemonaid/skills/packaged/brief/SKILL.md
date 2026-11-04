@@ -15,6 +15,10 @@ If you have no brief, run `lemonaid brief new --self "<what the work is>"`. It c
 
 Name the session for the work, with a short area and change, rather than the brief filename or a personal name: `lemonaid inbox rename --self "<area and change>"`. A launch prompt should name the work first, then point to the brief.
 
+## Lemons named by key
+
+When your user names a lemon by the key the inbox or grove shows for it (`5e`, `5.e2`), run `lemonaid key <key>` before acting, and name the lemon it found (Lemon-ID and place) in your reply.
+
 ## Choose the status
 
 Set `Status:` only when one of the words below applies, and leave it out otherwise. Without one, lemonaid shows your own state: `active` while you are mid-turn, `idle` between turns, and `deaf` or `dead` if a message sent to you would not be read. `lemonaid brief status --self clear` removes a status that no longer applies. Older briefs may say `working` or `waiting`; both read as no status, and setting either clears it.
