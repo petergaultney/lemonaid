@@ -33,7 +33,9 @@ def test_a_half_edited_brief_reports_once_and_keeps_previous_watches(tmp_path):
     file.write_text("before")
     text = shared.BRIEF + f"- `lemonaid watch file --wait {file} --interval .01 --quiet 0`\n"
     sent = []
-    path, inbox, root, stop, thread, errors = shared.start(tmp_path, text, sent.append)
+    path, inbox, root, stop, thread, errors = shared.start(
+        tmp_path, text, sent.append, quiet=1
+    )  # the brief edit and the file change must be detected within one quiet window
     try:
         shared.eventually(lambda: bool(list((root / "file").glob("*.json"))))
         path.write_text(text + "- `lemonaid watch file --unknown`\n")

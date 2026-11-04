@@ -34,7 +34,7 @@ def test_login_shell_does_not_admit_other_terminal_jobs(server, monkeypatch):
     root = dataclasses.replace(process.inspect(server.pid), executable="-fish")
     job = dataclasses.replace(root, pid=root.pid + 1, executable="sleep")
     monkeypatch.setattr(process, "on_tty", lambda tty: [root, job])
-    monkeypatch.setattr(pane.time, "monotonic", iter([0, 4]).__next__)
+    monkeypatch.setattr(pane.time, "monotonic", iter([0, 11]).__next__)
     with pytest.raises(ValueError, match="Unmanaged jobs"):
         pane.replace(server, root, server.cwd, "exec false", {})
 

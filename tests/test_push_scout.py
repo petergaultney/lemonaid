@@ -132,7 +132,7 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
     assert "first message" in received[1] and "second message" in received[2]
     assert "lemonaid is watching for you" in received[1]
     assert "don't" not in (received[0] + received[1]).lower()
-    assert messages.pending_count(mailbox) == 0
+    _until(lambda: messages.pending_count(mailbox) == 0)  # marked done after the push
     registration = scout_roster.read(_LEMON)
     assert registration and hosted_scout.run(registration, lambda: False) == "retry"
     listing.unlink()

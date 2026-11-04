@@ -49,7 +49,7 @@ def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path
                 plan = planning.build(conn, shared.CHANNEL, Config(), True)
             token = state.reserve(plan)
             coordinator.run(token)
-            assert state.get(token)["phase"] == "started"
+            assert state.get(token)["phase"] == "started", state.get(token)
             assert host.poll() is None  # the host outlives one lemon's scout
             assert scout_roster.read(lemon_id) is None
         finally:
