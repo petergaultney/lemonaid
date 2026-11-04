@@ -5,7 +5,6 @@ are per instance. Spawning into a workspace that no longer exists recreates it,
 so a toss needs nothing more than a resume here.
 """
 
-import os
 import time
 import typing as ty
 
@@ -13,7 +12,7 @@ from ..config import BackendConfig, Config
 from ..inbox import db
 from ..lemon_watchers import owners
 from ..restore import launch
-from ..wezterm import client
+from ..wezterm import client, spawn
 from . import autoresume_tmux, wake
 
 _SUBMIT_PAUSE_SECONDS = 1.0  # lets the composer take the typed text before submitting
@@ -28,22 +27,12 @@ def _window(workspace: str, panes: ty.Iterable[dict[str, ty.Any]]) -> int | None
     return next((p["window_id"] for p in panes if p.get("workspace") == workspace), None)
 
 
-def _shell() -> str:
-    return os.environ.get("SHELL") or "/bin/sh"
-
-
 def _spawn_args(
     workspace: str, window: int | None, cwd: str, environment: dict[str, str]
 ) -> list[str]:
-    """`cli spawn`'s arguments; it has no flag for the shell's environment, so `env` sets it."""
     where = ["--window-id", str(window)] if window is not None else ["--new-window"]
     workspace_args = [] if window is not None else ["--workspace", workspace]
-    shell = (
-        ["--", "env", *(f"{name}={value}" for name, value in environment.items()), _shell()]
-        if environment
-        else []
-    )
-    return ["spawn", *where, *workspace_args, "--cwd", cwd, *shell]
+    return spawn.spawn_args([*where, *workspace_args], cwd, environment)
 
 
 def start(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
@@ -68,10 +57,10 @@ def start(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
     if opened.returncode != 0 or not pane.isdigit():
         return f"could not open a tab in WezTerm workspace {workspace}"
 
-    typed = client.run(
-        ["send-text", "--no-paste", "--pane-id", pane, planned.line + "\r"], _socket(row)
-    )
-    return "" if typed.returncode == 0 else f"could not type the resume into pane {pane}"
+    if spawn.type_line(pane, planned.line, _socket(row)):
+        return f"could not type the resume into pane {pane}"
+
+    return ""
 
 
 def _pane(row: db.Notification) -> str:

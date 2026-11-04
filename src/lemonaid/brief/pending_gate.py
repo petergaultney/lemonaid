@@ -3,11 +3,13 @@
 The inbox claims pending briefs on every refresh tick, and following a pending
 window costs a `tmux list-windows`. Between ticks, nothing a claim depends on
 usually changes: no lemon started, came back from the archive, or recorded a new
-window. A recheck every `_RECHECK_SECONDS` still catches what only tmux knows,
-such as a window renumbered under a lemon that was already there.
+window or launch token. A recheck every `_RECHECK_SECONDS` still catches what
+only tmux knows, such as a window renumbered under a lemon that was already there.
 """
 
 import sqlite3
+
+from .. import launch_token
 
 _RECHECK_SECONDS = 30.0
 
@@ -18,7 +20,8 @@ def _inputs(conn: sqlite3.Connection) -> list[tuple]:
     return [
         *conn.execute(
             "SELECT id, channel, status, json_extract(metadata, '$.tmux_session'), "
-            "json_extract(metadata, '$.tmux_window') FROM notifications "
+            "json_extract(metadata, '$.tmux_window'), "
+            f"json_extract(metadata, '$.{launch_token.METADATA_KEY}') FROM notifications "
             "WHERE status != 'archived' ORDER BY id"
         ).fetchall(),
         *conn.execute("SELECT * FROM pending_briefs ORDER BY path").fetchall(),

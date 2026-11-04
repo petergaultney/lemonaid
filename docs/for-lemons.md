@@ -349,6 +349,8 @@ To start a lemon in a window of a session that already exists (a reviewer in win
 lemon whose window died), use `lemon start` rather than typing a launch line into a pane.
 `:4` is window 4 of your own tmux session, found from your pane, so it keeps working after the
 session is renamed; `<session>:4` names another session.
+With no window at all, it starts beside you, in the current directory: a new window of your
+own tmux session in tmux, or a new tab beside your pane in WezTerm. It says where.
 
 ```bash
 lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
@@ -357,10 +359,14 @@ lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in
 
 It resolves the same lemon command as `place open`, with `--preset`, `--shape` and `-- <harness arguments>` available. It runs only that command in the session's directory, leaving other shape windows alone. The window is made if it doesn't exist and respawned if its panes are dead; a window
 with anything running in it is refused. `--brief`, `--parent` and `--name` work as on
-`place open`: the brief and the name go to the first new lemon in that window. Afterwards it
-checks the pane once and fails if the lemon is stuck at a startup dialog; `--no-check` skips
-that. `--json` returns `{"session", "window", "window_id", "dir", "harness", "brief",
-"lemon_id", "parent", "name", "error"}`.
+`place open`. The new shell gets a `LEMONAID_LAUNCH_TOKEN`, which the lemon's hooks record,
+and the brief and the name go to the first lemon that records it, in any terminal. In tmux the
+brief also waits on the window, for a lemon the inbox places there before any hook has run.
+Afterwards it checks a tmux pane once and fails if the lemon is stuck at a startup dialog;
+`--no-check` skips that. `--json` returns `{"front_end", "where", "dir", "harness", "brief",
+"lemon_id", "parent", "name", "error"}`, where `front_end` is `tmux` or `wezterm` and `where` is
+a phrase like `tmux window work:5`, plus the front end's own keys: `session`, `window` and
+`window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm.
 
 `brief handoff --to NAME` accepts a named lemon running Claude or Codex, as well as the original backend names. It keeps the preset name for command selection and the resolved backend for session identity and acceptance.
 

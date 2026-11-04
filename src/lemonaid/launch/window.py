@@ -119,6 +119,29 @@ def open_window(
     return Pane(pane, window), ""
 
 
+def new_window(
+    session: str, directory: Path, environment: abc.Mapping[str, str]
+) -> tuple[Pane | None, str, str]:
+    """A pane in a new window at *session*'s next free index, its index, and "" - or why not."""
+    result = _tmux(
+        "new-window",
+        "-d",
+        "-t",
+        f"={session}:",
+        "-c",
+        str(directory),
+        *environment_args(environment),
+        "-P",
+        "-F",
+        "#{pane_id}\t#{window_id}\t#{window_index}",
+    )
+    pane, window, index = [*result.stdout.strip().split("\t"), "", ""][:3]
+    if result.returncode != 0 or not index:
+        return None, "", f"Could not make a window in {session}: {result.stderr.strip()}"
+
+    return Pane(pane, window), index, ""
+
+
 def split_pane(
     source: Pane, directory: Path, environment: abc.Mapping[str, str]
 ) -> tuple[Pane | None, str]:

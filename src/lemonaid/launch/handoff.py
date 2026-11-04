@@ -139,8 +139,9 @@ def _announce(handoff: Handoff) -> None:
         _log.warning("Could not tell %s about its new child %s: %s", parent, child, error)
 
 
-def complete(handoff: Handoff, session: str, index: str, window_id: str) -> str:
-    """Wait on the window for its lemon, and record the parent link and groups now.
+def complete(handoff: Handoff, session: str, index: str, window_id: str, token: str = "") -> str:
+    """Wait for the lemon by its launch *token* or its tmux window, and record the parent
+    link and groups now.
 
     Returns a warning for the caller to show when the lemon's name is another's too.
     """
@@ -149,7 +150,14 @@ def complete(handoff: Handoff, session: str, index: str, window_id: str) -> str:
 
     with db.connect() as conn:
         brief.attached.attach_pending(
-            conn, session, index, handoff.brief, handoff.live_before, window_id, handoff.name
+            conn,
+            session,
+            index,
+            handoff.brief,
+            handoff.live_before,
+            window_id,
+            handoff.name,
+            token,
         )
         if handoff.link:
             lineage.links.set_parent(conn, *handoff.link)

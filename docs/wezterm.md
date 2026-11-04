@@ -157,3 +157,10 @@ You can manually clear it:
 ```bash
 rm ~/.local/state/lemonaid/back.json
 ```
+
+## Starting a lemon with a brief
+
+`lemonaid lemon start --brief <file>`, with no window, starts a lemon in a new tab beside your own pane,
+in the current directory, with the same presets, `--prompt`, `--parent` and `--name` as in
+tmux. The new shell gets a `LEMONAID_LAUNCH_TOKEN`; the lemon's hooks record it, and the brief
+goes to the first lemon that does. `lemon start` checks no WezTerm pane for a startup dialog.

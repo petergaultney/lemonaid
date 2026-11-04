@@ -208,3 +208,101 @@ def test_a_bare_window_outside_tmux_is_an_error(capsys, tmux, monkeypatch):
     monkeypatch.delenv("TMUX_PANE", raising=False)
 
     assert "isn't in tmux" in _start(capsys, ":4")["error"]
+
+
+def test_a_brief_also_waits_on_the_launch_token_in_the_lemon_s_environment(
+    capsys, tmux, monkeypatch
+):
+    config = Config(
+        tmux_session=TmuxSessionConfig(
+            templates={"default": ["", "printenv LEMONAID_LAUNCH_TOKEN"]}, resume_window=1
+        )
+    )
+    monkeypatch.setattr(cli, "load_config", lambda: config)
+    _brief("review")
+
+    _start(capsys, "work:4", "--brief", "review")
+
+    [waiting] = _pending()
+    assert len(waiting["launch_token"]) == 16
+    assert waiting["launch_token"] in _screen(tmux, "work:4", waiting["launch_token"])
+    assert (waiting["tmux_session"], waiting["tmux_window"]) == ("work", "4")
+
+
+def test_no_target_in_tmux_opens_the_next_window_of_your_session_and_says_where(
+    capsys, tmux, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("TMUX_PANE", tmux("display", "-p", "-t", "work:", "#{pane_id}"))
+    monkeypatch.setenv("WEZTERM_PANE", "3")
+    (tmp_path / "here").mkdir()
+    monkeypatch.chdir(tmp_path / "here")
+    _brief("review")
+    first = tmux("display", "-p", "-t", "=work:", "#{window_index}")
+
+    started = _start(capsys, "--brief", "review")
+
+    index = str(int(first) + 1)
+    assert (started["error"], started["front_end"], started["window"]) == (None, "tmux", index)
+    assert started["where"] == f"tmux window work:{index}"
+    assert started["dir"] == str(tmp_path / "here")
+    assert "lemon" in _screen(tmux, f"work:{index}", "lemon")
+    [waiting] = _pending()
+    assert len(waiting["launch_token"]) == 16
+
+
+def test_the_plain_output_says_where_the_lemon_went(capsys, tmux, monkeypatch):
+    monkeypatch.setenv("TMUX_PANE", tmux("display", "-p", "-t", "work:", "#{pane_id}"))
+    parser = argparse.ArgumentParser()
+    cli.add_parser(parser.add_subparsers())
+    args = parser.parse_args(["start", "--no-check"])
+
+    args.func(args)
+
+    assert capsys.readouterr().out.startswith("started default in tmux window work:")
+
+
+def test_no_target_outside_tmux_and_wezterm_is_an_error(capsys, monkeypatch):
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.delenv("WEZTERM_PANE", raising=False)
+
+    assert "Not in tmux or WezTerm" in _start(capsys)["error"]
+
+
+@pytest.fixture
+def wezterm(monkeypatch, tmp_path) -> list[list[str]]:
+    """`wezterm cli` answered as an instance where the caller is pane 3, in workspace `feat-x`."""
+    calls: list[list[str]] = []
+    out = {"spawn": "9\n", "list": json.dumps([{"pane_id": 9, "workspace": "feat-x"}])}
+
+    def run(args, socket=None):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, out.get(args[0], ""), "")
+
+    monkeypatch.setattr(cli.wezterm.client, "run", run)
+    monkeypatch.setenv("WEZTERM_PANE", "3")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.chdir(tmp_path)
+    return calls
+
+
+def test_no_target_in_wezterm_opens_a_tab_beside_you_and_waits_on_its_token(
+    capsys, wezterm, tmp_path
+):
+    _brief("review")
+
+    started = _start(capsys, "--prompt", "go on", "--brief", "review")
+
+    assert (started["error"], started["front_end"], started["dir"]) == (
+        None,
+        "wezterm",
+        str(tmp_path),
+    )
+    assert started["where"] == "WezTerm pane 9 in workspace feat-x"
+    spawn, _, typed = wezterm
+    [waiting] = _pending()
+    assert spawn[:5] == ["spawn", "--pane-id", "3", "--cwd", str(tmp_path)]
+    assert f"LEMONAID_LAUNCH_TOKEN={waiting['launch_token']}" in spawn
+    assert "LEMONAID_PROMPT=go on" in spawn
+    assert typed[:4] == ["send-text", "--no-paste", "--pane-id", "9"]
+    assert typed[4].startswith("env -u LEMONAID_PROMPT echo lemon")
+    assert (waiting["tmux_session"], waiting["tmux_window"]) == ("", "")

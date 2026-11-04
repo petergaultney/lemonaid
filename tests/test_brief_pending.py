@@ -14,7 +14,10 @@ import pytest
 
 from lemonaid.brief import attached, selector, store, write_cli
 from lemonaid.inbox import db
-from lemonaid.inbox.migrations import m011_pending_briefs_live_before
+from lemonaid.inbox.migrations import (
+    m011_pending_briefs_live_before,
+    m033_pending_briefs_launch_token,
+)
 
 
 def _lemon(channel: str, tmux_session: str, window: str) -> db.Notification:
@@ -302,3 +305,111 @@ def test_a_tty_with_no_codex_process_counts_as_on_the_daemon(monkeypatch):
     _ps(monkeypatch, "xonsh\n")
 
     assert selector._codex_on_daemon("/dev/ttys1")
+
+
+def test_a_lemon_that_records_the_launch_token_gets_the_brief_in_any_terminal():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "", "", _brief("task"), [], token="t0k")
+        db.add(conn, "claude:other", "", metadata={"wezterm_pane": 4})
+        db.add(conn, "claude:started", "", metadata={"wezterm_pane": 5, "launch_token": "t0k"})
+
+    assert _attached_to("claude:started") == _brief("task")
+    assert _attached_to("claude:other") is None
+
+
+def test_the_launch_token_beats_an_earlier_lemon_in_the_window():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "2", _brief("task"), [], token="t0k")
+    _lemon("claude:first", "fresh", "2")
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "claude:started",
+            "",
+            metadata={"tmux_session": "fresh", "tmux_window": "2", "launch_token": "t0k"},
+        )
+
+    assert _attached_to("claude:started") == _brief("task")
+
+
+def test_a_waiting_window_still_goes_to_a_lemon_placed_before_its_hooks_ran():
+    with db.connect() as conn:
+        attached.attach_pending(conn, "fresh", "2", _brief("task"), [], token="t0k")
+    _lemon("claude:placed", "fresh", "2")
+
+    assert _attached_to("claude:placed") == _brief("task")
+
+
+def test_a_brief_waiting_on_a_window_keeps_waiting_after_the_launch_token_upgrade(tmp_path):
+    path = tmp_path / "upgrade.db"
+    with db.connect(path):
+        pass
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE pending_briefs")
+    conn.execute(
+        "CREATE TABLE pending_briefs (tmux_session TEXT NOT NULL, tmux_window TEXT NOT NULL,"
+        " path TEXT NOT NULL, tmux_window_id TEXT NOT NULL, live_before TEXT NOT NULL,"
+        " requested_at REAL NOT NULL, name TEXT NOT NULL DEFAULT '',"
+        " PRIMARY KEY (tmux_session, tmux_window))"
+    )
+    conn.execute(
+        "INSERT INTO pending_briefs VALUES ('fresh', '2', '/b/task.md', '@3', '[]', ?, 'T')",
+        (time.time(),),
+    )
+    conn.execute(f"PRAGMA user_version = {m033_pending_briefs_launch_token.VERSION - 1}")
+    conn.commit()
+    conn.close()
+    db._initialized_dbs.discard(path)
+
+    with db.connect(path) as conn:
+        [row] = conn.execute("SELECT * FROM pending_briefs").fetchall()
+
+    assert dict(row) == {
+        "path": "/b/task.md",
+        "launch_token": "",
+        "tmux_session": "fresh",
+        "tmux_window": "2",
+        "tmux_window_id": "@3",
+        "live_before": "[]",
+        "requested_at": row["requested_at"],
+        "name": "T",
+    }
+
+
+def _window_table(conn: sqlite3.Connection, null_session: bool = False) -> None:
+    conn.execute(
+        "CREATE TABLE pending_briefs (tmux_session TEXT, tmux_window TEXT NOT NULL,"
+        " path TEXT NOT NULL, tmux_window_id TEXT NOT NULL, live_before TEXT NOT NULL,"
+        " requested_at REAL NOT NULL, name TEXT NOT NULL DEFAULT '')"
+    )
+    conn.execute(
+        "INSERT INTO pending_briefs VALUES (?, '2', '/b/task.md', '', '[]', 1, '')",
+        (None if null_session else "fresh",),
+    )
+    conn.commit()
+
+
+def test_the_launch_token_upgrade_runs_inside_the_caller_s_transaction(tmp_path):
+    conn = sqlite3.connect(tmp_path / "upgrade.db")
+    _window_table(conn)
+
+    conn.execute("BEGIN EXCLUSIVE")
+    m033_pending_briefs_launch_token.migrate(conn)
+
+    assert conn.in_transaction
+    conn.rollback()
+    assert conn.execute("SELECT tmux_session FROM pending_briefs").fetchall() == [("fresh",)]
+
+
+def test_a_failed_launch_token_upgrade_rolls_back_to_the_window_table(tmp_path):
+    conn = sqlite3.connect(tmp_path / "upgrade.db")
+    _window_table(conn, null_session=True)
+
+    conn.execute("BEGIN EXCLUSIVE")
+    with pytest.raises(sqlite3.IntegrityError):
+        m033_pending_briefs_launch_token.migrate(conn)
+    conn.rollback()
+
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(pending_briefs)")]
+    assert "launch_token" not in columns
+    assert conn.execute("SELECT COUNT(*) FROM pending_briefs").fetchone()[0] == 1

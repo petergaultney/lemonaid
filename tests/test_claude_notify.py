@@ -109,6 +109,18 @@ def test_submit_records_no_location_outside_tmux():
     assert "tmux_window" not in metadata
 
 
+def test_submit_records_the_launch_token_it_was_started_with(monkeypatch):
+    monkeypatch.setenv("LEMONAID_LAUNCH_TOKEN", "t0k")
+    register = MagicMock()
+
+    with ExitStack() as stack:
+        for ctx in _submit_with(None, None, register):
+            stack.enter_context(ctx)
+        notify.handle_submit(stdin_data='{"session_id":"abc123","cwd":"/tmp/project"}')
+
+    assert register.call_args.kwargs["metadata"]["launch_token"] == "t0k"
+
+
 def _message_for(payload: str) -> str:
     """The inbox message a hook payload produces."""
     with (
