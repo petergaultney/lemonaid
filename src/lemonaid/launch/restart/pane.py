@@ -102,7 +102,7 @@ def replace(
     target: Pane, root: process.Identity, cwd: str, line: str, environment: dict[str, str]
 ) -> Pane:
     current = check(target)
-    deadline = time.monotonic() + 3
+    deadline = time.monotonic() + 10
     remaining = process.on_tty(target.tty)
     shell_root = process.shell(root, launch_args.argv(root.pid))
     expected = [root] if not current.dead and shell_root else []
@@ -112,7 +112,10 @@ def replace(
         expected = [root] if not current.dead and shell_root else []
         remaining = process.on_tty(target.tty)
     if remaining != expected:
-        raise ValueError("Unmanaged jobs remain on the terminal; refusing to respawn the pane")
+        raise ValueError(
+            "Unmanaged jobs remain on the terminal; refusing to respawn the pane: "
+            f"{[(p.pid, p.executable) for p in remaining]} (dead={current.dead})"
+        )
 
     if not current.dead and not process.same(root):
         raise ValueError("Original shell generation changed")

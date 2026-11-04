@@ -74,7 +74,13 @@ def test_a_child_blocked_on_its_user_does_not_wake_its_parent(tmp_path):
     _path, _inbox, _root, stop, thread, errors = shared.start(tmp_path, text, sent.append)
     try:
         child.write_text("# child\n\nStatus: blocked\n\n## Now\n\n### Needs Sam\n\n- pick a name\n")
-        thread.join(0.5)
+        # The scout records the blocked status as seen without waking; wait for that, not a delay.
+        shared.eventually(
+            lambda: any(
+                '"status": "blocked"' in saved.read_text()
+                for saved in (tmp_path / "cursors" / "briefs").glob("*.reported.json")
+            )
+        )
         assert sent == []
 
         child.write_text("# child\n\nStatus: merge\n")
