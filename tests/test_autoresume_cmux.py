@@ -59,13 +59,13 @@ def test_another_terminal_gets_the_command_to_resume_by_hand():
         channel="claude:abc12345",
         message="",
         metadata={"cwd": "/tmp", "session_id": "abc"},
-        switch_source="wezterm",
+        switch_source="iterm2",
     )
 
     why = revive.bring_back(row, True, Config(), wake.PROMPT)
 
     assert why == (
-        "lemonaid can't start a lemon in wezterm; it resumes with: "
+        "lemonaid can't start a lemon in iterm2; it resumes with: "
         "cd /tmp && lemonaid claude resume abc"
     )
 

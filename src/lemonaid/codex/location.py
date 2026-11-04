@@ -1,8 +1,9 @@
-"""Where the Codex session a hook fires for is running: its tty and tmux pane."""
+"""Where the Codex session a hook fires for is running: its tty and tmux or WezTerm pane."""
 
 import os
 from typing import Any
 
+from .. import wezterm
 from ..lemon_watchers import (
     get_cmux_surface,
     get_tmux_pane_tty,
@@ -16,7 +17,7 @@ from . import hosting
 
 
 def pane_metadata(switch_source: str) -> dict[str, Any]:
-    """The hook's tty and tmux identity, as inbox row metadata; {} under the app-server daemon.
+    """The hook's tty and tmux or WezTerm identity, as inbox row metadata; {} under the app-server daemon.
 
     Under the daemon, the tty found is the daemon's, not this session's pane;
     recording it would put every Codex session in one pane. Otherwise the hook
@@ -33,6 +34,8 @@ def pane_metadata(switch_source: str) -> dict[str, Any]:
     metadata: dict[str, Any] = {"tty": tty}
     if surface := get_cmux_surface():
         metadata["cmux_surface"] = surface
+    if switch_source == "wezterm":
+        metadata.update(wezterm.location.metadata())
     if switch_source != "tmux":
         return metadata
 

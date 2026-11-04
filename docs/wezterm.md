@@ -124,6 +124,18 @@ In `~/.config/lemonaid/config.toml`:
 resolve_pane = "tty"
 ```
 
+## Resuming lemons
+
+Each Claude and Codex hook records the lemon's WezTerm pane, workspace and instance
+(`WEZTERM_UNIX_SOCKET`) in its inbox row. `tell`'s autoresume and `lemonaid lemon resume` use
+them as they use a tmux session: a dead lemon is resumed in a new tab of a window in its
+workspace, or a new window under the workspace's name when none is left, and an idle one with
+no mailbox waiter has its wake prompt typed into its pane. The resumed lemon's tab starts
+`$SHELL` with the prompt in its environment, since `wezterm cli spawn` can't set one otherwise.
+
+A lemon recorded before this needs one hook to fire (any turn) before lemonaid knows its
+workspace.
+
 ## Troubleshooting
 
 ### Switching doesn't work

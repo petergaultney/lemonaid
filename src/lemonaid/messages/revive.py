@@ -12,7 +12,7 @@ from pathlib import Path
 from ..config import Config
 from ..inbox import db
 from ..launch.restart import native, state
-from . import autoresume_cmux, autoresume_tmux, resume_log, wake
+from . import autoresume_cmux, autoresume_tmux, autoresume_wezterm, resume_log, wake
 
 STARTED = "started"
 STARTING = "starting"  # a start in the last minute may still be coming up
@@ -30,6 +30,9 @@ def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> 
     terminal = row.switch_source or ("tmux" if row.metadata.get("tmux_session") else "")
     if terminal == "tmux":
         return (autoresume_tmux.start if start else autoresume_tmux.prompt)(row, config, text)
+
+    if terminal == "wezterm":
+        return (autoresume_wezterm.start if start else autoresume_wezterm.prompt)(row, config, text)
 
     if terminal == "cmux" and start:
         return autoresume_cmux.start(row, config, text)

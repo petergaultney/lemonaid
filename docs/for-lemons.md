@@ -373,8 +373,8 @@ the terminal it ran in:
 lemonaid lemon resume <lemon> [--prompt '<what it should do on waking>']
 ```
 
-A dead lemon is resumed in a new window of its recorded tmux session (or a new cmux workspace)
-and an idle one has the prompt typed into its pane, as `tell`'s autoresume does (see
+A dead lemon is resumed in a new window of its recorded tmux session (a new tab of its WezTerm
+workspace, or a new cmux workspace) and an idle one has the prompt typed into its pane, as `tell`'s autoresume does (see
 [messages](messages.md#will-it-be-read)). The default prompt names you and tells it to read its
 inbox and rearm its waiters. Unlike autoresume, this resumes a lemon marked `done` or archived:
 you decided. A lemon that is listening or mid-turn is left alone (exit 0); one stopped at a
@@ -392,6 +392,8 @@ plain `lemon resume` can't bring that lemon back. Add `--recreate` to put those 
   resuming in a parent directory.
 - A missing tmux session is recreated under its recorded name, on its recorded server, with
   a shell window; the lemon is resumed in a window of its own. No fresh lemon starts there.
+- A missing WezTerm workspace comes back as a new window under its recorded name, in its
+  recorded WezTerm instance, holding only the resumed lemon.
 
 Without `--recreate`, a lemon whose brief is archived is refused with the command to run.
 
