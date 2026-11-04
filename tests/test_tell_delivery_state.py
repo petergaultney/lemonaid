@@ -257,6 +257,7 @@ def test_a_parked_claude_will_not_read_even_while_its_scout_holds_the_lock(capsy
     err = capsys.readouterr().err
     assert f"queued, but {lemon_id} will not read it" in err
     assert "background job 1eb3e867" in err
+    assert 'see docs/recovery.md, under "A parked Claude lemon"' in err
     assert store.pending_count(store.mailbox_for_id(lemon_id)) == 1
 
 
