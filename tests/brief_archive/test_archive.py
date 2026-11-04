@@ -11,7 +11,7 @@ from lemonaid.messages import store as messages
 from .shared import LONG_AGO, brief, message, session
 
 
-def test_the_brief_and_its_inbox_move_to_the_month_it_was_last_used():
+def test_the_brief_and_its_mailbox_move_to_the_month_it_was_last_used():
     path, lemon_id = brief("finished")
     session(path, "claude:finished")
     sent = message(lemon_id, LONG_AGO)
@@ -23,8 +23,8 @@ def test_the_brief_and_its_inbox_move_to_the_month_it_was_last_used():
 
     assert not path.exists() and "# finished" in moved.read_text()
     assert moved.parent.parent == archive.attic_dir()
-    assert (moved.parent / "inbox" / lemon_id / "1" / sent.name).read_text() == "Hello."
-    assert not messages.inbox_for_id(lemon_id).exists()
+    assert (moved.parent / "mailbox" / lemon_id / "1" / sent.name).read_text() == "Hello."
+    assert not messages.mailbox_for_id(lemon_id).exists()
 
 
 def test_a_brief_a_live_session_holds_stays_unless_that_session_is_closing():
@@ -82,43 +82,43 @@ def test_a_home_migration_stops_archive_and_revive(monkeypatch, tmp_path):
 
 def test_a_revived_brief_archives_again_into_the_same_month():
     path, lemon_id = brief("twice")
-    inbox = messages.inbox_for_id(lemon_id)
-    (inbox / "done").mkdir(parents=True)
-    (inbox / "done" / "20261001T000000000000Z-read.md").write_text("Read.")
+    mailbox = messages.mailbox_for_id(lemon_id)
+    (mailbox / "done").mkdir(parents=True)
+    (mailbox / "done" / "20261001T000000000000Z-read.md").write_text("Read.")
     with db.connect() as conn:
         archive.archive(conn, path, LONG_AGO)
-    messages.send(messages.inbox_for_id(lemon_id), "While away.", "claude:sender")
+    messages.send(messages.mailbox_for_id(lemon_id), "While away.", "claude:sender")
 
     with db.connect() as conn:
         archive.revive(conn, lemon_id)
         moved = archive.archive(conn, path, LONG_AGO)
 
-    kept = moved.parent / "inbox" / lemon_id / "1"
+    kept = moved.parent / "mailbox" / lemon_id / "1"
     assert {p.name for p in kept.rglob("*.md")} >= {"20261001T000000000000Z-read.md"}
     assert len(list(kept.glob("*.md"))) == 1
-    assert not messages.inbox_for_id(lemon_id).exists()
+    assert not messages.mailbox_for_id(lemon_id).exists()
 
 
-def test_a_failed_inbox_move_leaves_the_brief_attached_and_where_it_was(monkeypatch):
+def test_a_failed_mailbox_move_leaves_the_brief_attached_and_where_it_was(monkeypatch):
     path, lemon_id = brief("stuck")
     session(path, "claude:stuck")
-    inbox = messages.inbox_for_id(lemon_id)
+    mailbox = messages.mailbox_for_id(lemon_id)
     message(lemon_id, LONG_AGO)
     rename = Path.rename
 
-    def refuse_the_inbox(self, target):
-        if self == inbox:
+    def refuse_the_mailbox(self, target):
+        if self == mailbox:
             raise PermissionError("not writable")
         return rename(self, target)
 
-    monkeypatch.setattr(Path, "rename", refuse_the_inbox)
+    monkeypatch.setattr(Path, "rename", refuse_the_mailbox)
     with db.connect() as conn:
         with pytest.raises(PermissionError):
             archive.archive(conn, path, LONG_AGO)
         assert lemon.brief_of(conn, lemon_id) == path
         assert attached.by_channel(conn, ["claude:stuck"]) == {"claude:stuck": path}
 
-    assert path.exists() and inbox.is_dir()
+    assert path.exists() and mailbox.is_dir()
 
 
 def test_lemons_whose_ids_share_a_prefix_keep_their_own_messages():
@@ -140,5 +140,5 @@ def test_lemons_whose_ids_share_a_prefix_keep_their_own_messages():
         archive.archive(conn, second, LONG_AGO)
         archive.revive(conn, "review.owner")
 
-    assert [p.name for p in messages.inbox_for_id("review.owner").glob("*.md")] == [mine.name]
+    assert [p.name for p in messages.mailbox_for_id("review.owner").glob("*.md")] == [mine.name]
     assert [p for p in archive.attic_dir().rglob("*.md") if "review.owner~2" in p.parts]

@@ -16,7 +16,7 @@ from . import native, pane, process, state
 
 PROMPT = (
     "You were just restarted in the same native session. Keep your existing task and brief. "
-    "Rearm any watchers or other transient state you need to manage, read your pending inbox "
+    "Rearm any watchers or other transient state you need to manage, read your pending mailbox "
     "messages, and continue your existing work."
 )
 

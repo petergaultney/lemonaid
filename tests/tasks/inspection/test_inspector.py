@@ -33,7 +33,7 @@ def _seen(lemon_id: str, state: str = "listening", **changes) -> facts.Facts:
             state=state,
             state_detail="",
             harness_running=True,
-            inbox_waiter=True,
+            mailbox_waiter=True,
             pane=None,
             waiters_listed=[],
             waiters_running=[],
@@ -223,7 +223,7 @@ def test_an_unanswered_challenge_is_sent_again_with_doubling_gaps_up_to_the_ceil
         timeline = [sent(at) for at in (0, 99, 100, 299, 300, 599, 600, 899, 900)]
 
     assert timeline == [1, 0, 1, 0, 1, 0, 1, 0, 1]
-    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 5
+    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 5
 
 
 def test_a_challenge_reopened_after_an_unrelated_turn_keeps_its_backoff():
@@ -273,7 +273,7 @@ def test_a_custom_checker_writes_the_words_a_brief_with_no_task_reads(tmp_path):
         _run(conn, _seen("Loose.one"), argv=(sys.executable, str(script)))
         sent = challenges.deliver(conn, 300, 86400, (), _NOW)
 
-    [message] = store.inbox_for_id("Loose.one").glob("*.md")
+    [message] = store.mailbox_for_id("Loose.one").glob("*.md")
     assert len(sent) == 1 and "our own words" in message.read_text()
 
 
@@ -287,9 +287,9 @@ def test_challenges_go_to_every_brief_not_opted_out_and_only_once():
         again = challenges.deliver(conn, 300, 86400, {"Quiet.one"}, _NOW)
 
     assert len(first) == 2 and again == []
-    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 1
-    assert len(list(store.inbox_for_id("Work.bravo").glob("*.md"))) == 1
-    assert not store.inbox_for_id("Quiet.one").exists()
+    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
+    assert len(list(store.mailbox_for_id("Work.bravo").glob("*.md"))) == 1
+    assert not store.mailbox_for_id("Quiet.one").exists()
 
 
 def test_a_dry_run_sends_nothing_and_leaves_the_challenge_for_a_later_pass():
@@ -302,7 +302,7 @@ def test_a_dry_run_sends_nothing_and_leaves_the_challenge_for_a_later_pass():
 
     assert len(dry) == 1 and dry[0].startswith("would tell Work.alpha")
     assert len(sent) == 1 and sent[0].startswith("told Work.alpha")
-    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 1
+    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
 
 
 def test_closing_or_reassigning_a_task_resolves_its_old_challenges():

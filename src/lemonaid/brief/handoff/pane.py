@@ -119,7 +119,7 @@ def _prompt_source_to_rearm(row, reason: str, submit_key: str) -> bool:
 
     prompt = (
         f"The harness handoff {reason} before cutover. Your brief is still attached here. "
-        "Rearm `lemonaid inbox watch --self` as a background task, then check "
+        "Rearm `lemonaid mailbox watch --self` as a background task, then check "
         "`lemonaid brief handoff status " + row["token"] + "` before retrying."
     )
     if tmux.run(["send-keys", "-t", row["source_pane_id"], "-l", prompt]).returncode != 0:

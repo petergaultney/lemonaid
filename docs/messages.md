@@ -3,17 +3,24 @@
 Each lemon with an attached brief has a stable `Lemon-ID` stored in the brief.
 New IDs combine a brief slug with a short WordyBin suffix, such as
 `mc-tars-no-mops-leases.SkullHen`. The ID is set once and keeps the same value
-if the brief is renamed. Its file inbox is
-`~/.lemons/inbox/<lemon-id>/` (`~/.brief-lemons/inbox/` before `lemonaid home
+if the brief is renamed. Its mailbox is the folder
+`~/.lemons/mailbox/<lemon-id>/` (`~/.brief-lemons/inbox/` before `lemonaid home
 migrate`; see `docs/home.md`). The ID and
-inbox stay the same when the brief is renamed or attached to another session.
+mailbox stay the same when the brief is renamed or attached to another session.
 New briefs receive an ID when created; lemonaid adds one to an existing brief
 when it is attached or first used for messaging. `lemonaid brief id --channel
-<channel>` prints the ID. A pending message is a Markdown file in the inbox;
+<channel>` prints the ID. A pending message is a Markdown file in the mailbox;
 receiving it moves it to `done/` and prints its contents.
 The one-time backfill edits the brief, including a recipient's brief when a
 message is first sent to it.
-Older hexadecimal and hand-made IDs remain valid and keep their inbox folders.
+Older hexadecimal and hand-made IDs remain valid and keep their mailbox folders.
+
+Before 0.142 the mailbox was called the inbox. The first message command of a newer
+lemonaid moves `~/.lemons/inbox/` to `~/.lemons/mailbox/` and leaves a link at the old
+path, so an older lemonaid still running reads and writes the same files. If both exist
+as folders, message commands refuse until the old one's messages are moved in and it is
+replaced by that link. `lemonaid inbox next|watch|deliver` and `watch stop --self inbox`
+still work, and a brief that lists `lemonaid inbox watch --self` is still understood.
 An ID is accepted as an opaque string when it is safe as one folder name:
 non-empty, at most 255 UTF-8 bytes, with no slash, backslash, control
 character, or leading dot.
@@ -28,16 +35,16 @@ refuses an ID another lemon has, or had, and a name an active lemon holds under 
 command for the new name and `--set` takes any name of letters, digits, `_` and `-`. Everything recorded against the old ID moves to the new one:
 
 - the brief's `Lemon-ID:` line;
-- the inbox folder, with its pending messages and `done/`;
+- the mailbox folder, with its pending messages and `done/`;
 - parent links, as parent and as child.
 
 The old ID stays an alias. `tell`, `lemon parent --set`, and `place open --parent` accept it,
-and its inbox folder is left holding only a `.forward` file naming the new ID. A message
+and its mailbox folder is left holding only a `.forward` file naming the new ID. A message
 written there by a sender that looked up the ID before the reroll follows the forward, so none
 is left behind. The reroll holds the lock every brief and message write takes, so no write lands
 halfway through it.
 
-A running `inbox watch` for the old ID exits with `Lemon-ID changed to <new>; rearm the waiter`.
+A running `mailbox watch` for the old ID exits with `Lemon-ID changed to <new>; rearm the waiter`.
 The command prints the old and new signing names (the WordyBin halves); pass the old one to
 doc waiters as `--legacy`.
 
@@ -45,10 +52,10 @@ doc waiters as `--legacy`.
 lemonaid tell codex:thread-id "Please review the PR."
 lemonaid tell <lemon-id> "Please review the PR."
 lemonaid tell 2026-09-25-review "The PR is ready."
-lemonaid inbox next --self --channel codex:thread-id
-lemonaid inbox watch --self --channel codex:thread-id
-lemonaid inbox watch --self --timeout 3600
-lemonaid watch stop --self inbox
+lemonaid mailbox next --self --channel codex:thread-id
+lemonaid mailbox watch --self --channel codex:thread-id
+lemonaid mailbox watch --self --timeout 3600
+lemonaid watch stop --self mailbox
 ```
 
 `tell` accepts a lemon ID, attached channel, or unique attached brief filename
@@ -73,24 +80,24 @@ and ends with an error if the brief moves to another channel or is detached.
 
 | State | Meaning | Exit |
 |---|---|---|
-| `listening` | A Codex or Claude lemon whose inbox waiter is armed | 0 |
+| `listening` | A Codex or Claude lemon whose mailbox waiter is armed | 0 |
 | `mid-turn` | A Codex lemon with an active turn (the delivery service queues the message into its thread), or a Claude lemon whose Stop hook will arm its waiter when the turn ends | 0 |
-| `not started` | The brief is attached to a lemon that hasn't started yet; it reads its inbox when it does | 0 |
+| `not started` | The brief is attached to a lemon that hasn't started yet; it reads its mailbox when it does | 0 |
 | `unknown` | A harness other than Claude or Codex, which lemonaid can't check | 0 |
 | `asking` | A Claude lemon stopped mid-turn at a question for its user, such as a permission prompt | 1 |
-| `deaf` | A Claude or Codex lemon that is idle with no inbox waiter | 1 |
+| `deaf` | A Claude or Codex lemon that is idle with no mailbox waiter | 1 |
 | `dead` | No harness runs on the terminal the lemon last reported, or its row is archived and the terminal is unknown | 1 |
 
-A `dead` or `deaf` lemon's message stays in its inbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
+A `dead` or `deaf` lemon's message stays in its mailbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
 
-- **An exited harness** (`dead`) is resumed starting on a prompt to run `lemonaid inbox next --self` and rearm its waiters: in a new window of its recorded tmux session, or in cmux, a new workspace that doesn't take focus. In any other terminal the sender gets the command that resumes it.
+- **An exited harness** (`dead`) is resumed starting on a prompt to run `lemonaid mailbox next --self` and rearm its waiters: in a new window of its recorded tmux session, or in cmux, a new workspace that doesn't take focus. In any other terminal the sender gets the command that resumes it.
 - **An idle Claude or Codex with no waiter** (`deaf`) in tmux has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. For Codex, `› Ask Codex to do anything` is recognized as its empty composer placeholder. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted. lemonaid can't type into cmux, so an idle cmux lemon is only reported.
 - **A Claude or Codex stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
 - **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
 
 A second `tell` within a minute of a start doesn't start the lemon again. After 3 starts in 20 minutes (`autoresume_max`, `autoresume_window`), `tell` stops starting it, tells the sender it is crash-looping, and posts an alert to the inbox; a lemon dead again within three minutes of a start counts that start twice. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.
 
-Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the inbox root (`~/.lemons/inbox/dead-letters.jsonl` by default), one JSON object per line with `at`, `from`, `to`, `state`, `said` (the line the sender saw) and `message` (the queued file). Whoever minds the lemons can wait on it with `lemonaid watch file --wait <path>`.
+Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the mailbox root (`~/.lemons/mailbox/dead-letters.jsonl` by default), one JSON object per line with `at`, `from`, `to`, `state`, `said` (the line the sender saw) and `message` (the queued file). Whoever minds the lemons can wait on it with `lemonaid watch file --wait <path>`.
 
 `tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again would only deliver it twice.
 
@@ -98,26 +105,26 @@ Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the
 
 ## Delivery
 
-A Codex lemon with an armed inbox waiter receives queued messages as turns. For
+A Codex lemon with an armed mailbox waiter receives queued messages as turns. For
 an idle Codex lemon without a waiter, `tell` treats it as deaf and prompts it
-to read its inbox when autoresume is enabled. While a Codex turn is active, the
+to read its mailbox when autoresume is enabled. While a Codex turn is active, the
 delivery service queues each pending message into the recipient's thread with
 `codex queue --thread <thread> --message "lemonaid message: <message>"`, and
 moves the file to `done/` only after that succeeds. A failed queue leaves the
-message pending, and the service retries that inbox every 30 seconds. An
+message pending, and the service retries that mailbox every 30 seconds. An
 archived Codex session is skipped; its messages wait until the lemon is seen
 again.
 
 The service starts itself: `tell` starts it when the recipient is a Codex
 lemon, and a Codex turn ending with messages pending starts it too. It runs
-detached (no terminal or tmux needed), and it exits once no Codex inbox has
+detached (no terminal or tmux needed), and it exits once no Codex mailbox has
 had anything pending for two minutes. One service runs at a time, held by
-`<inbox root>/.delivery.lock`, so starting it again does nothing. To run it
+`<mailbox root>/.delivery.lock`, so starting it again does nothing. To run it
 yourself, for example under launchd or systemd:
 
 ```bash
-lemonaid inbox deliver                 # until idle for 120s
-lemonaid inbox deliver --idle-exit 0   # forever
+lemonaid mailbox deliver                 # until idle for 120s
+lemonaid mailbox deliver --idle-exit 0   # forever
 ```
 
 Its log lines go to `/tmp/lemonaid.log` (`messages.service`).
@@ -128,11 +135,11 @@ through its inbox socket; the file moves to `done/` as the record. See
 [the push scout](watch.md#the-push-scout).
 
 Otherwise a Claude lemon can only be woken by its own background task, so it keeps
-`lemonaid inbox watch --self` running, and rearms it whenever the harness
+`lemonaid mailbox watch --self` running, and rearms it whenever the harness
 stops it. Claude Code stops background tasks after 30 minutes unless the
 user raises the limit; see [Claude setup](claude.md#2-keep-background-waiters-running).
 The watch holds
-`<inbox>/.waiter.lock` while it waits, and a second watch for the same lemon
+`<mailbox>/.waiter.lock` while it waits, and a second watch for the same lemon
 exits with an error naming the first one's pid. The optional Stop hook
 `lemonaid claude waiter-check` blocks a lemon with an attached brief (unless it
 is `done`) from ending its turn while no watch holds that lock. It waits up to
@@ -159,9 +166,9 @@ a typed prompt, and a Codex thread at the end of its first queued message of the
 day. The last day told is kept per session in `<state>/date-line/`. The check is
 a config load and a file read, about 0.25 ms, in a hook that already runs.
 
-`inbox watch --self` inside Codex still works: when `CODEX_THREAD_ID` is the
+`mailbox watch --self` inside Codex still works: when `CODEX_THREAD_ID` is the
 watched channel's thread (or `--codex-thread <thread>` names one), it queues the
-message the same way instead of printing it. Receivers of one inbox take turns,
+message the same way instead of printing it. Receivers of one mailbox take turns,
 so the service and a watch never hand out the same message twice. A process
 killed after Codex accepts a message but before the move delivers it again.
 
@@ -173,7 +180,7 @@ if delivery is interrupted.
 `lemonaid tell --parent "..."` sends to the caller's parent, and
 `tell --child <lemon> "..."` to one of its children, by the links in
 `lemonaid lemon parent` (see `docs/lineage.md`). A child that hasn't started
-yet has an inbox already, so its messages wait there.
+yet has a mailbox already, so its messages wait there.
 
-`LEMONAID_MESSAGES_DIR` overrides the inbox root. When `LEMONAID_BRIEFS_DIR`
-is set, the default inbox root follows it, at `<briefs-dir>/inbox/`.
+`LEMONAID_MESSAGES_DIR` overrides the mailbox root. When `LEMONAID_BRIEFS_DIR`
+is set, the default mailbox root follows it, at `<briefs-dir>/mailbox/`.

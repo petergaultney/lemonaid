@@ -21,7 +21,7 @@ Lemon-ID: task.QuickOdd
 The thing exists.
 
 ## Waiters
-- `lemonaid inbox watch --self`
+- `lemonaid mailbox watch --self`
 - `lemonaid watch pr --wait 5716 --repo o/r --head abc123 --once`
 """
 
@@ -40,15 +40,15 @@ def test_add_appends_a_bullet_in_backticks():
 
 
 def test_adding_a_listed_command_changes_nothing():
-    assert waiters.add(_BRIEF, "lemonaid inbox watch --self") == _BRIEF
+    assert waiters.add(_BRIEF, "lemonaid mailbox watch --self") == _BRIEF
 
 
 def test_a_missing_section_is_added_last():
     without = _BRIEF.split("## Waiters\n", 1)[0]
 
-    out = waiters.add(without, "lemonaid inbox watch --self")
+    out = waiters.add(without, "lemonaid mailbox watch --self")
 
-    assert out.endswith("The thing exists.\n\n## Watching\n- `lemonaid inbox watch --self`\n")
+    assert out.endswith("The thing exists.\n\n## Watching\n- `lemonaid mailbox watch --self`\n")
     assert check.structure(out) == []
 
 
@@ -73,15 +73,15 @@ def test_set_with_head_fills_a_template_placeholder_or_adds_the_flag():
 
 
 def test_set_replaces_the_whole_command():
-    out = waiters.replace(_BRIEF, "inbox", "lemonaid inbox watch --self --quiet")
+    out = waiters.replace(_BRIEF, "mailbox", "lemonaid mailbox watch --self --quiet")
 
-    assert "- `lemonaid inbox watch --self --quiet`\n- `lemonaid watch pr" in out
+    assert "- `lemonaid mailbox watch --self --quiet`\n- `lemonaid watch pr" in out
 
 
 def test_rm_removes_the_one_match_and_keeps_notes():
     noted = _BRIEF.replace("## Waiters\n", "## Waiters\n\nArm both once the review is written.\n\n")
 
-    out = waiters.remove(waiters.remove(noted, "inbox watch"), "WATCH PR")
+    out = waiters.remove(waiters.remove(noted, "mailbox watch"), "WATCH PR")
 
     assert _waiters(out) == "\nArm both once the review is written.\n"
     assert check.structure(out) == []
@@ -110,7 +110,7 @@ def test_a_command_with_backticks_is_quoted_with_two():
 def test_sections_after_a_misplaced_waiters_stay_put():
     misplaced = _BRIEF.replace("## Goal\nThe thing exists.\n\n", "") + "\n## Goal\nLater.\n"
 
-    out = waiters.remove(misplaced, "inbox")
+    out = waiters.remove(misplaced, "mailbox")
 
     assert out.endswith("--once`\n\n## Goal\nLater.\n")
 
@@ -155,7 +155,7 @@ def test_a_waiter_added_after_a_closing_fence_is_outside_it():
 
 def test_commands_lists_each_waiter_in_order():
     assert waiters.commands(_BRIEF) == [
-        "lemonaid inbox watch --self",
+        "lemonaid mailbox watch --self",
         "lemonaid watch pr --wait 5716 --repo o/r --head abc123 --once",
     ]
 

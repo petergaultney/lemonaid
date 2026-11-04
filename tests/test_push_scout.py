@@ -60,7 +60,7 @@ def _briefed() -> Path:
     with db.connect() as conn:
         db.add(conn, "claude:abcd1234", "", metadata={"session_id": _SESSION})
         attached.attach(conn, "claude:abcd1234", path)
-    return messages.inbox_for_id(_LEMON)
+    return messages.mailbox_for_id(_LEMON)
 
 
 def _session(sock: str) -> Path:
@@ -116,23 +116,23 @@ def _until(condition, timeout: float = 10) -> None:
 
 
 def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
     sock, received = _listener()
     listing = _session(sock)
     scout = hosted.start(_LEMON, _CHANNEL)
     _until(lambda: push_scout.running(_LEMON))
     _until(lambda: len(received) == 1)
 
-    messages.send(inbox, "first message", "other.IndexElf")
+    messages.send(mailbox, "first message", "other.IndexElf")
     _until(lambda: len(received) == 2)
-    messages.send(inbox, "second message", "other.IndexElf")
+    messages.send(mailbox, "second message", "other.IndexElf")
     _until(lambda: len(received) == 3)
 
     assert "push scout started" in received[0] and sock in received[0]
     assert "first message" in received[1] and "second message" in received[2]
     assert "lemonaid is watching for you" in received[1]
     assert "don't" not in (received[0] + received[1]).lower()
-    assert messages.pending_count(inbox) == 0
+    assert messages.pending_count(mailbox) == 0
     registration = scout_roster.read(_LEMON)
     assert registration and hosted_scout.run(registration, lambda: False) == "retry"
     listing.unlink()
@@ -165,12 +165,12 @@ def test_a_replacement_scout_does_not_announce_again():
 
 
 def test_a_refused_push_leaves_the_message_for_the_next_waiter(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
     _session(os.path.join(tempfile.mkdtemp(dir="/tmp"), "gone.sock"))
-    messages.send(inbox, "kept", "other.IndexElf")
+    messages.send(mailbox, "kept", "other.IndexElf")
 
     assert hosted.run(_LEMON, _CHANNEL) == "retry"
-    assert messages.pending_count(inbox) == 1
+    assert messages.pending_count(mailbox) == 1
 
 
 def test_no_scout_for_a_session_that_would_hold_the_message(monkeypatch, capsys):
@@ -339,9 +339,9 @@ def test_watch_stop_is_a_normal_exit_and_a_stray_sigterm_is_not(caplog):
 
 
 def test_a_refused_push_logs_an_abnormal_exit(caplog):
-    inbox = _briefed()
+    mailbox = _briefed()
     _session(os.path.join(tempfile.mkdtemp(dir="/tmp"), "gone.sock"))
-    messages.send(inbox, "kept", "other.IndexElf")
+    messages.send(mailbox, "kept", "other.IndexElf")
 
     with caplog.at_level(logging.INFO):
         assert hosted.run(_LEMON, _CHANNEL) == "retry"
@@ -362,7 +362,7 @@ def test_push_registers_the_scout_with_the_host_and_returns(capsys):
 
 
 def test_push_without_foreground_reports_a_running_scout(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
     sock, _ = _listener()
     listing = _session(sock)
     scout = hosted.start(_LEMON, _CHANNEL)
@@ -372,7 +372,7 @@ def test_push_without_foreground_reports_a_running_scout(capsys):
     assert "push scout running" in capsys.readouterr().out
     listing.unlink()
     scout.join()
-    assert messages.pending_count(inbox) == 0
+    assert messages.pending_count(mailbox) == 0
 
 
 def test_a_lemon_with_no_socket_is_told_it_is_not_on_push():

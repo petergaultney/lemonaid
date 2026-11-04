@@ -31,7 +31,7 @@ def test_a_save_just_before_cutover_is_reported_and_stops_commands(monkeypatch):
     assert not outcome.done and "exists again" in outcome.messages[0]
     assert "reconcile" in store.outside_error(layout.lemons_dir() / "brief" / work["work"].name)
     with pytest.raises(guard.Paused):
-        message_store.send(message_store.inbox_root() / work["inbox"].name, "hi", "tester")
+        message_store.send(message_store.mailbox_root() / work["mailbox"].name, "hi", "tester")
 
 
 def test_reconcile_brings_the_late_file_in_and_commands_resume(monkeypatch):
@@ -45,7 +45,7 @@ def test_reconcile_brings_the_late_file_in_and_commands_resume(monkeypatch):
     assert (layout.lemons_dir() / "brief" / "late.md").read_text() == "# late\n"
     assert not layout.legacy_dir().exists()
     assert not layout.paused()
-    message_store.send(message_store.inbox_root() / work["inbox"].name, "hi", "tester")
+    message_store.send(message_store.mailbox_root() / work["mailbox"].name, "hi", "tester")
 
 
 def test_a_late_file_that_conflicts_is_left_for_a_person(monkeypatch):

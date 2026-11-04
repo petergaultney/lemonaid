@@ -29,18 +29,18 @@ def _marks(monkeypatch, rows, ttys, now=1000.0):
     return _MARKS(presence.Probe(), rows, lemon_ids, now)
 
 
-def test_an_idle_claude_lemon_without_an_inbox_waiter_is_deaf(monkeypatch):
+def test_an_idle_claude_lemon_without_an_mailbox_waiter_is_deaf(monkeypatch):
     row = _row("claude:a", "ttys001", created_at=10.0)
 
     assert _marks(monkeypatch, [row], frozenset({"ttys001"})) == {"claude:a": "deaf"}
 
 
-def test_an_idle_claude_lemon_with_its_inbox_waiter_armed_is_unmarked(monkeypatch):
+def test_an_idle_claude_lemon_with_its_mailbox_waiter_armed_is_unmarked(monkeypatch):
     row = _row("claude:a", "ttys001", created_at=10.0)
     armed, release = threading.Event(), threading.Event()
 
     def hold():
-        with waiter.armed(store.inbox_for_id("lemon-0.QuickOdd")):
+        with waiter.armed(store.mailbox_for_id("lemon-0.QuickOdd")):
             armed.set()
             release.wait()
 

@@ -1,4 +1,4 @@
-"""Hand an inbox message to a Codex thread, leaving it pending until Codex accepts it."""
+"""Hand a mailbox message to a Codex thread, leaving it pending until Codex accepts it."""
 
 import contextlib
 import datetime as dt
@@ -26,13 +26,13 @@ def own_thread(channel: str) -> str:
         return thread if channel == channels.for_session(conn, thread) else ""
 
 
-def _with_status_note(inbox: Path, message: str) -> str:
+def _with_status_note(mailbox: Path, message: str) -> str:
     """*message*, and a reminder when the recipient's brief waits on its user."""
     if brief.nudge.carries_note(message):
         return message
 
     with db.connect() as conn:
-        path = brief.lemon.brief_of(conn, inbox.name)  # an inbox is named by its Lemon-ID
+        path = brief.lemon.brief_of(conn, mailbox.name)  # a mailbox is named by its Lemon-ID
     reminder = brief.nudge.note(path.read_text()) if path and path.is_file() else ""
     return f"{message.rstrip()}\n\n{reminder}" if reminder else message
 
@@ -62,14 +62,14 @@ def _queue(thread: str, path: Path, message: str) -> None:
 
 
 def deliver_next(
-    inbox: Path,
+    mailbox: Path,
     thread: str,
     while_current: abc.Callable[[], ty.ContextManager[bool]] = lambda: contextlib.nullcontext(True),
 ) -> tuple[Path, str] | None:
     """Queue the oldest pending message into `thread`, then move it to done/.
 
     Raises `RuntimeError` with the file still pending if `codex queue` fails.
-    Returns None while another receiver holds the inbox, so each message is
+    Returns None while another receiver holds the mailbox, so each message is
     handed out once. A process killed after Codex accepts the message but before the
     move delivers it again on the next watch. So does a recipient that stopped
     being current while the queue ran: the move happens inside `while_current`,
@@ -82,21 +82,21 @@ def deliver_next(
         if not allowed:
             return None
 
-        return _deliver_next(inbox, thread, while_current)
+        return _deliver_next(mailbox, thread, while_current)
 
 
 def _deliver_next(
-    inbox: Path, thread: str, while_current: abc.Callable[[], ty.ContextManager[bool]]
+    mailbox: Path, thread: str, while_current: abc.Callable[[], ty.ContextManager[bool]]
 ) -> tuple[Path, str] | None:
-    with home.guard.operation(), store.receive_lock(inbox, wait=False) as held:
-        found = store.peek_next(inbox) if held else None
+    with home.guard.operation(), store.receive_lock(mailbox, wait=False) as held:
+        found = store.peek_next(mailbox) if held else None
         if found is None:
             return None
 
         now, seen = dt.datetime.now(), daily_date.seen_path(full_channel_id("codex", thread))
         day_starts = load_config().inbox.day_starts
         date_line = daily_date.due(seen, now, day_starts)
-        message = _with_status_note(inbox, found[1])
+        message = _with_status_note(mailbox, found[1])
         _queue(thread, found[0], f"{message.rstrip()}\n\n{date_line}" if date_line else message)
         if date_line:
             daily_date.mark(seen, now, day_starts)

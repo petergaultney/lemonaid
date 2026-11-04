@@ -108,18 +108,18 @@ List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to 
 | Children | Automatic; `brief watching add --self "lemonaid watch briefs --children --self --to <status>"` to choose statuses | A child reaching `merge` or `done`; the same liveness failures as a Lemon row. |
 | Repo | `brief watching add --self "lemonaid watch repo --wait <owner/name> --once"` | A PR opened ready or marked ready, a `--label` added, a seen PR closed or merged, or with `--pushes` a ready PR's head moving. |
 | File | `brief watching add --self "lemonaid watch file --wait <path> --quiet 2"` | A file created, removed or changed; for a directory, a visible file directly in it added, removed or rewritten (`--ignore-removed` skips removals). |
-| Inbox | Automatic | Any pending message for you. |
+| Mailbox | Automatic | Any pending message for you. |
 
 A PR you are only reviewing, or one you merely parent, wakes you for fewer events: see `watch-pr`.
 
 Read your work's current state first. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
 <!-- harness: claude -->
-Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts a detached scout and returns. Only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`run_in_background`, `timeout: 2147483647`) and rearm it after handling each batch. Stop separate inbox, PR and children waiters before switching.
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts a detached scout and returns. Only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`run_in_background`, `timeout: 2147483647`) and rearm it after handling each batch. Stop separate mailbox, PR and children waiters before switching.
 <!-- /harness -->
 
 <!-- harness: codex -->
-Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and queues each batch into your thread; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push` with escalated permissions, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self --codex-thread` in an escalated exec_command session and rearm it after each batch. Stop separate inbox, PR and children waiters before switching. An idle Codex without an armed waiter may not start a turn for queued messages; `tell` treats it as deaf and prompts it to read its inbox.
+Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and queues each batch into your thread; handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push` with escalated permissions, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self --codex-thread` in an escalated exec_command session and rearm it after each batch. Stop separate mailbox, PR and children waiters before switching. An idle Codex without an armed waiter may not start a turn for queued messages; `tell` treats it as deaf and prompts it to read its mailbox.
 <!-- /harness -->
 
 Idle lemons wait on events and never self-poll or schedule repeated wakeups.
@@ -147,6 +147,6 @@ lemonaid brief new --child --template review --pr <PR-URL> --output-doc <absolut
 lemonaid lemon start :<review-window> --harness <claude-or-codex> --brief <printed-brief-path> --parent parent --name "Review repo#12 topic" --prompt "Review repo#12 topic. Instructions are in <printed-brief-path>; follow them."
 ```
 
-The first command prints an unattached child brief with you as parent; `--parent parent` then starts the reviewer as your sibling, a child of your own parent, and tells that parent in its inbox. With no parent of your own, the reviewer has none either. Use `--parent self` only for a reviewer that should report to you. Add the context the template cannot know: what changed and what needs the hardest check. `:<review-window>` is a window of your own tmux session, whatever it is called now; name another session as `<session>:<window>`. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session :<window> <file>`.
+The first command prints an unattached child brief with you as parent; `--parent parent` then starts the reviewer as your sibling, a child of your own parent, and tells that parent in its mailbox. With no parent of your own, the reviewer has none either. Use `--parent self` only for a reviewer that should report to you. Add the context the template cannot know: what changed and what needs the hardest check. `:<review-window>` is a window of your own tmux session, whatever it is called now; name another session as `<session>:<window>`. `lemon start` uses the configured harness command and attaches the brief to the reviewer that starts in that window, not to you. To attach a brief to an already running reviewer, use `lemonaid brief attach --session :<window> <file>`.
 
 The review template keeps findings in the review doc, sets up PR and doc waiters, and keeps the reviewer watching, with no status, until the PR closes. Read the PR and arm `watch --self` for the subscriptions it lists. Keep review findings out of the brief. Follow your user's policy for marking the PR ready after review and CI.

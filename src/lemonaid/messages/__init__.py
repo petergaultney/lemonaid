@@ -1,4 +1,4 @@
-"""File inboxes for messages between lemon sessions."""
+"""File mailboxes for messages between lemon sessions."""
 
 from . import service as service
 from . import service_cli as service_cli

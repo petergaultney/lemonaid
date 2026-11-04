@@ -130,7 +130,7 @@ def test_parent_parent_starts_a_sibling_and_tells_the_parent(capsys, tmux, monke
 
     assert started["error"] is None
     assert started["parent"] == lead
-    [line] = [path.read_text() for path in messages_store.inbox_for_id(lead).iterdir()]
+    [line] = [path.read_text() for path in messages_store.mailbox_for_id(lead).iterdir()]
     assert author in line
 
 

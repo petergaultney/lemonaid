@@ -1,4 +1,4 @@
-"""One Markdown inbox per stable lemon ID, with messages claimed by moving to done/."""
+"""One Markdown mailbox per stable lemon ID, with messages claimed by moving to done/."""
 
 import contextlib
 import datetime
@@ -12,54 +12,74 @@ from pathlib import Path
 
 from .. import brief, home
 
-FORWARD = ".forward"  # in an inbox left behind by a reroll: the Lemon-ID it moved to
+FORWARD = ".forward"  # in a mailbox left behind by a reroll: the Lemon-ID it moved to
 _MAX_HOPS = 16
 
 
-def inbox_root() -> Path:
+def _mailbox_parent() -> Path | None:
+    """The folder holding `mailbox/`, when it may still hold a pre-0.142 `inbox/`."""
+    if os.environ.get("LEMONAID_MESSAGES_DIR"):
+        return None
+
+    if os.environ.get("LEMONAID_BRIEFS_DIR"):
+        return brief.store.briefs_dir()
+
+    return home.layout.lemons_dir() if home.layout.cut_over() else None
+
+
+def mailbox_root() -> Path:
     if override := os.environ.get("LEMONAID_MESSAGES_DIR"):
         return Path(override)
 
-    if os.environ.get("LEMONAID_BRIEFS_DIR"):
-        return brief.store.briefs_dir() / "inbox"
+    if parent := _mailbox_parent():
+        home.mailbox_move.move(parent)
+        return parent / home.layout.MAILBOX
 
-    return home.layout.inbox_root()
+    return home.layout.mailbox_root()
 
 
-def inbox_for_id(lemon_id: str) -> Path:
+def _refusal() -> str:
+    parent = _mailbox_parent()
+    return home.layout.paused() or (home.mailbox_move.split(parent) if parent else "")
+
+
+def mailbox_for_id(lemon_id: str) -> Path:
     if paused := home.layout.paused():
         raise ValueError(paused)
 
     if not brief.identity.valid(lemon_id):
         raise ValueError(f"Invalid lemon ID: {lemon_id!r}")
 
-    inbox = inbox_root() / lemon_id
-    if inbox.is_symlink():
-        raise ValueError(f"Inbox is a symlink: {inbox}")
+    mailbox = mailbox_root() / lemon_id
+    if refused := _refusal():
+        raise ValueError(refused)
 
-    return inbox
+    if mailbox.is_symlink():
+        raise ValueError(f"Mailbox is a symlink: {mailbox}")
+
+    return mailbox
 
 
-def _forwarded(inbox: Path) -> Path:
-    """Where *inbox*'s messages go now, following rerolls."""
+def _forwarded(mailbox: Path) -> Path:
+    """Where *mailbox*'s messages go now, following rerolls."""
     for _ in range(_MAX_HOPS):
         try:
-            lemon_id = (inbox / FORWARD).read_text().strip()
+            lemon_id = (mailbox / FORWARD).read_text().strip()
         except FileNotFoundError:
-            return inbox
+            return mailbox
 
-        inbox = inbox_for_id(lemon_id)
+        mailbox = mailbox_for_id(lemon_id)
 
-    raise ValueError(f"Inbox forwards more than {_MAX_HOPS} times: {inbox}")
+    raise ValueError(f"Mailbox forwards more than {_MAX_HOPS} times: {mailbox}")
 
 
-def _write(inbox: Path, body: str, sender: str) -> Path:
-    inbox.mkdir(parents=True, exist_ok=True)
+def _write(mailbox: Path, body: str, sender: str) -> Path:
+    mailbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    path = inbox / f"{stamp}-{uuid.uuid4().hex}.md"
+    path = mailbox / f"{stamp}-{uuid.uuid4().hex}.md"
     sent = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     text = f"From: {sender}\nSent: {sent}\n\n{body.rstrip()}\n"
-    fd, temporary = tempfile.mkstemp(dir=inbox, prefix=".message-", suffix=".tmp")
+    fd, temporary = tempfile.mkstemp(dir=mailbox, prefix=".message-", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as file:
             file.write(text)
@@ -70,32 +90,35 @@ def _write(inbox: Path, body: str, sender: str) -> Path:
     return path
 
 
-def send(inbox: Path, body: str, sender: str) -> Path:
+def send(mailbox: Path, body: str, sender: str) -> Path:
     if not body.strip():
         raise ValueError("Message cannot be empty")
 
     with home.guard.operation():
-        inbox = _forwarded(inbox)
-        if inbox.is_symlink():
-            raise ValueError(f"Inbox is a symlink: {inbox}")
+        mailbox = _forwarded(mailbox)
+        if refused := _refusal():
+            raise ValueError(refused)
 
-        return _write(inbox, body, sender)
+        if mailbox.is_symlink():
+            raise ValueError(f"Mailbox is a symlink: {mailbox}")
+
+        return _write(mailbox, body, sender)
 
 
-def _pending(inbox: Path) -> abc.Iterator[Path]:
-    if inbox.is_symlink():
-        raise ValueError(f"Inbox is a symlink: {inbox}")
+def _pending(mailbox: Path) -> abc.Iterator[Path]:
+    if mailbox.is_symlink():
+        raise ValueError(f"Mailbox is a symlink: {mailbox}")
 
-    if not inbox.is_dir():
+    if not mailbox.is_dir():
         return
 
-    for path in sorted(inbox.glob("*.md")):
+    for path in sorted(mailbox.glob("*.md")):
         if path.is_file() and not path.is_symlink():
             yield path
 
 
-def pending_count(inbox: Path) -> int:
-    return sum(1 for _ in _pending(inbox))
+def pending_count(mailbox: Path) -> int:
+    return sum(1 for _ in _pending(mailbox))
 
 
 def mark_done(path: Path) -> Path:
@@ -107,20 +130,20 @@ def mark_done(path: Path) -> Path:
 
 
 @contextlib.contextmanager
-def receive_lock(inbox: Path, wait: bool = True) -> abc.Iterator[bool]:
-    """Serializes receivers of one inbox.
+def receive_lock(mailbox: Path, wait: bool = True) -> abc.Iterator[bool]:
+    """Serializes receivers of one mailbox.
 
-    Yields False, with nothing to receive, when the inbox does not exist or when
+    Yields False, with nothing to receive, when the mailbox does not exist or when
     `wait` is off and another receiver holds it.
     """
-    if inbox.is_symlink():
-        raise ValueError(f"Inbox is a symlink: {inbox}")
+    if mailbox.is_symlink():
+        raise ValueError(f"Mailbox is a symlink: {mailbox}")
 
-    if not inbox.is_dir():
+    if not mailbox.is_dir():
         yield False
         return
 
-    with open(inbox / ".receive.lock", "a") as lock:
+    with open(mailbox / ".receive.lock", "a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -130,13 +153,13 @@ def receive_lock(inbox: Path, wait: bool = True) -> abc.Iterator[bool]:
         yield True
 
 
-def take_next(inbox: Path) -> tuple[Path, str] | None:
-    with home.guard.operation(), receive_lock(inbox) as held:
-        return _take_next_locked(inbox) if held else None
+def take_next(mailbox: Path) -> tuple[Path, str] | None:
+    with home.guard.operation(), receive_lock(mailbox) as held:
+        return _take_next_locked(mailbox) if held else None
 
 
-def _take_next_locked(inbox: Path) -> tuple[Path, str] | None:
-    for path in _pending(inbox):
+def _take_next_locked(mailbox: Path) -> tuple[Path, str] | None:
+    for path in _pending(mailbox):
         try:
             claimed = mark_done(path)
         except FileNotFoundError:
@@ -151,9 +174,9 @@ def _take_next_locked(inbox: Path) -> tuple[Path, str] | None:
     return None
 
 
-def peek_next(inbox: Path) -> tuple[Path, str] | None:
+def peek_next(mailbox: Path) -> tuple[Path, str] | None:
     """The oldest pending message, left in place for the caller to `mark_done`."""
-    for path in _pending(inbox):
+    for path in _pending(mailbox):
         try:
             return path, path.read_text(encoding="utf-8")
         except FileNotFoundError:
@@ -167,7 +190,7 @@ def restore(claimed: Path) -> None:
 
 
 def watch_next(
-    inbox: Path,
+    mailbox: Path,
     still_attached: abc.Callable[[], bool],
     timeout: float | None = None,
     interval: float = 0.5,
@@ -178,7 +201,7 @@ def watch_next(
         if not still_attached():
             raise ValueError("Brief is no longer attached to this lemon")
 
-        found = find(inbox)
+        found = find(mailbox)
         if found is not None:
             return found
 

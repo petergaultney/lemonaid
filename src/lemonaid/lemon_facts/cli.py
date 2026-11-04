@@ -156,7 +156,10 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         print(
             json.dumps(
                 {
-                    "lemons": [dataclasses.asdict(found) for found in gathered],
+                    "lemons": [
+                        dataclasses.asdict(found) | {"inbox_waiter": found.mailbox_waiter}
+                        for found in gathered
+                    ],
                     "skipped": skipped,
                     "error": None,
                 }
@@ -177,7 +180,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         "doctor",
         help="The facts about lemons, listing those that are deaf or dead",
         description="Report what lemonaid can see about each lemon: whether its harness runs, "
-        "whether its inbox waiter is armed, what its pane shows, when and why it last exited, "
+        "whether its mailbox waiter is armed, what its pane shows, when and why it last exited, "
         "and which of its brief's waiters are running. Text output lists only lemons that are "
         "deaf or dead and whose brief isn't done or archived; --verbose lists them all, and "
         "--json gives every fact for every lemon in scope. Exits 1 when any lemon in scope is "

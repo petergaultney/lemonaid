@@ -51,7 +51,7 @@ def _attached_brief(text: str = _BRIEF) -> tuple[Path, Path]:
     with db.connect() as conn:
         db.add(conn, "claude:ship", "", metadata={})
         attached.attach(conn, "claude:ship", path)
-        inbox = store.inbox_for_id(identity.ensure(conn, path))
+        inbox = store.mailbox_for_id(identity.ensure(conn, path))
     return path, inbox
 
 

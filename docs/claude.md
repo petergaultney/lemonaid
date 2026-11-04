@@ -68,7 +68,7 @@ A session enters the inbox only when a hook fires. Without the `UserPromptSubmit
 ### 2. Keep background waiters running
 
 A Claude lemon waits for messages, Relay Comments, and PR events with a background Bash task
-(`lemonaid inbox watch --self`, `lemonaid watch doc`, `lemonaid watch pr`). Since Claude Code
+(`lemonaid mailbox watch --self`, `lemonaid watch doc`, `lemonaid watch pr`). Since Claude Code
 2.1.285, a background task stops after 30 minutes by default, and a task's `timeout` can ask
 for at most 2 hours unless `BASH_MAX_TIMEOUT_MS` is raised. Raise it to its cap, 2147483647 ms
 (about 24.8 days), in `~/.claude/settings.json`:

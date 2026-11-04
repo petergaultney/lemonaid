@@ -110,9 +110,9 @@ def test_assign_tells_the_new_holder_and_a_holder_its_task_was_taken_from(
         "Review.one has been told",
     )
     assert (taken["holder"], taken["taken_from"]) == ("brief:Lead.lead", "brief:Review.one")
-    told = sorted(p.read_text() for p in store.inbox_for_id("Review.one").glob("*.md"))
+    told = sorted(p.read_text() for p in store.mailbox_for_id("Review.one").glob("*.md"))
     assert len(told) == 2 and any("was taken from you" in m for m in told)
-    assert not store.inbox_for_id("Work.alpha").exists()
+    assert not store.mailbox_for_id("Work.alpha").exists()
     with db.connect() as conn:
         assert ledger.consistent(conn, made)
 
@@ -202,7 +202,7 @@ def test_a_repeated_assign_request_sends_no_message_again(capsys, monkeypatch, d
     later = _run(capsys, *take, "--json")
 
     assert (first["taken_from"], again["notice"], later["notice"]) == ("brief:Work.alpha", "", "")
-    assert len(list(store.inbox_for_id("Work.alpha").glob("*.md"))) == 2  # taken, then given back
+    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 2  # taken, then given back
 
 
 def test_depend_waits_only_for_another_open_task_and_refuses_a_cycle(capsys):

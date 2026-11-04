@@ -18,7 +18,7 @@ lemonaid claude hooks --waiter-check --status-note --own-edits
 ```
 
 - **No flag (SessionStart)** registers every Claude session, and where it runs, the moment it starts or is resumed. Without it a session nobody has spoken to yet is invisible, and that is the session a restore needs to find.
-- **`--waiter-check`** adds a Stop hook that stops a lemon with a brief from ending its turn while its `lemonaid inbox watch --self` isn't running. An HQ with children is also held to a running `watch briefs --children` waiter. See [messages](messages.md#will-it-be-read).
+- **`--waiter-check`** adds a Stop hook that stops a lemon with a brief from ending its turn while its `lemonaid mailbox watch --self` isn't running. An HQ with children is also held to a running `watch briefs --children` waiter. See [messages](messages.md#will-it-be-read).
 - **`--status-note`** reminds a lemon whose brief is `blocked`, `alert`, `merge` or `approve` what it is waiting on, once per turn.
 - **`--own-edits`** records a lemon's own edits to the documents it watches, by any tool, and its own `git push`es, so `watch doc` and `watch pr` don't wake it for them.
 
@@ -131,15 +131,15 @@ lemonaid group add "Billing" <lemon>
 
 `create` makes a group and `add` needs one that exists, so a typo is an error rather than a second group. See [groups](groups.md).
 
-Tell each adopted lemon what a brief is and to keep Status and `## Now` true. `lemonaid tell <lemon> "..."` reaches it ([messages](messages.md)). A Claude lemon with a brief must also keep `lemonaid inbox watch --self` running; the Stop hook enforces it.
+Tell each adopted lemon what a brief is and to keep Status and `## Now` true. `lemonaid tell <lemon> "..."` reaches it ([messages](messages.md)). A Claude lemon with a brief must also keep `lemonaid mailbox watch --self` running; the Stop hook enforces it.
 
-Two lemons given the same brief ID, usually from copying a brief file, share an inbox and confuse messaging. Give one a new ID:
+Two lemons given the same brief ID, usually from copying a brief file, share a mailbox and confuse messaging. Give one a new ID:
 
 ```bash
 lemonaid brief id --channel <channel> --reroll
 ```
 
-The old ID keeps working as an alias, so mail already in flight still arrives. The lemon's running inbox waiter exits and needs rearming. See [rerolling an ID](messages.md#rerolling-an-id).
+The old ID keeps working as an alias, so mail already in flight still arrives. The lemon's running mailbox waiter exits and needs rearming. See [rerolling an ID](messages.md#rerolling-an-id).
 
 `lemonaid brief check --all` reports what is wrong with any attached brief.
 
@@ -149,12 +149,12 @@ A lemon wakes only when a background task it started exits. The HQ keeps three r
 
 ```bash
 lemonaid watch briefs --children --orphans --self --once
-lemonaid inbox watch --self
+lemonaid mailbox watch --self
 lemonaid usage --watch
 ```
 
 - **`watch briefs --children --orphans --self --once`** wakes when a child's brief Status enters `blocked`, `alert`, `merge`, `approve`, `review` or `done`, A change to a child's `Needs` alone doesn't wake it. `--orphans` adds briefs no live lemon owns (the lemons you adopted without a parent, and ones whose parent's session is gone), and their `Needs` changes do wake. The first run takes the current state as its baseline, and each rearm reports what changed since. Without `--orphans` it wakes only on `merge` and `done`.
-- **`inbox watch --self`** wakes when another lemon, or you, `tell`s the HQ something.
+- **`mailbox watch --self`** wakes when another lemon, or you, `tell`s the HQ something.
 - **`usage --watch`** wakes when a Claude or Codex limit window crosses a step or is on pace to run out before it resets. Skip it if you don't watch your usage.
 
 Each prints what woke it and exits. Read it, act, and rearm the same command.
@@ -223,7 +223,7 @@ Your job:
   using `lemonaid place open` or `lemonaid lemon start`.
 - Keep these running as background tasks, and rearm each when it wakes you:
   `lemonaid watch briefs --children --orphans --self --once`,
-  `lemonaid inbox watch --self`, [and `lemonaid usage --watch`].
+  `lemonaid mailbox watch --self`, [and `lemonaid usage --watch`].
 - When a child's Status becomes `blocked`, `alert`, `merge` or `approve`, read its
   brief and tell me in one line what I need to decide.
 - Keep your own Status and `## Now` true. Leave Status unset when nothing applies.

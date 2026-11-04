@@ -1,4 +1,4 @@
-"""A Claude lemon with a brief cannot end its turn until its inbox waiter holds the lock."""
+"""A Claude lemon with a brief cannot end its turn until its mailbox waiter holds the lock."""
 
 import argparse
 import json
@@ -34,7 +34,7 @@ def _briefed(status: str = "working") -> Path:
     with db.connect() as conn:
         db.add(conn, "claude:abcd1234", "", metadata={"session_id": _SESSION})
         attached.attach(conn, "claude:abcd1234", path)
-        return store.inbox_for_id(identity.ensure(conn, path))
+        return store.mailbox_for_id(identity.ensure(conn, path))
 
 
 def _stop(capsys, **extra) -> dict | None:
@@ -48,20 +48,20 @@ def test_a_lemon_without_a_brief_stops_freely(capsys):
 
 
 def test_a_briefed_lemon_without_a_waiter_is_blocked(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
 
     blocked = _stop(capsys)
 
     assert blocked is not None
     assert blocked["decision"] == "block"
-    assert inbox.name in blocked["reason"]
+    assert mailbox.name in blocked["reason"]
     assert "lemonaid watch --self" in blocked["reason"]
 
 
 def test_an_armed_waiter_lets_the_turn_end(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
 
-    with waiter.armed(inbox):
+    with waiter.armed(mailbox):
         assert _stop(capsys) is None
 
 
@@ -78,52 +78,51 @@ def test_a_second_stop_is_let_through_so_the_lemon_cannot_loop(capsys):
 
 
 def test_a_waiter_that_starts_within_the_grace_period_counts():
-    inbox = _briefed()
+    mailbox = _briefed()
     release = threading.Event()
 
     def arm_late() -> None:
         time.sleep(0.2)
-        with waiter.armed(inbox):
+        with waiter.armed(mailbox):
             release.wait(5)
 
     thread = threading.Thread(target=arm_late)
     thread.start()
     try:
-        assert waiter.is_armed(inbox, grace=2.0)
+        assert waiter.is_armed(mailbox, grace=2.0)
     finally:
         release.set()
         thread.join()
 
 
 def test_a_second_waiter_for_the_same_lemon_is_refused():
-    inbox = _briefed()
+    mailbox = _briefed()
 
     with (
-        waiter.armed(inbox),
-        pytest.raises(waiter.AlreadyArmed, match=inbox.name),
-        waiter.armed(inbox),
+        waiter.armed(mailbox),
+        pytest.raises(waiter.AlreadyArmed, match=mailbox.name),
+        waiter.armed(mailbox),
     ):
         pass
 
 
-def test_inbox_watch_holds_the_lock_until_it_returns(capsys):
-    inbox = _briefed()
+def test_mailbox_watch_holds_the_lock_until_it_returns(capsys):
+    mailbox = _briefed()
     parser = argparse.ArgumentParser()
-    inbox_parser = parser.add_subparsers().add_parser("inbox")
-    cli.add_inbox_parsers(inbox_parser.add_subparsers())
+    cli.setup_parser(parser.add_subparsers())
     args = parser.parse_args(
-        ["inbox", "watch", "--self", "--channel", "claude:abcd1234", "--timeout", "5"]
+        ["mailbox", "watch", "--self", "--channel", "claude:abcd1234", "--timeout", "5"]
     )
     thread = threading.Thread(target=args.func, args=(args,))
     thread.start()
     try:
-        assert waiter.is_armed(inbox, grace=2.0)
+        assert waiter.is_armed(mailbox, grace=2.0)
     finally:
-        store.send(inbox, "Wake up.", "codex:sender")
+        store.send(mailbox, "Wake up.", "codex:sender")
         thread.join()
 
     assert "Wake up." in capsys.readouterr().out
-    assert not waiter.is_armed(inbox)
+    assert not waiter.is_armed(mailbox)
 
 
 def test_the_stop_hook_installs_beside_existing_ones(tmp_path):
@@ -147,17 +146,17 @@ def test_the_stop_hook_installs_beside_existing_ones(tmp_path):
 
 
 def test_a_brief_check_finds_broken_blocks_the_stop_even_with_a_waiter(capsys):
-    inbox = _briefed()
+    mailbox = _briefed()
     path = brief_store.briefs_dir() / "lemon.md"
     path.write_text(path.read_text() + "\n## Now\n\n### Done\n\n### Next\n\n- x\n")
 
-    with waiter.armed(inbox):
+    with waiter.armed(mailbox):
         blocked = _stop(capsys)
 
     assert blocked is not None
     assert "brief check" in blocked["reason"]
     assert "`### Done` in ## Now is empty" in blocked["reason"]
-    assert "inbox watch" not in blocked["reason"]
+    assert "mailbox watch" not in blocked["reason"]
 
 
 def test_pending_handoff_suppresses_only_source_waiter_check(capsys):
@@ -182,7 +181,7 @@ def test_pending_handoff_suppresses_only_source_waiter_check(capsys):
     path.write_text(path.read_text() + "\n## Now\n\n### Done\n\n### Next\n\n- x\n")
     blocked = _stop(capsys)
     assert "brief check" in blocked["reason"]
-    assert "inbox watch" not in blocked["reason"]
+    assert "mailbox watch" not in blocked["reason"]
 
     path.write_text(path.read_text().split("\n## Now")[0] + "\n")
     with db.connect() as conn:
@@ -223,9 +222,9 @@ def _parent_with_child(status: str) -> str:
 
 
 def test_a_parent_with_a_child_and_no_children_waiter_is_blocked(capsys):
-    inbox_lemon = _parent_with_child("working")
+    mailbox_lemon = _parent_with_child("working")
 
-    with waiter.armed(store.inbox_for_id(inbox_lemon)):
+    with waiter.armed(store.mailbox_for_id(mailbox_lemon)):
         blocked = _stop(capsys)
 
     assert blocked is not None
@@ -235,7 +234,7 @@ def test_a_parent_with_a_child_and_no_children_waiter_is_blocked(capsys):
 def test_a_parent_whose_children_are_all_done_still_needs_the_waiter(capsys):
     lemon_id = _parent_with_child("done")
 
-    with waiter.armed(store.inbox_for_id(lemon_id)):
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
         blocked = _stop(capsys)
 
     assert blocked is not None
@@ -255,7 +254,7 @@ def test_any_running_children_waiter_lets_the_parent_stop(capsys, tmp_path, monk
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
 
     with (
-        waiter.armed(store.inbox_for_id(lemon_id)),
+        waiter.armed(store.mailbox_for_id(lemon_id)),
         registry.registered("briefs", [lemon_id], "claude:abcd1234", command),
     ):
         assert "watch --self" in _stop(capsys)["reason"]
@@ -268,7 +267,7 @@ def test_a_children_waiter_started_by_another_lemon_for_this_parent_counts(
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
 
     with (
-        waiter.armed(store.inbox_for_id(lemon_id)),
+        waiter.armed(store.mailbox_for_id(lemon_id)),
         registry.registered("briefs", [lemon_id], "claude:other", "cmd"),
     ):
         assert "watch --self" in _stop(capsys)["reason"]
@@ -281,7 +280,7 @@ def test_a_waiter_for_a_different_parent_does_not_let_the_parent_stop(
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path))
 
     with (
-        waiter.armed(store.inbox_for_id(lemon_id)),
+        waiter.armed(store.mailbox_for_id(lemon_id)),
         registry.registered("briefs", ["someone-else.AbcDef"], "claude:other", "cmd"),
     ):
         blocked = _stop(capsys)

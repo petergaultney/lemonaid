@@ -26,7 +26,7 @@ def _caller(monkeypatch):
 def _attach(name: str, channel: str, status: str, **metadata) -> str:
     path = brief_store.briefs_dir() / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# {name}\n\n{status}\n\n## Waiters\n\n- `lemonaid inbox watch --self`\n")
+    path.write_text(f"# {name}\n\n{status}\n\n## Waiters\n\n- `lemonaid mailbox watch --self`\n")
     with db.connect() as conn:
         db.add(
             conn, channel, "", metadata={"tty": f"/dev/{name}", **metadata}, switch_source="tmux"
@@ -77,8 +77,9 @@ def test_json_gives_every_lemon_in_scope(capsys, monkeypatch):
     assert _doctor("--children", "--self", "--json") == 0
     (row,) = json.loads(capsys.readouterr().out)["lemons"]
     assert row["state"] == "listening"
-    assert row["inbox_waiter"] is True
-    assert row["waiters_listed"] == ["lemonaid inbox watch --self"]
+    assert row["mailbox_waiter"] is True
+    assert row["inbox_waiter"] is True  # the name before 0.142, for older readers
+    assert row["waiters_listed"] == ["lemonaid mailbox watch --self"]
 
 
 def test_orphans_are_lemons_with_no_live_parent(capsys):

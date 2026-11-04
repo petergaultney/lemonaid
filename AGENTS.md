@@ -24,6 +24,12 @@ writes their real inbox. A lemon working on lemonaid must not change either.
   commands with the installed `lemonaid`, as its brief asks. They write the live state
   on purpose, and `scripts/sandbox` would hide them from the other lemons.
 
+## Terminology
+
+**Mailbox vs inbox.** A lemon's *mailbox* holds the messages sent to it (`tell`,
+`~/.lemons/mailbox/<lemon-id>/`, `lemonaid mailbox watch`). The *inbox* is only the user's
+attention list (`lma`, `lemonaid inbox`). Never call the mailbox an inbox.
+
 ## Before Committing
 
 1. **Add one change file** to `changes/`, `YYYY-MM-DD-two-to-six-word-title.md`, dated the day the work started. Its first line is `# Patch`, `# Minor` or `# Major`; the rest is the changelog entry. See `changes/README.md`.

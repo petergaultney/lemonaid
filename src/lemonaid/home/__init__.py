@@ -1,4 +1,14 @@
-from . import copying, guard, inventory, journal, layout, migrate, reconcile, rollback
+from . import (
+    copying,
+    guard,
+    inventory,
+    journal,
+    layout,
+    mailbox_move,
+    migrate,
+    reconcile,
+    rollback,
+)
 
 __all__ = [
     "copying",
@@ -6,6 +16,7 @@ __all__ = [
     "inventory",
     "journal",
     "layout",
+    "mailbox_move",
     "migrate",
     "reconcile",
     "rollback",

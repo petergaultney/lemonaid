@@ -52,7 +52,7 @@ The thing exists.
 ```
 
 ## Waiters
-- lemonaid inbox watch --self
+- lemonaid mailbox watch --self
 """
 
 
@@ -110,7 +110,7 @@ def test_a_second_lemon_id_run_into_the_first_is_caught():
         ("[lemonaid#125](https://github.com/o/lemonaid/pull/125)", "#125", "no pull-request link"),
         ("| Brief verbs |", "| Brief verbs | extra |", "three-column"),
         ("## Goal", "## Waiters\n- x\n\n## Goal", "appears 2 times"),
-        ("\n## Waiters\n- lemonaid inbox watch --self\n", "", ""),
+        ("\n## Waiters\n- lemonaid mailbox watch --self\n", "", ""),
         ("### Next\n\n", "### Next\n", "needs a blank line around it"),
         ("| |\n\n### Done", "| |\n### Done", "`### Done` in ## Now needs a blank line"),
         (
@@ -198,7 +198,7 @@ def test_existing_unmatched_question_does_not_block_unrelated_verbs(capsys):
 
     assert _run(capsys, "status", "--channel", "codex:t1", "running")["error"] is None
     assert _run(capsys, "bullet", "add", "--channel", "codex:t1", "Next", "review")["error"] is None
-    assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")["error"] is None
+    assert _run(capsys, "waiter", "rm", "--channel", "codex:t1", "mailbox")["error"] is None
     assert "Status: running" in frontmatter.legacy(path.read_text())
     assert check.structure(path.read_text()) == [
         "`### old decision` in ## Questions has no matching bullet under ### Needs"
@@ -241,8 +241,8 @@ def test_the_waiter_verbs_edit_the_attached_brief(capsys):
 
     _run(capsys, "waiter", "add", "--channel", "codex:t1", "lemonaid watch pr --wait 7 --head a1")
     _run(capsys, "waiter", "set", "--channel", "codex:t1", "--wait 7", "--head", "b2")
-    _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")
-    refused = _run(capsys, "waiter", "rm", "--channel", "codex:t1", "inbox")
+    _run(capsys, "waiter", "rm", "--channel", "codex:t1", "mailbox")
+    refused = _run(capsys, "waiter", "rm", "--channel", "codex:t1", "mailbox")
 
     assert path.read_text().endswith("## Waiters\n- `lemonaid watch pr --wait 7 --head b2`\n")
     assert "No waiter" in refused["error"]

@@ -1,8 +1,9 @@
-"""Which attached briefs need the unified waiter instead of legacy inbox-only waiting."""
+"""Which attached briefs need the unified waiter instead of legacy mailbox-only waiting."""
 
 import shlex
 
 from ..brief import doc_table, sections, status, waiters
+from ..messages import mailbox_command
 
 
 def needs_unified(text: str, children: bool) -> bool:
@@ -17,6 +18,6 @@ def needs_unified(text: str, children: bool) -> bool:
             words = shlex.split(command)
         except ValueError:
             return True
-        if words[:3] != ["lemonaid", "inbox", "watch"]:
+        if not mailbox_command.is_watch(words):
             return True
     return docs or children

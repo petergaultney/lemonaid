@@ -40,10 +40,10 @@ def test_reservation_drains_delivery_and_excludes_another_restart():
 
 
 def test_pending_delivery_is_not_consumed_during_cutover(tmp_path):
-    inbox = tmp_path / "inbox"
-    pending = store.send(inbox, "keep me", "test")
+    mailbox = tmp_path / "mailbox"
+    pending = store.send(mailbox, "keep me", "test")
     state.reserve(shared.plan())
-    assert codex_delivery.deliver_next(inbox, shared.SESSION) is None
+    assert codex_delivery.deliver_next(mailbox, shared.SESSION) is None
     assert pending.exists()
 
 
@@ -126,7 +126,7 @@ def test_live_worker_keeps_reservation_after_deadline(monkeypatch):
     assert not state.worker_active(token)
 
 
-def test_already_armed_claude_inbox_waiter_leaves_cutover_message_pending(
+def test_already_armed_claude_mailbox_waiter_leaves_cutover_message_pending(
     tmp_path, monkeypatch, capsys
 ):
     import argparse
@@ -138,7 +138,7 @@ def test_already_armed_claude_inbox_waiter_leaves_cutover_message_pending(
     channel = "claude:01234567"
     with db.connect() as conn:
         path, lemon_id = shared.setup(conn, tmp_path)
-    inbox = store.inbox_for_id(lemon_id)
+    mailbox = store.mailbox_for_id(lemon_id)
     monkeypatch.setattr(cli, "own_lemon", lambda *a: (channel, lemon_id))
     monkeypatch.setattr(cli.brief.attached, "by_channel", lambda *a: {channel: path})
     monkeypatch.setattr(cli.codex_delivery, "own_thread", lambda *a: "")
@@ -147,7 +147,7 @@ def test_already_armed_claude_inbox_waiter_leaves_cutover_message_pending(
     @contextlib.contextmanager
     def armed(*a):
         tokens.append(state.reserve({**shared.plan(), "channel": channel}))
-        pending.append(store.send(inbox, "must remain pending", "test"))
+        pending.append(store.send(mailbox, "must remain pending", "test"))
         yield
 
     monkeypatch.setattr(registry, "registered", armed)

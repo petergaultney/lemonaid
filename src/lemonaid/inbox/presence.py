@@ -4,7 +4,7 @@ The facts are the ones `lemonaid tell` checks (`messages.recipient`), gathered
 for every row at once and kept for a few seconds, since the inbox redraws
 several times a second.
 
-A Claude lemon is deaf for a moment each time its inbox waiter delivers a
+A Claude lemon is deaf for a moment each time its mailbox waiter delivers a
 message and before it rearms one, so `deaf` waits until it has lasted.
 """
 
@@ -47,9 +47,9 @@ def _alive(row: db.Notification, ttys: frozenset[str] | None, listed_at: float) 
 
 
 def _armed(lemon_id: str) -> bool | None:
-    """None when the ID names no inbox lemonaid can check."""
+    """None when the ID names no mailbox lemonaid can check."""
     try:
-        return waiter.is_armed(store.inbox_for_id(lemon_id))
+        return waiter.is_armed(store.mailbox_for_id(lemon_id))
     except ValueError:
         return None
 

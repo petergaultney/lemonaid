@@ -11,6 +11,8 @@ from pathlib import Path
 
 CUTOVER = "cutover"
 MIGRATING = ".migrating"
+MAILBOX = "mailbox"
+OLD_MAILBOX = "inbox"  # the mailbox root's name before 0.142
 
 
 def lemons_dir() -> Path:
@@ -34,8 +36,9 @@ def briefs_dir() -> Path:
     return lemons_dir() / "brief" if cut_over() else legacy_dir()
 
 
-def inbox_root() -> Path:
-    return lemons_dir() / "inbox" if cut_over() else legacy_dir() / "inbox"
+def mailbox_root() -> Path:
+    """Each lemon's mailbox folder sits under this; the old home calls it `inbox`."""
+    return lemons_dir() / MAILBOX if cut_over() else legacy_dir() / OLD_MAILBOX
 
 
 def attic_dir() -> Path:

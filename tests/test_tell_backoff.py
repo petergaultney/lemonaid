@@ -39,9 +39,9 @@ def _attach() -> str:
 
 
 def _log(lemon_id: str, *entries: tuple[float, str]) -> None:
-    inbox = store.inbox_for_id(lemon_id)
-    inbox.mkdir(parents=True, exist_ok=True)
-    (inbox / ".autoresumed").write_text(
+    mailbox = store.mailbox_for_id(lemon_id)
+    mailbox.mkdir(parents=True, exist_ok=True)
+    (mailbox / ".autoresumed").write_text(
         "".join(f"{time.time() - ago} {kind}\n" for ago, kind in entries)
     )
 
@@ -83,7 +83,7 @@ def test_dying_soon_after_a_start_counts_as_a_failed_start(capsys, started):
 
     assert _tell() == 1
     assert started == []
-    assert [entry.kind for entry in resume_log.entries(store.inbox_for_id(lemon_id))] == [
+    assert [entry.kind for entry in resume_log.entries(store.mailbox_for_id(lemon_id))] == [
         "start",
         "start",
         "failed",

@@ -15,8 +15,8 @@ def eventually(predicate):
 def start(tmp_path, text, deliver, notes=None, quiet=0.05):
     path = tmp_path / "brief.md"
     path.write_text(text)
-    inbox = store.inbox_for_id("task.IndexElf")
-    inbox.mkdir(parents=True, exist_ok=True)
+    mailbox = store.mailbox_for_id("task.IndexElf")
+    mailbox.mkdir(parents=True, exist_ok=True)
     root = tmp_path / "cursors"
     stop = threading.Event()
     errors = []
@@ -25,7 +25,7 @@ def start(tmp_path, text, deliver, notes=None, quiet=0.05):
         try:
             batch_wait.wait(
                 path,
-                inbox,
+                mailbox,
                 root,
                 "",
                 deliver,
@@ -40,7 +40,7 @@ def start(tmp_path, text, deliver, notes=None, quiet=0.05):
 
     thread = threading.Thread(target=run)
     thread.start()
-    return path, inbox, root, stop, thread, errors
+    return path, mailbox, root, stop, thread, errors
 
 
 BRIEF = "# task\n\nBrief-ID: task.IndexElf\n\n## Watching\n"

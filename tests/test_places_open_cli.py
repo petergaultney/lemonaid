@@ -332,13 +332,13 @@ def test_parent_parent_makes_the_reviewer_a_sibling_and_tells_the_parent(
     assert opened["parent"] == lead
     with db.connect() as conn:
         assert links.parent_of(conn, opened["lemon_id"]) == lead
-    sent = [path.read_text() for path in messages_store.inbox_for_id(lead).iterdir()]
+    sent = [path.read_text() for path in messages_store.mailbox_for_id(lead).iterdir()]
     assert len(sent) == 1
     assert author in sent[0] and "Review x" in sent[0] and str(review) in sent[0]
 
 
 def _inbox_lines(lemon: str) -> list[str]:
-    inbox = messages_store.inbox_for_id(lemon)
+    inbox = messages_store.mailbox_for_id(lemon)
     return [path.read_text() for path in inbox.iterdir()] if inbox.exists() else []
 
 

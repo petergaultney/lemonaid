@@ -67,7 +67,7 @@ def _problem(
         return None
 
     found_state = recipient.classify(
-        entry.channel, row, alive, waiter.is_armed(store.inbox_for_id(lemon_id)), time.time()
+        entry.channel, row, alive, waiter.is_armed(store.mailbox_for_id(lemon_id)), time.time()
     )
     return Problem("deaf", "", found_state.detail) if found_state.state == recipient.DEAF else None
 

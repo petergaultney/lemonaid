@@ -389,11 +389,11 @@ def test_telling_a_dead_lemon_never_types_into_the_lemon_on_its_old_tty(world):
     assert b is not None and old is not None
     assert recipient.harness_alive(old)  # by its tty alone, OLD would look alive
 
-    told = _lemonaid("tell", "--channel", "claude:tester", _channel("OLD"), "read your inbox")
+    told = _lemonaid("tell", "--channel", "claude:tester", _channel("OLD"), "read your mailbox")
 
-    assert "inbox" not in _tmux("capture-pane", "-p", "-t", b["pane"]), told.stderr
+    assert "mailbox" not in _tmux("capture-pane", "-p", "-t", b["pane"]), told.stderr
     assert world.received("B") == b""
     resumed = _wait("OLD to be resumed", lambda: world.running("OLD"))
     assert resumed["pane"] != b["pane"]
-    assert "inbox" in resumed["prompt"]
+    assert "mailbox" in resumed["prompt"]
     assert world.running("B") == b

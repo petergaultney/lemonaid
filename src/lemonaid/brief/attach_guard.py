@@ -4,8 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from ..inbox import db
-from ..messages import recipient
-from ..messages import store as inbox_store
+from ..messages import recipient, store
 
 
 def refusal(conn: sqlite3.Connection, channel: str, path: Path, lemon_id: str) -> str:
@@ -21,7 +20,7 @@ def refusal(conn: sqlite3.Connection, channel: str, path: Path, lemon_id: str) -
         return ""
 
     found = db.get_by_channel(conn, holder["channel"], unread_only=False)
-    state = recipient.probe(holder["channel"], found, inbox_store.inbox_for_id(lemon_id))
+    state = recipient.probe(holder["channel"], found, store.mailbox_for_id(lemon_id))
     if state.state == recipient.DEAD:
         return ""
 

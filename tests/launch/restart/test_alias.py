@@ -62,17 +62,17 @@ def test_fresh_alias_observation_supports_preflight_and_resumed_ownership(
     assert not state.blocked(channel)
 
 
-def test_alias_reservation_holds_inbox_delivery_until_release(alias, monkeypatch):
+def test_alias_reservation_holds_mailbox_delivery_until_release(alias, monkeypatch):
     channel, _, lemon_id = alias
-    inbox = store.inbox_for_id(lemon_id)
-    pending = store.send(inbox, "hold me", "test")
+    mailbox = store.mailbox_for_id(lemon_id)
+    pending = store.send(mailbox, "hold me", "test")
     queued = []
     monkeypatch.setattr(codex_delivery, "_queue", lambda thread, *a: queued.append(thread))
     token = state.reserve({"channel": channel})
-    assert codex_delivery.deliver_next(inbox, _ROOT) is None
+    assert codex_delivery.deliver_next(mailbox, _ROOT) is None
     assert pending.exists() and not queued
     state.update(token, "started")
-    assert codex_delivery.deliver_next(inbox, _ROOT) is not None
+    assert codex_delivery.deliver_next(mailbox, _ROOT) is not None
     assert queued == [_ROOT]
     assert not pending.exists()
 

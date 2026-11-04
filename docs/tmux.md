@@ -615,7 +615,7 @@ without starting anything; `--dry-run` lists what it would change.
 
 A resumed lemon comes back with none of its background tasks, so restore
 starts each one whose brief lists waiters with a prompt to rearm them: every
-command under `## Watching`, less the inbox waiter for Codex, whose messages are
+command under `## Watching`, less the mailbox waiter for Codex, whose messages are
 queued into its thread. A lemon with no brief is resumed with no prompt, and so
 is an OpenClaw or opencode lemon, which restore reports as `rearm by hand` when
 its brief lists waiters. Codex

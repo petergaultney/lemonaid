@@ -28,9 +28,9 @@ def _cmd_migrate(args: argparse.Namespace) -> None:
             print(inventory.to_json(found))
         else:
             files = sum(not e.directory for e in found.entries)
-            print(f"{found.old} -> {found.new_briefs} and {found.new_inbox}")
+            print(f"{found.old} -> {found.new_briefs} and {found.new_mailbox}")
             print(f"{files} files, DB rows: {found.db_rows or 'none'}")
-            print(f"Armed inbox waiters: {', '.join(found.armed) or 'none'}")
+            print(f"Armed mailbox waiters: {', '.join(found.armed) or 'none'}")
             print("\n".join(["Blockers:", *found.blockers]) if found.blockers else "No blockers")
         sys.exit(1 if found.blockers else 0)
 
@@ -61,11 +61,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     home_subparsers = parser.add_subparsers(dest="home_command", required=True)
     migrate_parser = home_subparsers.add_parser(
         "migrate",
-        help="Move ~/.brief-lemons/ to ~/.lemons/brief/ and ~/.lemons/inbox/",
+        help="Move ~/.brief-lemons/ to ~/.lemons/brief/ and ~/.lemons/mailbox/",
         description="Copies every brief and message, checks each copy, rewrites the "
         "database's brief paths, and moves the old home aside as a backup. Brief and "
         "message commands wait while it runs. It refuses, changing nothing, while an "
-        "inbox waiter or the Codex delivery service is running, or when anything "
+        "mailbox waiter or the Codex delivery service is running, or when anything "
         "would be overwritten. Rerun to continue after a stop. See docs/home.md.",
     )
     mode = migrate_parser.add_mutually_exclusive_group()

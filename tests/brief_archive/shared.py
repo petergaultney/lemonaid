@@ -35,10 +35,10 @@ def session(path: Path, channel: str, at: float = LONG_AGO, live: bool = False) 
 
 
 def message(lemon_id: str, at: float, name: str = "message") -> Path:
-    inbox = messages.inbox_for_id(lemon_id)
-    inbox.mkdir(parents=True, exist_ok=True)
-    sent = inbox / f"20261001T000000000000Z-{name}.md"
+    mailbox = messages.mailbox_for_id(lemon_id)
+    mailbox.mkdir(parents=True, exist_ok=True)
+    sent = mailbox / f"20261001T000000000000Z-{name}.md"
     sent.write_text("Hello.")
-    for touched in (sent, inbox):
+    for touched in (sent, mailbox):
         os.utime(touched, (at, at))
     return sent

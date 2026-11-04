@@ -5,7 +5,7 @@ description: Wait at zero token cost for a direct child's brief Status or Needs 
 
 # Watch children's briefs
 
-With an attached brief, prefer `lemonaid watch --self` for child statuses alongside Watching, PRs, Docs and inbox messages.
+With an attached brief, prefer `lemonaid watch --self` for child statuses alongside Watching, PRs, Docs and mailbox messages.
 
 <!-- harness: claude -->
 Check `lemonaid watch --self --status`. If it says `push scout running`, lemonaid is watching for you and pushes each batch into your session, children's status changes included. Handle each batch as it arrives. If it says `no watcher running`, run `lemonaid watch --self --push`, which starts the scout and returns; only if that prints `not started`, run `lemonaid watch --self` as a background Bash task (`timeout: 2147483647`) and rearm it after each batch.

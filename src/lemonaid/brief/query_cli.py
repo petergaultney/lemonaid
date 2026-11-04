@@ -81,7 +81,7 @@ def cmd_id(args: argparse.Namespace) -> None:
         print(
             f"Sign as {identity.wordybin(rerolled.new_id) or '$LEMON_NAME'}, pass "
             f"--legacy {identity.wordybin(rerolled.old_id) or '$LEMON_NAME'} to doc waiters, "
-            "and rearm your inbox waiter."
+            "and rearm your mailbox waiter."
         )
     else:
         print(lemon_id)

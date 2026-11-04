@@ -142,7 +142,7 @@ def test_a_deaf_lemon_is_reported_once_after_it_stays_deaf(grove, monkeypatch):
     _, child, child_path, _, _, _ = grove
     clock, armed = [0.0], [True]
     monkeypatch.setattr(briefs_events.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(lemon_liveness.waiter, "is_armed", lambda inbox: armed[0])
+    monkeypatch.setattr(lemon_liveness.waiter, "is_armed", lambda mailbox: armed[0])
     w = _watch(grove)
     armed[0] = False
     assert _poll(w) == []
@@ -150,7 +150,7 @@ def test_a_deaf_lemon_is_reported_once_after_it_stays_deaf(grove, monkeypatch):
     assert _poll(w) == []
     clock[0] = 61.0
     (sent,) = _poll(w)
-    assert sent.startswith(f"{child}: it is idle with no inbox waiter")
+    assert sent.startswith(f"{child}: it is idle with no mailbox waiter")
     assert sent.endswith(f"Status: none ({child_path})")
     clock[0] = 120.0
     assert _poll(w) == []

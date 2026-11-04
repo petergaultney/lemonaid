@@ -255,7 +255,7 @@ class BriefConfig:
     # Days a lemon's brief can sit idle, with no session live, before its name
     # may go to a new lemon. 0 never frees a name.
     name_idle_days: int = 14
-    # Days a brief can go unused before a daily sweep moves it and its inbox to the
+    # Days a brief can go unused before a daily sweep moves it and its mailbox to the
     # attic (`brief archive --idle-days`). 0 never sweeps.
     archive_idle_days: int = 14
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an

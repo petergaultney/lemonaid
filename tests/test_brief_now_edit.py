@@ -42,7 +42,7 @@ Parent: hq, 2026-09-30
 The thing exists.
 
 ## Waiters
-- lemonaid inbox watch --self
+- lemonaid mailbox watch --self
 """
 
 

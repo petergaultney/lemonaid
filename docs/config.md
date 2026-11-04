@@ -508,7 +508,7 @@ See [keybindings.md](keybindings.md) for the other keys and conflict warnings.
 | `pr_url` | `""` | Shell command that prints a PR's URL for `{ref}`, so `brief pr add` takes a number; unset, it needs the URL. |
 | `name` | `""` | Shell command that prints a new lemon's name; unset uses a random two-word WordyBin. |
 | `name_idle_days` | `14` | Days a lemon's brief can sit idle, with no live session, before a new lemon may take its name; `0` never frees one. |
-| `archive_idle_days` | `14` | Days a brief can go unused before a daily sweep moves it and its inbox to `~/.lemons/attic/YYYY-MM/`; `0` never sweeps. In use means a live session, or within the window: created, Status changed, session activity, attached, or a message in its inbox. `place toss` archives the briefs of the lemons it ends at once. |
+| `archive_idle_days` | `14` | Days a brief can go unused before a daily sweep moves it and its mailbox to `~/.lemons/attic/YYYY-MM/`; `0` never sweeps. In use means a live session, or within the window: created, Status changed, session activity, attached, or a message in its mailbox. `place toss` archives the briefs of the lemons it ends at once. |
 | `vaults` | `[]` | Obsidian vault directories; a bare `.md` path under one opens in Obsidian. |
 | `responsible_parties` | `[]` | Who a new top-level brief's `responsible-parties` names; unset is the account's full name. A child copies its parent's. |
 | `statuses` | the defaults below | The Status words lemons may set; see [Brief statuses](#brief-statuses). |
@@ -739,11 +739,11 @@ not call the hook.
 | `LEMONAID_DB` | Path to the inbox database, replacing `~/.local/share/lemonaid/lemonaid.db`. A second `lma` pointed at its own file cannot archive rows in your real inbox, which is what makes demos and experiments safe - `scripts/demo-inbox.py` uses it. |
 | `LEMONAID_CONFIG` | Path to the config file, replacing `~/.config/lemonaid/config.toml`. |
 | `LEMONAID_STATE_DIR` | Directory for scratch-pane and back-location state, replacing `~/.local/state/lemonaid`. |
-| `LEMONAID_LEMONS_DIR` | Home of briefs and inboxes, replacing `~/.lemons` (see `docs/home.md`). |
+| `LEMONAID_LEMONS_DIR` | Home of briefs and mailboxes, replacing `~/.lemons` (see `docs/home.md`). |
 | `LEMONAID_LEGACY_BRIEFS_DIR` | The older home that `lemonaid home migrate` moves, replacing `~/.brief-lemons`. |
 | `LEMONAID_BRIEFS_DIR` | One directory of briefs, replacing the home's `brief/`. Pins it: `home migrate` refuses while it is set. |
-| `LEMONAID_MESSAGES_DIR` | Root of the lemon message inboxes, replacing the home's `inbox/` (`<briefs dir>/inbox` when `LEMONAID_BRIEFS_DIR` is set). |
-| `LEMONAID_CHANNEL` | The channel `lemonaid tell` sends from and the `lemonaid inbox` message commands read for, ahead of the harness session id or tmux pane. |
+| `LEMONAID_MESSAGES_DIR` | Root of the lemon mailboxes, replacing the home's `mailbox/` (`<briefs dir>/mailbox` when `LEMONAID_BRIEFS_DIR` is set). |
+| `LEMONAID_CHANNEL` | The channel `lemonaid tell` sends from and the `lemonaid mailbox` commands read for, ahead of the harness session id or tmux pane. |
 | `LEMONAID_LOG` | Path of the shared log, replacing `/tmp/lemonaid.log`. The test suite sets it, so test runs stay out of the real log. |
 | `LEMONAID_DEBUG` | `1` turns on debug logging in the hook entry points. |
 | `LEMONAID_LOG_FILE` | Path to write those debug logs to. |
@@ -796,7 +796,7 @@ autoresume_max = 3  # starts of one lemon allowed within the window
 autoresume_window = "20m"
 ```
 
-When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no inbox waiter, it starts that lemon on a prompt to read its inbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
+When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no mailbox waiter, it starts that lemon on a prompt to read its mailbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
 
 ## `[tasks]`
 

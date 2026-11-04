@@ -23,7 +23,7 @@ _until = runtime_fixture._until
 
 def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path, monkeypatch):
     _path, lemon_id, _original = runtime
-    inbox = store.inbox_for_id(lemon_id)
+    mailbox = store.mailbox_for_id(lemon_id)
     scout_roster.register(lemon_id, shared.CHANNEL, shared.SESSION, str(tmp_path))
     with (tmp_path / "scout.log").open("w") as log:
         host = subprocess.Popen(
@@ -35,13 +35,13 @@ def test_old_scout_releases_both_locks_before_pane_replacement(runtime, tmp_path
         try:
             _until(lambda: registry.mine(shared.CHANNEL))
             assert wait_state.is_armed(lemon_id)
-            assert waiter.is_armed(inbox)
+            assert waiter.is_armed(mailbox)
             replace = pane.replace
 
             def checked_replace(*args, **kwargs):
                 assert not registry.mine(shared.CHANNEL)
                 assert not wait_state.is_armed(lemon_id)
-                assert not waiter.is_armed(inbox)
+                assert not waiter.is_armed(mailbox)
                 return replace(*args, **kwargs)
 
             monkeypatch.setattr(pane, "replace", checked_replace)
@@ -62,7 +62,7 @@ def test_native_resume_gets_rearm_instruction_without_rebuilding_watchers(runtim
     before = path.read_bytes()
     with db.connect() as conn:
         plan = planning.build(conn, shared.CHANNEL, Config(), True)
-    pending = store.send(store.inbox_for_id(lemon_id), "held during restart", "test")
+    pending = store.send(store.mailbox_for_id(lemon_id), "held during restart", "test")
     token = state.reserve(plan)
     assert pending.exists()
     coordinator.run(token)

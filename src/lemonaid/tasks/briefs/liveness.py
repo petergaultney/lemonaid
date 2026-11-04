@@ -20,7 +20,7 @@ def live(conn: sqlite3.Connection, lemon_id: str) -> bool:
     if not found.channel:
         return False
 
-    state = recipient.probe(found.channel, found.notification, store.inbox_for_id(lemon_id))
+    state = recipient.probe(found.channel, found.notification, store.mailbox_for_id(lemon_id))
     return state.state not in (recipient.DEAD, recipient.NOT_STARTED)
 
 

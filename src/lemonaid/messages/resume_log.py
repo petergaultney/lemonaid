@@ -1,4 +1,4 @@
-"""When `tell` started each lemon, and which of those starts failed, kept beside its inbox.
+"""When `tell` started each lemon, and which of those starts failed, kept beside its mailbox.
 
 A resumed harness takes seconds to come up and report its new terminal, and
 until it does the next `tell` still sees it as dead. One that is dead again a
@@ -23,8 +23,8 @@ class Entry(ty.NamedTuple):
     kind: str
 
 
-def _path(inbox: Path) -> Path:
-    return inbox / ".autoresumed"
+def _path(mailbox: Path) -> Path:
+    return mailbox / ".autoresumed"
 
 
 def _parse(line: str) -> Entry | None:
@@ -35,9 +35,9 @@ def _parse(line: str) -> Entry | None:
         return None
 
 
-def entries(inbox: Path) -> list[Entry]:
+def entries(mailbox: Path) -> list[Entry]:
     try:
-        lines = _path(inbox).read_text().splitlines()
+        lines = _path(mailbox).read_text().splitlines()
     except FileNotFoundError:
         return []
 
@@ -58,7 +58,7 @@ def within(log: abc.Iterable[Entry], now: float, window: float) -> int:
     return sum(1 for entry in log if now - entry.at < window)
 
 
-def record(inbox: Path, kind: str = START) -> None:
-    inbox.mkdir(parents=True, exist_ok=True)
-    with open(_path(inbox), "a") as log:
+def record(mailbox: Path, kind: str = START) -> None:
+    mailbox.mkdir(parents=True, exist_ok=True)
+    with open(_path(mailbox), "a") as log:
         log.write(f"{time.time()} {kind}\n")

@@ -70,7 +70,7 @@ _VERBS = {
         "PRs",
         lambda body: pr_table.without(body, "7"),
     ),
-    "waiter add": lambda t: waiters.add(t, "lemonaid inbox watch --self"),
+    "waiter add": lambda t: waiters.add(t, "lemonaid mailbox watch --self"),
     "status": lambda t: store.with_status(t, "blocked"),
     "now": lambda t: now_edit.with_now(t, layout.parse("### Next\n\n- start over")),
 }

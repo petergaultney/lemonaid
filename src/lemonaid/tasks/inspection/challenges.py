@@ -76,7 +76,7 @@ def deliver(
             continue
 
         try:
-            store.send(store.inbox_for_id(target), _body(case), "lemonaid task inspector")
+            store.send(store.mailbox_for_id(target), _body(case), "lemonaid task inspector")
         except (ValueError, OSError) as error:
             lines.append(f"telling {target} about {case['subject']} failed: {error}")
             continue

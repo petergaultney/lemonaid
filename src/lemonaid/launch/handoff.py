@@ -2,7 +2,7 @@
 
 A lemon with a parent and no `--group` goes into its parent's groups.
 `--parent parent` names the caller's own parent, or no one if it has none.
-A parent other than the caller is told, in its inbox, that it has a new child.
+A parent other than the caller is told, in its mailbox, that it has a new child.
 
 Everything is checked before a window is touched, and the live channels are
 taken then too, so a lemon that starts quickly still counts as new.
@@ -15,7 +15,7 @@ from pathlib import Path
 from .. import brief, groups, lineage
 from ..inbox import db
 from ..log import get_logger
-from ..messages import store as inbox_store
+from ..messages import store
 
 _log = get_logger("launch.handoff")
 
@@ -130,8 +130,8 @@ def prepare(
 def _announce(handoff: Handoff) -> None:
     child, parent = handoff.link or ("", "")
     try:
-        inbox_store.send(
-            inbox_store.inbox_for_id(parent),
+        store.send(
+            store.mailbox_for_id(parent),
             f"{handoff.announce} started {handoff.name or child} as your child ({handoff.brief})",
             handoff.announce,
         )

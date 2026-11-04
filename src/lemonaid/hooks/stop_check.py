@@ -52,7 +52,7 @@ def _missing_waiter(path: Path, text: str, grace: float, harness: str, session_i
         return ""
     if not required and harness == "codex":
         return ""
-    if not required and lemon_id and waiter.is_armed(store.inbox_for_id(lemon_id), grace):
+    if not required and lemon_id and waiter.is_armed(store.mailbox_for_id(lemon_id), grace):
         return ""
 
     why = (
