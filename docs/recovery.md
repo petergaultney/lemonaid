@@ -26,15 +26,20 @@ Don't trust `pane_current_command`. Claude Code titles itself with its version, 
 - **A dead Claude, by hand:** `claude --resume <id> "<prompt>"` with a prompt telling it to rearm its waiters. A session that ended in the middle of a tool call can refuse to resume without one.
 - **A dead Codex, by hand:** `codex --no-daemon resume <id>`.
 - **A dead lemon with uncommitted or unpushed work:** decide yourself whether to resume it; a script shouldn't.
-- **A parked Claude lemon:** see below.
+- **A parked Claude lemon:** see [below](#a-parked-claude-lemon).
+
+Stop a waiter with `lemonaid watch stop --self`. Never kill waiters by pattern: `pkill -f watch` stops every lemon's matching waiters, not only yours.
 
 ## A parked Claude lemon
 
-A Left Arrow on an empty Claude Code prompt opens the agents view, and Claude Code moves the conversation to a background job. The job is a fork with a new session ID. `lemonaid tell` names the job, and `lemonaid lemon doctor` shows the lemon as `parked`.
+A Left Arrow on an empty Claude Code prompt opens the agents view, and Claude Code moves the conversation to a background job. The job is a fork with a new session ID, and the job's ID is the first 8 characters of that session ID. `lemonaid tell` names the job, and `lemonaid lemon doctor` shows the lemon as `parked`.
 
-To bring the conversation back, pick the job in the agents view in the lemon's pane. The pane then shows the job, but the conversation keeps running in the job, under the job's session ID. lemonaid still has the brief on the old session's channel, and doesn't move it yet. To move it by hand, send the job a prompt so that its session gets an inbox row, then run `lemonaid brief attach --channel claude:<job> --force <brief>`. In the case seen so far, the job's ID was the first 8 characters of its session ID, which is the channel lemonaid uses.
+To bring the conversation back, press Esc or Enter in the agents view in the lemon's pane. If the agents view is closed, run `claude --resume <the job's session ID>` in the pane, which runs `claude attach <job>`. Each way, the pane shows the job, but the conversation keeps running in the job's own process, under the job's session ID and on a terminal of its own. lemonaid still has the brief on the old session's channel, and doesn't move it yet. To move it by hand:
 
-Stop a waiter with `lemonaid watch stop --self`. Never kill waiters by pattern: `pkill -f watch` stops every lemon's matching waiters, not only yours.
+1. Send the conversation a prompt, so that the job's hooks give its session an inbox row.
+2. Run `lemonaid brief attach --channel claude:<job> --force <brief>`. Without `--force` it refuses, since the old session still holds the brief.
+
+The next `tell`, or the lemon's next Stop check, then starts a scout on the job's socket, which delivers the messages and events that waited.
 
 ## Repair the database by hand
 
