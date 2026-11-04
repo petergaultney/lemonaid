@@ -2,9 +2,11 @@
 
 A brief is attached to one inbox channel - one Claude session or Codex thread -
 so it follows that lemon through compaction and resume, and two lemons sharing
-a place each have their own. An attachment can also wait on a tmux window for
-the first lemon that starts there after it was requested, which is how a brief
-reaches a session that `place open` has only just created.
+a place each have their own. An attachment can also wait for a lemon that has
+not started: on the launch token its launcher put in its environment, which its
+hooks record in any terminal, or on a tmux window, for the first lemon that
+starts there after it was requested. A launcher in tmux records both, since the
+watcher can place a lemon in its window before any hook has run.
 
 "Starts after" means a channel that was not live when the brief was
 requested: a new one, or one revived from the archive. Timestamps and row ids
@@ -19,6 +21,7 @@ import time
 from collections import abc
 from pathlib import Path
 
+from .. import launch_token
 from ..inbox import db, pins
 from . import pending_gate, session
 
@@ -67,7 +70,7 @@ def detach(conn: sqlite3.Connection, channel: str) -> Path | None:
 
 def live_channels(conn: sqlite3.Connection) -> list[str]:
     """The channels live and placed in tmux now; a lemon on any other channel starts, returns,
-    or is first placed after this.
+    or is first placed after this. Only a brief waiting on a tmux window needs them.
 
     A lemon already running but not yet placed - a Codex whose row the watcher hasn't
     located - is left out, so it can still claim a brief waiting on its window.
@@ -89,20 +92,24 @@ def attach_pending(
     live_before: abc.Iterable[str],
     tmux_window_id: str = "",
     name: str = "",
+    token: str = "",
 ) -> None:
-    """Attach *path* to the first lemon in this window on a channel not in *live_before*.
+    """Attach *path* to the first lemon whose hooks record *token*, else the first in this
+    tmux window on a channel not in *live_before*.
 
-    *tmux_window_id* follows the window if tmux renumbers it; without one, the
-    window is the index *tmux_window*. A *name* is given to the lemon's session
-    when it claims the brief.
+    Either the token or the window may be "", not both. *tmux_window_id* follows the
+    window if tmux renumbers it; without one, the window is the index *tmux_window*.
+    A *name* is given to the lemon's session when it claims the brief.
     """
     conn.execute(
         """
         INSERT OR REPLACE INTO pending_briefs
-            (tmux_session, tmux_window, path, tmux_window_id, live_before, requested_at, name)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (launch_token, tmux_session, tmux_window, path, tmux_window_id, live_before,
+             requested_at, name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            token,
             tmux_session,
             tmux_window,
             str(path),
@@ -123,6 +130,20 @@ def _where_now(row: sqlite3.Row) -> tuple[str, str]:
             return now
 
     return row["tmux_session"], row["tmux_window"]
+
+
+def _first_with_token(conn: sqlite3.Connection, token: str) -> str:
+    row = conn.execute(
+        f"""
+        SELECT channel FROM notifications
+        WHERE json_extract(metadata, '$.{launch_token.METADATA_KEY}') = ?
+          AND status != 'archived'
+          AND channel NOT IN (SELECT channel FROM session_briefs)
+        ORDER BY id LIMIT 1
+        """,
+        (token,),
+    ).fetchone()
+    return row["channel"] if row else ""
 
 
 def _first_lemon_after(
@@ -163,22 +184,22 @@ def claim_pending(conn: sqlite3.Connection) -> None:
     if conn.execute(f"SELECT 1 {stale} LIMIT 1", cutoff).fetchone():
         conn.execute(f"DELETE {stale}", cutoff)
         conn.commit()
-    pending = conn.execute("SELECT * FROM pending_briefs").fetchall()
+    pending = conn.execute("SELECT rowid, * FROM pending_briefs").fetchall()
     if not pending or not pending_gate.due(conn, time.time()):
         return
 
     for row in pending:
-        channel = _first_lemon_after(conn, *_where_now(row), json.loads(row["live_before"]))
+        channel = (row["launch_token"] and _first_with_token(conn, row["launch_token"])) or (
+            row["tmux_session"]
+            and _first_lemon_after(conn, *_where_now(row), json.loads(row["live_before"]))
+        )
         if not channel:
             continue
 
         attach(conn, channel, Path(row["path"]))
         if row["name"] and (newest := db.get_by_channel(conn, channel, unread_only=False)):
             db.update_name(conn, newest.id, row["name"])
-        conn.execute(
-            "DELETE FROM pending_briefs WHERE tmux_session = ? AND tmux_window = ?",
-            (row["tmux_session"], row["tmux_window"]),
-        )
+        conn.execute("DELETE FROM pending_briefs WHERE rowid = ?", (row["rowid"],))
         conn.commit()
 
 

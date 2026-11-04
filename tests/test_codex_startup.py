@@ -135,3 +135,11 @@ def test_a_resumed_thread_keeps_what_its_row_already_knew(rollouts):
     assert row.status == "read"
     assert row.metadata["model"] == "gpt-6.1-sol"
     assert row.metadata["session_start_source"] == "resume"
+
+
+def test_a_codex_lemon_records_its_launch_token_but_not_the_app_server_s(rollouts, monkeypatch):
+    monkeypatch.setenv("LEMONAID_LAUNCH_TOKEN", "t0k")
+    assert location.pane_metadata("tmux")["launch_token"] == "t0k"
+
+    monkeypatch.setattr(location.hosting, "under_app_server", lambda: True)
+    assert location.pane_metadata("tmux") == {}

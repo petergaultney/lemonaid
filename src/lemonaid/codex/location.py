@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-from .. import wezterm
+from .. import launch_token, wezterm
 from ..lemon_watchers import (
     get_cmux_surface,
     get_tmux_pane_tty,
@@ -17,21 +17,23 @@ from . import hosting
 
 
 def pane_metadata(switch_source: str) -> dict[str, Any]:
-    """The hook's tty and tmux or WezTerm identity, as inbox row metadata; {} under the app-server daemon.
+    """The hook's launch token, tty and tmux or WezTerm identity, as inbox row metadata;
+    {} under the app-server daemon.
 
-    Under the daemon, the tty found is the daemon's, not this session's pane;
-    recording it would put every Codex session in one pane. Otherwise the hook
-    runs in the session's own pane, and the tmux session identity keeps a later
-    TTY reuse from making another Codex session look like this one.
+    Under the daemon, the tty and environment found are the daemon's, not this
+    session's; recording them would put every Codex session in one pane. Otherwise
+    the hook runs in the session's own pane, and the tmux session identity keeps a
+    later TTY reuse from making another Codex session look like this one.
     """
     if hosting.under_app_server():
         return {}
 
+    token = launch_token.metadata()
     tty = get_tty() or (get_tmux_pane_tty() if switch_source == "tmux" else None)
     if not tty:
-        return {}
+        return token
 
-    metadata: dict[str, Any] = {"tty": tty}
+    metadata: dict[str, Any] = {"tty": tty, **token}
     if surface := get_cmux_surface():
         metadata["cmux_surface"] = surface
     if switch_source == "wezterm":

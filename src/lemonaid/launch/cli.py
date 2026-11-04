@@ -1,85 +1,42 @@
-"""`lemonaid lemon start`: start a lemon in a window of an existing session, from config."""
+"""`lemonaid lemon start`: start a lemon from config, beside the caller or in a tmux window."""
 
 import argparse
 import json
 import sys
 
+from .. import wezterm
 from ..config import load_config
-from ..watch import children_waiter
-from . import command, handoff, options, window
+from . import options, where, window
 
 
 def _start(args: argparse.Namespace) -> tuple[dict, str]:
-    """(JSON result, error)."""
+    """(JSON result, error). With no target, beside the caller in whichever terminal it is in."""
     session, colon, index = args.target.partition(":")
-    if not colon or not index.isdigit():
+    if args.target and (not colon or not index.isdigit()):
         return {}, f"Name a window by its index: :WINDOW or SESSION:WINDOW, not {args.target!r}"
 
-    if not session:
-        session = window.own_session()
-        if not session:
-            return (
-                {},
-                f"{args.target} means a window of your own tmux session, and this isn't in tmux",
-            )
+    own = window.own_session()
+    pane, socket = wezterm.spawn.own_pane()
+    if not args.target and not own and not pane:
+        return {}, "Not in tmux or WezTerm, so there is nowhere beside you: name SESSION:WINDOW"
+
+    if args.target and not session and not own:
+        return {}, f"{args.target} means a window of your own tmux session, and this isn't in tmux"
 
     config = load_config()
     try:
-        resolved = options.selected(config.tmux_session, args)
         if options.preview(args, config.tmux_session):
             return {"preview": True}, ""
     except ValueError as error:
         return {}, str(error)
 
-    line = resolved.line
-    if not line.strip():
-        return {}, f"Lemon {resolved.lemon!r} has no harness command"
+    if args.target:
+        return where.in_window(args, config, session or own, index)
 
-    directory = window.session_dir(session)
-    if directory is None:
-        return {}, f"No tmux session {session!r}"
+    if own:
+        return where.in_new_window(args, config, own)
 
-    given, error = handoff.prepare(args.brief, args.parent, args.name, tuple(args.group))
-    if error:
-        return {}, error
-
-    if given.brief and (error := command.unclaimable(line)):
-        return {}, error
-
-    typed, environment = command.harness_line(
-        line,
-        directory,
-        handoff.first_prompt(given, args.prompt),
-        command.codex_writable_roots(config.tmux_session),
-        handoff.session_title(given),
-    )
-    pane, error = window.open_window(session, index, directory, environment)
-    if pane is None:
-        return {}, error
-
-    result = {
-        "session": session,
-        "window": index,
-        "window_id": pane.window_id,
-        "dir": str(directory),
-        "harness": resolved.lemon,
-        "brief": str(given.brief) if given.brief else None,
-        "lemon_id": given.link[0] if given.link else None,
-        "parent": given.link[1] if given.link else None,
-        "groups": list(given.groups),
-        "name": given.name or None,
-    }
-    if warning := handoff.complete(given, session, index, pane.window_id):
-        print(f"Warning: {warning}", file=sys.stderr)
-    if given.link:
-        print(children_waiter.reminder(), file=sys.stderr)
-    if error := window.run(pane, typed):
-        return result, error
-
-    if not args.no_check and (dialog := window.startup_dialog(pane.pane_id)):
-        return result, f"The lemon in {session}:{index} is waiting at {dialog}"
-
-    return result, ""
+    return where.in_new_tab(args, config, pane, socket)
 
 
 def _cmd_start(args: argparse.Namespace) -> None:
@@ -92,7 +49,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
     elif error:
         print(error, file=sys.stderr)
     else:
-        print(f"started {result['harness']} in {result['session']}:{result['window']}")
+        print(f"started {result['harness']} in {result['where']}")
 
     if error:
         sys.exit(1)
@@ -101,19 +58,24 @@ def _cmd_start(args: argparse.Namespace) -> None:
 def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
     start = lemon_subparsers.add_parser(
         "start",
-        help="Start a lemon in a window of an existing tmux session",
+        help="Start a lemon beside you, or in a window of an existing tmux session",
         description="Runs a preset, harness executable, or legacy template's lemon line - the same one "
         "`place open` starts in its harness window - in window WINDOW of your own tmux "
         "session (:WINDOW) or of SESSION, in the session's directory. :WINDOW follows your "
         "session through renames, so a lemon starting a helper beside itself never needs its "
         "session's name. The window is made if it doesn't exist and respawned "
-        "if its panes are dead; anything running there is refused. Codex is started "
-        "with its folder-trust and update prompts turned off, so the prompt reaches it.",
+        "if its panes are dead; anything running there is refused. With no target, it starts "
+        "beside you in the current directory: a new window of your own tmux session, or a new "
+        "tab in WezTerm, and says where. Codex is "
+        "started with its folder-trust and update prompts turned off, so the prompt reaches it.",
     )
     start.add_argument(
         "target",
+        nargs="?",
+        default="",
         metavar="[SESSION]:WINDOW",
-        help="Where to start it: :4 is window 4 of your own session; WINDOW is an index",
+        help="Where to start it: :4 is window 4 of your own tmux session; WINDOW is an index. "
+        "Default: a new window or tab beside you",
     )
     options.add_arguments(start)
     start.add_argument(

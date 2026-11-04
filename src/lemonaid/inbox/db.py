@@ -439,6 +439,7 @@ _STICKY_METADATA = (
     "wezterm_pane",
     "wezterm_workspace",
     "wezterm_socket",
+    "launch_token",
     "transcript_path",
     "model_provider",
     "model",

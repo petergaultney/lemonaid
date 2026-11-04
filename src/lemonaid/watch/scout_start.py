@@ -16,6 +16,7 @@ _LEMON_VARIABLES = frozenset(
         "CODEX_THREAD_ID",
         "LEMONAID_CHANNEL",
         "LEMONAID_HANDOFF_TOKEN",
+        "LEMONAID_LAUNCH_TOKEN",
         "TMUX_PANE",
         "WEZTERM_PANE",
         "CMUX_SURFACE_ID",
