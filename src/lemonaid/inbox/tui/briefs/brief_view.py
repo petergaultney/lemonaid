@@ -204,15 +204,15 @@ class _Markdown(Markdown):
 
 
 class _SessionBar(Static):
-    DEFAULT_CSS = f"""
-    _SessionBar {{
+    DEFAULT_CSS = """
+    _SessionBar {
         height: 1;
         margin-bottom: 1;
         content-align: center middle;
-        background: {utils.ATTENTION_COLOR};
-        color: #000000;
+        background: $primary-darken-2;  /* yellow is a status's, and this is a session's name */
+        color: $text;
         text-style: bold;
-    }}
+    }
     """
 
     def __init__(self, header: str) -> None:

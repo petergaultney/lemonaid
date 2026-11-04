@@ -225,6 +225,8 @@ class TuiConfig:
     grove_big_trees: bool = False
     # Seconds a working lemon's pulse takes, from rest to darkest and back.
     grove_pulse_seconds: float = 4.5
+    # Seconds the brief view's attention line shows a brief's new status after it changes.
+    status_pulse_seconds: float = 10.0
     # The key that flips a zoomed block's lemon lists to their other page, and whether it shows
     # that page while held (`hold`) or until pressed again (`toggle`).
     grove_flip_key: str = ";"
@@ -757,6 +759,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         grove_pan_rows=max(1, int(tui_data.get("grove_pan_rows", 1))),
         grove_big_trees=bool(tui_data.get("grove_big_trees", False)),
         grove_pulse_seconds=max(0.5, float(tui_data.get("grove_pulse_seconds", 4.5))),
+        status_pulse_seconds=max(0.0, float(tui_data.get("status_pulse_seconds", 10.0))),
         grove_flip_key=_grove_flip_key(tui_data.get("grove_flip_key", ";")),
         grove_flip=_grove_flip(tui_data.get("grove_flip", "hold")),
         grove_select_key=_grove_select_key(

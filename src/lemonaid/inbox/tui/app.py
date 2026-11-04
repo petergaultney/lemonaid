@@ -9,6 +9,7 @@ from pathlib import Path
 
 from textual import events
 from textual.app import ComposeResult
+from textual.containers import Vertical
 from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.timer import Timer
@@ -51,6 +52,7 @@ from . import (
     unfocused_dim,
     utils,
 )
+from .briefs.attention_bar import AttentionBar
 from .briefs.brief_pane import BriefPane
 from .crash_logging import CrashLoggedApp
 from .edits import (
@@ -76,6 +78,7 @@ from .utils import set_terminal_title
 from .views import usage_view, view_modes
 from .views.history_table import HistoryTable
 from .views.snoozed_table import SnoozedTable
+from .views.usage_screen import UsageScreen
 from .views.usage_view import UsageHeader
 from .watchers import focus, session_names, watcher_hooks
 
@@ -156,6 +159,7 @@ class LemonaidApp(CrashLoggedApp):
             resume_available=lambda: (
                 self._selected_channel() in self._detached_channels or self._brief_local()
             ),
+            brief_unselected=bool((pane := self._the(BriefPane)) and pane.unselected),
         )
 
     def get_css_variables(self) -> dict[str, str]:
@@ -206,11 +210,17 @@ class LemonaidApp(CrashLoggedApp):
                 StatusLine(id="status"),
                 id="inbox_content",
             )
-            yield BriefPane(
-                self.config,
-                self._get_current_row_key,
-                self._attention.note,
-                self._brief_closed,
+            yield Vertical(
+                AttentionBar(
+                    self.config.tui.status_pulse_seconds,
+                    lambda *args: self._content.inbox.summary_layout(*args),
+                ),
+                BriefPane(
+                    self.config,
+                    self._get_current_row_key,
+                    self._attention.note,
+                    self._brief_closed,
+                ),
                 id="brief_view",
             )
         yield Footer()
@@ -508,9 +518,12 @@ class LemonaidApp(CrashLoggedApp):
         if not self.is_running or self._ticks.busy:
             return
 
-        if self._brief_target is not None or self._mode is not None:
+        if self._mode is not None:
             self._refresh_notifications()
             return
+
+        if self._brief_target is not None:
+            self._refresh_notifications()
 
         self._content.refresh_notes()
         self._names.maybe_scan(lambda: self.call_from_thread(self._fetched))
@@ -537,6 +550,10 @@ class LemonaidApp(CrashLoggedApp):
 
         def done(loaded: tuple[bool | None, inbox_frame.Frame | None]) -> None:
             self._set_input_active(loaded[0])
+            if loaded[1] is not None and self.is_running and self._brief_target is not None:
+                self._observe_attention(loaded[1])
+                return
+
             if (
                 loaded[1] is not None
                 and self.is_running
@@ -555,8 +572,13 @@ class LemonaidApp(CrashLoggedApp):
             self._changes.mark()
         self._tick()
 
+    def _observe_attention(self, frame: inbox_frame.Frame) -> None:
+        self.query_one(AttentionBar).observe(frame.active)
+
     def _inbox_drawn(self, drawn: inbox_draw.Drawn) -> None:
         inbox = self._content.inbox
+        if inbox.last_frame is not None:
+            self._observe_attention(inbox.last_frame)
         self.set_class(bool(drawn.unread), "-unread")
         self._refresh_resume_binding()
 
@@ -703,6 +725,10 @@ class LemonaidApp(CrashLoggedApp):
             self._activate_lemon(notification)
 
     def action_toggle_usage(self) -> None:
+        if self._brief_target is not None:
+            self.push_screen(UsageScreen(self.config))
+            return
+
         self._toggle_mode(view_modes.USAGE)
 
     def action_toggle_snoozed(self) -> None:

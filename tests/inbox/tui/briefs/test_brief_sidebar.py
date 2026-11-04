@@ -6,10 +6,16 @@ from pathlib import Path
 
 from textual.widgets import ContentSwitcher, DataTable
 
-from lemonaid.brief import cli, sidebar, target
-from lemonaid.inbox import db
+from lemonaid import config
+from lemonaid.brief import cli, session, sidebar, target
+from lemonaid.inbox import db, view
 from lemonaid.inbox.tui.app import LemonaidApp
+from lemonaid.inbox.tui.briefs.attention_bar import AttentionBar
+from lemonaid.inbox.tui.briefs.brief_pane import BriefPane
 from lemonaid.inbox.tui.briefs.brief_view import BriefView
+from lemonaid.inbox.tui.live import group_headers
+from lemonaid.inbox.tui.rows import brief_cards
+from lemonaid.inbox.tui.views.usage_screen import UsageScreen
 from lemonaid.tmux import follow
 
 
@@ -241,5 +247,213 @@ def test_hidden_inbox_keys_cannot_archive_a_row(monkeypatch, tmp_path):
             with db.connect() as conn:
                 assert db.get(conn, row.id).status == original_status
             assert app.query_one(ContentSwitcher).current == "brief_view"
+
+    asyncio.run(check())
+
+
+def test_a_sidebar_brief_follows_the_pane_to_another_window(monkeypatch, tmp_path):
+    old = _target(tmp_path)
+    landed = target.Target([], [tmp_path], tmp_path, ["other"], "Other", "**Other**")
+    remembered: list[tuple[str, target.Target, str]] = []
+    asked: list[tuple[str, str]] = []
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    monkeypatch.setattr(sidebar, "read", lambda pane: (old, "@left"))
+    monkeypatch.setattr(sidebar, "window_id", lambda _: "@landed")
+    monkeypatch.setattr(sidebar, "remember", lambda *args: remembered.append(args))
+    monkeypatch.setattr(session, "current_session", lambda: "work:2")
+
+    def for_session(tmux_session, rows, attached, window, emojis):
+        asked.append((tmux_session, window))
+        return landed
+
+    monkeypatch.setattr(target, "for_session", for_session)
+    with db.connect() as conn:
+        db.add(conn, "claude:w2", "working", "w2", {"tmux_session": "work", "tmux_window": "2"})
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            app._set_brief_view(old)
+            await pilot.pause()
+            app.query_one(BriefPane).sync()
+            await pilot.pause()
+            assert app.query_one(ContentSwitcher).current == "brief_view"
+            assert app.query_one(BriefPane).target == landed
+            assert asked == [("work", "2")]
+            assert remembered == [("%9", landed, "@landed")]
+
+    asyncio.run(check())
+
+
+def _two_lemons(tmp_path: Path, session: str = "") -> tuple[db.Notification, db.Notification]:
+    """Each in its own tmux session, or both in window 1 of *session*."""
+    with db.connect() as conn:
+        rows = tuple(
+            db.add(
+                conn,
+                f"claude:{name}",
+                "working",
+                name,
+                {"cwd": str(tmp_path), "tmux_session": session or name, "tmux_window": "1"},
+            )
+            for name in ("first", "second")
+        )
+        conn.executemany(
+            "UPDATE notifications SET switch_source = 'tmux' WHERE id = ?", [(n.id,) for n in rows]
+        )
+        conn.commit()
+    return rows
+
+
+def _follow_to(monkeypatch, tmp_path: Path, where: str) -> None:
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    monkeypatch.setattr(sidebar, "read", lambda pane: (_target(tmp_path), "@left"))
+    monkeypatch.setattr(sidebar, "window_id", lambda _: "@landed")
+    monkeypatch.setattr(sidebar, "remember", lambda *args: None)
+    monkeypatch.setattr(session, "current_session", lambda: where)
+    monkeypatch.setattr(session, "session_dir", lambda name: tmp_path)
+
+
+def _is_unread(notification: db.Notification) -> bool:
+    with db.connect() as conn:
+        return db.get(conn, notification.id).is_unread
+
+
+def test_keys_act_on_the_lemon_the_brief_followed_to(monkeypatch, tmp_path):
+    first, second = _two_lemons(tmp_path)
+    _follow_to(monkeypatch, tmp_path, "second:1")
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            table = app.query_one("#main_table", DataTable)
+            row_keys = [
+                str(table.coordinate_to_cell_key((r, 0))[0].value) for r in range(table.row_count)
+            ]
+            table.move_cursor(row=row_keys.index(str(first.id)))
+            app._set_brief_view(_target(tmp_path))
+            app.query_one(BriefPane).sync()
+            await pilot.pause()
+            assert not app.query_one(BriefPane).unselected
+            await pilot.press("M")
+            await pilot.pause()
+            assert not _is_unread(second)
+            assert _is_unread(first)
+
+    asyncio.run(check())
+
+
+def test_a_brief_for_no_single_row_ignores_single_lemon_keys(monkeypatch, tmp_path):
+    first, second = _two_lemons(tmp_path, session="both")
+    _follow_to(monkeypatch, tmp_path, "both:1")
+    switched: list[int] = []
+    monkeypatch.setattr(
+        LemonaidApp,
+        "_switch_to_notification",
+        lambda self, notification: switched.append(notification.id) or True,
+    )
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            app._set_brief_view(_target(tmp_path))
+            app.query_one(BriefPane).sync()
+            await pilot.pause()
+            assert app.query_one(BriefPane).unselected
+            await pilot.press("M")
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert _is_unread(first) and _is_unread(second)
+            assert switched == []
+            assert app.query_one(ContentSwitcher).current == "brief_view"
+
+    asyncio.run(check())
+
+
+def test_the_attention_badges_stay_in_the_pane_when_an_open_brief_is_resized(monkeypatch, tmp_path):
+    monkeypatch.setattr(LemonaidApp, "_observe_attention", lambda self, frame: None)
+    rightmost = [s.name for s in config.brief_statuses()][-1]  # its slot is at the pane's edge
+    badge = group_headers.badge(rightmost, 1).plain.strip()
+    with db.connect() as conn:
+        row = db.add(conn, "claude:sam", "working", "sam", {"cwd": str(tmp_path)})
+    active = view.Active(
+        [row], {"claude:sam": brief_cards.CardBrief(rightmost, "", 0.0)}, {}, frozenset()
+    )
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(70, 30)) as pilot:
+            await pilot.pause()
+            app._set_brief_view(_target(tmp_path))
+            await pilot.pause()
+            bar = app.query_one(AttentionBar)
+            bar.observe(active)
+            await pilot.resize_terminal(45, 30)
+            await pilot.pause()
+            shown = str(bar.render())
+            assert badge in shown
+            assert shown.index(badge) + len(badge) <= bar.size.width
+
+    asyncio.run(check())
+
+
+def test_the_usage_key_opens_usage_over_the_brief_and_closes_it(tmp_path):
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(60, 30)) as pilot:
+            app._set_brief_view(_target(tmp_path))
+            await pilot.pause()
+            await pilot.press(app.config.tui.keybindings.usage_view)
+            await pilot.pause()
+            assert isinstance(app.screen, UsageScreen)
+            await pilot.press(app.config.tui.keybindings.usage_view)
+            await pilot.pause()
+            assert not isinstance(app.screen, UsageScreen)
+            assert app.query_one(ContentSwitcher).current == "brief_view"
+
+    asyncio.run(check())
+
+
+def test_a_window_with_no_lemon_keeps_the_brief_shown(monkeypatch, tmp_path):
+    _two_lemons(tmp_path)
+    shown = _target(tmp_path)
+    remembered: list[tuple[str, target.Target, str]] = []
+    _follow_to(monkeypatch, tmp_path, "second:3")
+    monkeypatch.setattr(sidebar, "remember", lambda *args: remembered.append(args))
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            app._set_brief_view(shown)
+            app.query_one(BriefPane).sync()
+            await pilot.pause()
+            assert app.query_one(BriefPane).target == shown
+            assert remembered == [("%9", shown, "@landed")]
+
+    asyncio.run(check())
+
+
+def test_a_brief_browsed_to_locally_stays_when_a_window_has_no_lemon(monkeypatch, tmp_path):
+    _two_lemons(tmp_path)
+    browsed = target.Target([], [tmp_path], tmp_path, ["second"], "Second", "**Second**")
+    remembered: list[tuple[str, target.Target, str]] = []
+    _follow_to(monkeypatch, tmp_path, "second:3")  # the sidebar option still records first's
+    monkeypatch.setattr(sidebar, "remember", lambda *args: remembered.append(args))
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            pane = app.query_one(BriefPane)
+            app._set_brief_view(browsed)
+            pane.stay_local("Its terminal is unavailable here.")
+            pane.sync()
+            await pilot.pause()
+            assert pane.target == browsed
+            assert remembered == [("%9", browsed, "@landed")]
 
     asyncio.run(check())

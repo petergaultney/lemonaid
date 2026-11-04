@@ -252,6 +252,20 @@ def test_the_summary_puts_each_badge_in_its_group_bar_slot():
     assert line.plain.startswith(" ○1  w")
 
 
+def test_a_glowing_badge_keeps_its_slot_and_changes_its_fill():
+    rows = [db.Notification(i, f"c:{i}", "", status="read") for i in range(2)]
+    statuses = {"c:0": "blocked", "c:1": "done"}
+    starts = group_headers.slot_starts(60, [60], 0, 0, 4)
+
+    rest = attention_summary.line(rows, statuses, ["blocked"], True, "w", False, starts, 4)
+    lit = attention_summary.line(
+        rows, statuses, ["blocked"], True, "w", False, starts, 4, {"blocked": 1.0}
+    )
+
+    assert lit.plain == rest.plain
+    assert lit.spans != rest.spans
+
+
 def test_inbox_totals_past_nine_widen_the_shared_slots_and_stay_whole():
     group = groups.store.Group(1, "Work", 0, (), color="#c8a0f0")
     header = sections.Header(group, 3, (("blocked", 1), ("running", 1), ("merge", 1)))
