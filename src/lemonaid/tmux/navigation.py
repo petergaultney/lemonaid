@@ -161,6 +161,7 @@ class PaneLocation(ty.NamedTuple):
     session: str
     window: str
     session_order: SessionOrder | None = None
+    pane_id: str = ""  # tmux never reuses a pane id within a server
 
 
 def _session_order(created: str, server_started: str, session_id: str) -> SessionOrder | None:
@@ -191,6 +192,7 @@ def locations_by_tty(
                 p["session_name"],
                 p["window_index"],
                 _session_order(p["session_created"], p["start_time"], p["session_id"]),
+                p["pane_id"],
             )
             for p in state.panes
         }
@@ -203,7 +205,7 @@ def locations_by_tty(
                 "-a",
                 "-F",
                 "#{pane_tty}|#{session_name}|#{window_index}"
-                "|#{session_created}|#{start_time}|#{session_id}",
+                "|#{session_created}|#{start_time}|#{session_id}|#{pane_id}",
             ],
             capture_output=True,
             text=True,
@@ -215,9 +217,9 @@ def locations_by_tty(
         return None
 
     return {
-        parts[0]: PaneLocation(parts[1], parts[2], _session_order(*parts[3:]))
+        parts[0]: PaneLocation(parts[1], parts[2], _session_order(*parts[3:6]), parts[6])
         for line in result.stdout.strip().split("\n")
-        if len(parts := line.split("|")) == 6
+        if len(parts := line.split("|")) == 7
     }
 
 

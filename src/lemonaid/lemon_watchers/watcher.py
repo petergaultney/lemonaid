@@ -345,15 +345,37 @@ def _record_locations(
             )
 
 
+def _pane_replaced(
+    location: tmux.navigation.PaneLocation,
+    recorded_order: tmux.navigation.SessionOrder | None,
+    recorded_pane: str | None,
+) -> bool:
+    """Whether the live pane's recorded pane id differs, on the same tmux server."""
+    return bool(
+        recorded_pane
+        and (live := getattr(location, "pane_id", ""))
+        and recorded_pane != live
+        and (
+            not recorded_order
+            or recorded_order[1] == (getattr(location, "session_order", None) or (0, 0))[1]
+        )
+    )
+
+
 def _replaced(
     panes: dict[str, tmux.navigation.PaneLocation],
     tty: str,
     recorded_order: tmux.navigation.SessionOrder | None,
+    recorded_pane: str | None = None,
 ) -> bool:
-    """Whether *panes* says *tty*'s pane is gone, or now belongs to another session."""
+    """Whether *panes* says *tty*'s pane is gone, or now belongs to another session or pane."""
     location = panes.get(tty)
-    return location is None or bool(
-        recorded_order and location.session_order and recorded_order != location.session_order
+    return (
+        location is None
+        or bool(
+            recorded_order and location.session_order and recorded_order != location.session_order
+        )
+        or _pane_replaced(location, recorded_order, recorded_pane)
     )
 
 
@@ -372,6 +394,7 @@ def _archive_stale_sessions(
     relist: Callable[[], dict[str, list[str]] | None] | None = None,
     confirm_panes: Callable[[str | None], dict[str, tmux.navigation.PaneLocation] | None]
     | None = None,
+    pane_ids: dict[str, str] | None = None,
 ) -> set[str]:
     """Archive stale sessions using channel identity, pane presence and process evidence.
 
@@ -402,12 +425,17 @@ def _archive_stale_sessions(
     `ps` about each tty on its own. A listing that may be stale comes with `relist`,
     which takes a fresh one: an absence is never acted on from a stale listing.
 
+    `pane_ids` is each channel's recorded tmux pane id. A pane id is never reused
+    within a server, so a different one on the channel's tty (same server) means the
+    pane was replaced even when the new pane got the same tty and session.
+
     Returns set of archived channel names.
     """
     archived: set[str] = set()
     detached: set[str] = set()
     protected_channels = protected_channels or set()
     session_orders = session_orders or {}
+    pane_ids = pane_ids or {}
     current_session_orders: dict[str, tmux.navigation.SessionOrder | None] = {}
 
     def archive(
@@ -467,7 +495,7 @@ def _archive_stale_sessions(
                 confirm_panes is not None
                 and server_panes is not None
                 and channel not in protected_channels  # only marked detached, never archived
-                and _replaced(server_panes, tty, session_orders.get(channel))
+                and _replaced(server_panes, tty, session_orders.get(channel), pane_ids.get(channel))
             ):
                 if socket not in confirmed:
                     confirmed[socket] = confirm_panes(socket)
@@ -490,6 +518,16 @@ def _archive_stale_sessions(
                         recorded_session_order=recorded_order,
                         current_session=location.session,
                         current_session_order=current_order,
+                    )
+                    continue
+
+                recorded_pane = pane_ids.get(channel)
+                if _pane_replaced(location, recorded_order, recorded_pane):
+                    archive(
+                        item,
+                        "pane-gone",
+                        recorded_pane_id=recorded_pane,
+                        current_pane_id=location.pane_id,
                     )
                     continue
 
@@ -647,6 +685,7 @@ def unified_watch_loop(
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
+    pane_ids: Callable[[], dict[str, str]] | None = None,
     locate_sessions: Callable[
         [list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
         dict[str, str | Literal[False] | None],
@@ -678,6 +717,7 @@ def unified_watch_loop(
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
         session_orders: Optional callback returning each channel's recorded tmux session identity
+        pane_ids: Optional callback returning each channel's recorded tmux pane id
         locate_sessions: Optional callback saying where each session that can
             outlive its tty runs now (see `_archive_stale_sessions`)
         auto_read_patterns: A finished turn whose final message matches one of
@@ -720,6 +760,7 @@ def unified_watch_loop(
             by_channel = sockets() if sockets else {}
             saved_models = models() if models else {}
             saved_session_orders = session_orders() if session_orders else {}
+            saved_pane_ids = pane_ids() if pane_ids else {}
 
             # One tmux listing per server, shared by both location recording
             # and stale-session archiving. Before this, each pass ran its own
@@ -761,6 +802,7 @@ def unified_watch_loop(
                     claude_sessions,
                     (lambda: tty_processes(True)) if tty_processes else None,
                     lambda socket: tmux.navigation.locations_by_tty(socket, fresh=True),
+                    saved_pane_ids,
                 )
                 # Remove archived channels from active list
                 active = [s for s in active if s[0] not in archived_channels]
@@ -952,6 +994,7 @@ def start_unified_watcher(
     models: Callable[[], dict[str, ModelInfo]] | None = None,
     sockets: Callable[[], dict[str, str]] | None = None,
     session_orders: Callable[[], dict[str, tmux.navigation.SessionOrder]] | None = None,
+    pane_ids: Callable[[], dict[str, str]] | None = None,
     locate_sessions: Callable[
         [list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
         dict[str, str | Literal[False] | None],
@@ -981,6 +1024,7 @@ def start_unified_watcher(
         models: Optional callback returning the models currently saved by channel
         sockets: Optional callback returning channel -> recorded tmux socket
         session_orders: Optional callback returning each channel's recorded tmux session identity
+        pane_ids: Optional callback returning each channel's recorded tmux pane id
         locate_sessions: Optional callback saying where each session that can
             outlive its tty runs now (see `_archive_stale_sessions`)
         auto_read_patterns: Final-message patterns that keep a finished turn read
@@ -1010,6 +1054,7 @@ def start_unified_watcher(
             "models": models,
             "sockets": sockets,
             "session_orders": session_orders,
+            "pane_ids": pane_ids,
             "locate_sessions": locate_sessions,
             "auto_read_patterns": auto_read_patterns,
             "mark_read_after_turn": mark_read_after_turn,
