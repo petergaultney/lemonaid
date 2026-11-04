@@ -54,6 +54,20 @@ def _closing(conn: sqlite3.Connection, state: ty.Mapping[str, ty.Any]) -> dict[s
     }
 
 
+def _recheck(conn: sqlite3.Connection, task_id: str) -> dict[str, str]:
+    """When a re-check of the holder's Status was last requested, and that request's event."""
+    row = conn.execute(
+        "SELECT event_id, at FROM task_events WHERE task_id = ? AND kind = 'recheck_requested'"
+        " ORDER BY revision DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+    return (
+        {"recheck.requested_at": _when(row["at"]), "recheck.event": str(row["event_id"])}
+        if row
+        else {}
+    )
+
+
 def fields(
     conn: sqlite3.Connection,
     state: ty.Mapping[str, ty.Any],
@@ -82,6 +96,7 @@ def fields(
             for child in dependencies.waits_for(conn, state["task_id"])
         },
         **{f"dependency.{child}": "released" for child in releases},
+        **_recheck(conn, state["task_id"]),
         **(_closing(conn, state) if state["lifecycle"] == "closed" else {}),
     }
 

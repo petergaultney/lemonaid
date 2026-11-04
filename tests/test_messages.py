@@ -66,9 +66,11 @@ def test_send_and_receive_by_channel_without_tmux(capsys, monkeypatch):
     _run(parser, "tell", "codex:recipient", "Please review.\nSecond line.")
     sent = capsys.readouterr().out.strip()
     mailbox = _mailbox("recipient")
-    assert sent.startswith(str(mailbox))
     assert identity.valid(mailbox.name)
-    assert len(list(mailbox.glob("*.md"))) == 1
+    assert [p.stem for p in mailbox.glob("*.md")] == [sent]
+
+    _run(parser, "mailbox", "receipt", sent)
+    assert capsys.readouterr().out == f"{sent} pending\n"
 
     _run(parser, "mailbox", "next", "--self", "--channel", "codex:recipient")
     output = capsys.readouterr().out
@@ -76,6 +78,10 @@ def test_send_and_receive_by_channel_without_tmux(capsys, monkeypatch):
     assert output.endswith("\n\nPlease review.\nSecond line.\n")
     assert not list(mailbox.glob("*.md"))
     assert len(list((mailbox / "done").glob("*.md"))) == 1
+
+    _run(parser, "mailbox", "receipt", sent, "no-such-message")
+    delivered, missing = capsys.readouterr().out.splitlines()
+    assert delivered.startswith(f"{sent} delivered 20") and missing == "no-such-message unknown"
 
     with pytest.raises(SystemExit, match="1"):
         _run(parser, "mailbox", "next", "--self", "--channel", "codex:recipient")

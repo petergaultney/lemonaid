@@ -16,6 +16,8 @@ For an open task, the stages combine as follows:
 5. A holder idle for less than the grace is rechecked when it ends.
 6. `declared`: a wait the holder's Status declares.
 7. `idle`: what to say to a holder with nothing to wait on.
+8. `asks`: unlike the stages above, every rule here runs, and its findings are added to
+   what steps 2 to 7 decided, such as a request to re-check a Status.
 
 A closed task is decided by `closed`, and a working brief with no task by `uncovered`;
 those rules get the whole view. `watches` together declare what the checker watches for a
@@ -50,6 +52,7 @@ class Rules(ty.NamedTuple):
     closed: tuple[Judge, ...]
     uncovered: tuple[Judge, ...]
     watches: tuple[Watches, ...]
+    asks: tuple[Rule, ...] = ()
 
 
 def first(
@@ -85,6 +88,12 @@ def _progress(
     return first(rules.declared, view, policy, brief) or first(rules.idle, view, policy, brief)
 
 
+def _asked(decided: list[protocol.Record], asked: list[protocol.Record]) -> list[protocol.Record]:
+    """*decided* with *asked* added; an `ok` gives way to an accusation among them."""
+    accused = any(r[0] in ("challenge", "adjudicate") for r in asked)
+    return [*(r for r in decided if not (accused and r[0] == "ok")), *asked]
+
+
 def task(rules: Rules, view: checker_input.View) -> list[protocol.Record]:
     """The complete finding set for the input's task."""
     try:
@@ -100,7 +109,10 @@ def task(rules: Rules, view: checker_input.View) -> list[protocol.Record]:
             raise settings.Unknown(f"{holder} isn't a lemon")
 
         brief = holder.removeprefix("brief:")
-        found = first(rules.absent, view, policy, brief) or _progress(rules, view, policy, brief)
+        found = first(rules.absent, view, policy, brief) or _asked(
+            _progress(rules, view, policy, brief),
+            [r for ask in rules.asks for r in ask(view, policy, brief)],
+        )
     except (settings.Unknown, ValueError, KeyError) as e:
         return [("unknown", view.subject, str(e))]
 

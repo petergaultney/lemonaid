@@ -56,6 +56,15 @@ def result(
     return {"task_id": task, "revision": state["revision"]}
 
 
+def request_recheck(
+    conn: sqlite3.Connection, task: str, expected: int, actor: str, request_id: str, at: float
+) -> dict[str, ty.Any]:
+    """Record that someone asked for the task's holder to re-check its Status; the checker
+    sees it as `recheck.requested_at` and decides what, if anything, to send."""
+    _, state = ledger.append(conn, task, expected, "recheck_requested", {}, actor, request_id, at)
+    return {"task_id": task, "holder": state["holder"], "revision": state["revision"]}
+
+
 def close(
     conn: sqlite3.Connection,
     task: str,

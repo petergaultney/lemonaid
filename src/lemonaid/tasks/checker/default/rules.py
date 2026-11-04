@@ -20,6 +20,7 @@ from . import (
     holders,
     idle,
     needs_claims,
+    recheck,
     settings,
     starts,
     status_claims,
@@ -76,6 +77,7 @@ DEFAULT = compose.Rules(
     closed=(closing.evaluate,),
     uncovered=(coverage.evaluate,),
     watches=(_watches,),
+    asks=(recheck.findings,),
 )
 
 

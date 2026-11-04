@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import brief
+from ..tasks.briefs import contested
 from . import db, order, pins, presence, status_since, turns
 from .tui.rows import brief_cards
 
@@ -76,10 +77,12 @@ def _cards(
     # Without a status, an idle lemon's time counts from its last report, which ends a turn;
     # an edit to its brief by anyone else says nothing about it.
     reported = {n.channel: n.created_at for n in rows}
+    disputed = contested.by_lemon(conn)
     return {
         channel: dataclasses.replace(
             card,
             since=since[found[channel][0]] if card.status else reported.get(channel, card.mtime),
+            contested=disputed.get(lemon_ids.get(channel, ""), "") if card.status else "",
         )
         for channel, card in cards.items()
     }

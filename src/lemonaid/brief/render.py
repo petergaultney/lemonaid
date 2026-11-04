@@ -97,6 +97,7 @@ class Section:
     parent: str = ""  # its parent's Lemon-ID
     parent_name: str = ""  # its parent's session name, when lemonaid knows it
     children: tuple[Child, ...] = ()
+    contested: str = ""  # the open challenge that disputes its Status
     summary: str = ""  # rendered first when populated
 
 
@@ -174,9 +175,16 @@ def needs(section: Section, expanded: bool, selected: str = "") -> str:
 
     *selected* is the label of the question to mark, or "" for none.
     """
-    warning = "\n".join(
-        f"**Unmatched Questions:** `### {label}` has no matching Needs bullet."
-        for label in section.unmatched_questions
+    warning = "\n\n".join(
+        part
+        for part in (
+            f"**Status contested:** {section.contested}" if section.contested else "",
+            "\n".join(
+                f"**Unmatched Questions:** `### {label}` has no matching Needs bullet."
+                for label in section.unmatched_questions
+            ),
+        )
+        if part
     )
     if not section.needs_text:
         return warning

@@ -93,8 +93,13 @@ def _state_line(section: render.Section, now_seconds: float, neutral_timing: boo
             (
                 Text(section.held, style=_state_style(section.held, "dim"))
                 if section.held
-                else Text(render.status_text(section), style=_state_style(section.state, "dim"))
+                else Text(
+                    render.status_text(section),
+                    style=_state_style(section.state, "dim")
+                    + (" strike" if section.contested else ""),
+                )
             ),
+            *([Text("contested", style=utils.unread_marker_style())] if section.contested else []),
             *(
                 [
                     Text(

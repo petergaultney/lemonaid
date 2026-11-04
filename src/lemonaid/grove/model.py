@@ -28,6 +28,7 @@ class Lemon:
     cwd: str = ""
     age: str = ""  # since it last reported, as `4m ago`
     updated: float = 0.0  # when it last reported, epoch seconds
+    contested: bool = False  # an open challenge disputes its Status
     prs: tuple[tuple[str, str], ...] = ()  # its PRs as the inbox shows them: number, and URL or ""
 
 

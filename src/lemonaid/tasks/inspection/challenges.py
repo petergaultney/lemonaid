@@ -1,17 +1,20 @@
-"""Sending the inspector's challenges to the briefs they name, with backoff.
+"""Sending the inspector's challenges to the briefs they name, once per set of facts.
 
 A case is checked again just before it is sent, so a task closed, reassigned or given a
-disposition since its evaluation sends nothing. A case still open is sent again after
-the interval, then twice it, four times... up to the ceiling; one about a closed task is
-sent once. A case reopened with the
-same accusation against the same assignment, to the same recipient, keeps its place in that backoff.
+disposition since its evaluation sends nothing. Each case's message is named by a key
+hashed from its facts (subject, obligation, evidence, recipient and basis), so its read
+receipt is found again without storing the message ID, and a case reopened on the same facts
+finds the message already sent. A message its lemon received is never sent again; one still
+waiting (the lemon was dead or deaf) is replaced by a fresh copy every interval.
 """
 
+import functools
+import hashlib
 import sqlite3
 import typing as ty
 from collections import abc
 
-from ...messages import store
+from ...messages import receipts, store
 from ..briefs import registration
 from ..model import identities, ledger
 from . import cases
@@ -31,22 +34,26 @@ def _body(case: ty.Mapping[str, ty.Any]) -> str:
     )
 
 
-def _about_closed_task(conn: sqlite3.Connection, case: ty.Mapping[str, ty.Any]) -> bool:
-    """Nobody holds a closed task to keep answering, so its case is sent once."""
-    kind, _, task_id = case["subject"].partition(":")
-    row = conn.execute("SELECT lifecycle FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
-    return kind == "task" and row is not None and row["lifecycle"] == "closed"
+def message_key(case: ty.Mapping[str, ty.Any]) -> str:
+    facts = "\n".join(
+        str(case[k])
+        for k in ("subject", "obligation", "evidence", "target_kind", "target", "basis")
+    )
+    return hashlib.sha256(facts.encode()).hexdigest()[:32]
 
 
-def _due(case: ty.Mapping[str, ty.Any], interval: float, ceiling: float, now: float) -> bool:
+def _due(case: ty.Mapping[str, ty.Any], receipt: str, interval: float, now: float) -> bool:
+    """Never sent, or sent and still unreceived for *interval*."""
+    if receipt.startswith("delivered"):
+        return False
+
     last = case["notified_at"]
-    return last is None or now >= last + min(ceiling, interval * 2 ** (max(case["notices"], 1) - 1))
+    return last is None or now >= last + interval
 
 
 def deliver(
     conn: sqlite3.Connection,
     interval: float,
-    ceiling: float,
     opted_out: abc.Collection[str],
     now: float,
 ) -> list[str]:
@@ -63,12 +70,14 @@ def deliver(
         target = case["target"]
         if (
             not still
-            or not _due(case, interval, ceiling, now)
-            or (case["notices"] and _about_closed_task(conn, case))
             or case["kind"] != "challenge"
             or case["target_kind"] != "brief"
             or any(name in opted_out for name in identities.names(conn, target))
         ):
+            continue
+
+        key = message_key(case)
+        if not _due(case, receipts.by_key(key), interval, now):
             continue
 
         if not interval:
@@ -76,10 +85,18 @@ def deliver(
             continue
 
         try:
-            store.send(store.mailbox_for_id(target), _body(case), "lemonaid task inspector")
+            mailbox = store.mailbox_for_id(target)
+            sent = receipts.resend(
+                mailbox,
+                key,
+                functools.partial(store.send, mailbox, _body(case), "lemonaid task inspector", key),
+            )
         except (ValueError, OSError) as error:
             lines.append(f"telling {target} about {case['subject']} failed: {error}")
             continue
+
+        if not sent:
+            continue  # its lemon received it since the receipt was read
 
         with ledger.transaction(conn):
             cases.notified(conn, case["case_id"], now)

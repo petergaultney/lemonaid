@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from ..inbox import db
-from . import cli_common, holding_cli, lifecycle_cli, observe_cli
+from . import cli_common, holding_cli, lifecycle_cli, observe_cli, recheck_cli
 from .checker import corpus, replay
 from .inspection import inspect_cli
 from .model import associations, dependencies, holding, ledger, tree
@@ -152,4 +152,5 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     holding_cli.add_parsers(tasks)
     lifecycle_cli.add_parsers(tasks)
     observe_cli.add_parser(tasks)
+    recheck_cli.add_parser(tasks)
     inspect_cli.add_parser(tasks)

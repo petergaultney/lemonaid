@@ -60,7 +60,7 @@ def mailbox_for_id(lemon_id: str) -> Path:
     return mailbox
 
 
-def _forwarded(mailbox: Path) -> Path:
+def forwarded(mailbox: Path) -> Path:
     """Where *mailbox*'s messages go now, following rerolls."""
     for _ in range(_MAX_HOPS):
         try:
@@ -73,10 +73,10 @@ def _forwarded(mailbox: Path) -> Path:
     raise ValueError(f"Mailbox forwards more than {_MAX_HOPS} times: {mailbox}")
 
 
-def _write(mailbox: Path, body: str, sender: str) -> Path:
+def _write(mailbox: Path, body: str, sender: str, key: str = "") -> Path:
     mailbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    path = mailbox / f"{stamp}-{uuid.uuid4().hex}.md"
+    path = mailbox / f"{stamp}-{key or uuid.uuid4().hex}.md"
     sent = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     text = f"From: {sender}\nSent: {sent}\n\n{body.rstrip()}\n"
     fd, temporary = tempfile.mkstemp(dir=mailbox, prefix=".message-", suffix=".tmp")
@@ -90,19 +90,24 @@ def _write(mailbox: Path, body: str, sender: str) -> Path:
     return path
 
 
-def send(mailbox: Path, body: str, sender: str) -> Path:
+def send(mailbox: Path, body: str, sender: str, key: str = "") -> Path:
+    """*key*, a hex string, names the message in place of a random one, so a sender can find
+    its receipt again without keeping the ID."""
     if not body.strip():
         raise ValueError("Message cannot be empty")
 
+    if key and not all(c in "0123456789abcdef" for c in key):
+        raise ValueError(f"Message key must be lowercase hex: {key!r}")
+
     with home.guard.operation():
-        mailbox = _forwarded(mailbox)
+        mailbox = forwarded(mailbox)
         if refused := _refusal():
             raise ValueError(refused)
 
         if mailbox.is_symlink():
             raise ValueError(f"Mailbox is a symlink: {mailbox}")
 
-        return _write(mailbox, body, sender)
+        return _write(mailbox, body, sender, key)
 
 
 def _pending(mailbox: Path) -> abc.Iterator[Path]:
@@ -122,10 +127,12 @@ def pending_count(mailbox: Path) -> int:
 
 
 def mark_done(path: Path) -> Path:
+    """Move a received message to done/, its modified time becoming when it was received."""
     done = path.parent / "done"
     done.mkdir(exist_ok=True)
     claimed = done / path.name
     path.rename(claimed)
+    os.utime(claimed)
     return claimed
 
 

@@ -18,6 +18,7 @@ from . import (
     codex_delivery,
     dead_letters,
     mailbox_command,
+    receipts,
     recipient,
     service,
     service_cli,
@@ -121,7 +122,7 @@ def cmd_tell(args: argparse.Namespace) -> None:
         _fail(str(error))
 
     if state.blocked(channel):
-        print(path)
+        print(receipts.message_id(path))
         print(f"queued for {lemon_id}: restart in progress", file=sys.stderr)
         return
 
@@ -129,7 +130,7 @@ def cmd_tell(args: argparse.Namespace) -> None:
         service.ensure_running()
     elif channel.startswith("claude:") and row is not None:
         push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
-    print(path)
+    print(receipts.message_id(path))
     found_state = recipient.probe(channel, row, mailbox)
     if found_state.state not in recipient.UNREAD:
         print(recipient.describe(lemon_id, found_state), file=sys.stderr)
@@ -295,6 +296,11 @@ def _add_receive_parsers(subparsers: argparse._SubParsersAction) -> None:
         parser.set_defaults(func=command, codex_thread="")
 
 
+def cmd_receipt(args: argparse.Namespace) -> None:
+    for message in args.messages:
+        print(f"{message} {receipts.receipt(message)}")
+
+
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         mailbox_command.COMMAND,
@@ -303,4 +309,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     mailbox_subparsers = parser.add_subparsers(dest="mailbox_command", required=True)
     _add_receive_parsers(mailbox_subparsers)
+    receipt = mailbox_subparsers.add_parser(
+        "receipt",
+        help="Say whether messages `tell` sent were received",
+        description="Prints each message ID with `pending`, `delivered <time>` or `unknown`.",
+    )
+    receipt.add_argument("messages", nargs="+", metavar="MESSAGE_ID", help="An ID `tell` printed")
+    receipt.set_defaults(func=cmd_receipt)
     service_cli.add_parser(mailbox_subparsers)
