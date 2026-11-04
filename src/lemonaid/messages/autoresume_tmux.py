@@ -56,6 +56,25 @@ def ready_for_input(screen: str) -> bool:
     )
 
 
+def recreate(row: db.Notification, cwd: str) -> tuple[str, str]:
+    """Recreate *row*'s tmux session in *cwd* if it is gone: (what was done, why not).
+
+    Its first window is a shell; the lemon is resumed in a window of its own.
+    """
+    name = str(row.metadata.get("tmux_session") or "")
+    if (row.switch_source or ("tmux" if name else "")) != "tmux" or not name:
+        return "", ""
+
+    if _tmux(row, "has-session", "-t", f"={name}").returncode == 0:
+        return "", ""
+
+    made = _tmux(row, "new-session", "-d", "-s", name, "-c", cwd)
+    if made.returncode != 0:
+        return "", f"could not recreate tmux session {name}: {made.stderr.strip()}"
+
+    return f"recreated tmux session {name}", ""
+
+
 def start(row: db.Notification, config: Config, text: str = wake.PROMPT) -> str:
     """Resume *row*'s exited harness on *text* in a new window of its tmux session. Returns why not, or ""."""
     session = str(row.metadata.get("tmux_session") or "")
