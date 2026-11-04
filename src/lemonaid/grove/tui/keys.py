@@ -179,6 +179,17 @@ def step(
     return where, ""
 
 
+def typing(where: Where) -> bool:
+    """Whether the next key is part of something being typed: a search, an edit, a lemon's place."""
+    return (
+        where.search is not None
+        or where.dot
+        or bool(where.tree)
+        or bool(where.editing)
+        or where.whole
+    )
+
+
 def uses(where: Where, key: str, blocks: abc.Sequence[Block], arrangement: Arrangement) -> bool:
     """Whether the grove has a meaning for *key* now; a key it doesn't use belongs to the inbox."""
     if where.search is not None or key in ("escape", "slash", "/") or key.isdigit():

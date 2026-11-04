@@ -5,10 +5,11 @@ from collections import abc
 
 from ...config import Config
 from ...inbox.tui.live import inbox_frame
+from ...inbox.tui.views.usage_screen import UsageScreen
 from ..layout import view
 from ..tui import flip
 from ..tui.frame import Grove
-from ..tui.screen import GroveScreen
+from ..tui.screen import GroveScreen, Overlay
 from . import edits, live
 
 
@@ -35,4 +36,9 @@ def for_inbox(
         select_key=config.tui.grove_select_key,
         grove=grove or live.from_inbox(latest_frame, config, cards=False)(),
         block=block,
+        overlays={
+            config.tui.keybindings.usage_view: Overlay(
+                "usage for each limit window", lambda: UsageScreen(config)
+            )
+        },
     )

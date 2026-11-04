@@ -7,10 +7,12 @@ from collections import abc
 from ... import go
 from ...config import load_config
 from ...inbox import db
+from ...inbox.tui.views.usage_screen import UsageScreen
 from ...lemon_watchers.common import detect_terminal_switch_source
 from ..layout import view
 from ..tui import flip
 from ..tui.app import GroveApp
+from ..tui.screen import Overlay
 from . import edits, live
 
 
@@ -58,4 +60,9 @@ def run(
         select_key=config.tui.grove_select_key,
         zoom_to=take_zoom,
         start_held=True,
+        overlays={
+            config.tui.keybindings.usage_view: Overlay(
+                "usage for each limit window", lambda: UsageScreen(config)
+            )
+        },
     ).run()
