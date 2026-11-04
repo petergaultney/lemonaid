@@ -390,7 +390,7 @@ Whatever the Watch column says, every watched lemon also reports, once per occur
 
 - Its harness exited (the SessionEnd hook recorded it, or no harness runs on its terminal).
 - Its tmux session or its directory is gone, or no session is attached to its brief.
-- It is deaf: idle with no mailbox waiter, or with its conversation parked in a Claude Code background job, for 60 seconds, as `lemonaid lemon doctor` derives it.
+- It is deaf: idle with no mailbox waiter, with its conversation parked in a Claude Code background job, or with messages that Codex has held for a minute on its idle thread, for 60 seconds, as `lemonaid lemon doctor` derives it.
 
 A report repeats only after the lemon was healthy (or had a different problem) in between,
 so a second exit is a second report. A lemon whose brief is `done` is never reported, since

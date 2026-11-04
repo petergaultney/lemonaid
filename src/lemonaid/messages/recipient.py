@@ -3,8 +3,9 @@
 A Codex lemon reads queued messages while its mailbox waiter holds the lock, or
 from its active turn; a Claude lemon reads while its mailbox waiter holds the
 lock, or when its turn ends and its Stop hook makes it arm one. Neither reads
-anything once its harness has exited, and a Claude lemon reads nothing while
-Claude Code has parked its conversation in a background job.
+anything once its harness has exited. A Claude lemon reads nothing while
+Claude Code has parked its conversation in a background job, and a Codex lemon
+reads nothing that Codex holds in its queue and starts no turn from.
 """
 
 import subprocess
@@ -15,6 +16,9 @@ from pathlib import Path
 
 from .. import handlers
 from ..claude import session_socket
+from ..codex import channels as codex_channels
+from ..codex import daemon_setup, processes, queued
+from ..codex import utils as codex_utils
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
@@ -28,11 +32,12 @@ ASKING = "asking"
 DEAF = "deaf"
 DEAD = "dead"
 MOVED = "moved"  # its harness runs, but not on the terminal its row records
-PARKED = "parked"  # Claude Code moved its conversation to a background job
+PARKED = "parked"  # a background job runs its Claude conversation, or Codex holds its messages
 
 UNREAD = frozenset({ASKING, DEAF, DEAD, PARKED})
 
 _HARNESSES = ("claude", "codex")
+_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 
 class State(ty.NamedTuple):
@@ -130,6 +135,31 @@ def parked_jobs() -> dict[str, str]:
     }
 
 
+def unrun_codex() -> dict[str, str]:
+    """Why each Codex lemon will not read what Codex holds in its queue, by channel.
+
+    Only a thread that a Codex process has open counts. No process runs one that none
+    has open, so it is `dead`, and resuming it starts its turns.
+    """
+    now = time.time()
+    reasons = {
+        thread: reason
+        for thread, found in queued.held(daemon_setup.codex_home()).items()
+        if (rollout := codex_utils.find_session_path(thread))
+        and (reason := queued.unrun(found, queued.last_turn_end(rollout), now))
+    }
+    open_threads = processes.open_threads(_LISTED_WITHIN) if reasons else None
+    if not open_threads:
+        return {}
+
+    with db.connect() as conn:
+        return {
+            codex_channels.for_session(conn, thread): reason
+            for thread, reason in reasons.items()
+            if thread in open_threads
+        }
+
+
 def classify(
     channel: str,
     row: db.Notification | None,
@@ -137,13 +167,17 @@ def classify(
     armed: bool,
     now: float,
     parked: str = "",
+    unrun: str = "",
 ) -> State:
     """The recipient's state, from facts already gathered.
 
     *alive* is None when the terminal can't be checked; *armed* is whether a
     waiter holds the recipient's mailbox lock; *parked* is the background job
-    holding its conversation (see `parked_jobs`). A parked lemon's scout may
-    still hold the lock for a moment, so *parked* outranks *armed*.
+    holding its conversation (see `parked_jobs`), and *unrun* why Codex starts
+    no turn from the messages it holds for it (see `unrun_codex`). A parked
+    lemon's scout may still hold the lock for a moment, and a Codex lemon's
+    scout holds it while Codex holds its messages, so both outrank *armed*.
+    *unrun* also outranks the row's turn: Codex's rollout says no turn is open.
     """
     if not channel:
         return State(NOT_STARTED, "it reads its mailbox when it starts")
@@ -156,6 +190,9 @@ def classify(
 
     if parked:
         return State(PARKED, session_socket.parked_reason(parked))
+
+    if unrun:
+        return State(PARKED, unrun)
 
     if turns.mid_turn(row, now):
         detail = (
@@ -216,6 +253,7 @@ def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
         waiter.is_armed(mailbox),
         time.time(),
         parked_jobs().get(channel, "") if channel.startswith("claude:") else "",
+        unrun_codex().get(channel, "") if channel.startswith("codex:") else "",
     )
 
 

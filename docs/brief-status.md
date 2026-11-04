@@ -36,7 +36,7 @@ A brief without a manual status is shown as one of:
 |---|---|
 | `active` | the lemon is mid-turn |
 | `idle` | the lemon is between turns and will read a message sent to it |
-| `deaf` | a lemon is between turns with no mailbox waiter armed, or Claude Code moved its conversation to a background job |
+| `deaf` | a lemon is between turns with no mailbox waiter armed, Claude Code moved its conversation to a background job, or Codex has held its messages for a minute on an idle thread |
 | `dead` | no harness is running on the terminal the lemon last reported from |
 
 The inbox confirms a missing harness with the same recipient check used by
@@ -55,8 +55,9 @@ on` part of `## Now`, which an `idle` card shows. Harnesses lemonaid can't probe
 
 A Claude lemon is briefly deaf each time its mailbox waiter hands it a message,
 until it rearms one, so the inbox marks `deaf` only after 15 seconds of it. A
-lemon whose conversation is parked in a background job is marked `deaf` at once,
-even while its scout still holds its mailbox lock.
+lemon whose conversation is parked in a background job, or whose messages Codex has
+held for a minute, is marked `deaf` at once, even while its scout still holds its mailbox
+lock.
 
 A lemon marked `deaf` (never a `done` one, see below) is never hidden in the inbox: not by `fold_statuses`, a collapsed
 group, a search, a quiet reviewer's filter, or an arranger's fold. The 15 seconds

@@ -102,19 +102,27 @@ def gather(
     waiters: abc.Iterable[registry.Waiter],
     commands: abc.Callable[[str], list[str] | None],
     parked: abc.Mapping[str, str],
+    unrun: abc.Mapping[str, str],
 ) -> Facts:
     """The facts about *found*'s lemon; *window* is the start limit's, in seconds,
     *running* the ttys each lemon runs on (`owners.running()`), None if unknown,
     *waiters* the ones it runs (`registry.mine`), *commands* what runs on a tty
-    (`recipient.tty_commands()`), and *parked* each parked lemon's background job
-    (`recipient.parked_jobs()`)."""
+    (`recipient.tty_commands()`), *parked* each parked lemon's background job
+    (`recipient.parked_jobs()`), and *unrun* why Codex starts no turn from the messages
+    it holds for a lemon (`recipient.unrun_codex()`)."""
     row, mailbox, text = found.notification, store.mailbox_for_id(lemon_id), _text(found.path)
     alive = recipient.harness_alive(row, commands) if row is not None else False
     if alive and row is not None and owners.on_recorded_tty(row, running) is False:
         alive = False  # the harness on its tty is another lemon
     armed = waiter.is_armed(mailbox)
     state = recipient.classify(
-        found.channel, row, alive, armed, time.time(), parked.get(found.channel, "")
+        found.channel,
+        row,
+        alive,
+        armed,
+        time.time(),
+        parked.get(found.channel, ""),
+        unrun.get(found.channel, ""),
     )
     metadata = row.metadata if row is not None else {}
     return Facts(

@@ -1,8 +1,10 @@
 """What `tell` does about a recipient that won't read the message: start it, or say why not.
 
 A `done` or archived lemon finished its work, so it is left alone and the
-sender is told how to resume it by hand. So is a parked one: its pane shows
-Claude Code's agents view, and typing there would not reach its conversation.
+sender is told how to resume it by hand. So is a parked one. A parked Claude's pane
+shows Claude Code's agents view, and typing there would not reach its conversation.
+A parked Codex holds its messages after an Esc interrupt, and a typed prompt would
+undo its user's interrupt.
 """
 
 import sqlite3
@@ -21,6 +23,14 @@ OFF = "off"  # autoresume isn't on for its harness
 ASKING = "asking"  # stopped at a question for its user: typing would answer it
 
 CHANNEL = "lemonaid:autoresume"
+
+_CLAUDE_RECOVERY = (
+    'To bring it back and move its brief, see docs/recovery.md, under "A parked Claude lemon".'
+)
+_CODEX_RECOVERY = (
+    "To make it read its messages, see docs/recovery.md, under "
+    '"A Codex lemon whose messages Codex holds".'
+)
 
 
 class Recipient(ty.NamedTuple):
@@ -104,12 +114,12 @@ def off(lemon_id: str, parent: str, state: recipient.State) -> str:
     )
 
 
-def parked(lemon_id: str, state: recipient.State) -> str:
+def parked(lemon_id: str, state: recipient.State, recovery: str) -> str:
+    """*recovery* says where the steps for its harness are."""
     return (
         f"queued, but {lemon_id} will not read it: {state.detail}. lemonaid won't type into "
         "its pane or start a second copy. Don't send it again; tell your user, your parent "
-        "if you have one, or both. To bring it back and move its brief, see "
-        'docs/recovery.md, under "A parked Claude lemon".'
+        f"if you have one, or both. {recovery}"
     )
 
 
@@ -134,7 +144,11 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
     """What to tell the sender about a recipient in *state*, and whether it will now read the message."""
     state = recipient.confirmed(found.row, state)
     if state.state == recipient.PARKED:
-        return parked(found.lemon_id, state), False
+        return parked(
+            found.lemon_id,
+            state,
+            _CODEX_RECOVERY if found.row.channel.startswith("codex:") else _CLAUDE_RECOVERY,
+        ), False
 
     if state.state == recipient.MOVED:
         return (
