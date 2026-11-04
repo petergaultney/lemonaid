@@ -38,7 +38,9 @@ def _problem(
     entry: attached.Attachment,
     lemon_id: str,
     sessions: abc.Callable[[str], abc.Set[str] | None],
+    parked: abc.Callable[[], abc.Mapping[str, str]],
 ) -> Problem | None:
+    """A parked lemon is reported as deaf, with the job in its detail."""
     row = entry.notification
     if state.blocked(entry.channel):
         return None
@@ -67,9 +69,18 @@ def _problem(
         return None
 
     found_state = recipient.classify(
-        entry.channel, row, alive, waiter.is_armed(store.mailbox_for_id(lemon_id)), time.time()
+        entry.channel,
+        row,
+        alive,
+        waiter.is_armed(store.mailbox_for_id(lemon_id)),
+        time.time(),
+        parked().get(entry.channel, ""),
     )
-    return Problem("deaf", "", found_state.detail) if found_state.state == recipient.DEAF else None
+    return (
+        Problem("deaf", "", found_state.detail)
+        if found_state.state in (recipient.DEAF, recipient.PARKED)
+        else None
+    )
 
 
 def probe(
@@ -82,6 +93,7 @@ def probe(
         return {}
 
     sessions = functools.cache(sessions or briefs_orphans.live_sessions)
+    parked = functools.cache(recipient.parked_jobs)
     attached.claim_pending(conn)
     paths = {lemon_id: lemon.brief_of(conn, lemon_id) for lemon_id in statuses}
     by_path = {
@@ -96,7 +108,7 @@ def probe(
         elif entry is None:
             found[lemon_id] = Problem("gone", "", "no session is attached to its brief")
         else:
-            found[lemon_id] = _problem(entry, lemon_id, sessions)
+            found[lemon_id] = _problem(entry, lemon_id, sessions, parked)
     return found
 
 

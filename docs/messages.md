@@ -89,6 +89,7 @@ and ends with an error if the brief moves to another channel or is detached.
 | `unknown` | A harness other than Claude or Codex, which lemonaid can't check | 0 |
 | `asking` | A Claude lemon stopped mid-turn at a question for its user, such as a permission prompt | 1 |
 | `deaf` | A Claude or Codex lemon that is idle with no mailbox waiter | 1 |
+| `parked` | A Claude lemon whose conversation Claude Code moved to a background job, for example after a Left Arrow on an empty prompt opened its agents view. Its pane still takes a pushed message, but runs no turn | 1 |
 | `dead` | No harness runs on the terminal the lemon last reported, or its row is archived and the terminal is unknown | 1 |
 
 A `dead` or `deaf` lemon's message stays in its mailbox, so it reads it once it is resumed or rearms its waiter. Unless it finished its work, `tell` brings it back first:
@@ -96,6 +97,7 @@ A `dead` or `deaf` lemon's message stays in its mailbox, so it reads it once it 
 - **An exited harness** (`dead`) is resumed starting on a prompt to run `lemonaid mailbox next --self` and rearm its waiters: in a new window of its recorded tmux session; in WezTerm, a new tab in a window of its recorded workspace (a new window when the workspace is gone); or in cmux, a new workspace that doesn't take focus. In any other terminal the sender gets the command that resumes it.
 - **An idle Claude or Codex with no waiter** (`deaf`) in tmux or WezTerm has that prompt typed into its pane, but only when the pane shows an empty prompt and no dialog. For Codex, `› Ask Codex to do anything` is recognized as its empty composer placeholder. The pane is the one on the lemon's recorded terminal: if a different session now runs there, it is the one prompted. lemonaid can't type into cmux, so an idle cmux lemon is only reported.
 - **A Claude or Codex stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
+- **A parked Claude** (`parked`) is left alone, since its pane shows the agents view and typing there would not reach the conversation; the sender is told the background job's ID and to tell its user. Its scout stops, so its batches stay pending too. See [recovery](recovery.md#a-parked-claude-lemon) for how to bring it back.
 - **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
 
 A second `tell` within a minute of a start doesn't start the lemon again. After 3 starts in 20 minutes (`autoresume_max`, `autoresume_window`), `tell` stops starting it, tells the sender it is crash-looping, and posts an alert to the inbox; a lemon dead again within three minutes of a start counts that start twice. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.

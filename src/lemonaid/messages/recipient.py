@@ -3,7 +3,8 @@
 A Codex lemon reads queued messages while its mailbox waiter holds the lock, or
 from its active turn; a Claude lemon reads while its mailbox waiter holds the
 lock, or when its turn ends and its Stop hook makes it arm one. Neither reads
-anything once its harness has exited.
+anything once its harness has exited, and a Claude lemon reads nothing while
+Claude Code has parked its conversation in a background job.
 """
 
 import subprocess
@@ -13,7 +14,9 @@ from collections import abc
 from pathlib import Path
 
 from .. import handlers
+from ..claude import session_socket
 from ..inbox import db, turns
+from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
 from . import waiter
 
@@ -25,8 +28,9 @@ ASKING = "asking"
 DEAF = "deaf"
 DEAD = "dead"
 MOVED = "moved"  # its harness runs, but not on the terminal its row records
+PARKED = "parked"  # Claude Code moved its conversation to a background job
 
-UNREAD = frozenset({ASKING, DEAF, DEAD})
+UNREAD = frozenset({ASKING, DEAF, DEAD, PARKED})
 
 _HARNESSES = ("claude", "codex")
 
@@ -117,13 +121,29 @@ def harness_alive(
     return any(is_harness(command) for command in running)
 
 
+def parked_jobs() -> dict[str, str]:
+    """The background job of each parked Claude lemon, by channel."""
+    return {
+        channel_id("claude", entry.session_id): entry.parked_job
+        for entry in session_socket.live()
+        if entry.parked_job and entry.session_id
+    }
+
+
 def classify(
-    channel: str, row: db.Notification | None, alive: bool | None, armed: bool, now: float
+    channel: str,
+    row: db.Notification | None,
+    alive: bool | None,
+    armed: bool,
+    now: float,
+    parked: str = "",
 ) -> State:
     """The recipient's state, from facts already gathered.
 
     *alive* is None when the terminal can't be checked; *armed* is whether a
-    waiter holds the recipient's mailbox lock.
+    waiter holds the recipient's mailbox lock; *parked* is the background job
+    holding its conversation (see `parked_jobs`). A parked lemon's scout may
+    still hold the lock for a moment, so *parked* outranks *armed*.
     """
     if not channel:
         return State(NOT_STARTED, "it reads its mailbox when it starts")
@@ -133,6 +153,9 @@ def classify(
 
     if row is None or alive is False:
         return State(DEAD, "its harness is not running")
+
+    if parked:
+        return State(PARKED, session_socket.parked_reason(parked))
 
     if turns.mid_turn(row, now):
         detail = (
@@ -192,6 +215,7 @@ def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
         harness_alive(row) if row is not None else False,
         waiter.is_armed(mailbox),
         time.time(),
+        parked_jobs().get(channel, "") if channel.startswith("claude:") else "",
     )
 
 

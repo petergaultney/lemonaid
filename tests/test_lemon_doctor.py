@@ -10,7 +10,7 @@ from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
 from lemonaid.lemon_facts import cli
 from lemonaid.lineage import links
-from lemonaid.messages import recipient, waiter
+from lemonaid.messages import recipient, store, waiter
 from lemonaid.watch import briefs_orphans, registry
 
 
@@ -109,6 +109,18 @@ def test_a_lemon_asking_its_user_is_not_listed(capsys, monkeypatch):
 
     assert _doctor("--children", "--self") == 0
     assert capsys.readouterr().out == "1 lemons, 0 deaf or dead and not done or archived\n"
+
+
+def test_a_parked_child_is_listed_with_its_job_although_its_waiter_is_armed(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["claude"])
+    monkeypatch.setattr(recipient, "parked_jobs", lambda: {"claude:parked": "1eb3e867"})
+    lemon_id = _child("parked", "claude:parked", "Status: review")
+
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
+        assert _doctor("--children", "--self") == 1
+
+    out = capsys.readouterr().out
+    assert "parked: Claude Code moved its conversation to background job 1eb3e867" in out
 
 
 def test_an_unknown_name_is_skipped_and_the_rest_reported(capsys):

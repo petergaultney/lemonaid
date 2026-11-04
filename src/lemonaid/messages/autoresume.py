@@ -1,7 +1,8 @@
 """What `tell` does about a recipient that won't read the message: start it, or say why not.
 
 A `done` or archived lemon finished its work, so it is left alone and the
-sender is told how to resume it by hand.
+sender is told how to resume it by hand. So is a parked one: its pane shows
+Claude Code's agents view, and typing there would not reach its conversation.
 """
 
 import sqlite3
@@ -103,6 +104,14 @@ def off(lemon_id: str, parent: str, state: recipient.State) -> str:
     )
 
 
+def parked(lemon_id: str, state: recipient.State) -> str:
+    return (
+        f"queued, but {lemon_id} will not read it: {state.detail}. lemonaid won't type into "
+        "its pane or start a second copy. Don't send it again; tell your user, your parent "
+        "if you have one, or both."
+    )
+
+
 def crash_looping(found: Recipient) -> str:
     """Tell the sender, and the user, that *found* won't be started again for now."""
     line = (
@@ -123,6 +132,9 @@ def post(conn: sqlite3.Connection, line: str) -> None:
 def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[str, bool]:
     """What to tell the sender about a recipient in *state*, and whether it will now read the message."""
     state = recipient.confirmed(found.row, state)
+    if state.state == recipient.PARKED:
+        return parked(found.lemon_id, state), False
+
     if state.state == recipient.MOVED:
         return (
             f"queued, but {found.lemon_id} {state.detail}, so lemonaid won't start a second "

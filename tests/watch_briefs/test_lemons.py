@@ -1,6 +1,10 @@
+import json
+import os
+
 import pytest
 
 from lemonaid.brief import archive, lemon_table
+from lemonaid.claude import session_socket
 from lemonaid.inbox import db
 from lemonaid.watch import briefs_events, briefs_orphans, lemon_liveness
 
@@ -151,6 +155,46 @@ def test_a_deaf_lemon_is_reported_once_after_it_stays_deaf(grove, monkeypatch):
     clock[0] = 61.0
     (sent,) = _poll(w)
     assert sent.startswith(f"{child}: it is idle with no mailbox waiter")
+    assert sent.endswith(f"Status: none ({child_path})")
+    clock[0] = 120.0
+    assert _poll(w) == []
+
+
+def _listed(parked_job: str) -> None:
+    sessions = session_socket.claude_dir() / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / f"{os.getpid()}.json").write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "sessionId": "abcd1234-1111-2222-3333-444455556666",
+                "messagingSocketPath": "/tmp/cc-socks/unused.sock",
+                **({"parkedJobId": parked_job} if parked_job else {}),
+            }
+        )
+    )
+
+
+def test_a_parked_lemon_is_reported_once_as_deaf_although_its_scout_holds_the_lock(
+    grove, monkeypatch
+):
+    parent = grove[0]
+    child, child_path = lemon("parked", channel="claude:abcd1234", session="s-child")
+    link(child, parent)
+    clock = [0.0]
+    monkeypatch.setattr(briefs_events.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(lemon_liveness.waiter, "is_armed", lambda mailbox: True)
+    _listed("")
+    w = _watch(grove)
+    assert _poll(w) == []
+
+    _listed("1eb3e867")
+    assert _poll(w) == []
+    clock[0] = 61.0
+    (sent,) = _poll(w)
+    assert sent.startswith(
+        f"{child}: Claude Code moved its conversation to background job 1eb3e867"
+    )
     assert sent.endswith(f"Status: none ({child_path})")
     clock[0] = 120.0
     assert _poll(w) == []

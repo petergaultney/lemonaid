@@ -349,7 +349,7 @@ Whatever the Watch column says, every watched lemon also reports, once per occur
 
 - Its harness exited (the SessionEnd hook recorded it, or no harness runs on its terminal).
 - Its tmux session or its directory is gone, or no session is attached to its brief.
-- It is deaf: idle with no mailbox waiter for 60 seconds, as `lemonaid lemon doctor` derives it.
+- It is deaf: idle with no mailbox waiter, or with its conversation parked in a Claude Code background job, for 60 seconds, as `lemonaid lemon doctor` derives it.
 
 A report repeats only after the lemon was healthy (or had a different problem) in between,
 so a second exit is a second report. A lemon whose brief is `done` is never reported, since
@@ -676,7 +676,13 @@ runs the one-shot `lemonaid watch --self --codex-thread` while its scout runs is
 A Claude lemon's scout writes each batch
 into the Claude session through the session's inbox socket (listed in
 `~/.claude/sessions/<pid>.json`), saves cursors only once the socket has taken the batch,
-and exits when the session ends or its brief is detached. It holds the same lock as
+and exits when the session ends, Claude Code parks it, or its brief is detached. A Left
+Arrow on an empty prompt parks a session: Claude Code moves the conversation to a background
+job with a new session ID and shows its agents view in the pane. The pane's process keeps
+its listing, with the job's ID as `parkedJobId`, and its socket takes a batch without
+running a turn. So the scout sends nothing to a parked session: it reads the listing again
+before each write, stops when the listing names a job, and starts for no parked session.
+Undelivered changes stay pending. It holds the same lock as
 `watch --self`, so a second one for the same lemon waits, and the Stop check counts it as
 the lemon's watcher. A registration for a new session of the same lemon (after `/clear` or
 a resume) replaces the scout still pushing into the old one.
@@ -694,7 +700,7 @@ batch stays pending and the host tries the scout again.
 
 Each scout logs `push scout started` and `push scout exited normally` or `exited
 abnormally` to the lemonaid log, with its Lemon-ID, session and the host's pid. A normal
-exit is its session ending, its brief being detached, a restart, or `lemonaid watch stop`,
+exit is its session ending or being parked, its brief being detached, a restart, or `lemonaid watch stop`,
 which removes the lemon's registration rather than signalling the host. A refused batch or
 a crash is abnormal and logged as a warning. A start line with no exit line is a scout
 whose host was killed outright; the inbox's deaf-scout revival starts a new host.

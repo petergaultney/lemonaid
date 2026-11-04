@@ -52,6 +52,7 @@ def lemons(conn: sqlite3.Connection) -> dict[str, facts.Facts]:
     """What lemonaid sees about every lemon with an attached brief, by Lemon-ID."""
     window = load_config().messages.autoresume_window
     running, waiters, commands = owners.running(), registry.by_lemon(conn), recipient.tty_commands()
+    parked = recipient.parked_jobs()
     found: dict[str, facts.Facts] = {}
     for entry in brief.attached.everything(conn):
         if not entry.channel:
@@ -71,6 +72,7 @@ def lemons(conn: sqlite3.Connection) -> dict[str, facts.Facts]:
             running,
             waiters(entry.channel),
             commands,
+            parked,
         )
     return found
 

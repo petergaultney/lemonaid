@@ -8,7 +8,7 @@ When many processes die at once, such as a `pkill -f` that matched too much or a
 lemonaid lemon doctor --all
 ```
 
-It lists lemons that are `deaf` (alive, but with no mailbox waiter, so a `tell` to them won't be read) or `dead` (the harness exited). Its facts and their limits are in [for-lemons](for-lemons.md#checking-on-lemons-lemon-doctor). `lemonaid tell` also exits 1 when the recipient won't read the message, and logs it to `dead-letters.jsonl` in the mailbox root.
+It lists lemons that are `deaf` (alive, but with no mailbox waiter, so a `tell` to them won't be read), `parked` (Claude Code moved the conversation to a background job) or `dead` (the harness exited). Its facts and their limits are in [for-lemons](for-lemons.md#checking-on-lemons-lemon-doctor). `lemonaid tell` also exits 1 when the recipient won't read the message, and logs it to `dead-letters.jsonl` in the mailbox root.
 
 `doctor` does not compare a brief's `## Watching` with the waiters actually running, or look for a frozen terminal. For a lemon it calls healthy but that has gone quiet:
 
@@ -26,6 +26,13 @@ Don't trust `pane_current_command`. Claude Code titles itself with its version, 
 - **A dead Claude, by hand:** `claude --resume <id> "<prompt>"` with a prompt telling it to rearm its waiters. A session that ended in the middle of a tool call can refuse to resume without one.
 - **A dead Codex, by hand:** `codex --no-daemon resume <id>`.
 - **A dead lemon with uncommitted or unpushed work:** decide yourself whether to resume it; a script shouldn't.
+- **A parked Claude lemon:** see below.
+
+## A parked Claude lemon
+
+A Left Arrow on an empty Claude Code prompt opens the agents view, and Claude Code moves the conversation to a background job. The job is a fork with a new session ID. `lemonaid tell` names the job, and `lemonaid lemon doctor` shows the lemon as `parked`.
+
+To bring the conversation back, pick the job in the agents view in the lemon's pane. The pane then shows the job, but the conversation keeps running in the job, under the job's session ID. lemonaid still has the brief on the old session's channel, and doesn't move it yet. To move it by hand, send the job a prompt so that its session gets an inbox row, then run `lemonaid brief attach --channel claude:<job> --force <brief>`. In the case seen so far, the job's ID was the first 8 characters of its session ID, which is the channel lemonaid uses.
 
 Stop a waiter with `lemonaid watch stop --self`. Never kill waiters by pattern: `pkill -f watch` stops every lemon's matching waiters, not only yours.
 

@@ -54,6 +54,18 @@ def test_an_idle_claude_lemon_with_its_mailbox_waiter_armed_is_unmarked(monkeypa
         holder.join()
 
 
+def test_a_parked_claude_lemon_is_deaf_at_once_although_its_scout_holds_the_lock(monkeypatch):
+    rows = [_row("claude:a", "ttys001", created_at=10.0), _row("claude:b", "ttys002", 10.0)]
+    monkeypatch.setattr(presence, "_harness_ttys", lambda: frozenset({"ttys001", "ttys002"}))
+    monkeypatch.setattr(presence, "_armed", lambda lemon_id: True)
+    monkeypatch.setattr(recipient, "parked_jobs", lambda: {"claude:a": "1eb3e867"})
+    probe = presence.Probe(presence.DEAF_AFTER_SECONDS)
+
+    assert _MARKS(probe, rows, {"claude:a": "a.QuickOdd", "claude:b": "b.QuickOdd"}, 1000.0) == {
+        "claude:a": "deaf"
+    }
+
+
 def test_a_lemon_whose_terminal_runs_no_harness_is_dead(monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["fish"])
     rows = [_row("claude:a", "ttys001", created_at=10.0), _row("codex:b", "ttys002", 10.0)]
