@@ -46,9 +46,14 @@ def test_over_pace_alerts_once_then_recovers_below_hysteresis_band():
     assert len(lines) == 1 and "back on pace" in lines[0]
 
 
-def test_no_pace_alert_in_first_five_percent():
-    _, lines = alerts.crossings({}, {"c": sample(10)}, WINDOW_S * 0.04, DEFAULT)
+def test_no_pace_alert_in_first_five_percent_while_little_is_used():
+    _, lines = alerts.crossings({}, {"c": sample(5)}, WINDOW_S * 0.04, DEFAULT)
     assert lines == []
+
+
+def test_heavy_use_early_in_a_window_alerts_over_pace():
+    _, lines = alerts.crossings({}, {"c": sample(10)}, WINDOW_S * 0.04, DEFAULT)
+    assert len(lines) == 1 and "run out" in lines[0]
 
 
 def test_thresholds_are_configurable():

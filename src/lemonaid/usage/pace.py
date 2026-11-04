@@ -19,10 +19,17 @@ def elapsed_percent(s: samples.Sample, now: float) -> float:
     return (now - (s.resets_at - length)) / length * 100
 
 
+def ready(s: samples.Sample, elapsed: float, config: settings.UsageConfig) -> bool:
+    """Whether a window has a pace yet: once enough of it has elapsed, or enough is used."""
+    return elapsed > 0 and (
+        elapsed >= config.pace_min_elapsed_percent or s.used_percent > config.pace_min_used_percent
+    )
+
+
 def pace(s: samples.Sample, now: float, config: settings.UsageConfig) -> Pace | None:
-    """None while too little of the window has elapsed (or nothing is used) to project from."""
+    """None until the window is `ready`, or while nothing is used, to project from."""
     elapsed = elapsed_percent(s, now)
-    if elapsed < config.pace_min_elapsed_percent or s.used_percent <= 0:
+    if not ready(s, elapsed, config) or s.used_percent <= 0:
         return None
 
     length = s.window_minutes * 60

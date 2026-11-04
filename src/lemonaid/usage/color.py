@@ -46,9 +46,9 @@ _PROJECTION_STOPS = [
 
 
 def pace_ratio(s: samples.Sample, now: float, config: settings.UsageConfig) -> float | None:
-    """None while too little of the window has elapsed for the ratio to mean anything."""
+    """None until the window is `pace.ready`, before which the ratio means nothing."""
     elapsed = pace.elapsed_percent(s, now)
-    if elapsed < config.pace_min_elapsed_percent:
+    if not pace.ready(s, elapsed, config):
         return None
 
     return s.used_percent / elapsed

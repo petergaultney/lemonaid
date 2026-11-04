@@ -14,6 +14,7 @@ class UsageConfig:
     pace_over_percent: float = 100
     pace_recovered_percent: float = 90
     pace_min_elapsed_percent: float = 5
+    pace_min_used_percent: float = 5
     poll_seconds: float = 30
     overall_pace: bool = True
     overall_min_window_minutes: float = 1440
@@ -102,6 +103,9 @@ def parse(data: dict) -> UsageConfig:
         pace_recovered_percent=recovered,
         pace_min_elapsed_percent=_number(
             data, "pace_min_elapsed_percent", defaults.pace_min_elapsed_percent, 0, 99
+        ),
+        pace_min_used_percent=_number(
+            data, "pace_min_used_percent", defaults.pace_min_used_percent, 0, 100
         ),
         poll_seconds=_number(data, "poll_seconds", defaults.poll_seconds, 1, 86400),
         pace_color_ratios=_color_ratios(data, defaults.pace_color_ratios),

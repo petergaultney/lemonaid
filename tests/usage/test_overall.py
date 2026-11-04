@@ -36,7 +36,7 @@ def test_harness_without_usable_pace_is_left_out():
 
 def test_no_data_is_none():
     assert overall.overall({}, MID, _CONFIG) is None
-    assert overall.overall(_current(claude_a=10), WINDOW_S * 0.01, _CONFIG) is None
+    assert overall.overall(_current(claude_a=5), WINDOW_S * 0.01, _CONFIG) is None
 
 
 def test_short_windows_do_not_count():
