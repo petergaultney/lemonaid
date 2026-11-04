@@ -146,3 +146,28 @@ def test_send_writes_to_a_listed_session_that_is_not_parked():
     thread.join(timeout=5)
 
     assert json.loads(received[0])["message"]["content"].splitlines()[1] == "wake up"
+
+
+def _parks_on_connect(monkeypatch, sock: str) -> None:
+    """Sockets that Claude Code parks this process's session in, just after they connect."""
+
+    class Parking(socket.socket):
+        def connect(self, address) -> None:
+            super().connect(address)
+            _listed(os.getpid(), sock=sock, parked_job="1eb3e867")
+
+    monkeypatch.setattr(session_socket.socket, "socket", Parking)
+
+
+def test_send_refuses_a_session_parked_while_it_connects(monkeypatch):
+    path, received, thread = _listener()
+    _listed(os.getpid(), sock=path)
+    entry = session_socket.find(_SESSION[:8])
+    assert entry is not None
+    _parks_on_connect(monkeypatch, path)
+
+    with pytest.raises(session_socket.Refused, match="background job 1eb3e867"):
+        session_socket.send(entry, "wake up")
+    thread.join(timeout=5)
+
+    assert received == [b""]
