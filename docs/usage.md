@@ -24,7 +24,7 @@ Example line: `codex primary (10080min): 77% used (pace 2.85x), elapsed 27%, pro
 - **Over pace.** Usage divided by the elapsed share of the window projects past `pace_over_percent` (100 by default) at reset. The line says when it would run out and how long before the reset that is. It fires once per window.
 - **Back on pace.** After an over-pace alert, the projection falls under `pace_recovered_percent` (90% of `pace_over_percent` by default). It fires once, then over-pace can fire again.
 
-Pace alerts are skipped until `pace_min_elapsed_percent` (5 by default) of the window has passed. A window already over pace when first seen alerts at once.
+Pace alerts are skipped until `pace_min_elapsed_percent` (5 by default) of the window has passed, or usage has passed `pace_min_used_percent` (also 5 by default). A window already over pace when first seen alerts at once.
 
 Which alerts have fired is kept in `usage/alerted.json` under the state directory, so restarts don't repeat them. Delete it to start over.
 
