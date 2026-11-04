@@ -36,11 +36,14 @@ def test_a_briefs_needs_links_bring_their_files_facts(tmp_path: Path) -> None:
     )
     with db.connect(tmp_path / "test.db") as conn:
         _register(conn, brief)
+        conn.execute(
+            "INSERT INTO lemon_aliases (old_id, lemon_id) VALUES ('Old.alpha', 'Work.alpha')"
+        )
         found = _values(brief_facts.facts(conn, "Work.alpha", _NOW, [vault]))
 
     links = found[("brief", "Work.alpha", "needs_links")][0].splitlines()
     assert links == [f"{doc.resolve()}#Pick a name", str(missing.resolve())]
-    assert found[("brief", "Work.alpha", "signing_name")] == ("Work", "known")
+    assert found[("brief", "Work.alpha", "signing_names")] == ("Work Old", "known")
     assert found[("brief", "Work.alpha", "status_since")][1] == "known"
     assert found[("brief", "Work.alpha", "needs_since")][1] == "known"
     assert found[("file", str(doc.resolve()), "exists")] == ("true", "known")

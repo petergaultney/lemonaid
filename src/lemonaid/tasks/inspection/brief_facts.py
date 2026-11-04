@@ -23,7 +23,7 @@ _BRIEF_FIELDS = (
     "needs",
     "waiting_on",
     "held",
-    "signing_name",
+    "signing_names",
     "status_since",
     "needs_since",
     "needs_links",
@@ -80,11 +80,15 @@ def facts(
     conn: sqlite3.Connection, key: str, now: float, vaults: abc.Collection[Path]
 ) -> list[live.Fact]:
     """`status`, `needs`, `waiting_on` and `held` (the IDs of the tasks it holds);
-    `signing_name`, the name its lemon signs comments with;
+    `signing_names`, the names its lemon has signed comments with, current first;
     `status_since` and `needs_since`, when lemonaid first saw the current Status and Needs;
     and `needs_links`, one linked local file per line, with the facts for each file."""
     lemon_id = identities.current(conn, key) or key
-    name = brief.identity.brief_name(lemon_id)
+    names = " ".join(
+        dict.fromkeys(
+            n for i in identities.names(conn, lemon_id) if (n := brief.identity.brief_name(i))
+        )
+    )
     try:
         path = brief.lemon.brief_of(conn, lemon_id)
         text, modified = (path.read_text(), path.stat().st_mtime) if path else ("", 0.0)
@@ -105,7 +109,7 @@ def facts(
         live.fact(
             "brief", key, "held", " ".join(t["task_id"] for t in holding.held_by(conn, key)), now
         ),
-        live.fact("brief", key, "signing_name", name, now, "known" if name else "unknown"),
+        live.fact("brief", key, "signing_names", names, now, "known" if names else "unknown"),
         live.fact("brief", key, "status_since", live.stamp(status_at), now),
         live.fact("brief", key, "needs_since", live.stamp(needs_at), now),
         live.fact("brief", key, "needs_links", "\n".join(links), now),
