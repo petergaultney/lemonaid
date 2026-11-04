@@ -50,6 +50,36 @@ def test_lemons_in_one_terminal_session_share_a_tree():
     assert [len(t.lemons) for t in oria.trees] == [2]
 
 
+def _wezterm(channel: str, workspace: str, socket: str = "/tmp/gui") -> db.Notification:
+    return dataclasses.replace(
+        notification(channel, ""),
+        metadata={
+            "wezterm_pane": hash(channel) % 100,
+            "wezterm_workspace": workspace,
+            "wezterm_socket": socket,
+            "cwd": "/work",
+        },
+        switch_source="wezterm",
+    )
+
+
+def test_wezterm_lemons_share_a_tree_by_workspace_not_by_directory():
+    rows = [_wezterm("claude:a", "w1"), _wezterm("codex:b", "w1"), _wezterm("claude:c", "w2")]
+    (oria,) = blocks.blocks(read(rows, {row.channel: ("oria",) for row in rows}), {})
+    assert sorted((t.label, len(t.lemons)) for t in oria.trees) == [("w1", 2), ("w2", 1)]
+
+
+def test_equal_names_in_tmux_and_two_wezterm_instances_stay_three_trees():
+    rows = [
+        notification("claude:t", "work"),
+        _wezterm("claude:w", "work"),
+        _wezterm("claude:v", "work", "/tmp/other-gui"),
+    ]
+    (oria,) = blocks.blocks(read(rows, {row.channel: ("oria",) for row in rows}), {})
+    assert sorted(t.label for t in oria.trees) == ["work", "work", "work"]
+    assert [t.key for t in oria.trees if t.lemons[0].session] == ["work"]
+
+
 def test_a_lemon_in_two_groups_stands_in_the_first():
     rows = [notification("claude:a", "x")]
     found = blocks.blocks(read(rows, {"claude:a": ("relay", "oria")}), {})

@@ -9,6 +9,7 @@ import time
 import typing as ty
 from pathlib import Path
 
+from .. import front_end
 from ..config import Config
 from ..inbox import db
 from ..launch.restart import native, state
@@ -27,7 +28,7 @@ class Outcome(ty.NamedTuple):
 
 def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> str:
     """Resume (*start*) or prompt *row*'s lemon on *text*. Returns why not, or ""."""
-    terminal = row.switch_source or ("tmux" if row.metadata.get("tmux_session") else "")
+    terminal = front_end.location.of(row.metadata, row.switch_source).front_end
     if terminal == "tmux":
         return (autoresume_tmux.start if start else autoresume_tmux.prompt)(row, config, text)
 

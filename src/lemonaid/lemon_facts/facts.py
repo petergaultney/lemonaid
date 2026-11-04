@@ -10,6 +10,7 @@ import time
 from collections import abc
 from pathlib import Path
 
+from .. import front_end
 from ..brief import attached, status
 from ..inbox import db
 from ..launch import window
@@ -64,8 +65,7 @@ def _listed_waiters(text: str) -> list[str]:
 
 
 def _pane(row: db.Notification, alive: bool | None) -> str | None:
-    terminal = row.switch_source or ("tmux" if row.metadata.get("tmux_session") else "")
-    if not alive or terminal != "tmux":
+    if not alive or front_end.location.of(row.metadata, row.switch_source).front_end != "tmux":
         return None
 
     screen = autoresume_tmux.screen(row)
