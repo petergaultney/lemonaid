@@ -108,7 +108,8 @@ def parked(lemon_id: str, state: recipient.State) -> str:
     return (
         f"queued, but {lemon_id} will not read it: {state.detail}. lemonaid won't type into "
         "its pane or start a second copy. Don't send it again; tell your user, your parent "
-        "if you have one, or both."
+        "if you have one, or both. To bring it back and move its brief, see "
+        'docs/recovery.md, under "A parked Claude lemon".'
     )
 
 
