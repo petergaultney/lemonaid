@@ -330,9 +330,9 @@ def test_a_task_in_check_on_an_open_pr_is_put_to_its_checker_to_hand_back():
     [challenge] = _claim("", lifecycle="check", state="OPEN")
     merged = _claim("", lifecycle="check", state="MERGED")
 
-    assert challenge[2] == "status-claim" and challenge[5] == "Work.alpha"
+    assert challenge[2] == "check-claim" and challenge[5] == "Work.alpha"
     assert "lemonaid task assign t1 --to Work.beta" in challenge[6]
-    assert ("challenge", "status-claim") not in _kinds(merged)
+    assert ("challenge", "check-claim") not in _kinds(merged)
 
 
 def test_a_running_ci_wait_does_not_hide_a_contradicted_status():

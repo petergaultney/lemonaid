@@ -74,6 +74,7 @@ class CardBrief:
         False  # its lemon is stuck on a permission prompt: `blocked`, whatever the brief says
     )
     hidden: bool = False  # `Hidden: yes`: left out of the default inbox
+    contested: str = ""  # an open challenge to its Status, from `tasks.briefs.contested`
 
     @property
     def placed(self) -> str:
@@ -118,6 +119,11 @@ class CardBrief:
         return self.running if self.shown == "running" else ""
 
     @property
+    def contested_line(self) -> str:
+        """The challenge to the brief's own Status; "" while the card shows another."""
+        return f"contested: {self.contested}" if self.contested and not self.held else ""
+
+    @property
     def stuck_line(self) -> str:
         return self.stuck if self.status != "done" else ""
 
@@ -131,6 +137,7 @@ class CardBrief:
             + bool(self.waiting_line)
             + bool(self.running_line)
             + bool(self.stuck_line)
+            + bool(self.contested_line)
         )
 
     def _word(self) -> str:
@@ -159,6 +166,8 @@ class CardBrief:
         for word in self._words():
             if word == self.mark or word == self.status:
                 text.stylize(status_text_style(word, "dim"), start, start + len(word))
+            if word == self.status and self.contested:
+                text.stylize("strike", start, start + len(word))
             start += len(word) + len(" · ")
         return text
 

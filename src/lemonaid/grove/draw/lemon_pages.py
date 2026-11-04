@@ -31,14 +31,22 @@ def _context(canvas: Canvas, end: int, y: int, lemon: Lemon, panel: str) -> None
 
 def name_first(canvas: Canvas, x: int, y: int, lemon: Lemon, panel: str, width: int) -> None:
     who = width - _WHO
-    tag = "no jump" if lemon.jump_problem else lemon.status if lemon.status in _ASKING else ""
+    tag = (
+        "no jump"
+        if lemon.jump_problem
+        else f"{lemon.status}?"
+        if lemon.contested
+        else lemon.status
+        if lemon.status in _ASKING
+        else ""
+    )
     if tag:
         text(
             canvas,
             x + who - 1 - len(tag),
             y,
             tag,
-            colors.status_text(lemon.status),
+            colors.ALERT if lemon.contested else colors.status_text(lemon.status),
             panel,
             bold=True,
         )

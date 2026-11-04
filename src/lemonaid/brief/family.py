@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ..inbox import db
 from ..lineage import links
+from ..tasks.briefs import contested
 from . import archive, identity, lemon, render, status
 
 
@@ -66,6 +67,7 @@ def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Se
     channels = _channels(conn)
     return dataclasses.replace(
         section,
+        contested=contested.by_lemon(conn).get(lemon.current(conn, section.lemon_id), ""),
         parent=parent,
         parent_name=_session_name(conn, channels, lemon.brief_of(conn, parent)) if parent else "",
         children=tuple(
@@ -76,7 +78,8 @@ def _with_family(conn: sqlite3.Connection, section: render.Section) -> render.Se
 
 
 def added(shown: render.View) -> render.View:
-    """*shown* with each section's parent and children filled in from the database."""
+    """*shown* with each section's parent, children and any challenge to its Status filled in
+    from the database."""
     if not any(section.lemon_id for section in shown.sections):
         return shown
 

@@ -20,9 +20,10 @@ How to use tasks is in `docs/tasks.md`. This note is for changing the code: what
 
 - The checker judges; lemonaid observes and delivers. All challenge logic and every word a lemon reads come from the checker, any program speaking the line protocol (`checker/protocol.py`). Lemonaid gathers the facts the checker declares it watches, finds working briefs that have no task, keeps the cases, and sends the messages.
 - An unknown fact never supports an accusation. What lemonaid can't see is recorded as `unknown` or `unavailable`, never guessed.
-- Messaging is the inspector's channel to a lemon, and it only writes to it: the inspector sends messages to mailboxes but never reads a mailbox. Timing comes from a task's own events (assignment, start, close) and from what lemonaid observes about a lemon, never from whether a message was read.
+- Messaging is the inspector's channel to a lemon. The inspector sends messages to mailboxes and reads only their read receipts, never a message. A receipt decides only whether to send again: a challenge goes once per set of facts, and is replaced while its receipt says no lemon received it. A checker's timing comes from a task's own events (assignment, start, close) and from what lemonaid observes about a lemon, never from whether a message was read.
+- The inspector also marks your view: while a `status-claim` challenge is open, the inbox and grove show that brief's Status as contested. It never changes the Status; the brief stays the lemon's to write.
 - A lemon taking a turn is not inspected; it may be changing its status or handing its task on.
-- An open challenge is sent again with doubling gaps, and stops when a change resolves its case.
+- A re-check request (`task recheck`) is a ledger event, a fact like any other; the checker decides whom it asks and what it says.
 - Nothing here talks to a terminal multiplexer. Whether a lemon is running comes from lemonaid's lemon facts.
 - The scout host runs passes against one long-running checker process, and a pass asks the checker only about subjects whose input changed or whose findings came due. Starting a process per task, or reading GitHub per pass, is the cost this avoids: PR facts come only from the scout host's existing snapshots.
 

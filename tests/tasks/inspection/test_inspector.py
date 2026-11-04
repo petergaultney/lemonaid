@@ -212,21 +212,21 @@ def test_a_brief_with_no_task_asks_its_nearest_ancestor_that_has_one():
     assert "tell" not in reasons["Loose.one"]
 
 
-def test_an_unanswered_challenge_is_sent_again_with_doubling_gaps_up_to_the_ceiling():
+def test_an_unreceived_challenge_is_replaced_each_interval_and_never_doubled():
     with db.connect() as conn:
         _started(conn)
         _run(conn, _seen("Work.alpha"))
 
         def sent(at: float) -> int:
-            return len(challenges.deliver(conn, 100, 300, (), _NOW + at))
+            return len(challenges.deliver(conn, 100, (), _NOW + at))
 
-        timeline = [sent(at) for at in (0, 99, 100, 299, 300, 599, 600, 899, 900)]
+        timeline = [sent(at) for at in (0, 99, 100, 199, 200)]
 
-    assert timeline == [1, 0, 1, 0, 1, 0, 1, 0, 1]
-    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 5
+    assert timeline == [1, 0, 1, 0, 1]
+    assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
 
 
-def test_a_challenge_reopened_after_an_unrelated_turn_keeps_its_backoff():
+def test_a_received_challenge_is_never_sent_again_even_reopened_on_the_same_facts():
     with db.connect() as conn:
         _started(conn)
         _run(conn, _seen("Work.alpha"))
@@ -240,16 +240,18 @@ def test_a_challenge_reopened_after_an_unrelated_turn_keeps_its_backoff():
                 cases.apply(conn, case["subject"], 1, [record], _NOW + at, case["basis"])
 
         def sent(at: float) -> int:
-            return len(challenges.deliver(conn, 100, 300, (), _NOW + at))
+            return len(challenges.deliver(conn, 100, (), _NOW + at))
 
-        timeline = [sent(0), sent(100)]
+        timeline = [sent(0)]
+        assert store.take_next(store.mailbox_for_id("Work.alpha")) is not None
+        timeline.append(sent(100))
         reopened(150)
-        timeline += [sent(150), sent(299), sent(300)]
+        timeline += [sent(150), sent(1000)]
         record = (*record[:5], "Other.one", record[6])
-        reopened(350)
-        timeline.append(sent(350))
+        reopened(1050)
+        timeline.append(sent(1050))
 
-    assert timeline == [1, 1, 0, 0, 1, 1]  # a new recipient starts its own backoff
+    assert timeline == [1, 0, 0, 0, 1]  # a new recipient is new facts
 
 
 def test_a_custom_checker_writes_the_words_a_brief_with_no_task_reads(tmp_path):
@@ -271,7 +273,7 @@ def test_a_custom_checker_writes_the_words_a_brief_with_no_task_reads(tmp_path):
     with db.connect() as conn:
         _brief(conn, "Loose.one")
         _run(conn, _seen("Loose.one"), argv=(sys.executable, str(script)))
-        sent = challenges.deliver(conn, 300, 86400, (), _NOW)
+        sent = challenges.deliver(conn, 300, (), _NOW)
 
     [message] = store.mailbox_for_id("Loose.one").glob("*.md")
     assert len(sent) == 1 and "our own words" in message.read_text()
@@ -283,8 +285,8 @@ def test_challenges_go_to_every_brief_not_opted_out_and_only_once():
             _started(conn, brief)
         _run(conn, _seen("Work.alpha"), _seen("Work.bravo"), _seen("Quiet.one"))
 
-        first = challenges.deliver(conn, 300, 86400, {"Quiet.one"}, _NOW)
-        again = challenges.deliver(conn, 300, 86400, {"Quiet.one"}, _NOW)
+        first = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW)
+        again = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW)
 
     assert len(first) == 2 and again == []
     assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
@@ -297,8 +299,8 @@ def test_a_dry_run_sends_nothing_and_leaves_the_challenge_for_a_later_pass():
         _started(conn, "Work.alpha")
         _run(conn, _seen("Work.alpha"))
 
-        dry = challenges.deliver(conn, 0, 86400, (), _NOW)
-        sent = challenges.deliver(conn, 300, 86400, (), _NOW)
+        dry = challenges.deliver(conn, 0, (), _NOW)
+        sent = challenges.deliver(conn, 300, (), _NOW)
 
     assert len(dry) == 1 and dry[0].startswith("would tell Work.alpha")
     assert len(sent) == 1 and sent[0].startswith("told Work.alpha")
@@ -323,7 +325,7 @@ def test_closing_or_reassigning_a_task_resolves_its_old_challenges():
                 _NOW,
             )
 
-        sent = challenges.deliver(conn, 300, 86400, (), _NOW)
+        sent = challenges.deliver(conn, 300, (), _NOW)
         _run(conn, _seen("Work.alpha"), _seen("Work.bravo"), _seen("Review.one"))
 
         assert sent == [] and _open(conn) == []
@@ -374,14 +376,14 @@ def test_reopening_or_closing_a_task_again_drops_the_challenge_about_its_closing
             lifecycle.reopen(conn, made, 4, "not finished", "Work.alpha", "reopen", _NOW + 1)
             lifecycle.close(conn, made, 5, "accepted", "cli", "accepted", _NOW + 2)
 
-        sent = challenges.deliver(conn, 300, 86400, (), _NOW + 3)
+        sent = challenges.deliver(conn, 300, (), _NOW + 3)
         left = _open(conn)
 
     assert opened == [(f"task:{made}", "closed-unmerged", "Work.alpha")]
     assert sent == [] and left == []
 
 
-def test_a_closed_task_is_told_about_once_and_not_while_an_unclosed_task_has_its_pr(dead):
+def test_a_closed_task_is_told_about_once_received_and_not_while_an_unclosed_task_has_its_pr(dead):
     url = "https://github.com/acme/widgets/pull/7"
 
     def pr(_key):
@@ -411,7 +413,9 @@ def test_a_closed_task_is_told_about_once_and_not_while_an_unclosed_task_has_its
                 check=True,
             )
         inspector.run(conn, _NOW, rules.respond, {}, observers)
-        sent = [challenges.deliver(conn, 300, 86400, (), _NOW + d) for d in (0, 3600, 86400)]
+        sent = [challenges.deliver(conn, 300, (), _NOW)]
+        store.take_next(store.mailbox_for_id("Work.alpha"))
+        sent += [challenges.deliver(conn, 300, (), _NOW + d) for d in (3600, 86400)]
         found = [c for c in _open(conn) if c[1] == "closed-unmerged"]
 
     assert found == [(f"task:{alone}", "closed-unmerged", "Work.alpha")]

@@ -118,8 +118,12 @@ def _approve(view: checker_input.View, url: str, state: str) -> tuple[str, str]:
     )
 
 
-def _challenge(task: str, evidence: str, brief: str, reason: str) -> protocol.Record:
-    return ("challenge", task, "status-claim", evidence, "brief", brief, reason)
+def _challenge(
+    task: str, evidence: str, brief: str, reason: str, obligation: str = "status-claim"
+) -> protocol.Record:
+    """`status-claim` marks *brief*'s Status contested in the inbox; `check-claim` disputes
+    another lemon's `done`, not *brief*'s own Status."""
+    return ("challenge", task, obligation, evidence, "brief", brief, reason)
 
 
 def contradicted(view: checker_input.View, brief: str) -> list[protocol.Record]:
@@ -140,6 +144,7 @@ def contradicted(view: checker_input.View, brief: str) -> list[protocol.Record]:
                 f"{said} said this task is done, but its PR {url} is still open, and nobody"
                 f" is done until their PR merges. Hand it back with `lemonaid task assign {task}"
                 f" --to {said} --reason TEXT`. If the work was dropped, close the PR and then the task.",
+                "check-claim",
             )
         ]
 

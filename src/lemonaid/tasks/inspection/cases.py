@@ -83,8 +83,8 @@ def newer(conn: sqlite3.Connection, subject: str, at: float) -> bool:
 
 def _sent_before(conn: sqlite3.Connection, case: tuple[str, ...]) -> tuple[int, float | None]:
     """The notices of the latest resolved case with the same accusation to the same target,
-    so a holder whose turn resolved a case isn't challenged again sooner than its backoff
-    allows. *case* is (subject, obligation, evidence, target_kind, target, basis)."""
+    so a case reopened on the same facts keeps when its message was last sent. *case* is
+    (subject, obligation, evidence, target_kind, target, basis)."""
     row = conn.execute(
         "SELECT notices, notified_at FROM task_cases WHERE subject = ? AND obligation = ?"
         " AND evidence = ? AND target_kind = ? AND target = ? AND basis = ?"

@@ -56,7 +56,10 @@ lemonaid mailbox next --self --channel codex:thread-id
 lemonaid mailbox watch --self --channel codex:thread-id
 lemonaid mailbox watch --self --timeout 3600
 lemonaid watch stop --self mailbox
+lemonaid mailbox receipt MESSAGE_ID
 ```
+
+`mailbox receipt` takes the IDs `tell` prints and says, for each, `pending` while it waits in a mailbox, `delivered <time>` once its lemon received it, or `unknown` when no mailbox holds it. An ID follows its message through a reroll's forward.
 
 `tell` accepts a lemon ID, attached channel, or unique attached brief filename
 (with or without `.md`). The recipient must have an attached brief. Pass `-`
@@ -76,7 +79,7 @@ and ends with an error if the brief moves to another channel or is detached.
 
 ## Will it be read?
 
-`tell` writes the message, prints its path, then prints one line on stderr saying whether the recipient will read it, judged from what is running at that moment:
+`tell` writes the message, prints its ID, then prints one line on stderr saying whether the recipient will read it, judged from what is running at that moment:
 
 | State | Meaning | Exit |
 |---|---|---|

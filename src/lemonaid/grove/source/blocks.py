@@ -55,6 +55,7 @@ def _lemon(
         name=n.name or n.channel,
         brief_id=brief.identity.brief_name(lemon_id) if lemon_id else "",
         status=status,
+        contested=bool(status and card and card.contested),
         working=working,
         quiet=not status and not working and not n.is_unread,
         model=label[0] if label else "",

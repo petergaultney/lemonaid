@@ -44,7 +44,6 @@ def run(config: TasksConfig, ask: Ask, send: bool, remembered: memory.Memory | N
         sent = challenges.deliver(
             conn,
             config.challenge_interval if send else 0,
-            config.max_challenge_interval,
             config.opt_out.keys(),
             time.time(),
         )

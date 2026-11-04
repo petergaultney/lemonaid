@@ -76,7 +76,14 @@ def _changes(state: State, event: Event) -> State:
             return {"lifecycle": "closed"}
         case "reopened":
             return {"lifecycle": "open"}
-        case "linked" | "unlinked" | "dependency_added" | "dependency_resolved" | "result":
+        case (
+            "linked"
+            | "unlinked"
+            | "dependency_added"
+            | "dependency_resolved"
+            | "result"
+            | "recheck_requested"
+        ):
             return {}
         case "acknowledged":  # recorded only by trial builds that had acknowledgment
             return {}
