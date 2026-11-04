@@ -1,4 +1,4 @@
-"""Which people are assigned to a PR, and which have approved it.
+"""Which people are assigned to a PR, which have approved it, and the user's own verdict.
 
 Only people count: the PR's author among its assignees, and a review given by a bot, are
 left out.
@@ -8,6 +8,7 @@ QUERY = """
       viewerDidAuthor
       author { login }
       assignees(first: 20) { nodes { login } }
+      viewerLatestReview { state }
 """
 
 _VERDICTS = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
@@ -39,3 +40,12 @@ def verdicts(pr: dict, verdict: str) -> tuple[str, ...] | None:
         and review["author"]["__typename"] == "User"
     }
     return tuple(who for who, state in latest.items() if state == verdict)
+
+
+def user_verdict(pr: dict) -> str | None:
+    """The state of the user's account's latest review (APPROVED, CHANGES_REQUESTED,
+    COMMENTED, DISMISSED), "" for none; None for a snapshot cached before the query asked."""
+    if "viewerLatestReview" not in pr:
+        return None
+
+    return (pr["viewerLatestReview"] or {}).get("state", "")

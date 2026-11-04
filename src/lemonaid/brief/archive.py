@@ -154,7 +154,7 @@ def _lemon_id(conn: sqlite3.Connection, path: Path) -> str:
 
 
 def _repoint(conn: sqlite3.Connection, old: Path, new: Path) -> None:
-    for table in ("lemon_identities", "brief_status_since"):
+    for table in ("lemon_identities", "brief_status_since", "brief_needs_since"):
         conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (str(new), str(old)))
 
 

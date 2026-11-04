@@ -88,6 +88,41 @@ A checker is an external program that decides whether a task's holder is progres
 
 The checker reads and writes a tab-separated line protocol, version 1. Each file starts with `protocol<TAB>1`, and `%`, tab, CR and LF in fields are written `%25`, `%09`, `%0D` and `%0A`. In the default checker, an idle holder isn't challenged while its brief has a Status other than `done`, since every status says it waits on a person or a process. A Status covers every task the brief holds. A Status that the task's PR contradicts is challenged instead, even while CI runs or a dependency waits: `done` while the PR is open, or `merge` while the PR is a draft, its CI failed, or it is merged or closed. On a PR the user's own GitHub account opened, `merge` is also challenged while a person assigned to it hasn't approved it (set `review`), and `review` once a person has approved, every assignee has approved, and nobody's latest review requests changes (set `merge`); review requests and the author's own assignment don't count, and a review of a teammate's PR isn't judged this way. A task in `check` whose PR is still open is put to the parent checking it, to hand back to the lemon that said it was done. Needs or Waiting on text never stands in for a status, and no status waits on a lemon: that is a task handed on, or a dependency. A dependency counts as a wait only while the child task's own latest finding is `ok` or `wait`; a closed dependency is the holder's move once the idle grace has passed since it closed. CI known to be running on the task's PR is a wait; in any other state, or with no PR on the task, an idle holder is challenged under the idle rule, and the challenge backs off. An idle holder's grace starts no earlier than its assignment, or its lemon's start with the task, and a lemon taking a turn isn't inspected at all. An evaluate input has `context`, `case` and `fact` records and one subject: a `task`, or a `brief` (`brief<TAB>LEMON_ID<TAB>parent<TAB>PARENT_ID`, where the parent is its nearest ancestor that has a task disposition) for a working brief that has no task; a fact's availability is `known`, `unknown` or `unavailable`, and an unknown fact never supports a verdict. The output is the complete finding set for that one subject, naming it by its task ID or Lemon-ID: `ok`, `wait`, `unknown`, `challenge`, `adjudicate` and `recheck` records. Output naming another task, or mixing `ok` with a challenge, is reported as a checker failure.
 
+## Facts and the default rules
+
+A checker sees only the facts it declares it watches. Beyond a PR's `state`, `draft`, `checks` and `head`, and its assignees and approvals, lemonaid observes:
+
+- `pr URL mergeable`: `MERGEABLE`, `CONFLICTING`, or `UNKNOWN` while GitHub computes it.
+- `pr URL unresolved`: one space-separated entry per unresolved review thread, naming who spoke last in it: a lemon's signing name (`StateJob` for `🍋 StateJob (Reviewer): ...`), or `@login` for anyone else.
+- `pr URL user_verdict`: the state of the user's own account's latest review on the PR, or empty for none.
+- `brief ID signing_name`: the name the brief's lemon signs comments with.
+- `brief ID status_since` and `brief ID needs_since`: when lemonaid first saw the current Status and the current `Needs` text, from the brief's modification time when it saw them.
+- `brief ID needs_links`: each local file the brief's `Needs` links to, one per line, as `PATH` or `PATH#HEADING`. An `obsidian://` link resolves through `[brief] vaults`; a web link is left out.
+- For each file in `needs_links`, and for any watched `file`: `exists` (`true` or `false`), `modified_at`, `headings` (its Markdown headings, one per line, Relay comments removed), `sha256`, and `captured`.
+
+The default checker builds these rules on them, each a `status-claim` challenge to the holder once it has idled past its grace:
+
+- `merge` while the PR conflicts with its base, or while a review thread on it is unresolved and the holder didn't have the last word in it.
+- `approve` once the user's own latest review approved the PR.
+- `blocked` or `alert` with no `Needs`, or with a `Needs` link to a file that doesn't exist or a heading that file doesn't have. A file edited within `policy.file_quiet` (60 seconds) isn't judged yet, and the rule never reads what a linked section says.
+
+### Composing a checker from the default rules
+
+The default checker is a rule set, `lemonaid.tasks.checker.default.rules.DEFAULT`, whose rules sit in stages: `absent` (the holder can't move), `claims` (a Status its facts contradict), `waits` (a dependency or running CI), `declared` (a wait the Status declares), `idle` (the last resort), plus `closed`, `uncovered` and `watches`. Within a stage the first rule that returns findings decides it. A claim stops waits from excusing the holder, and is held until the idle grace passes. `lemonaid.tasks.checker.default.compose` documents the order.
+
+A checker of your own can reuse the default rules and add its own by replacing a stage:
+
+```python
+from lemonaid.tasks.checker.default import rules
+
+MINE = rules.DEFAULT._replace(claims=(my_blocked_rule, *rules.DEFAULT.claims))
+
+if __name__ == "__main__":
+    rules.main(rules=MINE)
+```
+
+A rule takes the input's view, the policy (`settings.read(view.context)`) and the holder's Lemon-ID, and returns protocol records, or [] to pass. Rules about your own conventions belong here, with their text in `[tasks.policy]` if you like, rather than in lemonaid's defaults.
+
 ## The inspector
 
 With `[tasks] inspect_interval` above 0, the scout host runs a pass every that many seconds while it runs, which is while any lemon does. `lemonaid task inspect` runs one pass now. Only one pass runs at a time; a second one started meanwhile is skipped. Each pass evaluates every open task with the configured checker (`[tasks] checker`, or the default checker). It first asks the checker to `describe` what it watches: `task`, `lemon`, `lineage`, `pr`, `brief` or `file` keys. A `lineage` key gives a lemon and its ancestors, nearest first, and whether each is live. Then it hands `evaluate` facts for exactly those watches, the task's open cases, and what only lemonaid knows: when a task it waited for was closed, who made the current assignment, and any dependency cycle through it. A file is captured by content under the state directory's `task-captures/`, and its fact names that copy. A watch of any other kind is reported as a checker failure.

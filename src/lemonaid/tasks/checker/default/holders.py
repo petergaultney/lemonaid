@@ -9,7 +9,9 @@ def live(view: checker_input.View, lemon: str) -> str:
     return found.value if found is not None and found.availability == "known" else ""
 
 
-def unavailable(view: checker_input.View, brief: str) -> list[protocol.Record]:
+def unavailable(
+    view: checker_input.View, policy: settings.Policy, brief: str
+) -> list[protocol.Record]:
     """A challenge, once the holder has started with its task and its lemon is no longer
     live, to whoever assigned the task, or failing that to the nearest live lemon above
     them, and then above the holder; a task is never left with nobody to move."""

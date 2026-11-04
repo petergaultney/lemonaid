@@ -1,4 +1,4 @@
-"""One GraphQL snapshot of a PR: head, state, draft, review decision, assignees and approving reviewers, mergeability, checks, and the review comments a lemon should answer.
+"""One GraphQL snapshot of a PR: head, state, draft, review decision, assignees and approving reviewers, the user's own verdict, mergeability, checks, unresolved threads, and the review comments a lemon should answer.
 
 Lemons post with their human's GitHub account, so authorship can't tell them apart. Each
 lemon signs right after the lemon marker (`🍋 StateJob (Reviewer): ...`), and a comment is
@@ -11,7 +11,7 @@ the watcher explicitly skips them.
 import typing as ty
 from collections import abc
 
-from . import github_api, pr_comments, pr_reviewers
+from . import github_api, pr_comments, pr_reviewers, pr_threads
 
 _ROLLUP = """
       statusCheckRollup { contexts(first: 100, after: $after) {
@@ -83,6 +83,8 @@ class Snapshot(ty.NamedTuple):
     assigned: tuple[str, ...] | None = ()  # people other than the author; None if not fetched
     approved: tuple[str, ...] | None = ()  # by latest verdict; None if reviews were cut off
     objecting: tuple[str, ...] | None = ()  # latest verdict requests changes; likewise
+    user_verdict: str | None = ""  # the user's account's latest review state; None if not read
+    unresolved: tuple[str, ...] = ()  # each unresolved thread's last word, see pr_threads
 
 
 _FAILED = frozenset(
@@ -199,6 +201,8 @@ def parse(
         pr_reviewers.assigned(pr),
         pr_reviewers.verdicts(pr, "APPROVED"),
         pr_reviewers.verdicts(pr, "CHANGES_REQUESTED"),
+        pr_reviewers.user_verdict(pr),
+        pr_threads.unresolved(pr),
     )
 
 

@@ -38,3 +38,17 @@ def test_a_reviewer_is_recognised_in_either_order():
 
 def test_the_shared_signer_check_reads_the_name_from_a_spaced_signature():
     assert shared_signer.warning("Filmy Boy (Reviewer)") == ""
+
+
+@pytest.mark.parametrize(
+    ("body", "name"),
+    [
+        ("🍋 FilmyBoy (Author): fixed", "FilmyBoy"),
+        ("🍋️ Author (Filmy Boy): fixed", "FilmyBoy"),
+        ("🍋: a PR body", ""),
+        ("🍋 Claude: no role", ""),
+        ("FilmyBoy (Author): no lemon", ""),
+    ],
+)
+def test_the_signer_of_a_comment_is_its_name_without_spaces(body, name):
+    assert lemon_signature.signer(body) == name

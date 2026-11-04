@@ -20,10 +20,8 @@ def heading_of(link: str) -> str:
     return urllib.parse.unquote(value.rpartition("#")[2]).strip() if "#" in value else ""
 
 
-def section(text: str, heading: str) -> str | None:
-    """The body under the first heading named *heading* (case ignored), or None when absent."""
-    body: list[str] | None = None
-    level = 0
+def _lines(text: str) -> abc.Iterator[tuple[str, re.Match[str] | None]]:
+    """Each line, with its heading match; a line in a code block is never a heading."""
     fence = ""  # the opening mark of the code block we are in
     for line in text.splitlines():
         mark = _FENCE.match(line)
@@ -31,7 +29,18 @@ def section(text: str, heading: str) -> str | None:
             fence = mark["mark"]
         elif mark and mark["mark"][0] == fence[0] and len(mark["mark"]) >= len(fence):
             fence = ""
-        found = None if fence or mark else _HEADING.fullmatch(line)
+        yield line, None if fence or mark else _HEADING.fullmatch(line)
+
+
+def headings(text: str) -> list[str]:
+    return [found["text"] for _, found in _lines(text) if found]
+
+
+def section(text: str, heading: str) -> str | None:
+    """The body under the first heading named *heading* (case ignored), or None when absent."""
+    body: list[str] | None = None
+    level = 0
+    for line, found in _lines(text):
         if body is None:
             if found and found["text"].casefold() == heading.casefold():
                 body, level = [], len(found["hashes"])
