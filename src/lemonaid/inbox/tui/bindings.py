@@ -191,8 +191,11 @@ _WHILE_BRIEF_SHOWN = frozenset(
         "mark_unread",
         "undo",
         "rename",
+        "toggle_usage",
     }
 )
+# What still runs when the brief shown is for no single row: its keys can't name one lemon.
+_WHILE_BRIEF_UNSELECTED = _WHILE_BRIEF_SHOWN - {"select", "mark_read", "mark_unread", "rename"}
 # Keys bound with priority, handed back to a dialog or a text box that wants them.
 _YIELDING = frozenset(
     {"cursor_up", "cursor_down", "brief", "toggle_group", "cursor_first", "cursor_last"}
@@ -207,13 +210,16 @@ def permitted(
     searching: bool,
     history_focused: abc.Callable[[], bool],
     resume_available: abc.Callable[[], bool],
+    brief_unselected: bool = False,
 ) -> bool:
-    """Whether *action* runs now. `overlaid` means a dialog is up or a text box has the keys."""
+    """Whether *action* runs now. `overlaid` means a dialog is up or a text box has the keys;
+    `brief_unselected` that the brief shown is for no single row (see `BriefPane.unselected`).
+    """
     if action == "handoff":
         return not (brief_shown or overlaid or searching)
 
     if action == "select_brief":
-        return brief_shown and not overlaid
+        return brief_shown and not overlaid and not brief_unselected
 
     if action in _YIELDING and overlaid:
         return False
@@ -224,4 +230,7 @@ def permitted(
     if action == "resume_detached":
         return resume_available()
 
-    return action in _WHILE_BRIEF_SHOWN if brief_shown else True
+    if brief_shown:
+        return action in (_WHILE_BRIEF_UNSELECTED if brief_unselected else _WHILE_BRIEF_SHOWN)
+
+    return True

@@ -27,10 +27,10 @@ def test_the_hook_never_leaves_the_server():
     assert "run-shell -b" not in command
 
 
-def test_follow_clears_a_sidebar_brief_when_it_moves():
+def test_follow_keeps_a_sidebar_brief_and_wakes_the_pane():
     command = follow.hook_command()
 
-    assert f"set-option -pu -t #{{{follow.PANE_OPTION}}} {follow.BRIEF_OPTION}" in command
+    assert follow.BRIEF_OPTION not in command
     assert f"send-keys -t #{{{follow.PANE_OPTION}}} F12" in command
 
 
@@ -181,14 +181,14 @@ def test_the_pane_follows_a_window_switch(tmux):
     assert (pane, 58, 90, False) in _panes(tmux, "a:w2")
 
 
-def test_switching_away_dismisses_the_sidebar_brief(tmux):
+def test_switching_away_keeps_the_sidebar_brief_for_the_pane_to_follow(tmux):
     pane = _followed_pane(tmux)
     tmux("select-window", "-t", "a:w2")
     tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, "shown")
 
     tmux("switch-client", "-t", "b:w1")
 
-    assert tmux("show-option", "-pqv", "-t", pane, follow.BRIEF_OPTION).stdout.strip() == ""
+    assert tmux("show-option", "-pqv", "-t", pane, follow.BRIEF_OPTION).stdout.strip() == "shown"
 
 
 def test_a_switch_that_fires_two_hooks_joins_once(tmux):

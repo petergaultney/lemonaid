@@ -149,8 +149,16 @@ in place of the inbox without leaving the inbox pane. Up/down arrows (or the con
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
 the lemon's name means its inbox entry is unread; `M`, `Alt`+`m`, `r` and `Z` mark it read,
-mark it unread, rename it, and undo, as in the list. `q` or `Escape` restores the inbox. `prefix+b` toggles
-the brief from the lemon pane, and switching windows or sessions restores the inbox.
+mark it unread, rename it, and undo, as in the list. `U` shows the usage view over the brief; `U`, `q` or
+`Escape` closes it. `q` or `Escape` restores the inbox. `prefix+b` toggles
+the brief from the lemon pane. The brief stays open when you switch windows or sessions, by the grove or any
+other way, and shows the brief of the lemon in the window you land in. A window with no lemon of its own, such as
+a shell, keeps the brief you were looking at.
+
+The brief's top line is attention mode's summary from the top of the inbox, drawn the same way: each
+status's badge counts its lemons in the column the inbox gives that status, right-justified as on the group
+bars. When a lemon's brief enters a status, that status's badge pulses, brightening and fading every two
+seconds, for 10 seconds ([`status_pulse_seconds`](config.md#tui)).
 `prefix+l` focuses the scratch pane and keeps the brief; use the mouse wheel to scroll
 the brief while staying in the lemon pane.
 
@@ -171,8 +179,8 @@ click on a link in the sidebar, in text, a heading or a table, opens it with `op
 to the app registered for it. Markdown links and code
 spans are left as written.
 
-A session with several lemons, opened from a window with none, starts with the session's name as a
-yellow bar, then one card for every lemon recorded in it, located by window (`w2`). A lemon
+A session with several lemons, opened from a window with none, starts with the session's name on a
+bar in the theme's primary color (yellow is kept for statuses), then one card for every lemon recorded in it, located by window (`w2`). A lemon
 without an attached brief uses the `.z/` brief named for it, or an unclaimed `brief.md`, and
 otherwise says it has none. The lowest-numbered window's
 lemon shows its whole `## Now`, the others only their `Needs` and one line each of `Running` and `Waiting on`.

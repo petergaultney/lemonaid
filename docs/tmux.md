@@ -167,7 +167,8 @@ With the scratch pane following on the left, the brief replaces the inbox inside
 arrows (or the configured alternatives) move between briefs; each is drawn at once, and
 the main pane switches to its lemon just after, with the inbox pane keeping focus. The binding
 above shows the current lemon's brief and focuses the inbox pane. Press `prefix+b` again to
-restore the inbox; switching to another window or session also restores it. `prefix+l`
+restore the inbox. Switching to another window or session keeps the brief open, showing the
+lemon there ([keybindings.md](keybindings.md#brief)). `prefix+l`
 focuses the pane and keeps the brief. Use the mouse wheel to scroll a visible brief. The inbox
 title and bottom edge turn teal (`[tui] focus_color`) when its tmux pane is selected
 to receive keys; this reflects tmux focus, not whether the terminal app is frontmost.

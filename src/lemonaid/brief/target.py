@@ -132,6 +132,21 @@ def for_notification(
     return _for_row(notification, attached, emoji, place)
 
 
+def session_rows(
+    tmux_session: str, notifications: abc.Iterable[db.Notification], window: str = ""
+) -> list[db.Notification]:
+    """The rows `for_session` shows, newest first: those in *window* if any are, else the session's."""
+    rows = sorted(
+        (n for n in notifications if n.metadata.get("tmux_session") == tmux_session),
+        key=lambda n: n.created_at,
+        reverse=True,
+    )
+    if window:
+        return [n for n in rows if str(n.metadata.get("tmux_window") or "") == window] or rows
+
+    return rows
+
+
 def for_session(
     tmux_session: str,
     notifications: abc.Iterable[db.Notification],
@@ -144,14 +159,7 @@ def for_session(
     A session can hold several lemons (a worker and its reviewer). A *window*
     holding one of them picks it; otherwise the target has a member for each.
     """
-    rows = sorted(
-        (n for n in notifications if n.metadata.get("tmux_session") == tmux_session),
-        key=lambda n: n.created_at,
-        reverse=True,
-    )
-    if window:
-        rows = [n for n in rows if str(n.metadata.get("tmux_window") or "") == window] or rows
-
+    rows = session_rows(tmux_session, notifications, window)
     if len(rows) == 1:
         return for_notification(rows[0], attached, (emojis or {}).get(rows[0].channel, ""))
 

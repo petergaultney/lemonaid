@@ -39,6 +39,11 @@ def read(pane: str) -> tuple[target.Target, str] | None:
     return decode(_tmux("show-option", "-pqv", "-t", pane, follow.BRIEF_OPTION) or "")
 
 
+def remember(pane: str, found: target.Target, window: str) -> None:
+    """Record *found* as *pane*'s brief in *window*, without waking or focusing it."""
+    _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window))
+
+
 def clear(pane: str) -> None:
     _tmux("set-option", "-pu", "-t", pane, follow.BRIEF_OPTION)
     _tmux("send-keys", "-t", pane, follow.BRIEF_WAKE_KEY)

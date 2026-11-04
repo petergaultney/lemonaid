@@ -124,7 +124,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 - **Bootstrap**: `lemonaid claude bootstrap` imports historical Claude sessions from before lemonaid was installed into the archive
 - **[Scratch pane size autosave](docs/tmux.md#saving-the-pane-size)**: Opt in to save settled border and keyboard resizes in follow mode; `Ctrl`+`s` remains available to save explicitly
 - **Always-visible sidebar** (`tmux`): [Follow mode](docs/tmux.md#follow-mode) keeps the inbox in view across every window and session switch, on the left or across the top. Sessions render as cards when the pane is too narrow for columns. Without follow mode it is still a scratch pane you toggle with a keybinding, with no startup delay
-- **Brief beside the lemon** (`tmux`): When the scratch pane follows on the left, `b` replaces the inbox with the selected lemon's brief and keeps keyboard focus there. `prefix+b` opens the brief from the lemon and focuses the scratch pane; switching away restores the inbox
+- **Brief beside the lemon** (`tmux`): When the scratch pane follows on the left, `b` replaces the inbox with the selected lemon's brief and keeps keyboard focus there. `prefix+b` opens the brief from the lemon and focuses the scratch pane. The brief stays open as you switch lemons, by the grove or otherwise, and shows each one you land on, under a line counting every lemon by status whose badge pulses when a lemon's brief enters that status
 - **Auto-refresh TUI**: See new notifications appear without losing your place
 
 ### Assorted helpers

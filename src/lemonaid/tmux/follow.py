@@ -32,7 +32,7 @@ POSITION_OPTION = "@lemonaid_scratch_position"  # "left" or "top"
 WIDTH_OPTION = "@lemonaid_scratch_width"  # columns, for a left pane
 HEIGHT_OPTION = "@lemonaid_scratch_height"  # rows, for a top pane
 MARKER_OPTION = "@lemonaid_scratch"  # set on the pane itself; how it is found again
-BRIEF_OPTION = "@lemonaid_brief_sidebar"  # a brief belongs to the window being left
+BRIEF_OPTION = "@lemonaid_brief_sidebar"  # the brief shown, and the window it was for
 BRIEF_WAKE_KEY = "F12"
 # Set just before a switch made while browsing briefs: the hook hands focus back
 # to the pane after the swap, then unsets it, so keys never reach the lemon.
@@ -240,7 +240,6 @@ def hook_command() -> str:
     )
     return (
         f"if-shell -F '{hook_condition()}' {{\n"
-        f"  run-shell -C 'set-option -pu -t #{{{PANE_OPTION}}} {BRIEF_OPTION}'\n"
         f"  if-shell -F '{_placeholder_here()}' {{\n"
         f"    {remember}\n"
         f"    {swap}\n"
