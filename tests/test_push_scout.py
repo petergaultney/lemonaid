@@ -81,7 +81,8 @@ def _session(sock: str, parked_job: str = "") -> Path:
 
 
 def _listener() -> tuple[str, list[str]]:
-    """A Unix socket that keeps every message content written to it."""
+    """A Unix socket that keeps every message content written to it, and ignores a
+    connection closed with nothing written."""
     path = os.path.join(tempfile.mkdtemp(dir="/tmp"), "s.sock")  # AF_UNIX paths are short
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(path)
@@ -91,7 +92,8 @@ def _listener() -> tuple[str, list[str]]:
     def serve() -> None:
         while True:
             with server.accept()[0] as conn:
-                received.append(json.loads(conn.makefile("rb").read())["message"]["content"])
+                if written := conn.makefile("rb").read():
+                    received.append(json.loads(written)["message"]["content"])
 
     threading.Thread(target=serve, daemon=True).start()
     return path, received
@@ -387,6 +389,26 @@ def test_a_scout_stops_when_claude_code_parks_its_session(caplog):
     [(level, message)] = _exits(caplog)
     assert level == "INFO" and "session parked" in message and "1eb3e867" in message
     listing.unlink()
+
+
+def test_a_batch_for_a_session_parked_while_the_scout_connects_stays_pending(monkeypatch):
+    mailbox = _briefed()
+    sock, received = _listener()
+    _session(sock)
+    scout = hosted.start(_LEMON, _CHANNEL)
+    _until(lambda: len(received) == 1)  # the announcement
+
+    class Parking(socket.socket):
+        def connect(self, address) -> None:
+            super().connect(address)
+            _session(sock, parked_job="1eb3e867")
+
+    monkeypatch.setattr(session_socket.socket, "socket", Parking)
+    messages.send(mailbox, "kept", "other.IndexElf")
+
+    assert scout.join() == "retry"
+    assert messages.pending_count(mailbox) == 1
+    assert not any("kept" in content for content in received)
 
 
 def test_push_registers_the_scout_with_the_host_and_returns(capsys):

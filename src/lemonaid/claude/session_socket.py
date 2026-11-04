@@ -125,19 +125,23 @@ def line(text: str, msg_id: str) -> bytes:
     ).encode()
 
 
+def _refuse_parked(entry: Session) -> None:
+    if job := parked(entry):
+        raise Refused(f"{entry.socket}: {parked_reason(job)}")
+
+
 def send(entry: Session, text: str) -> None:
     """Raises `Refused` when the session can't take it.
 
     A parked session's socket takes the line and runs no turn, so its record is read again
-    just before the write.
+    before the connection and after it, just before the write.
     """
-    if job := parked(entry):
-        raise Refused(f"{entry.socket}: {parked_reason(job)}")
-
+    _refuse_parked(entry)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(10)
         try:
             sock.connect(entry.socket)
+            _refuse_parked(entry)  # Claude Code may park it while the connection waits
             sock.sendall(line(text, str(uuid.uuid4())))
         except OSError as error:
             raise Refused(f"{entry.socket}: {error}") from error
