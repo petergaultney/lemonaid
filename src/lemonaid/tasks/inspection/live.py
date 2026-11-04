@@ -75,6 +75,11 @@ def lemons(conn: sqlite3.Connection) -> dict[str, facts.Facts]:
     return found
 
 
+def vaults() -> tuple[Path, ...]:
+    """`[brief] vaults`, where an `obsidian://` link in a brief resolves."""
+    return load_config().brief.vaults
+
+
 def fetch_pr(key: tuple[str, str]) -> pr_activity.Snapshot | None:
     """The scout host's current snapshot of a PR some lemon watches; None for any other.
     The inspector makes no GitHub calls of its own: a PR becomes evidence when a lemon names

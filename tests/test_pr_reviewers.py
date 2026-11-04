@@ -41,3 +41,9 @@ def test_a_reviewer_still_requesting_changes_is_kept_and_a_cut_off_history_is_un
 
 def test_a_snapshot_without_assignees_leaves_them_unknown():
     assert pr_reviewers.assigned({"reviews": {"nodes": []}}) is None
+
+
+def test_the_users_own_latest_verdict_is_read_and_absent_from_an_old_snapshot():
+    assert pr_reviewers.user_verdict({"viewerLatestReview": {"state": "APPROVED"}}) == "APPROVED"
+    assert pr_reviewers.user_verdict({"viewerLatestReview": None}) == ""
+    assert pr_reviewers.user_verdict({}) is None

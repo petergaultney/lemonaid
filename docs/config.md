@@ -817,6 +817,7 @@ max_challenge_interval = 86400  # the longest gap between re-sends
 # idle_grace = 120
 # unstarted_grace = 600
 # coverage_grace = 600
+# file_quiet = 60     # seconds a file a Needs links to must hold still before its headings are judged
 # adjudicator = "human:sam"
 ```
 

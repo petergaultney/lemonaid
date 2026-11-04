@@ -2,25 +2,18 @@
 
 The kinds are task, lemon, lineage, pr, brief and file. Anything else is reported as a coverage
 failure rather than ignored, since the checker would otherwise judge without data it
-said it needs. A file is captured by content: its fact names a copy, keyed by its hash,
-that a later edit to the file can't change.
+said it needs.
 """
 
-import hashlib
-import shutil
 import sqlite3
 import typing as ty
 from collections import abc
-from pathlib import Path
 
-from ... import brief, pr_url
-from ...brief import status
 from ...lemon_facts import facts
-from ...watch import pr_activity
 from ..checker import protocol
 from ..checker.session import Ask
-from ..model import holding, identities, ledger
-from . import cases, lemon_watches, live
+from ..model import identities, ledger
+from . import brief_facts, cases, lemon_watches, live, pr_facts
 
 KINDS = frozenset({"task", "lemon", "lineage", "pr", "brief", "file"})
 
@@ -40,62 +33,6 @@ def declared(ask: Ask, text: str) -> list[tuple[str, str]]:
     return found
 
 
-def _checks(snap: pr_activity.Snapshot) -> str:
-    outcomes = {c.outcome for c in snap.checks}
-    if not outcomes:
-        return "none"
-
-    if "pending" in outcomes:
-        return "pending"
-
-    return "failure" if "failed" in outcomes else "success"
-
-
-def _known(found: object) -> str:
-    return "unknown" if found is None else "known"
-
-
-def _pr(
-    url: str, now: float, fetch: abc.Callable[[tuple[str, str]], pr_activity.Snapshot | None]
-) -> list[live.Fact]:
-    """`checks`, `draft`, `head` and `state` (OPEN, MERGED or CLOSED) for a PR; `authored`,
-    whether the user's account opened it; and `assigned`, `approved` and `objecting`,
-    space-separated logins of the people assigned to it, those who approved it, and those
-    still requesting changes."""
-    key = pr_url.parse(url)
-    snap = fetch(key) if key else None
-    if snap is None:
-        return [
-            live.fact("pr", url, field, "", now, "unavailable")
-            for field in (
-                "checks",
-                "draft",
-                "head",
-                "state",
-                "authored",
-                "assigned",
-                "approved",
-                "objecting",
-            )
-        ]
-
-    return [
-        live.fact("pr", url, "checks", _checks(snap), now),
-        live.fact("pr", url, "draft", str(snap.draft).lower(), now),
-        live.fact("pr", url, "head", snap.head, now),
-        live.fact("pr", url, "state", snap.state, now),
-        live.fact("pr", url, "authored", str(snap.authored).lower(), now),
-        *(
-            live.fact("pr", url, field, " ".join(people or ()), now, _known(people))
-            for field, people in (
-                ("assigned", snap.assigned),
-                ("approved", snap.approved),
-                ("objecting", snap.objecting),
-            )
-        ),
-    ]
-
-
 def _task(conn: sqlite3.Connection, key: str, now: float) -> list[live.Fact]:
     state = ledger.state(conn, key)
     if state is None:
@@ -109,49 +46,6 @@ def _task(conn: sqlite3.Connection, key: str, now: float) -> list[live.Fact]:
         live.fact(
             "task", key, "finding", finding if judged else "", now, "known" if judged else "unknown"
         ),
-    ]
-
-
-def _brief(conn: sqlite3.Connection, key: str, now: float) -> list[live.Fact]:
-    try:
-        path = brief.lemon.brief_of(conn, identities.current(conn, key) or key)
-        text = path.read_text() if path else ""
-    except (LookupError, ValueError, OSError):
-        path, text = None, ""
-    if path is None:
-        return [
-            live.fact("brief", key, field, "", now, "unavailable")
-            for field in ("status", "needs", "waiting_on", "held")
-        ]
-
-    parts = status.split(text)
-    said = brief.now.parse(parts.now)
-    return [
-        live.fact("brief", key, "status", parts.status, now),
-        live.fact("brief", key, "needs", said.needs, now),
-        live.fact("brief", key, "waiting_on", said.waiting_on, now),
-        live.fact(
-            "brief", key, "held", " ".join(t["task_id"] for t in holding.held_by(conn, key)), now
-        ),
-    ]
-
-
-def _file(key: str, now: float) -> list[live.Fact]:
-    try:
-        content = Path(key).expanduser().read_bytes()
-    except OSError:
-        return [live.fact("file", key, "sha256", "", now, "unavailable")]
-
-    digest = hashlib.sha256(content).hexdigest()
-    captured = live.state_dir() / "task-captures" / digest
-    if not captured.exists():
-        captured.parent.mkdir(parents=True, exist_ok=True)
-        temporary = captured.with_suffix(".tmp")
-        temporary.write_bytes(content)
-        shutil.move(temporary, captured)
-    return [
-        live.fact("file", key, "sha256", digest, now),
-        live.fact("file", key, "captured", str(captured), now),
     ]
 
 
@@ -174,9 +68,9 @@ def facts_for(
             case "lineage":
                 found += lemon_watches.lineage(conn, key, seen, now)
             case "pr":
-                found += _pr(key, now, pr)
+                found += pr_facts.facts(key, now, pr)
             case "brief":
-                found += _brief(conn, key, now)
+                found += brief_facts.facts(conn, key, now, live.vaults())
             case "file":
-                found += _file(key, now)
+                found += brief_facts.file(key, now)
     return found

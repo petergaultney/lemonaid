@@ -25,7 +25,9 @@ class Row:
     watch: Watch = Watch.RELAY_COMMENTS
 
 
-def path_of(cell: str, vaults: abc.Iterable[Path] = ()) -> Path | None:
+def path_of(cell: str, vaults: abc.Iterable[Path] = (), base: Path | None = None) -> Path | None:
+    """The local file *cell* links to; a relative path is taken from *base*, else the
+    working directory."""
     match = LINK.search(cell)
     value = match["url"] if match else cell.strip().strip("`")
     if value.startswith("obsidian://"):
@@ -46,7 +48,8 @@ def path_of(cell: str, vaults: abc.Iterable[Path] = ()) -> Path | None:
     if "://" in value or not value:
         return None
 
-    return Path(urllib.parse.unquote(value.partition("#")[0])).expanduser().resolve()
+    path = Path(urllib.parse.unquote(value.partition("#")[0])).expanduser()
+    return (base / path if base and not path.is_absolute() else path).resolve()
 
 
 def parse(body: abc.Sequence[str]) -> tuple[list[Row], list[str]]:

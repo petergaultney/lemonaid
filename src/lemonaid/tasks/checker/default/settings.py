@@ -13,6 +13,7 @@ _DEFAULTS = {
     "policy.unstarted_grace": 600,
     "policy.reconcile": 300,
     "policy.coverage_grace": 600,
+    "policy.file_quiet": 60,
 }
 
 
@@ -26,6 +27,7 @@ class Policy(ty.NamedTuple):
     unstarted_grace: datetime.timedelta
     reconcile: datetime.timedelta
     coverage_grace: datetime.timedelta
+    file_quiet: datetime.timedelta  # how long a linked file must hold still to be judged
 
 
 def read(context: ty.Mapping[str, str]) -> Policy:
@@ -38,6 +40,7 @@ def read(context: ty.Mapping[str, str]) -> Policy:
         seconds("policy.unstarted_grace"),
         seconds("policy.reconcile"),
         seconds("policy.coverage_grace"),
+        seconds("policy.file_quiet"),
     )
 
 

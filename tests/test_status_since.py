@@ -29,3 +29,12 @@ def test_the_record_outlives_the_connection(tmp_path: Path) -> None:
             other: 50.0,
         }
         assert status_since.observe(conn, {}) == {}
+
+
+def test_needs_keeps_its_start_until_its_text_changes(tmp_path: Path) -> None:
+    brief = tmp_path / "brief.md"
+    with db.connect(tmp_path / "test.db") as conn:
+        status_since.observe_needs(conn, {brief: ("pick a name", 100.0)})
+        assert status_since.observe_needs(conn, {brief: ("pick a name", 200.0)}) == {brief: 100.0}
+        assert status_since.observe_needs(conn, {brief: ("pick a colour", 300.0)}) == {brief: 300.0}
+        assert status_since.observe(conn, {brief: ("blocked", 400.0)}) == {brief: 400.0}

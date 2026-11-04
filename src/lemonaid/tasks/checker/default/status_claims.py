@@ -1,7 +1,9 @@
 """The default checker's rule for a Status that its task's PR contradicts: `done` while the
-PR is open; `merge` while it is a draft, its CI failed, it is already merged or closed, or,
-on the user's own PR, a person assigned to it hasn't approved it; and `review` on the user's
-own PR once a person has approved it and every assignee has.
+PR is open; `merge` while it is a draft, its CI failed, it is already merged or closed, it
+conflicts with its base, a review thread the holder didn't have the last word in is
+unresolved, or, on the user's own PR, a person assigned to it hasn't approved it; `review` on
+the user's own PR once a person has approved it and every assignee has; and `approve` once
+the user has approved the PR.
 
 A task in `check` was said to be done by its previous holder, so an open PR there is put to
 the checking holder, who hands it back. An unknown PR fact never supports a challenge.
@@ -20,7 +22,16 @@ def _people(view: checker_input.View, url: str, field: str) -> list[str] | None:
     return found.value.split() if found is not None and found.availability == "known" else None
 
 
-def _merge(view: checker_input.View, task: str, url: str, state: str) -> tuple[str, str]:
+def _unanswered(view: checker_input.View, url: str, brief: str) -> int:
+    """Unresolved review threads on *url* whose last word isn't *brief*'s; 0 when the
+    holder's signing name isn't known."""
+    name = _known(view, "brief", brief, "signing_name")
+    return sum(1 for who in _known(view, "pr", url, "unresolved").split() if name and who != name)
+
+
+def _merge(
+    view: checker_input.View, task: str, url: str, state: str, brief: str
+) -> tuple[str, str]:
     """What contradicts `merge`, as (evidence, reason); ("", "") for nothing."""
     if state in ("MERGED", "CLOSED"):
         return state, (
@@ -36,6 +47,17 @@ def _merge(view: checker_input.View, task: str, url: str, state: str) -> tuple[s
 
     if _known(view, "pr", url, "checks") == "failure":
         return "ci-failed", f"CI failed on its PR {url}. Clear `merge`, fix it and push."
+
+    if _known(view, "pr", url, "mergeable") == "CONFLICTING":
+        return "conflicting", (
+            f"its PR {url} conflicts with its base. Clear `merge`, resolve the conflict and push."
+        )
+
+    if threads := _unanswered(view, url, brief):
+        return f"unresolved={threads}", (
+            f"{threads} review thread(s) on its PR {url} are unresolved, and the last word in"
+            " each isn't yours. Answer each one, or resolve it if it's handled, before `merge`."
+        )
 
     assigned, approved = _people(view, url, "assigned"), _people(view, url, "approved")
     if (
@@ -72,6 +94,17 @@ def _review(view: checker_input.View, url: str, state: str) -> tuple[str, str]:
     return f"approved={who}", (
         f"{who} approved its PR {url}, every assignee has approved, and nobody requests changes. If only your user's"
         " merge remains, set `merge`."
+    )
+
+
+def _approve(view: checker_input.View, url: str, state: str) -> tuple[str, str]:
+    """What contradicts `approve`, as (evidence, reason); ("", "") for nothing."""
+    if state != "OPEN" or _known(view, "pr", url, "user_verdict") != "APPROVED":
+        return "", ""
+
+    return "user-approved", (
+        f"your user already approved its PR {url}. Clear the Status, or set the one that says"
+        " who moves next."
     )
 
 
@@ -113,10 +146,12 @@ def contradicted(view: checker_input.View, brief: str) -> list[protocol.Record]:
         ]
 
     evidence, reason = (
-        _merge(view, task, url, state)
+        _merge(view, task, url, state, brief)
         if claimed == "merge"
         else _review(view, url, state)
         if claimed == "review"
+        else _approve(view, url, state)
+        if claimed == "approve"
         else ("", "")
     )
     if not reason:
