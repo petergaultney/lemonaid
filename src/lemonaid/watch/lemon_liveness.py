@@ -39,8 +39,9 @@ def _problem(
     lemon_id: str,
     sessions: abc.Callable[[str], abc.Set[str] | None],
     parked: abc.Callable[[], abc.Mapping[str, str]],
+    unrun: abc.Callable[[], abc.Mapping[str, str]],
 ) -> Problem | None:
-    """A parked lemon is reported as deaf, with the job in its detail."""
+    """A parked lemon is reported as deaf, with the reason in its detail."""
     row = entry.notification
     if state.blocked(entry.channel):
         return None
@@ -75,6 +76,7 @@ def _problem(
         waiter.is_armed(store.mailbox_for_id(lemon_id)),
         time.time(),
         parked().get(entry.channel, ""),
+        unrun().get(entry.channel, ""),
     )
     return (
         Problem("deaf", "", found_state.detail)
@@ -94,6 +96,7 @@ def probe(
 
     sessions = functools.cache(sessions or briefs_orphans.live_sessions)
     parked = functools.cache(recipient.parked_jobs)
+    unrun = functools.cache(recipient.unrun_codex)
     attached.claim_pending(conn)
     paths = {lemon_id: lemon.brief_of(conn, lemon_id) for lemon_id in statuses}
     by_path = {
@@ -108,7 +111,7 @@ def probe(
         elif entry is None:
             found[lemon_id] = Problem("gone", "", "no session is attached to its brief")
         else:
-            found[lemon_id] = _problem(entry, lemon_id, sessions, parked)
+            found[lemon_id] = _problem(entry, lemon_id, sessions, parked, unrun)
     return found
 
 

@@ -1252,7 +1252,8 @@ waiter (`deaf`), is started on a prompt to read its mailbox, unless its brief
 says `done` or its row is archived. In tmux, an idle prompt is recognized from
 the empty composer; Codex shows this as `› Ask Codex to do anything`. A Claude
 lemon whose conversation Claude Code moved to a background job (`parked`) is
-left alone. `tell` exits 1 when the recipient still
+left alone. So is a Codex lemon whose messages Codex has held for a minute on an
+idle thread (`parked`), for example after an Esc interrupt. `tell` exits 1 when the recipient still
 won't read it, and its stderr line says what to do instead. The message stays
 queued either way, so don't send it again. Each such message is also logged to
 `dead-letters.jsonl` in the mailbox root (see [messages](messages.md#will-it-be-read)). See [messages](messages.md#will-it-be-read) for every state.

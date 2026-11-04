@@ -12,6 +12,9 @@ import pytest
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.claude import session_socket
+from lemonaid.codex import processes as codex_processes
+from lemonaid.codex import queued
+from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import autoresume, cli, recipient, store, waiter
 
@@ -276,3 +279,73 @@ def test_parked_jobs_are_keyed_by_channel_and_skip_sessions_in_their_pane():
     _parked("ffff0000-1111-2222-3333-444455556666", "", pid=os.getppid())
 
     assert recipient.parked_jobs() == {"claude:abcd1234": "1eb3e867"}
+
+
+def _codex_holds(monkeypatch, tmp_path, thread: str, queued_at: float, *events: dict) -> None:
+    """Codex took a message for *thread* at *queued_at*; its rollout's tail is *events*."""
+    rollout = tmp_path / f"rollout-{thread}.jsonl"
+    rollout.write_text("".join(json.dumps(event) + "\n" for event in events))
+    monkeypatch.setattr(queued, "held", lambda home: {thread: queued.Held(1, queued_at)})
+    monkeypatch.setattr(codex_utils, "find_session_path", lambda found: rollout)
+    monkeypatch.setattr(codex_processes, "open_threads", lambda max_age=0.0: {thread})
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
+
+
+def _turn_end(kind: str, ago: float, **fields: str) -> dict:
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - ago))
+    return {"timestamp": stamp, "type": "event_msg", "payload": {"type": kind, **fields}}
+
+
+def test_a_codex_lemon_whose_queue_codex_holds_after_an_esc_will_not_read(
+    capsys, monkeypatch, tmp_path
+):
+    _codex_holds(
+        monkeypatch,
+        tmp_path,
+        "held",
+        time.time() - 120,
+        _turn_end("turn_aborted", 300, reason="interrupted"),
+    )
+    lemon_id = _attach("codex:held", {"tty": "/dev/ttys998", "session_id": "held"})
+
+    def no_revive(*args, **kwargs):
+        raise AssertionError("tell must not type into an interrupted pane or start a second copy")
+
+    monkeypatch.setattr(autoresume.revive, "revive", no_revive)
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
+        assert _tell("codex:held") == 1
+
+    err = capsys.readouterr().err
+    assert f"queued, but {lemon_id} will not read it: an interrupt (Esc) ended its last turn" in err
+    assert 'see docs/recovery.md, under "A Codex lemon whose messages Codex holds"' in err
+    assert store.pending_count(store.mailbox_for_id(lemon_id)) == 1
+
+
+@pytest.mark.parametrize(
+    ("queued_ago", "kind", "ago"),
+    [
+        (10, "task_complete", 300),  # Codex starts it within seconds
+        (300, "task_started", 600),  # it waits for the open turn
+        (300, "task_complete", 20),  # the turn it waited on just ended
+    ],
+)
+def test_a_codex_lemon_whose_queue_drains_still_listens(
+    capsys, monkeypatch, tmp_path, queued_ago, kind, ago
+):
+    _codex_holds(monkeypatch, tmp_path, "drains", time.time() - queued_ago, _turn_end(kind, ago))
+    lemon_id = _attach("codex:drains", {"tty": "/dev/ttys998", "session_id": "drains"})
+
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
+        assert _tell("codex:drains") == 0
+
+    assert "listening" in capsys.readouterr().err
+
+
+def test_held_codex_messages_outrank_an_armed_waiter_and_none_do_not():
+    row = db.Notification(id=1, channel="codex:x", message="")
+
+    held = recipient.classify("codex:x", row, True, True, time.time(), "", "Codex has held ...")
+    listening = recipient.classify("codex:x", row, True, True, time.time(), "", "")
+
+    assert (held.state, held.detail) == (recipient.PARKED, "Codex has held ...")
+    assert listening.state == recipient.LISTENING

@@ -66,6 +66,20 @@ def test_a_parked_claude_lemon_is_deaf_at_once_although_its_scout_holds_the_lock
     }
 
 
+def test_a_codex_lemon_whose_messages_codex_holds_is_deaf_at_once_with_its_scout_armed(
+    monkeypatch,
+):
+    rows = [_row("codex:a", "ttys001", created_at=10.0), _row("codex:b", "ttys002", 10.0)]
+    monkeypatch.setattr(presence, "_harness_ttys", lambda: frozenset({"ttys001", "ttys002"}))
+    monkeypatch.setattr(presence, "_armed", lambda lemon_id: True)
+    monkeypatch.setattr(recipient, "unrun_codex", lambda: {"codex:a": "Codex has held ..."})
+    probe = presence.Probe(presence.DEAF_AFTER_SECONDS)
+
+    assert _MARKS(probe, rows, {"codex:a": "a.QuickOdd", "codex:b": "b.QuickOdd"}, 1000.0) == {
+        "codex:a": "deaf"
+    }
+
+
 def test_a_lemon_whose_terminal_runs_no_harness_is_dead(monkeypatch):
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["fish"])
     rows = [_row("claude:a", "ttys001", created_at=10.0), _row("codex:b", "ttys002", 10.0)]

@@ -132,7 +132,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         gathered, skipped = [], []
         running, attachment = owners.running(), brief.lemon.finder(conn)
         waiters, commands = registry.by_lemon(conn), recipient.tty_commands()
-        parked = recipient.parked_jobs()
+        parked, unrun = recipient.parked_jobs(), recipient.unrun_codex()
         for lemon_id in ids:
             try:
                 found = attachment(lemon_id)
@@ -150,6 +150,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
                     waiters(found.channel),
                     commands,
                     parked,
+                    unrun,
                 )
             )
 

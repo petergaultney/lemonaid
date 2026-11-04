@@ -123,6 +123,20 @@ def test_a_parked_child_is_listed_with_its_job_although_its_waiter_is_armed(caps
     assert "parked: Claude Code moved its conversation to background job 1eb3e867" in out
 
 
+def test_a_codex_child_whose_messages_codex_holds_is_listed_although_its_waiter_is_armed(
+    capsys, monkeypatch
+):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["codex"])
+    held = "Codex has held a queued message for 3 minutes on an idle thread and started no turn"
+    monkeypatch.setattr(recipient, "unrun_codex", lambda: {"codex:held": held})
+    lemon_id = _child("held", "codex:held", "Status: review")
+
+    with waiter.armed(store.mailbox_for_id(lemon_id)):
+        assert _doctor("--children", "--self") == 1
+
+    assert f"parked: {held}" in capsys.readouterr().out
+
+
 def test_an_unknown_name_is_skipped_and_the_rest_reported(capsys):
     lemon_id = _attach("worker", "claude:worker", "Status: working")
 

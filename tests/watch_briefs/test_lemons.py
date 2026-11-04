@@ -200,6 +200,25 @@ def test_a_parked_lemon_is_reported_once_as_deaf_although_its_scout_holds_the_lo
     assert _poll(w) == []
 
 
+def test_a_codex_lemon_whose_messages_codex_holds_is_reported_once_as_deaf(grove, monkeypatch):
+    _, child, child_path, _, _, _ = grove
+    clock, held = [0.0], [{}]
+    monkeypatch.setattr(briefs_events.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(lemon_liveness.waiter, "is_armed", lambda mailbox: True)
+    monkeypatch.setattr(lemon_liveness.recipient, "unrun_codex", lambda: held[0])
+    w = _watch(grove)
+    assert _poll(w) == []
+
+    held[0] = {"codex:child": "an interrupt (Esc) ended its last turn"}
+    assert _poll(w) == []
+    clock[0] = 61.0
+    assert _poll(w) == [
+        f"{child}: an interrupt (Esc) ended its last turn; Status: none ({child_path})"
+    ]
+    clock[0] = 120.0
+    assert _poll(w) == []
+
+
 def test_a_newly_listed_lemon_already_in_a_wake_status_is_taken_as_seen(grove):
     _, _, _, other, other_path, _ = grove
     w = _watch(grove)

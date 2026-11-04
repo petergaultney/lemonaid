@@ -27,6 +27,7 @@ Don't trust `pane_current_command`. Claude Code titles itself with its version, 
 - **A dead Codex, by hand:** `codex --no-daemon resume <id>`.
 - **A dead lemon with uncommitted or unpushed work:** decide yourself whether to resume it; a script shouldn't.
 - **A parked Claude lemon:** see [below](#a-parked-claude-lemon).
+- **A Codex lemon whose messages Codex holds:** see [below](#a-codex-lemon-whose-messages-codex-holds).
 
 Stop a waiter with `lemonaid watch stop --self`. Never kill waiters by pattern: `pkill -f watch` stops every lemon's matching waiters, not only yours.
 
@@ -40,6 +41,15 @@ To bring the conversation back, press Esc or Enter in the agents view in the lem
 2. Run `lemonaid brief attach --channel claude:<job> --force <brief>`. Without `--force` it refuses, since the old session still holds the brief.
 
 The next `tell`, or the lemon's next Stop check, then starts a scout on the job's socket, which delivers the messages and events that waited.
+
+## A Codex lemon whose messages Codex holds
+
+`lemonaid tell` says why the lemon won't read, and `lemonaid lemon doctor` shows it as `parked`. Look at the lemon's pane:
+
+- **After an Esc interrupt,** the pane shows the lemon at its prompt. Any prompt there starts a turn. When that turn ends, Codex runs the messages it holds, oldest first.
+- **If the pane shows another thread,** `/resume` the lemon's thread there.
+
+lemonaid types nothing into the pane for you. See [codex](codex.md#messages-codex-holds).
 
 ## Repair the database by hand
 

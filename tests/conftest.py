@@ -11,6 +11,7 @@ import pytest  # noqa: E402
 
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
+from lemonaid.codex import queued as codex_queued  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
@@ -76,6 +77,15 @@ def _no_real_tmux(monkeypatch):
 def _no_live_codex_threads(monkeypatch):
     monkeypatch.setattr(codex_processes, "thread_ttys", lambda: None)
     monkeypatch.setattr(codex_processes, "open_threads", lambda max_age=0.0: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_codex_queue(monkeypatch):
+    """The developer's own Codex queue holds no messages for a test's lemons.
+
+    tests/test_codex_queued.py keeps the real `held` from import time.
+    """
+    monkeypatch.setattr(codex_queued, "held", lambda home: {})
 
 
 class _NoLoopWatchdog:

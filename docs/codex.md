@@ -157,6 +157,44 @@ While Codex is working, the notification message updates to show current activit
 - "Searching: query" (web searches)
 - First line of assistant responses
 
+### Messages Codex holds
+
+The push scout and the delivery service give each message to Codex with `codex queue`.
+Codex writes it to its own queue and exits 0, whether or not a process will run it. A
+Codex process that has the thread loaded starts a turn from it when the thread is idle.
+After an Esc interrupt, it starts none until its user's next prompt.
+
+lemonaid reads Codex's queue, `queue_1.sqlite` in the Codex home, from a private copy of
+the database and its WAL file. SQLite writes in the Codex home to read the live database,
+even read-only, so lemonaid never opens it with SQLite. When Codex writes the queue during
+each of three copies, lemonaid sees no held messages until its next look. When a
+message has waited 60 seconds on an idle thread that a Codex process has open, the lemon
+is `parked`. `tell` exits 1 and says why, `lma` marks it `deaf`, and its parent wakes
+once. The rollout says whether the thread is idle, and whether an Esc ended its last turn.
+A healthy thread starts a queued message within about 10 seconds of being idle, so 60
+seconds gives no false report for a lemon that is mid-turn or has just finished a turn.
+lemonaid types nothing into a parked lemon's pane: after an Esc, a prompt there would undo
+its user's interrupt. Codex keeps the messages, and runs them after the next prompt.
+
+A thread that no Codex process has open is not `parked`: no process runs it, so it is
+`dead`, and a resume runs what Codex holds for it.
+
+lemonaid can't see these cases:
+
+- **A thread switch in the pane** (`/new`, `/resume`, `/fork`). Codex keeps the old thread
+  loaded for 60 seconds, and runs its queued messages where no one sees them. Then it
+  unloads the thread. The scout stops when no process has the thread open, and `tell`
+  treats the lemon as `dead`.
+- **Codex's daemon** (a launch without `--no-daemon`). The Left Arrow agents view and "Run
+  in background" take the thread out of the pane. The daemon runs its queued messages in
+  the background, where no one sees them.
+- **The first message after an Esc.** `tell` says `listening`, since Codex does not hold
+  the message yet. Later `tell`s, `lma` and the parent see it when it has waited a minute.
+- **A change to Codex's queue.** The database has no documentation; its table and columns
+  are from Codex 0.166.0. If Codex renames them, lemonaid sees no held messages.
+
+See [recovery](recovery.md#a-codex-lemon-whose-messages-codex-holds) to bring the lemon back.
+
 ### Always-loaded docs
 
 With [`[codex] context_doc`](config.md#codex) set, the SessionStart hook passes that file and
@@ -259,4 +297,4 @@ Each line is a JSON entry with `type` and `payload` fields. The watcher reads th
    daemon_auto_start = false
    ```
 
-   That stops every Codex launch from starting or joining the daemon, including a bare `codex` in a window, a respawn, and a resume. `codex --no-daemon` does the same for one launch, so it only helps for launches through lemonaid's templates. Its hooks then run in its own pane and record that pane's `tty`, like Claude's. `lemonaid tmux doctor` warns when the setting is missing.
+   That stops a Codex launch from starting the daemon. It does not stop a launch from joining a daemon that already runs: a bare `codex` in a window, a respawn, or a resume still joins one. Only `codex --no-daemon` keeps a launch off the daemon, and lemonaid's launch templates pass it. A session off the daemon runs its hooks in its own pane and records that pane's `tty`, like Claude's. `lemonaid tmux doctor` warns when the setting is missing.
