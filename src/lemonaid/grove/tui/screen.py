@@ -2,12 +2,13 @@
 
 import dataclasses
 import time
+import typing as ty
 from collections import abc
 from typing import Any
 
 from textual import events
 from textual.app import App, ComposeResult
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.timer import Timer
 
 from ..draw import canvas
@@ -31,6 +32,13 @@ from .grove_map import GroveMap
 
 # Asks for what an edit needs and makes it, over the app, then tells the callback what happened.
 Edit = abc.Callable[[App, picking.Target, abc.Callable[[str], None]], None]
+
+
+class Overlay(ty.NamedTuple):
+    """A screen a key opens over the grove, and what the `?` panel says it does."""
+
+    what: str
+    open: abc.Callable[[], Screen]
 
 
 class GroveScreen(ModalScreen[str]):
@@ -58,6 +66,7 @@ class GroveScreen(ModalScreen[str]):
         select_key: str = selecting.DEFAULT_KEY,
         block: str = "",
         pulse_seconds: float = pulse.PERIOD,
+        overlays: abc.Mapping[str, Overlay] = {},
     ) -> None:
         """*edit* asks for and makes an edit chosen with Alt and a key, then says what happened;
         without it, nothing is edited.
@@ -68,7 +77,8 @@ class GroveScreen(ModalScreen[str]):
         key flips the lemon lists to their other page, and how. A *grove* already loaded is
         shown first, in place of loading one here. *select_key* enters and leaves select mode.
         It opens zoomed into the block numbered *block*, if there is one. A working lemon's pulse
-        takes *pulse_seconds*.
+        takes *pulse_seconds*. Each of *overlays* is a key that opens its screen over the grove,
+        unless the key is being typed into a search or a lemon's place.
         """
         super().__init__()
         self._load = load
@@ -99,6 +109,7 @@ class GroveScreen(ModalScreen[str]):
         self._flipped = False
         self._flip_back: Timer | None = None
         self._select_key = select_key
+        self._overlays = overlays
         # A tree moved by arrow keys: the grove it moves from and how far, saved once they stop
         self._moving: tuple[Grove, garden.Drag] | None = None
         self._moved_save: Timer | None = None
@@ -239,13 +250,20 @@ class GroveScreen(ModalScreen[str]):
         if key == self._flips.key and self._where.search is None:
             self._flip()
             return
+        if (overlay := self._overlays.get(key)) and not keys.typing(self._where):
+            self.app.push_screen(overlay.open())
+            return
         if key == " " and self._where.search is None:
             self.dismiss("")
             return
         if key == "?" and self._where.search is None:
             self.mount(
                 help_panel.HelpPanel(
-                    bool(self._where.block), self._flips, self._select_key, self._where.selecting
+                    bool(self._where.block),
+                    self._flips,
+                    self._select_key,
+                    self._where.selecting,
+                    [(key, overlay.what) for key, overlay in self._overlays.items()],
                 )
             )
             return

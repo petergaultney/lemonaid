@@ -7,7 +7,7 @@ from textual.app import App
 
 from . import flip, pulse, selecting
 from .frame import Grove, Lists
-from .screen import Edit, GroveScreen
+from .screen import Edit, GroveScreen, Overlay
 
 
 class GroveApp(App[str]):
@@ -40,8 +40,10 @@ class GroveApp(App[str]):
         zoom_to: abc.Callable[[], str] | None = None,
         start_held: bool = False,
         pulse_seconds: float = pulse.PERIOD,
+        overlays: abc.Mapping[str, Overlay] = {},
     ) -> None:
         super().__init__()
+        self._overlays = overlays
         self._zoom_to = zoom_to
         self._start_held = start_held
         self._zoom_waiting = ""  # a block to zoom into, read before its grove screen was shown
@@ -90,6 +92,7 @@ class GroveApp(App[str]):
                 self._select_key,
                 self._zoom_waiting,
                 self._pulse_seconds,
+                self._overlays,
             ),
             self._after_screen,
         )
