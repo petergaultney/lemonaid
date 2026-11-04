@@ -1,10 +1,11 @@
 """Where `lemon start` puts a lemon: a named tmux window, or beside the caller in its terminal."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from .. import wezterm
+from .. import cmux, wezterm
 from ..config import Config
 from ..watch import children_waiter
 from . import handoff, plan, window
@@ -102,3 +103,31 @@ def in_new_tab(
         wezterm_workspace=workspace,
     )
     return result, wezterm.spawn.type_line(new_pane, planned.typed, socket)
+
+
+def in_new_cmux_workspace(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
+    """A new, unfocused cmux workspace in the current directory.
+
+    cmux types the command into the workspace's shell and has no flag for its
+    environment, so `env` sets it around the caller's own shell.
+    """
+    directory = Path.cwd()
+    planned, error = plan.plan(args, config, directory)
+    if planned is None:
+        return {}, error
+
+    name = planned.given.name or directory.name
+    shell = [
+        "env",
+        *(f"{variable}={value}" for variable, value in planned.environment.items()),
+        os.environ.get("SHELL") or "/bin/sh",
+        "-c",
+        planned.typed,
+    ]
+    if not cmux.navigation.open_workspace(str(directory), shell, name, focus=False):
+        return {}, "cmux could not open a workspace for it"
+
+    _handed_off(planned)
+    return plan.result(
+        planned, directory, front_end="cmux", where=f"cmux workspace {name}", cmux_workspace=name
+    ), ""

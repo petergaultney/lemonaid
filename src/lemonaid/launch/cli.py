@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 
 from .. import wezterm
@@ -17,8 +18,12 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
 
     own = window.own_session()
     pane, socket = wezterm.spawn.own_pane()
-    if not args.target and not own and not pane:
-        return {}, "Not in tmux or WezTerm, so there is nowhere beside you: name SESSION:WINDOW"
+    in_cmux = bool(os.environ.get("CMUX_SURFACE_ID"))
+    if not args.target and not own and not pane and not in_cmux:
+        return (
+            {},
+            "Not in tmux, WezTerm or cmux, so there is nowhere beside you: name SESSION:WINDOW",
+        )
 
     if args.target and not session and not own:
         return {}, f"{args.target} means a window of your own tmux session, and this isn't in tmux"
@@ -36,7 +41,10 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if own:
         return where.in_new_window(args, config, own)
 
-    return where.in_new_tab(args, config, pane, socket)
+    if pane:
+        return where.in_new_tab(args, config, pane, socket)
+
+    return where.in_new_cmux_workspace(args, config)
 
 
 def _cmd_start(args: argparse.Namespace) -> None:
@@ -65,8 +73,8 @@ def add_parser(lemon_subparsers: argparse._SubParsersAction) -> None:
         "session through renames, so a lemon starting a helper beside itself never needs its "
         "session's name. The window is made if it doesn't exist and respawned "
         "if its panes are dead; anything running there is refused. With no target, it starts "
-        "beside you in the current directory: a new window of your own tmux session, or a new "
-        "tab in WezTerm, and says where. Codex is "
+        "beside you in the current directory: a new window of your own tmux session, a new "
+        "tab in WezTerm, or a new workspace in cmux, and says where. Codex is "
         "started with its folder-trust and update prompts turned off, so the prompt reaches it.",
     )
     start.add_argument(

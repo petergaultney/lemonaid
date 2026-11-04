@@ -8,7 +8,7 @@ import re
 import subprocess
 import time
 
-from .. import tmux
+from .. import front_end, tmux
 from ..config import BackendConfig, Config
 from ..inbox import db
 from ..launch import window
@@ -61,8 +61,9 @@ def recreate(row: db.Notification, cwd: str) -> tuple[str, str]:
 
     Its first window is a shell; the lemon is resumed in a window of its own.
     """
-    name = str(row.metadata.get("tmux_session") or "")
-    if (row.switch_source or ("tmux" if name else "")) != "tmux" or not name:
+    where = front_end.location.of(row.metadata, row.switch_source)
+    name = where.workspace
+    if where.front_end != "tmux" or not name:
         return "", ""
 
     if _tmux(row, "has-session", "-t", f"={name}").returncode == 0:
