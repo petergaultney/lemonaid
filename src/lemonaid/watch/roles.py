@@ -2,7 +2,8 @@
 
 The author fixes what goes wrong on its PR; its reviewer re-reviews pushes; the author's
 parent hears about readiness through its children's Status and needs the PR itself only
-when it merges or closes. `[watch.roles.<role>] wake` replaces a role's list.
+when it merges or closes, and so does a lemon whose brief only links to it. `[watch.roles.<role>] wake`
+replaces a role's list.
 """
 
 import typing as ty
@@ -10,8 +11,8 @@ from collections import abc
 
 from . import signature
 
-AUTHOR, REVIEWER, PARENT = "author", "reviewer", "parent"
-ROLES = (AUTHOR, REVIEWER, PARENT)
+AUTHOR, REVIEWER, PARENT, MENTION = "author", "reviewer", "parent", "mention"
+ROLES = (AUTHOR, REVIEWER, PARENT, MENTION)
 
 STATE = "state"  # merged, closed or reopened
 HEAD = "head"  # a push the lemon didn't make
@@ -40,6 +41,7 @@ DEFAULT_WAKE: dict[str, frozenset[str]] = {
     AUTHOR: frozenset(KINDS) - {READY},
     REVIEWER: frozenset({STATE, HEAD}),
     PARENT: frozenset({STATE}),
+    MENTION: frozenset({STATE}),
 }
 
 

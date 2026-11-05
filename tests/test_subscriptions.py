@@ -135,3 +135,18 @@ def test_an_explicit_role_wins(tmp_path):
     [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
 
     assert spec.role == "parent"
+
+
+def test_a_pr_linked_anywhere_is_asked_about_unless_under_no_nudge(tmp_path):
+    row, prose, fenced, quiet = (f"https://github.com/o/r/pull/{n}" for n in (12, 13, 14, 15))
+    text = _with_pr_row(shared.BRIEF, row).replace(
+        "## Watching",
+        f"## Done\n\n- Fixed it in [r#13]({prose}), then [r#15]({quiet})\n\n"
+        f"```\n{fenced}\n```\n\n## No nudge\n\n- {quiet}\n\n## Watching",
+    )
+
+    prs = {s.target[1]: s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"}
+
+    assert sorted(prs) == ["12", "13"]
+    assert (prs["12"].role, prs["12"].comments, prs["12"].mentioned) == ("author", True, True)
+    assert (prs["13"].role, prs["13"].comments, prs["13"].mentioned) == ("mention", False, True)

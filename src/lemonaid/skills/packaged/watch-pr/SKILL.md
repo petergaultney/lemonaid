@@ -17,7 +17,7 @@ A PR number or URL. If omitted, infer it from the current branch (`gh pr view --
 
 - `--comments --me "<your signature>"`: also wake on new comments from anyone but you, and, as the PR's author, when it starts conflicting with its base or its CI fails. Use it on every PR you open. `<your signature>` is the one you sign Relay Comments with, e.g. `MotorHoe (Author)`.
 - `--ci`: also wake when CI finishes on the current head, passing or failing. Combines with `--comments`; it does not require `--comments`. An author doesn't need it: mark your PR ready once your reviewer clears it, without waiting for CI, and a failure wakes you through `--comments`.
-- `--role author|reviewer|parent`: wake only for the events that role needs. Under `lemonaid watch --self` the role is worked out from your brief; `watch --self --status` prints it.
+- `--role author|reviewer|parent|mention`: wake only for the events that role needs. Under `lemonaid watch --self` the role is worked out from your brief; `watch --self --status` prints it.
 - `--legacy <name>`: another signature whose comments count as yours, e.g. one you signed with before (repeatable).
 - Without `--comments` or `--ci`: pushes, merge/close, draft/ready, and review decision only, e.g. when you reviewed someone else's PR. Conflicts and CI are the author's to fix, so a reviewer isn't woken for them.
 

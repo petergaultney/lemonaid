@@ -234,28 +234,31 @@ Under `lemonaid watch --self`, each PR wakes the lemon only for the events its r
 PR needs. An event that doesn't wake it is still recorded, and is listed at the start of the
 next event that does (`Seen without waking you: ...`).
 
-| Event (kind) | author | reviewer | parent |
-|---|---|---|---|
-| merged, closed or reopened (`state`) | wakes | wakes | wakes |
-| a push the lemon didn't make (`head`) | wakes | wakes | |
-| marked ready for review (`ready`) | | | |
-| back in draft (`draft`) | wakes | | |
-| review decision changed (`decision`) | wakes | | |
-| new comments (`comments`) | wakes | | |
-| conflict with the base (`conflict`) | wakes | | |
-| CI failed (`ci-failed`) | wakes | | |
-| CI passed, only with `--ci` (`ci-passed`) | wakes | | |
-| CI passed after the waiter saw it running or failed (`ci-green`) | wakes | | |
+| Event (kind) | author | reviewer | parent | mention |
+|---|---|---|---|---|
+| merged, closed or reopened (`state`) | wakes | wakes | wakes | wakes |
+| a push the lemon didn't make (`head`) | wakes | wakes | | |
+| marked ready for review (`ready`) | | | | |
+| back in draft (`draft`) | wakes | | | |
+| review decision changed (`decision`) | wakes | | | |
+| new comments (`comments`) | wakes | | | |
+| conflict with the base (`conflict`) | wakes | | | |
+| CI failed (`ci-failed`) | wakes | | | |
+| CI passed, only with `--ci` (`ci-passed`) | wakes | | | |
+| CI passed after the waiter saw it running or failed (`ci-green`) | wakes | | | |
 
 The parent hears that its child's PR is ready to merge or done through the child's Status, so
 it needs the PR itself only when it merges or closes. The role comes from the brief, first
 match wins:
 
-1. `--role author|reviewer|parent` on the PR's `watch pr` line.
+1. `--role author|reviewer|parent|mention` on the PR's `watch pr` line.
 2. A `--me` signature ending `(Reviewer)`, or a `### PRs` row whose Review document is the
    brief's own `Output-Doc:`: reviewer.
 3. A PR that one of the lemon's children authors (by these same rules): parent.
 4. Anything else: author.
+
+A PR the brief only links to, outside `### PRs` and `## Watching`, gets the `mention` role;
+see [PRs a brief links to](#prs-a-brief-links-to).
 
 `lemonaid watch --self --status` prints each PR's role. `[watch.roles.<role>] wake` in the
 config replaces a role's list; see [config](config.md#watch). A standalone `watch pr` wakes for
@@ -525,11 +528,39 @@ The rows and commands declare these sources:
 | Mailbox | Every pending message for this lemon, included in the same batch as source changes. |
 | Children | Direct children entering `merge` or `done`, using the existing child cursor; a child that goes `blocked` or writes a Needs ask for its user doesn't wake its parent, which a `### Lemons` row for that child can change. Also and any child whose harness exits, whose session or place is gone, or that is deaf or dead (see [Watching other lemons](#watching-other-lemons)). An explicit `watch briefs` line selects other statuses or orphan behavior. |
 | `### Lemons` | Each listed lemon, child or not, like a child: its Status and Needs changes and its liveness. A row for a child sets that child's wake statuses. |
+| A PR URL anywhere else | The PR's merge or close only, with the `mention` role; see [PRs a brief links to](#prs-a-brief-links-to). |
 
 A repeated source is watched once. Explicit options are retained; a PR row forces
 comments on, and a Docs row with `All edits` enables edits. A closed or merged PR
 is silent on first subscription; an existing subscription reports its closure once
 and stops polling it.
+
+### PRs a brief links to
+
+A brief that still links to a PR after it merges or closes is often out of date. So every
+pull-request URL in a brief, outside code fences, subscribes its lemon to that PR's merge or
+close, and the event asks: `PR #12 is now MERGED, and your brief still links to it: is that
+still relevant for your user?` A PR with a `### PRs` row or a `watch pr` line keeps its own
+role and gets the same question when it merges or closes.
+
+The question comes only with the event. A link added after its PR closed, such as a history
+line under `## Done`, is old news: lemonaid doesn't read the PR again once any watcher has
+recorded it closed, and asks nothing. A closed mention isn't watched for a reopen, and a
+watcher never reads a PR again, even after a restart, once it has reported the PR merged or the
+mention closed. A bare
+`PR #N` names no repository and is not subscribed.
+
+Every lemon's PR reads share the machine's one PR poller, so a mention costs a cheap query
+per distinct PR, not one per lemon.
+
+To keep a link without the question, also list it under a heading named `No nudge`, at any
+level. A PR linked there is never asked about, wherever else the brief links it:
+
+```markdown
+## No nudge
+
+- [repo#12](https://github.com/owner/repo/pull/12): the design this work follows
+```
 
 The **Watch** column is an enum, not a boolean. Its current values are:
 

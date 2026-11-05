@@ -35,6 +35,11 @@ def repo_and_number(url: str) -> tuple[str, str] | None:
     return (match["repo"], match["number"]) if match else None
 
 
+def urls(text: str) -> list[str]:
+    """Every pull-request URL in *text*, in the order written."""
+    return [match[0] for match in _URL.finditer(text)]
+
+
 def _number(ref: str) -> str:
     match = _URL.fullmatch(ref)
     return match["number"] if match else ref
