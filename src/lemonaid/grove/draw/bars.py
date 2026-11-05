@@ -16,13 +16,28 @@ def title(canvas: Canvas, summary: str, keys: str) -> None:
     text(canvas, canvas.width - len(keys) - 2, 0, keys, colors.MUTED, colors.BAR)
 
 
-def prompt(canvas: Canvas, line: str, color: str = colors.TEXT) -> None:
+def prompt(
+    canvas: Canvas,
+    line: str,
+    color: str = colors.TEXT,
+    key: str = "",
+    key_color: str = "",
+    label: str = "",
+) -> None:
     row = canvas.height - 1
     fill(canvas, 0, row, canvas.width, 1, colors.BAR)
     legend = _legend()
     legend_width = sum(len(label) + 4 for label in legend) + len("idle") + 4 + len("no jump") + 4
     room = canvas.width - legend_width - 4 if canvas.width > legend_width + 60 else canvas.width - 3
-    text(canvas, 1, row, f"> {line}", color, colors.BAR, bold=True, limit=room)
+    if key:
+        text(canvas, 1, row, "> ", color, colors.BAR, bold=True, limit=room)
+        text(canvas, 3, row, f" {key} ", "#0b0e13", key_color, bold=True, limit=room - 2)
+        x = 6 + len(key)
+        text(canvas, x, row, label, key_color, colors.BAR, bold=True, limit=room - x + 1)
+        x += len(label) + 2
+        text(canvas, x, row, line, color, colors.BAR, bold=True, limit=room - x + 1)
+    else:
+        text(canvas, 1, row, f"> {line}", color, colors.BAR, bold=True, limit=room)
     if room == canvas.width - 3:
         return
 

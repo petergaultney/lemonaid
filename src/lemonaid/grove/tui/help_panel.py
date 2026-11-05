@@ -32,6 +32,7 @@ _BLOCK = [
         "another lemon on that tree, as .c1; past nine, 0 and a letter, .c0a",
     ),
     ("/", "search Brief-IDs, sessions and names; ↑↓ choose, enter jumps"),
+    ("backspace", "clear what you've typed after the digit, then zoom back out"),
     ("click a tree", "the same as its letter"),
     ("drag a tree", "move it within its block"),
     ("drag a bare tree", "move it; drag it off its block's ground to clear it away"),
