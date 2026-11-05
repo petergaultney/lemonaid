@@ -100,9 +100,10 @@ def blocked(channel: str) -> bool:
 def inspection(channel: str) -> str:
     operation = latest(channel)
     if operation and operation["phase"] == "partial":
+        kind = operation["plan"].get("kind", "restart")
         return (
-            "An interrupted restart needs inspection; use "
-            f"lemonaid lemon restart --status {operation['token']} --json"
+            f"An interrupted {kind} needs inspection; use "
+            f"lemonaid lemon {kind} --status {operation['token']} --json"
         )
     return ""
 

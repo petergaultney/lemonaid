@@ -43,6 +43,21 @@ def test_a_root_with_no_hooks_is_a_plain_clone():
     assert root.destroy == ""
 
 
+def test_claude_trust_needs_a_real_true():
+    roots = _parse_config(
+        {
+            "places": {
+                "roots": [
+                    {"path": "/tmp/a", "claude_trust": True},
+                    {"path": "/tmp/b", "claude_trust": "yes"},
+                    {"path": "/tmp/c"},
+                ]
+            }
+        }
+    ).places.roots
+    assert [root.claude_trust for root in roots] == [True, False, False]
+
+
 def test_a_root_without_a_path_is_skipped():
     config = _parse_config({"places": {"roots": [{"create": "x"}, {"path": "/tmp/ok"}]}})
 

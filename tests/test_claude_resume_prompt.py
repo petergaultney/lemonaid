@@ -6,6 +6,7 @@ import json
 import pytest
 
 from lemonaid.claude import cli, projects, resume
+from lemonaid.inbox import db
 
 
 @pytest.fixture
@@ -109,3 +110,26 @@ def test_missing_directory_lookup_uses_isolated_claude_state(monkeypatch, tmp_pa
     _run("isolated-id")
 
     assert started == [["claude", "--resume", str(transcript)]]
+
+
+def test_resumes_where_the_inbox_last_recorded_the_session(monkeypatch, tmp_path):
+    moved = tmp_path / "moved"
+    moved.mkdir()
+    session = "0123abcd-1111-2222-3333-444455556666"
+    with db.connect() as conn:
+        db.add(
+            conn,
+            "claude:" + session[:8],
+            "x",
+            metadata={"cwd": str(moved), "session_id": session},
+        )
+        conn.commit()
+    monkeypatch.setattr(resume, "find_session_project", lambda _: str(tmp_path))
+    directories = []
+    monkeypatch.setattr(resume.os, "chdir", directories.append)
+    monkeypatch.setattr(resume.os, "execvp", lambda *a: None)
+
+    _run(session)
+    _run("0123abcd-another-session")
+
+    assert directories == [str(moved), str(tmp_path)]

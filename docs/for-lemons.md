@@ -432,6 +432,27 @@ hook process binding and a dedicated terminal are required; a dead lemon uses
 operations retain status and a manual recovery command; no launch is retried.
 See [restart requirements and recovery](lemon-restart.md).
 
+### Moving one live lemon: `lemon move`
+
+```sh
+lemonaid lemon move <lemon> <key-or-directory> --dry-run --json
+lemonaid lemon move <lemon> <key-or-directory> [--root ROOT] [--force] --json
+lemonaid lemon move --status <operation-id> --json
+```
+
+Move stops a live Claude or dedicated Codex lemon and resumes the same native session in
+another place, with its Lemon-ID, brief, parent, groups and subscriptions unchanged. A
+destination starting with `/`, `~` or `.` is a directory; anything else is a place key,
+acquired through the root's hooks when missing. In tmux the lemon joins the session already
+working in that directory, or a new one; its old pane closes when only a shell is left there.
+Use it when asked to move yourself into another place, rather than moving tmux windows: a
+moved window keeps its old directory and process. Moving yourself needs `--force`. A Claude
+lemon moves only into a directory Claude already trusts, or one under a places root with
+`claude_trust = true`; for any other new directory, ask the user to start Claude there once
+and accept its folder-trust prompt. A failed
+move says whether the lemon is stopped (`lemon resume` starts it in the destination). See
+[moving a lemon](lemon-move.md).
+
 ### Checking on lemons: `lemon doctor`
 
 ```bash

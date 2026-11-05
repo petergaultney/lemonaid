@@ -60,6 +60,7 @@ def show(
 def terminal() -> interface.Terminal:
     return interface.Terminal(
         name="cmux",
+        workspace_key="",
         here=lambda: bool(os.environ.get("CMUX_SURFACE_ID")),
         show=show,
         exists=lambda tty, socket=None, not_after=None: None,  # see the module docstring

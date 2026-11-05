@@ -70,5 +70,9 @@ def exists(tty: str, socket: str | None = None, not_after: float | None = None) 
 
 def terminal() -> interface.Terminal:
     return interface.Terminal(
-        name="wezterm", here=lambda: bool(wezterm.spawn.own_pane()[0]), show=show, exists=exists
+        name="wezterm",
+        workspace_key="wezterm_workspace",
+        here=lambda: bool(wezterm.spawn.own_pane()[0]),
+        show=show,
+        exists=exists,
     )

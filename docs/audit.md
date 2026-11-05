@@ -20,6 +20,7 @@ lemonaid audit --json                  # the same, as a JSON list
 | `brief-edit` | A brief verb (`status`, `now`, `bullet`, `section`, `pr`, `doc`, `lemon`, `watching`, `hide`) or the inbox changes a brief that isn't the editor's own. | (the command line is in `argv`) |
 | `lemon-parent` | `lemon parent --set` or `--clear`. | `set to <Lemon-ID>`, `cleared` |
 | `lemon-restart` | `lemon restart` stops and resumes a lemon. | `forced` with `--force` |
+| `lemon-move` | `lemon move` stops a lemon and resumes it in another place; `from` and `to` are the two directories, and `claude_trust` is true when it recorded Claude's trust in `to`. | `forced` with `--force` |
 | `inbox-archive` | A card leaves the inbox: `inbox archive`, the inbox's archive key, a place toss, or the inbox watcher's auto-archive of an ended session. | the command, or the watcher's reason and evidence |
 | `inbox-lost` | The inbox watcher marks a lemon lost with its tmux server; its card stays. | the tty it was on |
 | `inbox-unarchive` | `inbox unarchive`. | |
