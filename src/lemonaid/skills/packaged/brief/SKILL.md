@@ -111,7 +111,8 @@ List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to 
 | Lemon | `brief lemon add --self <lemon> --purpose "<why>" [--to STATUS ...]` | Its Status reaching a `--to` status, or a new Needs ask if `needs` is among them (default `merge`, `done`, `needs`; an explicit `--to` replaces the default); its harness exiting, its place going, or it going deaf. |
 | Children | Automatic; `brief watching add --self "lemonaid watch briefs --children --self --to <status>"` to choose statuses | A child reaching `merge` or `done`; the same liveness failures as a Lemon row. |
 | Repo | `brief watching add --self "lemonaid watch repo --wait <owner/name> --once"` | A PR opened ready or marked ready, a `--label` added, a seen PR closed or merged, or with `--pushes` a ready PR's head moving. |
-| File | `brief watching add --self "lemonaid watch file --wait <path> --quiet 2"` | A file created, removed or changed; for a directory, a visible file directly in it added, removed or rewritten (`--ignore-removed` skips removals). |
+| File | `brief watching add --self "lemonaid watch file --wait <path> --quiet 2"` | A file created, removed or changed; for a directory, a visible file directly in it added, removed or rewritten (`--ignore-removed` skips removals). With `--deadline 45m`, also nothing changing by then. |
+| Command | `lemonaid run --self -- <command>`, or `--lemon <your Lemon-ID>` in a new tmux window or `nohup` | The command exiting, with its exit status. Start every long command this way, not with a marker file. |
 | Mailbox | Automatic | Any pending message for you. |
 
 A PR you are only reviewing, or one you merely parent, wakes you for fewer events: see `watch-pr`.

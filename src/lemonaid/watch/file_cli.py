@@ -5,7 +5,8 @@ hunks or byte ranges. Use `lemonaid watch doc` for text-document line hunks.
 
 Reports when a watched file is created, changed, or removed, or when a regular file directly
 in a watched directory is added, removed, or rewritten, once the change has been quiet for
-`--quiet` seconds. With `--ignore-removed`, removals are not reported. Hidden files and
+`--quiet` seconds. With `--ignore-removed`, removals are not reported. With `--deadline`, it
+also reports once if nothing has changed by then, so a marker that never appears is noticed. Hidden files and
 subdirectories are ignored. A removed watched path may include a nearby replacement
 suggestion to confirm; the watch target stays unchanged.
 
@@ -28,7 +29,7 @@ import pathlib
 import sys
 import time
 
-from . import brief_record, cursors, delivery, file_events, registry, waiter_lock
+from . import brief_record, cursors, deadline, delivery, file_events, registry, waiter_lock
 
 
 def _wait(w: file_events.FileWatch, deliver: delivery.Deliver, once: bool, interval: float) -> None:
@@ -85,7 +86,9 @@ def run(a: argparse.Namespace) -> int:
     try:
         with registry.watching(a, "file", (str(p.resolve()) for p in paths), a.codex_thread):
             _wait(
-                file_events.open_watch(state_dir, paths, cursor_key, a.quiet, a.ignore_removed),
+                file_events.open_watch(
+                    state_dir, paths, cursor_key, a.quiet, a.ignore_removed, a.deadline
+                ),
                 deliver,
                 a.once or bool(a.codex_thread),
                 a.interval,
@@ -137,6 +140,14 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="report only arrivals and changes: a file removed or moved away (for example into "
         "a done/ subfolder once handled) does not wake the waiter",
+    )
+    ap.add_argument(
+        "--deadline",
+        type=deadline.checked,
+        default="",
+        metavar="WHEN",
+        help="report once if nothing has changed by WHEN: a duration from the first arm (45m, "
+        "2h) or an ISO time; the watch continues",
     )
     ap.add_argument("--once", action="store_true", help="print the first event and exit")
     delivery.add_codex_thread_argument(ap)

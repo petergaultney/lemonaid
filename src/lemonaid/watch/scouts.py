@@ -31,6 +31,7 @@ _SETTLE = (
 class _Sources(ty.NamedTuple):
     paths: list[Path]
     contents: list[Path]  # directories whose files' contents the detector reads
+    pids: list[int] = []
 
 
 def _sources(spec: subscriptions.Subscription) -> _Sources:
@@ -41,6 +42,9 @@ def _sources(spec: subscriptions.Subscription) -> _Sources:
 
     if spec.kind == "briefs":
         return _Sources(briefs_events.brief_paths(spec.target[0], spec.lemons, spec.orphans), [])
+
+    if spec.kind == "command":
+        return _Sources([], [], [int(spec.target[0])])
 
     return _Sources([], [])
 
@@ -120,7 +124,7 @@ class Scout:
         poll = None
         failed = failure_state.path(self.root, self.spec, "error")
         sources = _sources(self.spec)
-        unwatch = self.pacing.watch(sources.paths, (), self.wake, sources.contents)
+        unwatch = self.pacing.watch(sources.paths, sources.pids, self.wake, sources.contents)
         stamp: tuple | None = _stamp(sources)
         active_until = (
             time.monotonic() + self.spec.quiet + _SETTLE
@@ -148,7 +152,9 @@ class Scout:
                 if self.spec.kind == "briefs" and (current := _sources(self.spec)) != sources:
                     unwatch()  # a child linked or unlinked, or a watched lemon added
                     sources, stamp = current, None
-                    unwatch = self.pacing.watch(sources.paths, (), self.wake, sources.contents)
+                    unwatch = self.pacing.watch(
+                        sources.paths, sources.pids, self.wake, sources.contents
+                    )
                 if (latest := _stamp(sources)) != stamp:
                     stamp, active_until = latest, time.monotonic() + self.spec.quiet + _SETTLE
                 busy = time.monotonic() < active_until

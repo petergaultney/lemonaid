@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..brief import doc_table, identity, lemon_table, output_doc, pr_table, sections, waiters
 from ..messages import mailbox_command
-from . import briefs_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
+from . import briefs_cli, command_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
 
 
 class Problem(ValueError):
@@ -48,6 +48,7 @@ class Subscription:
     lemons: tuple[lemon_table.Row, ...] = ()
     needs: bool = False
     role: str = ""  # a PR's, see watch/roles.py
+    deadline: str = ""  # a file watch's
 
     @property
     def source(self) -> str:
@@ -72,7 +73,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
 
     parser = _Parser(allow_abbrev=False)
     sub = parser.add_subparsers(dest="kind", required=True)
-    for module in (doc_cli, file_cli, pr_cli, repo_cli, briefs_cli):
+    for module in (doc_cli, file_cli, command_cli, pr_cli, repo_cli, briefs_cli):
         module.add_parser(sub)
     args = parser.parse_args(words[2:])
     if args.status or not getattr(args, "wait", True):
@@ -89,6 +90,8 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         target = (args.wait,)
     elif kind == "briefs":
         target = (parent if args.use_self else args.lemon,)
+    elif kind == "command":
+        target = (str(args.wait),)
     else:
         paths = args.wait if kind == "file" else [args.wait]
         target = tuple(str((cwd / path.expanduser()).resolve()) for path in paths)
@@ -108,6 +111,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
             "pushes",
             "state_dir",
             "role",
+            "deadline",
         )
         if hasattr(args, name) and getattr(args, name) is not None
     }
