@@ -7,6 +7,7 @@ from lemonaid.grove.draw import block_scene, canvas, colors
 from lemonaid.grove.layout import arrange
 from lemonaid.grove.tui.frame import Grove, clamp_pan, render
 from lemonaid.grove.tui.keys import Where
+from lemonaid.inbox import badges
 
 from .shared import NOW, block, lemon, tree
 
@@ -68,7 +69,7 @@ def test_a_scene_drawn_directly_on_a_tiny_canvas_says_so():
 
 
 def test_a_grove_too_big_for_the_screen_pans_and_says_so():
-    small = canvas.plain_lines(render(GROVE, Where(), 100, 30, 0.5))
+    small = canvas.plain_lines(render(GROVE, Where(), 230, 20, 0.5))
     assert "arrows pan" in small[0]
     assert "arrows pan" not in canvas.plain_lines(render(GROVE, Where(), 400, 120, 0.5))[0]
 
@@ -122,5 +123,47 @@ def test_select_mode_tags_each_tree_with_the_dollar_that_chooses_it_whole():
 
 def test_the_jump_mode_hints_name_the_configured_select_key():
     for where in (Where(), Where(block="2", digits="2")):
-        shown = "\n".join(canvas.plain_lines(render(GROVE, where, 160, 48, 0.5, select_key="f6")))
+        shown = "\n".join(canvas.plain_lines(render(GROVE, where, 220, 48, 0.5, select_key="f6")))
         assert "F6 selects" in shown and "Tab selects" not in shown
+
+
+def _title_row(blocks, width: int) -> str:
+    grove = Grove(blocks, *arrange.arrange(blocks, {"plots": {}, "trees": {}}, NOW))
+    return canvas.plain_lines(render(grove, Where(), width, 48, phase=0.5))[0]
+
+
+def test_the_title_shows_the_attention_bar_after_the_summary_and_each_status_keeps_its_slot():
+    one = (block("a", "1", tree("t1", lemon("claude:a", "A", "blocked"))),)
+    both = (
+        block("a", "1", tree("t1", lemon("claude:a", "A", "blocked"))),
+        block(
+            "b",
+            "2",
+            tree("t2", lemon("claude:b", "B", "blocked"), lemon("claude:c", "C", "review")),
+        ),
+    )
+    few, many = _title_row(one, 220), _title_row(both, 220)
+    assert few.index("mid-turn") < few.index("?1")
+    assert (
+        few.index("?1") + 1 == many.index("?2") + 1
+    )  # blocked has the same slot with either count
+    assert "r1" in many and "r1" not in few
+
+
+def test_the_title_loses_the_keys_before_the_summary_and_the_bar():
+    blocks = (block("a", "1", tree("t1", lemon("claude:a", "A", "blocked"))),)
+    narrow = _title_row(blocks, 90)
+    assert "lemons on" in narrow and "?1" in narrow and "keys" not in narrow
+    assert "? keys · space closes" in _title_row(blocks, 220)
+    assert "?1" not in _title_row(blocks, 50) and "lemons on" in _title_row(blocks, 50)
+
+
+def test_a_status_chip_keeps_its_place_when_another_status_reaches_two_digits():
+    before = badges.fixed({"blocked": 1})
+    after = badges.fixed({"blocked": 1, "review": 13})
+    assert before.plain.index("?1") == after.plain.index("?1")
+
+
+def test_the_attention_bar_draws_for_lemons_without_a_badged_status_and_for_none():
+    assert badges.fixed({"": 3}).plain.endswith("○3")
+    assert badges.fixed({}).plain.strip() == ""
