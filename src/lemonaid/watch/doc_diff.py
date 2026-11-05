@@ -3,18 +3,13 @@
 import difflib
 import re
 
-_MAX_HUNKS = 5
-_MAX_EXCERPT = 500
+from . import clip
+
+_MAX_HUNKS = 20
+_MAX_EXCERPT = 8000
 _MAX_HEADING = 120
 _HEADING = re.compile(r" {0,3}#{1,6}(?:[ \t]+|$)")
 _FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
-
-
-def _shorten(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-
-    return f"{text[:limit]}... ({len(text) - limit} characters omitted)"
 
 
 def _headings(lines: list[str]) -> list[str]:
@@ -30,7 +25,7 @@ def _headings(lines: list[str]) -> list[str]:
             elif run[0] == fence[0] and len(run) >= len(fence) and not line[marker.end() :].strip():
                 fence = ""
         elif not fence and _HEADING.match(line):
-            heading = _shorten(line.strip(), _MAX_HEADING)
+            heading = clip.shorten(line.strip(), _MAX_HEADING)
         headings.append(heading)
     return headings
 
@@ -57,7 +52,7 @@ def describe(old: str, new: str) -> tuple[str, str]:
         hunks.append(f"{location} [{heading}]; {i2 - i1} removed line(s)")
         if j1 != j2:
             hunks.append(
-                _shorten("\n".join(f"+ {line}" for line in new_lines[j1:j2]), _MAX_EXCERPT)
+                clip.shorten("\n".join(f"+ {line}" for line in new_lines[j1:j2]), _MAX_EXCERPT)
             )
     if len(changes) > _MAX_HUNKS:
         hunks.append(f"{len(changes) - _MAX_HUNKS} more hunk(s) omitted")

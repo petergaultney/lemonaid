@@ -46,7 +46,7 @@ def test_a_new_thread_is_delivered_once(doc, state_dir):
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.NOTHING
     assert len(sent) == 1
     assert "1 new or changed unanswered thread(s)" in sent[0]
-    assert "Sam: is this true?" in sent[0]
+    assert "Sam:\nis this true?" in sent[0]
 
 
 def test_a_restarted_waiter_does_not_report_an_untouched_thread(doc, state_dir):
@@ -140,3 +140,30 @@ def test_a_doc_created_while_no_waiter_ran_is_reported(tmp_path, state_dir):
 
     assert doc_events.poll(w, _collect(sent)) is doc_events.Outcome.DELIVERED
     assert "was created" in sent[0]
+
+
+def test_a_large_body_edit_is_cut_to_the_batch_limit(doc, state_dir):
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    doc.write_text("\n".join(f"{i} " + "x" * 7990 for i in range(30)))
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent[0]) < 31000
+    assert "characters omitted; read the source" in sent[0]
+
+
+def test_a_comment_and_a_large_edit_each_keep_a_share_of_the_batch(doc, state_dir):
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=True, quiet=0)
+    big = "\n".join(f"{i} " + "x" * 7990 for i in range(30))
+    doc.write_text(big)
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+    doc.write_text(big + _ASK)
+    doc_events.poll(w, _collect(sent))
+
+    assert len(sent[0]) < 31000
+    assert "Sam:\nis this true?" in sent[0]
+    assert "body of" in sent[0]
