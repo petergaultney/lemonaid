@@ -41,7 +41,7 @@ def located(monkeypatch):
             raise Located.answer
         return Located.answer
 
-    monkeypatch.setattr(go.handlers, "locate_cmux", locate)
+    monkeypatch.setattr(go.front_end.cmux, "locate", locate)
     monkeypatch.setattr(
         go.cmux.navigation,
         "switch_to_surface",

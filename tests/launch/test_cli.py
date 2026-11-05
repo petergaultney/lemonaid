@@ -307,7 +307,7 @@ def wezterm(monkeypatch, tmp_path) -> list[list[str]]:
         calls.append(list(args))
         return subprocess.CompletedProcess(args, 0, out.get(args[0], ""), "")
 
-    monkeypatch.setattr(cli.wezterm.client, "run", run)
+    monkeypatch.setattr(cli.where.wezterm.client, "run", run)
     monkeypatch.setenv("WEZTERM_PANE", "3")
     monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.chdir(tmp_path)

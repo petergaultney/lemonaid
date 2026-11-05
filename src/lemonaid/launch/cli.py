@@ -2,11 +2,10 @@
 
 import argparse
 import json
-import os
 import sys
 
-from .. import wezterm
 from ..config import load_config
+from ..front_end import pick
 from . import options, where, window
 
 
@@ -16,15 +15,14 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     if args.target and (not colon or not index.isdigit()):
         return {}, f"Name a window by its index: :WINDOW or SESSION:WINDOW, not {args.target!r}"
 
-    own = window.own_session()
-    pane, socket = wezterm.spawn.own_pane()
-    in_cmux = bool(os.environ.get("CMUX_SURFACE_ID"))
-    if not args.target and not own and not pane and not in_cmux:
+    beside = None if args.target else pick.around_caller()
+    if not args.target and beside is None:
         return (
             {},
             "Not in tmux, WezTerm or cmux, so there is nowhere beside you: name SESSION:WINDOW",
         )
 
+    own = window.own_session() if args.target and not session else ""
     if args.target and not session and not own:
         return {}, f"{args.target} means a window of your own tmux session, and this isn't in tmux"
 
@@ -35,16 +33,10 @@ def _start(args: argparse.Namespace) -> tuple[dict, str]:
     except ValueError as error:
         return {}, str(error)
 
-    if args.target:
+    if beside is None:
         return where.in_window(args, config, session or own, index)
 
-    if own:
-        return where.in_new_window(args, config, own)
-
-    if pane:
-        return where.in_new_tab(args, config, pane, socket)
-
-    return where.in_new_cmux_workspace(args, config)
+    return beside.open_beside(args, config)
 
 
 def _cmd_start(args: argparse.Namespace) -> None:

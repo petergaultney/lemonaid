@@ -1,4 +1,5 @@
-"""Ratchet: code outside `lemonaid/tmux/` reaches tmux only from files listed in _ALLOWED.
+"""Ratchet: code outside `lemonaid/tmux/` and tmux's front end (`front_end/tmux.py`)
+reaches tmux only from files listed in _ALLOWED.
 
 Delete names from _ALLOWED as files stop importing `lemonaid.tmux` or spawning `tmux`;
 a file may not be added.
@@ -58,14 +59,16 @@ def _is_tmux_module(name: str) -> bool:
     return parts[0] == "tmux" or parts[:2] == ["lemonaid", "tmux"]
 
 
-def _couples_to_tmux(tree: ast.AST) -> bool:
+def _couples_to_tmux(tree: ast.AST, depth: int) -> bool:
+    """*depth* is how many packages below `lemonaid` the file is, so a relative import
+    of `tmux` counts only when it reaches `lemonaid.tmux`."""
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module and _is_tmux_module(node.module):
             return True
 
         if (
             isinstance(node, ast.ImportFrom)
-            and (node.module == "lemonaid" or (not node.module and node.level))
+            and (node.module == "lemonaid" or (not node.module and node.level == depth + 1))
             and any(alias.name == "tmux" for alias in node.names)
         ):
             return True
@@ -89,7 +92,8 @@ def _coupled_files() -> set[str]:
         path.relative_to(_SRC).as_posix()
         for path in _SRC.rglob("*.py")
         if path.relative_to(_SRC).parts[0] != "tmux"
-        and _couples_to_tmux(ast.parse(path.read_text()))
+        and path.relative_to(_SRC).as_posix() != "front_end/tmux.py"
+        and _couples_to_tmux(ast.parse(path.read_text()), len(path.relative_to(_SRC).parts) - 1)
     }
 
 
