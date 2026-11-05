@@ -40,3 +40,15 @@ def test_the_gist_names_the_last_author_and_flattens_newlines():
     assert relay_comments.thread_gist('{{author="Sam">>line one\nline two<<}}') == (
         "Sam: line one line two"
     )
+
+
+def test_thread_text_keeps_line_breaks_and_the_whole_comment():
+    body = "line one\nline two " + "x" * 3000
+
+    assert relay_comments.thread_text(f'{{{{author="Sam">>{body}<<}}}}') == f"Sam:\n{body}"
+
+
+def test_thread_text_is_cut_with_a_pointer_to_the_source():
+    text = relay_comments.thread_text('{{author="Sam">>' + "x" * 5000 + "<<}}")
+
+    assert "1000 characters omitted; read the source" in text

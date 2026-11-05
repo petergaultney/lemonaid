@@ -116,7 +116,7 @@ def test_an_own_reply_does_not_wake_and_anothers_new_comment_does(doc, state_dir
     sent = _poll_twice(w)
 
     assert len(sent) == 1
-    assert "Reviewer (SaltyEbb): and this?" in sent[0]
+    assert "Reviewer (SaltyEbb):\nand this?" in sent[0]
 
 
 def _cli_edit(state_dir, doc, writer: str, new_text: str) -> None:

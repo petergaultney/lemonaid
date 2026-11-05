@@ -5,7 +5,7 @@ import pathlib
 import typing as ty
 from collections import abc
 
-from . import cursors, delivery, merge_health, pr_activity, pr_comments, roles
+from . import clip, cursors, delivery, merge_health, pr_activity, pr_comments, roles
 
 
 def _load_reported(path: pathlib.Path) -> set[str] | None:
@@ -83,8 +83,11 @@ def events(
             [
                 roles.Event(
                     roles.COMMENTS,
-                    f"PR #{pr}: {len(new)} new comment(s){_on(snap.visibility)} - "
-                    + "; ".join(pr_comments.gist(c, trusted) for c in new[:3]),
+                    clip.shorten(
+                        f"PR #{pr}: {len(new)} new comment(s){_on(snap.visibility)}\n\n"
+                        + "\n\n".join(pr_comments.gist(c, trusted) for c in new),
+                        clip.BATCH_LIMIT,
+                    ),
                 )
             ]
             if new

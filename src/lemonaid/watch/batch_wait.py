@@ -10,7 +10,7 @@ from ..brief import identity
 from ..config import load_config
 from ..log import get_logger
 from ..messages import store
-from . import delivery, doc_version, notes, pr_roles, scouts, subscription_state, waits
+from . import clip, delivery, doc_version, notes, pr_roles, scouts, subscription_state, waits
 
 _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 
@@ -176,10 +176,12 @@ def wait(
                     )
                     deliver(
                         "\n\n".join(
-                            [
-                                *(f"[{p.source}] {p.message}" for p in pending),
-                                *(f"[mailbox] {body.rstrip()}" for _, body in messages),
-                            ]
+                            clip.share(
+                                [
+                                    *(f"[{p.source}] {p.message}" for p in pending),
+                                    *(f"[mailbox] {body.rstrip()}" for _, body in messages),
+                                ]
+                            )
                         )
                     )
                     for message, _ in messages:

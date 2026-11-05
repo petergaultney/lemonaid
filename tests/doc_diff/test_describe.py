@@ -40,16 +40,16 @@ def test_deletion_only_hunks(old, new, location):
 
 
 def test_hunk_cap_keeps_totals_and_counts_omitted_hunks():
-    old = "\n".join(f"old {i}\nkeep {i}" for i in range(8))
+    old = "\n".join(f"old {i}\nkeep {i}" for i in range(25))
     new = old.replace("old", "new")
 
     summary, hunks = doc_diff.describe(old, new)
 
-    assert summary == "+8/-8 lines"
-    assert hunks.count("removed line(s)") == 5
-    assert "+ new 4" in hunks
-    assert "+ new 5" not in hunks
-    assert hunks.endswith("3 more hunk(s) omitted")
+    assert summary == "+25/-25 lines"
+    assert hunks.count("removed line(s)") == 20
+    assert "+ new 19" in hunks
+    assert "+ new 20" not in hunks
+    assert hunks.endswith("5 more hunk(s) omitted")
 
 
 def test_character_caps_bound_excerpt_and_heading():
@@ -57,8 +57,8 @@ def test_character_caps_bound_excerpt_and_heading():
 
     assert summary == "+2/-0 lines"
     assert "882 characters omitted" in hunks  # heading
-    assert "10507 characters omitted" in hunks  # rendered added text
-    assert len(hunks) < 800
+    assert "3007 characters omitted" in hunks  # rendered added text
+    assert len(hunks) < 8400
 
 
 @pytest.mark.parametrize("level", range(1, 7))

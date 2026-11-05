@@ -9,6 +9,8 @@ optional here too; a block's author is `author`, falling back to `authorId`.
 import re
 from collections import abc
 
+from . import clip
+
 _ATTRS = r'(?:\s*[A-Za-z_][\w-]*="[^"]*")*'
 _BLOCK = re.compile(r"\{\{(" + _ATTRS + r")\s*>>(.*?)<<\}\}", re.S)
 _THREAD = re.compile(r"(?:\{==.*?==\})?(?:\{\{" + _ATTRS + r"\s*>>.*?<<\}\})+", re.S)
@@ -36,6 +38,12 @@ def last_authors(text: str) -> list[str]:
 def thread_gist(thread: str) -> str:
     author, text = _last_block(thread)
     return f"{author}: {text.strip().replace(chr(10), ' ')[:100]}"
+
+
+def thread_text(thread: str) -> str:
+    """The thread's last comment in full, line breaks kept, under its author."""
+    author, text = _last_block(thread)
+    return f"{author}:\n{clip.shorten(text.strip(), clip.COMMENT_LIMIT)}"
 
 
 def body_without_threads(text: str) -> str:

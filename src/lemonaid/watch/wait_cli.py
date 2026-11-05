@@ -82,7 +82,7 @@ def run(args: argparse.Namespace) -> int:
         delivery.to_codex(
             thread,
             "lemonaid watch",
-            "Read the changed sources and handle the entire batch, then rearm `lemonaid watch --self --codex-thread`.",
+            "Handle the entire batch (comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event), then rearm `lemonaid watch --self --codex-thread`.",
         )
         if thread
         else delivery.to_stdout,

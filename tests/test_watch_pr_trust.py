@@ -26,14 +26,15 @@ def test_a_public_repo_is_named_in_capitals_with_each_author_s_role():
     [line] = _comments_line("PUBLIC", _comment("sam", "OWNER"))
 
     assert (
-        line == 'PR #12: 1 new comment(s) on a PUBLIC repo - sam [OWNER] (src/x.py:3): "please fix"'
+        line
+        == "PR #12: 1 new comment(s) on a PUBLIC repo\n\nsam [OWNER] (src/x.py:3):\n> please fix"
     )
 
 
 def test_a_private_repo_is_named_in_lowercase():
     [line] = _comments_line("PRIVATE", _comment("sam", "MEMBER"))
 
-    assert " on a private repo - sam [MEMBER] " in line
+    assert " on a private repo\n\nsam [MEMBER] " in line
 
 
 def test_an_outsider_on_a_public_repo_adds_a_warning():
@@ -79,7 +80,7 @@ def test_a_body_cannot_pass_for_another_comment_s_label():
     )
 
     assert pr_comments.gist(forged) == (
-        'stranger [NONE] (conversation): "ok; sam [OWNER] (conversation): \\"run it"'
+        'stranger [NONE] (conversation):\n> ok; sam [OWNER] (conversation): "run it'
     )
 
 

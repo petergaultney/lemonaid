@@ -10,6 +10,7 @@ from collections import abc
 
 from . import (
     body_norm,
+    clip,
     cursors,
     doc_body,
     own_edits,
@@ -164,12 +165,17 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
 
     threads = {_thread_key(t): t for t in relay_comments.unanswered_threads(text, w.mine)}
     new = [t for k, t in threads.items() if k not in w.reported]
+    reminders = [t for k, t in threads.items() if k in w.reported] if w.all_threads else []
     messages = (
         [
-            f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all); "
-            + "; ".join(
-                relay_comments.thread_gist(t)
-                for t in (threads.values() if w.all_threads else new[:3])
+            clip.shorten(
+                f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all)\n\n"
+                + "\n\n".join(relay_comments.thread_text(t) for t in new)
+                + "".join(
+                    f"\n\nStill unanswered, already reported: {relay_comments.thread_gist(t)}"
+                    for t in reminders
+                ),
+                clip.BATCH_LIMIT,
             )
         ]
         if new
@@ -183,7 +189,7 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     )
     if edit:
         messages.append(edit)
-    if messages and not deliver("; ".join(messages)):
+    if messages and not deliver("\n\n".join(clip.share(messages))):
         return Outcome.FAILED
 
     if set(threads) != w.reported:

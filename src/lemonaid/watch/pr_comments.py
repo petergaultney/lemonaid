@@ -1,10 +1,9 @@
 """Review comments eligible to wake a PR watcher."""
 
-import json
 import typing as ty
 from collections import abc
 
-from . import lemon_signature
+from . import clip, lemon_signature
 
 
 class Comment(ty.NamedTuple):
@@ -74,6 +73,8 @@ def gist(c: Comment, trusted: abc.Set[str] = frozenset()) -> str:
             *(["trusted"] if is_trusted(c, trusted) else []),
         ]
     )
-    # Quoted, so a body can't read as another comment's author and label.
-    body = json.dumps(" ".join(c.body.split())[:100], ensure_ascii=False)
-    return f"{c.author}{f' [{label}]' if label else ''} ({c.where}): {body}"
+    # Every body line is quoted, so a body can't read as another comment's author and label.
+    body = "\n".join(
+        f"> {line}" for line in clip.shorten(c.body.strip(), clip.COMMENT_LIMIT).splitlines()
+    )
+    return f"{c.author}{f' [{label}]' if label else ''} ({c.where}):\n{body}"

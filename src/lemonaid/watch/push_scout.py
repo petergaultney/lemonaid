@@ -22,7 +22,7 @@ _log = get_logger("watch.push_scout")
 
 FLAG = "--push"
 _INSTRUCTION = (
-    "Read the changed sources and handle the entire batch. lemonaid is watching for you "
+    "Handle the entire batch. Comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event. lemonaid is watching for you "
     "and pushes the next batch into this session."
 )
 

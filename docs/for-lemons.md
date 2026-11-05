@@ -1341,14 +1341,16 @@ PATCH
 Edits by anyone else, another lemon's included, still wake you. Details: [watch.md](watch.md#ignoring-the-lemons-own-edits).
 
 With body edits enabled (`All edits` in a brief's Docs table), the wake keeps its
-`+N/-M lines` summary first, then lists up to five changed hunks. Each gives the
+`+N/-M lines` summary first, then lists up to twenty changed hunks. Each gives the
 new-body line range, nearest Markdown heading (levels 1-6), removed-line count,
 and added text. Deletions give the position `after line N` (0 means the start).
 Before the first heading it says `before any heading`; headings inside fenced
 code are ignored. Heading excerpts stop at 120 characters and added-text excerpts
-at 500 characters per hunk, with omitted-character counts. A final count reports
+at 8000 characters per hunk, with omitted-character counts. A final count reports
 any hunks omitted. Line numbers refer to the body with Relay comment markup removed.
-Comments-only watches keep their existing thread summaries.
+A comment wake shows each new or changed thread's last comment in full (cut at 4000
+characters), one block per thread; a whole batch is cut at 30000 characters. Each cut
+names what was omitted so the lemon can read the source.
 `watch doc` supports text documents only; binary files and byte ranges are not
 supported. Use `watch file` for binary-file change notifications without ranges.
 

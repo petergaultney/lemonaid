@@ -658,7 +658,13 @@ A batch can look like this:
 ```text
 [pr: petergaultney/lemonaid, 274] PR #274 head moved aaaaaaaa -> bbbbbbbb; PR #274 CI passed at bbbbbbbb
 
-[doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all); Sam: clarify the defaults; Reviewer: check the migration
+[doc: /path/to/design.md] 2 new or changed unanswered thread(s) in /path/to/design.md (2 unanswered in all)
+
+Sam:
+clarify the defaults
+
+Reviewer:
+check the migration
 
 [mailbox] From: another-lemon.MovieLay
 Sent: 2026-10-14T13:00:00+00:00
