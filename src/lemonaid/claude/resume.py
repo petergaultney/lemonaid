@@ -4,11 +4,36 @@ import os
 import sys
 from pathlib import Path
 
+from ..inbox import db
+from ..inbox.channel import UnidentifiedSession, channel_id
 from ..resume_directory import surviving_directory
 from .projects import find_session_project
 
 
+def _recorded_directory(session_id: str) -> str:
+    """The directory lemonaid's inbox row records for the session, if it still exists.
+
+    `lemon move` changes it before resuming the session somewhere else, where
+    Claude's own history has not seen it yet.
+    """
+    try:
+        channel = channel_id("claude", session_id)
+    except UnidentifiedSession:
+        return ""
+
+    with db.connect() as conn:
+        row = db.get_by_channel(conn, channel, unread_only=False)
+    if row is None or row.metadata.get("session_id") != session_id:
+        return ""
+
+    cwd = str(row.metadata.get("cwd") or "")
+    return cwd if cwd and Path(cwd).is_dir() else ""
+
+
 def _resume_context(session_id: str) -> tuple[str, str]:
+    if recorded := _recorded_directory(session_id):
+        return recorded, session_id
+
     project = find_session_project(session_id)
     if not project:
         print(f"Session {session_id} not found in Claude history", file=sys.stderr)

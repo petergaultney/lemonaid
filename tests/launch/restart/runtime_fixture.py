@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
   FILE *ready = fopen(getenv("TEST_STARTED"), "a");
   fprintf(ready, "%d\n", getpid()); fclose(ready);
   for (int i=1; i<argc; ++i) {
-    if (strstr(argv[i], "You were just restarted")) {
+    if (strstr(argv[i], "You were just ")) {
       FILE *prompt = fopen(getenv("TEST_PROMPT"), "w");
       fprintf(prompt, "%s", argv[i]); fclose(prompt);
     }

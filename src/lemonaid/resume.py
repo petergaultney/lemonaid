@@ -57,13 +57,16 @@ def build_resume_command(
     if not argv:
         return None
 
+    backend = _backend_name(channel)
     if not Path(cwd).is_dir():
-        backend = _backend_name(channel)
         if backend not in {"claude", "codex"}:
             return None
 
         cwd = surviving_directory(cwd)
-        if backend == "codex":
-            cwd, argv = codex_directory(cwd, argv)
+
+    # Codex asks which directory to use when the session last worked somewhere
+    # else, as a moved lemon did, unless the command names one.
+    if backend == "codex":
+        cwd, argv = codex_directory(cwd, argv)
 
     return (cwd, argv)

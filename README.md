@@ -80,6 +80,7 @@ The TUI doesn't need to be running for notifications to arrive (hooks write dire
 ## Features
 
 - **[Restart a lemon](docs/lemon-restart.md)**: `lemonaid lemon restart <lemon>` resumes one live Claude or dedicated Codex conversation in its own tmux pane after an exact-PID stop, with `--dry-run` and saved operation status.
+- **[Move a lemon](docs/lemon-move.md)**: `lemonaid lemon move <lemon> <place>` resumes one live Claude or dedicated Codex conversation in another place's directory and workspace, keeping its Lemon-ID and brief, and closes the pane it left.
 
 - **[Jump from a link](docs/go.md)**: `lemonaid go <Lemon-ID | channel>` switches to a lemon's tmux pane or cmux surface, and `--link` prints a clickable link. macOS URL-handler setup is documented.
 

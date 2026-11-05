@@ -23,6 +23,7 @@ Don't trust `pane_current_command`. Claude Code titles itself with its version, 
 - **A lemon with missing waiters:** `lemonaid tell <lemon> "rearm the waiters in your brief"`. A Claude lemon reads it only if its mailbox waiter is armed; otherwise resume it.
 - **A dead lemon:** `lemonaid lemon resume <lemon>`.
 - **A lemon whose place was tossed:** `lemonaid lemon resume <lemon> --recreate` revives its brief and recreates its directory and tmux session first.
+- **A lemon stopped by a failed move:** `lemonaid lemon resume <lemon>` starts it in the destination; `lemonaid lemon move --status <operation-id>` says whether it was stopped.
 - **A dead Claude, by hand:** `claude --resume <id> "<prompt>"` with a prompt telling it to rearm its waiters. A session that ended in the middle of a tool call can refuse to resume without one.
 - **A dead Codex, by hand:** `codex --no-daemon resume <id>`.
 - **A dead lemon with uncommitted or unpushed work:** decide yourself whether to resume it; a script shouldn't.
