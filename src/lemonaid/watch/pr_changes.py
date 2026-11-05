@@ -3,6 +3,12 @@
 A full snapshot (pr_activity) asks for up to 100 threads with 50 comments each, which
 costs a point of quota per PR. This asks for scalars, counts, each check's status and each
 thread's resolution, so `_BATCH` PRs cost about one point together (31 PRs measured 1).
+GitHub gives up on a query after 10 seconds, and 50 PRs took 11, so a batch it refuses is
+read again in halves.
+
+While any check runs, the checks count only as running: watchers report CI once nothing
+runs (merge_health), so each check that finishes before then would cost a full read for
+nothing.
 """
 
 import itertools
@@ -20,7 +26,29 @@ _FIELDS = (  # a reply in a review thread is a review of its own, so it moves th
     " } } } } } comments { totalCount } reviews { totalCount }"
     " reviewThreads(last: 100) { totalCount nodes { isResolved } }"
 )
-_BATCH = 50
+_BATCH = 20  # measured 4 seconds
+_SMALLEST = 5
+
+
+def _running(context: dict) -> bool:
+    return context.get("status", "COMPLETED") != "COMPLETED" or context.get("state") in (
+        "PENDING",
+        "EXPECTED",
+    )
+
+
+def _settled(node: dict) -> dict:
+    """The PR as its fingerprint should see it, with running checks reduced to their count."""
+    commits = (node.get("commits") or {}).get("nodes") or []
+    rollup = commits[0]["commit"]["statusCheckRollup"] if commits else None
+    if not rollup or not (
+        rollup.get("state") in ("PENDING", "EXPECTED")
+        or any(_running(c) for c in rollup["contexts"]["nodes"] if c)
+    ):
+        return node
+
+    running = {"state": "PENDING", "contexts": {"totalCount": rollup["contexts"]["totalCount"]}}
+    return {**node, "commits": {"nodes": [{"commit": {"statusCheckRollup": running}}]}}
 
 
 def _query(repos: list[tuple[str, list[int]]]) -> str:
@@ -39,9 +67,14 @@ def _batch(keys: list[Key]) -> dict[Key, str]:
         (repo, [n for _, n in group])
         for repo, group in itertools.groupby(sorted(keys), key=lambda key: key[0])
     ]
-    data = github_api.graphql([], _query(repos), partial=True) or {}
+    data = github_api.graphql([], _query(repos), partial=True)
+    if data is None and len(keys) > _SMALLEST and not github_api.paused():
+        half = len(keys) // 2
+        return {**_batch(keys[:half]), **_batch(keys[half:])}
+
+    data = data or {}
     return {
-        (repo, n): json.dumps(node, sort_keys=True)
+        (repo, n): json.dumps(_settled(node), sort_keys=True)
         for i, (repo, numbers) in enumerate(repos)
         for n in numbers
         if (node := (data.get(f"r{i}") or {}).get(f"p{n}"))

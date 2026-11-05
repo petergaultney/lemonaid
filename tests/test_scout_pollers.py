@@ -4,9 +4,12 @@ import time
 
 from lemonaid import pr_states
 from lemonaid.watch import (
+    cursors,
     github_api,
     github_failures,
     pr_activity,
+    pr_events,
+    pr_poller,
     scout_pollers,
     subscriptions,
 )
@@ -323,3 +326,35 @@ def test_a_command_poller_reports_an_exit_once(tmp_path):
     poll()
     assert done.returncode == 0
     assert len(sent) == 1 and "process 999999 is not running" in sent[0]
+
+
+def test_a_pr_the_live_poller_cannot_read_reaches_the_outage_path_and_recovers(
+    tmp_path, monkeypatch
+):
+    repository = {"pullRequest": {"state": "OPEN"}}
+    reads, failures, recoveries = [], [], []
+    monkeypatch.setattr(pr_activity, "read", lambda *key: reads.append(key))
+    monkeypatch.setattr(github_failures, "failed", lambda *args: failures.append(args) or 0)
+    monkeypatch.setattr(github_failures, "recovered", lambda *args: recoveries.append(args))
+    snap = pr_activity.Snapshot("a" * 40, "OPEN", False, "", [], "main", "MERGEABLE", [])
+    monkeypatch.setattr(
+        pr_activity,
+        "fetch",
+        lambda repo, number, *args, source, **kw: source(repo, number) and snap,
+    )
+    spec = subscriptions.Subscription("pr", ("owner/repo", "12"), comments=True, ci=True)
+    poll = scout_pollers.open_poller(spec, tmp_path / "cursors", "", lambda message: True, ())
+    pr_poller._beat()
+    path = pr_poller._snapshot_path("owner/repo", 12)
+    cursors.write_json(path, {"fingerprint": "", "fetched": 0, "repository": repository})
+    old = time.time() - pr_poller._BEHIND - 1
+    os.utime(path, (old, old))
+
+    poll()
+    assert len(failures) == 1 and not recoveries
+
+    os.utime(path)
+    monkeypatch.setattr(pr_events, "poll", lambda *args, **kwargs: None)
+    poll()
+    assert len(recoveries) == 1
+    assert reads == []

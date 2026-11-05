@@ -52,3 +52,40 @@ def test_a_new_running_check_changes_the_fingerprint_though_the_rollup_stays_fai
     before, after = (pr_changes.fingerprints([("a/x", 1)]) for _ in range(2))
 
     assert before[("a/x", 1)] != after[("a/x", 1)]
+
+
+def test_a_check_finishing_while_others_run_leaves_the_fingerprint_alone(monkeypatch):
+    def pr(rollup_state, checks):
+        contexts = {"totalCount": len(checks), "nodes": checks}
+        rollup = {"state": rollup_state, "contexts": contexts}
+        return {"r0": {"p1": {"commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}}}
+
+    running = {"status": "IN_PROGRESS", "conclusion": None, "completedAt": None}
+    passed = {"status": "COMPLETED", "conclusion": "SUCCESS", "completedAt": "2026-11-05T22:00:00Z"}
+    replies = [
+        pr("PENDING", [running, running]),
+        pr("PENDING", [passed, running]),
+        pr("SUCCESS", [passed, passed]),
+    ]
+    monkeypatch.setattr(github_api, "graphql", lambda *args, **kwargs: replies.pop(0))
+
+    first, second, done = (pr_changes.fingerprints([("a/x", 1)])[("a/x", 1)] for _ in range(3))
+
+    assert first == second != done
+
+
+def test_a_batch_github_refuses_is_read_again_in_halves(monkeypatch):
+    sizes = []
+
+    def graphql(fields, query, *, partial=False):
+        sizes.append(query.count("pullRequest("))
+        if sizes[-1] > pr_changes._BATCH // 2:
+            return None
+        return {"r0": {f"p{n}": {"state": "OPEN"} for n in range(pr_changes._BATCH)}}
+
+    monkeypatch.setattr(github_api, "graphql", graphql)
+
+    found = pr_changes.fingerprints(("o/r", n) for n in range(pr_changes._BATCH))
+
+    assert len(found) == pr_changes._BATCH
+    assert sizes == [pr_changes._BATCH, pr_changes._BATCH // 2, pr_changes._BATCH // 2]
