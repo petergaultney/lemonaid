@@ -9,7 +9,7 @@ import sys
 from collections import abc
 from urllib.parse import quote, unquote, urlsplit
 
-from . import cmux, handlers
+from . import cmux, front_end
 from .brief import lemon, store
 from .inbox import db
 from .log import get_logger
@@ -121,7 +121,7 @@ def jump_tmux(found: db.Notification, client: str) -> None:
 def _jump_cmux(found: db.Notification) -> None:
     """Focus the surface the inbox would switch to, but never resume a lemon that has none."""
     try:
-        surface = handlers.locate_cmux(found.metadata)
+        surface = front_end.cmux.locate(found.metadata)
     except cmux.navigation.CmuxUnavailable as error:
         raise LookupError("cmux did not answer; no jump made") from error
 

@@ -7,7 +7,7 @@ that already has two is the opposite of resolving it.
 
 import pytest
 
-from lemonaid import handlers
+from lemonaid import front_end, handlers
 from lemonaid.config import Config
 from lemonaid.tmux import navigation
 
@@ -36,7 +36,7 @@ def _resolution(monkeypatch, *, tty=(None, None), cwd=(None, None)) -> list[str]
 def test_an_ambiguous_cwd_does_not_recreate(monkeypatch):
     calls = _resolution(monkeypatch, cwd=(navigation.AMBIGUOUS, None))
 
-    assert handlers._handle_tmux({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is False
+    assert front_end.tmux.show({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is False
     assert "recreate" not in calls
     assert not any(c.startswith("switch") for c in calls)
 
@@ -45,7 +45,7 @@ def test_a_missing_session_still_recreates(monkeypatch):
     """The behavior an ambiguous match must not be confused with."""
     calls = _resolution(monkeypatch, cwd=(None, None))
 
-    assert handlers._handle_tmux({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is True
+    assert front_end.tmux.show({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is True
     assert "recreate" in calls
 
 
@@ -53,7 +53,7 @@ def test_a_resolved_tty_never_consults_cwd(monkeypatch):
     """The tty is unambiguous, so the directory's ambiguity cannot matter."""
     calls = _resolution(monkeypatch, tty=("feat", "%2"), cwd=(navigation.AMBIGUOUS, None))
 
-    assert handlers._handle_tmux({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is True
+    assert front_end.tmux.show({"cwd": "/work/feat", "tty": "/dev/ttys1"}, Config()) is True
     assert calls == ["tty", "switch:feat"]
 
 
@@ -73,7 +73,7 @@ def test_identityless_codex_never_selects_cwd_or_inspects_processes(monkeypatch,
 
     monkeypatch.setattr(subprocess, "run", tmux_only)
     monkeypatch.setattr(
-        handlers.watcher,
+        front_end.tmux.watcher,
         "process_on_tty",
         lambda *args: pytest.fail("click must not inspect processes"),
     )
@@ -85,7 +85,7 @@ def test_identityless_codex_never_selects_cwd_or_inspects_processes(monkeypatch,
     monkeypatch.setattr(
         handlers.tmux.recreate, "recreate", lambda *args: pytest.fail("must refuse")
     )
-    assert not handlers._handle_tmux({"channel": "codex:author", "cwd": "/work/feat"}, Config())
+    assert not front_end.tmux.show({"channel": "codex:author", "cwd": "/work/feat"}, Config())
 
 
 def test_claude_cwd_fallback_still_excludes_same_directory_shell(monkeypatch):
@@ -103,7 +103,7 @@ def test_claude_cwd_fallback_still_excludes_same_directory_shell(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        handlers.watcher,
+        front_end.tmux.watcher,
         "process_on_tty",
         lambda tty, harness: tty == "/dev/agent" and harness == "claude",
     )
@@ -112,5 +112,5 @@ def test_claude_cwd_fallback_still_excludes_same_directory_shell(monkeypatch):
         "switch_to_pane",
         lambda session, pane: switched.append((session, pane)) or True,
     )
-    assert handlers._handle_tmux({"channel": "claude:author", "cwd": "/work/feat"}, Config())
+    assert front_end.tmux.show({"channel": "claude:author", "cwd": "/work/feat"}, Config())
     assert switched == [("shared", "%1")]

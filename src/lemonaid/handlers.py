@@ -1,17 +1,15 @@
 """Notification handlers for lemonaid."""
 
-import json
 import sqlite3
 import subprocess
 from collections import abc
 from typing import Any, Literal
 
-from . import cmux, tmux, wezterm
+from . import cmux, front_end, tmux
 from .codex import channels as codex_channels
 from .codex import processes
 from .config import Config, load_config
 from .inbox import db
-from .lemon_watchers import watcher
 from .log import get_logger
 
 _log = get_logger("handlers")
@@ -34,27 +32,10 @@ def check_pane_exists_by_tty(
     question is put to the caller's own server, where a pane living on a
     different one is absent for a reason that has nothing to do with it.
 
-    *not_after* rejects a pane in a tmux session younger than the record: tty
-    names are reused, so after a reboot a recorded tty usually names some other
-    pane entirely.
+    *not_after* rejects a pane younger than the record, since tty names are reused.
     """
-    if switch_source == "tmux":
-        try:
-            session, pane_id = tmux.navigation.get_pane_for_tty(tty, socket, not_after)
-        except tmux.navigation.TmuxUnavailable:
-            return None
-
-        return session is not None and pane_id is not None
-
-    elif switch_source == "wezterm":
-        workspace, pane_id = _resolve_pane_from_tty(tty)
-        return workspace is not None and pane_id is not None
-
-    elif switch_source in PER_SESSION_SOURCES:
-        # Its tty alone cannot say; ask `where_sessions_are` instead.
-        return None
-
-    return False
+    found = front_end.terminals.named(switch_source)
+    return found.exists(tty, socket, not_after) if found else False
 
 
 def handle_notification(
@@ -69,10 +50,7 @@ def handle_notification(
     An `open_uri` in the metadata wins: the row names a document rather than a
     session, so it is handed to `open` instead of a switch-handler.
 
-    Otherwise the switch_source determines which built-in handler to use:
-    - "tmux" -> use tmux switch-handler
-    - "wezterm" -> use wezterm switch-handler
-    - "cmux" -> use cmux switch-handler
+    Otherwise the front end the switch_source names shows it.
 
     Returns True if handled successfully, False otherwise.
     """
@@ -87,14 +65,8 @@ def handle_notification(
         _log.info("opening %s", uri)
         return subprocess.run(["open", uri], check=False).returncode == 0
 
-    if switch_source == "tmux":
-        return _handle_tmux(metadata, config, on_tmux_resume)
-    elif switch_source == "wezterm":
-        return _handle_wezterm(metadata, config)
-    elif switch_source == "cmux":
-        return _handle_cmux(metadata, config)
-
-    return False
+    found = front_end.terminals.named(switch_source)
+    return found.show(metadata, config, on_tmux_resume) if found else False
 
 
 def show_tmux_keeping_focus(
@@ -104,43 +76,6 @@ def show_tmux_keeping_focus(
     return tmux.keep_focus.show(
         metadata, lambda: handle_notification(metadata, config, switch_source=switch_source)
     )
-
-
-def _handle_cmux(metadata: dict[str, Any] | None, config: Config) -> bool:
-    """Handle notification by focusing its cmux surface, or resuming a session that has none."""
-    if metadata is None:
-        return False
-
-    try:
-        target = locate_cmux(metadata)
-    except cmux.navigation.CmuxUnavailable:
-        return False
-
-    channel = metadata.get("channel")
-    if target == cmux.navigation.UNKNOWN:
-        # Either answer could be wrong: a switch may land on a stranger, and a
-        # recreate may start a second copy of a live session.
-        _log.warning("not switching to %s: could not tell which surface runs it", channel)
-        return False
-
-    if target == cmux.navigation.AMBIGUOUS:
-        # Recreating would add a third copy of a session that already has two.
-        _log.warning("not switching to %s: several surfaces run it", channel)
-        return False
-
-    if target is None:
-        return cmux.recreate.recreate(metadata, config)
-
-    return cmux.navigation.switch_to_surface(target)
-
-
-def locate_cmux(metadata: dict[str, Any]) -> cmux.navigation.Surface | str | None:
-    """The cmux surface the session in *metadata* runs in; see `cmux.navigation.locate`."""
-    return cmux.navigation.locate(metadata, _cmux_runs_harness)
-
-
-def _cmux_runs_harness(metadata: dict[str, Any], tty: str) -> bool | None:
-    return watcher.process_on_tty(tty, watcher.harness_process(metadata.get("channel", "")))
 
 
 def where_sessions_are(
@@ -157,68 +92,7 @@ def where_sessions_are(
     if not in_cmux:
         return {}
 
-    return cmux.navigation.where(in_cmux, _cmux_runs_harness, reuse_sweep=not fresh)
-
-
-def _handle_wezterm(metadata: dict[str, Any] | None, config: Config) -> bool:
-    """Handle notification by switching to WezTerm workspace/pane."""
-    if metadata is None:
-        return False
-
-    workspace = None
-    pane_id = None
-
-    if config.wezterm.resolve_pane == "metadata":
-        # Use workspace/pane_id directly from metadata
-        workspace = metadata.get("workspace")
-        pane_id = metadata.get("pane_id")
-    elif config.wezterm.resolve_pane == "tty":
-        # Resolve from TTY by querying wezterm cli list
-        tty = metadata.get("tty")
-        if tty:
-            workspace, pane_id = _resolve_pane_from_tty(tty)
-
-    if workspace is None or pane_id is None:
-        # Fallback to metadata if TTY resolution failed
-        workspace = metadata.get("workspace")
-        pane_id = metadata.get("pane_id")
-
-    if workspace is None or pane_id is None:
-        return False
-
-    return wezterm.navigation.switch_to_pane(workspace, pane_id)
-
-
-def _resolve_pane_from_tty(tty: str) -> tuple[str | None, int | None]:
-    """Resolve workspace and pane_id from TTY name."""
-    try:
-        result = subprocess.run(
-            ["wezterm", "cli", "list", "--format", "json"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        panes = json.loads(result.stdout)
-
-        for pane in panes:
-            if pane.get("tty_name") == tty:
-                return pane.get("workspace"), pane.get("pane_id")
-
-    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
-        pass
-
-    return None, None
-
-
-class _Unknown(Exception):
-    """`ps` could not say what runs on a pane's tty."""
-
-
-def _runs(tty: str, harness: str) -> bool:
-    found = watcher.process_on_tty(tty, harness)
-    if found is None:
-        raise _Unknown(tty)
-    return found
+    return cmux.navigation.where(in_cmux, front_end.cmux.runs_harness, reuse_sweep=not fresh)
 
 
 def codex_tmux_locations() -> dict[str, list[dict[str, Any]]] | None:
@@ -257,67 +131,3 @@ def repair_tmux_locations(
                 matches[0]["tmux_pane_identity"][0],
             )
     return repaired
-
-
-def _handle_tmux(
-    metadata: dict[str, Any] | None,
-    config: Config,
-    on_resume: abc.Callable[[str], None] | None = None,
-) -> bool:
-    """Handle notification by switching to its pane, or recreating a dead session."""
-    if metadata is None:
-        return False
-
-    try:
-        session, pane_id = tmux.recorded_pane.locate(metadata)
-    except tmux.navigation.TmuxUnavailable as error:
-        _log.warning("not switching to %s: %s", metadata.get("channel"), error)
-        return False
-
-    # Directory lookup is only for rows without a recorded identity; it cannot
-    # override evidence that a known pane is gone.
-    if (session is None or pane_id is None) and not tmux.recorded_pane.has_identity(metadata):
-        channel = metadata.get("channel", "")
-        if channel.startswith("codex:"):
-            _log.warning("not switching to %s: no recorded pane identifies its terminal", channel)
-            return False
-        cwd = metadata.get("cwd")
-        if cwd:
-            harness = watcher.harness_process(channel)
-            try:
-                session, pane_id = tmux.navigation.get_pane_for_cwd(
-                    cwd, lambda pane_tty: _runs(pane_tty, harness)
-                )
-            except _Unknown:
-                _log.warning("not switching to %s: could not identify its harness", cwd)
-                return False
-
-    if session == tmux.navigation.AMBIGUOUS:
-        # One of the matches is the right session, so recreating would add a
-        # duplicate to a directory that already has too many.
-        _log.warning(
-            "not switching to %s: its directory belongs to several sessions",
-            metadata.get("cwd"),
-        )
-        return False
-
-    if session is None or pane_id is None:
-        if on_resume is None:
-            return tmux.recreate.recreate(metadata, config)
-
-        tty = tmux.recreate.resume(metadata, config)
-        if tty is None:
-            return False
-
-        on_resume(tty)
-        return True
-
-    switched = tmux.navigation.switch_to_pane(session, pane_id)
-    _log.info(
-        "tmux jump channel=%s session=%s pane=%s switched=%s",
-        metadata.get("channel"),
-        session,
-        pane_id,
-        switched,
-    )
-    return switched

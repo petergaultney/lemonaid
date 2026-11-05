@@ -109,7 +109,7 @@ def test_cursor_marks_relatives_without_refresh_or_rebuild(size, monkeypatch):
 @pytest.mark.parametrize("size", [(120, 40), (44, 60)])
 def test_highlight_tracks_relatives_across_the_two_inbox_tables(size, monkeypatch):
     monkeypatch.setattr("lemonaid.inbox.tui.app.detect_terminal_switch_source", lambda: "tmux")
-    monkeypatch.setattr("lemonaid.handlers._resolve_pane_from_tty", lambda tty: (None, None))
+    monkeypatch.setattr("lemonaid.front_end.wezterm._pane_for_tty", lambda tty: (None, None))
     with db.connect() as conn:
         parent = session(conn, "parent", "blocked")
         child = session(conn, "child", "alert")

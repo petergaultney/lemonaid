@@ -11,9 +11,10 @@ from pathlib import Path
 
 from .. import front_end
 from ..config import Config
+from ..front_end import pick
 from ..inbox import db
 from ..launch.restart import native, state
-from . import autoresume_cmux, autoresume_tmux, autoresume_wezterm, resume_log, wake
+from . import resume_log, wake
 
 STARTED = "started"
 STARTING = "starting"  # a start in the last minute may still be coming up
@@ -29,14 +30,9 @@ class Outcome(ty.NamedTuple):
 def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> str:
     """Resume (*start*) or prompt *row*'s lemon on *text*. Returns why not, or ""."""
     terminal = front_end.location.of(row.metadata, row.switch_source).front_end
-    if terminal == "tmux":
-        return (autoresume_tmux.start if start else autoresume_tmux.prompt)(row, config, text)
-
-    if terminal == "wezterm":
-        return (autoresume_wezterm.start if start else autoresume_wezterm.prompt)(row, config, text)
-
-    if terminal == "cmux" and start:
-        return autoresume_cmux.start(row, config, text)
+    found = pick.named(terminal)
+    if found and (revive := found.start if start else found.prompt):
+        return revive(row, config, text)
 
     by_hand = wake.resume_line(row, config)
     return (
