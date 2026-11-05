@@ -337,7 +337,7 @@ In place of the fold line at the bottom, one line at the top of the list counts 
 
 Where the group bars pack their badges instead, as in a narrow sidebar, the line packs too: the statuses that keep a row, a divider, then the ones that fold, and a shorter hint.
 
-`w` opens the fold as usual. A group with nothing that keeps a row keeps its header and counts. Clicking a status badge on a group's header opens the [grove](grove.md) zoomed into that group's block, to see its folded lemons. Typing a lemon's grove key still switches to it while its row is folded. The grove is unchanged.
+`w` opens the fold as usual. A group with nothing that keeps a row keeps its header and counts. Clicking a status badge on a group's header opens the [grove](grove.md) zoomed into that group's block, to see its folded lemons. Typing a lemon's grove key still switches to it while its row is folded. Typing a block's digit shows that block's lemons alone, folded ones included, until you finish the key or back out. The grove is unchanged.
 
 Lemonaid saves the choice in `inbox.json` in its state directory, so it survives restarts. It starts off; there is no setting that turns it on.
 

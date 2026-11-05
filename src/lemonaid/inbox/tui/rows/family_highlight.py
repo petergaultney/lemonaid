@@ -16,13 +16,15 @@ class Highlighter:
         self._parents: dict[str, str] = {}
         self._children: dict[str, set[str]] = {}
         self.roles: dict[str, str] = {}
+        self.marked: frozenset[str] = frozenset()  # channels drawn as one typed tree's lemons
         self._renderers: dict[str, abc.Callable[[str, str], list[Text]]] = {}
         self._tables: dict[str, DataTable] = {}
 
     def _roles(self, key: str) -> dict[str, str]:
+        marked = {k: "tree" for c in self.marked for k in self._keys.get(c, ())}
         channel = self._channels.get(key, "")
         if not channel:
-            return {}
+            return marked
 
         parent = self._parents.get(channel, "")
         roles = {
@@ -32,7 +34,7 @@ class Highlighter:
         }
         if parent != channel:
             roles.update({k: "parent" for k in self._keys.get(parent, ())})
-        return roles
+        return {**roles, **marked}
 
     def prepare(self, channels: dict[str, str], parents: abc.Mapping[str, str], key: str) -> None:
         self._channels = channels

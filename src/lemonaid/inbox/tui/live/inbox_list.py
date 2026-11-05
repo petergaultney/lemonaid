@@ -84,6 +84,7 @@ class InboxList(Vertical):
         )
         self.grove: Grove | None = None  # the grove of that refresh, for its keys
         self.fold_open = False
+        self.zoom = ("", "")  # the typed grove key's block digit and tree letter, while it is typed
         self.attention = attention
         self.fold_name = ""  # the arranger's name for the folded group
         self._unfolded_ids: frozenset[str] = (
@@ -359,6 +360,11 @@ class InboxList(Vertical):
         self._cards = cards
         self.last_frame = frame
         self.grove = inbox_keys.grove(frame, self.config)
+        in_block, in_tree = inbox_keys.zoomed(self.grove, *self.zoom)
+        zoomed = bool(in_block)
+        if zoomed:  # only that block's lemons, all of them, as a search draws its matches
+            frame = inbox_keys.only_block(frame, self.grove, self.zoom[0])
+        self.families.marked = in_tree
         main = self.main
         other = self.other
         fold_label = self.query_one("#fold_label", Static)
@@ -396,13 +402,15 @@ class InboxList(Vertical):
             parents_first=self.arrangement.parents_first,
             lead_first=self.config.tui.group_lead_first,
         )
+        if zoomed:
+            entries = inbox_keys.in_grove_order(entries, self.grove, self.zoom[0])
         drawn = [e for e in entries if isinstance(e, sections.Row)]
         self.drawn = [e.notification if isinstance(e, sections.Row) else None for e in entries]
         unread_count = len({e.notification.id for e in drawn if e.notification.is_unread})
         self.headers = {e.key: e for e in entries if isinstance(e, sections.Header)}
         self._marked_header = current_row if current_row in self.headers else ""
         main.badges_take_clicks = self.attention
-        summary_shown = self.attention and search_text is None
+        summary_shown = self.attention and search_text is None and not zoomed
         chrome = 3 + (summary_shown or bool(folded))
         show_other = bool(other_notifications) and (
             height - chrome - min(len(other_notifications), 8) >= _MIN_MAIN_ROWS
@@ -456,7 +464,9 @@ class InboxList(Vertical):
                     self._slot,
                 ),
             )
-        fold_label.display = bool(all_folded) and search_text is None and not summary_shown
+        fold_label.display = (
+            bool(all_folded) and search_text is None and not summary_shown and not zoomed
+        )
         update_static(
             fold_label,
             inbox_draw.fold_label(
