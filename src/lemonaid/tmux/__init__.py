@@ -5,6 +5,7 @@ from . import (  # noqa: F401
     navigation,
     recorded_pane,
     recreate,
+    relocation,
     rename,
     scratch,
     server,

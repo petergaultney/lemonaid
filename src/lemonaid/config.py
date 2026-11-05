@@ -346,6 +346,9 @@ class PlaceRoot:
     # losing it is not the sort of mistake a --force flag should be able to make.
     protected: tuple[str, ...] = ("main", "master")
     open_prs: str = ""  # open PRs, one '<branch> <number>' line each
+    # The user lets Claude trust every directory under this root without its folder-trust
+    # prompt, so `lemon move` records that trust for a Claude lemon it moves here.
+    claude_trust: bool = False
 
     def is_protected(self, key: str) -> bool:
         return key in self.protected
@@ -852,6 +855,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
                 inspect=rd.get("inspect", ""),
                 open_prs=rd.get("open_prs", ""),
                 project_name=rd.get("project_name", ""),
+                claude_trust=rd.get("claude_trust") is True,
                 protected=tuple(rd["protected"]) if "protected" in rd else PlaceRoot.protected,
             )
             for rd in places_data.get("roots", [])

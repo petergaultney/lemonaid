@@ -691,6 +691,7 @@ name = "lemonaid"
 | `open_prs` | unset | Shell command printing `<branch> <number> [url]` lines for open PRs; an optional HTTP(S) URL makes the number a terminal hyperlink. Inbox lookups run off the UI thread and refresh every three minutes. |
 | `name` | the root's directory name | The default project label for sessions under this root. |
 | `project_name` | unset | Shell command mapping `{dir}` to one project name for inbox rows. |
+| `claude_trust` | `false` | Lets Claude trust every directory under this root: `lemon move` records Claude's folder trust for a Claude lemon it moves into one, instead of refusing. Any lemon can move itself, so set it only where you would accept the prompt anyway. See [lemon-move.md](lemon-move.md#requirements). |
 
 ### Project names within a root
 

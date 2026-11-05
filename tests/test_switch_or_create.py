@@ -87,7 +87,9 @@ def test_a_codex_row_uses_its_backend_resume_command(monkeypatch, tmp_path):
         switch_source="tmux",
     )
 
-    assert resumed == [("existing", None, str(tmp_path), ["codex", "resume", "0199"])]
+    assert resumed == [
+        ("existing", None, str(tmp_path), ["codex", "resume", "0199", "--cd", str(tmp_path)])
+    ]
 
 
 def test_a_row_that_cannot_be_resumed_is_not_recreated(monkeypatch, tmp_path):
