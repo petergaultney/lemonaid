@@ -3,10 +3,11 @@
 import dataclasses
 import math
 import typing as ty
-from collections import abc
+from collections import Counter, abc
 
 from rich.text import Text
 
+from ...inbox import badges
 from ..draw import bars, block_scene, canvas, card, colors, lemon_list, scene_parts, scenes, trees
 from ..layout.arrange import Arrangement
 from ..model import Block
@@ -27,6 +28,14 @@ def _summary(grove: Grove) -> str:
     working = sum(lemon.working for lemon in lemons)
     trees = sum(len(block.trees) for block in grove.blocks)
     return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn"
+
+
+def _attention(grove: Grove) -> Text:
+    return badges.fixed(
+        Counter(
+            lemon.status for block in grove.blocks for tree in block.trees for lemon in tree.lemons
+        )
+    )
 
 
 class _Prompt(ty.NamedTuple):
@@ -212,6 +221,7 @@ def render(
         + "/ searches · "
         + ("arrows pan · ⇧1-8 compass · " if panning else "")
         + "? keys · space closes",
+        _attention(grove),
     )
     bars.prompt(picture, *_Prompt(*_prompt(where, grove, select_key)))
     if flashed:

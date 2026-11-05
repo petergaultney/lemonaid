@@ -13,30 +13,16 @@ from rich.style import Style
 from rich.text import Text
 from textual.color import Color
 
-from .... import config
-from ... import sections
-from ..rows import brief_cards
+from ... import badges, sections
 
 _SLOT = 4  # a one-digit badge: its glyph and number, one cell of its color either side
 _END = 3  # a card's ` ◀ `, kept clear on every card so a selected one's badges don't move
 _NAME_ROOM = 20  # what a bar keeps for the group's name before giving badges their slots
 
 
-def _glyphs() -> dict[str, str]:
-    """Each configured status's badge glyph, in slot order."""
-    return {s.name: s.glyph for s in config.brief_statuses()}
-
-
-def has_badge(status: str) -> bool:
-    return status in _glyphs()
-
-
-def badge(status: str, count: int) -> Text:
-    """*count* lemons of *status* as its glyph and number, filled with the status's color."""
-    return Text(
-        f" {_glyphs()[status]}{count} ",
-        (brief_cards.status_style(status) or Style()) + Style(bold=True, underline=False),
-    )
+_glyphs = badges.glyphs
+has_badge = badges.has_badge
+badge = badges.badge
 
 
 def _clickable(status: str, count: int) -> Text:

@@ -27,6 +27,12 @@ The popup is lemonaid's fast tmux popup, which any app can use: the grove keeps 
 - **The packhouse** at the grove's middle holds the lemons in no group, HQ among them, each session as a bay. It's numbered `0`.
 - **Roads and a stream** are landmarks: laid once, saved with the layout, and drawn under the blocks so they show in the gaps. A road crosses the stream on a bridge.
 
+## The title bar
+
+The title row shows how many lemons there are, then the attention bar: the same status chips as the inbox (`?4 N1 m3 r13 d1`), with each status in its own fixed slot so a chip stays put when another appears or goes. Lemons whose brief has no status that has a chip are counted together as `○n`.
+
+On a narrow screen the key hints give way first, a hint at a time from the left, then the whole bar if it still can't sit beside the lemon count.
+
 ## Keys
 
 | Keys | What they do |

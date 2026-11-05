@@ -1,19 +1,64 @@
 """The title row above the grove and the prompt row below it."""
 
+from rich import color as rich_color
+from rich.console import Console
+from rich.text import Text
+
 from ... import config, status_registry
 from . import colors
 from .canvas import BACKGROUND, Canvas, fill, mix, put, text
+
+_CONSOLE = Console(color_system="truecolor")
 
 
 def _legend() -> tuple[str, ...]:
     return tuple(s.name for s in config.brief_statuses() if s.name != status_registry.DONE)
 
 
-def title(canvas: Canvas, summary: str, keys: str) -> None:
+def _hex(color: rich_color.Color | None, default: str) -> str:
+    if color is None:
+        return default
+
+    return "#{:02x}{:02x}{:02x}".format(*color.get_truecolor())
+
+
+def _chips(canvas: Canvas, x: int, chips: Text, limit: int) -> None:
+    column = x
+    for segment in chips.render(_CONSOLE):
+        style = segment.style
+        for char in segment.text:
+            if column >= limit:
+                return
+
+            put(
+                canvas,
+                column,
+                0,
+                char,
+                _hex(style.color if style else None, colors.MUTED),
+                _hex(style.bgcolor if style else None, colors.BAR),
+                bold=bool(style and style.bold),
+            )
+            column += 1
+
+
+def title(canvas: Canvas, summary: str, keys: str, attention: Text) -> None:
+    """The keys give way first, losing entries from the left, then the *attention* bar if it can't
+    sit beside the *summary*."""
     fill(canvas, 0, 0, canvas.width, 1, colors.BAR)
     text(canvas, 1, 0, " LEMON GROVE ", "#0b0e13", colors.LEMON, bold=True)
     text(canvas, 15, 0, summary, "#aab3c2", colors.BAR)
-    text(canvas, canvas.width - len(keys) - 2, 0, keys, colors.MUTED, colors.BAR)
+    bar_at = 15 + len(summary) + 2
+    bar_end = bar_at + attention.cell_len
+    if bar_end <= canvas.width - 1:
+        _chips(canvas, bar_at, attention, canvas.width - 1)
+    else:
+        bar_end = bar_at
+    entries = keys.split(" · ")
+    for shown in (" · ".join(entries[i:]) for i in range(len(entries))):
+        if canvas.width - len(shown) - 2 >= bar_end + 2:
+            text(canvas, canvas.width - len(shown) - 2, 0, shown, colors.MUTED, colors.BAR)
+            return
 
 
 def prompt(
