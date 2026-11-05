@@ -117,6 +117,8 @@ List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to 
 
 A PR you are only reviewing, or one you merely parent, wakes you for fewer events: see `watch-pr`.
 
+Every other PR URL in your brief subscribes you to its merge or close, and that event asks whether the link is still relevant for your user. Answer by updating the brief, or by leaving the link if it still helps. To keep a link without the question, also list the PR under a `## No nudge` heading. If the user has set `[watch.pr] link_nudge = false`, links subscribe nothing.
+
 Read your work's current state first. A first subscription takes current state as seen, except unanswered doc threads. Document subscriptions continue while your session exists, whatever its Status.
 
 <!-- harness: claude -->

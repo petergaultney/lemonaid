@@ -759,12 +759,14 @@ not call the hook.
 |-----|---------|-------------|
 | `skip_outdated` | `false` | Skip comments in review threads GitHub marked outdated. |
 | `skip_resolved` | `false` | Skip comments in resolved review threads. |
+| `link_nudge` | `true` | Watch every PR a brief links to for its merge or close, and ask the lemon then whether the link is still relevant (see [watch](watch.md#prs-a-brief-links-to)). `false` watches only `### PRs` rows and `watch pr` lines, and their merge or close events ask nothing. |
 | `trusted_commenters` | `[]` | Commenters whose comments are labeled `trusted`, so a lemon may act on them on a PUBLIC repo even when they are not owners, members or collaborators. Write each as `host/login`, such as `github.com/alice`, so the same name on another forge is a different entry; any other form is ignored with a warning. On github.com, matching ignores case, as GitHub does: logins are unique regardless of case. |
 
 ```toml
 [watch.pr]
 skip_outdated = true
 skip_resolved = true
+link_nudge = false
 trusted_commenters = ["github.com/alice"]
 ```
 
@@ -781,7 +783,7 @@ These filters do not affect submitted review bodies or PR conversation comments.
 
 ## `[watch.roles.<role>]`
 
-`lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer` or `parent` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.
+`lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer`, `parent` or `mention` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.
 
 ```toml
 [watch.roles.parent]
