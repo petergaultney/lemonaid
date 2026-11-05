@@ -135,3 +135,13 @@ def test_an_explicit_role_wins(tmp_path):
     [spec] = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
 
     assert spec.role == "parent"
+
+
+def test_command_and_file_deadline_lines_are_subscriptions(tmp_path):
+    text = shared.BRIEF + (
+        "- `lemonaid watch command --wait 4321`\n"
+        "- `lemonaid watch file --wait done.txt --deadline 45m`\n"
+    )
+    by_kind = {s.kind: s for s in subscriptions.read(text, tmp_path)}
+    assert by_kind["command"].target == ("4321",)
+    assert by_kind["file"].deadline == "45m"

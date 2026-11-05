@@ -1,4 +1,4 @@
-# Watching documents, PRs, repos, and files
+# Watching documents, PRs, repos, files and commands
 
 `lemonaid watch doc` blocks until someone responds to a Markdown document through
 Relay Comments (inline CriticMarkup blocks written by an Obsidian plugin), and
@@ -112,7 +112,7 @@ than refusing to start.
 
 ## Cursors
 
-Every watcher (`doc`, `pr`, `file` and `briefs`) compares what it watches with a saved
+Every watcher (`doc`, `pr`, `file`, `command` and `briefs`) compares what it watches with a saved
 record of what it last reported to the lemon, its cursor, and reports what differs. So a
 push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
 is reported twice.
@@ -319,6 +319,44 @@ lemonaid watch file --status notes.md --me "MotorHoe (Author)"
   are read every `--interval` seconds (5 by default).
 - What was last reported is kept per set of paths in the lemon's [cursors](#cursors), so a
   rearmed waiter reports anything that changed in between. The first waiter for a set of paths takes their current state as its baseline.
+- `--deadline WHEN` reports once if nothing has been reported by WHEN, and the watch continues.
+  WHEN is a duration (`45m`, `2h`, `30s`, `1d`) or an ISO time (local unless it has an offset). A
+  duration is anchored when a watch with that deadline first opens and kept in the cursor, so a
+  rearm doesn't push it back; changing the deadline anchors it again. A change reported first
+  cancels it. To wait on a command, use `lemonaid run` (below) rather than a marker file.
+
+## Watching commands
+
+`lemonaid run` runs a command and wakes a lemon when it exits, whatever hosts it: a tmux window,
+`nohup`, another terminal or a plain shell. Nothing in it depends on tmux or a harness's
+background tasks.
+
+```bash
+lemonaid run --self -- ./deploy.sh --env prod
+lemonaid run --lemon <Lemon-ID> -- make test        # where --self can't tell who you are
+lemonaid watch command --wait <pid> --once          # a process already running
+lemonaid watch command --status <pid>
+```
+
+- **`lemonaid run`** resolves the lemon first, and refuses to start (exit 2) when it has no brief.
+  It writes `$LEMONAID_STATE_DIR/commands/<its pid>.json` and adds
+  `lemonaid watch command --wait <its pid>` to the brief's `## Watching`, then runs the command
+  as its child in the same terminal. When the command exits it writes the exit status into the
+  record, then exits with that status (128 + N for signal N). It passes SIGTERM and SIGHUP on to
+  the command; SIGINT from the terminal reaches the command directly. `--lemon` takes a
+  Lemon-ID, channel or brief name, for a new tmux window or `nohup`, where the harness's
+  environment that `--self` reads is missing.
+- **`watch command --wait PID`** reports once, when the process exits: with the command, its
+  directory, exit status and duration when `lemonaid run` started it; `ended without recording
+  its exit status` when the wrapper was killed outright or the machine restarted; and `exit status
+  unknown` for any other process. A pid with no process when the watch starts is reported at
+  once. The process's start time is kept in the cursor, so a later process reusing the pid counts
+  as an exit.
+- **After the exit is delivered**, the watch removes its own line from the lemon's `## Watching`,
+  since a process can't exit twice. A rearm before then reports it; a rearm after is quiet.
+- Under `watch --self` the exit arrives in the batch with everything else. The scout host wakes
+  on the process's exit through kqueue; elsewhere it is checked every `--interval` (5 seconds).
+  Records over a week old are removed when `lemonaid run` next starts.
 
 ## Watching other lemons
 
@@ -451,7 +489,7 @@ for the next waiter. This state is separate from document, PR, and external brie
 
 ## Recording watches in a brief
 
-When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
+When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, `watch command`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
 
 The entry survives one-shot events, interrupted waits, and delivery failures so it can be rearmed. `lemonaid watch stop --self` removes it along with the waiter it stops (see below); for a waiter that already exited, remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch ends permanently. The manual `add` and `set` verbs remain available for custom shell waiters. With no attached brief, watching works as before without recording; a failed write to an attached brief prevents startup and reports the error. Status queries, document edit markers, and refused duplicate waits never change the brief.
 
@@ -518,7 +556,7 @@ The rows and commands declare these sources:
 
 | Source | What the unified watcher watches |
 |---|---|
-| `## Watching` | Supported `watch pr`, `doc`, `file` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
+| `## Watching` | Supported `watch pr`, `doc`, `file`, `command` and `briefs` commands, using their supplied options. These are declarations, not shell commands to execute. |
 | `### PRs` | Each PR with comments enabled, regardless of whether an explicit watch line omitted that flag. A pass is reported as `ci-green` after CI was seen running or failed, and otherwise only for an explicit `--ci` line. Each PR wakes only for the events its role needs; see [Roles](#roles). |
 | A PR's Review cell | A local review document's unanswered comments and body edits, whatever its Docs row says, because reviewers write findings and verdicts in the body. Obsidian links resolve through configured vault roots. |
 | `### Docs` | Unanswered comments on each document; `Watch: All edits` also watches the body. Documents remain watched while the session exists, including when its brief says `Status: done`. |

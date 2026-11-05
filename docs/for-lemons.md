@@ -1086,7 +1086,7 @@ Bare URLs and vault paths in a bullet become short links, as in the brief view.
 root, which becomes an `obsidian://` link. `pr` and `doc` edit either layout and create
 level-2 sections when missing.
 
-With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, and `watch briefs` automatically
+With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, `watch command`, and `watch briefs` automatically
 record their commands as invoked under `## Watching` after startup checks pass, without
 inserting omitted defaults or temporary state paths. Rearms update
 the same entry; it stays across one-shot events. With `--codex-thread`, recording uses the
@@ -1380,7 +1380,28 @@ validated, then remove it. Every check counts, including checks that are not req
 to change, or for a file directly in a directory to be added, removed, or rewritten.
 Add `--ignore-removed` to wake only on arrivals and changes: a lemon that handles a
 message by moving it into a subfolder (as `mailbox watch` does into `done/`) is then not woken
-again by that removal.
+again by that removal. Add `--deadline 45m` (or an ISO time) to be told once if nothing has changed
+by then; a duration counts from the first arm, not each rearm.
+
+## Waiting on a long command
+
+Start a long command with `lemonaid run`, wherever it runs: a tmux window, `nohup`, another
+terminal or a plain shell. It runs the command in that terminal, records
+`lemonaid watch command --wait <pid>` in your brief's `## Watching`, and when the command exits your
+watcher reports its command, exit status and duration in the next batch. The line then removes itself.
+
+```bash
+lemonaid run --self -- ./deploy.sh --env prod
+tmux new-window -d 'lemonaid run --lemon <your Lemon-ID> -- ./deploy.sh --env prod'
+```
+
+Use `--lemon` with your Lemon-ID (`lemonaid brief id --self`) wherever `--self` can't tell who you
+are, such as a new tmux window or a `nohup`. Don't write a marker file for this: a marker written to
+the wrong path never fires. A wrapper killed outright (SIGKILL, a reboot) is still reported, as
+ended without an exit status. For a process already running, add
+`lemonaid watch command --wait <pid>` with `brief watching add --self`; it reports the exit with its
+status unknown. Without a brief, run `lemonaid watch command --wait <pid> --once` as a background
+task, or with `--codex-thread`.
 
 ## Watching children
 

@@ -9,6 +9,8 @@ from ..config import load_config
 from ..log import get_logger
 from . import (
     briefs_events,
+    command_cli,
+    command_events,
     doc_events,
     failure_state,
     file_events,
@@ -133,9 +135,23 @@ def open_poller(
         return doc
     if spec.kind == "file":
         watch = file_events.open_watch(
-            directory, [Path(p) for p in spec.target], me, spec.quiet, spec.ignore_removed
+            directory,
+            [Path(p) for p in spec.target],
+            me,
+            spec.quiet,
+            spec.ignore_removed,
+            spec.deadline,
         )
         return lambda: file_events.poll(watch, deliver)
+    if spec.kind == "command":
+        pid = int(spec.target[0])
+        command = command_events.open_watch(directory, pid, me)
+
+        def exited() -> None:
+            if command_events.poll(command, deliver):
+                command_cli.forget(root.name, pid)
+
+        return exited
     if spec.kind == "briefs":
         watch = briefs_events.open_watch(
             directory,

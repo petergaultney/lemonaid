@@ -17,7 +17,7 @@ import typing as ty
 from collections import abc
 
 from ..log import get_logger
-from . import cursors, path_presence
+from . import cursors, deadline, path_presence
 
 _log = get_logger("watch.file_events")
 
@@ -92,6 +92,8 @@ class FileWatch:
     pending_since: float
     presence: dict[str, path_presence.Presence]
     ignore_removed: bool = False
+    deadline_path: pathlib.Path | None = None  # None without a --deadline
+    deadline: dict = dataclasses.field(default_factory=dict)  # spec, at, and whether it is done
 
 
 def _load_reported(path: pathlib.Path) -> dict[str, Fingerprint]:
@@ -108,6 +110,7 @@ def open_watch(
     me: str,
     quiet: float,
     ignore_removed: bool = False,
+    deadline_spec: str = "",
 ) -> FileWatch:
     """A path with no saved fingerprint takes its current state as its baseline."""
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -128,9 +131,42 @@ def open_watch(
         )
         for p in resolved
     }
+    deadline_path = stem.with_suffix(".deadline.json") if deadline_spec else None
     return FileWatch(
-        resolved, quiet, reported_path, reported, current, time.time(), presence, ignore_removed
+        resolved,
+        quiet,
+        reported_path,
+        reported,
+        current,
+        time.time(),
+        presence,
+        ignore_removed,
+        deadline_path,
+        deadline.load(deadline_path, deadline_spec) if deadline_path else {},
     )
+
+
+def _deadline_passed(w: FileWatch) -> bool:
+    return bool(w.deadline_path and not w.deadline["done"] and time.time() >= w.deadline["at"])
+
+
+def _settle_deadline(w: FileWatch) -> None:
+    """Mark the deadline met or reported, so it never fires (again)."""
+    if w.deadline_path and not w.deadline["done"]:
+        w.deadline = {**w.deadline, "done": True}
+        cursors.write_json(w.deadline_path, w.deadline)
+
+
+def _report_deadline(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
+    if not _deadline_passed(w):
+        return False
+
+    deliver(
+        f"nothing changed in {', '.join(map(str, w.paths))} by {deadline.shown(w.deadline['at'])}"
+        f" (--deadline {w.deadline['spec']}); the watch continues"
+    )
+    _settle_deadline(w)
+    return True
 
 
 def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
@@ -148,7 +184,10 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
         if w.quiet:
             return False
 
-    if current == w.reported or time.time() - w.pending_since < w.quiet:
+    if current == w.reported:
+        return _report_deadline(w, deliver)
+
+    if time.time() - w.pending_since < w.quiet:
         return False
 
     message = "; ".join(
@@ -158,6 +197,7 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
     )
     if message:
         deliver(message)
+        _settle_deadline(w)
 
     w.reported = current
     cursors.write_json(w.reported_path, current)

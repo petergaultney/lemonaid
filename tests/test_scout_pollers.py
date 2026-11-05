@@ -309,3 +309,17 @@ def test_a_read_that_succeeds_during_a_pause_keeps_the_pause_notice(tmp_path, mo
         tmp_path, tmp_path / "failures" / "14.json", "o/r#14", sent.append, 60, 0
     )
     assert len(sent) == 1
+
+
+def test_a_command_poller_reports_an_exit_once(tmp_path):
+    import subprocess
+    import sys
+
+    done = subprocess.run([sys.executable, "-c", "pass"])
+    spec = subscriptions.Subscription("command", ("999999",))
+    sent = []
+    poll = scout_pollers.open_poller(spec, tmp_path / "cursors" / "x.Lemon", "", sent.append, ())
+    poll()
+    poll()
+    assert done.returncode == 0
+    assert len(sent) == 1 and "process 999999 is not running" in sent[0]

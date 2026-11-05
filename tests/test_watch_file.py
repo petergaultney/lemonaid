@@ -201,3 +201,27 @@ def test_cli_status_duplicate_and_once(tmp_path):
     assert second.returncode == 3
     assert proc.returncode == 0
     assert out == f"{f} changed\n"
+
+
+def test_a_deadline_with_no_change_is_reported_once_and_survives_a_rearm(tmp_path, state_dir):
+    marker = tmp_path / "deploy.done"
+    w = file_events.open_watch(state_dir, [marker], "me", quiet=0, deadline_spec="1h")
+    assert _poll(w) == []
+
+    w.deadline["at"] = time.time() - 1  # an hour later
+    [message] = _poll(w)
+    assert message.startswith(f"nothing changed in {marker} by ")
+    assert message.endswith("(--deadline 1h); the watch continues")
+    assert _poll(w) == []
+
+    rearmed = file_events.open_watch(state_dir, [marker], "me", quiet=0, deadline_spec="1h")
+    assert rearmed.deadline["done"] and _poll(rearmed) == []
+
+
+def test_a_change_before_the_deadline_cancels_it(tmp_path, state_dir):
+    marker = tmp_path / "deploy.done"
+    w = file_events.open_watch(state_dir, [marker], "me", quiet=0, deadline_spec="2026-01-01T00:00")
+    marker.write_text("0")
+
+    assert _poll(w) == [f"{marker} was created"]
+    assert _poll(w) == []
