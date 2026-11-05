@@ -32,6 +32,23 @@ def test_one_escape_closes_the_bar_with_a_tree_typed():
     assert _run(steps) == (True, False)
 
 
+def test_backspace_clears_a_typed_tree_then_closes_the_bar():
+    _three_lemons()
+
+    async def steps(app, pilot):
+        letter = app._content.inbox.grove.arrangement.trees[("", "/tmp")].letter
+        await pilot.press("0", ".", letter)
+        await pilot.pause()
+        await pilot.press("backspace")
+        await pilot.pause()
+        after_first = _is_open(app)
+        await pilot.press("backspace")
+        await pilot.pause()
+        return after_first, _is_open(app)
+
+    assert _run(steps) == (True, False)
+
+
 def test_a_navigation_key_closes_the_bar_and_moves_the_list():
     _three_lemons()
 

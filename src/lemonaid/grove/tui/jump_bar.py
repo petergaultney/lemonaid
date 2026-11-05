@@ -1,31 +1,45 @@
 """A one-line bar over the inbox that takes the rest of a grove key typed there, as `5s`."""
 
+from rich.style import Style
+from rich.text import Text
 from textual import events
 from textual.widgets import Static
 
+from ..draw import colors
+from ..model import Block
 from . import keys
 from .frame import Grove
 
+_SIGN_TEXT = "#0b0e13"  # on a block's color, as on the grove's block signs
 
-def _line(where: keys.Where, grove: Grove) -> str:
+
+def _typed(block: Block, where: keys.Where) -> str:
+    return block.digit + (f".{where.tree}{where.number}" if where.tree else "." * where.dot)
+
+
+def _line(where: keys.Where, grove: Grove) -> Text:
     if where.note:
-        return f"{where.note} · esc closes"
+        return Text(f"{where.note} · esc closes")
 
     block = next((b for b in grove.blocks if b.digit == where.block), None)
     if block is None:
-        return "type a block number · esc closes"
-    if where.dot:
-        return f"{where.block}.: the tree's letter"
-    if where.tree:
-        what = "letter" if where.number else "place on the tree"
-        return f"{where.block}.{where.tree}{where.number}: the lemon's {what}"
+        return Text("type a block number · esc closes")
 
-    trees = "  ".join(
-        f"{grove.arrangement.trees[(block.name, t.key)].letter} "
-        f"{grove.arrangement.trees[(block.name, t.key)].label}"
-        for t in block.trees
+    if where.dot:
+        hint = "the tree's letter"
+    elif where.tree:
+        hint = f"the lemon's {'letter' if where.number else 'place on the tree'}"
+    else:
+        hint = "  ".join(
+            f"{grove.arrangement.trees[(block.name, t.key)].letter} "
+            f"{grove.arrangement.trees[(block.name, t.key)].label}"
+            for t in block.trees
+        )
+    return Text.assemble(
+        (f" {_typed(block, where)} ", Style(color=_SIGN_TEXT, bgcolor=block.color, bold=True)),
+        (f" {block.name or 'no group'}", Style(color=block.color, bold=True)),
+        f"  {hint}",
     )
-    return f"{block.digit} {block.name or 'no group'}: {trees}"
 
 
 def key_name(event: events.Key) -> str:
@@ -40,10 +54,11 @@ class JumpBar(Static):
     first, so a key it doesn't take, and the mouse, act on the inbox as usual and in order.
     """
 
-    DEFAULT_CSS = """
-    JumpBar {
-        dock: bottom; height: 1; width: 100%; background: #d97706; color: #111111; text-style: bold;
-    }
+    DEFAULT_CSS = f"""
+    JumpBar {{
+        dock: bottom; height: 1; width: 100%; background: {colors.BAR}; color: {colors.TEXT};
+        text-style: bold;
+    }}
     """
 
     def __init__(self, grove: Grove, first: str) -> None:

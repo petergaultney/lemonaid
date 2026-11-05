@@ -2,8 +2,8 @@
 
 import dataclasses
 import math
+import typing as ty
 from collections import abc
-from typing import Any
 
 from rich.text import Text
 
@@ -17,7 +17,7 @@ from . import keys, picking, select_view, selecting
 class Grove:
     blocks: tuple[Block, ...]
     arrangement: Arrangement
-    saved: dict[str, Any]  # the layout *arrangement* was made from, as `arrange` keeps it
+    saved: dict[str, ty.Any]  # the layout *arrangement* was made from, as `arrange` keeps it
     # Each lemon's inbox card lines, by channel, for select mode
     cards: abc.Mapping[str, tuple[Text, ...]] = dataclasses.field(default_factory=dict)
 
@@ -29,7 +29,20 @@ def _summary(grove: Grove) -> str:
     return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn"
 
 
-def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]:
+class _Prompt(ty.NamedTuple):
+    line: str
+    color: str
+    key: str = ""  # the key typed so far, drawn ahead of *line* in *key_color*
+    key_color: str = ""
+    label: str = ""  # the key's block's name, drawn between the key and *line* in *key_color*
+
+
+def _label(block: Block) -> str:
+    return block.name or "no group"
+
+
+def _prompt(where: keys.Where, grove: Grove, select_key: str) -> _Prompt | tuple[str, str]:
+    block = next((b for b in grove.blocks if b.digit == where.block), None)
     selects = f"{select_view.key_name(select_key)} selects"
     if where.note:
         return where.note, colors.WARN
@@ -55,15 +68,23 @@ def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]
             " · enter jumps · ↑↓ choose · esc cancels",
             colors.TEXT,
         )
-    if where.dot:
-        return f"{where.block}.: type the tree's letter · esc backs out", colors.TEXT
-    if where.tree:
-        what = "letter" if where.number else "place on the tree, 1 to 9, or 0 and a letter past 9"
-        return (
-            f"{where.block}.{where.tree}{where.number}: type the lemon's {what} · esc backs out",
+    if block and where.dot:
+        return _Prompt(
+            "type the tree's letter · esc or backspace backs out",
             colors.TEXT,
+            f"{block.digit}.",
+            block.color,
+            _label(block),
         )
-    block = next((b for b in grove.blocks if b.digit == where.block), None)
+    if block and where.tree:
+        what = "letter" if where.number else "place on the tree, 1 to 9, or 0 and a letter past 9"
+        return _Prompt(
+            f"type the lemon's {what} · esc or backspace backs out",
+            colors.TEXT,
+            f"{block.digit}.{where.tree}{where.number}",
+            block.color,
+            _label(block),
+        )
     if block:
         longer = [
             b.digit
@@ -71,9 +92,12 @@ def _prompt(where: keys.Where, grove: Grove, select_key: str) -> tuple[str, str]
             if b.digit != where.block and b.digit.startswith(where.block)
         ]
         more = f"  (another digit: {', '.join(longer)})" if longer else ""
-        return (
-            f"{where.block} · {block.name or 'no group'}: {selects}, to see and edit · a letter jumps to a tree's first lemon, l the lead's, a dot, a letter and a place the others{more}",
+        return _Prompt(
+            f"a letter jumps to a tree's first lemon, l the lead's, a dot, a letter and a place the others · {selects}, to see and edit{more}",
             colors.TEXT,
+            block.digit,
+            block.color,
+            _label(block),
         )
     return "type a block number, or / to search · ? keys · esc closes", colors.MUTED
 
@@ -189,7 +213,7 @@ def render(
         + ("arrows pan · ⇧1-8 compass · " if panning else "")
         + "? keys · space closes",
     )
-    bars.prompt(picture, *_prompt(where, grove, select_key))
+    bars.prompt(picture, *_Prompt(*_prompt(where, grove, select_key)))
     if flashed:
         bars.flash(picture, flashed)
     if where.selecting:
