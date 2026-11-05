@@ -6,6 +6,7 @@ from ..tables import layout
 
 PARENT = "\u2193"
 CHILD = "\u2191"
+TREE = "\u25b8"  # ▸, on each lemon of the tree a typed grove key has reached so far
 LEAD = "\u265b"  # ♛, the member with the most descendants in the group the row is drawn under
 
 
@@ -23,7 +24,9 @@ def indicators(
     lead: bool = False,
 ) -> Text:
     relationship = (
-        Text({"parent": PARENT, "child": CHILD}.get(family, " "), style="bold not dim")
+        Text(
+            {"parent": PARENT, "child": CHILD, "tree": TREE}.get(family, " "), style="bold not dim"
+        )
         if family is not None
         else Text()
     )

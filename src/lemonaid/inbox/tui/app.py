@@ -1240,11 +1240,20 @@ class LemonaidApp(CrashLoggedApp):
         if self._mode is not view_modes.HISTORY and inbox.display and inbox.grove:
             self._jump_bar = inbox_keys.jump_bar(inbox.grove, digit)
             self.screen.mount(self._jump_bar)
+            self._zoom_inbox(self._jump_bar.zoom)
+
+    def _zoom_inbox(self, zoom: tuple[str, str]) -> None:
+        """Show only the typed key's block, and mark its tree, or the whole inbox again for ("", "")."""
+        inbox = self._content.inbox
+        if inbox.zoom != zoom:
+            inbox.zoom = zoom
+            inbox.redraw()
 
     def _close_jump_bar(self, channel: str) -> None:
         if self._jump_bar is not None:
             self._jump_bar.remove()
             self._jump_bar = None
+        self._zoom_inbox(("", ""))
         self._grove_chose(channel)
 
     async def on_event(self, event: events.Event) -> None:
@@ -1259,6 +1268,8 @@ class LemonaidApp(CrashLoggedApp):
                 taken, chosen = bar.take(jump_bar.key_name(event))
                 if chosen is not None:
                     self._close_jump_bar(chosen)
+                elif taken:
+                    self._zoom_inbox(bar.zoom)
                 if taken:
                     return
             elif isinstance(

@@ -66,6 +66,11 @@ class JumpBar(Static):
         self._where, _ = keys.step(keys.Where(), first, grove.blocks, grove.arrangement)
         super().__init__(_line(self._where, grove))
 
+    @property
+    def zoom(self) -> tuple[str, str]:
+        """The block typed so far, and the letter of the tree after it, each "" until typed."""
+        return self._where.block, self._where.tree
+
     def take(self, key: str) -> tuple[bool, str | None]:
         """Whether the bar takes *key*, and once it is done, the lemon chosen or "" (else None).
         A key the bar doesn't take closes it, for the inbox to act on.
