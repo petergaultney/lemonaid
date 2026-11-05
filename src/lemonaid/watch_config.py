@@ -11,6 +11,7 @@ from .watch import roles
 class PrConfig:
     skip_outdated: bool = False
     skip_resolved: bool = False
+    link_nudge: bool = True  # ask about a brief's PR links when they merge or close
     trusted_commenters: frozenset[str] = frozenset()  # "host/login", see _qualified
 
 
@@ -84,11 +85,12 @@ def _reconcile(value: object) -> bool:
 def parse(data: dict) -> WatchConfig:
     pr = data.get("pr", {})
     values: dict[str, bool] = {}
-    for key in ("skip_outdated", "skip_resolved"):
-        value = pr.get(key, False)
+    for key in ("skip_outdated", "skip_resolved", "link_nudge"):
+        default = getattr(PrConfig, key)
+        value = pr.get(key, default)
         if not isinstance(value, bool):
             print(f"Warning: [watch.pr] {key} must be a boolean", file=sys.stderr)
-            value = False
+            value = default
         values[key] = value
     trusted = pr.get("trusted_commenters", [])
     if not isinstance(trusted, list) or not all(isinstance(t, str) for t in trusted):

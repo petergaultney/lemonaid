@@ -22,6 +22,7 @@ def read(
     owner: str = "",
     vaults: tuple[Path, ...] = (),
     children_prs: abc.Set[tuple[str, ...]] = frozenset(),
+    link_nudge: bool = True,
 ) -> tuple[list[subscriptions.Subscription], str]:
     saved = root / "subscriptions.md"
     text = path.read_text()
@@ -30,7 +31,7 @@ def read(
             previous = saved.read_text()
         except FileNotFoundError:
             previous = ""
-        specs = subscriptions.read(previous, cwd, owner, vaults)
+        specs = subscriptions.read(previous, cwd, owner, vaults, link_nudge)
         problems = [
             "Incomplete brief header; "
             + (
@@ -40,7 +41,7 @@ def read(
             )
         ]
     else:
-        reading = subscriptions.report(text, cwd, owner, vaults, children_prs)
+        reading = subscriptions.report(text, cwd, owner, vaults, children_prs, link_nudge)
         specs, problems = list(reading.specs), list(reading.problems)
         if not saved.exists() or saved.read_text() != text:
             cursors.write_text(saved, text)
@@ -73,6 +74,7 @@ def reader(
     cwd: Path,
     owner: str,
     vaults: tuple[Path, ...],
+    link_nudge: bool = True,
 ) -> abc.Callable[[abc.Set[tuple[str, ...]]], tuple[list[subscriptions.Subscription], str]]:
     """Cache one waiter's inputs; periodically resolve linked paths again for symlink changes."""
     cached: tuple[list[subscriptions.Subscription], str] | None = None
@@ -91,7 +93,7 @@ def reader(
         )
         now = time.monotonic()
         if cached is None or version != previous or now - refreshed >= 30:
-            cached = read(path, root, cwd, owner, vaults, children_prs)
+            cached = read(path, root, cwd, owner, vaults, children_prs, link_nudge)
             previous, refreshed = version, now
         return cached
 

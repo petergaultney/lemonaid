@@ -176,12 +176,18 @@ def open_poller(
     wake = roles.wake(spec.role or roles.AUTHOR, settings.roles)
     if writer:
         own_pushes.register(own_edits.root(), writer)
-    head, merged, retry_at = spec.head, False, 0.0
+    head, retry_at = spec.head, 0.0
+    reported = pr_events.reported_state(stem)
+    # a mention that closed before this lemon first saw it is old news
+    finished = reported == "MERGED" or (
+        spec.role == roles.MENTION
+        and (reported == "CLOSED" or (not reported and pr_states.is_finished(repo, number)))
+    )
     failed = failure_state.path(root, spec, "github")
 
     def pr() -> None:
-        nonlocal head, merged, retry_at
-        if merged or time.monotonic() < retry_at:
+        nonlocal head, finished, retry_at
+        if finished or time.monotonic() < retry_at:
             return
 
         pr_poller.interested(repo, int(number), root.name)
@@ -213,8 +219,12 @@ def open_poller(
             own_head=lambda value: own_pushes.is_own(own_edits.root(), writer, value),
             trusted=trusted,
             wake=wake,
+            mentioned=spec.mentioned,
         )
         head = ""
-        merged = snapshot.state == "MERGED"  # a closed PR can reopen, so it is still read
+        # a closed PR can reopen, so it is still read unless the brief only links to it
+        finished = snapshot.state == "MERGED" or (
+            spec.role == roles.MENTION and snapshot.state == "CLOSED"
+        )
 
     return pr

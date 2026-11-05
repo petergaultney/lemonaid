@@ -49,12 +49,13 @@ def children_author(
 
 def status(brief: Path, lemon_id: str) -> list[str]:
     """One line per PR the brief watches, naming the role that decides what wakes it."""
-    vaults = tuple(load_config().brief.vaults)
+    config = load_config()
+    vaults = tuple(config.brief.vaults)
     children = children_author(lemon_id, Path.cwd(), vaults)
     return [
         f"{repo}#{number}: woken as its {spec.role}"
         for spec in subscriptions.report(
-            brief.read_text(), Path.cwd(), lemon_id, vaults, children
+            brief.read_text(), Path.cwd(), lemon_id, vaults, children, config.watch.pr.link_nudge
         ).specs
         if spec.kind == "pr"
         for repo, number in [spec.target]

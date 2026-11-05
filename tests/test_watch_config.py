@@ -23,6 +23,14 @@ def test_missing_config_includes_all_threads(tmp_path):
 
     assert filters.skip_outdated is False
     assert filters.skip_resolved is False
+    assert filters.link_nudge is True
+
+
+def test_link_nudge_can_be_turned_off(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("[watch.pr]\nlink_nudge = false\n")
+
+    assert config.load_config(path).watch.pr.link_nudge is False
 
 
 @pytest.mark.parametrize("key", ["skip_outdated", "skip_resolved"])

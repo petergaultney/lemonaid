@@ -31,6 +31,10 @@ _OUTSIDERS = (
     "unless your user has said to act on that person"
 )
 _CLOSED = frozenset({"PRIVATE", "INTERNAL"})
+_NUDGE = (
+    ", and your brief still links to it: is that still relevant for your user?"
+    " (A PR linked under a `No nudge` heading is never asked about.)"
+)
 _DROPPED_KEPT = 10
 
 
@@ -52,11 +56,13 @@ def events(
     new: list[pr_comments.Comment],
     own_head: ty.Callable[[str], bool],
     trusted: abc.Set[str] = frozenset(),
+    mentioned: bool = False,
 ) -> list[roles.Event]:
     draft, decision = review
+    nudge = _NUDGE if mentioned and snap.state in ("MERGED", "CLOSED") else ""
     return [
         *(
-            [roles.Event(roles.STATE, f"PR #{pr} is now {snap.state}")]
+            [roles.Event(roles.STATE, f"PR #{pr} is now {snap.state}{nudge}")]
             if state and snap.state != state
             else []
         ),
@@ -118,6 +124,12 @@ def _load_head(path: pathlib.Path) -> tuple[str, str] | None:
         return None
 
 
+def reported_state(stem: pathlib.Path) -> str:
+    """The PR state last reported to this watcher, or "" before its first poll."""
+    saved = _load_head(stem.with_suffix(".head.json"))
+    return saved[1] if saved else ""
+
+
 def poll(
     stem: pathlib.Path,
     pr: int,
@@ -130,6 +142,7 @@ def poll(
     own_head: ty.Callable[[str], bool] = lambda head: False,
     trusted: abc.Set[str] = frozenset(),
     wake: abc.Set[str] = frozenset(roles.KINDS),
+    mentioned: bool = False,
 ) -> bool:
     """Whether it woke the lemon. Events of a kind not in *wake* are kept, and ride along
     with the next one that is."""
@@ -169,6 +182,7 @@ def poll(
             [c for i, c in candidates.items() if i not in reported],
             own_head,
             trusted,
+            mentioned,
         ),
         *blockers,
     ]

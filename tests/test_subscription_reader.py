@@ -115,3 +115,23 @@ def test_periodic_refresh_resolves_retargeted_symlinks(reading, tmp_path, monkey
     now += 31
     specs, _ = poll(frozenset())
     assert next(spec.target for spec in specs if spec.kind == "file") == (str(second),)
+
+
+def test_the_saved_brief_keeps_link_nudge_off_while_the_brief_is_rewritten(tmp_path):
+    row, prose = (f"https://github.com/o/r/pull/{n}" for n in (12, 13))
+    brief = tmp_path / "brief.md"
+    brief.write_text(
+        "# Parent\n\nBrief-ID: parent.IndexElf\n\n## PRs\n\n| Work | PR | Review |\n"
+        f"|---|---|---|\n| Work | [r#12]({row}) | |\n\n## Done\n\n- [r#13]({prose})\n"
+    )
+    root = tmp_path / "cursors"
+
+    def prs():
+        specs, _ = subscription_state.read(
+            brief, root, tmp_path, "parent.IndexElf", link_nudge=False
+        )
+        return [(s.target[1], s.mentioned) for s in specs if s.kind == "pr"]
+
+    assert prs() == [("12", False)]
+    brief.write_text("")
+    assert prs() == [("12", False)]

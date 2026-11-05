@@ -114,8 +114,11 @@ def wait(
     loop with event *pacing* sleeps until its brief, mailbox, a detector or the *harness* files
     and pids change, or `waits.idle` passes.
     """
-    vaults = tuple(load_config().brief.vaults)
-    read_subscriptions = subscription_state.reader(path, root, cwd, mailbox.name, vaults)
+    config = load_config()
+    vaults = tuple(config.brief.vaults)
+    read_subscriptions = subscription_state.reader(
+        path, root, cwd, mailbox.name, vaults, config.watch.pr.link_nudge
+    )
     wordy = identity.brief_name(mailbox.name) or mailbox.name
     signatures = tuple(f"{role} ({wordy})" for role in ("Author", "Reviewer", "Parent", "Lead"))
     output: queue.Queue[scouts.Pending] = queue.Queue()

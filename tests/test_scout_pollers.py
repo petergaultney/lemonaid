@@ -10,6 +10,7 @@ from lemonaid.watch import (
     pr_activity,
     pr_events,
     pr_poller,
+    roles,
     scout_pollers,
     subscriptions,
 )
@@ -358,3 +359,47 @@ def test_a_pr_the_live_poller_cannot_read_reaches_the_outage_path_and_recovers(
     poll()
     assert len(recoveries) == 1
     assert reads == []
+
+
+def _mention_poller(tmp_path, monkeypatch, states, sent, fetched):
+    def fetch(*args, **kwargs):
+        fetched.append(args)
+        return pr_activity.Snapshot("a" * 40, next(states), False, "", [], "main", "MERGEABLE", [])
+
+    monkeypatch.setattr(pr_activity, "fetch", fetch)
+    spec = subscriptions.Subscription(
+        "pr", ("owner/repo", "12"), role=roles.MENTION, mentioned=True
+    )
+    return scout_pollers.open_poller(spec, tmp_path / "cursors", "", sent.append, ())
+
+
+def test_a_linked_pr_that_closes_asks_once_whether_the_link_still_matters(tmp_path, monkeypatch):
+    sent, fetched = [], []
+    poll = _mention_poller(tmp_path, monkeypatch, iter(["OPEN", "CLOSED"]), sent, fetched)
+    poll()
+    poll()
+    poll()
+
+    assert len(fetched) == 2
+    [message] = sent
+    assert message.startswith("PR #12 is now CLOSED, and your brief still links to it")
+
+
+def test_a_pr_linked_after_it_merged_is_not_read_or_asked_about(tmp_path, monkeypatch):
+    pr_states.record("owner/repo", "12", "MERGED")
+    sent, fetched = [], []
+    _mention_poller(tmp_path, monkeypatch, iter(["MERGED"]), sent, fetched)()
+
+    assert fetched == sent == []
+
+
+def test_a_pr_this_lemon_saw_close_is_not_read_again_by_a_new_scout(tmp_path, monkeypatch):
+    sent, fetched = [], []
+    _mention_poller(tmp_path, monkeypatch, iter(["OPEN", "MERGED"]), sent, fetched)()
+    poll = _mention_poller(tmp_path, monkeypatch, iter(["MERGED"]), sent, fetched)
+    poll()
+    _mention_poller(tmp_path, monkeypatch, iter([]), sent, fetched)()
+
+    assert len(fetched) == 2
+    [message] = sent
+    assert message.startswith("PR #12 is now MERGED, and your brief still links to it")
