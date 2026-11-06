@@ -18,12 +18,13 @@ from pathlib import Path
 from .. import home
 from ..log import get_logger
 from ..messages import store as messages
-from ..tasks.briefs import completion
-from . import active_names, archived_channel, frontmatter, identity, store
+from ..tasks.briefs import completion, liveness
+from . import active_names, archived_channel, frontmatter, identity, status, store
 
 _log = get_logger("brief.archive")
 
 _DAY = 24 * 60 * 60
+_WAITING = frozenset({"blocked", "alert", "merge", "approve", "review", "running"})
 
 
 class Idle(ty.NamedTuple):
@@ -124,8 +125,23 @@ def last_used(conn: sqlite3.Connection, path: Path) -> float:
     )
 
 
+def _kept(conn: sqlite3.Connection, path: Path, lemon_id: str) -> bool:
+    """Whether the sweep must leave *path*: its Status waits on someone, or its lemon runs.
+
+    The inbox's attached-session check misses a live harness whose row was archived or
+    attached under another channel, so the harness itself is probed too.
+    """
+    try:
+        if status.split(path.read_text()).status in _WAITING:
+            return True
+    except OSError:
+        return True
+
+    return bool(lemon_id) and liveness.live(conn, lemon_id)
+
+
 def idle(conn: sqlite3.Connection, days: float, now: float) -> list[Idle]:
-    """Oldest first."""
+    """Oldest first; never a brief whose Status waits on someone or whose lemon is live."""
     since = now - days * _DAY
     used = {Path(u.path): u for u in active_names.usage(conn)}
     found = [
@@ -139,7 +155,7 @@ def idle(conn: sqlite3.Connection, days: float, now: float) -> list[Idle]:
         for last in [_last(conn, path, use)]
         if last < since
     ]
-    return sorted(found, key=lambda i: i.last)
+    return sorted((i for i in found if not _kept(conn, i.path, i.lemon_id)), key=lambda i: i.last)
 
 
 def _lemon_id(conn: sqlite3.Connection, path: Path) -> str:
@@ -249,6 +265,19 @@ def archive(
     return target
 
 
+def _attic_brief(name: str, lemon_id: str) -> Path | None:
+    """The one attic file called *name* that carries *lemon_id*; None when none or several do."""
+    found = []
+    for candidate in attic_dir().glob(f"*/{name}"):
+        try:
+            if identity.read(candidate.read_text()) == lemon_id:
+                found.append(candidate)
+        except (OSError, ValueError):
+            continue
+
+    return found[0] if len(found) == 1 else None
+
+
 def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
     """Move an archived brief and its mailbox back to the briefs directory; where it went.
 
@@ -258,7 +287,10 @@ def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
     """
     row = conn.execute("SELECT path FROM lemon_identities WHERE lemon_id = ?", (lemon_id,))
     found = row.fetchone()
-    path = Path(found["path"]) if found else None
+    recorded = Path(found["path"]) if found else None
+    path = recorded
+    if recorded is not None and not recorded.exists() and not is_archived(recorded):
+        path = _attic_brief(recorded.name, lemon_id)  # the record never followed the file
     if path is None or not is_archived(path):
         raise LookupError(f"{lemon_id} has no archived brief")
 
@@ -269,7 +301,7 @@ def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
             if target.exists():
                 raise ValueError(f"{target} already exists")
 
-            _repoint(conn, path, target)
+            _repoint(conn, recorded, target)
             path.rename(target)
         except BaseException:
             conn.rollback()
