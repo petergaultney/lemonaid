@@ -59,6 +59,8 @@ Add to `~/.claude/settings.json`:
 
 This gives you:
 - **UserPromptSubmit hook**: Registers the session in the inbox the moment you submit a prompt, as a read/working entry (not flagged for attention). This is what makes a session appear while it's still working, rather than only once it stops.
+
+  The same hook names the Claude session `<emoji> <name> (<WordyBin>)`, using the session's `inbox emoji`, its name and its brief's WordyBin, so the Claude app's remote session list shows the same name lemonaid does. It returns `sessionTitle` only when that differs from the transcript's current title, and only on prompt submit: `inbox rename` and `inbox emoji` show up in Claude on the next prompt. Lemonaid always wins, so a rename made in Claude is overwritten by the next prompt. A session with neither an emoji nor a brief keeps the title Claude gave it.
 - **Stop hook**: Notification when Claude finishes responding and is waiting for input
 - **PermissionRequest hook**: Notification when Claude asks a question mid-turn via the `AskUserQuestion` tool (the interactive picker). Without this, questions go unnoticed if you've tabbed away - `Stop` doesn't fire because Claude hasn't finished its turn.
 - **Notification hook**: Notification when Claude needs tool permission

@@ -64,6 +64,8 @@ def _submit(capsys) -> str:
         patch("lemonaid.claude.notify.db.connect", _fake_connect),
         patch("lemonaid.claude.notify.db.register_working"),
         patch("lemonaid.claude.notify.handoff_transfer.reclaim"),
+        patch("lemonaid.claude.notify.session_title.pending", return_value=""),
+        patch("lemonaid.claude.notify.session_title.canonical", side_effect=lambda *a: a[2]),
         patch(
             "lemonaid.claude.notify.resolve_session_name",
             return_value=notify.SessionName("s", notify.TITLE_SOURCE),
