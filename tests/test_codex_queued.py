@@ -1,9 +1,6 @@
-"""lemonaid reads the messages Codex holds in its queue, and says when Codex starts no turn from them."""
-
 import contextlib
 import datetime as dt
 import json
-import shutil
 import sqlite3
 import time
 from pathlib import Path
@@ -76,92 +73,87 @@ def _add(conn: sqlite3.Connection, item: str, thread: str, at: float) -> None:
     conn.commit()
 
 
-def _files(home: Path) -> dict[str, tuple[bytes, int, int]]:
-    """Each file in *home*, with its bytes, size and modification time."""
-    return {
-        path.name: (path.read_bytes(), path.stat().st_size, path.stat().st_mtime_ns)
-        for path in home.iterdir()
-    }
-
-
-def test_held_reads_a_copy_and_opens_nothing_in_the_codex_home(tmp_path, monkeypatch):
-    home = tmp_path / "codex"
-    _queue(home, ("a", 1000.0))
+def test_held_uses_a_read_only_connection_and_closes_it(tmp_path, monkeypatch):
+    home = tmp_path / "codex #queue?"
+    path = _queue(home, ("a", 1000.0))
     opened = []
     connect = sqlite3.connect
-    monkeypatch.setattr(
-        queued.sqlite3,
-        "connect",
-        lambda target, **kw: opened.append(Path(target)) or connect(target, **kw),
-    )
-    before = _files(home)
 
+    def read_only(target, **kwargs):
+        conn = connect(target, **kwargs)
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            conn.execute("DELETE FROM queued_items")
+        opened.append((target, kwargs, conn))
+        return conn
+
+    monkeypatch.setattr(queued.sqlite3, "connect", read_only)
     assert _HELD(home) == {"a": queued.Held(1, 1000.0)}
-    assert len(opened) == 1 and not opened[0].is_relative_to(home)
-    assert _files(home) == before
+    [(target, kwargs, conn)] = opened
+    assert target == f"{path.as_uri()}?mode=ro"
+    assert kwargs == {"uri": True, "timeout": 1.0}
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        conn.execute("SELECT 1")
 
 
-def test_held_reads_the_wal_of_a_database_codex_has_open_and_changes_none_of_its_files(tmp_path):
-    home = tmp_path / "codex"
-    path = _queue(home, ("a", 1000.0), wal=True)
-
+def test_held_reads_live_wal_commits_while_codex_has_a_write_transaction(tmp_path):
+    path = _queue(tmp_path, ("a", 1000.0), wal=True)
     with contextlib.closing(sqlite3.connect(path)) as codex:
-        _add(codex, "late", "b", 2000.0)  # only in the WAL until a checkpoint
-        assert (home / "queue_1.sqlite-wal").stat().st_size > 0
-        before = _files(home)
-
-        assert _HELD(home) == {"a": queued.Held(1, 1000.0), "b": queued.Held(1, 2000.0)}
-        assert _files(home) == before
-
-
-def test_held_reads_a_wal_database_no_process_has_open_and_creates_no_files(tmp_path):
-    home = tmp_path / "codex"
-    _queue(home, ("a", 1000.0), wal=True)
-    before = _files(home)
-
-    assert _HELD(home) == {"a": queued.Held(1, 1000.0)}
-    assert _files(home) == before
-    assert list(before) == ["queue_1.sqlite"]
+        _add(codex, "late", "b", 2000.0)
+        codex.execute("BEGIN IMMEDIATE")
+        codex.execute("DELETE FROM queued_items WHERE thread_id = 'a'")
+        assert _HELD(tmp_path) == {"a": queued.Held(1, 1000.0), "b": queued.Held(1, 2000.0)}
+        codex.commit()
+        assert _HELD(tmp_path) == {"b": queued.Held(1, 2000.0)}
+        _add(codex, "new", "c", 3000.0)
+        assert _HELD(tmp_path) == {"b": queued.Held(1, 2000.0), "c": queued.Held(1, 3000.0)}
 
 
-def _writing_during_copies(monkeypatch, path: Path, writes: int) -> list[Path]:
-    """Codex adds a row to the queue at *path* during each of the first *writes* copies."""
-    copied: list[Path] = []
-    copy = shutil.copyfile
-
-    def copy_while_codex_writes(source, target):
-        copy(source, target)
-        copied.append(Path(source))
-        if len(copied) <= writes:
-            with contextlib.closing(sqlite3.connect(path)) as codex:
-                _add(codex, f"late-{len(copied)}", "a", 3000.0)
-
-    monkeypatch.setattr(queued.shutil, "copyfile", copy_while_codex_writes)
-    return copied
+def test_held_reads_a_wal_database_with_no_other_connection(tmp_path):
+    _queue(tmp_path, ("a", 1000.0), wal=True)
+    assert _HELD(tmp_path) == {"a": queued.Held(1, 1000.0)}
 
 
-def test_held_copies_again_when_codex_writes_during_the_copy(tmp_path, monkeypatch):
-    home = tmp_path / "codex"
-    path = _queue(home, ("a", 1000.0), wal=True)
-    copied = _writing_during_copies(monkeypatch, path, writes=1)
-
-    assert _HELD(home) == {"a": queued.Held(2, 1000.0)}
-    assert len(copied) > 1
-
-
-def test_held_is_empty_when_codex_writes_during_every_copy(tmp_path, monkeypatch):
-    home = tmp_path / "codex"
-    path = _queue(home, ("a", 1000.0), wal=True)
-    _writing_during_copies(monkeypatch, path, writes=1000)
-
-    assert _HELD(home) == {}
-
-
-def test_held_is_empty_without_a_database_or_with_an_unknown_one(tmp_path):
+def test_held_does_not_create_a_missing_database(tmp_path):
     assert _HELD(tmp_path) == {}
+    assert list(tmp_path.iterdir()) == []
 
+
+@pytest.mark.parametrize(
+    ("schema", "error"),
+    [
+        ("CREATE TABLE renamed_queue (thread_id TEXT)", "no such table: queued_items"),
+        ("CREATE TABLE queued_items (thread_id TEXT)", "no such column: created_at_ms"),
+        (
+            "CREATE TABLE queued_items (thread_id TEXT, created_at_ms TEXT); "
+            "INSERT INTO queued_items VALUES ('a', 'unknown')",
+            "unsupported operand",
+        ),
+    ],
+)
+def test_unreadable_schema_is_logged_and_detection_is_skipped(tmp_path, caplog, schema, error):
+    with contextlib.closing(sqlite3.connect(tmp_path / "queue_1.sqlite")) as conn:
+        conn.executescript(schema)
+    assert _HELD(tmp_path) == {}
+    assert "held-message detection unavailable" in caplog.text
+    assert "schema may have changed" in caplog.text
+    assert str(tmp_path / "queue_1.sqlite") in caplog.text
+    assert error in caplog.text
+
+
+def test_corrupt_database_is_logged(tmp_path, caplog):
     (tmp_path / "queue_1.sqlite").write_text("not a database, but long enough for a header")
     assert _HELD(tmp_path) == {}
+    assert "not a database" in caplog.text
+
+
+def test_locked_database_is_logged_and_can_be_read_after_unlock(tmp_path, caplog):
+    path = _queue(tmp_path, ("a", 1000.0))
+    with contextlib.closing(sqlite3.connect(path)) as writer:
+        writer.execute("BEGIN EXCLUSIVE")
+        assert _HELD(tmp_path) == {}
+        assert "database is locked" in caplog.text
+        writer.rollback()
+    assert _HELD(tmp_path) == {"a": queued.Held(1, 1000.0)}
 
 
 def test_a_completed_turn_ends_it_and_an_interrupt_is_named(tmp_path):

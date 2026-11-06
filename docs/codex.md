@@ -164,10 +164,13 @@ Codex writes it to its own queue and exits 0, whether or not a process will run 
 Codex process that has the thread loaded starts a turn from it when the thread is idle.
 After an Esc interrupt, it starts none until its user's next prompt.
 
-lemonaid reads Codex's queue, `queue_1.sqlite` in the Codex home, from a private copy of
-the database and its WAL file. SQLite writes in the Codex home to read the live database,
-even read-only, so lemonaid never opens it with SQLite. When Codex writes the queue during
-each of three copies, lemonaid sees no held messages until its next look. When a
+lemonaid queries Codex's queue, `queue_1.sqlite` in the Codex home, through a
+short-lived SQLite read-only connection. It reads committed messages directly from the
+live database and WAL, without copying them or changing queue rows. SQLite may create or
+update its WAL sidecars for normal reader coordination. A locked database is given up to
+one second to become readable; other read failures also skip detection for that check
+and log a warning with the path and error in `/tmp/lemonaid.log` (or `LEMONAID_LOG`).
+Missing tables or columns after a Codex schema change are logged this way too. When a
 message has waited 60 seconds on an idle thread that a Codex process has open, the lemon
 is `parked`. `tell` exits 1 and says why, `lma` marks it `deaf`, and its parent wakes
 once. The rollout says whether the thread is idle, and whether an Esc ended its last turn.
@@ -191,7 +194,8 @@ lemonaid can't see these cases:
 - **The first message after an Esc.** `tell` says `listening`, since Codex does not hold
   the message yet. Later `tell`s, `lma` and the parent see it when it has waited a minute.
 - **A change to Codex's queue.** The database has no documentation; its table and columns
-  are from Codex 0.166.0. If Codex renames them, lemonaid sees no held messages.
+  are from Codex 0.166.0. If Codex renames them, lemonaid logs the read failure and sees no
+  held messages.
 
 See [recovery](recovery.md#a-codex-lemon-whose-messages-codex-holds) to bring the lemon back.
 
