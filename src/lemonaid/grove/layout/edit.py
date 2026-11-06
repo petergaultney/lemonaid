@@ -174,9 +174,7 @@ def clear_stump(saved: dict[str, Any], group: str, key: str) -> dict[str, Any]:
 
 def reshape(saved: dict[str, Any], group: str, roundness: float) -> dict[str, Any]:
     if not 1.5 <= roundness <= 12:
-        raise EditError(
-            "Roundness runs from 1.5 (pointed) through 2 (an ellipse) to 12 (nearly square)"
-        )
+        raise EditError("Roundness runs from 1.5 (the roundest corners) to 12 (nearly square ones)")
 
     changed = copy.deepcopy(saved)
     _plot(changed, group)["roundness"] = roundness
