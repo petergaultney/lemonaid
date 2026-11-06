@@ -90,9 +90,11 @@ def plant(
     """Draw every tree, then every tag where it covers nothing already drawn or in *taken*. With
     *stats*, a tag shows its tree's stats in place of its name, emoji and pin.
     """
-    tags = []
+    tags: dict[int, tag_fit.Tag] = {}
     occupied = list(taken)
-    for p in planted:
+    # Back to front, so where a full block's trees overlap, the nearer one is whole.
+    for i in sorted(range(len(planted)), key=lambda i: planted[i].placed[1]):
+        p = planted[i]
         ax, ay, shape = p.placed
         letter = arrangement.trees[(p.block.name, p.tree.key)].letter
         canvas.dim, canvas.target = p.dim, (p.block.digit, letter)
@@ -116,7 +118,7 @@ def plant(
         if stats:
             labeled = tree_stats.tagged(labeled)
             shape = dataclasses.replace(shape, tag=(trees.short_tag(labeled, shown, shape.width),))
-        tags.append(tag_fit.Tag(labeled, shown, shape, ax, ay, bottom, p.bounds))
+        tags[i] = tag_fit.Tag(labeled, shown, shape, ax, ay, bottom, p.bounds)
     order = sorted(range(len(tags)), key=lambda i: (tags[i].bottom, tags[i].ax))
     fitted = dict(zip(order, tag_fit.fit([tags[i] for i in order], occupied), strict=True))
     for i, p in enumerate(planted):

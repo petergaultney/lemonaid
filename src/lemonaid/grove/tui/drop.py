@@ -4,8 +4,8 @@ import dataclasses
 from collections import abc
 from typing import Any
 
-from ..draw import ground
-from ..layout import arrange, edit, lead_spot, placement, room, sizes
+from ..draw import ground, plots
+from ..layout import arrange, edit, lead_spot, placement, room, sizes, terrain
 from ..model import Block, Plot
 from . import garden, stump_drag
 from .frame import Grove
@@ -106,6 +106,18 @@ def _on_ground_of(plot: Plot, other: Plot) -> bool:
     )
 
 
+def _on_terrain(arrangement: arrange.Arrangement, plot: Plot, drag: Drag) -> str:
+    """Judged as drawn in the view the drag is made in, so a block can come right up to them on
+    screen; and as saving judges it, where they run on past the world's edges.
+    """
+    roads, stream = arrangement.roads, arrangement.stream
+    crossed = plot.texture != "house" and (
+        plots.over_terrain(plot, plots.View(*drag.origin, *drag.scale), roads, stream)
+        or terrain.crosses(terrain.under(roads, stream), plot)
+    )
+    return "a road or the stream runs there" if crossed else ""
+
+
 def _refused_open(grove: Grove, drag: Drag, aim: Aim) -> str:
     plot = _placed(grove, drag, aim).arrangement.open[drag.open]
     if plot.w < 12 or plot.h < 5:
@@ -117,7 +129,7 @@ def _refused_open(grove: Grove, drag: Drag, aim: Aim) -> str:
         for p in grove.arrangement.plots.values()
     ):
         return "a block's ground is there"
-    return ""
+    return _on_terrain(grove.arrangement, plot, drag)
 
 
 def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
@@ -140,8 +152,13 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
     others = [p for other, p in after.plots.items() if other != name]  # open ground is built over
     if any(_on_ground_of(plot, other) for other in others):
         return "another block's ground is there"
-    if drag.sides and _crowded(grove, drag.block, plot):
-        return "its trees need more room than that"
+    if crossed := _on_terrain(after, plot, drag):
+        return crossed
+    try:
+        if drag.sides and _crowded(grove, drag.block, plot):
+            return "its trees need more room than that"
+    except edit.EditError as error:
+        return str(error)
     return ""
 
 

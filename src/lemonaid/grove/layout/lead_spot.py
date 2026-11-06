@@ -38,7 +38,7 @@ def _free(
         if not s.get("gone_since") and "x" in s  # the lead's own spot too: it goes back there
     ]
     # A lead never spills: its block grows only for its other trees.
-    (x, y), _ = placement.new_spot(plot, [(width, height, top)], placed, toward, squeeze=True)
+    (x, y), _ = placement.new_spot(plot, [(width, height, top)], placed, toward)
     return {
         "x": x + width // 2,
         "y": y + top,

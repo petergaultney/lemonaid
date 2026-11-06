@@ -82,11 +82,10 @@ def new_spot(
     now: float,
     reuse: bool = True,
     toward: tuple[float, float] | None = None,
-    squeeze: bool = False,
 ) -> dict[str, Any]:
     """A spot for a tree new to the block: the oldest free spot, unless not *reuse*, else
-    the free ground nearest *toward* that placement finds, else past the plot's edge or, with
-    *squeeze*, in over the others (see `placement.new_spot`).
+    the free ground nearest *toward* that placement finds, else squeezed in over the others
+    (see `placement.new_spot`), and marked so it isn't moved again for want of room.
     """
     taken = {
         s["letter"]
@@ -100,16 +99,27 @@ def new_spot(
         reused = spots.pop(oldest)
         return {"x": reused["x"], "y": reused["y"], "letter": letter, "gone_since": None}
 
-    spot = _on_ground(
+    found = _on_ground(
         tree,
         label,
         letter,
         size,
         spots,
-        lambda fits, placed: placement.new_spot(plot, fits, placed, toward, squeeze),
+        lambda fits, placed: placement.first_room(plot, fits, placed, toward),
     )
-    assert spot is not None  # placement.new_spot always finds one
-    return {**spot, "squeezed": True} if squeeze else spot
+    if found is not None:
+        return found
+
+    squeezed = _on_ground(
+        tree,
+        label,
+        letter,
+        size,
+        spots,
+        lambda fits, placed: placement.new_spot(plot, fits, placed, toward),
+    )
+    assert squeezed is not None  # placement.new_spot always finds one
+    return {**squeezed, "squeezed": True}
 
 
 def clear_spot(

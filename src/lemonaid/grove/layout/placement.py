@@ -32,25 +32,54 @@ def plot_size(tree_area: int, largest: tuple[int, int]) -> tuple[int, int]:
     return max(28, largest[0] + 6, round(area / h)), h
 
 
-def new_plot(name: str, size: tuple[int, int], taken: abc.Sequence[Rect]) -> Plot:
-    """Ground for a block named *name*: the free spot nearest the grove's middle, beyond its edge if full."""
+def _nearest(
+    size: tuple[int, int],
+    taken: abc.Sequence[Rect],
+    crossing: abc.Callable[[Rect], bool],
+    right: int,
+    bottom: int,
+) -> tuple[int, int] | None:
+    """The corner, left of *right* and above *bottom*, of the spot of *size* clear of *taken* and
+    *crossing* nearest the world's middle, inside the world before outside it.
+    """
     w, h = size
-    seed = word_hash(name)
     cx, cy = WORLD_WIDTH / 2, WORLD_HEIGHT / 2
-    best: Rect | None = None
+    best: tuple[int, int] | None = None
     best_distance = math.inf
-    right = max([WORLD_WIDTH, *(x + rw for x, _, rw, _ in taken)])
-    for y in range(1, max(2, WORLD_HEIGHT - h)):
-        for x in range(0, right + w, 2):
+    for y in range(1, bottom):
+        for x in range(0, right, 2):
             rect = (x, y, w, h)
-            if any(overlaps(rect, other, 1) for other in taken):
+            if any(overlaps(rect, other, 1) for other in taken) or crossing(rect):
                 continue
-            distance = (
-                math.hypot(x + w / 2 - cx, (y + h / 2 - cy) * 2) + (x + w > WORLD_WIDTH) * 1000
+            distance = math.hypot(x + w / 2 - cx, (y + h / 2 - cy) * 2) + 1000 * (
+                x + w > WORLD_WIDTH or y + h > WORLD_HEIGHT
             )
             if distance < best_distance:
-                best, best_distance = rect, distance
-    x, y, w, h = best or (right + 2, 1, w, h)
+                best, best_distance = (x, y), distance
+    return best
+
+
+def new_plot(
+    name: str,
+    size: tuple[int, int],
+    taken: abc.Sequence[Rect],
+    crossing: abc.Callable[[Rect], bool] = lambda _: False,
+) -> Plot:
+    """Ground for a block named *name*: the free spot nearest the grove's middle, beyond its edges
+    if full. Free of *taken*, and of any box *crossing* turns down.
+    """
+    w, h = size
+    seed = word_hash(name)
+    right = max([WORLD_WIDTH, *(x + rw for x, _, rw, _ in taken)])
+    bottom = max([WORLD_HEIGHT, *(y + rh for _, y, _, rh in taken)])
+    # Inside the world first; then ever further past its right and bottom edges, where the
+    # roads and stream run on, until a spot clear of them and every block turns up.
+    found = _nearest((w, h), taken, crossing, right + w, max(2, WORLD_HEIGHT - h))
+    reach = 1
+    while found is None:
+        found = _nearest((w, h), taken, crossing, reach * right + w, reach * bottom + h)
+        reach *= 2
+    x, y = found
     return Plot(
         x,
         y,
@@ -89,25 +118,11 @@ def overlap_area(rect: Rect, placed: abc.Sequence[Rect]) -> int:
     )
 
 
-def _spill(plot: Plot, size: tuple[int, int], placed: abc.Sequence[Rect]) -> tuple[int, int]:
-    w, h = size
-    clear = (
-        (x, y)
-        for y in range(-h, plot.h + 1)
-        for x in range(-w, plot.w + w * (len(placed) + 1))
-        if not any(overlaps((x, y, w, h), other, 0) for other in placed)
-    )
-    return min(
-        clear,
-        key=lambda xy: math.hypot(xy[0] + w / 2 - plot.w / 2, (xy[1] + h / 2 - plot.h / 2) * 2),
-    )
-
-
 def _squeeze(plot: Plot, size: Size, placed: abc.Sequence[Rect]) -> tuple[int, int]:
     """Where a footprint of *size* covers the least of *placed* with its middle on *plot*'s
     ground, nearest the middle among equals: for a tree with no room left in a full block. One
-    longer than the plot, which only a plot boxed in by other blocks keeps, stands with its
-    crown's middle on the plot's top edge and overhangs the bottom.
+    longer than the plot stands with its crown's middle on the plot's top edge and overhangs the
+    bottom.
     """
     w, full, above = size
     h = full - above  # the part that must be on the plot
@@ -194,14 +209,8 @@ def new_spot(
     sizes: abc.Sequence[Size],
     placed: abc.Sequence[Rect],
     toward: tuple[float, float] | None = None,
-    squeeze: bool = False,
 ) -> tuple[tuple[int, int], Size]:
-    """As `first_room`, but with no room for any size the smallest spills just past the plot's
-    edge, as near its middle as it stands clear of every other tree, for the plot to grow into;
-    or, with *squeeze*, for a plot that can't, goes where it covers the least of the others,
-    still on the plot's ground.
+    """As `first_room`, but with no room for any size the smallest goes where it covers the
+    least of the others, still on the plot's ground: a block never grows for its trees.
     """
-    return first_room(plot, sizes, placed, toward) or (
-        _squeeze(plot, sizes[-1], placed) if squeeze else _spill(plot, sizes[-1][:2], placed),
-        sizes[-1],
-    )
+    return first_room(plot, sizes, placed, toward) or (_squeeze(plot, sizes[-1], placed), sizes[-1])

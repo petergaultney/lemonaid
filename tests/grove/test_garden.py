@@ -77,15 +77,15 @@ def test_dragging_a_block_saves_where_it_was_dropped():
         app = GroveApp(lambda: GROVE, 60.0, None)
         async with app.run_test(size=_SIZE) as pilot:
             await pilot.mouse_down(offset=start)
-            await pilot.hover(offset=(start[0], start[1] - 3))
-            await pilot.mouse_up(offset=(start[0], start[1] - 3))
+            await pilot.hover(offset=(start[0], start[1] + 3))
+            await pilot.mouse_up(offset=(start[0], start[1] + 3))
             await app.workers.wait_for_complete()
             await pilot.pause()
 
     asyncio.run(run())
     saved = state.load()["plots"]["relay"]
     assert (saved["x"], saved["y"]) != (before.x, before.y)
-    assert saved["x"] == before.x and saved["y"] < before.y
+    assert saved["x"] == before.x and saved["y"] > before.y
 
 
 def test_a_block_dragged_to_nothing_still_draws_and_is_refused():
@@ -121,12 +121,12 @@ def test_a_dropped_tree_stays_where_it_was_dropped_or_is_refused():
 def test_a_drop_checks_the_saved_layout_not_the_one_it_was_dragged_on():
     arrangement, saved = arrange.arrange(BLOCKS, {"plots": {}, "trees": {}}, NOW)
     old = Grove(BLOCKS, arrangement, saved)
-    drag = dataclasses.replace(_grab("relay", (0, 0)), sides=frozenset(), moved=(100, 0))
+    drag = dataclasses.replace(_grab("relay", (0, 0)), sides=frozenset(), moved=(-60, 10))
     assert drop.refused(old, drag) == ""
 
     state.save(saved)
     relay = arrangement.plots["relay"]
-    state.update(lambda s: edit.move(s, "oria", relay.x + 100, relay.y))
+    state.update(lambda s: edit.move(s, "oria", relay.x - 60, relay.y + 10))
     with pytest.raises(edit.EditError, match="another block's ground"):
         state.update(drop.drop(old, drag, NOW))
     assert state.load()["plots"]["relay"]["x"] == relay.x
@@ -324,7 +324,7 @@ def test_every_resize_a_drag_accepts_is_dropped_at_that_size():
 
 
 def test_open_ground_is_grabbed_and_dragged_like_a_block():
-    plot = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=40)
+    plot = dataclasses.replace(GROVE.arrangement.plots["oria"], x=150, y=44)
     grove = dataclasses.replace(
         GROVE, arrangement=dataclasses.replace(GROVE.arrangement, open=(plot,))
     )
@@ -377,3 +377,35 @@ def test_a_dropped_open_ground_is_found_again_by_what_it_was_not_its_index():
     for gone in (only_b, _saved_with_open()):
         with pytest.raises(edit.EditError):
             drop.drop(grove, drag)(gone)
+
+
+def _grove_by_a_stream(x: int, y: int, w: int, h: int) -> Grove:
+    blocks = (block("g", "1", tree("a")),)
+    plot = {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": 3, "texture": "rows"}
+    saved = {"plots": {"g": plot}, "trees": {}, "roads": [], "stream": [[0, 30], [210, 30]]}
+    arrangement, kept = arrange.arrange(blocks, saved, NOW)
+    return Grove(blocks, arrangement, kept)
+
+
+def _drag(grove: Grove, sides: frozenset, moved, scale=(1.5, 1.5), origin=(0.0, 0.0)):
+    return garden.Drag(grove.blocks[0], "", sides, (0, 0), scale, moved, "1", origin=origin)
+
+
+def test_a_block_moved_onto_the_stream_past_the_worlds_edge_is_refused_before_it_drops():
+    grove = _grove_by_a_stream(20, 5, 40, 16)
+    assert drop.refused(grove, _drag(grove, frozenset(), (200, 20))) == (
+        "a road or the stream runs there"
+    )
+
+
+def test_a_block_resized_onto_the_stream_past_the_worlds_edge_is_refused_not_raised():
+    grove = _grove_by_a_stream(220, 5, 40, 16)
+    assert drop.refused(grove, _drag(grove, frozenset({"bottom"}), (0, 20)))
+
+
+def test_a_drag_is_judged_in_the_panned_view_it_is_made_in():
+    grove = _grove_by_a_stream(20, 23, 40, 5)
+    moved = (0, 2)  # to Plot(20, 25, 40, 5): clear of the stream unpanned, on it panned
+    assert drop.refused(grove, _drag(grove, frozenset(), moved, (1.1, 0.8))) == ""
+    panned = _drag(grove, frozenset(), moved, (1.1, 0.8), origin=(0.0, 2.0))
+    assert drop.refused(grove, panned) == "a road or the stream runs there"
