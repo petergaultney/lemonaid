@@ -5,7 +5,7 @@ import functools
 import itertools
 from collections import abc
 
-from ..model import Plot
+from ..model import WORLD_HEIGHT, WORLD_WIDTH, Plot
 from . import colors, crown
 from .canvas import BACKGROUND, Canvas, mix, put, text
 from .ground import inside, noise, texture
@@ -142,6 +142,21 @@ def _along(view: View, points: abc.Sequence[tuple[int, int]]) -> abc.Iterator[tu
         steps = max(1, round(max(abs(sx1 - sx0), abs(sy1 - sy0) * 2)))
         for k in range(steps + 1):
             yield round(sx0 + (sx1 - sx0) * k / steps), round(sy0 + (sy1 - sy0) * k / steps)
+
+
+def to_edges(
+    points: abc.Sequence[tuple[int, int]], extent: tuple[int, int]
+) -> list[tuple[int, int]]:
+    """*points* with each end that sits on the world's right or bottom border moved out to the
+    grove's *extent*, so terrain keeps running to the map's edge when blocks have grown it.
+    """
+
+    def reach(x: int, y: int) -> tuple[int, int]:
+        return (extent[0] if x >= WORLD_WIDTH else x, extent[1] if y >= WORLD_HEIGHT else y)
+
+    return (
+        [reach(*points[0]), *points[1:-1], reach(*points[-1])] if len(points) > 1 else list(points)
+    )
 
 
 def _stream_cells(

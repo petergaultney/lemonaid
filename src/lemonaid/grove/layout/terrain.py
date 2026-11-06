@@ -18,6 +18,7 @@ Line = tuple[tuple[int, int], ...]
 # Grove columns each row's roads and stream cover, as [start, end) runs, by row.
 Covered = dict[int, tuple[tuple[int, int], ...]]
 _PLOT_KEYS = ("x", "y", "w", "h", "roundness", "seed", "texture")
+GAP = 2  # grove units kept clear between a block and any road or the stream
 _FAR = 10  # times the world's size, how far an end on its border runs on
 
 
@@ -145,14 +146,21 @@ def crosses_saved(saved: dict[str, Any], data: dict[str, Any]) -> bool:
     )
 
 
+def _near(ground: Covered, data: dict[str, Any]) -> bool:
+    """Whether saved plot *data*, but for the packhouse's, is within `GAP` of *ground*."""
+    return data.get("texture") != "house" and crosses_box(
+        ground, (data["x"], data["y"], data["w"], data["h"]), GAP
+    )
+
+
 def _clear_box(ground: Covered, rect: placement.Rect) -> placement.Rect:
-    """The largest box inside *rect* that no road or stream crosses."""
+    """The largest box inside *rect* that is `GAP` clear of every road and stream."""
     x, y, w, h = rect
     heights = [0] * w
     best = (x, y, 0, 0)
     for row in range(y, y + h):
         heights = [
-            0 if crosses_box(ground, (x + i, row, 1, 1)) else heights[i] + 1 for i in range(w)
+            0 if crosses_box(ground, (x + i, row, 1, 1), GAP) else heights[i] + 1 for i in range(w)
         ]
         for i in range(w):
             least = heights[i]
@@ -167,17 +175,17 @@ def move_off(saved: dict[str, Any], ground: Covered) -> None:
     """Take every block saved over a road or the stream off it, once: trimmed to the part
     clear of *ground* when that keeps half its ground, else moved whole to the nearest free
     ground. Its trees keep their place on the ground, and any the trim cuts off stand afresh
-    inside. Open ground over them is forgotten. A block checked is marked `clear` and never
+    inside. Open ground over them is forgotten. A block checked is marked `clear` with the gap it was checked for and never
     checked again, so one moved or resized close to them stays where it was put.
     """
     plots = saved["plots"]
     for name in sorted(plots):
         data = plots[name]
-        if data.get("clear"):
+        if data.get("clear") == GAP:
             continue
 
-        if not crosses_saved(saved, data):
-            data["clear"] = data.get("open_since") is None
+        if not _near(ground, data):
+            data["clear"] = GAP if data.get("open_since") is None else 0
             continue
 
         if data.get("open_since") is not None:
@@ -191,7 +199,7 @@ def move_off(saved: dict[str, Any], ground: Covered) -> None:
         if not trimmed:
             taken = [(d["x"], d["y"], d["w"], d["h"]) for key, d in plots.items() if key != name]
             found = placement.new_plot(
-                name, old[2:], taken, functools.partial(crosses_box, ground, gap=1)
+                name, old[2:], taken, functools.partial(crosses_box, ground, gap=GAP)
             )
             x, y, w, h = found.x, found.y, old[2], old[3]
         data.update(x=x, y=y, w=w, h=h)
@@ -204,4 +212,4 @@ def move_off(saved: dict[str, Any], ground: Covered) -> None:
                 del spots[key]  # a bare tree the trim cut off
         if trimmed:
             data.pop("crowd", None)  # its trees sized afresh for the ground left
-        data["clear"] = True
+        data["clear"] = GAP

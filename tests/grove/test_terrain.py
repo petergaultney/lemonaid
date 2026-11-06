@@ -102,16 +102,28 @@ def test_a_tall_saved_block_across_terrain_moves_clear_and_stays():
     assert arrange((block("g", "1", tree("a")),), kept, NOW + 60)[0].plots["g"] == plot
 
 
-def test_a_block_close_to_the_stream_but_not_on_it_stays_where_it_was_put():
-    found, kept = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 31, 40, 16)}), NOW)
-    assert (found.plots["g"].y, found.plots["g"].h) == (31, 16)
-    assert kept["plots"]["g"]["clear"]
+def test_a_block_a_gap_from_the_stream_stays_where_it_was_put():
+    found, kept = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 35, 40, 16)}), NOW)
+    assert (found.plots["g"].y, found.plots["g"].h) == (35, 16)
+    assert kept["plots"]["g"]["clear"] == terrain.GAP
+
+
+def test_a_block_closer_to_the_stream_than_the_gap_is_moved_clear_of_it():
+    found, kept = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 33, 40, 16)}), NOW)
+    rect = found.plots["g"]
+    assert not terrain.crosses_box(_ground(), (rect.x, rect.y, rect.w, rect.h), terrain.GAP)
 
 
 def test_a_block_checked_once_is_not_checked_again():
-    saved = _saved({"g": _plot(20, 24, 40, 16, clear=True)})
+    saved = _saved({"g": _plot(20, 24, 40, 16, clear=terrain.GAP)})
     found, _ = arrange((block("g", "1", tree("a")),), saved, NOW)
     assert (found.plots["g"].x, found.plots["g"].y) == (20, 24)
+
+
+def test_a_block_checked_without_a_gap_is_checked_again():
+    saved = _saved({"g": _plot(20, 33, 40, 16, clear=True)})
+    found, _ = arrange((block("g", "1", tree("a")),), saved, NOW)
+    assert found.plots["g"].y != 33
 
 
 def test_a_drag_is_judged_by_the_cells_drawn_at_its_zoom():
