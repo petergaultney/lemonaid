@@ -4,7 +4,7 @@ import threading
 import time
 from collections import abc
 
-from ....claude import notify
+from ....claude import notify, session_title
 from ....codex import titles
 from ....log import get_logger
 from ... import db
@@ -24,6 +24,7 @@ def upgrade(mtimes: dict[str, float], codex_index: titles.IndexCache) -> bool:
         candidates = [
             (
                 n.id,
+                n.channel,
                 n.metadata.get("session_id", ""),
                 n.metadata.get("cwd", ""),
                 n.metadata.get("transcript_path"),
@@ -36,7 +37,7 @@ def upgrade(mtimes: dict[str, float], codex_index: titles.IndexCache) -> bool:
         ]
 
     upgraded = False
-    for notification_id, session_id, cwd, transcript_path in candidates:
+    for notification_id, channel, session_id, cwd, transcript_path in candidates:
         transcript = notify.find_transcript(session_id, cwd, transcript_path)
         if not transcript:
             continue
@@ -59,12 +60,13 @@ def upgrade(mtimes: dict[str, float], codex_index: titles.IndexCache) -> bool:
             continue
 
         with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
-            if db.refresh_auto_name(conn, notification_id, resolved.name, resolved.source):
+            name = session_title.canonical(conn, channel, resolved.name)
+            if db.refresh_auto_name(conn, notification_id, name, resolved.source):
                 upgraded = True
                 _log.info(
                     "name upgraded: %d -> %r (%s)",
                     notification_id,
-                    resolved.name,
+                    name,
                     resolved.source,
                 )
 

@@ -1,5 +1,6 @@
 """Tests for lemonaid.claude.notify module."""
 
+import json
 from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,8 @@ from lemonaid.claude import notify
 @pytest.fixture(autouse=True)
 def _no_handoff_reclaim(monkeypatch):
     monkeypatch.setattr(notify.handoff_transfer, "reclaim", lambda _conn, _channel: False)
+    monkeypatch.setattr(notify.session_title, "pending", lambda _conn, _channel, _current: "")
+    monkeypatch.setattr(notify.session_title, "canonical", lambda _conn, _channel, name: name)
 
 
 @contextmanager
@@ -324,3 +327,26 @@ def test_the_hook_names_a_session_from_the_transcript_it_reports():
         notify.handle_submit(stdin_data=payload)
 
     mock_resolve.assert_called_once_with("abc123", "/tmp/project/notes", "/tmp/claude/abc123.jsonl")
+
+
+def test_handle_submit_answers_with_one_json_object_carrying_the_title(monkeypatch, capsys):
+    monkeypatch.setattr(notify.session_title, "pending", lambda *_: "🍋 name (Wordy)")
+    monkeypatch.setattr(notify.daily_date, "due", lambda *_: "It's today.")
+    monkeypatch.setattr(notify.daily_date, "mark", lambda *_: None)
+    payload = '{"session_id":"abc123","cwd":"/tmp/project"}'
+
+    with (
+        patch("lemonaid.claude.notify.db.connect", _fake_connect),
+        patch("lemonaid.claude.notify.db.register_working"),
+        patch("lemonaid.claude.notify._transcript_titles", return_value=(None, None)),
+        patch("lemonaid.claude.notify.resolve_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tmux_session_name", return_value=None),
+        patch("lemonaid.claude.notify.get_tty", return_value=None),
+        patch("lemonaid.claude.notify.detect_terminal_switch_source", return_value="tmux"),
+        patch("lemonaid.claude.notify.get_git_branch", return_value=None),
+    ):
+        notify.handle_submit(stdin_data=payload)
+
+    out = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert out["sessionTitle"] == "🍋 name (Wordy)"
+    assert out["additionalContext"] == "It's today."

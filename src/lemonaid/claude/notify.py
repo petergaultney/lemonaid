@@ -48,7 +48,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import print_mode, watcher
+from . import print_mode, session_title, watcher
 
 _log = get_logger("claude.notify")
 
@@ -250,6 +250,9 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     resolved = resolve_session_name(session_id, cwd, data.get("transcript_path"))
     name = resolved.name if resolved else (tmux_session or get_name_from_cwd(cwd))
     name_source = resolved.source if resolved else "environment"
+    if resolved:
+        with db.connect() as conn:
+            name = session_title.canonical(conn, channel_id("claude", session_id), name)
 
     # Detect switch-source (which terminal environment this notification came from)
     switch_source = detect_terminal_switch_source()
@@ -308,8 +311,9 @@ def _resolve_session(data: dict, notification_type: str) -> tuple[str, str, str,
     return channel_id("claude", session_id), session_id, name, switch_source, metadata
 
 
-def _tell_date(channel: str) -> None:
-    """Add the date line to the turn, when it is this session's first turn of the day.
+def _answer_submit(channel: str, title: str) -> None:
+    """Answer the UserPromptSubmit hook: the date line, when it is this session's
+    first turn of the day, and *title* as the session's name, when not empty.
 
     UserPromptSubmit also fires when a background task's completion wakes the
     session, so a lemon that only waits on waiters still hears it.
@@ -317,15 +321,22 @@ def _tell_date(channel: str) -> None:
     now, seen = dt.datetime.now(), daily_date.seen_path(channel)
     day_starts = load_config().inbox.day_starts
     line = daily_date.due(seen, now, day_starts)
-    if not line:
+    if not (line or title):
         return
 
     print(
         json.dumps(
-            {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": line}}
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    **({"additionalContext": line} if line else {}),
+                    **({"sessionTitle": title} if title else {}),
+                }
+            }
         )
     )
-    daily_date.mark(seen, now, day_starts)
+    if line:
+        daily_date.mark(seen, now, day_starts)
 
 
 def handle_submit(stdin_data: str | None = None) -> None:
@@ -346,7 +357,7 @@ def handle_submit(stdin_data: str | None = None) -> None:
         data = {}
 
     try:
-        channel, _session_id, name, switch_source, metadata = _resolve_session(data, "working")
+        channel, session_id, name, switch_source, metadata = _resolve_session(data, "working")
     except UnidentifiedSession as error:
         _log.warning("dropped a working notification: %s", error)
         return
@@ -366,9 +377,13 @@ def handle_submit(stdin_data: str | None = None) -> None:
         handoff_transfer.reclaim(conn, channel)
         if isinstance(data.get("prompt"), str):
             handoff_state.typed_message(conn, channel, data["prompt"])
+        custom_title, _ai_title = _transcript_titles(
+            session_id, data.get("cwd", ""), data.get("transcript_path")
+        )
+        title = session_title.pending(conn, channel, custom_title or "")
 
     _log.info("working: channel=%s", channel)
-    _tell_date(channel)
+    _answer_submit(channel, title)
 
 
 def handle_session_start(stdin_data: str | None = None) -> None:
