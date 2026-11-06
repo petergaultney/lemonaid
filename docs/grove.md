@@ -114,7 +114,7 @@ lemonaid grove show --plain      # characters only
 lemonaid grove show --json       # blocks, trees, spots, letters and lemons
 lemonaid grove move 2 40 10      # put block 2's top-left corner at column 40, row 10
 lemonaid grove resize oria 60 18 # by digit or by group name
-lemonaid grove reshape 2 6       # 2 is an ellipse, 12 nearly a rectangle
+lemonaid grove reshape 2 6       # 2 rounds its corners most, 12 squares them
 lemonaid grove move open:0 40 10 # open ground is open:N; resize takes it too
 lemonaid grove clear-open        # forget open ground left by groups that ended
 lemonaid grove clear-open open:1 # or just one

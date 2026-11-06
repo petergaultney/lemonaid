@@ -379,9 +379,9 @@ def test_a_dropped_open_ground_is_found_again_by_what_it_was_not_its_index():
             drop.drop(grove, drag)(gone)
 
 
-def _grove_by_a_stream(x: int, y: int, w: int, h: int) -> Grove:
+def _grove_by_a_stream(x: int, y: int, w: int, h: int, seed: int = 3) -> Grove:
     blocks = (block("g", "1", tree("a")),)
-    plot = {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": 3, "texture": "rows"}
+    plot = {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": seed, "texture": "rows"}
     plot |= {"clear": terrain.GAP}  # already placed, as the drag tests need it where it is
     saved = {"plots": {"g": plot}, "trees": {}, "roads": [], "stream": [[0, 30], [210, 30]]}
     arrangement, kept = arrange.arrange(blocks, saved, NOW)
@@ -405,7 +405,7 @@ def test_a_block_resized_onto_the_stream_past_the_worlds_edge_is_refused_not_rai
 
 
 def test_a_drag_is_judged_in_the_panned_view_it_is_made_in():
-    grove = _grove_by_a_stream(20, 23, 40, 5)
+    grove = _grove_by_a_stream(20, 23, 40, 5, seed=9)  # its bottom edge sits low in its box
     moved = (0, 2)  # to Plot(20, 25, 40, 5): clear of the stream unpanned, on it panned
     assert drop.refused(grove, _drag(grove, frozenset(), moved, (1.1, 0.8))) == ""
     panned = _drag(grove, frozenset(), moved, (1.1, 0.8), origin=(0.0, 2.0))
