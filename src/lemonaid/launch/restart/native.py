@@ -60,9 +60,15 @@ def observe(data: dict, harness: str) -> None:
         get_logger("restart.native").debug("Cannot record process ownership: %s", error)
 
 
-def resumed(channel: str, original: dict, root_pid: int) -> bool:
+def replacement(channel: str, original: dict) -> process.Identity | None:
+    """The live process a hook recorded for *channel* since *original*, if any."""
     current = binding(channel)
     if not current or current["identity"] == original:
-        return False
+        return None
     source = process.Identity(**current["identity"])
-    return process.same(source) and any(p.pid == root_pid for p in process.ancestry(source.pid))
+    return source if process.same(source) else None
+
+
+def resumed(channel: str, original: dict, root_pid: int) -> bool:
+    source = replacement(channel, original)
+    return source is not None and any(p.pid == root_pid for p in process.ancestry(source.pid))

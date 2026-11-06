@@ -1,10 +1,14 @@
 """tmux as a front end: a lemon is a pane in a window of a session on a server."""
 
+import subprocess
 from collections import abc
+from pathlib import Path
 
 from .. import tmux
+from ..claude import launch_args
 from ..config import Config
 from ..launch import window
+from ..launch.restart import pane, process
 from ..lemon_watchers import watcher
 from ..log import get_logger
 from . import interface
@@ -99,7 +103,66 @@ def exists(tty: str, socket: str | None = None, not_after: float | None = None) 
     return session is not None and pane_id is not None
 
 
+def _workspace(socket: str, directory: Path, key: str, config: Config) -> str:
+    return tmux.relocation.destination_session(
+        socket, directory, key, config.places.protected_sessions
+    )
+
+
+def _prepare(socket: str, tty: str, workspace: str, directory: str, config: Config) -> None:
+    """Make the destination session, and keep a protected session's pane open after
+    its harness exits, even when the harness was the pane's only process."""
+    tmux.relocation.ensure_session(socket, workspace, directory)
+    found = pane.locate(socket, tty)
+    if tmux.relocation.session_of(socket, found.pane) in config.places.protected_sessions:
+        tmux.relocation.keep_on_exit(socket, found.pane)
+
+
+def _only_shell(left: pane.Pane) -> bool:
+    if left.dead:
+        return True
+
+    root = process.inspect(left.pid)
+    return (
+        root is not None
+        and process.on_tty(left.tty) == [root]
+        and process.shell(root, launch_args.argv(root.pid))
+    )
+
+
+def _leave(socket: str, tty: str, workspace: str, config: Config) -> str:
+    """Close the old pane when only its shell is left. tmux then closes its window, and
+    its session when that was its last pane; the session's clients follow the lemon."""
+    try:
+        left = pane.locate(socket, tty)
+    except ValueError:
+        return "its old pane is gone"
+
+    try:
+        if (session := tmux.relocation.session_of(socket, left.pane)) in (
+            config.places.protected_sessions
+        ):
+            return f"its old pane {left.pane} stays open: session {session!r} is protected"
+
+        if not _only_shell(left):
+            return f"its old pane {left.pane} still runs other jobs, so it stays open"
+
+        tmux.relocation.close_pane(socket, left.pane, workspace)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        return f"its old pane {left.pane} stays open: {error}"
+
+    return f"closed its old pane {left.pane}"
+
+
+def relocation() -> interface.Relocation:
+    return interface.Relocation(_workspace, _prepare, tmux.relocation.pane_location, _leave)
+
+
 def terminal() -> interface.Terminal:
     return interface.Terminal(
-        name="tmux", here=lambda: bool(window.own_session()), show=show, exists=exists
+        name="tmux",
+        workspace_key="tmux_session",
+        here=lambda: bool(window.own_session()),
+        show=show,
+        exists=exists,
     )

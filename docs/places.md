@@ -338,6 +338,14 @@ The session and windows are closed *before* the directory is released: your shel
 directory is inside it, and a process still holding a file there can make the removal fail. A
 place whose directory is already gone is skipped rather than treated as a failure.
 
+## Moving a lemon into a place
+
+`lemonaid lemon move <lemon> <key>` moves a live lemon into another place: it acquires the
+place if needed, resumes the lemon's conversation in that directory and workspace, and
+closes the pane it left. Moving a tmux window by hand leaves the lemon's directory and
+process where they were, and leaves both workspaces looking hybrid to `toss`. See
+[moving a lemon](lemon-move.md).
+
 ## Resuming detached tmux rows
 
 Live inbox rows keep their normal activation behavior. A detached tmux row can be resumed with
