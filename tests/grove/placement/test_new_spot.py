@@ -20,13 +20,6 @@ def test_a_new_tree_does_not_cover_one_already_standing():
     assert not placement.overlaps(first, second, 0)
 
 
-def test_a_full_plot_spills_the_tree_just_past_its_edge_instead_of_covering_one():
-    crowded = [(0, 0, PLOT.w, PLOT.h), (PLOT.w + 2, 3, 10, 7)]
-    (x, y), _ = placement.new_spot(PLOT, [(14, 7, 0)], crowded)
-    assert not any(placement.overlaps((x, y, 14, 7), other, 0) for other in crowded)
-    assert -7 <= y <= 1 or PLOT.h - 1 <= y <= PLOT.h + 1  # hugging the top or bottom edge
-
-
 def test_a_tree_too_big_for_the_room_left_takes_its_smaller_size_inside():
     big = (0, 0, PLOT.w, 12)  # the top half taken
     spot, size = placement.new_spot(PLOT, [(14, 14, 0), (14, 7, 0)], [big])
@@ -35,7 +28,7 @@ def test_a_tree_too_big_for_the_room_left_takes_its_smaller_size_inside():
 
 def test_squeezed_into_a_full_plot_a_tree_stays_on_its_ground():
     crowded = [(0, 0, PLOT.w, PLOT.h)]
-    (x, y), _ = placement.new_spot(PLOT, [(14, 7, 0)], crowded, squeeze=True)
+    (x, y), _ = placement.new_spot(PLOT, [(14, 7, 0)], crowded)
     assert x >= 0 and x + 14 <= PLOT.w and y >= 0 and y + 7 <= PLOT.h
 
 

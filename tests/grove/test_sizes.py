@@ -17,4 +17,4 @@ def test_a_crowded_block_shrinks_its_trees_within_limits():
     one = block("b", "1", tree("t0"))
     plot = Plot(0, 0, 40, 12, 3.4, 1, "rows")
     grown = {t.key: 1.0 for t in many.trees}
-    assert 0.68 <= sizes.crowding(plot, many, grown) < sizes.crowding(plot, one, grown) <= 1.6
+    assert 0.68 <= sizes.crowding(plot, many, grown) < sizes.crowding(plot, one, grown) <= 1.0

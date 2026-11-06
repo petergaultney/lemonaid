@@ -17,13 +17,14 @@ def growth(born: float, now: float) -> float:
 
 def crowding(plot: Plot, block: Block, sizes: dict[str, float]) -> float:
     """How much to scale every tree in *block* so their crowns cover about a third of its plot:
-    larger in a roomy block, smaller in a crowded one.
+    smaller in a crowded block, but never past grown in a roomy one, whose plot was sized for
+    its trees at grown size and one more.
     """
     crowns = sum(
         (2 * shape.rx) * (2.5 * shape.ry)
         for shape in (trees.shape(tree, "x", sizes[tree.key]) for tree in block.trees)
     )
-    return min(1.6, max(0.68, math.sqrt(ground.area(plot) * 0.33 / max(1, crowns))))
+    return min(1.0, max(0.68, math.sqrt(ground.area(plot) * 0.33 / max(1, crowns))))
 
 
 Box = tuple[float, float, float, float]  # left, top, right, bottom

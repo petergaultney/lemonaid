@@ -83,8 +83,7 @@ def _untangle(
         others = {k: v for k, v in spots.items() if k != tree.key}
         moved = new_spots.clear_spot(tree, short[tree.key], letter, drawn[tree.key], plot, others)
         if moved is None and not spots[tree.key].get("squeezed"):
-            # Past the plot's edge, for the block to grow into; a tree already squeezed into a
-            # block that couldn't grow stays where it is.
+            # In over the others where it covers the least; one already squeezed in stays put.
             moved = new_spots.new_spot(
                 tree, short[tree.key], drawn[tree.key], plot, others, now, False
             )
@@ -142,7 +141,7 @@ def stand_trees(
                 now,
                 toward=_anchor(block, spots, toward),
             )
-        elif "x" not in spots[tree.key]:  # given up, to stand afresh in ground its plot grew
+        elif "x" not in spots[tree.key]:  # given up, to stand afresh on its plot
             others = {k: v for k, v in spots.items() if k != tree.key}
             spots[tree.key] = {
                 **new_spots.new_spot(
@@ -154,7 +153,6 @@ def stand_trees(
                     now,
                     False,
                     _anchor(block, others, toward),
-                    squeeze=spots[tree.key].get("squeeze", False),
                 ),
                 "letter": spots[tree.key]["letter"],
             }

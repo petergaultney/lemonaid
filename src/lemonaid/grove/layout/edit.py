@@ -9,7 +9,7 @@ back onto it, and a tree too big for it stands afresh inside, squeezed in.
 import copy
 from typing import Any
 
-from . import arrange, lead_spot, placement
+from . import arrange, lead_spot, placement, terrain
 
 OPEN = (
     "open:"  # prefix of an address for open ground: `open:0` is the first in `show --json`'s `open`
@@ -49,7 +49,7 @@ def _push_back_cut_off(changed: dict[str, Any], group: str) -> dict[str, Any]:
     for key in arrange.cut_off(plot, spots):
         if not spots[key].get("gone_since"):
             pushed = _pushed(spots[key], plot["w"], plot["h"])
-            spots[key] = pushed or {"letter": spots[key].get("letter", ""), "squeeze": True}
+            spots[key] = pushed or {"letter": spots[key].get("letter", "")}
     return changed
 
 
@@ -72,9 +72,11 @@ def _rect(plot: dict[str, Any]) -> placement.Rect:
 
 def _settle(changed: dict[str, Any], group: str) -> None:
     """After *group*'s plot changed: a block takes over the open ground it now covers, and open
-    ground can't be put on a block.
+    ground can't be put on a block. Neither can go over a road or the stream.
     """
     plot = changed["plots"][group]
+    if terrain.crosses_saved(changed, plot):
+        raise EditError("A road or the stream runs there")
     if _is_open(plot):
         for name, other in changed["plots"].items():
             if (

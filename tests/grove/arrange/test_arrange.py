@@ -212,13 +212,12 @@ def test_trees_saved_on_one_spot_come_apart_keeping_their_letters():
     assert b.letter == first.trees[("g", "b")].letter
 
 
-def test_a_block_that_outgrows_its_plot_grows_into_free_ground_beside_it():
+def test_a_block_keeps_its_plot_however_many_trees_it_gains():
     first, saved = arrange((block("g", "1", tree("a")),), {"plots": {}, "trees": {}}, NOW)
-    small = first.plots["g"]
     crowd = block("g", "1", *(tree(k) for k in "abcdefgh"))
     found, _ = arrange((crowd,), saved, NOW + 60)
     plot = found.plots["g"]
-    assert plot.w * plot.h > small.w * small.h
+    assert plot == first.plots["g"]
     for t in crowd.trees:
         s = found.trees[("g", t.key)]
         assert 0 <= s.cx <= plot.w and 0 <= s.cy <= plot.h, t.key
@@ -283,11 +282,12 @@ def _fits(found, name, t):
     return x >= 0 and s.cy >= 0 and x + w <= p.w and y + h <= p.h  # its crown may rise above
 
 
-def test_a_block_too_short_for_its_tree_grows_taller_not_wider():
-    saved = {"plots": {"g": _plot(40, 20, 40, 8)}, "trees": {}}
+def test_a_tree_too_tall_for_its_block_stands_on_it_without_growing_it():
+    saved = {"plots": {"g": _plot(40, 20, 40, 8)}, "trees": {}, "roads": [], "stream": []}
     found, _ = arrange((block("g", "1", _LARGE),), saved, NOW)
-    assert found.plots["g"].w == 40 and found.plots["g"].h > 8
-    assert _fits(found, "g", _LARGE)
+    plot, s = found.plots["g"], found.trees[("g", _LARGE.key)]
+    assert (plot.x, plot.y, plot.w, plot.h) == (40, 20, 40, 8)
+    assert 0 <= s.cx <= plot.w and 0 <= s.cy <= plot.h
 
 
 def test_a_tree_taller_than_its_block_lets_its_crown_rise_above_it():
@@ -297,7 +297,7 @@ def test_a_tree_taller_than_its_block_lets_its_crown_rise_above_it():
     assert _fits(found, "g", _LARGE)
 
 
-def test_a_block_grows_over_open_ground_and_the_open_ground_is_forgotten():
+def test_a_full_block_leaves_the_open_ground_around_it():
     open_ = {"open_since": 1.0}
     saved = {
         "plots": {
@@ -305,21 +305,15 @@ def test_a_block_grows_over_open_ground_and_the_open_ground_is_forgotten():
             "left": _plot(1, 20, 37, 9, **open_),
             "right": _plot(82, 20, 40, 9, **open_),
             "above": _plot(40, 1, 40, 17, **open_),
-            "below": _plot(40, 31, 40, 20, **open_),
         },
         "trees": {},
+        "roads": [],
+        "stream": [],
     }
-    found, kept = arrange((block("g", "1", _LARGE),), saved, NOW)
-    assert _fits(found, "g", _LARGE)
-    grown = found.plots["g"]
-    for name, p in kept["plots"].items():
-        if name != "g":
-            assert not (
-                p["x"] < grown.x + grown.w
-                and grown.x < p["x"] + p["w"]
-                and p["y"] < grown.y + grown.h
-                and grown.y < p["y"] + p["h"]
-            ), name
+    _, kept = arrange((block("g", "1", _LARGE),), saved, NOW)
+    assert {name: (p["x"], p["y"], p["w"], p["h"]) for name, p in kept["plots"].items()} == {
+        name: (p["x"], p["y"], p["w"], p["h"]) for name, p in saved["plots"].items()
+    }
 
 
 def test_a_lead_saved_off_its_block_stands_on_it_again():

@@ -144,15 +144,43 @@ def _along(view: View, points: abc.Sequence[tuple[int, int]]) -> abc.Iterator[tu
             yield round(sx0 + (sx1 - sx0) * k / steps), round(sy0 + (sy1 - sy0) * k / steps)
 
 
-def stream(canvas: Canvas, view: View, points: abc.Sequence[tuple[int, int]]) -> None:
+def _stream_cells(
+    view: View, points: abc.Sequence[tuple[int, int]]
+) -> abc.Iterator[tuple[int, int]]:
     for x, y in _along(view, points):
         for dx in (-1, 0, 1):
             for dy in (0, 1):
-                ripple = "≈" if (x + dx + 2 * (y + dy)) % 4 == 0 else " "
-                put(canvas, x + dx, y + dy, ripple, "#4a86b8", "#123049")
+                yield x + dx, y + dy
+
+
+def _road_cells(view: View, points: abc.Sequence[tuple[int, int]]) -> abc.Iterator[tuple[int, int]]:
+    for x, y in _along(view, points):
+        for dx in (-1, 0, 1):
+            yield x + dx, y
+
+
+def stream(canvas: Canvas, view: View, points: abc.Sequence[tuple[int, int]]) -> None:
+    for x, y in _stream_cells(view, points):
+        ripple = "≈" if (x + 2 * y) % 4 == 0 else " "
+        put(canvas, x, y, ripple, "#4a86b8", "#123049")
 
 
 def road(canvas: Canvas, view: View, points: abc.Sequence[tuple[int, int]]) -> None:
-    for x, y in _along(view, points):
-        for dx in (-1, 0, 1):
-            put(canvas, x + dx, y, "·" if noise(x + dx, y) < 0.3 else " ", "#4d4433", "#1b1812")
+    for x, y in _road_cells(view, points):
+        put(canvas, x, y, "·" if noise(x, y) < 0.3 else " ", "#4d4433", "#1b1812")
+
+
+def over_terrain(
+    plot: Plot,
+    view: View,
+    roads: abc.Sequence[abc.Sequence[tuple[int, int]]],
+    stream: abc.Sequence[tuple[int, int]],
+) -> bool:
+    """Whether *plot*'s ground, drawn at *view*, would cover a cell of a road or the stream."""
+    ground = {(col, row) for col, row, *_ in _ground_cells(plot, view, "#000000", True)}
+    return any(
+        cell in ground
+        for cell in itertools.chain(
+            _stream_cells(view, stream), *(_road_cells(view, road) for road in roads)
+        )
+    )

@@ -1,18 +1,19 @@
 """Give every block a plot and every tree a spot and a letter, keeping what was given before.
 
 A group with no live lemons leaves its plot as open ground, and the next new group takes the
-open plot nearest the middle. Trees stand in their plots as `stand` places them.
+open plot nearest the middle. A plot keeps its size and place, clear of the roads and the
+stream, however many trees its block gains. Trees stand in their plots as `stand` places them.
 """
 
 import copy
 import dataclasses
+import functools
 import math
 import time
 from typing import Any, NamedTuple
 
-from ..draw import trees
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
-from . import landmarks, lead_spot, new_spots, placement, room, sizes, stand
+from . import landmarks, lead_spot, new_spots, placement, sizes, stand, terrain
 
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
@@ -48,7 +49,9 @@ def _plot_data(plot: Plot) -> dict[str, Any]:
     return {**dataclasses.asdict(plot), "open_since": None}
 
 
-def _place_plots(blocks: tuple[Block, ...], saved: dict[str, Any], now: float) -> None:
+def _place_plots(
+    blocks: tuple[Block, ...], saved: dict[str, Any], ground: terrain.Covered, now: float
+) -> None:
     plots = saved["plots"]
     live = {block.name for block in blocks}
     for name, data in plots.items():
@@ -85,14 +88,19 @@ def _place_plots(blocks: tuple[Block, ...], saved: dict[str, Any], now: float) -
             saved["trees"].pop(open_plots[0], None)
             continue
 
-        need = sum(
-            trees.shape(tree, "x", 1.0).width * trees.shape(tree, "x", 1.0).height
-            for tree in block.trees
-        )
+        # Its trees' ground, tags and the gaps between them included, and as much again as an
+        # average one of them for a tree to come: the plot never grows to make room.
+        grown = [new_spots.footprint(t, t.label, "x", 1.0) for t in block.trees]
+        need = round(sum((w + 2) * (h + 2) for w, h, _ in grown) * (len(grown) + 1) / len(grown))
         smallest = [new_spots.footprint(t, t.label, "x", sizes.SMALLEST) for t in block.trees]
         largest = (max(f[0] for f in smallest), max(f[1] for f in smallest))
         plots[block.name] = _plot_data(
-            placement.new_plot(block.name, placement.plot_size(need, largest), taken)
+            placement.new_plot(
+                block.name,
+                placement.plot_size(need, largest),
+                taken,
+                functools.partial(terrain.crosses_box, ground, gap=1),
+            )
         )
 
 
@@ -136,53 +144,23 @@ def _free_lead(block: Block, plot: Plot, spots: dict[str, Any]) -> None:
 
 
 def _stand(block: Block, kept: dict[str, Any], now: float) -> dict[str, stand.Standing]:
-    """Where *block*'s trees stand. A tree that spilled out of its plot, for want of room, takes
-    more ground with it where the ground beside the plot is free, and stands afresh in it. Once
-    the plot can grow for none of them, those left stand afresh squeezed in among the others.
+    """Where *block*'s trees stand. A tree saved off its plot stands afresh on it, squeezed in
+    among the others if it must be: a block keeps its size whatever its trees.
     """
-    stuck: set[str] = set()  # spilled where the plot can't grow
-    squeezed = False
-    if block.name in kept["trees"] and kept["plots"][block.name].get("texture") != "house":
-        _free_lead(block, _plot(kept["plots"][block.name]), kept["trees"][block.name])
-    for _ in range(2 * len(block.trees) + 3):  # a growth a tree, a second if it falls short
-        plot = _plot(kept["plots"][block.name])
-        standing = stand.stand_trees(
-            block,
-            plot,
-            kept,
-            now,
-            _toward_packhouse(block.name, plot, kept),
-            bays=plot.texture == "house",
-        )
-        spots = kept["trees"][block.name]
-        spilled = [] if plot.texture == "house" else _spilled(block, plot, spots)
-        growable = [t for t in spilled if t.key not in stuck]
-        if not growable:
-            if not spilled or squeezed:
-                return standing
-
-            for tree in spilled:
-                spots[tree.key] = {"letter": spots[tree.key]["letter"], "squeeze": True}
-            squeezed = True
-            continue
-
-        s = standing[growable[0].key]
-        width, height, top = new_spots.footprint(growable[0], s.label, s.letter, sizes.SMALLEST)
-        need = (width, height - top)  # its crown may rise above the plot
-        shift = room.grow(block.name, kept["plots"], need)
-        if shift is None:
-            stuck.add(growable[0].key)
-            continue
-
-        for spot in spots.values():
-            spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
-        spots[growable[0].key] = {"letter": spots[growable[0].key]["letter"]}
     plot = _plot(kept["plots"][block.name])
-    for tree in _spilled(block, plot, spots):
-        spots[tree.key] = {"letter": spots[tree.key]["letter"], "squeeze": True}
-    return stand.stand_trees(
-        block, plot, kept, now, _toward_packhouse(block.name, plot, kept), bays=False
-    )
+    house = plot.texture == "house"
+    toward = _toward_packhouse(block.name, plot, kept)
+    if block.name in kept["trees"] and not house:
+        _free_lead(block, plot, kept["trees"][block.name])
+    standing = stand.stand_trees(block, plot, kept, now, toward, bays=house)
+    spots = kept["trees"][block.name]
+    spilled = [] if house else _spilled(block, plot, spots)
+    if not spilled:
+        return standing
+
+    for tree in spilled:
+        spots[tree.key] = {"letter": spots[tree.key]["letter"]}
+    return stand.stand_trees(block, plot, kept, now, toward, bays=False)
 
 
 def arrange(
@@ -193,7 +171,9 @@ def arrange(
     kept = copy.deepcopy(saved)
     kept.setdefault("roads", landmarks.default_roads())
     kept.setdefault("stream", landmarks.default_stream())
-    _place_plots(blocks, kept, now)
+    ground = terrain.of_saved(kept)
+    _place_plots(blocks, kept, ground, now)
+    terrain.move_off(kept, ground)
     standing = {
         (block.name, key): spot
         for block in blocks

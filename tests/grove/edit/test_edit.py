@@ -2,12 +2,23 @@ import pytest
 
 from lemonaid.grove.layout import edit
 
+_GROUND = {"seed": 1, "texture": "rows"}
 SAVED = {
     "plots": {
-        "relay": {"x": 10, "y": 5, "w": 40, "h": 12, "roundness": 3.4, "open_since": None},
-        "gone": {"x": 60, "y": 5, "w": 30, "h": 9, "roundness": 2.4, "open_since": 1.0},
+        "relay": {
+            "x": 10,
+            "y": 5,
+            "w": 40,
+            "h": 12,
+            "roundness": 3.4,
+            "open_since": None,
+            **_GROUND,
+        },
+        "gone": {"x": 60, "y": 5, "w": 30, "h": 9, "roundness": 2.4, "open_since": 1.0, **_GROUND},
     },
     "trees": {"relay": {"a": {"x": 5, "y": 3}}, "gone": {"b": {"x": 1, "y": 1}}},
+    "roads": [],
+    "stream": [],
 }
 
 
@@ -63,7 +74,7 @@ def test_reframing_from_the_left_keeps_trees_where_they_stand_on_the_ground():
 
 def test_a_block_made_smaller_pushes_the_trees_it_cuts_off_back_onto_it():
     saved = {
-        "plots": {"relay": {"x": 10, "y": 5, "w": 40, "h": 12}},
+        "plots": {"relay": {"x": 10, "y": 5, "w": 40, "h": 12, "roundness": 3.4, **_GROUND}},
         "trees": {
             "relay": {
                 "inside": {"letter": "a", "x": 8, "y": 4, "w": 10, "h": 6, "top": 2},
@@ -71,11 +82,13 @@ def test_a_block_made_smaller_pushes_the_trees_it_cuts_off_back_onto_it():
                 "wide": {"letter": "c", "x": 20, "y": 3, "w": 36, "h": 6, "top": 2},
             }
         },
+        "roads": [],
+        "stream": [],
     }
     spots = edit.resize(saved, "relay", 32, 9)["trees"]["relay"]
     assert spots["inside"] == saved["trees"]["relay"]["inside"]
     assert (spots["edge"]["x"], spots["edge"]["y"]) == (27, 5)  # the least that puts it on
-    assert spots["wide"] == {"letter": "c", "squeeze": True}  # too wide, so it stands afresh
+    assert spots["wide"] == {"letter": "c"}  # too wide, so it stands afresh
 
 
 def test_placing_the_lead_moves_its_lead_spot_and_leaves_its_own():
@@ -132,3 +145,10 @@ def test_clear_open_can_clear_just_one():
     }
     cleared, names = edit.clear_open(saved, 1)
     assert names == ["also"] and "gone" in cleared["plots"]
+
+
+def test_a_block_cannot_go_over_a_road_or_the_stream():
+    saved = {**SAVED, "stream": [[0, 40], [200, 40]]}
+    with pytest.raises(edit.EditError, match="road or the stream"):
+        edit.move(saved, "relay", 10, 30)
+    assert edit.move(saved, "relay", 10, 20)["plots"]["relay"]["y"] == 20

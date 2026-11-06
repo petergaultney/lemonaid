@@ -29,9 +29,16 @@ def test_a_step_moves_the_tree_and_one_off_its_ground_leaves_it():
 
 def test_a_step_onto_another_tree_hops_past_it():
     drag = tree_nudge.start(GROVE, "1", _TREE)
-    assert drop.refused(GROVE, dataclasses.replace(drag, moved=(12, 0)))
-    moved, problem = tree_nudge.nudged(GROVE, dataclasses.replace(drag, moved=(11, 0)), (1, 0))
-    assert (moved.moved, problem) == ((23, 0), "")
+
+    def refused(dx: int) -> str:
+        return drop.refused(GROVE, dataclasses.replace(drag, moved=(dx, 0)))
+
+    onto = next(dx for dx in range(1, 40) if refused(dx) == "another tree stands there")
+    past = next(dx for dx in range(onto, 60) if not refused(dx))
+    moved, problem = tree_nudge.nudged(
+        GROVE, dataclasses.replace(drag, moved=(onto - 1, 0)), (1, 0)
+    )
+    assert (moved.moved, problem) == ((past, 0), "")
 
 
 def test_arrows_move_a_tree_chosen_whole_and_save_it_once_they_stop():

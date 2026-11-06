@@ -29,6 +29,7 @@ class Drag:
         -1
     )  # the index in `arrangement.open` of the open ground dragged; then `block` is blank
     open_was: Plot | None = None  # that open ground as it was drawn, to find it again when saved
+    origin: tuple[float, float] = (0.0, 0.0)  # the grove view's top left, as panned, in grove units
 
 
 _NO_BLOCK = Block("", "", "", ())
@@ -105,6 +106,7 @@ def grab(
             _sides(grove.arrangement.plots[edged.name], view, *at),
             at,
             (view.sx, view.sy),
+            origin=(view.left, view.top),
         )
     if block is None:
         index = _open_ground(grove.arrangement, view, *at)
@@ -120,8 +122,9 @@ def grab(
             (view.sx, view.sy),
             open=index,
             open_was=grove.arrangement.open[index],
+            origin=(view.left, view.top),
         )
-    return Drag(block, "", frozenset(), at, (view.sx, view.sy))
+    return Drag(block, "", frozenset(), at, (view.sx, view.sy), origin=(view.left, view.top))
 
 
 def follow(drag: Drag, at: tuple[int, int]) -> Drag:
