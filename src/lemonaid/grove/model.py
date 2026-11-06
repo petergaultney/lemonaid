@@ -60,7 +60,7 @@ class Plot:
     y: int
     w: int
     h: int
-    roundness: float  # superellipse exponent: 2 is an ellipse, 8 nearly a rectangle
+    roundness: float  # how square its corners are: 2 rounds them most, 12 nearly not at all
     seed: int  # wobbles the outline
     texture: str  # "rows", "diag", "wave", "dots"
 
