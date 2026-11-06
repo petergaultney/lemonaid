@@ -11,13 +11,13 @@ DAY = 24 * 60 * 60
 LONG_AGO = time.time() - 60 * DAY
 
 
-def brief(name: str, at: float = LONG_AGO) -> tuple[Path, str]:
+def brief(name: str, at: float = LONG_AGO, status: str = "done") -> tuple[Path, str]:
     """A brief with a Lemon-ID, created *at*; its file is new whenever *at* is."""
     created = datetime.datetime.fromtimestamp(at).astimezone().isoformat(timespec="seconds")
     path = store.briefs_dir() / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f"---\ncreated: {{ at: {created} }}\n---\n# {name}\n\nStatus: done\n\n## Now\n- Finished.\n"
+        f"---\ncreated: {{ at: {created} }}\n---\n# {name}\n\nStatus: {status}\n\n## Now\n- Finished.\n"
     )
     with db.connect() as conn:
         lemon_id = identity.ensure(conn, path)
