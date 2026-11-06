@@ -7,7 +7,16 @@ import shlex
 from collections import abc
 from pathlib import Path
 
-from ..brief import doc_table, identity, lemon_table, output_doc, pr_table, sections, waiters
+from ..brief import (
+    doc_table,
+    identity,
+    lemon_table,
+    output_doc,
+    pr_mentions,
+    pr_table,
+    sections,
+    waiters,
+)
 from ..messages import mailbox_command
 from . import briefs_cli, command_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
 
@@ -49,6 +58,7 @@ class Subscription:
     needs: bool = False
     role: str = ""  # a PR's, see watch/roles.py
     deadline: str = ""  # a file watch's
+    mentioned: bool = False  # the brief links to this PR, so its merge or close asks about that
 
     @property
     def source(self) -> str:
@@ -181,6 +191,10 @@ def report(
         specs[key] = dataclasses.replace(
             old, edits=old.edits or row.watch == doc_table.Watch.ALL_EDITS
         )
+    for found in pr_mentions.nudged(text):
+        key = ("pr", found)
+        old = specs.get(key, Subscription("pr", found, me, interval=60, role=roles.MENTION))
+        specs[key] = dataclasses.replace(old, mentioned=True)
     output = output_doc.read(text)
     for key, spec in specs.items():
         if spec.kind == "pr":

@@ -781,7 +781,7 @@ These filters do not affect submitted review bodies or PR conversation comments.
 
 ## `[watch.roles.<role>]`
 
-`lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer` or `parent` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.
+`lemonaid watch --self` wakes a lemon for a PR's events by its role on that PR: `author`, `reviewer`, `parent` or `mention` (see [watch](watch.md#roles)). `wake` replaces a role's whole list of event kinds: `state`, `head`, `ready`, `draft`, `decision`, `comments`, `conflict`, `ci-failed`, `ci-passed` and `ci-green`. An unknown role or kind is a warning, and the default list stands.
 
 ```toml
 [watch.roles.parent]
