@@ -99,7 +99,7 @@ def _place_plots(
                 block.name,
                 placement.plot_size(need, largest),
                 taken,
-                functools.partial(terrain.crosses_box, ground, gap=1),
+                functools.partial(terrain.crosses_box, ground, gap=terrain.GAP),
             )
         )
 

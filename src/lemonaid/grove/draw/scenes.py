@@ -26,9 +26,10 @@ def overview(
     view = scene_parts.grove_view((canvas.width, canvas.height), arrangement, pan)
     scale = min(view.sx, view.sy)
     plots.speckle(canvas)
-    plots.stream(canvas, view, arrangement.stream)
+    reach = scene_parts.extent(arrangement)
+    plots.stream(canvas, view, plots.to_edges(arrangement.stream, reach))
     for road in arrangement.roads:
-        plots.road(canvas, view, road)
+        plots.road(canvas, view, plots.to_edges(road, reach))
     for plot in arrangement.open:
         plots.ground(canvas, plot, view, "#000000", live=False)
     taken = []
