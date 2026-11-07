@@ -30,7 +30,7 @@ def test_a_child_archived_from_the_attic_is_not_live_but_one_waiting_to_start_is
     with db.connect() as conn:
         for child in (archived, waiting):
             links.set_parent(conn, child, parent)
-        archive.archive(conn, brief.lemon.brief_of(conn, archived), 0.0)
+        archive.archive(conn, brief.lemon.brief_of(conn, archived), 0.0, why="test")
 
         assert links.live_children_of(conn, parent, archive.attic_dir()) == [waiting]
         assert links.children_of(conn, parent) == [archived, waiting]

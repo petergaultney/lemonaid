@@ -37,7 +37,9 @@ def test_one_listing_answers_for_every_tty_without_asking_about_each(monkeypatch
         "ttys003": ["-fish"],
     }
 
-    watcher._archive_stale_sessions(active, archived.append, {}, panes, tty_processes=listing)
+    watcher._archive_stale_sessions(
+        active, lambda channel, why: archived.append(channel), {}, panes, tty_processes=listing
+    )
 
     assert archived == ["claude:exited", "codex:quiet"]
 
@@ -177,7 +179,7 @@ def _judge(monkeypatch, stale, fresh, protected=()):
     archived: list[str] = []
     watcher._archive_stale_sessions(
         [_RESUMED],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         {},
         _PANES,
         protected_channels=set(protected),

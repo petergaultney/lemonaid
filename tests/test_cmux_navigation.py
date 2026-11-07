@@ -247,7 +247,11 @@ def _watcher_row(tty: str) -> tuple:
 def test_the_watcher_archives_a_session_that_is_gone(monkeypatch):
     archived: list[str] = []
     watcher._archive_stale_sessions(
-        [_watcher_row("/dev/ttys001")], archived.append, {}, {}, located={"claude:a": False}
+        [_watcher_row("/dev/ttys001")],
+        lambda channel, why: archived.append(channel),
+        {},
+        {},
+        located={"claude:a": False},
     )
 
     assert archived == ["claude:a"]
@@ -258,7 +262,11 @@ def test_the_watcher_judges_a_moved_session_on_its_current_tty(monkeypatch):
     monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name: tty == "/dev/new")
     archived: list[str] = []
     watcher._archive_stale_sessions(
-        [_watcher_row("/dev/old")], archived.append, {}, {}, located={"claude:a": "/dev/new"}
+        [_watcher_row("/dev/old")],
+        lambda channel, why: archived.append(channel),
+        {},
+        {},
+        located={"claude:a": "/dev/new"},
     )
 
     assert archived == []
@@ -268,7 +276,11 @@ def test_the_watcher_keeps_a_session_its_backend_could_not_place(monkeypatch):
     monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name: True)
     archived: list[str] = []
     watcher._archive_stale_sessions(
-        [_watcher_row("/dev/ttys001")], archived.append, {}, {}, located={"claude:a": None}
+        [_watcher_row("/dev/ttys001")],
+        lambda channel, why: archived.append(channel),
+        {},
+        {},
+        located={"claude:a": None},
     )
 
     assert archived == []

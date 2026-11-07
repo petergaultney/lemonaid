@@ -15,7 +15,7 @@ def _line(e: dict) -> str:
             e["outcome"],
             e.get("key") or "-",
             f"session={e['session']}" if e.get("session") else "",
-            f"by={e['who']}",
+            f"by={e['who']}" + (f" via={e['via']}" if e.get("via") else ""),
             f"pid={e['pid']}",
             " ".join(e.get("flags", [])),
             f"- {e['reason']}" if e.get("reason") else "",

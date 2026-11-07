@@ -178,7 +178,7 @@ def test_the_watch_loop_records_a_turn_and_its_end(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
     """The test tmux has none of these ttys, so the watcher would archive every row."""
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
 
 def _session(conn, name: str, status: str, created_at: float) -> str:

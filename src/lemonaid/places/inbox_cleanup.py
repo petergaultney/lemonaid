@@ -7,6 +7,7 @@ from collections import abc
 from typing import NamedTuple
 
 from .. import tmux
+from ..audit import events
 from ..brief import archive, attached
 from ..inbox import db, teardown_evidence
 from ..log import get_logger
@@ -49,6 +50,8 @@ def finish(snapshot: Snapshot) -> None:
             teardown_evidence.record(conn, snapshot.terminals)
             for row_id in snapshot.daemon_ids:
                 db.archive(conn, row_id, "place-teardown")
+                if row := db.get(conn, row_id):
+                    events.record("inbox-archive", row.channel, "place toss")
     except sqlite3.Error as e:
         _log.warning("could not record torn-down lemons: %s", e)
 
@@ -64,7 +67,7 @@ def archive_briefs(snapshot: Snapshot) -> None:
             closing = {row.channel for row in rows}
             for path in set(attached.by_channel(conn, closing).values()):
                 try:
-                    archive.archive(conn, path, time.time(), closing)
+                    archive.archive(conn, path, time.time(), closing, why="place toss")
                 except (OSError, ValueError) as e:
                     _log.info("kept brief %s: %s", path.name, e)
     except sqlite3.Error as e:

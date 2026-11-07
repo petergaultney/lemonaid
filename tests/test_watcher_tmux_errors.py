@@ -91,7 +91,7 @@ def test_a_tmux_error_archives_nothing(monkeypatch):
             ("claude:a", "sid", "/work/one", 1.0, False, "/dev/ttys001", "msg", "tmux"),
             ("claude:b", "sid", "/work/two", 2.0, False, "/dev/ttys002", "msg", "tmux"),
         ],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         {},
         {},  # empty pane_locations: server couldn't be reached
     )

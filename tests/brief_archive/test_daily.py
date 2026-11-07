@@ -4,6 +4,7 @@ import sys
 import pytest
 
 from lemonaid import cli
+from lemonaid.audit import actor
 from lemonaid.brief import archive_cli
 from lemonaid.watch import reconcile
 
@@ -46,3 +47,14 @@ def test_a_dev_install_starts_no_sweep(monkeypatch, started):
     archive_cli.daily()
 
     assert started == []
+
+
+def test_the_sweep_names_itself_as_the_actor_rather_than_the_lemon_that_started_it(monkeypatch):
+    envs: list[dict] = []
+    monkeypatch.setattr(reconcile, "editable_install", lambda: False)
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kwargs: envs.append(kwargs["env"]))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "abc")
+
+    archive_cli.daily()
+
+    assert envs[0][actor.ACTOR_ENV] == "idle sweep"

@@ -119,7 +119,7 @@ def test_the_watcher_keeps_the_resumed_row(monkeypatch, tmp_path):
 
     watcher._archive_stale_sessions(
         [item],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         sockets={},
         pane_locations={None: _NEW_PANE},
         session_orders={row.channel: tuple(row.metadata["tmux_session_order"])},
@@ -134,7 +134,7 @@ def test_scratch_pane_enter_starts_the_session(monkeypatch, tmp_path):
     copied: list = []
     monkeypatch.setattr(inbox_switch, "copy_command", lambda widget, c: copied.append(c))
     monkeypatch.setattr(LemonaidApp, "_hide_scratch_pane", lambda self: None)
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
     async def run():
         app = LemonaidApp()
@@ -155,7 +155,7 @@ def test_scratch_pane_failure_is_shown(monkeypatch, tmp_path):
     _archived(tmp_path)
     monkeypatch.setattr(resume_archived.tmux.recreate, "resume", lambda *a: None)
     monkeypatch.setattr(resume_archived.tmux.session, "spawn_resumed", lambda *a: ("no tmux", None))
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
     async def run():
         app = LemonaidApp()
@@ -177,7 +177,7 @@ def test_resuming_in_this_terminal_records_it(monkeypatch, tmp_path):
     monkeypatch.setattr("lemonaid.inbox.tui.app.navigation.locations_by_tty", lambda *a: _NEW_PANE)
     monkeypatch.setattr("lemonaid.inbox.tui.app.os.isatty", lambda fd: True)
     monkeypatch.setattr("lemonaid.inbox.tui.app.os.ttyname", lambda fd: "/dev/ttys977")
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
     async def run():
         app = LemonaidApp()

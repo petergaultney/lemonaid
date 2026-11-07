@@ -94,7 +94,9 @@ def test_spawned_threads_leave_the_open_parent_in_the_inbox(sessions, monkeypatc
 
     rows = _watcher_rows()
     archived: list[str] = []
-    watcher._archive_stale_sessions(rows, archived.append, {}, {None: {_TTY: ("hq", "2")}})
+    watcher._archive_stale_sessions(
+        rows, lambda channel, why: archived.append(channel), {}, {None: {_TTY: ("hq", "2")}}
+    )
 
     assert [row[0] for row in rows] == [f"codex:{_PARENT}"]
     assert archived == []

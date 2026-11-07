@@ -3,6 +3,7 @@
 import argparse
 import sqlite3
 
+from ..audit import events
 from . import db, decorate_cli, pins, unarchive
 
 _MOVES = ("up", "down", "top", "bottom")
@@ -84,6 +85,8 @@ def _cmd_unarchive(args: argparse.Namespace) -> None:
             else:
                 error = f"{channel} is not archived (it is {newest.status})"
 
+    if restored:
+        events.record("inbox-unarchive", channel, "inbox unarchive command")
     if not error and not args.json:
         print(f"Restored {channel} to the inbox, unread")
 
@@ -102,6 +105,8 @@ def _cmd_archive(args: argparse.Namespace) -> None:
                 db.archive(conn, newest.id, reason="inbox-archive-command")
                 archived = 1
 
+    if archived:
+        events.record("inbox-archive", channel, "inbox archive command")
     if not error and not args.json:
         print(f"Archived {channel}")
 

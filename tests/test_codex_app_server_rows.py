@@ -117,7 +117,9 @@ def _row(channel: str, cwd: str = _CWD, tty: str | None = None) -> untracked.Row
 def _archived(monkeypatch, rows, directories) -> list[str]:
     monkeypatch.setattr(watcher, "is_process_running_on_tty", lambda tty, name="claude": True)
     archived: list[str] = []
-    watcher._archive_stale_sessions(rows, archived.append, {}, {None: {}}, directories)
+    watcher._archive_stale_sessions(
+        rows, lambda channel, why: archived.append(channel), {}, {None: {}}, directories
+    )
     return archived
 
 

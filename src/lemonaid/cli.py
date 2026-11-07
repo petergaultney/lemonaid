@@ -7,6 +7,7 @@ Lemonaid is a toolkit for working with lemons (LLMs). Current features:
 import argparse
 import sys
 
+import lemonaid.audit.cli
 import lemonaid.brief.archive_cli
 import lemonaid.brief.cli
 import lemonaid.claude.cli
@@ -160,6 +161,7 @@ def main() -> None:
     lemonaid.openclaw.cli.setup_parser(subparsers)
     lemonaid.opencode.cli.setup_parser(subparsers)
     lemonaid.places.cli.setup_parser(subparsers)
+    lemonaid.audit.cli.setup_parser(subparsers)
     lemonaid.restore.cli.setup_parser(subparsers)
     lemonaid.brief.cli.setup_parser(subparsers)
     lemonaid.skills.cli.setup_parser(subparsers)

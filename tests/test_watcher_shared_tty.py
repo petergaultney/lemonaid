@@ -21,7 +21,12 @@ _ROWS = [
 def _archive(claude_sessions) -> list[str]:
     archived: list[str] = []
     watcher._archive_stale_sessions(
-        _ROWS, archived.append, {}, _PANES, tty_processes=_LIVE, claude_sessions=claude_sessions
+        _ROWS,
+        lambda channel, why: archived.append(channel),
+        {},
+        _PANES,
+        tty_processes=_LIVE,
+        claude_sessions=claude_sessions,
     )
     return archived
 

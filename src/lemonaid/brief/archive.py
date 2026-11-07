@@ -16,6 +16,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import home
+from ..audit import events
 from ..log import get_logger
 from ..messages import store as messages
 from ..tasks.briefs import completion, liveness
@@ -220,10 +221,13 @@ def archive(
     path: Path,
     last: float,
     closing: abc.Set[str] = frozenset(),
+    *,
+    why: str,
 ) -> Path:
     """Move *path* and its mailbox to the attic and detach it; where the brief went.
 
     *last* names the attic month. Sessions in *closing* are ending and don't hold it.
+    *why* goes into the audit log beside who moved it.
     Raises ValueError when another session still holds it, the attic already has a brief
     of that name, or a home migration is under way.
     """
@@ -250,11 +254,13 @@ def archive(
             month.mkdir(parents=True, exist_ok=True)
             path.rename(target)
             mailbox = messages.mailbox_root() / lemon_id if lemon_id else None
+            mailbox_to = ""
             if mailbox is not None and mailbox.is_dir() and not mailbox.is_symlink():
                 try:
                     kept = month / home.layout.MAILBOX / lemon_id
                     kept.mkdir(parents=True, exist_ok=True)
-                    mailbox.rename(_free(kept))
+                    mailbox_to = str(_free(kept))
+                    mailbox.rename(mailbox_to)
                 except OSError:
                     target.rename(path)
                     raise
@@ -262,6 +268,12 @@ def archive(
             conn.rollback()
             raise
         conn.commit()
+    events.record(
+        "brief-archive",
+        lemon_id or path.name,
+        why,
+        **{"from": str(path), "to": str(target), "mailbox": mailbox_to},
+    )
     return target
 
 
@@ -278,10 +290,10 @@ def _attic_brief(name: str, lemon_id: str) -> Path | None:
     return found[0] if len(found) == 1 else None
 
 
-def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
+def revive(conn: sqlite3.Connection, lemon_id: str, *, why: str) -> Path:
     """Move an archived brief and its mailbox back to the briefs directory; where it went.
 
-    It comes back unattached. Raises LookupError when *lemon_id* has no archived brief and
+    It comes back unattached, and the move is audited with *why*. Raises LookupError when *lemon_id* has no archived brief and
     ValueError when the briefs directory already has one of that name or a home migration
     is under way.
     """
@@ -313,4 +325,5 @@ def revive(conn: sqlite3.Connection, lemon_id: str) -> Path:
                 _merge_mailbox(archived, messages.mailbox_root() / lemon_id)
             with contextlib.suppress(OSError):
                 kept.rmdir()
+    events.record("brief-revive", lemon_id, why, **{"from": str(path), "to": str(target)})
     return target
