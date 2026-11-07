@@ -13,7 +13,7 @@ import time
 from typing import Any, NamedTuple
 
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
-from . import landmarks, lead_spot, new_spots, placement, sizes, stand, terrain
+from . import landmarks, lead_spot, new_spots, placement, regrow, sizes, stand, terrain
 
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
@@ -172,6 +172,7 @@ def arrange(
     kept.setdefault("roads", landmarks.default_roads())
     kept.setdefault("stream", landmarks.default_stream())
     ground = terrain.of_saved(kept)
+    regrow.regrow(kept, ground)
     _place_plots(blocks, kept, ground, now)
     terrain.move_off(kept, ground)
     standing = {
