@@ -382,7 +382,7 @@ def test_a_dropped_open_ground_is_found_again_by_what_it_was_not_its_index():
 def _grove_by_a_stream(x: int, y: int, w: int, h: int) -> Grove:
     blocks = (block("g", "1", tree("a")),)
     plot = {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": 3, "texture": "rows"}
-    plot |= {"clear": terrain.GAP}  # already placed, as the drag tests need it where it is
+    plot |= {"clear": list(terrain.GAP)}  # already placed, as the drag tests need it where it is
     saved = {"plots": {"g": plot}, "trees": {}, "roads": [], "stream": [[0, 30], [210, 30]]}
     arrangement, kept = arrange.arrange(blocks, saved, NOW)
     return Grove(blocks, arrangement, kept)
