@@ -82,7 +82,7 @@ def _toss(path: Path) -> None:
         row = db.get_by_channel(conn, _CHANNEL, unread_only=False)
         assert row is not None
         db.archive(conn, row.id, "place-teardown")
-        archive.archive(conn, path, time.time(), {_CHANNEL})
+        archive.archive(conn, path, time.time(), {_CHANNEL}, why="test")
 
 
 def _resume(*argv: str) -> int:

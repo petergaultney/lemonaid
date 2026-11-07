@@ -40,7 +40,7 @@ def session(conn, name: str, status: str, *, unread: bool = False) -> str:
 @pytest.fixture(autouse=True)
 def keep_sessions(monkeypatch):
     """The test tmux has none of these ttys, so the watcher would archive every row."""
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
 
 def run(steps, size=(120, 40)):

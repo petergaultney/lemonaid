@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from lemonaid import home
+from lemonaid.audit import events
 from lemonaid.brief import archive, attached, lemon
 from lemonaid.inbox import db
 from lemonaid.messages import store as messages
@@ -17,7 +18,7 @@ def test_the_brief_and_its_mailbox_move_to_the_month_it_was_last_used():
     sent = message(lemon_id, LONG_AGO)
 
     with db.connect() as conn:
-        moved = archive.archive(conn, path, LONG_AGO)
+        moved = archive.archive(conn, path, LONG_AGO, why="test")
         assert lemon.brief_of(conn, lemon_id) == moved
         assert attached.by_channel(conn, ["claude:finished"]) == {}
 
@@ -33,10 +34,10 @@ def test_a_brief_a_live_session_holds_stays_unless_that_session_is_closing():
 
     with db.connect() as conn:
         with pytest.raises(ValueError, match="live session"):
-            archive.archive(conn, path, LONG_AGO)
+            archive.archive(conn, path, LONG_AGO, why="test")
         assert path.exists()
 
-        assert archive.archive(conn, path, LONG_AGO, closing={"claude:held"}).exists()
+        assert archive.archive(conn, path, LONG_AGO, closing={"claude:held"}, why="test").exists()
 
 
 def test_nothing_can_attach_the_brief_between_the_live_check_and_the_move(monkeypatch):
@@ -58,7 +59,7 @@ def test_nothing_can_attach_the_brief_between_the_live_check_and_the_move(monkey
 
     monkeypatch.setattr(archive, "_live_elsewhere", check_then_attach)
     with db.connect() as conn:
-        archive.archive(conn, path, LONG_AGO)
+        archive.archive(conn, path, LONG_AGO, why="test")
 
     assert attempts == ["locked out"]
 
@@ -68,15 +69,15 @@ def test_a_home_migration_stops_archive_and_revive(monkeypatch, tmp_path):
     path, lemon_id = brief("paused")
     another, _ = brief("another")
     with db.connect() as conn:
-        moved = archive.archive(conn, path, LONG_AGO)
+        moved = archive.archive(conn, path, LONG_AGO, why="test")
     home.layout.lemons_dir().mkdir(parents=True, exist_ok=True)
     (home.layout.lemons_dir() / home.layout.MIGRATING).write_text("x\n")
 
     with db.connect() as conn:
         with pytest.raises(home.guard.Paused):
-            archive.revive(conn, lemon_id)
+            archive.revive(conn, lemon_id, why="test")
         with pytest.raises(home.guard.Paused):
-            archive.archive(conn, another, LONG_AGO)
+            archive.archive(conn, another, LONG_AGO, why="test")
     assert moved.exists() and another.exists()
 
 
@@ -86,12 +87,12 @@ def test_a_revived_brief_archives_again_into_the_same_month():
     (mailbox / "done").mkdir(parents=True)
     (mailbox / "done" / "20261001T000000000000Z-read.md").write_text("Read.")
     with db.connect() as conn:
-        archive.archive(conn, path, LONG_AGO)
+        archive.archive(conn, path, LONG_AGO, why="test")
     messages.send(messages.mailbox_for_id(lemon_id), "While away.", "claude:sender")
 
     with db.connect() as conn:
-        archive.revive(conn, lemon_id)
-        moved = archive.archive(conn, path, LONG_AGO)
+        archive.revive(conn, lemon_id, why="test")
+        moved = archive.archive(conn, path, LONG_AGO, why="test")
 
     kept = moved.parent / "mailbox" / lemon_id / "1"
     assert {p.name for p in kept.rglob("*.md")} >= {"20261001T000000000000Z-read.md"}
@@ -114,7 +115,7 @@ def test_a_failed_mailbox_move_leaves_the_brief_attached_and_where_it_was(monkey
     monkeypatch.setattr(Path, "rename", refuse_the_mailbox)
     with db.connect() as conn:
         with pytest.raises(PermissionError):
-            archive.archive(conn, path, LONG_AGO)
+            archive.archive(conn, path, LONG_AGO, why="test")
         assert lemon.brief_of(conn, lemon_id) == path
         assert attached.by_channel(conn, ["claude:stuck"]) == {"claude:stuck": path}
 
@@ -136,9 +137,36 @@ def test_lemons_whose_ids_share_a_prefix_keep_their_own_messages():
     mine = message("review.owner", LONG_AGO, "mine")
     message("review.owner~2", LONG_AGO, "theirs")
     with db.connect() as conn:
-        archive.archive(conn, first, LONG_AGO)
-        archive.archive(conn, second, LONG_AGO)
-        archive.revive(conn, "review.owner")
+        archive.archive(conn, first, LONG_AGO, why="test")
+        archive.archive(conn, second, LONG_AGO, why="test")
+        archive.revive(conn, "review.owner", why="test")
 
     assert [p.name for p in messages.mailbox_for_id("review.owner").glob("*.md")] == [mine.name]
     assert [p for p in archive.attic_dir().rglob("*.md") if "review.owner~2" in p.parts]
+
+
+def test_archive_and_revive_are_audited_with_where_the_brief_went_and_why():
+    path, lemon_id = brief("audited")
+    message(lemon_id, LONG_AGO)
+    with db.connect() as conn:
+        moved = archive.archive(conn, path, LONG_AGO, why="idle sweep: unused 14+ days")
+        archive.revive(conn, lemon_id, why="by hand")
+
+    archived, revived = events.entries(0, thing=lemon_id)
+    assert (archived["action"], archived["why"]) == ("brief-archive", "idle sweep: unused 14+ days")
+    assert (archived["from"], archived["to"]) == (str(path), str(moved))
+    assert archived["mailbox"].startswith(str(moved.parent / "mailbox" / lemon_id))
+    assert (revived["action"], revived["from"], revived["to"]) == (
+        "brief-revive",
+        str(moved),
+        str(path),
+    )
+
+
+def test_a_refused_archive_records_nothing():
+    path, _ = brief("held")
+    session(path, "claude:held", live=True)
+    with db.connect() as conn, pytest.raises(ValueError):
+        archive.archive(conn, path, LONG_AGO, why="by hand")
+
+    assert events.entries(0) == []

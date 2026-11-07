@@ -6,6 +6,7 @@ import sys
 import time
 from pathlib import Path
 
+from ..audit import actor
 from ..config import load_config
 from ..inbox import db
 from ..log import LOG_PATH, get_logger
@@ -42,7 +43,9 @@ def _sweep(days: float, dry_run: bool) -> int:
                 continue
 
             try:
-                print(f"{item.path.name} -> {archive.archive(conn, item.path, item.last)}")
+                print(
+                    f"{item.path.name} -> {archive.archive(conn, item.path, item.last, why=f'idle sweep: unused {days:g}+ days')}"
+                )
             except (OSError, ValueError, sqlite3.Error) as error:
                 failed += 1
                 print(f"{item.path.name}: not archived: {error}", file=sys.stderr)
@@ -67,7 +70,7 @@ def _cmd_archive(args: argparse.Namespace) -> None:
                 print(f"{path} would be archived")
                 return
 
-            print(archive.archive(conn, path, min(last, time.time())))
+            print(archive.archive(conn, path, min(last, time.time()), why="by hand"))
         except (LookupError, OSError, ValueError) as error:
             print(f"Not archived: {error}", file=sys.stderr)
             sys.exit(1)
@@ -76,7 +79,7 @@ def _cmd_archive(args: argparse.Namespace) -> None:
 def _cmd_revive(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         try:
-            print(archive.revive(conn, lemon.current(conn, args.lemon_id)))
+            print(archive.revive(conn, lemon.current(conn, args.lemon_id), why="by hand"))
         except (LookupError, OSError, ValueError) as error:
             print(f"Not revived: {error}", file=sys.stderr)
             sys.exit(1)
@@ -103,7 +106,10 @@ def daily() -> None:
         with LOG_PATH.open("a") as log:
             subprocess.Popen(
                 [sys.executable, "-m", "lemonaid", "brief", "archive", "--idle-days", str(days)],
-                env={k: v for k, v in os.environ.items() if k != "CODEX_THREAD_ID"},
+                env={
+                    **{k: v for k, v in os.environ.items() if k != "CODEX_THREAD_ID"},
+                    actor.ACTOR_ENV: "idle sweep",
+                },
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=log,

@@ -22,7 +22,7 @@ def _archive(
     )
     watcher._archive_stale_sessions(
         [_row("codex:old"), _row("codex:new")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         {},
         panes,
         session_orders={"codex:old": _ORDER, "codex:new": _ORDER},

@@ -69,7 +69,7 @@ def brief(conn: sqlite3.Connection, lemon_id: str) -> Path:
     if holder := _holder(conn, channel):
         raise ValueError(_taken(lemon_id, channel, holder))
 
-    path = archive.revive(conn, lemon_id)
+    path = archive.revive(conn, lemon_id, why="resume of an archived lemon")
     conn.execute("BEGIN IMMEDIATE")
     if holder := _holder(conn, channel):
         conn.rollback()

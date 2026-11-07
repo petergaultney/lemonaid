@@ -290,7 +290,7 @@ def test_an_unpinned_card_keeps_a_bare_label():
 def test_the_keys_are_bound(monkeypatch):
     """`p` and the shift arrows reach their actions."""
     called: list[str] = []
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
     monkeypatch.setattr(LemonaidApp, "action_pin", lambda self: called.append("pin"))
     monkeypatch.setattr(LemonaidApp, "action_move_pin_up", lambda self: called.append("up"))
     monkeypatch.setattr(LemonaidApp, "action_move_pin_down", lambda self: called.append("down"))
@@ -318,7 +318,7 @@ def test_an_unbound_move_key_is_not_registered(monkeypatch):
     monkeypatch.setattr(app_mod, "load_config", lambda: cfg)
 
     called: list[str] = []
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
     monkeypatch.setattr(LemonaidApp, "action_move_pin_up", lambda self: called.append("up"))
 
     async def run():

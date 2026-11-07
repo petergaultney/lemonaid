@@ -35,7 +35,7 @@ def _active(name: str) -> int:
 
 def _run(steps, size=(120, 40), monkeypatch=None):
     if monkeypatch is not None:
-        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
     async def run():
         app = LemonaidApp()

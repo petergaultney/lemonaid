@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from ...audit import events
 from ...config import load_config
 from ...inbox import db
 from . import coordinator, planning, state
@@ -27,6 +28,9 @@ def _cmd(args: argparse.Namespace) -> None:
                 except OSError as error:
                     state.update(token, "failed", error=str(error))
                     raise
+                events.record(
+                    "lemon-restart", plan["lemon_id"], "forced" if args.force else "", token=token
+                )
                 result = state.get(token)
         result["resume_command"] = result["plan"]["line"]
         if args.json:

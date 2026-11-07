@@ -12,6 +12,7 @@ import lemonaid.lemon_facts.cli
 import lemonaid.messages.resume_cli
 
 from .. import brief
+from ..audit import events
 from ..inbox import db
 from . import describe, links
 
@@ -56,9 +57,11 @@ def _cmd_parent(args: argparse.Namespace) -> None:
             if args.set:
                 parent_id = _named(conn, args, args.set)
                 links.set_parent(conn, child, parent_id)
+                events.record("lemon-parent", child, f"set to {parent_id}")
                 note = _sync_brief(conn, child, parent_id)
             elif args.clear:
                 links.clear_parent(conn, child)
+                events.record("lemon-parent", child, "cleared")
                 note = _sync_brief(conn, child, "")
         except links.LinkError as error:
             _fail(args, str(error))
