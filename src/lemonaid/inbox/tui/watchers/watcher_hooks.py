@@ -6,6 +6,7 @@ import typing as ty
 from collections import abc
 
 from .... import claude, codex, config, handlers, openclaw, opencode, status_registry
+from ....audit import events
 from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
@@ -180,10 +181,11 @@ def record_channel_context(channel: str, used: int, window: int) -> None:
         db.record_context(conn, channel, used, window)
 
 
-def archive_channel(channel: str) -> None:
-    """Archive all notifications for a channel (session exited)."""
+def archive_channel(channel: str, why: str) -> None:
+    """Archive all notifications for a channel whose session exited, and audit it."""
     with db.connect() as conn:
         db.archive_channel(conn, channel, "watcher-stale-session")
+    events.record("inbox-archive", channel, why, by="inbox watcher")
 
 
 def start(

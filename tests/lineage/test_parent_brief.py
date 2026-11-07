@@ -1,3 +1,4 @@
+from lemonaid.audit import events
 from lemonaid.brief import check, frontmatter, store
 from lemonaid.inbox import db
 from lemonaid.lineage import links
@@ -103,3 +104,20 @@ def test_a_fenced_parent_example_survives_a_change(capsys):
 
     assert example in (store.briefs_dir() / "child.md").read_text()
     assert _parent_value("child") == parent
+
+
+def test_a_parent_change_is_audited_even_when_its_brief_cannot_be_rewritten(capsys, monkeypatch):
+    parent, child = lemon("parent"), lemon("child")
+
+    def unwritable(path, change):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(store, "edit", unwritable)
+
+    run(capsys, "lemon", "parent", child, "--set", parent, "--json")
+    run(capsys, "lemon", "parent", child, "--clear", "--json")
+
+    assert [(e["thing"], e["why"]) for e in events.entries(0)] == [
+        (child, f"set to {parent}"),
+        (child, "cleared"),
+    ]

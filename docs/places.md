@@ -250,12 +250,11 @@ can still close, and no destroy hook runs for the missing directory.
 - `key`, `dir`, `session`: the place key, its directory and the tmux session, when known.
 - `flags`: the flags used, from `--yes`, `--json`, `--force`, `--dry-run` (and `--detach` for open).
 - `reason`: the refusal or error text, else empty.
-- `who`: the caller's Brief-ID when its pane or environment identifies a lemon, else the parent process name (`claude`, `codex`, a shell), else `unknown`.
-- `pid`, `parent`, `tty`: the caller's process ID, parent process name and terminal.
+- `who`, `via`, `channel`, `pid`, `parent`, `tty`: the caller and the evidence for it, worked out as in [the audit log](audit.md#who-did-it).
 
 The file rotates to `places.log.1` once it passes about 1 MB, replacing the older rotation. The caller lookup only reads the lemonaid database, so logging never registers or changes a brief. Only the fields above are written; hook command output and environment variables are not.
 
-`lemonaid place log [<key>] [-n N] [--json]` prints the last N events (default 20, 0 for all) across both files, oldest first, limited to a key or session name when given.
+`lemonaid place log [<key>] [-n N] [--json]` prints the last N place events (default 20, 0 for all) across both files, oldest first, limited to a key or session name when given. `lemonaid audit` shows them with every other audited action.
 
 ### Protection and flags
 

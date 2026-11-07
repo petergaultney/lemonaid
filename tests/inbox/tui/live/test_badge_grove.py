@@ -25,7 +25,7 @@ _ids = itertools.count(1300)
 
 @pytest.fixture(autouse=True)
 def _inbox(tmp_path, monkeypatch):
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
     monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.delenv("TMUX")  # the grove opens in the inbox, not in a popup
     Path(os.environ["LEMONAID_CONFIG"]).write_text("")

@@ -1,4 +1,4 @@
-"""`inbox pin`, `unpin` and `unarchive`, against the temporary test database."""
+"""`inbox pin`, `unpin`, `archive` and `unarchive`, against the temporary test database."""
 
 import argparse
 import contextlib
@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from lemonaid.audit import events
 from lemonaid.brief import attached
 from lemonaid.inbox import db, pin_cli, pins
 
@@ -116,6 +117,10 @@ def test_archive_removes_the_card_and_unarchive_restores_it(capsys):
         "already archived" in _run(capsys, pin_cli._cmd_archive, True, channel="claude:a")["error"]
     )
     assert _run(capsys, pin_cli._cmd_unarchive, channel="claude:a")["restored"] is True
+    assert [(e["action"], e["thing"]) for e in events.entries(0)] == [
+        ("inbox-archive", "claude:a"),
+        ("inbox-unarchive", "claude:a"),
+    ]
 
 
 def test_archive_refuses_an_unknown_session(capsys):

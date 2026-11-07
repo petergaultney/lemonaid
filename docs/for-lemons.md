@@ -578,6 +578,21 @@ staying open, in a released directory.
 Teardown finishes after the command returns — releasing a large directory is slow, so it
 runs detached. Its output goes to `~/.local/state/lemonaid/reap.log`.
 
+## Who did what: `lemonaid audit`
+
+Lemonaid records each action that changes state another lemon or the user owns: brief archives
+and revives (and why: by hand, idle sweep, place toss), edits to a brief that isn't the
+editor's own, parent links, restarts, inbox archives and purges, and place opens and tosses.
+Each event names the actor and the evidence (`via`: `env`, `tmux`, `tty`, `ppid`, or `code`
+for lemonaid's own jobs such as the idle sweep).
+
+```bash
+lemonaid audit --thing <Lemon-ID or brief name> --json   # what was done to it, by whom
+lemonaid audit --by <your WordyBin> -n 0                  # everything you did
+```
+
+The fields and the order of evidence are in [audit](audit.md).
+
 ## Briefs
 
 A brief is a Markdown file describing one unit of work, attached to the lemon session doing it:

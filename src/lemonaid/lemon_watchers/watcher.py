@@ -381,7 +381,7 @@ def _replaced(
 
 def _archive_stale_sessions(
     active: list[tuple[str, str, str, float, bool, str | None, str, str | None]],
-    archive_channel: Callable[[str], None],
+    archive_channel: Callable[[str, str], None],
     sockets: dict[str, str],
     pane_locations: dict[str | None, dict[str, tmux.navigation.PaneLocation] | None],
     codex_directories: set[str] | None = None,
@@ -458,7 +458,7 @@ def _archive_stale_sessions(
                 f" {details}" if details else "",
             )
             return
-        archive_channel(channel)
+        archive_channel(channel, f"{reason} tty={tty or ''}{f' {details}' if details else ''}")
         archived.add(channel)
         _log.info(
             "auto-archive channel=%s reason=%s session_id=%s tty=%s source=%s "
@@ -674,7 +674,7 @@ def unified_watch_loop(
     get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
-    archive_channel: Callable[[str], None] | None = None,
+    archive_channel: Callable[[str, str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
     record_location: Callable[
         [str, str, str, str | None, tmux.navigation.SessionOrder | None], None
@@ -708,7 +708,7 @@ def unified_watch_loop(
         get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
-        archive_channel: Optional callback to archive a channel when session exits
+        archive_channel: Optional callback to archive a channel, and why, when session exits
         mark_unread: Optional callback to mark a channel as needing attention (for backends like OpenClaw)
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
             tmux_session_order)
@@ -983,7 +983,7 @@ def start_unified_watcher(
     get_active: Callable[[], list[tuple[str, str, str, float, bool, str | None, str, str | None]]],
     mark_read: Callable[[str], int],
     update_message: Callable[[str, str], int],
-    archive_channel: Callable[[str], None] | None = None,
+    archive_channel: Callable[[str, str], None] | None = None,
     mark_unread: Callable[[str], int] | None = None,
     record_location: Callable[
         [str, str, str, str | None, tmux.navigation.SessionOrder | None], None
@@ -1015,7 +1015,7 @@ def start_unified_watcher(
         get_active: Callback returning list of (channel, session_id, cwd, created_at, is_unread, tty, db_message, switch_source)
         mark_read: Callback to mark a channel as read
         update_message: Callback to update message for a channel
-        archive_channel: Optional callback to archive a channel when session exits
+        archive_channel: Optional callback to archive a channel, and why, when session exits
         mark_unread: Optional callback to mark a channel as needing attention
         record_location: Optional callback to note a channel's (tmux_session, tmux_window, tmux_socket,
             tmux_session_order)

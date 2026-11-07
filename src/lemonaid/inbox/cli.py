@@ -10,6 +10,7 @@ from datetime import datetime
 import lemonaid.inbox.arrange.cli
 import lemonaid.messages.cli
 
+from ..audit import events
 from . import db, decorate_cli, pin_cli, show_cli, snooze_cli
 
 
@@ -120,6 +121,9 @@ def cmd_purge(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         count = db.clear_old(conn, days=args.older_than)
     if count > 0:
+        events.record(
+            "inbox-purge", f"{count} notification(s)", f"older than {args.older_than} days"
+        )
         print(f"Purged {count} notification(s) older than {args.older_than} days")
     else:
         print("Nothing to purge")

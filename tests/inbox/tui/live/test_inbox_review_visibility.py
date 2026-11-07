@@ -89,7 +89,7 @@ def _brief(
 
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
 
 def _run(steps, size=(120, 40)):

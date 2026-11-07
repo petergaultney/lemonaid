@@ -38,7 +38,7 @@ def test_tab_opens_the_brief_and_goes_back_to_the_inbox(monkeypatch, tmp_path):
 
 def _briefs_opened(monkeypatch) -> list[str]:
     called: list[str] = []
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
     monkeypatch.setattr(LemonaidApp, "action_brief", lambda self: called.append("brief"))
     return called
 

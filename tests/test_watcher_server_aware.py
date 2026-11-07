@@ -54,7 +54,7 @@ def test_a_session_on_another_server_is_not_archived(monkeypatch):
 
     watcher._archive_stale_sessions(
         [_active("claude:elsewhere", "/dev/ttys001")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         sockets,
         pane_locations,
     )
@@ -75,7 +75,7 @@ def test_a_session_with_no_recorded_socket_is_checked_via_default_server(monkeyp
     pane_locations = {None: {"/dev/ttys001": ("session", "0")}}
     watcher._archive_stale_sessions(
         [_active("claude:old", "/dev/ttys001")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         {},
         pane_locations,
     )
@@ -94,7 +94,7 @@ def test_a_genuinely_dead_pane_is_still_archived(monkeypatch):
 
     watcher._archive_stale_sessions(
         [_active("claude:gone", "/dev/ttys001")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         sockets,
         pane_locations,
     )
@@ -113,7 +113,7 @@ def test_an_automatic_archive_logs_its_decision_and_evidence(monkeypatch):
 
     watcher._archive_stale_sessions(
         [_active("claude:gone", "/dev/ttys001")],
-        lambda _channel: None,
+        lambda _channel, _why: None,
         {"claude:gone": socket},
         {socket: {"/dev/ttys002": ("relay", "0")}},
     )
@@ -160,7 +160,7 @@ def test_a_dead_server_archives_nothing(monkeypatch):
 
     watcher._archive_stale_sessions(
         [_active("claude:a", "/dev/ttys001")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         sockets,
         pane_locations,
     )
@@ -216,7 +216,7 @@ def test_a_pane_missing_from_a_kept_listing_is_archived_only_if_tmux_agrees(
 
     watcher._archive_stale_sessions(
         [_active("claude:new", "/dev/ttys001")],
-        archived.append,
+        lambda channel, why: archived.append(channel),
         {"claude:new": socket},
         {socket: {}},  # the scout host's listing, from before the pane was made
         confirm_panes=lambda s: asked.append(s) or fresh,

@@ -26,7 +26,7 @@ def _dead_row() -> db.Notification:
 
 def _select_then_press(monkeypatch, key: str) -> tuple[type, str]:
     notification = _dead_row()
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
     monkeypatch.setattr(
         "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )

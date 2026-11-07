@@ -22,6 +22,7 @@ from . import (
     command,
     created,
     doc_table,
+    foreign_edit,
     hidden,
     links,
     now_edit,
@@ -68,6 +69,7 @@ def edit(
     except (store.ChangedUnderneath, ValueError) as e:
         return str(e)
 
+    foreign_edit.record(path.resolve(), editor)
     return ""
 
 

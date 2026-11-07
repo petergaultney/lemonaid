@@ -11,7 +11,7 @@ def _row(channel: str, tty: str | None, created_at: float):
 
 def _archiver() -> tuple[list[str], object]:
     archived: list[str] = []
-    return archived, archived.append
+    return archived, lambda channel, why: archived.append(channel)
 
 
 def _pane_locations(active, *, alive: bool, order=None):

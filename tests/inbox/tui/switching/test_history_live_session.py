@@ -48,7 +48,7 @@ def _run(steps, size=(120, 20), monkeypatch=None):
     tty has no pane - which is every row here, since the ttys are invented.
     """
     if monkeypatch is not None:
-        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+        monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
     async def run():
         app = LemonaidApp()

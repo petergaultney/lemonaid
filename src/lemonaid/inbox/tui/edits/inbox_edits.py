@@ -4,6 +4,7 @@ None means there was nothing to change: the row is gone, or already as asked.
 """
 
 from .... import groups
+from ....audit import events
 from ....log import get_logger
 from ... import db, undo
 from ..rows.row_cells import format_wake_time
@@ -54,6 +55,7 @@ def archive(notification_id: int) -> undo.Entry | None:
         db.archive(conn, notification_id, "user-action")
 
     _log.info("archive: %s", n.channel)
+    events.record("inbox-archive", n.channel, "archived in the inbox")
     return entry
 
 

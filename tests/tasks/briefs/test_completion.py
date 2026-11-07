@@ -160,7 +160,7 @@ def test_archiving_a_brief_hands_its_open_tasks_to_its_parent(dead):
     with db.connect() as conn:
         links.set_parent(conn, child, lead)
         task = new_task(conn, brief_id=child, sponsor="")
-        archive.archive(conn, lemon.brief_of(conn, child), 0.0)
+        archive.archive(conn, lemon.brief_of(conn, child), 0.0, why="test")
 
         assert ledger.state(conn, task)["holder"] == f"brief:{lead}"
         assert associations.observed_of(conn, child) == [task]
@@ -172,7 +172,7 @@ def test_a_task_with_no_one_to_go_to_stops_its_brief_being_archived(dead):
         task = new_task(conn, brief_id=alone, sponsor="")
 
         with pytest.raises(ValueError, match="no live lemon to go to"):
-            archive.archive(conn, lemon.brief_of(conn, alone), 0.0)
+            archive.archive(conn, lemon.brief_of(conn, alone), 0.0, why="test")
         assert ledger.state(conn, task)["holder"] == f"brief:{alone}"
 
 
@@ -184,6 +184,6 @@ def test_a_running_parent_handed_an_archived_task_has_started_it(dead):
         conn.commit()
         links.set_parent(conn, child, lead)
         task = new_task(conn, brief_id=child, sponsor="")
-        archive.archive(conn, lemon.brief_of(conn, child), 0.0)
+        archive.archive(conn, lemon.brief_of(conn, child), 0.0, why="test")
 
         assert ledger.state(conn, task)["attached_at"] is not None

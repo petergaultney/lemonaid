@@ -27,7 +27,7 @@ def arrange(snapshot):
 @pytest.fixture(autouse=True)
 def _keep_sessions(monkeypatch):
     """The test tmux has none of these ttys, so the watcher would archive every row."""
-    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel: None)
+    monkeypatch.setattr(watcher_hooks, "archive_channel", lambda channel, why: None)
 
 
 def _sessions(*names: str) -> list[int]:
