@@ -7,42 +7,28 @@ from lemonaid.grove.layout import landmarks, terrain
 from lemonaid.grove.layout.arrange import arrange
 from lemonaid.grove.model import WORLD_WIDTH, Plot
 
-from .shared import NOW, block, tree
-
-_STREAM = [[0, 30], [WORLD_WIDTH, 30]]
-
-
-def _plot(x, y, w, h, **more):
-    return {"x": x, "y": y, "w": w, "h": h, "roundness": 4.5, "seed": 3, "texture": "rows", **more}
-
-
-def _saved(plots, trees=None):
-    return {"plots": plots, "trees": trees or {}, "roads": [], "stream": _STREAM}
-
-
-def _ground():
-    return terrain.covered((), tuple((x, y) for x, y in _STREAM))
+from .shared import NOW, STREAM, block, plot_data, stream_ground, stream_saved, tree
 
 
 def test_new_blocks_stand_clear_of_the_roads_and_stream():
     blocks = tuple(block(f"g{i}", str(i), tree(f"t{i}")) for i in range(8))
-    found, _ = arrange(blocks, _saved({}), NOW)
-    assert not any(terrain.crosses(_ground(), plot) for plot in found.plots.values())
+    found, _ = arrange(blocks, stream_saved({}), NOW)
+    assert not any(terrain.crosses(stream_ground(), plot) for plot in found.plots.values())
 
 
 def test_an_end_on_the_worlds_border_runs_on_past_it():
-    assert terrain.crosses(_ground(), Plot(WORLD_WIDTH + 40, 25, 30, 10, 4.5, 3, "rows"))
+    assert terrain.crosses(stream_ground(), Plot(WORLD_WIDTH + 40, 25, 30, 10, 4.5, 3, "rows"))
 
 
 def test_a_block_saved_over_a_strip_of_the_stream_is_trimmed_off_it():
-    saved = _saved(
-        {"g": _plot(20, 10, 40, 22)},
+    saved = stream_saved(
+        {"g": plot_data(20, 10, 40, 22)},
         {"g": {"a": {"x": 10, "y": 5, "letter": "a"}, "b": {"x": 10, "y": 19, "letter": "b"}}},
     )
     found, kept = arrange((block("g", "1", tree("a"), tree("b")),), saved, NOW)
     plot = found.plots["g"]
     assert (plot.x, plot.y, plot.w) == (20, 10, 40) and plot.h < 22
-    assert not terrain.crosses(_ground(), plot)
+    assert not terrain.crosses(stream_ground(), plot)
     a, b = found.trees[("g", "a")], found.trees[("g", "b")]
     assert (a.cx, a.cy) == (10, 5)  # where it stood on the ground
     assert 0 <= b.cy <= plot.h  # cut off, so it stands afresh on the block
@@ -50,20 +36,24 @@ def test_a_block_saved_over_a_strip_of_the_stream_is_trimmed_off_it():
 
 
 def test_a_block_saved_across_the_stream_moves_whole_to_free_ground():
-    found, _ = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 24, 40, 16)}), NOW)
+    found, _ = arrange(
+        (block("g", "1", tree("a")),), stream_saved({"g": plot_data(20, 24, 40, 16)}), NOW
+    )
     plot = found.plots["g"]
-    assert (plot.w, plot.h) == (40, 16) and not terrain.crosses(_ground(), plot)
+    assert (plot.w, plot.h) == (40, 16) and not terrain.crosses(stream_ground(), plot)
 
 
 def test_open_ground_over_the_stream_is_forgotten():
-    saved = _saved({"g": _plot(20, 4, 40, 16), "gone": _plot(80, 25, 30, 12, open_since=1.0)})
+    saved = stream_saved(
+        {"g": plot_data(20, 4, 40, 16), "gone": plot_data(80, 25, 30, 12, open_since=1.0)}
+    )
     _, kept = arrange((block("g", "1", tree("a")),), saved, NOW)
     assert set(kept["plots"]) == {"g"}
 
 
 def test_the_packhouse_stands_where_the_roads_meet():
-    house = _plot(90, 25, 24, 9, texture="house")
-    found, _ = arrange((block("", "0", tree("hq")),), _saved({"": house}), NOW)
+    house = plot_data(90, 25, 24, 9, texture="house")
+    found, _ = arrange((block("", "0", tree("hq")),), stream_saved({"": house}), NOW)
     assert (found.plots[""].x, found.plots[""].y) == (90, 25)
 
 
@@ -94,7 +84,7 @@ def test_a_block_too_tall_for_the_world_still_stands_clear_of_terrain():
 
 
 def test_a_tall_saved_block_across_terrain_moves_clear_and_stays():
-    saved = {"plots": {"g": _plot(0, 1, 100, 60)}, "trees": {}}
+    saved = {"plots": {"g": plot_data(0, 1, 100, 60)}, "trees": {}}
     found, kept = arrange((block("g", "1", tree("a")),), saved, NOW)
     plot = found.plots["g"]
     assert (plot.w, plot.h) == (100, 60)
@@ -103,31 +93,42 @@ def test_a_tall_saved_block_across_terrain_moves_clear_and_stays():
 
 
 def test_a_block_a_gap_from_the_stream_stays_where_it_was_put():
-    found, kept = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 35, 40, 16)}), NOW)
+    found, kept = arrange(
+        (block("g", "1", tree("a")),), stream_saved({"g": plot_data(20, 35, 40, 16)}), NOW
+    )
     assert (found.plots["g"].y, found.plots["g"].h) == (35, 16)
-    assert kept["plots"]["g"]["clear"] == terrain.GAP
+    assert kept["plots"]["g"]["clear"] == list(terrain.GAP)
 
 
 def test_a_block_closer_to_the_stream_than_the_gap_is_moved_clear_of_it():
-    found, kept = arrange((block("g", "1", tree("a")),), _saved({"g": _plot(20, 33, 40, 16)}), NOW)
+    found, kept = arrange(
+        (block("g", "1", tree("a")),), stream_saved({"g": plot_data(20, 33, 40, 16)}), NOW
+    )
     rect = found.plots["g"]
-    assert not terrain.crosses_box(_ground(), (rect.x, rect.y, rect.w, rect.h), terrain.GAP)
+    assert not terrain.crosses_box(stream_ground(), (rect.x, rect.y, rect.w, rect.h), terrain.GAP)
 
 
 def test_a_block_checked_once_is_not_checked_again():
-    saved = _saved({"g": _plot(20, 24, 40, 16, clear=terrain.GAP)})
+    saved = stream_saved({"g": plot_data(20, 24, 40, 16, clear=list(terrain.GAP))})
     found, _ = arrange((block("g", "1", tree("a")),), saved, NOW)
     assert (found.plots["g"].x, found.plots["g"].y) == (20, 24)
 
 
 def test_a_block_checked_without_a_gap_is_checked_again():
-    saved = _saved({"g": _plot(20, 33, 40, 16, clear=True)})
+    saved = stream_saved({"g": plot_data(20, 33, 40, 16, clear=True)})
     found, _ = arrange((block("g", "1", tree("a")),), saved, NOW)
     assert found.plots["g"].y != 33
 
 
 def test_a_drag_is_judged_by_the_cells_drawn_at_its_zoom():
     view = plots.View(0, 0, 1.5, 1.5)
-    stream = [(x, y) for x, y in _STREAM]
+    stream = [(x, y) for x, y in STREAM]
     assert plots.over_terrain(Plot(20, 24, 40, 8, 4.5, 3, "rows"), view, (), stream)
     assert not plots.over_terrain(Plot(20, 32, 40, 8, 4.5, 3, "rows"), view, (), stream)
+
+
+def test_a_block_one_row_clear_of_the_stream_stays_where_it_was_put():
+    found, _ = arrange(
+        (block("g", "1", tree("a")),), stream_saved({"g": plot_data(20, 34, 40, 16)}), NOW
+    )
+    assert (found.plots["g"].y, found.plots["g"].h) == (34, 16)
