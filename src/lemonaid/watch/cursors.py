@@ -6,14 +6,19 @@ missing cursor means the lemon has just looked, so the waiter starts from the cu
 
 Cursors live under lemonaid's state directory, one directory per lemon, keyed by its
 Lemon-ID (current through rerolls) so that every signature the lemon uses shares them.
-A caller with no brief is keyed by its `--me` signature instead. Lemonaid passes its
-state directory to the Codex lemons it starts as a writable root.
+A caller with no brief is keyed by its `--me` signature, or else its harness session. A
+caller with none of those keeps its cursors in a temporary directory removed when the
+process exits, so an unnamed run leaves no state behind. Lemonaid passes its state
+directory to the Codex lemons it starts as a writable root.
 """
 
+import atexit
+import functools
 import hashlib
 import json
 import os
 import pathlib
+import shutil
 import tempfile
 
 from ..brief import lemon
@@ -28,7 +33,10 @@ def root() -> pathlib.Path:
 
 
 def owner(me: str, codex_thread: str = "") -> str:
-    """The calling lemon's Lemon-ID; without a brief, a key for `me`, or else for its session."""
+    """The calling lemon's Lemon-ID; without a brief, a key for `me`, or else for its session.
+
+    "" for a caller with none of those.
+    """
     try:
         with db.connect() as conn:
             return lemon.current(
@@ -42,11 +50,18 @@ def owner(me: str, codex_thread: str = "") -> str:
     if me:
         return f"me-{hashlib.sha1(me.encode()).hexdigest()[:12]}"
 
-    return own_edits.writer_from_env(os.environ, codex_thread) or "anonymous"
+    return own_edits.writer_from_env(os.environ, codex_thread)
+
+
+@functools.cache
+def _scratch() -> pathlib.Path:
+    path = pathlib.Path(tempfile.mkdtemp(prefix="lemonaid-cursors-"))
+    atexit.register(shutil.rmtree, path, ignore_errors=True)
+    return path
 
 
 def directory(kind: str, me: str, codex_thread: str = "") -> pathlib.Path:
-    return root() / owner(me, codex_thread) / kind
+    return (root() / key if (key := owner(me, codex_thread)) else _scratch()) / kind
 
 
 def write_text(path: pathlib.Path, text: str) -> None:
