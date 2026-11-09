@@ -25,6 +25,8 @@ from . import (
     pr_wait,
     repo_activity,
     repo_events,
+    review_events,
+    review_requests,
     roles,
     subscriptions,
 )
@@ -77,6 +79,37 @@ def _repo_poller(
             exclude_authors=spec.exclude_authors,
             pushes=spec.pushes,
         )
+
+    return poll
+
+
+def _reviews_poller(
+    spec: subscriptions.Subscription,
+    root: Path,
+    directory: Path,
+    me: str,
+    deliver: abc.Callable[[str], bool],
+    debounce: float,
+) -> abc.Callable[[], object]:
+    scope = spec.target[1:]
+    stem = review_events.state_stem(directory, scope, me)
+    failed = failure_state.path(root, spec, "github")
+    retry_at = 0.0
+
+    def poll() -> None:
+        nonlocal retry_at
+        if time.monotonic() < retry_at:
+            return
+
+        if (prs := review_requests.fetch(scope, spec.interval)) is None:
+            _log.warning("Cannot read GitHub for review requests")
+            retry_at = time.monotonic() + github_failures.failed(
+                root, failed, "review requests", deliver, spec.interval, debounce
+            )
+            return
+
+        github_failures.recovered(root, failed)
+        review_events.poll(stem, prs, deliver, spec.backlog)
 
     return poll
 
@@ -169,6 +202,8 @@ def open_poller(
     settings = load_config().watch
     if spec.kind == "repo":
         return _repo_poller(spec, root, directory, me, deliver, settings.github_debounce)
+    if spec.kind == "reviews":
+        return _reviews_poller(spec, root, directory, me, deliver, settings.github_debounce)
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)

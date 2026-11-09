@@ -112,7 +112,7 @@ than refusing to start.
 
 ## Cursors
 
-Every watcher (`doc`, `pr`, `file`, `command` and `briefs`) compares what it watches with a saved
+Every watcher (`doc`, `pr`, `repo`, `reviews`, `file`, `command` and `briefs`) compares what it watches with a saved
 record of what it last reported to the lemon, its cursor, and reports what differs. So a
 push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
 is reported twice.
@@ -295,6 +295,63 @@ what changes between waiters is reported by the next one. One waiter per repo an
 run; `--once`, `--codex-thread` and `--state-dir` work as in `watch pr`. As a `## Watching`
 line it is read like `watch pr`, and its events join the batch. Stop it with
 `lemonaid watch stop --self repo owner/name`.
+
+## Watching for review requests
+
+`lemonaid watch reviews` wakes a lemon when someone asks you (the `gh` user) to review a PR,
+so a lemon such as HQ can start a reviewer without being handed the link. It is read-only:
+it never assigns, requests or comments.
+
+```bash
+lemonaid watch reviews --wait --scope org:acme --once
+lemonaid watch reviews --wait --scope repo:acme/widgets --scope repo:acme/gears --codex-thread
+lemonaid watch reviews --status --scope org:acme
+```
+
+It reports, once each, one line per PR naming its repo, number, title, author and URL:
+
+- a PR on which your review is newly requested, including a request renewed after you
+  reviewed it;
+- a PR newly assigned to you with no review request, for teammates who assign instead of
+  requesting. Assignment added to a PR that already requested your review (as an
+  assign-on-request script does) is not reported again.
+
+A review requested from a team you belong to is not reported. `--scope` (repeatable) takes
+GitHub search qualifiers, `org:NAME`, `user:NAME` or `repo:OWNER/NAME`; without one, every
+repo you can see is searched. Each poll is one `gh api graphql` call holding two searches
+(`user-review-requested:@me` and `assignee:@me`, both `is:open is:pr`), each reading its
+first 100 PRs. The result is saved under `$LEMONAID_STATE_DIR/github/reviews/` and reused by
+any waiter with the same scope for its `--interval` (3 minutes by default), and reads pause
+with every other GitHub reader when the quota runs low.
+
+The first waiter takes the PRs asking for your review now as already seen, so a lemon
+starting to watch is told only about requests that arrive later. The cursor lives under the
+lemon's Lemon-ID and the scope, like the other [cursors](#cursors), and stopping the waiter
+does not remove it: a restarted or rearmed waiter, or the same lemon subscribing again
+later, reports the requests that arrived meanwhile and are still open. A different lemon or
+a changed `--scope` has no cursor, so requests already open when it starts are never
+reported.
+
+`--backlog` changes only that first poll: on a lemon's first subscription to a scope, it
+reports the PRs already asking for your review instead of taking them as seen. Once the
+lemon has a cursor for the scope, `--backlog` does nothing. `--once` exits after the first
+reported event, so a first `--backlog --once` with nothing open keeps waiting for the next
+request. To list what is open now at any time, without a waiter or cursor, ask GitHub:
+
+```bash
+gh search prs --review-requested=@me --state=open --owner acme
+```
+
+One waiter per scope and lemon may run; `--once`, `--codex-thread` and
+`--state-dir` work as in `watch pr`. Subscribe through a brief's `## Watching` section:
+
+```markdown
+## Watching
+
+- `lemonaid watch reviews --wait --scope org:acme --once`
+```
+
+Stop it with `lemonaid watch stop --self reviews`.
 
 ## Watching files and directories
 
@@ -492,7 +549,7 @@ for the next waiter. This state is separate from document, PR, and external brie
 
 ## Recording watches in a brief
 
-When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch file`, `watch command`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
+When the calling lemon has an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch reviews`, `watch file`, `watch command`, and `watch briefs` automatically record their restartable command in its final `## Watching` section after startup checks pass. With `--codex-thread`, the recipient thread’s attached brief is used instead of caller detection. The recorded command preserves the supplied arguments and their order (with shell-safe quoting), including `--self`, relative paths and a bare `--codex-thread`. Omitted defaults stay omitted; no temporary state-directory path is injected. Restart it from the same project or directory context, with the appropriate harness identity. Rearming the same watch replaces its entry, including changed heads and flags. Different targets and signatures remain separate. Matching context is kept in a hidden `.BRIEF-FILENAME.waiter-context.json` file beside the brief so a later command from another directory or repository cannot replace the earlier watch. If that context is unavailable, ambiguous saved entries are preserved.
 
 The entry survives one-shot events, interrupted waits, and delivery failures so it can be rearmed. `lemonaid watch stop --self` removes it along with the waiter it stops (see below); for a waiter that already exited, remove it with `lemonaid brief waiter rm --self "<unique command substring>"` when the watch ends permanently. The manual `add` and `set` verbs remain available for custom shell waiters. With no attached brief, watching works as before without recording; a failed write to an attached brief prevents startup and reports the error. Status queries, document edit markers, and refused duplicate waits never change the brief.
 
@@ -869,7 +926,7 @@ install pass off.
 - **Failed delivery:** keep mailbox messages and event cursors pending so the next arm can deliver them. No event is acknowledged merely because it was detected.
 - **Brief edits:** add or remove subscriptions without restarting. Each invalid line or table error is reported once while valid sources keep running; an incomplete brief write retains the previous readable list. Custom shell commands are not executed.
 - **Source failures:** persist the reported failure across rearms and clear it when the source recovers. Each failed GitHub read doubles the wait before that subscription's next read, up to 10 minutes. When GitHub refuses a read for quota, or reports fewer than 100 points left, every GitHub read on the machine pauses until the reset GitHub names, recorded in `$LEMONAID_STATE_DIR/github/paused-until.json`. A lemon hears about an outage or pause once, covering all its GitHub subscriptions, and only after reads have failed for `[watch] github_debounce` (10 minutes by default) with none succeeding; a read that succeeds ends the outage, so a shorter one wakes nobody.
-- **Shared PR reads:** unified watchers on one machine share their PR reads. The watcher holding `$LEMONAID_STATE_DIR/github/pr-poller.lock` checks every PR a scout watched in the last 5 minutes once a minute, in one small query, and re-reads a PR in full only when it changed, or was last read 15 minutes ago (5 while its checks run; merged and closed PRs only when they change). While checks run, a check finishing alone doesn't count as a change. Scouts read its snapshots from `$LEMONAID_STATE_DIR/github/pr/`. While that watcher's heartbeat (`pr-poller.alive`) is under 3 minutes old, a scout never reads a watched PR from GitHub: it uses the snapshot, and counts a snapshot unconfirmed for 5 minutes as a failed read. Scouts read GitHub themselves only for a PR with no snapshot yet, or once the heartbeat goes stale. If that watcher exits, another takes the lock within a minute. Standalone `watch pr` and `watch repo` waiters still read GitHub directly.
+- **Shared PR reads:** unified watchers on one machine share their PR reads. The watcher holding `$LEMONAID_STATE_DIR/github/pr-poller.lock` checks every PR a scout watched in the last 5 minutes once a minute, in one small query, and re-reads a PR in full only when it changed, or was last read 15 minutes ago (5 while its checks run; merged and closed PRs only when they change). While checks run, a check finishing alone doesn't count as a change. Scouts read its snapshots from `$LEMONAID_STATE_DIR/github/pr/`. While that watcher's heartbeat (`pr-poller.alive`) is under 3 minutes old, a scout never reads a watched PR from GitHub: it uses the snapshot, and counts a snapshot unconfirmed for 5 minutes as a failed read. Scouts read GitHub themselves only for a PR with no snapshot yet, or once the heartbeat goes stale. If that watcher exits, another takes the lock within a minute. Standalone `watch pr` and `watch repo` waiters still read GitHub directly. `watch reviews` keeps its own snapshot, described in [Watching for review requests](#watching-for-review-requests).
 - **Document changes during batching:** discard a stale pending doc event and reread it. Missing or deleted documents do not kill the whole watcher.
 - **Own changes:** installed own-change hooks suppress recorded edits and pushes by this lemon. Attached Docs and Watching documents are considered between arms too. Tool input must name the edited file. SessionStart and the unified command maintain the cheap per-session shell gate; unbriefed sessions without doc registrations or pushes skip Python.
 

@@ -15,6 +15,7 @@ from . import (
     reconcile,
     repo_cli,
     restart_cli,
+    reviews_cli,
     scout_host,
     stop_cli,
     wait_cli,
@@ -35,6 +36,7 @@ def setup_parser(
     openclaw_cli.add_parser(watch_subparsers)
     pr_cli.add_parser(watch_subparsers)
     repo_cli.add_parser(watch_subparsers)
+    reviews_cli.add_parser(watch_subparsers)
     file_cli.add_parser(watch_subparsers)
     command_cli.add_parser(watch_subparsers)
     briefs_cli.add_parser(watch_subparsers)
