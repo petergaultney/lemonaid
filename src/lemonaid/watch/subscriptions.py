@@ -18,7 +18,16 @@ from ..brief import (
     waiters,
 )
 from ..messages import mailbox_command
-from . import briefs_cli, command_cli, doc_cli, file_cli, pr_cli, repo_cli, roles
+from . import (
+    briefs_cli,
+    command_cli,
+    doc_cli,
+    file_cli,
+    pr_cli,
+    repo_cli,
+    reviews_cli,
+    roles,
+)
 
 
 class Problem(ValueError):
@@ -53,6 +62,7 @@ class Subscription:
     labels: tuple[str, ...] = ()
     exclude_authors: tuple[str, ...] = ()
     pushes: bool = False
+    backlog: bool = False
     state_dir: Path | None = None
     lemons: tuple[lemon_table.Row, ...] = ()
     needs: bool = False
@@ -83,7 +93,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
 
     parser = _Parser(allow_abbrev=False)
     sub = parser.add_subparsers(dest="kind", required=True)
-    for module in (doc_cli, file_cli, command_cli, pr_cli, repo_cli, briefs_cli):
+    for module in (doc_cli, file_cli, command_cli, pr_cli, repo_cli, reviews_cli, briefs_cli):
         module.add_parser(sub)
     args = parser.parse_args(words[2:])
     if args.status or not getattr(args, "wait", True):
@@ -98,6 +108,8 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         target = (repo, str(number))
     elif kind == "repo":
         target = (args.wait,)
+    elif kind == "reviews":
+        target = reviews_cli.target(args.scope)
     elif kind == "briefs":
         target = (parent if args.use_self else args.lemon,)
     elif kind == "command":
@@ -119,6 +131,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
             "skip_outdated",
             "skip_resolved",
             "pushes",
+            "backlog",
             "state_dir",
             "role",
             "deadline",
