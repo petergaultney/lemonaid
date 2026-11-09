@@ -31,7 +31,14 @@ def test_a_codex_thread_names_its_lemon():
 
 def test_without_a_brief_the_signature_is_the_key():
     assert cursors.owner("Author (X)") != cursors.owner("Reviewer (X)")
-    assert cursors.owner("") == "anonymous"
+    assert cursors.owner("") == ""
+
+
+def test_an_unnamed_caller_keeps_its_cursors_outside_the_state_directory():
+    directory = cursors.directory("pr", "")
+
+    assert cursors.root() not in directory.parents
+    assert cursors.directory("repo", "").parent == directory.parent
 
 
 def test_without_a_brief_or_signature_each_session_keeps_its_own(monkeypatch):
@@ -39,7 +46,7 @@ def test_without_a_brief_or_signature_each_session_keeps_its_own(monkeypatch):
     first = cursors.owner("")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
 
-    assert first != cursors.owner("") != "anonymous"
+    assert first != cursors.owner("") != ""
 
 
 def test_cursors_live_in_the_state_directory(monkeypatch, tmp_path):

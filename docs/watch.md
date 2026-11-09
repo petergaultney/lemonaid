@@ -126,7 +126,10 @@ is reported twice.
   `~/.local/state/lemonaid/cursors/<Lemon-ID>/` (under `LEMONAID_STATE_DIR` when set),
   keyed by the Lemon-ID of the caller's attached brief, current through rerolls. A lemon
   signing as `X (Author)` on one waiter and `X (Reviewer)` on another shares one set. A
-  caller with no brief is keyed by its `--me` signature.
+  caller with no brief is keyed by its `--me` signature, or else its Claude or Codex session. A
+  caller with none of those (a plain terminal without `--me`) keeps its cursors and lock in a
+  temporary directory removed when it exits, so each such run starts from the current state
+  and leaves nothing behind.
 - **Delivery is at least once.** A cursor advances only after the event is printed or
   queued, and is replaced whole (written to a temporary file, then renamed), so a crash
   leaves the old cursor or the new one. A crash between the two reports the event again.
