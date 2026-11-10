@@ -29,7 +29,10 @@ def _checks(snap: pr_activity.Snapshot) -> str:
     if "pending" in outcomes:
         return "pending"
 
-    return "failure" if "failed" in outcomes else "success"
+    if "failed" in outcomes:
+        return "failure"
+
+    return "success" if pr_activity.ci_passed(snap.checks) else "pending"
 
 
 def _known(found: object) -> str:

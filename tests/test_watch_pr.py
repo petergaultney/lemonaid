@@ -187,6 +187,27 @@ def test_ci_is_reported_once_every_check_has_finished(stem):
     )
 
 
+@pytest.mark.parametrize(
+    "outcomes,expected",
+    [
+        (["skipped"], False),
+        (["skipped", "skipped"], False),
+        (["passed", "skipped"], True),
+        (["skipped", "pending"], False),
+        (["passed", "failed"], False),
+    ],
+)
+def test_skipped_checks_neither_pass_nor_fail_ci(outcomes, expected):
+    checks = [_check(f"c{i}", outcome=o) for i, o in enumerate(outcomes)]
+    seen = merge_health.Seen("", "")
+
+    _, seen = merge_health.events(90, _snap(checks=checks), seen, ci=True)
+    messages, _ = merge_health.events(90, _snap(checks=checks), seen, ci=True)
+
+    assert any(m.kind == "ci-passed" for m in messages) is expected
+    assert not any(m.kind == "ci-failed" for m in messages) or "failed" in outcomes
+
+
 def test_optional_failure_counts_even_when_required_checks_pass():
     checks = [_check("allow-merge", required=True), _check("flaky", outcome="failed")]
 
@@ -222,6 +243,20 @@ def test_check_runs_and_status_contexts_are_read():
         },
         {"__typename": "StatusContext", "context": "c", "state": "EXPECTED", "isRequired": False},
         {"__typename": "StatusContext", "context": "d", "state": "SUCCESS", "isRequired": False},
+        {
+            "__typename": "CheckRun",
+            "name": "e",
+            "status": "COMPLETED",
+            "conclusion": "SKIPPED",
+            "isRequired": False,
+        },
+        {
+            "__typename": "CheckRun",
+            "name": "f",
+            "status": "COMPLETED",
+            "conclusion": "NEUTRAL",
+            "isRequired": False,
+        },
     ]
 
     assert [pr_activity._check(n) for n in nodes] == [
@@ -229,6 +264,8 @@ def test_check_runs_and_status_contexts_are_read():
         _check("b", required=True, outcome="failed"),
         _check("c", outcome="pending"),
         _check("d"),
+        _check("e", outcome="skipped"),
+        _check("f", outcome="skipped"),
     ]
 
 

@@ -63,7 +63,7 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
 class Check(ty.NamedTuple):
     name: str
     required: bool
-    outcome: ty.Literal["pending", "failed", "passed"]
+    outcome: ty.Literal["pending", "failed", "passed", "skipped"]
     finished: str = ""  # when this result was produced; a re-run gives a later one
     url: str = ""
     errors: tuple[str, ...] = ()  # failure annotations, as `path:line: message`
@@ -91,7 +91,9 @@ _FAILED = frozenset(
     {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "ACTION_REQUIRED", "STALE"}
 )
 
-_PASSED = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
+_PASSED = frozenset({"SUCCESS"})
+
+_SKIPPED = frozenset({"NEUTRAL", "SKIPPED"})
 
 
 def _error(annotation: dict) -> str:
@@ -113,10 +115,23 @@ def _check(node: dict) -> Check:
     return Check(
         name,
         bool(node["isRequired"]),
-        "passed" if result in _PASSED else "failed" if result in _FAILED else "pending",
+        "passed"
+        if result in _PASSED
+        else "skipped"
+        if result in _SKIPPED
+        else "failed"
+        if result in _FAILED
+        else "pending",
         finished,
         url,
         tuple(_error(a) for a in annotations if a and a.get("annotationLevel") == "FAILURE"),
+    )
+
+
+def ci_passed(checks: abc.Sequence[Check]) -> bool:
+    """Skipped checks neither pass nor fail CI, so skipped-only checks are not a pass."""
+    return any(c.outcome == "passed" for c in checks) and all(
+        c.outcome in ("passed", "skipped") for c in checks
     )
 
 

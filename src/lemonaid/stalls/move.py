@@ -12,7 +12,7 @@ def _ready_to_merge(snap: pr_activity.Snapshot) -> bool:
         not snap.draft
         and snap.decision == "APPROVED"
         and snap.mergeable == "MERGEABLE"
-        and all(check.outcome == "passed" for check in snap.checks)
+        and pr_activity.ci_passed(snap.checks)
     )
 
 
