@@ -47,3 +47,8 @@ def cause(metadata: abc.Mapping[str, ty.Any]) -> str:
 
 def lost(metadata: abc.Mapping[str, ty.Any]) -> bool:
     return cause(metadata) == SERVER_LOST
+
+
+def failed(metadata: abc.Mapping[str, ty.Any]) -> bool:
+    """Whether a restore tried to bring the lemon back and could not."""
+    return lost(metadata) and bool(metadata[KEY].get("failed"))

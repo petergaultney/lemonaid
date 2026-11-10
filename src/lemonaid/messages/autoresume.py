@@ -154,7 +154,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
         return (
             f"queued, but {found.lemon_id} {state.detail}, so lemonaid won't start a second "
             "copy or type into the old one. It reads the message once its mailbox waiter is armed; "
-            "`lemonaid restore tmux` points its row at its pane."
+            "`lemonaid restore` points its row at its pane."
         ), False
     action = plan(
         state.state,

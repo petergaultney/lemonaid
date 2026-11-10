@@ -7,11 +7,14 @@ from . import shared
 
 def test_hook_records_only_matching_native_process_ownership(monkeypatch):
     monkeypatch.setattr(process, "ancestry", lambda *a: [shared.SOURCE, shared.ROOT])
+    monkeypatch.setattr(native.launch_args, "argv", lambda pid: ["codex", "-m", "gpt-5"])
     native.observe({"session_id": shared.SESSION}, "codex")
     assert native.binding(shared.CHANNEL) == {
         "session_id": shared.SESSION,
         "identity": dataclasses.asdict(shared.SOURCE),
+        "argv": ["codex", "-m", "gpt-5"],
     }
+    assert native.recorded_argv(shared.CHANNEL) == ["codex", "-m", "gpt-5"]
     native.observe({"session_id": shared.SESSION}, "claude")
     assert native.binding("claude:" + shared.SESSION[:8]) is None
 

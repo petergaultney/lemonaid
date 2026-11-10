@@ -164,8 +164,8 @@ Inside cmux, `metadata` carries `cmux_surface`, the surface the session ran in, 
 ## Restoring a lost tmux layout
 
 ```bash
-lemonaid restore tmux --dry-run --json   # {"sessions": [...], "relinked": [...]}: what would be rebuilt and repaired
-lemonaid restore tmux --json             # {"restored": [...], "skipped": [...], "lemons": [...]}
+lemonaid restore --dry-run --json   # {"lemons": [...], "not_restored": [...], "running": [...], "relinked": [...]}
+lemonaid restore --json             # {"restored": [channels], "running": [channels], "lemons": [...], "relinked": [...]}
 lemonaid restore dismiss [LEMON ...|--all]  # archive lost lemons instead of restoring them
 ```
 
@@ -173,20 +173,17 @@ Restore plans only lemons lost with their tmux server. A row's `metadata.ended`
 (`{at, cause, by, detail}`) says why it stopped being a running lemon; `cause` is
 `server-lost` for a row restore will bring back, which stays active.
 
-`lemonaid tmux restore` is the same command. It recreates the tmux sessions the active inbox says its
-lemons were running in, resuming each in the window it occupied, and starts each lemon whose brief lists
-waiters with a prompt to rearm them. It then waits up to `--wait` seconds and reports each lemon's
-`outcome`: `working`, `stuck`, `exited`, `no brief`, `nothing to rearm`, `rearm by hand` (an OpenClaw or
-opencode lemon whose brief lists waiters: only Claude and Codex take a prompt on resume), or `not
-restored`, with a `detail` from its pane for the ones that need a hand. It exits 1 for any outcome but
-`working`, `no brief`, and `nothing to rearm`. Windows keep their recorded index, so one lemonaid knows nothing about comes back as
-an empty gap rather than shifting the others down.
-
-Sessions already running are left alone, so this is safe to re-run. A session with no recorded location
-can't be placed and is skipped — check `--dry-run` before assuming a session will come back.
-
-When several rows name one window, the lemon heard from most recently gets it and the others are
-reported `not restored`.
+`lemonaid tmux restore` and `lemonaid restore tmux` are the same command. Only tmux restores lemons yet; a lemon lost in another terminal is `not restored`. It brings back the lost lemons not already running,
+each in its recorded window or the next free index (a running session gains only the windows it
+lacks), resumed with the model and effort it was started with. A lemon counts as restored only when
+its own process runs in that window; one that fails twice stays lost, with the reason in
+`metadata.ended.detail` and in the inbox row `lemonaid:restore`. Each lemon's `outcome` is
+`subscribed` (its push scout reaches it, so it got no prompt), `working`, `stuck`, `exited`,
+`no brief`, `nothing to rearm`, `rearm by hand`, `brief detached`, `already running` or
+`not restored`, with a `detail` for the ones that need a hand. It exits 1 for any outcome but
+`subscribed`, `working`, `no brief`, `nothing to rearm` and `already running`. Run it again at any
+time; it does only what is still undone. `--dry-run` lists each lemon's planned window under
+`lemons` and the ones it can't start under `not_restored`.
 
 Last, restore points every active row at the pane its lemon's process runs in: the Claude process
 running that session (checked against its pid's start time), or the Codex process with that thread
@@ -194,7 +191,7 @@ open, never a tty alone. That includes rows in sessions it skipped, so re-runnin
 repairs rows without starting anything. A lemon that isn't running forgets its recorded pane only when
 another running lemon holds that tty; its session and window stay. Both JSON results list these under
 `relinked` as `{"channel", "state", "recorded", "pane"}`, with `state` `relinked` or `forgotten`;
-`--dry-run` lists what it would write. The dry run's layout is under `sessions`.
+`--dry-run` lists what it would write.
 
 ```bash
 lemonaid tmux doctor            # coverage, restorability, hook state

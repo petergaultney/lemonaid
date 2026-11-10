@@ -20,8 +20,11 @@ NO_BRIEF = "no brief"
 NOTHING_TO_REARM = "nothing to rearm"
 BY_HAND = "rearm by hand"  # its brief lists waiters, but its harness can't be started on a prompt
 NOT_RESTORED = "not restored"
+SUBSCRIBED = "subscribed"  # its push scout runs, so it needed no prompt
+DETACHED = "brief detached"  # running, but its brief is no longer attached to it
+RUNNING = "already running"  # found running before restore started anything
 
-OK = frozenset({WORKING, NO_BRIEF, NOTHING_TO_REARM})
+OK = frozenset({WORKING, NO_BRIEF, NOTHING_TO_REARM, SUBSCRIBED, RUNNING})
 
 # A pane has a shell and nothing else until the shell starts the typed line.
 _GRACE_SECONDS = 15.0
@@ -33,7 +36,7 @@ class Placed(ty.NamedTuple):
     channel: str
     name: str
     where: str  # the terminal's handle for the lemon's pane
-    rearm: str  # PROMPTED, NO_BRIEF, NOTHING_TO_REARM or BY_HAND
+    rearm: str  # PROMPTED, SUBSCRIBED, NO_BRIEF, NOTHING_TO_REARM or BY_HAND
 
 
 class Seen(ty.NamedTuple):
@@ -56,7 +59,7 @@ def _tail(screen: str) -> str:
     )
 
 
-def _detail(seen: Seen) -> str:
+def detail(seen: Seen) -> str:
     return window.dialog_in(seen.screen) or _tail(seen.screen)
 
 
@@ -66,7 +69,7 @@ def _settled(lemon: Placed, active: bool, seen: Seen, elapsed: float) -> Result 
         return Result(lemon.channel, lemon.name, lemon.where, WORKING, "")
 
     if not seen.running and elapsed >= _GRACE_SECONDS:
-        return Result(lemon.channel, lemon.name, lemon.where, EXITED, _detail(seen))
+        return Result(lemon.channel, lemon.name, lemon.where, EXITED, detail(seen))
 
     return None
 
@@ -74,12 +77,12 @@ def _settled(lemon: Placed, active: bool, seen: Seen, elapsed: float) -> Result 
 def _final(lemon: Placed, seen: Seen) -> Result:
     """*lemon*'s result once the deadline has passed without it settling."""
     if not seen.running:
-        return Result(lemon.channel, lemon.name, lemon.where, EXITED, _detail(seen))
+        return Result(lemon.channel, lemon.name, lemon.where, EXITED, detail(seen))
 
     if lemon.rearm != PROMPTED:
         return Result(lemon.channel, lemon.name, lemon.where, lemon.rearm, "")
 
-    return Result(lemon.channel, lemon.name, lemon.where, STUCK, _detail(seen))
+    return Result(lemon.channel, lemon.name, lemon.where, STUCK, detail(seen))
 
 
 def wait(

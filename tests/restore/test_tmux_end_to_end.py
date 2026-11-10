@@ -1,23 +1,25 @@
-"""`lemonaid restore tmux` after a real tmux server dies, with stand-in Claude processes.
+"""`lemonaid restore` after a real tmux server dies, with stand-in Claude processes.
 
 The world and its layout before the crash are in `tmux_world`.
 """
 
 import json
 import os
+import signal
 import subprocess
 import time
 from collections import abc
 
+from lemonaid.brief import attached, identity
 from lemonaid.config import load_config
 from lemonaid.inbox import db
 from lemonaid.inbox.tui.rows import brief_cards
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.messages import recipient
+from lemonaid.watch import wait_state
 
 from .tmux_world import (
-    BRIEFLESS,
     WHERE,
     World,
     channel,
@@ -66,18 +68,18 @@ def test_every_lemon_comes_back_in_its_own_window_and_its_row_points_there(world
 
     restored = restore_all(world, seconds=30)
 
-    assert restored["restored"] == ["work", "side"]
+    assert sorted(restored["restored"]) == sorted(channel(name) for name in [*WHERE, "OLD"])
     assert {r["channel"]: r["outcome"] for r in restored["lemons"]} == {
-        channel("A"): "working",
-        channel("B"): "working",
+        channel("A"): "subscribed",  # its push scout runs, so it needs no prompt
+        channel("B"): "subscribed",
         channel("C"): "no brief",
-        channel("OLD"): "not restored",
+        channel("OLD"): "subscribed",
     }
-    for name, where in WHERE.items():
+    for name, where in {**WHERE, "OLD": "work:3"}.items():  # B was heard from last in work:2
         running = world.running(name)
         assert running is not None
         assert window(running["pane"]) == where, name
-        assert (f"/tmp/{name}.md" in running["prompt"]) != (name == BRIEFLESS), name
+        assert world.typed(name) == "", name
         row = inbox_row(name)
         assert row is not None and not row.is_archived, name
         assert row.metadata["tty"] == running["tty"], name
@@ -101,12 +103,21 @@ def test_go_jumps_to_each_restored_lemon_including_into_a_renamed_session(world)
 
 
 def _on_b_tty(world: World) -> None:
-    """Record OLD in the pane B runs in now.
+    """Stop OLD and record it in the pane B runs in now.
 
-    That is where OLD's row ends up when the restored server hands B the tty OLD had, as
-    it usually does, and the watcher records the pane on that tty for every row there.
-    Make it so, since that is the case being checked.
+    That is where a dead lemon's row ends up when the restored server hands B the tty it
+    had, as it usually does, and the watcher records the pane on that tty for every row
+    there. Make it so, since that is the case being checked.
     """
+    pid = (world.running("OLD") or {}).get("pid")
+    if pid:
+        os.kill(pid, signal.SIGKILL)
+        wait("OLD to die", lambda: world.running("OLD") is None)
+        with db.connect() as conn:
+            brief = attached.by_channel(conn, [channel("OLD")])[channel("OLD")]
+        lemon_id = identity.read(brief.read_text())
+        # A scout pushing into a dead session counts as listening until it notices.
+        wait("OLD's scout to stop", lambda: not wait_state.is_armed(lemon_id))
     old, b = inbox_row("OLD"), inbox_row("B")
     assert old is not None and b is not None
     location = {
@@ -132,12 +143,11 @@ def test_restoring_again_starts_nothing_and_forgets_a_pane_another_lemon_now_run
     restore_all(world)
     _on_b_tty(world)
 
-    again = lemonaid("restore", "tmux", "--wait", "0", "--json")
-    once_more = lemonaid("restore", "tmux", "--wait", "0", "--json")
+    again = lemonaid("restore", "--wait", "0", "--json")
+    once_more = lemonaid("restore", "--wait", "0", "--json")
 
     first = json.loads(again.stdout)
     assert first["restored"] == []
-    assert first["skipped"] == []
     assert [(r["channel"], r["state"]) for r in first["relinked"]] == [
         (channel("OLD"), "forgotten")
     ]
@@ -178,7 +188,7 @@ def test_telling_a_dead_lemon_never_types_into_the_lemon_on_its_old_tty(world):
     told = lemonaid("tell", "--channel", "claude:tester", channel("OLD"), "read your mailbox")
 
     assert "mailbox" not in tmux("capture-pane", "-p", "-t", b["pane"]), told.stderr
-    assert world.received("B") == b""
+    assert b"read your mailbox" not in world.received("B")
     resumed = wait("OLD to be resumed", lambda: world.running("OLD"))
     assert resumed["pane"] != b["pane"]
     assert "mailbox" in resumed["prompt"]

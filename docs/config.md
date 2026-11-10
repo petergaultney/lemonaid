@@ -801,6 +801,16 @@ autoresume_window = "20m"
 
 When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no mailbox waiter, it starts that lemon on a prompt to read its mailbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
 
+## `[restore]`
+
+How `lemonaid restore` brings lost lemons back; see [tmux.md](tmux.md#bringing-lemons-back-to-work).
+
+```toml
+[restore]
+parallel = 4          # lemons started at once; each batch is proven running before the next
+verify_seconds = 60   # how long a started lemon has to show up running in its window
+```
+
 ## `[tasks]`
 
 ```toml

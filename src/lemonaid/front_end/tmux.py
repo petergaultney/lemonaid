@@ -7,6 +7,8 @@ from ..config import Config
 from ..launch import window
 from ..lemon_watchers import watcher
 from ..log import get_logger
+from ..restore import run
+from ..tmux import restore
 from . import interface
 
 _log = get_logger("front_end.tmux")
@@ -128,3 +130,7 @@ def terminal() -> interface.Terminal:
     return interface.Terminal(
         name="tmux", here=lambda: bool(window.own_session()), show=show, exists=exists, lost=lost
     )
+
+
+def restorer() -> run.Terminal:
+    return restore.terminal()

@@ -1075,6 +1075,26 @@ def mark_lost(conn: sqlite3.Connection, channel: str, by: str, detail: str) -> i
     return cursor.rowcount
 
 
+def restore_failed(conn: sqlite3.Connection, channel: str, detail: str) -> int:
+    """Mark *channel* lost again because restore could not bring it back, and say why.
+
+    A failed attempt may have registered the lemon on the new server before it stopped,
+    so the mark is written whatever the row says now, and stays until the lemon is
+    proven running (see `restore.loss`).
+    """
+    cursor = conn.execute(
+        """UPDATE notifications
+           SET metadata = json_set(COALESCE(metadata, '{}'), '$.ended', json(?))
+           WHERE channel = ? AND status != 'archived'""",
+        (
+            json.dumps({**ended.record(ended.SERVER_LOST, "restore", detail), "failed": True}),
+            channel,
+        ),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
 def clear_lost(conn: sqlite3.Connection, channel: str) -> int:
     """Forget that *channel*'s lemon was lost, now that it runs again."""
     cursor = conn.execute(

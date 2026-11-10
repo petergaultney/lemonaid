@@ -171,8 +171,8 @@ The Stop hook accepts any running `watch briefs --children` waiter, including th
 
 ```bash
 lemonaid tmux doctor
-lemonaid restore tmux --dry-run
-lemonaid restore tmux
+lemonaid restore --dry-run
+lemonaid restore
 ```
 
 `restore` rebuilds the sessions the inbox remembers, resumes each lemon in the window it had, and starts each with a prompt to rearm the waiters in its brief. It reports each as working, stuck, exited, or needing a rearm by hand. Pins are keyed by channel, so [check the HQ's pin](#2-creating-the-hq) afterward. See [tmux](tmux.md#surviving-a-crash).

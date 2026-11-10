@@ -47,7 +47,6 @@ _ALLOWED: set[str] = {
     "places/teardown.py",
     "places/windows.py",
     "places/workspace.py",
-    "restore/cli.py",
     "skills/install.py",
     "watch/briefs_orphans.py",
 }

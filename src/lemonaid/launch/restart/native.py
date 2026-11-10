@@ -5,6 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from ...claude import launch_args
 from ...codex import channels
 from ...inbox import db
 from ...inbox.channel import channel_id
@@ -29,12 +30,22 @@ def _observe(data: dict, harness: str) -> None:
         )
     state.write(
         "native-" + state.key(target) + ".json",
-        {"session_id": session, "identity": dataclasses.asdict(source)},
+        {
+            "session_id": session,
+            "identity": dataclasses.asdict(source),
+            "argv": launch_args.argv(source.pid),  # what restore carries over (`restore.carried`)
+        },
     )
 
 
 def binding(channel: str) -> dict | None:
     return state.read("native-" + state.key(channel) + ".json")
+
+
+def recorded_argv(channel: str) -> list[str]:
+    """The argv *channel*'s harness was last seen started with, [] when none was recorded."""
+    found = (binding(channel) or {}).get("argv")
+    return [str(arg) for arg in found] if isinstance(found, list) else []
 
 
 def recovery_required(channel: str) -> bool:

@@ -4,11 +4,11 @@ Started as `claude --session-id ID` or `claude --resume ID [PROMPT]`, it lists i
 `$CLAUDE_CONFIG_DIR/sessions/<pid>.json`, writes a transcript and a history line, runs
 every SessionStart hook in `$CLAUDE_CONFIG_DIR/settings.json`, and listens on its
 messaging socket behind an empty composer. Resumed on a prompt, it first takes one turn on it: UserPromptSubmit
-hooks, then Stop hooks. SIGUSR1 ends a turn: it runs the Stop hooks, as Claude does when it
+hooks, then Stop hooks. So does each line typed into its composer. SIGUSR1 ends a turn: it runs the Stop hooks, as Claude does when it
 finishes answering and waits for the user. Its session file is left behind when it is killed, as a crashed
 Claude's is.
 
-`$STAND_IN_DIR/<session id>.json` says where it really ran (pane, tty, pid, prompt), for
+`$STAND_IN_DIR/<session id>.json` says where it really ran (pane, tty, pid, prompt, argv), for
 tests to check lemonaid against. `<session id>.turns` gets a line as each turn's Stop
 hooks finish, and `<session id>.received` each message written to its socket.
 
@@ -23,6 +23,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -133,10 +134,20 @@ def main(args: list[str]) -> None:
                 "pane": os.environ.get("TMUX_PANE", ""),
                 "tty": os.ttyname(sys.stdin.fileno()),
                 "prompt": prompt,
+                "argv": args,
             }
         )
     )
 
+    def composer() -> None:
+        for line in sys.stdin:
+            if line.strip():
+                with (evidence / f"{session_id}.typed").open("a") as typed:
+                    typed.write(line)
+                run_hooks("UserPromptSubmit", prompt=line.strip())
+                end_turn()
+
+    threading.Thread(target=composer, daemon=True).start()
     os.write(sys.stdout.fileno(), "\x1b[2J\x1b[H\u276f ".encode())  # Claude's empty composer
     while True:
         connection, _ = listener.accept()

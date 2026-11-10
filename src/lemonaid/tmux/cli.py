@@ -307,11 +307,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     doctor_parser.set_defaults(func=cmd_doctor)
 
-    restore_cli.add_tmux_arguments(
+    restore_cli.add_arguments(
         tmux_subparsers.add_parser(
             "restore",
-            help="Same as `lemonaid restore tmux`",
-            description=restore_cli.TMUX_DESCRIPTION,
+            help="Same as `lemonaid restore`",
+            description=restore_cli.DESCRIPTION,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     )

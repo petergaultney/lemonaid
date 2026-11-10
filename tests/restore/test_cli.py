@@ -1,15 +1,16 @@
-"""`lemonaid restore tmux` pointing each restored lemon's row at its new pane."""
+"""`lemonaid restore` bringing back tmux lemons, and pointing each row at its new pane."""
 
 import argparse
 import json
+from collections import abc
 
 import pytest
 
+from lemonaid.config import Config
 from lemonaid.inbox import db, ended
-from lemonaid.inbox.tui.watchers import watcher_hooks
-from lemonaid.lemon_watchers import watcher
-from lemonaid.restore import cli, report
-from lemonaid.tmux import navigation, relink, server
+from lemonaid.restore import cli, inbox_report, report
+from lemonaid.restore_config import RestoreConfig
+from lemonaid.tmux import navigation, relink, restore_relink, server
 from lemonaid.tmux import restore as tmux_restore
 
 # Two lemons in window 1 of two sessions, as restore commonly rebuilds them.
@@ -31,6 +32,7 @@ def _lemons_from_the_dead_server() -> None:
                 "waiting",
                 metadata={
                     "tty": DEAD_TTYS[channel],
+                    "session_id": channel.removeprefix("claude:"),
                     "cwd": "/tmp",
                     "tmux_session": session,
                     "tmux_window": "1",
@@ -41,34 +43,46 @@ def _lemons_from_the_dead_server() -> None:
             )
 
 
-def _restore(monkeypatch, panes: dict[str, navigation.PaneLocation] | None) -> None:
-    """Run `restore tmux` as if tmux put each lemon in window 1 and then listed *panes*."""
+def _terminal(monkeypatch, **changes) -> None:
+    """tmux's restore terminal, placing lemons in an empty server, with *changes* made."""
+    terminal = tmux_restore.terminal()
+    monkeypatch.setattr(tmux_restore, "layout", dict)
     monkeypatch.setattr(
-        cli.tmux_restore,
-        "plan_restore",
-        lambda *_: [
-            tmux_restore.SessionPlan(
-                session,
-                [tmux_restore.Window(1, "/tmp", "claude", {}, channel, channel, report.NO_BRIEF)],
-            )
-            for channel, session in LEMONS.items()
-        ],
-    )
-    monkeypatch.setattr(
-        cli.tmux_restore,
-        "restore",
-        lambda plans: tmux_restore.Restored(
-            list(LEMONS.values()),
-            [],
-            [
-                report.Placed(channel, channel, f"{session}:1", report.NO_BRIEF)
-                for channel, session in LEMONS.items()
-            ],
-            [],
+        tmux_restore,
+        "terminal",
+        lambda: terminal._replace(
+            type=lambda window, line: "", seen=lambda where: report.Seen(False, ""), **changes
         ),
     )
-    monkeypatch.setattr(navigation, "locations_by_tty", lambda socket=None: panes)
-    cli.cmd_tmux(argparse.Namespace(dry_run=False, wait=0, json=True))
+
+
+def _restore(
+    monkeypatch,
+    running: set[str],
+    opened: abc.Callable[[str], None] = lambda channel: None,
+    closed: list[str] | None = None,
+) -> None:
+    """Run `restore` with a tmux terminal in which only the *running* channels come up.
+
+    *opened* is called with each lemon's channel as its window opens; *closed* collects
+    the windows restore closes.
+    """
+    monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
+    monkeypatch.setattr(cli.plan, "_transcript_missing", lambda row: False)
+    _terminal(
+        monkeypatch,
+        open=lambda spot, cwd, environment: (
+            opened(_channel_at(spot)) or f"@{spot.at.session}",
+            "",
+        ),
+        close=(closed if closed is not None else []).append,
+        running=lambda lemons: {lemon.channel for lemon in lemons} & running,
+    )
+    cli.cmd_restore(argparse.Namespace(dry_run=False, wait=0, json=True))
+
+
+def _channel_at(spot) -> str:
+    return next(channel for channel, session in LEMONS.items() if session == spot.at.session)
 
 
 def _rows() -> dict[str, db.Notification]:
@@ -76,44 +90,26 @@ def _rows() -> dict[str, db.Notification]:
         return {n.channel: n for n in db.get_active(conn) if n.channel in LEMONS}
 
 
-def test_the_watcher_keeps_restored_lemons_in_their_new_panes(monkeypatch):
+def test_a_lemon_never_proven_running_stays_lost_and_is_listed_in_the_inbox(monkeypatch, capsys):
     _lemons_from_the_dead_server()
-    _restore(monkeypatch, NEW_PANES)
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
 
-    rows = _rows()
-    sockets = watcher_hooks.recorded_sockets()
-    active = [
-        (channel, "", "/tmp", n.created_at, True, n.metadata["tty"], "", "tmux")
-        for channel, n in rows.items()
-    ]
-    archived = watcher._archive_stale_sessions(
-        active,
-        lambda channel: None,
-        sockets,
-        {socket: NEW_PANES for socket in sockets.values()},
-        session_orders=watcher_hooks.recorded_tmux_session_orders(),
-        tty_processes={tty.removeprefix("/dev/"): ["claude"] for tty in NEW_PANES},
-    )
+    with pytest.raises(SystemExit):
+        _restore(monkeypatch, {"claude:main"})
 
-    assert archived == set()
-    assert {
-        channel: (n.metadata["tty"], n.metadata["tmux_session"], n.metadata["tmux_socket"])
-        for channel, n in rows.items()
-    } == {
-        "claude:main": ("/dev/ttys902", "main", navigation.current_socket()),
-        "claude:work": ("/dev/ttys904", "work", navigation.current_socket()),
+    out = json.loads(capsys.readouterr().out)
+    assert out["restored"] == ["claude:main"]
+    assert {r["channel"]: r["outcome"] for r in out["lemons"]} == {
+        "claude:main": report.NO_BRIEF,
+        "claude:work": report.NOT_RESTORED,
     }
-
-
-@pytest.mark.parametrize(
-    "panes",
-    [pytest.param(None, id="tmux-did-not-answer"), pytest.param({}, id="window-not-listed")],
-)
-def test_a_lemon_tmux_does_not_list_keeps_its_row_as_it_was(monkeypatch, panes):
-    _lemons_from_the_dead_server()
-    _restore(monkeypatch, panes)
-
-    assert {channel: n.metadata["tty"] for channel, n in _rows().items()} == DEAD_TTYS
+    rows = _rows()
+    assert {channel: n.metadata["tty"] for channel, n in rows.items()} == DEAD_TTYS
+    assert ended.lost(rows["claude:work"].metadata)
+    assert "did not start" in rows["claude:work"].metadata["ended"]["detail"]
+    with db.connect() as conn:
+        listed = db.get_by_channel(conn, inbox_report.CHANNEL, unread_only=False)
+    assert listed is not None and "claude:work" in listed.message
 
 
 def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeypatch):
@@ -135,14 +131,14 @@ def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeyp
             switch_source="tmux",
         )
     monkeypatch.setattr(
-        cli.relink,
+        relink,
         "survey",
-        lambda conn: relink.plan(
+        lambda conn, rows=None: relink.plan(
             db.get_active(conn, switch_source="tmux"), {"main-session": {"/dev/ttys902"}}, {}
         ),
     )
     with pytest.raises(SystemExit):  # it is reported not restored
-        _restore(monkeypatch, NEW_PANES)
+        _restore(monkeypatch, set())
 
     with db.connect() as conn:
         [row] = [n for n in db.get_active(conn) if n.channel == "codex:crowded-out"]
@@ -165,19 +161,20 @@ def test_a_dry_run_with_nothing_to_rebuild_still_shows_the_rows_it_would_repair(
             metadata={"tty": "/dev/ttys902", "tmux_session": "main"},
             switch_source="tmux",
         )
-    monkeypatch.setattr(cli.tmux_restore, "plan_restore", lambda *_: [])
     monkeypatch.setattr(
-        cli.relink,
+        relink,
         "survey",
-        lambda conn: relink.plan(db.get_active(conn), {"other": {"/dev/ttys902"}}, {}),
+        lambda conn, rows=None: relink.plan(db.get_active(conn), {"other": {"/dev/ttys902"}}, {}),
     )
 
-    cli.cmd_tmux(argparse.Namespace(dry_run=True, wait=0, json=as_json))
+    cli.cmd_restore(argparse.Namespace(dry_run=True, wait=0, json=as_json))
 
     out = capsys.readouterr().out
     if as_json:
         assert json.loads(out) == {
-            "sessions": [],
+            "lemons": [],
+            "not_restored": [],
+            "running": [],
             "relinked": [
                 {
                     "channel": "codex:crowded-out",
@@ -199,16 +196,16 @@ def test_a_lost_lemon_found_running_elsewhere_is_relinked_and_lost_no_longer(mon
         db.mark_lost(conn, "claude:main", "test", "")
     new = {"tty": "/dev/ttys902", "tmux_session": "main", "tmux_window": "1"}
     monkeypatch.setattr(
-        cli.relink,
+        relink,
         "survey",
-        lambda conn: [
+        lambda conn, rows=None: [
             relink.Relink(row, relink.RELINKED, new)
             for row in db.get_active(conn)
             if row.channel == "claude:main"
         ],
     )
 
-    [relinked] = cli._relinked(dry_run=False)
+    [relinked] = restore_relink._relinks(dry_run=False)
 
     assert relinked.row.channel == "claude:main"
     row = _rows()["claude:main"]
@@ -221,9 +218,9 @@ def test_a_lost_lemon_whose_tty_another_lemon_runs_on_stays_lost_and_restorable(
     with db.connect() as conn:
         db.mark_lost(conn, "claude:main", "test", "")
     monkeypatch.setattr(
-        cli.relink,
+        relink,
         "survey",
-        lambda conn: [
+        lambda conn, rows=None: [
             relink.Relink(row, relink.FORGOTTEN, None)
             for row in db.get_active(conn)
             if row.channel == "claude:main"
@@ -231,10 +228,53 @@ def test_a_lost_lemon_whose_tty_another_lemon_runs_on_stays_lost_and_restorable(
     )
     monkeypatch.setattr(server, "started", lambda socket: 200)
 
-    [forgotten] = cli._relinked(dry_run=False)
+    [forgotten] = restore_relink._relinks(dry_run=False)
 
     assert forgotten.state == relink.FORGOTTEN
     row = _rows()["claude:main"]
     assert "tty" not in row.metadata
     assert ended.lost(row.metadata)
     assert "claude:main" in {r.channel for r in cli._lost(dry_run=True)}
+
+
+def test_a_lemon_that_registered_before_failing_stays_lost_for_the_next_restore(monkeypatch):
+    """Its SessionStart replaced the row's metadata, so it records the new server."""
+    _lemons_from_the_dead_server()
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+
+    def registered(channel: str) -> None:
+        with db.connect() as conn:
+            row = db.get_by_channel(conn, channel, unread_only=False)
+            assert row is not None
+            metadata = {k: v for k, v in row.metadata.items() if k != "ended"}
+            db.add(conn, channel, "started", metadata=metadata, switch_source="tmux")
+
+    closed: list[str] = []
+    with pytest.raises(SystemExit):
+        _restore(monkeypatch, set(), registered, closed)
+
+    assert closed == ["@main", "@main", "@work", "@work"]  # each attempt's own window only
+    rows = _rows()
+    assert all(ended.failed(row.metadata) for row in rows.values())
+    monkeypatch.setattr(server, "started", lambda socket: 900)  # a running, current server
+    assert {r.channel for r in cli._lost(dry_run=True)} == set(LEMONS)
+
+
+def test_a_window_that_could_not_be_opened_is_never_closed(monkeypatch):
+    _lemons_from_the_dead_server()
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+    monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
+    monkeypatch.setattr(cli.plan, "_transcript_missing", lambda row: False)
+    closed: list[str] = []
+    _terminal(
+        monkeypatch,
+        open=lambda spot, cwd, environment: ("", "index in use"),
+        close=closed.append,
+        running=lambda lemons: set(),
+    )
+
+    with pytest.raises(SystemExit):
+        cli.cmd_restore(argparse.Namespace(dry_run=False, wait=0, json=True))
+
+    assert closed == []
+    assert {row.metadata["ended"]["detail"] for row in _rows().values()} == {"index in use"}
