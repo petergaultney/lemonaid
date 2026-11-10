@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.screen import ModalScreen, Screen
 from textual.timer import Timer
 
-from ..draw import canvas
+from ..draw import canvas, refusal
 from ..layout import edit, state
 from . import (
     choice,
@@ -104,6 +104,7 @@ class GroveScreen(ModalScreen[str]):
         self._drag: garden.Drag | None = None
         self._dragged = False  # the mouse moved since it was pressed, so its click isn't one
         self._drag_frame_due = False
+        self._refused: refusal.Refusal | None = None  # the drag, while it can't drop there
         self._redraw_due = False
         self._flips = flips
         self._flipped = False
@@ -161,6 +162,7 @@ class GroveScreen(ModalScreen[str]):
             self._select_key,
             drag is None,
             self._flashed,
+            self._refused if drag else None,
         )
 
     def _show(self) -> None:
@@ -429,6 +431,7 @@ class GroveScreen(ModalScreen[str]):
             self._moved_save.stop()
             self._moved_save = None
         self._dragged = False
+        self._refused = None
         self._drag = garden.grab(
             self._grove,
             self._where,
@@ -457,7 +460,11 @@ class GroveScreen(ModalScreen[str]):
         if self._drag is None:
             return
 
-        self._where = dataclasses.replace(self._where, note=drop.describe(self._grove, self._drag))
+        problem = drop.refused(self._grove, self._drag)
+        self._refused = drop.shown_refused(self._grove, self._drag) if problem else None
+        self._where = dataclasses.replace(
+            self._where, note=drop.describe(self._grove, self._drag, problem)
+        )
         self._redraw()
 
     def _put_back(self, note: str) -> None:

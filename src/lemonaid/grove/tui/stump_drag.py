@@ -60,10 +60,9 @@ def refused(grove: Grove, drag: Drag) -> str:
     return _refused(grove, drag, _aim(grove, drag))
 
 
-def describe(grove: Grove, drag: Drag) -> str:
+def describe(grove: Grove, drag: Drag, problem: str) -> str:
     if _aim(grove, drag) is None:
         return f"clearing bare tree {drag.name} · release to clear it · esc puts it back"
-    problem = refused(grove, drag)
     if problem:
         return f"moving bare tree {drag.name}: {problem}"
     return (

@@ -61,14 +61,17 @@ def test_a_bare_tree_onto_a_tree_is_refused():
     at = grove.arrangement.trees[("g", "tree-0")]
     onto = dataclasses.replace(_grab(grove), moved=(at.cx - was.cx, at.cy - was.cy))
     assert drop.refused(grove, onto) == "a tree stands there"
-    assert "a tree stands there" in drop.describe(grove, onto)
+    assert "a tree stands there" in drop.describe(grove, onto, drop.refused(grove, onto))
+    assert drop.shown_refused(grove, onto).target == ("1", "", "going")  # what the zoom marks
 
 
 def test_a_bare_tree_dragged_off_its_block_is_cleared():
     grove, saved = _grove()
     away = dataclasses.replace(_grab(grove), moved=(1000, 0))
     assert drop.refused(grove, away) == ""
-    assert drop.describe(grove, away).startswith("clearing bare tree going")
+    assert drop.describe(grove, away, drop.refused(grove, away)).startswith(
+        "clearing bare tree going"
+    )
     assert drop.dragged(grove, away).arrangement.stumps["g"] == ()
 
     cleared = drop.drop(grove, away, NOW + 60)(saved)
