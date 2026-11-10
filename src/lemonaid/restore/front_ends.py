@@ -35,10 +35,10 @@ class Group(ty.NamedTuple):
 
 
 def groups(
-    lost: abc.Iterable[db.Notification],
+    lost: abc.Iterable[db.Notification], start: bool
 ) -> tuple[list[Group], list[report.Result]]:
     """The lost lemons grouped by the front end that restores them, and a result for each
-    whose front end can't."""
+    whose front end can't. Without *start*, no front end starts its terminal to do it."""
     found: list[Group] = []
     unable: list[report.Result] = []
     for name, rows in _by_front_end(lost).items():
@@ -46,14 +46,15 @@ def groups(
         if front_end is None or front_end.restore is None:
             unable += _unable(name, rows)
         else:
-            found.append(Group(front_end.restore(), front_end.prompt or _cannot_type, rows))
+            found.append(Group(front_end.restore(start), front_end.prompt or _cannot_type, rows))
     return found, unable
 
 
 def restorers() -> list[run.Terminal]:
-    """Every front end that restores lemons, whether or not any was lost in it."""
+    """Every front end that restores lemons, whether or not any was lost in it, none of
+    them starting its terminal."""
     return [
-        front_end.restore()
+        front_end.restore(False)
         for each in terminals.all_terminals()
         if (front_end := pick.named(each.name)) and front_end.restore
     ]

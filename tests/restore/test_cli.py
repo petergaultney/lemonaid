@@ -45,12 +45,12 @@ def _lemons_from_the_dead_server() -> None:
 
 def _terminal(monkeypatch, **changes) -> None:
     """tmux's restore terminal, placing lemons in an empty server, with *changes* made."""
-    terminal = tmux_restore.terminal()
+    terminal = tmux_restore.terminal(True)
     monkeypatch.setattr(tmux_restore, "layout", dict)
     monkeypatch.setattr(
         tmux_restore,
         "terminal",
-        lambda: terminal._replace(
+        lambda start: terminal._replace(
             type=lambda window, line: "", seen=lambda where: report.Seen(False, ""), **changes
         ),
     )
@@ -68,7 +68,7 @@ def _restore(
     the windows restore closes.
     """
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
-    monkeypatch.setattr(cli.plan, "_transcript_missing", lambda row: False)
+    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
     _terminal(
         monkeypatch,
         open=lambda spot, cwd, environment: (
@@ -78,7 +78,9 @@ def _restore(
         close=(closed if closed is not None else []).append,
         running=lambda lemons: {lemon.channel for lemon in lemons} & running,
     )
-    cli.cmd_restore(argparse.Namespace(dry_run=False, wait=0, json=True))
+    cli.cmd_restore(
+        argparse.Namespace(dry_run=False, wait=0, json=True, auto=False, into_running=False)
+    )
 
 
 def _channel_at(spot) -> str:
@@ -167,7 +169,9 @@ def test_a_dry_run_with_nothing_to_rebuild_still_shows_the_rows_it_would_repair(
         lambda conn, rows=None: relink.plan(db.get_active(conn), {"other": {"/dev/ttys902"}}, {}),
     )
 
-    cli.cmd_restore(argparse.Namespace(dry_run=True, wait=0, json=as_json))
+    cli.cmd_restore(
+        argparse.Namespace(dry_run=True, wait=0, json=as_json, auto=False, into_running=False)
+    )
 
     out = capsys.readouterr().out
     if as_json:
@@ -264,7 +268,7 @@ def test_a_window_that_could_not_be_opened_is_never_closed(monkeypatch):
     _lemons_from_the_dead_server()
     monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
-    monkeypatch.setattr(cli.plan, "_transcript_missing", lambda row: False)
+    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
     closed: list[str] = []
     _terminal(
         monkeypatch,
@@ -274,7 +278,36 @@ def test_a_window_that_could_not_be_opened_is_never_closed(monkeypatch):
     )
 
     with pytest.raises(SystemExit):
-        cli.cmd_restore(argparse.Namespace(dry_run=False, wait=0, json=True))
+        cli.cmd_restore(
+            argparse.Namespace(dry_run=False, wait=0, json=True, auto=False, into_running=False)
+        )
 
     assert closed == []
     assert {row.metadata["ended"]["detail"] for row in _rows().values()} == {"index in use"}
+
+
+@pytest.mark.parametrize("ups", [(True, False), (False, True)], ids=["went", "came"])
+def test_a_lost_lemon_is_restored_or_waits_however_tmux_changes_meanwhile(monkeypatch, capsys, ups):
+    """A restore that may not start tmux asks once whether it runs."""
+    _lemons_from_the_dead_server()
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+    monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
+    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
+    answers = iter(ups)
+    _terminal(
+        monkeypatch,
+        open=lambda spot, cwd, environment: ("@1", ""),
+        close=lambda window: None,
+        running=lambda lemons: {lemon.channel for lemon in lemons},
+        up=lambda: next(answers),
+    )
+
+    cli.cmd_restore(
+        argparse.Namespace(dry_run=False, wait=0, json=True, auto=False, into_running=True)
+    )
+
+    out = json.loads(capsys.readouterr().out)
+    if ups[0]:
+        assert sorted(out["restored"]) == sorted(LEMONS) and out["waiting"] == []
+    else:
+        assert out["restored"] == [] and sorted(out["waiting"]) == sorted(LEMONS)

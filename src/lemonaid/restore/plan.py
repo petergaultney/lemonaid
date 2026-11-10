@@ -21,7 +21,7 @@ class Plan(ty.NamedTuple):
     skipped: list[report.Result]  # lost lemons restore can't start, and why
 
 
-def _transcript_missing(row: db.Notification) -> bool:
+def transcript_missing(row: db.Notification) -> bool:
     """Whether the conversation a resume would reopen is gone, so a resume would start an
     empty one under the lemon's name."""
     harness = row.channel.partition(":")[0]
@@ -66,7 +66,7 @@ def build(
         resumed = launch.launch(row, config, "", flags=carried.flags(harness, flags(row.channel)))
         if resumed is None:
             skipped.append(_skipped(row, "no working directory or resume command is recorded"))
-        elif _transcript_missing(row):
+        elif transcript_missing(row):
             skipped.append(_skipped(row, "its conversation's transcript is gone"))
         else:
             startable.append((row, resumed))

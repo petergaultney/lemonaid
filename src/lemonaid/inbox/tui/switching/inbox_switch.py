@@ -11,6 +11,7 @@ from ....config import Config
 from ....handlers import handle_notification
 from ....log import get_logger
 from ... import db, resume_archived
+from . import restore_offer
 from .resume_error import ResumeErrorScreen
 
 _log = get_logger("tui")
@@ -78,6 +79,10 @@ def switch_to(
     On failure, offer the resume command where one can be built, else to
     `archive` the row.
     """
+    if restore_offer.is_offer(notification.channel):
+        restore_offer.offer(widget, notification.message)
+        return True
+
     # Channel drives cwd-based fallback resolution; name is the
     # session name to reuse if the pane is gone and we respawn.
     if handle_notification(

@@ -11,7 +11,7 @@ from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes, watcher
-from ....restore import loss
+from ....restore import auto, front_ends, loss, readiness
 from ....watch import codex_waiter
 from ... import db, ended, teardown_evidence
 from ..rows import brief_cards
@@ -19,6 +19,7 @@ from ..rows import brief_cards
 _ActiveRow = tuple[str, str, str, float, bool, str | None, str, str | None]
 _SessionOrder = tuple[int, int, int]  # tmux.navigation.SessionOrder, without importing tmux
 _LOSS_SECONDS = 30.0  # between checks for lemons lost with their terminal server
+_READY_SECONDS = 60.0  # between checks of which running lemons a restore would miss
 
 
 def active_sessions() -> list[_ActiveRow]:
@@ -224,7 +225,9 @@ def start(
     detached_channels: abc.Callable[[set[str]], None],
 ) -> None:
     last_repair: float | None = None
-    last_loss: float | None = None
+    last_loss: float | None = None  # the first pass looks for lemons lost before the inbox started
+    last_ready: float | None = None  # the first check waits for locations to be recorded
+    was_up = True  # whether a terminal to restore into ran at the last loss check
     harness_ttys = tty_processes.Reused(
         lambda args: any(
             watcher.is_harness(args, name) for name in ("claude", "codex", "openclaw", "opencode")
@@ -232,7 +235,7 @@ def start(
     )
 
     def active() -> list[tuple]:
-        nonlocal last_repair, last_loss
+        nonlocal last_repair, last_loss, last_ready, was_up
         now = time.monotonic()
         if last_repair is None or now - last_repair >= 10:
             last_repair = now
@@ -248,12 +251,24 @@ def start(
                         },
                     )
         if last_loss is None or now - last_loss >= _LOSS_SECONDS:
+            first = last_loss is None
             last_loss = now
+            up = any(terminal.up() for terminal in front_ends.restorers())
+            came_up, was_up = up and not was_up, up
             with db.connect() as conn:
-                for row in loss.mark(conn, by="inbox watcher"):
+                newly = loss.mark(conn, by="inbox watcher")
+                for row in newly:
                     events.record(
                         "inbox-lost", row.channel, row.metadata.get("tty", ""), by="inbox watcher"
                     )
+                if auto.due(conn, config.restore.auto, bool(newly) or first or came_up):
+                    auto.trigger()
+        if last_ready is None:
+            last_ready = now
+        elif now - last_ready >= _READY_SECONDS:
+            last_ready = now
+            with db.connect() as conn:
+                readiness.check(conn, config)
         return active_sessions()
 
     start_unified_watcher(

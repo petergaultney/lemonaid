@@ -19,7 +19,7 @@ from lemonaid.inbox.tui.rows import brief_cards
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.launch.restart import state
 from lemonaid.lemon_watchers import watcher
-from lemonaid.restore import inbox_report
+from lemonaid.restore import auto, inbox_report
 
 from .tmux_world import (
     IDS,
@@ -237,3 +237,100 @@ def test_a_lemon_comes_back_on_the_model_it_was_started_with(world):
     argv = (world.running("A") or {}).get("argv", [])
     assert argv[argv.index("--model") + 1] == "haiku"
     assert "--model" not in (world.running("B") or {}).get("argv", [])
+
+
+def _asked() -> db.Notification | None:
+    with db.connect() as conn:
+        return db.get_by_channel(conn, auto.ASK_CHANNEL, unread_only=False)
+
+
+def _auto(setting: str) -> None:
+    Path(os.environ["LEMONAID_CONFIG"]).write_text(f'[restore]\nauto = "{setting}"\n')
+
+
+def test_with_auto_on_the_inbox_restores_lost_lemons_by_itself(world):
+    _auto("on")
+    crash(world)
+    tmux("new-session", "-d", "-s", "fresh")  # the server a person starts first
+    before = {name: (world.running(name) or {}).get("pid") for name in WHERE}
+
+    with _inbox():
+        for name in WHERE:
+            wait(
+                f"{name} to be restored",
+                lambda name=name: (found := world.running(name)) and found["pid"] != before[name],
+                timeout=90,
+            )
+
+    wait("the restore to finish", lambda: (row := _asked()) is not None and row.is_archived, 90)
+    for name in WHERE:
+        assert _cause(name) == "", name
+
+
+def test_with_auto_on_a_trigger_never_starts_tmux_and_the_lemons_wait_for_it(world):
+    _auto("on")
+    crash(world)
+
+    waited = lemonaid("restore", "--auto", "--wait", "0", "--json")
+
+    assert waited.returncode == 0, waited.stderr
+    assert sorted(json.loads(waited.stdout)["waiting"]) == sorted(
+        channel(name) for name in [*WHERE, "OLD"]
+    )
+    assert subprocess.run(["tmux", "list-sessions"], capture_output=True).returncode != 0
+    asked = _asked()
+    assert asked is not None and not asked.is_archived
+    assert all(_cause(name) == ended.SERVER_LOST for name in WHERE)
+
+    tmux("new-session", "-d", "-s", "fresh")  # the person starts tmux
+    restored = lemonaid("restore", "--auto", "--wait", "0", "--json")
+    assert sorted(json.loads(restored.stdout)["restored"]) == sorted(
+        channel(name) for name in [*WHERE, "OLD"]
+    )
+
+
+def test_with_auto_ask_a_trigger_leaves_one_row_and_starts_nothing(world):
+    _auto("ask")
+    crash(world)
+
+    first = lemonaid("restore", "--auto")
+    second = lemonaid("restore", "--auto")
+
+    assert first.returncode == second.returncode == 0, first.stderr
+    assert not any(world.running(name) for name in WHERE)
+    with db.connect() as conn:
+        asked = [r for r in db.get_active(conn) if r.channel == auto.ASK_CHANNEL]
+    assert len(asked) == 1 and asked[0].message.startswith("4 lemons were lost with their terminal")
+
+
+def test_with_auto_off_a_trigger_does_nothing(world):
+    _auto("off")
+    crash(world)
+
+    assert lemonaid("restore", "--auto").returncode == 0
+
+    assert not any(world.running(name) for name in WHERE)
+    assert _cause("A") == ""  # not even judged
+
+
+def test_two_triggers_at_once_restore_once(world):
+    _auto("on")
+    crash(world)
+    tmux("new-session", "-d", "-s", "fresh")
+
+    runs = [
+        subprocess.Popen(
+            ["lemonaid", "restore", "--auto", "--wait", "0", "--json"],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(2)
+    ]
+    outputs = [run.communicate(timeout=120)[0] for run in runs]
+
+    restored = [
+        channel for out in outputs if out.strip() for channel in json.loads(out)["restored"]
+    ]
+    assert sorted(restored) == sorted(channel(name) for name in [*WHERE, "OLD"])  # each once
+    for name in WHERE:
+        assert world.running(name) is not None, name
