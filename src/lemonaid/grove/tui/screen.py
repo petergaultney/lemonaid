@@ -41,6 +41,12 @@ class Overlay(ty.NamedTuple):
     open: abc.Callable[[], Screen]
 
 
+# The pause, in seconds, a Backspace that cleared something starts before Backspace closes the grove;
+# each Backspace in it starts it again, so a held or double-tapped Backspace stops once nothing is
+# left instead of closing it too.
+_BACKSPACE_CLOSES_AFTER = 0.6
+
+
 class GroveScreen(ModalScreen[str]):
     """Dismisses with the channel of the chosen lemon, or "" when closed without one.
 
@@ -99,6 +105,7 @@ class GroveScreen(ModalScreen[str]):
         # them draws neither again.
         self._ends: dict[bool, pulse.Ends] = {}
         self._was_open = False  # whether the last key arrived zoomed in or searching
+        self._backed_out_at = -_BACKSPACE_CLOSES_AFTER  # when the Backspace pause last started
         self._held = held
         self._lists: Lists = {} if lists is None else lists
         self._drag: garden.Drag | None = None
@@ -297,7 +304,12 @@ class GroveScreen(ModalScreen[str]):
         if channel:
             self.dismiss(channel)
             return
-        if key == "escape" and keys.at_rest(self._where) and not self._was_open:
+        now = time.monotonic()
+        held = now - self._backed_out_at < _BACKSPACE_CLOSES_AFTER
+        if key == "backspace" and (self._was_open or held):  # each repeat restarts the pause
+            self._backed_out_at = now
+        closes = key == "escape" or (key == "backspace" and not held)
+        if closes and keys.at_rest(self._where) and not self._was_open:
             self.dismiss("")
             return
         self._redraw_soon()

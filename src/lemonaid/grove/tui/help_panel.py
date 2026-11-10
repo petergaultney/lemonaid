@@ -24,6 +24,7 @@ _GROVE = [
     ("Shift or Alt and 0, Home", "center the packhouse"),
     ("click a block", "zoom into it"),
     ("drag a block", "move it; drag its edge to resize it"),
+    ("backspace", "close the grove, as esc does, unless a Backspace just backed out"),
 ]
 _BLOCK = [
     ("a letter", "jump to the tree's first lemon, l the lead's"),
