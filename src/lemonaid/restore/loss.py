@@ -42,7 +42,11 @@ def restorable(rows: abc.Iterable[db.Notification]) -> list[db.Notification]:
         row
         for row, verdict in _verdicts(rows)
         if not ended.reported(row.metadata)
-        and (verdict is True or (verdict is None and ended.lost(row.metadata)))
+        and (
+            verdict is True
+            or (verdict is None and ended.lost(row.metadata))
+            or ended.failed(row.metadata)
+        )
     ]
 
 
@@ -69,7 +73,7 @@ def _judge(
             db.archive_channel(conn, row.channel, "ended before its server", cause=cause, by=by)
         elif verdict is True and db.mark_lost(conn, row.channel, by, _detail(row)):
             marked.append(row)
-        elif verdict is False and ended.lost(row.metadata):
+        elif verdict is False and ended.lost(row.metadata) and not ended.failed(row.metadata):
             db.clear_lost(conn, row.channel)
     return marked, gone
 
@@ -78,7 +82,8 @@ def mark(conn: sqlite3.Connection, by: str) -> list[db.Notification]:
     """Mark every active row whose server is gone as lost; returns the rows newly marked.
 
     A lost row that now records a pane on a running server (relinked, or heard from
-    without a new registration) is lost no longer. A row whose harness reported its own
+    without a new registration) is lost no longer, unless a restore of it failed: only
+    proof that it runs clears that. A row whose harness reported its own
     end before the server went is archived with that cause instead: it was not lost.
     """
     return _judge(conn, candidates(conn), by)[0]

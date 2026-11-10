@@ -1,8 +1,8 @@
-"""`lemonaid restore tmux` after a real tmux server dies, with stand-in Claude processes.
+"""`lemonaid restore` after a real tmux server dies, with stand-in Claude processes.
 
 Each lemon is a stand-in `claude` (see `stand_in/`) that registers through lemonaid's
 own SessionStart hook, on a private tmux server whose config sets `base-index 1`. The
-server is killed, `restore tmux` rebuilds it, and every check compares lemonaid's
+server is killed, `restore` rebuilds it, and every check compares lemonaid's
 answer with where each stand-in says it really runs.
 
 The layout, before the crash:
@@ -114,6 +114,13 @@ class World(ty.NamedTuple):
         wait(f"{name} to finish its turn", lambda: self.turns(name) > before)
         row = inbox_row(name)
         assert row is not None and row.is_unread, name
+
+    def typed(self, name: str) -> str:
+        """What was typed into lemon *name*'s composer."""
+        try:
+            return (self.evidence / f"{IDS[name]}.typed").read_text()
+        except OSError:
+            return ""
 
     def received(self, name: str) -> bytes:
         try:
@@ -231,7 +238,7 @@ def crash(world: World) -> None:
 
 def restore_all(world: World, seconds: int = 0) -> dict:
     before = {name: (world.running(name) or {}).get("pid") for name in WHERE}
-    result = lemonaid("restore", "tmux", "--wait", str(seconds), "--json")
+    result = lemonaid("restore", "--wait", str(seconds), "--json")
     for name in WHERE:
         wait(
             f"{name} to be resumed",

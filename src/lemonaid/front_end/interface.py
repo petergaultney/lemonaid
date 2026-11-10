@@ -15,6 +15,7 @@ from collections import abc
 
 from ..config import Config
 from ..inbox import db
+from ..restore import run
 
 Metadata = dict[str, ty.Any]
 Revive = abc.Callable[[db.Notification, Config, str], str]  # with the text to send; why not, or ""
@@ -45,3 +46,5 @@ class FrontEnd:
     """`lemon start` with no target: the caller's neighbor, as (JSON result, error)."""
     start: Revive | None  # resume a lemon whose harness exited, where it was
     prompt: Revive | None  # type into a lemon idle at its prompt
+    restore: abc.Callable[[], run.Terminal] | None = None
+    """Bring back lemons lost when this terminal went away, in the places they had."""

@@ -6,7 +6,7 @@ from .. import wezterm
 from ..config import Config
 from ..launch import where, window
 from ..messages import autoresume_cmux, autoresume_tmux, autoresume_wezterm
-from . import interface, terminals
+from . import interface, terminals, tmux
 
 
 def _beside_tmux(args: argparse.Namespace, config: Config) -> tuple[dict, str]:
@@ -21,7 +21,11 @@ def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
     match terminal.name:
         case "tmux":
             return interface.FrontEnd(
-                terminal, _beside_tmux, autoresume_tmux.start, autoresume_tmux.prompt
+                terminal,
+                _beside_tmux,
+                autoresume_tmux.start,
+                autoresume_tmux.prompt,
+                tmux.restorer,
             )
         case "wezterm":
             return interface.FrontEnd(

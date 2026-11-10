@@ -1,4 +1,4 @@
-"""Point each lemon's inbox row at the pane its process runs in, as `restore tmux` finishes.
+"""Point each lemon's inbox row at the pane its process runs in, as `lemonaid restore` finishes.
 
 A row only names a tty, and ttys are reused when tmux restarts, so the evidence
 here is the lemon itself: the pane whose Claude process lists that session, or
@@ -67,8 +67,11 @@ def where(metadata: abc.Mapping[str, ty.Any]) -> str:
     return f"{place} ({metadata.get('tty') or 'no tty'})"
 
 
-def survey(conn: sqlite3.Connection) -> list[Relink] | None:
-    """Relink every active tmux row from the lemons running now; None if tmux or `ps` can't say."""
+def survey(
+    conn: sqlite3.Connection, rows: abc.Iterable[db.Notification] | None = None
+) -> list[Relink] | None:
+    """Relink *rows* (every active tmux row by default) from the lemons running now; None if
+    tmux or `ps` can't say."""
     try:
         panes = recorded_pane.pane_metadata()
     except navigation.TmuxUnavailable as e:
@@ -80,7 +83,7 @@ def survey(conn: sqlite3.Connection) -> list[Relink] | None:
         _log.warning("not relinking: cannot tell which lemons are running")
         return None
 
-    return plan(db.get_active(conn, switch_source="tmux"), owners, panes)
+    return plan(db.get_active(conn, switch_source="tmux") if rows is None else rows, owners, panes)
 
 
 _LABELS = {RELINKED: "relink", FORGOTTEN: "forget pane"}

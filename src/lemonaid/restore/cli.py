@@ -1,36 +1,39 @@
-"""`lemonaid restore <terminal>`: put the lemons back, and say which ones came back working."""
+"""`lemonaid restore`: bring lost lemons back, each proven running, and report the rest.
+
+Each lost lemon is restored by the front end (terminal) it ran in; this knows none of
+them by name.
+"""
 
 import argparse
 import json
 import sys
 import time
+import typing as ty
 from collections import abc
 
-from ..brief import attached
-from ..config import load_config
-from ..inbox import db, ended, unarchive
-from ..tmux import inspect as tmux_inspect
-from ..tmux import navigation as tmux_navigation
-from ..tmux import relink
-from ..tmux import restore as tmux_restore
-from . import dismiss, loss, prompt, report
+from ..brief import attached, identity
+from ..config import Config, load_config
+from ..inbox import db
+from ..launch.restart import native
+from . import dismiss, front_ends, inbox_report, loss, plan, report, run, wake
 
 _DEFAULT_WAIT_SECONDS = 180
 
 
-def _prompts(rows: abc.Sequence[db.Notification]) -> dict[str, str]:
-    """The rearm prompt of each row with an attached brief that can be read."""
+def _briefs(rows: abc.Sequence[db.Notification]) -> dict[str, plan.Brief]:
+    """The brief of each row that has one that can be read."""
     with db.connect() as conn:
-        briefs = attached.for_rows(conn, rows)
+        paths = attached.for_rows(conn, rows)
 
-    prompts: dict[str, str] = {}
-    for channel, path in briefs.items():
+    briefs: dict[str, plan.Brief] = {}
+    for channel, path in paths.items():
         try:
-            prompts[channel] = prompt.rearm(path, path.read_text(), channel.partition(":")[0])
-        except OSError as e:
+            text = path.read_text()
+            briefs[channel] = plan.Brief(identity.read(text), text, path)
+        except (OSError, ValueError) as e:
             print(f"cannot read the brief of {channel} ({path}): {e}", file=sys.stderr)
 
-    return prompts
+    return briefs
 
 
 def _activity() -> dict[str, float]:
@@ -43,158 +46,160 @@ def _progress(line: str) -> None:
     print(f"  {line}", file=sys.stderr, flush=True)
 
 
-def _unplaced(
-    rows: abc.Sequence[db.Notification], plans: abc.Sequence[tmux_restore.SessionPlan]
-) -> list[report.Result]:
-    planned = {w.channel for plan in plans for w in plan.windows}
-    return [
-        report.Result(
-            row.channel,
-            row.name or row.channel,
-            "",
-            report.NOT_RESTORED,
-            "no recorded tmux window, no way to resume it, or another lemon "
-            "was heard from more recently in its window",
-        )
-        for row in rows
-        if row.channel not in planned
-    ]
-
-
-def _record_new_panes(placed: abc.Sequence[report.Placed]) -> None:
-    """Point each restored lemon's row at the pane it was just started in.
-
-    The row still names its pane on the server that died, so the inbox's watcher
-    would find that pane gone and archive the lemon restore has just resumed.
-    """
-    socket = tmux_navigation.current_socket()
-    panes = tmux_navigation.locations_by_tty(socket) or {}
-    ttys = {f"{location.session}:{location.window}": tty for tty, location in panes.items()}
-    with db.connect() as conn:
-        for lemon in placed:
-            if tty := ttys.get(lemon.where):
-                unarchive.moved(conn, lemon.channel, tty, socket, panes[tty])
-
-
-def _relinked(dry_run: bool) -> list[relink.Relink]:
-    """Point every active row at the pane its lemon runs in: the ones this run started, the
-    ones in sessions it skipped, and any left out whose old tty is now another lemon's.
-
-    A lost lemon found running is lost no longer.
-    """
-    with db.connect() as conn:
-        relinks = relink.survey(conn) or []
-        if dry_run:
-            return [r for r in relinks if r.state in (relink.RELINKED, relink.FORGOTTEN)]
-
-        applied = relink.apply(conn, relinks)
-        running = [
-            *(r for r in applied if r.state == relink.RELINKED),
-            *(r for r in relinks if r.state == relink.OK),
-        ]
-        for r in running:
-            if ended.lost(r.row.metadata):
-                db.clear_lost(conn, r.row.channel)
-        return applied
+def _quiet(line: str) -> None:
+    pass
 
 
 def _lost(dry_run: bool) -> list[db.Notification]:
-    """Every lemon lost with its tmux server, including any no inbox watcher has marked yet.
+    """Every lemon lost with its terminal, including any no inbox watcher has marked yet.
 
     Marks those, unless *dry_run*.
     """
     with db.connect() as conn:
         if not dry_run:
             loss.mark(conn, by="restore")
-        rows = [row for row in loss.candidates(conn) if row.switch_source == "tmux"]
+        rows = loss.candidates(conn)
 
     return loss.restorable(rows)
 
 
-def cmd_tmux(args: argparse.Namespace) -> None:
-    """Rebuild the tmux layout the inbox describes, and wait for its lemons to start working."""
-    config = load_config()
-    rows = _lost(args.dry_run)
+class _Planned(ty.NamedTuple):
+    group: front_ends.Group
+    running: set[str]  # lost lemons running now, resumed by hand
+    plan: plan.Plan
 
-    plans = tmux_restore.plan_restore(rows, config, _prompts(rows))
 
-    if args.dry_run:
-        if args.json:
-            print(
-                json.dumps(
-                    {
-                        "sessions": tmux_restore.as_json(plans),
-                        "relinked": relink.as_json(_relinked(dry_run=True)),
-                    }
-                )
+def _plan(group: front_ends.Group, config: Config, dry_run: bool) -> _Planned:
+    running = group.terminal.found(group.rows, dry_run)
+    rows = [row for row in group.rows if row.channel not in running]
+    return _Planned(
+        group,
+        running,
+        plan.build(rows, group.terminal.place, config, _briefs(rows), native.recorded_argv),
+    )
+
+
+def _dry_run(planned: abc.Sequence[_Planned], unable: list[report.Result], as_json: bool) -> None:
+    relinked = [terminal.relink(True) for terminal in front_ends.restorers()]
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "lemons": [lemon for each in planned for lemon in plan.as_json(each.plan)],
+                    "not_restored": [
+                        r._asdict()
+                        for r in [*(r for each in planned for r in each.plan.skipped), *unable]
+                    ],
+                    "running": sorted(c for each in planned for c in each.running),
+                    "relinked": [entry for each in relinked for entry in each.json],
+                }
             )
-            return
-
-        for line in [*tmux_restore.describe(plans), *relink.describe(_relinked(dry_run=True))]:
-            print(line)
+        )
         return
 
-    started = time.time()
-    done = tmux_restore.restore(plans)
-    _record_new_panes(done.placed)
-    results = [
-        *(
-            report.wait(
-                done.placed,
-                started,
-                started + args.wait,
-                _activity,
-                tmux_inspect.seen,
-                _progress if not args.json else lambda _: None,
-            )
-            if args.wait > 0
-            else []
-        ),
-        *done.failed,
-        *_unplaced(rows, plans),
+    lines = [
+        *(line for each in planned for line in plan.describe(each.plan)),
+        *(f"{'not restored':<24} {r.name}  ({r.detail})" for r in unable),
+        *(line for each in relinked for line in each.lines),
     ]
-    relinked = _relinked(dry_run=False)
+    print(*(lines or [plan.NOTHING]), sep="\n")
+
+
+class _Done(ty.NamedTuple):
+    started: list[run.Lemon]
+    results: list[report.Result]
+
+
+def _restore(each: _Planned, config: Config, args: argparse.Namespace, deadline: float) -> _Done:
+    terminal = each.group.terminal
+    progress = _progress if not args.json else _quiet
+    started_at = time.time()
+    started, failed = run.start(
+        each.plan.lemons,
+        terminal,
+        config.restore.parallel,
+        config.restore.verify_seconds,
+        progress,
+    )
+    with db.connect() as conn:
+        placed, unsettled = wake.settle_all(
+            conn, started, lambda lemon: lemon.spot.where, config, each.group.prompt
+        )
+    waited = (
+        report.wait(placed, started_at, deadline, _activity, terminal.seen, progress)
+        if args.wait > 0
+        else [report.Result(p.channel, p.name, p.where, p.rearm, "") for p in placed]
+    )
+    return _Done(
+        started,
+        [
+            *(
+                report.Result(row.channel, row.name or row.channel, "", report.RUNNING, "")
+                for row in each.group.rows
+                if row.channel in each.running
+            ),
+            *waited,
+            *unsettled,
+            *failed,
+            *each.plan.skipped,
+        ],
+    )
+
+
+def cmd_restore(args: argparse.Namespace) -> None:
+    """Bring back every lemon lost with its terminal, and report each one."""
+    config = load_config()
+    lost = _lost(args.dry_run)
+    groups, unable = front_ends.groups(lost)
+    planned = [_plan(group, config, args.dry_run) for group in groups]
+    if args.dry_run:
+        _dry_run(planned, unable, args.json)
+        return
+
+    deadline = time.time() + args.wait
+    done = [_restore(each, config, args, deadline) for each in planned]
+    started = [lemon for each in done for lemon in each.started]
+    running = sorted(c for each in planned for c in each.running)
+    results = [*(r for each in done for r in each.results), *unable]
+    with db.connect() as conn:
+        missing = inbox_report.post(
+            conn, [r for r in results if args.wait > 0 or r.outcome != report.PROMPTED]
+        )
+    relinked = [terminal.relink(False) for terminal in front_ends.restorers()]
 
     if args.json:
         print(
             json.dumps(
                 {
-                    "restored": done.restored,
-                    "skipped": done.skipped,
+                    "restored": [lemon.channel for lemon in started],
+                    "running": running,
                     "lemons": [r._asdict() for r in results],
-                    "relinked": relink.as_json(relinked),
+                    "relinked": [entry for each in relinked for entry in each.json],
                 }
             )
         )
     else:
-        for name in done.restored:
-            print(f"restored {name}")
-
-        # Not stderr: an already-running session is the expected outcome of
-        # running this when nothing is wrong, not a problem with the run.
-        for name in done.skipped:
-            print(f"skipped {name} (already running)")
-
-        if not plans:
-            print(tmux_restore.describe(plans)[0])
-
+        relink_lines = [line for each in relinked for line in each.lines]
+        if not lost:
+            print(plan.NOTHING)
         if results:
-            print("", *report.describe(results), sep="\n")
+            print(*report.describe(results), sep="\n")
+        if relink_lines:
+            print("", *relink_lines, sep="\n")
+        print(
+            f"\nrestored {len(started)}, {len(running)} already running, "
+            f"{len(missing)} not back to work"
+        )
 
-        if relinked:
-            print("", *relink.describe(relinked), sep="\n")
-
-        print(f"\nrestored {len(done.restored)}, skipped {len(done.skipped)} already running")
-
-    if any(r.outcome not in report.OK for r in results):
+    if missing:
         sys.exit(1)
 
 
-def add_tmux_arguments(parser: argparse.ArgumentParser) -> None:
+def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the layout that would be rebuilt, and start nothing",
+        help="Print where each lost lemon would go, and start nothing",
     )
     parser.add_argument(
         "--wait",
@@ -205,43 +210,42 @@ def add_tmux_arguments(parser: argparse.ArgumentParser) -> None:
         f"(default {_DEFAULT_WAIT_SECONDS}; 0 reports nothing)",
     )
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
-    parser.set_defaults(func=cmd_tmux)
+    parser.set_defaults(func=cmd_restore)
 
 
-TMUX_DESCRIPTION = (
-    "Recreates the tmux sessions the inbox says its active lemons were running in, "
-    "resuming each one in the window it occupied, and starts each lemon with a prompt "
-    "to rearm the waiters listed under ## Waiters in its brief.\n\n"
-    "Windows keep their recorded index, so a window lemonaid knows nothing about - an "
-    "editor, a shell - comes back as an empty gap rather than shifting the others down. "
-    "Restored sessions are detached. A session that is already running is left alone, so "
-    "this is safe to run after rebuilding some of them by hand.\n\n"
-    "It then waits for each prompted lemon to be heard from in the inbox, and reports every "
-    "lemon as working, stuck (its pane's last lines say why), exited, no brief, nothing to "
-    "rearm, rearm by hand (a harness that can't be started on a prompt), or not restored. "
-    "It exits 1 if any lemon is stuck, exited, has to be rearmed by hand, or wasn't restored.\n\n"
-    "Last, it points every active lemon's inbox row at the pane its own Claude or Codex "
-    "process runs in, including lemons in sessions it skipped, so running it again after a "
-    "restore repairs rows without starting anything. A lemon that isn't running forgets its "
-    "recorded pane only when another running lemon's process holds that tty."
+DESCRIPTION = (
+    "Brings back every lemon lost with its terminal: for tmux, no server runs on its "
+    "recorded socket, or a newer one replaced it. Run it again at any time; it does only what is "
+    "still undone.\n\n"
+    "A lost lemon already running somewhere (resumed by hand) has its row pointed at its "
+    "pane. Each other one goes back to its recorded window, or the next free index when "
+    "that is taken, in a session recreated if it is missing; a running session gains the "
+    "windows it lacks and nothing in it is touched. Each is resumed with the model and "
+    "effort it was started with.\n\n"
+    "Lemons start a few at a time ([restore] parallel). Each counts as restored only when "
+    "its own conversation runs in its window; one that doesn't is stopped and started once "
+    "more, then reported. A restored lemon whose push scout runs gets its subscriptions back "
+    "with no prompt; one that can't be pushed to is prompted to rearm its brief's waiters.\n\n"
+    "It waits for each prompted lemon to be heard from, reports every lemon, and lists the "
+    "ones not back to work in one inbox row (lemonaid:restore). It exits 1 if any is not."
 )
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "restore",
-        help="Bring lemons back to work after their terminal went away",
-        description="Resumes the inbox's active lemons in the terminal they were running "
-        "in, and starts each with a prompt to rearm its brief's waiters.",
+        help="Bring back the lemons lost when their terminal went away",
+        description=DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    terminals = parser.add_subparsers(dest="terminal")
-    add_tmux_arguments(
-        terminals.add_parser(
+    add_arguments(parser)
+    commands = parser.add_subparsers(dest="restore_command")
+    add_arguments(
+        commands.add_parser(
             "tmux",
-            help="Rebuild the tmux sessions the inbox describes",
-            description=TMUX_DESCRIPTION,
+            help="Same as `lemonaid restore`",
+            description=DESCRIPTION,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     )
-    dismiss.setup_parser(terminals)
-    parser.set_defaults(func=lambda a: parser.print_help())
+    dismiss.setup_parser(commands)

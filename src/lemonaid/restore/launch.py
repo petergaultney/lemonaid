@@ -2,12 +2,14 @@
 
 import shlex
 import typing as ty
+from collections import abc
 from pathlib import Path
 
 from ..config import Config
 from ..inbox.db import Notification
 from ..launch import command
 from ..resume import build_resume_command
+from . import carried
 
 # The harnesses whose resume command takes a first prompt as its last argument.
 _PROMPTABLE = frozenset({"claude", "codex"})
@@ -18,10 +20,16 @@ class Launch(ty.NamedTuple):
     line: str
     environment: dict[str, str]  # for the shell the line is typed into
     prompted: bool  # whether the line starts the lemon on the prompt it was given
+    promptable: bool = True  # whether its harness takes a prompt typed into it
 
 
 def launch(
-    notification: Notification, config: Config, prompt: str, *, dedicated: bool = False
+    notification: Notification,
+    config: Config,
+    prompt: str,
+    *,
+    dedicated: bool = False,
+    flags: abc.Sequence[str] = (),
 ) -> Launch | None:
     """How to resume *notification*'s session starting on *prompt*, or None if it can't be.
 
@@ -30,19 +38,22 @@ def launch(
 
     The line is `lemon start`'s, so a Codex gets the same overrides that keep
     its trust and update dialogs from stopping it before it reads the prompt.
+    *flags* are launch flags to carry over (`carried.flags`).
     """
     resumable = build_resume_command(config, notification.channel, notification.metadata)
     if resumable is None:
         return None
 
     cwd, argv = resumable
+    harness = notification.channel.partition(":")[0]
+    argv = carried.apply(harness, argv, flags)
     if dedicated and command.unclaimable(shlex.join(argv)):
         argv.insert(1, "--no-daemon")
-    prompted = bool(prompt) and notification.channel.partition(":")[0] in _PROMPTABLE
+    prompted = bool(prompt) and harness in _PROMPTABLE
     line, environment = command.harness_line(
         shlex.join(argv),
         Path(cwd),
         prompt if prompted else "",
         command.codex_writable_roots(config.tmux_session),
     )
-    return Launch(cwd, line, environment, prompted)
+    return Launch(cwd, line, environment, prompted, harness in _PROMPTABLE)

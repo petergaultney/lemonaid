@@ -601,11 +601,11 @@ window it was running in.
 
 ```bash
 lemonaid tmux doctor                 # what could be restored, and what could not
-lemonaid restore tmux --dry-run      # the layout that would be rebuilt
-lemonaid restore tmux                # rebuild it, and wait for the lemons to start working
+lemonaid restore --dry-run           # the layout that would be rebuilt
+lemonaid restore                     # rebuild it, and wait for the lemons to start working
 ```
 
-`lemonaid tmux restore` is the same command. For a mass kill that leaves tmux running, see [recovery](recovery.md).
+`lemonaid tmux restore` and `lemonaid restore tmux` are the same command. Restore asks each lemon's front end to bring it back, and only tmux can yet; a lemon lost in another terminal is reported not restored. For a mass kill that leaves tmux running, see [recovery](recovery.md).
 
 Restore brings back only lemons that were **lost**: their recorded tmux socket has no
 server, or the server on it started after the one their session was made on. It judges
@@ -629,35 +629,56 @@ as before when its pane is gone.
 
 Restore finishes by pointing every active lemon's row at the pane its own
 process runs in, including lemons in sessions it skipped. If the inbox can't
-jump to a running lemon, running `lemonaid restore tmux` again repairs its row
+jump to a running lemon, running `lemonaid restore` again repairs its row
 without starting anything; `--dry-run` lists what it would change.
 
 ### Bringing lemons back to work
 
-A resumed lemon comes back with none of its background tasks, so restore
-starts each one whose brief lists waiters with a prompt to rearm them: every
-command under `## Watching`, less the mailbox waiter for Codex, whose messages are
-queued into its thread. A lemon with no brief is resumed with no prompt, and so
-is an OpenClaw or opencode lemon, which restore reports as `rearm by hand` when
-its brief lists waiters. Codex
-is started with the same overrides `lemon start` uses, so its trust and update
-dialogs don't stop it before it reads the prompt.
+Restore works one lemon at a time and can be run any number of times; it does only
+what is still undone. A lost lemon already running somewhere, resumed by hand, has its
+row pointed at its pane and is left alone. Each other one goes back to its recorded
+window. When that index is taken, by a window that runs now or by another lemon
+recorded in the same window, it gets the next free index and its row records where it
+went. A missing session is recreated; a running one gains the windows it lacks and
+nothing in it is touched.
+
+Each lemon is resumed with the model and effort it was started with: lemonaid records a
+harness's own arguments when its session starts, and puts `--model` and `--effort`
+(Codex: `-m` and the `model_reasoning_effort` override) back on the resume line unless
+`resume_command` sets them. A lemon whose transcript is gone is not started, since a
+resume would open an empty conversation under its name.
+
+Lemons start `[restore] parallel` at a time (4 by default; see
+[config](config.md#restore)). One counts as restored only when its own Claude or Codex
+process runs in the window it was given. One that doesn't within
+`verify_seconds` is stopped and started once more; if it fails again its window is
+closed, its row stays lost with the reason, and it is listed in the inbox's one
+`lemonaid:restore` row.
+
+A resumed lemon comes back with none of its background tasks. One whose push scout
+runs, and whose session takes what the scout pushes, gets its subscriptions back with
+no prompt (`subscribed`). Only a lemon that can't be pushed to is prompted, typed into
+its composer: to rearm the waiters its brief lists, and, when its brief's Status was
+`running` or a `lemonaid run` of its was killed, that the processes it started are
+gone. A pushable lemon gets that last note in its mailbox instead. A lemon with no
+brief gets no prompt, and an OpenClaw or opencode lemon is reported `rearm by hand`.
 
 Restore then waits (`--wait`, 180 seconds by default) for each prompted lemon
 to be heard from in the inbox, printing progress as it goes, and reports every
 lemon:
 
 ```
+subscribed       alpha:1                  checkpoint growth
 no brief         beta:2                   notes
 stuck            beta:3                   tenant views  (Codex's folder-trust prompt)
-working          alpha:2                  checkpoint growth
-exited           alpha:3                  REVIEW #158  (Updated Codex. Please restart Codex.)
+working          alpha:2                  review fixes
+not restored                              old notes  (its conversation's transcript is gone)
 ```
 
 `stuck` means the harness is still running but silent, and `exited` that its
 pane is back at a shell; either way the pane's last lines say why. It exits 1
-if any lemon is stuck, exited, has to be rearmed by hand, or couldn't be
-restored.
+if any lemon is stuck, exited, has to be rearmed by hand, lost its brief, or
+couldn't be restored.
 
 The prompts, the waiting and the report don't depend on the terminal. A
 backend provides the rest: which sessions are already running, placing each

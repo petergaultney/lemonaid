@@ -11,14 +11,28 @@ import signal
 import subprocess
 import time
 from collections import abc
+from pathlib import Path
 
 from lemonaid.config import load_config
 from lemonaid.inbox import db, ended
 from lemonaid.inbox.tui.rows import brief_cards
 from lemonaid.inbox.tui.watchers import watcher_hooks
+from lemonaid.launch.restart import state
 from lemonaid.lemon_watchers import watcher
+from lemonaid.restore import inbox_report
 
-from .tmux_world import IDS, WHERE, channel, crash, inbox_row, lemonaid, restore_all, tmux, wait
+from .tmux_world import (
+    IDS,
+    WHERE,
+    channel,
+    crash,
+    inbox_row,
+    lemonaid,
+    restore_all,
+    tmux,
+    wait,
+    window,
+)
 
 
 @contextlib.contextmanager
@@ -38,7 +52,7 @@ def _cause(name: str) -> str:
 
 
 def _restore() -> dict:
-    return json.loads(lemonaid("restore", "tmux", "--wait", "0", "--json").stdout)
+    return json.loads(lemonaid("restore", "--wait", "0", "--json").stdout)
 
 
 def test_the_inbox_started_on_a_new_server_before_restore_keeps_every_lost_lemon(world):
@@ -119,7 +133,7 @@ def test_dismissed_lemons_are_archived_and_not_restored(world):
     assert found is not None and found.is_archived
     restored = _restore()
     assert channel("C") not in {r["channel"] for r in restored["lemons"]}
-    assert restored["restored"] == ["work"]
+    assert sorted(restored["restored"]) == sorted(channel(n) for n in ("A", "B", "OLD"))
 
 
 def test_dismissing_all_leaves_nothing_to_restore(world):
@@ -147,3 +161,79 @@ def test_a_channel_cleared_before_the_loss_is_replaced_and_only_its_successor_re
     found = inbox_row("OLD")
     assert found is not None and found.is_archived
     assert channel("OLD") not in {r["channel"] for r in restored["lemons"]}
+
+
+def test_a_lemon_that_cant_be_pushed_to_is_prompted_to_rearm_its_waiters(world):
+    crash(world)
+    # A session that can reach bypass-permissions mode could hold a pushed message, so
+    # lemonaid starts no scout for it unless its settings accept cross-session messages.
+    config = Path(os.environ["LEMONAID_CONFIG"])
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "[backends.claude]\nresume_command = "
+        '"lemonaid claude --allow-dangerously-skip-permissions --resume {session_id}"\n'
+    )
+
+    restored = restore_all(world, seconds=30)
+
+    assert {r["channel"]: r["outcome"] for r in restored["lemons"]} == {
+        channel("A"): "working",
+        channel("B"): "working",
+        channel("C"): "no brief",
+        channel("OLD"): "working",
+    }, restored["lemons"]
+    for name in ("A", "B", "OLD"):
+        assert f"/tmp/{name}.md" in world.typed(name), name
+    assert world.typed("C") == ""
+
+
+def test_a_session_rebuilt_by_hand_gains_only_its_missing_lemons(world):
+    crash(world)
+    tmux("new-session", "-d", "-s", "work", "-x", "160", "-y", "48")
+    tmux("send-keys", "-t", "work:1", f"claude --resume {IDS['A']}", "Enter")
+    a = wait("A to be resumed by hand", lambda: world.running("A"))
+    tmux("new-window", "-t", "work:2")  # a person's shell, where B used to be
+    shell = tmux("display-message", "-p", "-t", "work:2", "#{pane_id}")
+
+    restored = _restore()
+
+    assert channel("A") not in {r["channel"] for r in restored["lemons"]}  # heard from: not lost
+    assert (world.running("A") or {}).get("pid") == a["pid"]
+    assert tmux("display-message", "-p", "-t", "work:2", "#{pane_id}") == shell
+    for name, where in {"B": "work:3", "OLD": "work:4", "C": "side:3"}.items():
+        found = wait(f"{name} to be restored", lambda name=name: world.running(name))
+        assert window(found["pane"]) == where, name
+        row = inbox_row(name)
+        assert row is not None
+        assert f"{row.metadata['tmux_session']}:{row.metadata['tmux_window']}" == where, name
+
+
+def test_a_lemon_whose_transcript_is_gone_is_reported_and_nothing_runs_in_its_name(world):
+    crash(world)
+    for transcript in Path(os.environ["CLAUDE_CONFIG_DIR"]).glob(f"projects/*/{IDS['C']}.jsonl"):
+        transcript.unlink()  # its history.jsonl line stays, as it does when one is deleted
+
+    restored = _restore()
+
+    [c] = [r for r in restored["lemons"] if r["channel"] == channel("C")]
+    assert (c["outcome"], c["detail"]) == ("not restored", "its conversation's transcript is gone")
+    assert world.running("C") is None
+    assert "side" not in tmux("list-sessions", "-F", "#{session_name}").split()  # C's only
+    assert _cause("C") == ended.SERVER_LOST
+    with db.connect() as conn:
+        listed = db.get_by_channel(conn, inbox_report.CHANNEL, unread_only=False)
+    assert listed is not None and "transcript is gone" in listed.message
+
+
+def test_a_lemon_comes_back_on_the_model_it_was_started_with(world):
+    crash(world)
+    state.write(
+        f"native-{state.key(channel('A'))}.json",
+        {"session_id": IDS["A"], "argv": ["claude", "--model", "haiku", "--session-id", IDS["A"]]},
+    )
+
+    restore_all(world)
+
+    argv = (world.running("A") or {}).get("argv", [])
+    assert argv[argv.index("--model") + 1] == "haiku"
+    assert "--model" not in (world.running("B") or {}).get("argv", [])

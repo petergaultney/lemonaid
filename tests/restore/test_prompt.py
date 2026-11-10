@@ -20,8 +20,9 @@ def test_a_claude_lemon_rearms_every_waiter_its_brief_lists():
     text = prompt.rearm(_BRIEF, _TEXT, "claude")
 
     assert str(_BRIEF) in text
-    assert "- `lemonaid mailbox watch --self`" in text
-    assert "- `lemonaid watch doc --wait /vault/design.md" in text
+    assert "`lemonaid mailbox watch --self`" in text
+    assert "`lemonaid watch doc --wait /vault/design.md" in text
+    assert "\n" not in text  # typed into a composer
 
 
 def test_a_codex_lemon_has_no_mailbox_waiter_to_rearm():
