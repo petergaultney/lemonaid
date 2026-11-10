@@ -1,3 +1,4 @@
+import sqlite3
 import time
 
 import pytest
@@ -88,4 +89,35 @@ def test_revive_refuses_when_two_attic_months_hold_the_lemons_brief():
     other.write_text(moved.read_text())
 
     with db.connect() as conn, pytest.raises(LookupError):
+        archive.revive(conn, lemon_id, why="test")
+
+
+def test_revive_replaces_status_rows_already_at_the_live_path():
+    path, lemon_id = brief("returning")
+    with db.connect() as conn:
+        conn.execute("INSERT INTO brief_status_since VALUES (?, 'done', 1.0)", (str(path),))
+        conn.execute("INSERT INTO brief_needs_since VALUES (?, 'old', 1.0)", (str(path),))
+        conn.commit()
+        moved = archive.archive(conn, path, LONG_AGO, why="test")
+        conn.execute("INSERT INTO brief_status_since VALUES (?, 'blocked', 2.0)", (str(path),))
+        conn.execute("INSERT INTO brief_needs_since VALUES (?, 'stale', 2.0)", (str(path),))
+        conn.commit()
+
+    with db.connect() as conn:
+        assert archive.revive(conn, lemon_id, why="test") == path
+        status = conn.execute("SELECT * FROM brief_status_since WHERE path = ?", (str(path),))
+        needs = conn.execute("SELECT * FROM brief_needs_since WHERE path = ?", (str(path),))
+        assert [tuple(r) for r in status] == [(str(path), "done", 1.0)]
+        assert [tuple(r) for r in needs] == [(str(path), "old", 1.0)]
+    assert not moved.exists()
+
+
+def test_revive_refuses_when_another_lemon_is_registered_at_the_live_path():
+    path, lemon_id = brief("returning")
+    with db.connect() as conn:
+        archive.archive(conn, path, LONG_AGO, why="test")
+        conn.execute("INSERT INTO lemon_identities VALUES (?, 'Other.lemon')", (str(path),))
+        conn.commit()
+
+    with db.connect() as conn, pytest.raises(sqlite3.IntegrityError):
         archive.revive(conn, lemon_id, why="test")
