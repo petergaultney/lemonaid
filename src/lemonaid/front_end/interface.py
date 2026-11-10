@@ -30,6 +30,12 @@ class Terminal:
     exists: abc.Callable[[str, str | None, float | None], bool | None]
     """Whether the pane on a tty (on an instance, recorded at a time) is still there;
     None when that can't be told."""
+    lost: abc.Callable[[abc.Sequence[Metadata]], list[bool | None]] = lambda rows: (
+        [None] * len(rows)
+    )
+    """For each recorded location, whether the terminal instance it was in has gone away
+    (a server that died or was replaced), False if it still runs, None if that can't be told.
+    A pane closed on a running instance is not lost."""
 
 
 @dataclasses.dataclass(frozen=True)

@@ -8,12 +8,12 @@ from collections import abc
 
 from ..brief import attached
 from ..config import load_config
-from ..inbox import db, unarchive
+from ..inbox import db, ended, unarchive
 from ..tmux import inspect as tmux_inspect
 from ..tmux import navigation as tmux_navigation
 from ..tmux import relink
 from ..tmux import restore as tmux_restore
-from . import prompt, report
+from . import dismiss, loss, prompt, report
 
 _DEFAULT_WAIT_SECONDS = 180
 
@@ -79,21 +79,42 @@ def _record_new_panes(placed: abc.Sequence[report.Placed]) -> None:
 def _relinked(dry_run: bool) -> list[relink.Relink]:
     """Point every active row at the pane its lemon runs in: the ones this run started, the
     ones in sessions it skipped, and any left out whose old tty is now another lemon's.
+
+    A lost lemon found running is lost no longer.
     """
     with db.connect() as conn:
         relinks = relink.survey(conn) or []
-        return (
-            [r for r in relinks if r.state in (relink.RELINKED, relink.FORGOTTEN)]
-            if dry_run
-            else relink.apply(conn, relinks)
-        )
+        if dry_run:
+            return [r for r in relinks if r.state in (relink.RELINKED, relink.FORGOTTEN)]
+
+        applied = relink.apply(conn, relinks)
+        running = [
+            *(r for r in applied if r.state == relink.RELINKED),
+            *(r for r in relinks if r.state == relink.OK),
+        ]
+        for r in running:
+            if ended.lost(r.row.metadata):
+                db.clear_lost(conn, r.row.channel)
+        return applied
+
+
+def _lost(dry_run: bool) -> list[db.Notification]:
+    """Every lemon lost with its tmux server, including any no inbox watcher has marked yet.
+
+    Marks those, unless *dry_run*.
+    """
+    with db.connect() as conn:
+        if not dry_run:
+            loss.mark(conn, by="restore")
+        rows = [row for row in loss.candidates(conn) if row.switch_source == "tmux"]
+
+    return loss.restorable(rows)
 
 
 def cmd_tmux(args: argparse.Namespace) -> None:
     """Rebuild the tmux layout the inbox describes, and wait for its lemons to start working."""
     config = load_config()
-    with db.connect() as conn:
-        rows = db.get_active(conn, switch_source="tmux")
+    rows = _lost(args.dry_run)
 
     plans = tmux_restore.plan_restore(rows, config, _prompts(rows))
 
@@ -222,4 +243,5 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     )
+    dismiss.setup_parser(terminals)
     parser.set_defaults(func=lambda a: parser.print_help())

@@ -28,7 +28,7 @@ def test_total_includes_quiet_and_other_group_children_but_excludes_retired_sess
         links.set_parent(conn, session(conn, "unrelated", ""), children["shown"])
         hidden = store.briefs_dir() / "hidden.md"
         hidden.write_text(hidden.read_text().replace("# hidden", "# hidden\n\nHidden: yes"))
-        db.archive_channel(conn, "claude:retired", "test")
+        db.archive_channel(conn, "claude:retired", "test", cause="archived", by="test")
         db.snooze(
             conn,
             db.get_by_channel(conn, "claude:snoozed", unread_only=False).id,

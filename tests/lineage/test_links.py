@@ -14,7 +14,7 @@ def test_live_children_leave_out_archived_sessions_but_keep_their_links():
     with db.connect() as conn:
         for child in (gone, read, pending):
             links.set_parent(conn, child, parent)
-        db.archive_channel(conn, "codex:gone", "test")
+        db.archive_channel(conn, "codex:gone", "test", cause="archived", by="test")
         conn.execute("UPDATE notifications SET status = 'read' WHERE channel = 'codex:read'")
         assert links.live_children_of(conn, parent, archive.attic_dir()) == [read, pending]
         assert links.children_of(conn, parent) == [gone, read, pending]

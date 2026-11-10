@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from ..log import get_logger
+from . import ended
 
 _log = get_logger(__name__)
 # Words in a notification type that mean the lemon stopped to ask you for something,
@@ -1005,7 +1006,14 @@ def mark_unread_by_tty(conn: sqlite3.Connection, tty: str) -> int:
     return cursor.rowcount
 
 
-def archive(conn: sqlite3.Connection, notification_id: int, reason: str = "user-action") -> None:
+def archive(
+    conn: sqlite3.Connection,
+    notification_id: int,
+    reason: str = "user-action",
+    *,
+    cause: str = ended.ARCHIVED,
+    by: str = "user",
+) -> None:
     """Archive a notification and all other rows sharing its channel.
 
     Archiving drops any pin on the channel. Snoozing deliberately does not:
@@ -1016,7 +1024,7 @@ def archive(conn: sqlite3.Connection, notification_id: int, reason: str = "user-
         "SELECT channel FROM notifications WHERE id = ?", (notification_id,)
     ).fetchone()
     if row:
-        archive_channel(conn, row["channel"], reason, commit=False)
+        archive_channel(conn, row["channel"], reason, cause=cause, by=by, commit=False)
         conn.execute("DELETE FROM pins WHERE channel = ?", (row["channel"],))
     else:
         _log.info("archive channel=<missing> reason=%s notification_id=%s", reason, notification_id)
@@ -1024,17 +1032,57 @@ def archive(conn: sqlite3.Connection, notification_id: int, reason: str = "user-
 
 
 def archive_channel(
-    conn: sqlite3.Connection, channel: str, reason: str, *, commit: bool = True
+    conn: sqlite3.Connection,
+    channel: str,
+    reason: str,
+    *,
+    cause: str,
+    by: str,
+    commit: bool = True,
 ) -> int:
-    """Archive every row for *channel*, recording why the channel was archived."""
+    """Archive every row for *channel*, recording on each the `ended` *cause* (see `ended`)."""
     cursor = conn.execute(
-        "UPDATE notifications SET status = 'archived' WHERE channel = ? AND status != 'archived'",
-        (channel,),
+        """UPDATE notifications SET status = 'archived',
+           metadata = json_set(COALESCE(metadata, '{}'), '$.ended', json(?))
+           WHERE channel = ? AND status != 'archived'""",
+        (json.dumps(ended.record(cause, by, reason)), channel),
     )
     if cursor.rowcount:
-        _log.info("archive channel=%s reason=%s rows=%d", channel, reason, cursor.rowcount)
+        _log.info(
+            "archive channel=%s cause=%s reason=%s rows=%d", channel, cause, reason, cursor.rowcount
+        )
     if commit:
         conn.commit()
+    return cursor.rowcount
+
+
+def mark_lost(conn: sqlite3.Connection, channel: str, by: str, detail: str) -> int:
+    """Record that *channel*'s lemon went away with its terminal server, leaving it active.
+
+    A row already marked lost keeps its first record, so the time is when the loss
+    was first seen.
+    """
+    cursor = conn.execute(
+        """UPDATE notifications
+           SET metadata = json_set(COALESCE(metadata, '{}'), '$.ended', json(?))
+           WHERE channel = ? AND status != 'archived'
+           AND json_extract(metadata, '$.ended.cause') IS NOT ?""",
+        (json.dumps(ended.record(ended.SERVER_LOST, by, detail)), channel, ended.SERVER_LOST),
+    )
+    if cursor.rowcount:
+        _log.info("lost channel=%s by=%s %s", channel, by, detail)
+    conn.commit()
+    return cursor.rowcount
+
+
+def clear_lost(conn: sqlite3.Connection, channel: str) -> int:
+    """Forget that *channel*'s lemon was lost, now that it runs again."""
+    cursor = conn.execute(
+        """UPDATE notifications SET metadata = json_remove(metadata, '$.ended')
+           WHERE channel = ? AND json_extract(metadata, '$.ended.cause') = ?""",
+        (channel, ended.SERVER_LOST),
+    )
+    conn.commit()
     return cursor.rowcount
 
 

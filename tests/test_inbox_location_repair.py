@@ -83,6 +83,7 @@ def test_watcher_repairs_on_startup_and_periodically(monkeypatch):
         watcher_hooks, "start_unified_watcher", lambda **kwargs: callbacks.update(kwargs)
     )
     monkeypatch.setattr(handlers, "codex_tmux_locations", lambda: {"author": [_AUTHOR]})
+    monkeypatch.setattr(watcher_hooks.loss, "mark", lambda conn, by: [])  # its server is gone
     clock = iter([100.0, 101.0, 111.0])
     monkeypatch.setattr(watcher_hooks.time, "monotonic", lambda: next(clock))
     with db.connect() as conn:

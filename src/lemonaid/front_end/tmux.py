@@ -99,7 +99,32 @@ def exists(tty: str, socket: str | None = None, not_after: float | None = None) 
     return session is not None and pane_id is not None
 
 
+def lost(rows: abc.Sequence[interface.Metadata]) -> list[bool | None]:
+    """A row is lost when no server runs on its recorded socket, or the one there started
+    after the server its session was made on. Without a recorded socket, or a recorded
+    session order to compare a running server with, it can't be judged.
+    """
+    servers: dict[str, int | str | None] = {}
+
+    def judge(metadata: interface.Metadata) -> bool | None:
+        socket = metadata.get("tmux_socket")
+        if not socket:
+            return None
+
+        if socket not in servers:
+            servers[socket] = tmux.server.started(socket)
+        match servers[socket], metadata.get("tmux_session_order"):
+            case tmux.server.GONE, _:
+                return True
+            case int(now), [int(), int(recorded), int()]:
+                return now != recorded
+            case _:
+                return None
+
+    return [judge(metadata) for metadata in rows]
+
+
 def terminal() -> interface.Terminal:
     return interface.Terminal(
-        name="tmux", here=lambda: bool(window.own_session()), show=show, exists=exists
+        name="tmux", here=lambda: bool(window.own_session()), show=show, exists=exists, lost=lost
     )

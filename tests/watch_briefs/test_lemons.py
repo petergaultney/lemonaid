@@ -255,7 +255,7 @@ def test_an_archived_child_is_dropped_without_a_report(grove, sessions):
     w = _watch(grove)
     sessions.discard("s-child")
     with db.connect() as conn:
-        db.archive_channel(conn, "codex:child", "test")
+        db.archive_channel(conn, "codex:child", "test", cause="archived", by="test")
         archive.archive(conn, child_path, 0.0, why="test")
 
     assert _poll(w) == []

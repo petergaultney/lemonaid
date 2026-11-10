@@ -3,7 +3,7 @@
 import sqlite3
 from typing import Any
 
-from ..inbox import db
+from ..inbox import db, ended
 from . import utils
 
 
@@ -97,7 +97,13 @@ def repair_duplicates(conn: sqlite3.Connection, locations: dict[str, list[dict[s
                 current = db.get_by_channel(conn, target, unread_only=False)
                 if current and current.status == "read":
                     db.mark_unread(conn, current.id)
-            db.archive_channel(conn, row.channel, "codex-duplicate-notification-channel")
+            db.archive_channel(
+                conn,
+                row.channel,
+                f"codex-duplicate-notification-channel successor={target}",
+                cause=ended.REPLACED,
+                by="codex channel repair",
+            )
             repaired += 1
     return repaired
 

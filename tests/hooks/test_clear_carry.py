@@ -147,7 +147,7 @@ def test_an_archived_last_clear_hides_an_older_clear_on_the_terminal(lemon, tmp_
     _clear(tmp_path, register=False)
     _start(_NEW, "clear", tmp_path)
     with db.connect() as conn:
-        db.archive_channel(conn, "claude:fb0730c2", "dismissed")
+        db.archive_channel(conn, "claude:fb0730c2", "dismissed", cause="archived", by="test")
     session_end.handle_session_end(json.dumps({"session_id": _NEW, "reason": "clear"}))
     _start(_NEXT, "clear", tmp_path)
 
@@ -204,7 +204,9 @@ def _during_registration(monkeypatch, action):
 def test_archive_while_waiting_cancels_transfer(lemon, tmp_path, monkeypatch):
     def archive_then_register(seconds):
         with db.connect() as conn:
-            db.archive_channel(conn, "claude:6f3198c7", "user-dismissed")
+            db.archive_channel(
+                conn, "claude:6f3198c7", "user-dismissed", cause="archived", by="test"
+            )
         _start(_NEW, "clear", tmp_path)
 
     _during_registration(monkeypatch, archive_then_register)

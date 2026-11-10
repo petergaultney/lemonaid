@@ -5,11 +5,11 @@ import json
 
 import pytest
 
-from lemonaid.inbox import db
+from lemonaid.inbox import db, ended
 from lemonaid.inbox.tui.watchers import watcher_hooks
 from lemonaid.lemon_watchers import watcher
 from lemonaid.restore import cli, report
-from lemonaid.tmux import navigation, relink
+from lemonaid.tmux import navigation, relink, server
 from lemonaid.tmux import restore as tmux_restore
 
 # Two lemons in window 1 of two sessions, as restore commonly rebuilds them.
@@ -125,7 +125,12 @@ def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeyp
             conn,
             "codex:crowded-out",
             "waiting",
-            metadata={"tty": "/dev/ttys902", "tmux_session": "main", "tmux_window": "1"},
+            metadata={
+                "tty": "/dev/ttys902",
+                "tmux_session": "main",
+                "tmux_window": "1",
+                "tmux_socket": "/tmp/tmux-dead/default",
+            },
             upsert=False,
             switch_source="tmux",
         )
@@ -141,7 +146,11 @@ def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeyp
 
     with db.connect() as conn:
         [row] = [n for n in db.get_active(conn) if n.channel == "codex:crowded-out"]
-    assert row.metadata == {"tmux_session": "main", "tmux_window": "1"}
+    assert {key: row.metadata.get(key) for key in ("tty", "tmux_session", "tmux_window")} == {
+        "tty": None,
+        "tmux_session": "main",
+        "tmux_window": "1",
+    }
 
 
 @pytest.mark.parametrize("as_json", [True, False], ids=["json", "text"])
@@ -182,3 +191,50 @@ def test_a_dry_run_with_nothing_to_rebuild_still_shows_the_rows_it_would_repair(
         assert "forget pane" in out and "codex:crowded-out" in out
     with db.connect() as conn:
         assert db.get_by_channel(conn, "codex:crowded-out").metadata["tty"] == "/dev/ttys902"
+
+
+def test_a_lost_lemon_found_running_elsewhere_is_relinked_and_lost_no_longer(monkeypatch):
+    _lemons_from_the_dead_server()
+    with db.connect() as conn:
+        db.mark_lost(conn, "claude:main", "test", "")
+    new = {"tty": "/dev/ttys902", "tmux_session": "main", "tmux_window": "1"}
+    monkeypatch.setattr(
+        cli.relink,
+        "survey",
+        lambda conn: [
+            relink.Relink(row, relink.RELINKED, new)
+            for row in db.get_active(conn)
+            if row.channel == "claude:main"
+        ],
+    )
+
+    [relinked] = cli._relinked(dry_run=False)
+
+    assert relinked.row.channel == "claude:main"
+    row = _rows()["claude:main"]
+    assert row.metadata["tty"] == "/dev/ttys902"
+    assert "ended" not in row.metadata
+
+
+def test_a_lost_lemon_whose_tty_another_lemon_runs_on_stays_lost_and_restorable(monkeypatch):
+    _lemons_from_the_dead_server()
+    with db.connect() as conn:
+        db.mark_lost(conn, "claude:main", "test", "")
+    monkeypatch.setattr(
+        cli.relink,
+        "survey",
+        lambda conn: [
+            relink.Relink(row, relink.FORGOTTEN, None)
+            for row in db.get_active(conn)
+            if row.channel == "claude:main"
+        ],
+    )
+    monkeypatch.setattr(server, "started", lambda socket: 200)
+
+    [forgotten] = cli._relinked(dry_run=False)
+
+    assert forgotten.state == relink.FORGOTTEN
+    row = _rows()["claude:main"]
+    assert "tty" not in row.metadata
+    assert ended.lost(row.metadata)
+    assert "claude:main" in {r.channel for r in cli._lost(dry_run=True)}

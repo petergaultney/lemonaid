@@ -21,6 +21,7 @@ lemonaid audit --json                  # the same, as a JSON list
 | `lemon-parent` | `lemon parent --set` or `--clear`. | `set to <Lemon-ID>`, `cleared` |
 | `lemon-restart` | `lemon restart` stops and resumes a lemon. | `forced` with `--force` |
 | `inbox-archive` | A card leaves the inbox: `inbox archive`, the inbox's archive key, a place toss, or the inbox watcher's auto-archive of an ended session. | the command, or the watcher's reason and evidence |
+| `inbox-lost` | The inbox watcher marks a lemon lost with its tmux server; its card stays. | the tty it was on |
 | `inbox-unarchive` | `inbox unarchive`. | |
 | `inbox-purge` | `inbox purge` deletes old rows. | the age cutoff |
 | `open`, `toss` | `place open` and `place toss`; see [places](places.md#audit-log). | the refusal or error |
