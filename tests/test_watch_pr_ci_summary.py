@@ -67,8 +67,8 @@ def test_optional_failure_never_reports_pass(tmp_path, monkeypatch, paginated, c
     "conclusion,outcome",
     [
         ("SUCCESS", "passed"),
-        ("NEUTRAL", "passed"),
-        ("SKIPPED", "passed"),
+        ("NEUTRAL", "skipped"),
+        ("SKIPPED", "skipped"),
         ("FAILURE", "failed"),
         ("ACTION_REQUIRED", "failed"),
         ("CANCELLED", "failed"),

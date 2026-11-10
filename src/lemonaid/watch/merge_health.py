@@ -4,7 +4,8 @@ Each is reported once per head commit, except that a CI failure is reported agai
 CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN (GitHub
 still computing) changes nothing. CI is reported once no check on the head is still
 running and any check has failed, whether or not it is required for merging. With `--ci`,
-passing CI is also reported, only when every check has passed and the same set of checks
+passing CI is also reported, only when some check succeeded, none is pending or failed (skipped and neutral
+checks count for nothing), and the same set of checks
 passed on the previous poll too (a workflow's jobs may not be queued
 yet when the first ones finish); no checks is not completion. A pass is reported again if
 the set of checks it covered later changes, so a premature one never hides the real one.
@@ -85,8 +86,8 @@ def _failure_id(head: str, failed: ty.Sequence[pr_activity.Check]) -> str:
 
 
 def _all_passed(snap: pr_activity.Snapshot) -> str:
-    """Identifies the head and its set of checks once all have passed, else ""."""
-    if not snap.checks or any(c.outcome != "passed" for c in snap.checks):
+    """Identifies the head and its set of checks once CI has passed, else ""."""
+    if not pr_activity.ci_passed(snap.checks):
         return ""
 
     return snap.head + ":" + ",".join(sorted(c.name for c in snap.checks))
