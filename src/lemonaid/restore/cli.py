@@ -15,7 +15,7 @@ from ..brief import attached, identity
 from ..config import Config, load_config
 from ..inbox import db
 from ..launch.restart import native
-from . import dismiss, front_ends, inbox_report, loss, plan, report, run, wake
+from . import auto, dismiss, front_ends, inbox_report, loss, plan, report, run, wake
 
 _DEFAULT_WAIT_SECONDS = 180
 
@@ -110,7 +110,9 @@ class _Done(ty.NamedTuple):
     results: list[report.Result]
 
 
-def _restore(each: _Planned, config: Config, args: argparse.Namespace, deadline: float) -> _Done:
+def _restore_group(
+    each: _Planned, config: Config, args: argparse.Namespace, deadline: float
+) -> _Done:
     terminal = each.group.terminal
     progress = _progress if not args.json else _quiet
     started_at = time.time()
@@ -146,18 +148,25 @@ def _restore(each: _Planned, config: Config, args: argparse.Namespace, deadline:
     )
 
 
-def cmd_restore(args: argparse.Namespace) -> None:
-    """Bring back every lemon lost with its terminal, and report each one."""
-    config = load_config()
-    lost = _lost(args.dry_run)
-    groups, unable = front_ends.groups(lost)
+def _restore(
+    args: argparse.Namespace, config: Config, lost: list[db.Notification]
+) -> tuple[list[db.Notification], bool]:
+    """Restore *lost*: (the lemons left waiting for their terminal to run again, whether
+    any lemon is not back to work)."""
+    start = not (args.into_running or args.auto)
+    groups, unable = front_ends.groups(lost, start)
+    waiting: list[db.Notification] = []
+    if not start:
+        up = [(group, group.terminal.up()) for group in groups]
+        waiting = [row for group, running in up if not running for row in group.rows]
+        groups = [group for group, running in up if running]
     planned = [_plan(group, config, args.dry_run) for group in groups]
     if args.dry_run:
         _dry_run(planned, unable, args.json)
-        return
+        return waiting, False
 
     deadline = time.time() + args.wait
-    done = [_restore(each, config, args, deadline) for each in planned]
+    done = [_restore_group(each, config, args, deadline) for each in planned]
     started = [lemon for each in done for lemon in each.started]
     running = sorted(c for each in planned for c in each.running)
     results = [*(r for each in done for r in each.results), *unable]
@@ -175,6 +184,7 @@ def cmd_restore(args: argparse.Namespace) -> None:
                     "running": running,
                     "lemons": [r._asdict() for r in results],
                     "relinked": [entry for each in relinked for entry in each.json],
+                    "waiting": [row.channel for row in waiting],
                 }
             )
         )
@@ -186,10 +196,48 @@ def cmd_restore(args: argparse.Namespace) -> None:
             print(*report.describe(results), sep="\n")
         if relink_lines:
             print("", *relink_lines, sep="\n")
+        if waiting:
+            print(f"\n{len(waiting)} lost lemons wait for their terminal to run again")
         print(
             f"\nrestored {len(started)}, {len(running)} already running, "
             f"{len(missing)} not back to work"
         )
+
+    return waiting, bool(missing)
+
+
+def cmd_restore(args: argparse.Namespace) -> None:
+    """Bring back every lemon lost with its terminal, and report each one.
+
+    With `--auto` it does what `[restore] auto` says, so a trigger and a person run the
+    same command; the lock makes concurrent runs one.
+    """
+    config = load_config()
+    if args.dry_run:
+        _restore(args, config, _lost(dry_run=True))
+        return
+
+    if args.auto and config.restore.auto == "off":
+        return
+
+    with auto.lock() as held:
+        if not held:
+            print("Another restore is running; it will do this one's work.", file=sys.stderr)
+            sys.exit(0 if args.auto else 1)
+
+        lost = _lost(dry_run=False)
+        with db.connect() as conn:
+            if args.auto and config.restore.auto == "ask":
+                auto.ask(conn, lost)
+                return
+
+            auto.restoring(conn, lost)
+        waiting: list[db.Notification] = []
+        try:
+            waiting, missing = _restore(args, config, lost)
+        finally:
+            with db.connect() as conn:
+                auto.ask(conn, waiting)
 
     if missing:
         sys.exit(1)
@@ -210,6 +258,17 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         f"(default {_DEFAULT_WAIT_SECONDS}; 0 reports nothing)",
     )
     parser.add_argument("--json", action="store_true", help="Print the result as JSON")
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Run as a trigger does: follow [restore] auto (off, ask or on); implies "
+        "--into-running",
+    )
+    parser.add_argument(
+        "--into-running",
+        action="store_true",
+        help="Restore only into a terminal that runs now, never starting one; the rest wait",
+    )
     parser.set_defaults(func=cmd_restore)
 
 

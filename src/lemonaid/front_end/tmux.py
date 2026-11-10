@@ -132,5 +132,5 @@ def terminal() -> interface.Terminal:
     )
 
 
-def restorer() -> run.Terminal:
-    return restore.terminal()
+def restorer(start: bool) -> run.Terminal:
+    return restore.terminal(start)

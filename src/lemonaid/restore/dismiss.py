@@ -6,7 +6,7 @@ from collections import abc
 
 from ..audit import events
 from ..inbox import db, ended
-from . import loss
+from . import auto, loss
 
 
 def _matches(row: db.Notification, typed: str) -> bool:
@@ -38,6 +38,8 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
             )
             events.record("inbox-archive", row.channel, "restore dismiss")
             print(f"dismissed {row.name or row.channel}")
+
+        auto.ask(conn, [row for row in loss.candidates(conn) if ended.lost(row.metadata)])
 
     for each in unknown:
         print(f"no lost lemon matches {each!r}", file=sys.stderr)

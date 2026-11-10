@@ -167,6 +167,8 @@ Inside cmux, `metadata` carries `cmux_surface`, the surface the session ran in, 
 lemonaid restore --dry-run --json   # {"lemons": [...], "not_restored": [...], "running": [...], "relinked": [...]}
 lemonaid restore --json             # {"restored": [channels], "running": [channels], "lemons": [...], "relinked": [...]}
 lemonaid restore dismiss [LEMON ...|--all]  # archive lost lemons instead of restoring them
+lemonaid restore --auto             # what a trigger runs: follows [restore] auto (off, ask, on)
+lemonaid restore --into-running     # restore only into a terminal that runs; "waiting" lists the rest
 ```
 
 Restore plans only lemons lost with their tmux server. A row's `metadata.ended`

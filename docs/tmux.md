@@ -618,6 +618,38 @@ restore leaves them alone. A row records why it ended under `ended` in its metad
 (`server-lost`, `pane-closed`, `process-exited`, `user-exit`, `replaced`, `tossed`,
 `archived` or `dismissed`), and loses it when the lemon is heard from again.
 
+### Restoring by itself
+
+`lemonaid restore --auto` is the same command run by a trigger: it reads
+`[restore] auto` (see [config](config.md#restore)), and with `ask`, the default, leaves one
+inbox row to restore or dismiss the lost lemons from; with `on` it restores them. A lock
+makes two triggers, or a trigger and a person, one run. Two things trigger it:
+
+- the inbox, when it starts, when it finds lemons newly lost, and when tmux runs again
+  after it found none running (it checks every 30 seconds);
+- tmux itself at server start, with this line in `~/.tmux.conf`:
+
+  ```tmux
+  run-shell -b 'lemonaid restore --auto'
+  ```
+
+A restore started this way, or from the inbox row, never starts tmux: it puts lemons back
+only into a server that runs, and the rest stay lost, listed in the row, until you start
+tmux. `lemonaid restore --into-running` does the same by hand; a plain `lemonaid restore`
+starts the server it needs.
+
+A deliberate `tmux kill-server` looks the same as a crash, so with `auto = "on"` it
+restores too; `lemonaid restore dismiss --all` says you meant it.
+
+### Knowing beforehand
+
+Every minute the inbox checks which running lemons a restore would miss: no recorded
+window or tmux server, no way to resume, or a transcript that is gone, and running lemon
+panes with no inbox row. It lists them in one row, `lemonaid:restore-readiness`, which goes
+away once nothing is missing. Only lemons in a terminal lemonaid can restore (tmux, so far) are
+checked. Nothing adopts an unknown pane by itself, since matching it to
+its conversation is a guess; `lemonaid tmux adopt` does it with you watching.
+
 ```bash
 lemonaid restore dismiss claude:1a2b    # don't bring this lost lemon back; archive it
 lemonaid restore dismiss --all          # after killing tmux on purpose

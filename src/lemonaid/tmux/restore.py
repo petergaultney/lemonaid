@@ -13,7 +13,7 @@ from ..inbox import db
 from ..launch import window as launch_window
 from ..log import get_logger
 from ..restore import run
-from . import inspect, placement, restore_relink
+from . import inspect, placement, readiness, restore_relink, server
 
 _log = get_logger("tmux.restore")
 
@@ -123,8 +123,13 @@ def _exists(session: str) -> bool:
     return not _run("tmux", "has-session", "-t", f"={session}")
 
 
-def open_window(to: run.Spot, cwd: str, environment: abc.Mapping[str, str]) -> tuple[str, str]:
+def open_window(
+    to: run.Spot, cwd: str, environment: abc.Mapping[str, str], start: bool = True
+) -> tuple[str, str]:
     """Open *spot*'s window in *cwd*: (the window id it made, why not or "").
+
+    Without *start*, a missing session is made only on a server that runs: tmux's `-N`
+    refuses to start one, however the server went away since anyone checked.
 
     Whether to create the session is decided now, not when the plan was made, since an
     earlier window of it may have been closed or made since. tmux refuses an index that
@@ -153,6 +158,7 @@ def open_window(to: run.Spot, cwd: str, environment: abc.Mapping[str, str]) -> t
     width, height = _client_size()
     made, why = _output(
         "tmux",
+        *(() if start else ("-N",)),
         "new-session",
         "-d",
         "-s",
@@ -184,14 +190,23 @@ def type_line(window: str, line: str) -> str:
     return _run("tmux", "send-keys", "-t", window, line, "Enter")
 
 
-def terminal() -> run.Terminal:
+def up() -> bool:
+    """Whether a tmux server runs on the default socket, where restore opens windows."""
+    return isinstance(server.started(None), int)
+
+
+def terminal(start: bool) -> run.Terminal:
     return run.Terminal(
         place,
-        open_window,
+        lambda to, cwd, environment: open_window(to, cwd, environment, start),
         type_line,
         close_window,
         restore_relink.running,
         inspect.seen,
         restore_relink.found,
         restore_relink.relinked,
+        readiness.unready,
+        readiness.strays,
+        readiness.ADVICE,
+        up,
     )

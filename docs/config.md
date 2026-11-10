@@ -807,9 +807,17 @@ How `lemonaid restore` brings lost lemons back; see [tmux.md](tmux.md#bringing-l
 
 ```toml
 [restore]
+auto = "ask"          # "off", "ask" or "on": what a trigger does when lemons were lost
 parallel = 4          # lemons started at once; each batch is proven running before the next
 verify_seconds = 60   # how long a started lemon has to show up running in its window
 ```
+
+`auto` decides what `lemonaid restore --auto` does, which is what the inbox and the
+tmux.conf line below run when lemons were lost with their terminal. `ask` (the default) leaves one
+inbox row, "N lemons were lost with their terminal at HH:MM"; select it to restore them or dismiss
+them. `on` restores at once, in the background, with progress in that row, but only into a
+tmux server that runs: lemons wait in that row until you start tmux. `off` does nothing;
+`lemonaid restore` by hand still restores everything.
 
 ## `[tasks]`
 

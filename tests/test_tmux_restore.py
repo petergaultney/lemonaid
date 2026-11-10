@@ -102,3 +102,13 @@ def test_the_layout_is_empty_when_no_server_runs(monkeypatch):
     )
 
     assert restore.layout() == {}
+
+
+def test_a_restore_that_may_not_start_tmux_makes_a_session_only_on_a_running_server(monkeypatch):
+    argv = _recording(monkeypatch)
+    monkeypatch.setattr(restore, "_first_index", lambda session: 2)
+
+    restore.open_window(_spot(), "/tmp", {}, start=False)
+
+    new_session = next(c for c in argv if "new-session" in c)
+    assert new_session[:3] == ["tmux", "-N", "new-session"]

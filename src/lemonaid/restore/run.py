@@ -61,6 +61,14 @@ class Terminal(ty.NamedTuple):
     relink: abc.Callable[[bool], Relinked]
     """Point every active row at the pane its lemon runs in (only report it, on a dry
     run); a lost lemon found running is lost no longer."""
+    unready: abc.Callable[[db.Notification], str]
+    """Why a running lemon's recorded place couldn't be restored after a crash, or ""."""
+    strays: abc.Callable[[], list[str]]
+    """Running lemons the inbox has no row for, as a person names them."""
+    advice: str  # where a person learns more about lemons it couldn't restore
+    up: abc.Callable[[], bool]
+    """Whether the terminal runs now. A restore started from the inbox puts lemons back
+    only into a running one, and never starts the terminal itself."""
 
 
 class _Attempt(ty.NamedTuple):
