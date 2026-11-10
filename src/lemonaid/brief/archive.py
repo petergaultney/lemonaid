@@ -171,7 +171,19 @@ def _lemon_id(conn: sqlite3.Connection, path: Path) -> str:
 
 
 def _repoint(conn: sqlite3.Connection, old: Path, new: Path) -> None:
-    for table in ("lemon_identities", "brief_status_since", "brief_needs_since"):
+    """Move *old*'s rows to *new*.
+
+    Status and Needs timing are rebuilt from the file, and a reader that had it open as it moved
+    can record a row at *new*; the *old* row is the one that tracked this file, so it replaces
+    that. A Lemon-ID already registered at *new* is a real conflict and raises.
+    """
+    if old == new:
+        return
+
+    conn.execute("UPDATE lemon_identities SET path = ? WHERE path = ?", (str(new), str(old)))
+    for table in ("brief_status_since", "brief_needs_since"):
+        if conn.execute(f"SELECT 1 FROM {table} WHERE path = ?", (str(old),)).fetchone():
+            conn.execute(f"DELETE FROM {table} WHERE path = ?", (str(new),))
         conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (str(new), str(old)))
 
 
