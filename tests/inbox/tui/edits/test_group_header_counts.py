@@ -20,7 +20,7 @@ def test_header_counts_current_members_and_actual_visible_rows(size):
         path.write_text(brief.hidden.with_hidden(path.read_text(), True))
         archived = session(conn, "old", "working")
         groups.store.add(conn, group, [lead, worker, reviewer, archived])
-        db.archive_channel(conn, "claude:old", reason="test")
+        db.archive_channel(conn, "claude:old", reason="test", cause="archived", by="test")
 
     def header(table):
         return next(cell.plain for cell in table.get_row_at(0) if cell.plain)

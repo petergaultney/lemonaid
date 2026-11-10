@@ -101,7 +101,7 @@ def test_a_replacement_session_on_the_same_brief_keeps_its_groups(capsys):
     run(capsys, "group", "create", "A", one, "--json")
 
     with db.connect() as conn:
-        db.archive_channel(conn, "claude:old", "test")
+        db.archive_channel(conn, "claude:old", "test", cause="archived", by="test")
         db.add(conn, "claude:new", "", metadata={})
         attached.attach(conn, "claude:new", store.briefs_dir() / "one.md")
         assert groups.store.names_of(conn, lemon_id(conn, "claude:new")) == ("A",)

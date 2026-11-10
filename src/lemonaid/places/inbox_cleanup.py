@@ -9,7 +9,7 @@ from typing import NamedTuple
 from .. import tmux
 from ..audit import events
 from ..brief import archive, attached
-from ..inbox import db, teardown_evidence
+from ..inbox import db, ended, teardown_evidence
 from ..log import get_logger
 from . import archive_scope, ownership, windows
 
@@ -49,7 +49,7 @@ def finish(snapshot: Snapshot) -> None:
         with db.connect() as conn:
             teardown_evidence.record(conn, snapshot.terminals)
             for row_id in snapshot.daemon_ids:
-                db.archive(conn, row_id, "place-teardown")
+                db.archive(conn, row_id, "place-teardown", cause=ended.TOSSED, by="place toss")
                 if row := db.get(conn, row_id):
                     events.record("inbox-archive", row.channel, "place toss")
     except sqlite3.Error as e:

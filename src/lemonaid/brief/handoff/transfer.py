@@ -4,7 +4,7 @@ import json
 import sqlite3
 import time
 
-from ...inbox import db
+from ...inbox import db, ended
 from . import state as handoff_state
 
 
@@ -58,7 +58,14 @@ def move(conn: sqlite3.Connection, path: str, source: str, target: str, reason: 
         "UPDATE session_briefs SET channel = ?, attached_at = ? WHERE path = ?",
         (target, time.time(), path),
     )
-    db.archive_channel(conn, source, reason, commit=False)
+    db.archive_channel(
+        conn,
+        source,
+        f"{reason} successor={target}",
+        cause=ended.REPLACED,
+        by="handoff",
+        commit=False,
+    )
     generation = conn.execute(
         "SELECT COALESCE(MAX(generation), 0) FROM brief_handoff_sessions WHERE path = ?",
         (path,),

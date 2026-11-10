@@ -242,7 +242,7 @@ def test_inbox_does_not_restore_other_codex_sessions(alias, monkeypatch, state):
         path.write_text(path.read_text().split("## Watching")[0])
     with db.connect() as conn:
         if state == "archived":
-            db.archive_channel(conn, channel, "test")
+            db.archive_channel(conn, channel, "test", cause="archived", by="test")
         if state == "mid-turn":
             db.record_turn(conn, channel, time.time())
         if state == "reused-tty":

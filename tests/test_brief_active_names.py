@@ -48,8 +48,8 @@ def test_an_archived_session_holds_the_name_until_the_window_passes():
     _lemon("recent.AuditInk", "claude:recent", idle_days=3)
     _lemon("stale.CheckWeb", "claude:stale", idle_days=20)
     with db.connect() as conn:
-        db.archive_channel(conn, "claude:recent", "test")
-        db.archive_channel(conn, "claude:stale", "test")
+        db.archive_channel(conn, "claude:recent", "test", cause="archived", by="test")
+        db.archive_channel(conn, "claude:stale", "test", cause="archived", by="test")
 
     assert _held() == {"auditink": {"recent.AuditInk"}}
 

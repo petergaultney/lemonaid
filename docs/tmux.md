@@ -607,6 +607,26 @@ lemonaid restore tmux                # rebuild it, and wait for the lemons to st
 
 `lemonaid tmux restore` is the same command. For a mass kill that leaves tmux running, see [recovery](recovery.md).
 
+Restore brings back only lemons that were **lost**: their recorded tmux socket has no
+server, or the server on it started after the one their session was made on. It judges
+that itself, so it works with no inbox running, and the inbox's watcher judges the same
+way: it marks a lost lemon's row and leaves it in the inbox rather than archiving it.
+It checks every 30 seconds, and checks a lemon's server again before archiving it.
+A lemon whose pane was closed on a server that still runs, one that ended itself (Claude's
+`SessionEnd`, including `/clear`), and one whose place was tossed are archived, and
+restore leaves them alone. A row records why it ended under `ended` in its metadata
+(`server-lost`, `pane-closed`, `process-exited`, `user-exit`, `replaced`, `tossed`,
+`archived` or `dismissed`), and loses it when the lemon is heard from again.
+
+```bash
+lemonaid restore dismiss claude:1a2b    # don't bring this lost lemon back; archive it
+lemonaid restore dismiss --all          # after killing tmux on purpose
+```
+
+A row with no recorded socket, or one on a server that is running but whose session order
+was never recorded, can't be judged, so restore leaves it out and the watcher archives it
+as before when its pane is gone.
+
 Restore finishes by pointing every active lemon's row at the pane its own
 process runs in, including lemons in sessions it skipped. If the inbox can't
 jump to a running lemon, running `lemonaid restore tmux` again repairs its row

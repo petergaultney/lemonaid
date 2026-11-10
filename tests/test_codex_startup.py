@@ -125,7 +125,7 @@ def test_a_resumed_thread_keeps_what_its_row_already_knew(rollouts):
     rollout = _rollout(rollouts, _THREAD)
     with db.connect() as conn:
         db.add(conn, f"codex:{_THREAD}", "Waiting", metadata={"model": "gpt-6.1-sol"})
-        db.archive_channel(conn, f"codex:{_THREAD}", "test")
+        db.archive_channel(conn, f"codex:{_THREAD}", "test", cause="archived", by="test")
 
     startup.register({"session_id": _THREAD, "transcript_path": str(rollout), "source": "resume"})
 

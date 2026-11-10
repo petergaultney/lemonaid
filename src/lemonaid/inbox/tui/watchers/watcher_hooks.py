@@ -11,12 +11,14 @@ from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes, watcher
+from ....restore import loss
 from ....watch import codex_waiter
-from ... import db, teardown_evidence
+from ... import db, ended, teardown_evidence
 from ..rows import brief_cards
 
 _ActiveRow = tuple[str, str, str, float, bool, str | None, str, str | None]
 _SessionOrder = tuple[int, int, int]  # tmux.navigation.SessionOrder, without importing tmux
+_LOSS_SECONDS = 30.0  # between checks for lemons lost with their terminal server
 
 
 def active_sessions() -> list[_ActiveRow]:
@@ -24,6 +26,8 @@ def active_sessions() -> list[_ActiveRow]:
 
     Stale cleanup archives dead sessions regardless of where they can be switched from.
     Each is (channel, session_id, cwd, created_at, is_unread, tty, message, switch_source).
+    A lemon lost with its terminal server is left out: nothing about its pane or tty
+    says anything about it now, and restore needs its row as it is.
     """
     with db.connect() as conn:
         notifications = db.get_active(conn, switch_source=None)
@@ -40,7 +44,7 @@ def active_sessions() -> list[_ActiveRow]:
             n.switch_source,
         )
         for n in notifications
-        if n.metadata.get("session_id") and n.metadata.get("cwd")
+        if n.metadata.get("session_id") and n.metadata.get("cwd") and not ended.lost(n.metadata)
     ]
 
 
@@ -181,10 +185,36 @@ def record_channel_context(channel: str, used: int, window: int) -> None:
         db.record_context(conn, channel, used, window)
 
 
+# The watcher's archive reasons, by the end cause each records.
+_CAUSES = {
+    "pane-gone": ended.PANE_CLOSED,
+    "process-exited": ended.PROCESS_EXITED,
+    "no-codex-in-cwd": ended.PROCESS_EXITED,
+    "replaced-on-tty": ended.REPLACED,
+}
+
+
 def archive_channel(channel: str, why: str) -> None:
-    """Archive all notifications for a channel whose session exited, and audit it."""
+    """Archive all notifications for a channel whose session exited, and audit it.
+
+    A lemon whose server is gone is marked lost instead. A harness that reported its
+    own end (`exit_reason`) ended by the user's hand, whatever the watcher then saw.
+    """
     with db.connect() as conn:
-        db.archive_channel(conn, channel, "watcher-stale-session")
+        row = db.get_by_channel(conn, channel, unread_only=False)
+        gone = loss.gone_with_server(conn, row, by="inbox watcher") if row is not None else ""
+        if gone == ended.SERVER_LOST:
+            events.record("inbox-lost", channel, row.metadata.get("tty", ""), by="inbox watcher")
+            return
+
+        if gone:
+            events.record("inbox-archive", channel, why, by="inbox watcher")
+            return
+
+        cause = (row is not None and ended.reported(row.metadata)) or _CAUSES.get(
+            why.split(" ", 1)[0], ended.PROCESS_EXITED
+        )
+        db.archive_channel(conn, channel, why, cause=cause, by="inbox watcher")
     events.record("inbox-archive", channel, why, by="inbox watcher")
 
 
@@ -194,6 +224,7 @@ def start(
     detached_channels: abc.Callable[[set[str]], None],
 ) -> None:
     last_repair: float | None = None
+    last_loss: float | None = None
     harness_ttys = tty_processes.Reused(
         lambda args: any(
             watcher.is_harness(args, name) for name in ("claude", "codex", "openclaw", "opencode")
@@ -201,7 +232,7 @@ def start(
     )
 
     def active() -> list[tuple]:
-        nonlocal last_repair
+        nonlocal last_repair, last_loss
         now = time.monotonic()
         if last_repair is None or now - last_repair >= 10:
             last_repair = now
@@ -215,6 +246,13 @@ def start(
                             thread: {match["tty"] for match in matches}
                             for thread, matches in locations.items()
                         },
+                    )
+        if last_loss is None or now - last_loss >= _LOSS_SECONDS:
+            last_loss = now
+            with db.connect() as conn:
+                for row in loss.mark(conn, by="inbox watcher"):
+                    events.record(
+                        "inbox-lost", row.channel, row.metadata.get("tty", ""), by="inbox watcher"
                     )
         return active_sessions()
 

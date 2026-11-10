@@ -166,7 +166,12 @@ Inside cmux, `metadata` carries `cmux_surface`, the surface the session ran in, 
 ```bash
 lemonaid restore tmux --dry-run --json   # {"sessions": [...], "relinked": [...]}: what would be rebuilt and repaired
 lemonaid restore tmux --json             # {"restored": [...], "skipped": [...], "lemons": [...]}
+lemonaid restore dismiss [LEMON ...|--all]  # archive lost lemons instead of restoring them
 ```
+
+Restore plans only lemons lost with their tmux server. A row's `metadata.ended`
+(`{at, cause, by, detail}`) says why it stopped being a running lemon; `cause` is
+`server-lost` for a row restore will bring back, which stays active.
 
 `lemonaid tmux restore` is the same command. It recreates the tmux sessions the active inbox says its
 lemons were running in, resuming each in the window it occupied, and starts each lemon whose brief lists

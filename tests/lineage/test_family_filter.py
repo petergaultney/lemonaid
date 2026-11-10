@@ -37,7 +37,7 @@ def _lead(count):
                 db.add(
                     conn, channel, "", metadata={"cwd": str(store.briefs_dir() / "removed-place")}
                 )
-                db.archive_channel(conn, channel, "test")
+                db.archive_channel(conn, channel, "test", cause="archived", by="test")
             links.set_parent(conn, child, parent)
     path = store.briefs_dir() / "lead.md"
     return target.Target([path], [], path.parent, ["lead"], "lead", "")
@@ -60,7 +60,7 @@ def test_done_children_remain_until_archived_and_status_edits_are_reflected():
     )
 
     with db.connect() as conn:
-        db.archive_channel(conn, "codex:child", "test")
+        db.archive_channel(conn, "codex:child", "test", cause="archived", by="test")
     shown = family.added(render.view(found, 0, pr.no_state))
     assert not shown.sections[0].children
     assert "**Children:**" not in render.to_markdown(shown, 0)

@@ -217,7 +217,7 @@ def test_an_archived_child_is_no_longer_read(family, monkeypatch):
     _, _, path, _ = family
     w = open_watch(family)
     with db.connect() as conn:
-        db.archive_channel(conn, "codex:child", "test")
+        db.archive_channel(conn, "codex:child", "test", cause="archived", by="test")
     path.write_text(path.read_text().replace("Status: working", "Status: done"))
     read = []
     original = type(path).read_text

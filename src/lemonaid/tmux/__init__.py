@@ -7,6 +7,7 @@ from . import (  # noqa: F401
     recreate,
     rename,
     scratch,
+    server,
     session,
 )
 from .command import run  # noqa: F401

@@ -346,7 +346,7 @@ def _watcher_tick(monkeypatch, locations, protected_status=""):
 
     def archive(channel, why):
         with db.connect() as conn:
-            db.archive_channel(conn, channel, "watcher")
+            db.archive_channel(conn, channel, "watcher", cause="archived", by="test")
 
     return watcher._archive_stale_sessions(
         active, archive, {}, {None: locations}, protected_channels=protected
