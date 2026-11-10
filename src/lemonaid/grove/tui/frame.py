@@ -8,7 +8,18 @@ from collections import Counter, abc
 from rich.text import Text
 
 from ...inbox import badges
-from ..draw import bars, block_scene, canvas, card, colors, lemon_list, scene_parts, scenes, trees
+from ..draw import (
+    bars,
+    block_scene,
+    canvas,
+    card,
+    colors,
+    lemon_list,
+    refusal,
+    scene_parts,
+    scenes,
+    trees,
+)
 from ..layout.arrange import Arrangement
 from ..model import Block
 from . import keys, picking, select_view, selecting
@@ -50,11 +61,13 @@ def _label(block: Block) -> str:
     return block.name or "no group"
 
 
-def _prompt(where: keys.Where, grove: Grove, select_key: str) -> _Prompt | tuple[str, str]:
+def _prompt(
+    where: keys.Where, grove: Grove, select_key: str, refused: bool = False
+) -> _Prompt | tuple[str, str]:
     block = next((b for b in grove.blocks if b.digit == where.block), None)
     selects = f"{select_view.key_name(select_key)} selects"
     if where.note:
-        return where.note, colors.WARN
+        return where.note, colors.ALERT if refused else colors.WARN
     if chosen := select_view.prompt(where, grove.blocks, grove.arrangement, select_key):
         return chosen, colors.TEXT
     if picked := picking.prompt(where, grove.blocks):
@@ -153,13 +166,15 @@ def render(
     select_key: str = selecting.DEFAULT_KEY,
     card_shown: bool = True,
     flashed: tuple[str, ...] = (),
+    refused: refusal.Refusal | None = None,
 ) -> canvas.Canvas:
     """The grove's picture for *where*. With *lists*, a zoomed block's lemon lists stay where they
     were drawn last time while they cover no more than they did then. *big_trees* lets a zoomed
     block's trees grow past a grown tree's size. *flipped* shows the lists' other page, or in the grove view each tree's stats.
     *select_key* is the key that leaves select mode, for its prompt; *card_shown* draws the
     chosen lemon's card in it. *flashed* is the click target, as (digit, letter), of a tree to
-    flash because it couldn't move.
+    flash because it couldn't move. *refused* is a drag that couldn't drop where it is: it is
+    drawn red there, and the prompt's note with it.
     """
     picture = canvas.blank(width, height)
     if not scene_parts.fits(picture):
@@ -223,9 +238,16 @@ def render(
         + "? keys · space closes",
         _attention(grove),
     )
-    bars.prompt(picture, *_Prompt(*_prompt(where, grove, select_key)))
+    bars.prompt(picture, *_Prompt(*_prompt(where, grove, select_key, refused is not None)))
     if flashed:
         bars.flash(picture, flashed)
+    if refused:
+        view = (
+            scene_parts.block_view(picture, grove.arrangement, block)
+            if block
+            else scene_parts.grove_view((width, height), grove.arrangement, where.pan)
+        )
+        refusal.tint(picture, refused, view)
     if where.selecting:
         bars.select_frame(picture)
     return picture

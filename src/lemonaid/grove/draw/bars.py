@@ -6,7 +6,7 @@ from rich.text import Text
 
 from ... import config, status_registry
 from . import colors
-from .canvas import BACKGROUND, Canvas, fill, mix, put, text
+from .canvas import BACKGROUND, Canvas, Cell, fill, mix, put, text
 
 _CONSOLE = Console(color_system="truecolor")
 
@@ -115,9 +115,16 @@ def select_frame(canvas: Canvas) -> None:
                 cell.bg = _SELECT_BAR
 
 
+def tint(cell: Cell) -> None:
+    """*cell* in alert red, for something that can't go where it is."""
+    cell.bg = mix(cell.bg or BACKGROUND, colors.ALERT, 0.55)
+    if "▀" <= cell.char <= "▟":  # a block glyph: a crown or trunk drawn in its fg
+        cell.fg = mix(cell.fg, colors.ALERT, 0.55)
+
+
 def flash(canvas: Canvas, target: tuple[str, ...]) -> None:
     """Every cell that reaches *target*, a tree with its tag and list, tinted alert red."""
     for row in canvas.rows:
         for cell in row:
             if cell.target == target:
-                cell.bg = mix(cell.bg or BACKGROUND, colors.ALERT, 0.55)
+                tint(cell)

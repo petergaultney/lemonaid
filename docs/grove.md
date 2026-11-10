@@ -83,7 +83,7 @@ With only a block chosen, a letter chooses a tree rather than editing; to recolo
 
 ## Gardening
 
-Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back. A tree also moves with the arrow keys in [select mode](#select-mode), once `$` and its letter choose it.
+Drag with the mouse to rearrange the grove. It's saved when you let go, and `esc` while dragging puts it back. While a drag is somewhere it can't be dropped, what you're dragging turns red and the bottom line says why in red; both clear as soon as it can drop there. A tree also moves with the arrow keys in [select mode](#select-mode), once `$` and its letter choose it.
 
 - **In the grove view, drag a block to move it.** Its trees move with it.
 - **Drag a block's edge or corner to resize it.** Its trees stay where they stand on the ground, but for those the moving edge would cut off, which it pushes back onto the block.

@@ -78,6 +78,11 @@ def _ground_cells(
     return tuple(cells)
 
 
+def ground_at(plot: Plot, view: View) -> set[tuple[int, int]]:
+    """The (column, row) of each cell `ground` fills for *plot* at *view*."""
+    return {(col, row) for col, row, *_ in _ground_cells(plot, view, "#000000", True)}
+
+
 def ground(canvas: Canvas, plot: Plot, view: View, color: str, live: bool) -> None:
     """Fill *plot*'s outline. Open ground (*live* False) is dark and unmarked."""
     for col, row, char, fg, bg in _ground_cells(plot, view, color, live):
@@ -192,7 +197,7 @@ def over_terrain(
     stream: abc.Sequence[tuple[int, int]],
 ) -> bool:
     """Whether *plot*'s ground, drawn at *view*, would cover a cell of a road or the stream."""
-    ground = {(col, row) for col, row, *_ in _ground_cells(plot, view, "#000000", True)}
+    ground = ground_at(plot, view)
     return any(
         cell in ground
         for cell in itertools.chain(

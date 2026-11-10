@@ -4,7 +4,7 @@ import dataclasses
 from collections import abc
 from typing import Any
 
-from ..draw import ground, plots
+from ..draw import ground, plots, refusal
 from ..layout import arrange, edit, lead_spot, placement, room, sizes, terrain
 from ..model import Block, Plot
 from . import garden, stump_drag
@@ -169,10 +169,22 @@ def refused(grove: Grove, drag: Drag) -> str:
     return _refused(grove, drag, _aim(grove, drag))
 
 
-def describe(grove: Grove, drag: Drag) -> str:
+def describe(grove: Grove, drag: Drag, problem: str) -> str:
+    """What *drag* is doing, for the prompt; *problem* is what `refused` says of it."""
     if drag.stump:
-        return stump_drag.describe(grove, drag)
-    return garden.describe(drag, refused(grove, drag))
+        return stump_drag.describe(grove, drag, problem)
+    return garden.describe(drag, problem)
+
+
+def shown_refused(grove: Grove, drag: Drag) -> refusal.Refusal:
+    """What to draw red while *drag* is refused: its tree or bare tree, or the ground it'd take."""
+    if drag.stump:
+        return refusal.Refusal(target=(drag.block.digit, "", drag.tree))
+    if drag.tree:
+        letter = grove.arrangement.trees[(drag.block.name, drag.tree)].letter
+        return refusal.Refusal(target=(drag.block.digit, letter))
+    aim = _aim(grove, drag)
+    return refusal.Refusal(plot=aim if isinstance(aim, Plot) else None)
 
 
 def _still_open(drag: Drag, saved: dict[str, Any]) -> str:
