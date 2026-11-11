@@ -58,7 +58,10 @@ def serving(entry: session_socket.Session) -> bool:
 def to_session(entry: session_socket.Session) -> delivery.Deliver:
     def deliver(message: str) -> None:
         try:
-            session_socket.send(entry, f"lemonaid watch event:\n\n{message}\n\n{_INSTRUCTION}")
+            session_socket.send(
+                entry,
+                f"{delivery.label_of(message) or 'lemonaid watch event:'}\n\n{message}\n\n{_INSTRUCTION}",
+            )
         except session_socket.Refused as error:
             raise delivery.Failed(f"Claude session refused the batch ({error})") from error
 

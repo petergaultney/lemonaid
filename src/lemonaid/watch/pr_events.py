@@ -38,6 +38,25 @@ _NUDGE = (
 _DROPPED_KEPT = 10
 
 
+_SHORT = {
+    roles.HEAD: "pushed",
+    roles.READY: "ready",
+    roles.DRAFT: "back in draft",
+    roles.DECISION: "review decision",
+    roles.COMMENTS: "comments",
+    roles.CONFLICT: "conflicts",
+    roles.CI_FAILED: "CI failed",
+    roles.CI_PASSED: "CI passed",
+    roles.CI_GREEN: "CI passed",
+}
+
+
+def _label(repo: str, pr: int, state: str, kind: str) -> str:
+    return (
+        f"{repo.rpartition('/')[2]}#{pr} {state.lower() if kind == roles.STATE else _SHORT[kind]}"
+    )
+
+
 def _on(visibility: str) -> str:
     """PUBLIC stands out; private and internal don't need to."""
     if not visibility:
@@ -143,6 +162,7 @@ def poll(
     trusted: abc.Set[str] = frozenset(),
     wake: abc.Set[str] = frozenset(roles.KINDS),
     mentioned: bool = False,
+    repo: str = "",
 ) -> bool:
     """Whether it woke the lemon. Events of a kind not in *wake* are kept, and ride along
     with the next one that is."""
@@ -190,11 +210,16 @@ def poll(
     woke = any(change.kind in wake for change in changes)
     if woke:
         deliver(
-            "; ".join(
-                [
-                    *([f"Seen without waking you: {'; '.join(dropped)}"] if dropped else []),
-                    *(change.text for change in changes),
-                ]
+            delivery.Labeled(
+                "; ".join(
+                    [
+                        *([f"Seen without waking you: {'; '.join(dropped)}"] if dropped else []),
+                        *(change.text for change in changes),
+                    ]
+                ),
+                "; ".join(
+                    dict.fromkeys(_label(repo, pr, snap.state, change.kind) for change in changes)
+                ),
             )
         )
         dropped_path.unlink(missing_ok=True)
