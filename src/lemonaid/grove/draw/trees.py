@@ -253,6 +253,13 @@ def _bark(x: int, bark: int) -> abc.Iterator[tuple[int, str, str, str | None]]:
             yield column, "▌" if left else "▐", left or right, None
 
 
+def draw_trunk(canvas: Canvas, trunk: tuple[int, int], y: int, bark: int = 2) -> None:
+    """The trunk from its *trunk* cell (x, row) down to row *y*, *bark* half cells wide."""
+    for row in range(trunk[1], y):
+        for column, char, fg, bg in _bark(trunk[0], bark):
+            put(canvas, column, row, char, fg, bg)
+
+
 def draw_tag(
     canvas: Canvas,
     tree: Tree,
@@ -269,9 +276,7 @@ def draw_tag(
     (x, row) down to the tag, *bark* half cells wide. Its first *key* characters after the leading space are the key,
     drawn on a cap with a cell either side.
     """
-    for row in range(trunk[1], y):
-        for column, char, fg, bg in _bark(trunk[0], bark):
-            put(canvas, column, row, char, fg, bg)
+    draw_trunk(canvas, trunk, y, bark)
     width = len(lines[0])
     status = colors.tree_status(tree.lemons)
     working = any(lemon.working for lemon in tree.lemons)

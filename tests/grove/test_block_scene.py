@@ -28,3 +28,18 @@ def test_a_list_too_tall_for_the_screen_comes_back_on_it_once_it_fits():
     block_scene.zoomed(canvas.blank(120, 40), small, arrangement, 0.0, lists=lists)
     x, y, _ = lists["t"]
     assert 1 <= x <= 119 - lemon_list.WIDTH and 1 <= y <= 36
+
+
+def test_a_list_clamped_away_from_its_tree_leaves_no_second_copy_of_the_title():
+    grove = block(
+        "g",
+        "1",
+        tree("inbox/brief-first", lemon("claude:a")),
+        tree("tars/two", lemon("claude:b"), lemon("claude:c")),
+    )
+    arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
+    c = canvas.blank(60, 14)
+    block_scene.zoomed(c, grove, arrangement, 0.0, lists={})
+    screen = ["".join(cell.char for cell in row) for row in c.rows]
+    for st in arrangement.trees.values():
+        assert sum(row.count(f" {st.letter}  {st.label} ") for row in screen) == 1

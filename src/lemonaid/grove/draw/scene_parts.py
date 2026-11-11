@@ -86,9 +86,11 @@ def plant(
     highlight: Highlight | None,
     taken: abc.Iterable[tag_fit.Rect] = (),
     stats: bool = False,
+    tags_drawn: bool = True,
 ) -> list[tag_fit.Fitted]:
     """Draw every tree, then every tag where it covers nothing already drawn or in *taken*. With
-    *stats*, a tag shows its tree's stats in place of its name, emoji and pin.
+    *stats*, a tag shows its tree's stats in place of its name, emoji and pin. Without
+    *tags_drawn*, only each tag's trunk is drawn and the caller draws the tags, wherever it puts them.
     """
     tags: dict[int, tag_fit.Tag] = {}
     occupied = list(taken)
@@ -125,6 +127,10 @@ def plant(
         found = fitted[i]
         letter = arrangement.trees[(p.block.name, p.tree.key)].letter
         canvas.dim, canvas.target = p.dim, (p.block.digit, letter)
+        if not tags_drawn:
+            trees.draw_trunk(canvas, found.trunk, found.y, tags[i].shape.bark)
+            continue
+
         trees.draw_tag(
             canvas,
             tags[i].tree,

@@ -74,7 +74,9 @@ def zoomed(
         )
         for tree in block.trees
     ]
-    fitted = scene_parts.plant(canvas, planted, arrangement, phase, highlight, [sign])
+    fitted = scene_parts.plant(
+        canvas, planted, arrangement, phase, highlight, [sign], tags_drawn=False
+    )
     crowns = [trees.crown_box(p.placed[2], *p.placed[:2]) for p in planted]
     taken = [list_spot.footprint(c, tag) for c, tag in zip(crowns, fitted, strict=True)]
     trees_at = list(enumerate(taken))  # each tree's footprint, by its place in *planted*
