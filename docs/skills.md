@@ -3,8 +3,10 @@
 Lemonaid ships skills that teach a lemon to use its commands: `brief` (keep an attached
 brief current, choose its status, record waiters, and start a reviewer), `watch-doc` (wait for Relay
 Comments on a document, then reply in the thread) and `watch-pr` (wait for pushes, review
-activity, conflicts and failed CI on a GitHub PR), and `watch-briefs` (wait for direct
-children's Status or Needs asks to change). `lemonaid skills install` puts them
+activity, conflicts and failed CI on a GitHub PR), `watch-briefs` (wait for direct
+children's Status or Needs asks to change), and `triage-notifications` (keep your
+[GitHub notifications](github-notifications.md) triaged, with a doc you approve by
+checkbox; your dismiss rules and priorities go in its overlay). `lemonaid skills install` puts them
 where Claude Code and Codex look for skills.
 
 ```bash

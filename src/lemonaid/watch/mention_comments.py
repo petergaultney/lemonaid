@@ -72,15 +72,15 @@ def read(repo: str, number: int, since: str) -> Pull | None:
     every page of each; None if any read fails. REST's `since` covers a reply on an old
     review thread, which a bounded GraphQL connection can leave out."""
     base = f"repos/{repo}"
-    user = github_api.rest("user")
+    login = github_api.login()
     pr = github_api.rest(f"{base}/pulls/{number}")
     comments = github_api.rest_pages(f"{base}/issues/{number}/comments", {"since": since})
     inline = github_api.rest_pages(f"{base}/pulls/{number}/comments", {"since": since})
     reviews = github_api.rest_pages(f"{base}/pulls/{number}/reviews", {})
-    if not (isinstance(user, dict) and isinstance(pr, dict)) or None in (comments, inline, reviews):
+    if login is None or not isinstance(pr, dict) or None in (comments, inline, reviews):
         return None
 
-    return parse(user.get("login") or "", pr, comments or [], reviews or [], inline or [])
+    return parse(login, pr, comments or [], reviews or [], inline or [])
 
 
 def direct(pull: Pull, since: str) -> abc.Iterator[Mention]:

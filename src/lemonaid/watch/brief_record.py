@@ -34,6 +34,7 @@ def _identity(
         doc_cli,
         file_cli,
         mentions_cli,
+        notifications_wait_cli,
         pr_cli,
         repo_cli,
         reviews_cli,
@@ -56,6 +57,7 @@ def _identity(
             repo_cli,
             reviews_cli,
             mentions_cli,
+            notifications_wait_cli,
             file_cli,
             command_cli,
             briefs_cli,
@@ -74,7 +76,7 @@ def _identity(
         target = (parent,)
     elif kind == "repo":
         target = (a.wait.lower(),)
-    elif kind in ("reviews", "mentions"):
+    elif kind in ("reviews", "mentions", "notifications"):
         target = reviews_cli.target(a.scope)
     elif kind == "command":
         target = (str(a.wait),)

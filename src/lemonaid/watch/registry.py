@@ -23,7 +23,19 @@ from ..codex import channels
 from ..inbox import db
 from . import scout_roster, stop_sender, termination, waiter_lock
 
-KINDS = ("wait", "mailbox", "pr", "repo", "reviews", "mentions", "doc", "file", "command", "briefs")
+KINDS = (
+    "wait",
+    "mailbox",
+    "pr",
+    "repo",
+    "reviews",
+    "mentions",
+    "notifications",
+    "doc",
+    "file",
+    "command",
+    "briefs",
+)
 _OLD_KINDS = {"inbox": "mailbox"}  # as waiters from before 0.142 registered themselves
 
 

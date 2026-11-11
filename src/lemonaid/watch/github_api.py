@@ -174,3 +174,19 @@ def rest_pages(
             return items
     _log.warning("gh api %s has more than %d pages; read none of it", path, max_pages)
     return None
+
+
+def rest_send(path: str, method: str) -> bool:
+    """Whether a REST call that changes something (`PATCH`, `DELETE`) succeeded."""
+    if paused() or (r := _gh(["-X", method, path, "--silent"])) is None:
+        return False
+
+    if r.returncode != 0:
+        _log.warning("gh api %s %s failed: %s", method, path, r.stderr.strip()[:300])
+    return r.returncode == 0
+
+
+def login() -> str | None:
+    """The `gh` user's login; None when it can't be read."""
+    user = rest("user")
+    return (user.get("login") or None) if isinstance(user, dict) else None

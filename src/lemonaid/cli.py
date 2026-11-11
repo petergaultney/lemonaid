@@ -33,6 +33,7 @@ import lemonaid.tmux.cli
 import lemonaid.tmux.label_host
 import lemonaid.usage.cli
 import lemonaid.watch.cli
+import lemonaid.watch.notifications_cli
 import lemonaid.watch.reconcile
 import lemonaid.watch.restart
 import lemonaid.watch.run_cli
@@ -155,6 +156,7 @@ def main() -> None:
     lemonaid.grove.cli.setup_parser(subparsers)
     lemonaid.lemon_keys.cli.setup_parser(subparsers)
     lemonaid.home.cli.setup_parser(subparsers)
+    lemonaid.watch.notifications_cli.setup_parser(subparsers)
     lemonaid.hooks.cli.setup_parser(subparsers)
     lemonaid.claude.cli.setup_parser(subparsers)
     lemonaid.codex.cli.setup_parser(subparsers)
