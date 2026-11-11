@@ -4,7 +4,8 @@ import subprocess
 import pytest
 
 from lemonaid import go
-from lemonaid.inbox import db
+from lemonaid.inbox import db, ended
+from lemonaid.restore import dismiss
 
 
 def _row(channel="codex:a", socket="/test/socket"):
@@ -60,3 +61,27 @@ def test_query_failure_and_missing_identity_explain_why_a_jump_is_unavailable(mo
     assert "Cannot check" in go.jump_problems([_row()])["codex:a"]
     monkeypatch.setattr(go, "_tmux", lambda *args: "")
     assert "No recorded" in go.jump_problems([dataclasses.replace(_row(), metadata={})])["codex:a"]
+
+
+def test_a_lemon_lost_with_its_server_says_how_to_restore_or_dismiss_it(monkeypatch):
+    monkeypatch.setattr(go, "_tmux", lambda *args: "%7|/dev/target|work|100|91|$2")  # a new server
+    lost = _row()
+    lost.metadata[ended.KEY] = ended.record(ended.SERVER_LOST, "inbox watcher")
+    assert go.jump_problems([lost]) == {lost.channel: go._lost(lost.channel)}
+
+
+def test_a_server_tmux_says_is_gone_says_how_to_restore_before_the_loss_is_marked(monkeypatch):
+    def gone(*args):
+        raise subprocess.CalledProcessError(1, "tmux", stderr="no server running on /test/socket")
+
+    monkeypatch.setattr(go, "_tmux", gone)
+    assert go.jump_problems([_row(), _row("codex:b")]) == {
+        "codex:a": go._lost("codex:a"),
+        "codex:b": go._lost("codex:b"),
+    }
+
+
+def test_the_dismiss_hint_names_a_lemon_restore_dismiss_accepts():
+    named = go._lost("codex:a").split("lemonaid restore dismiss ")[1].split()[0]
+    lost = dataclasses.replace(_row(), metadata={})
+    assert dismiss.chosen([lost], [named]) == ([lost], [])
