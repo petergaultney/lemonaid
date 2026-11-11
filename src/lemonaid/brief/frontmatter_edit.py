@@ -28,6 +28,7 @@ ORDER = (
     "output-doc",
     "groups",
     "hidden",
+    "po-box",
     "name-words",
 )
 _PARENT = re.compile(r"(?P<id>\S+?)(?:\s+\([^)]*\))?(?:,\s*\d{4}-\d{2}-\d{2})?")
@@ -69,7 +70,7 @@ def _value(key: str, shown: str) -> object:
     if key == "name-words":
         return [word for word in re.split(r"[\s,]+", shown) if word] or None
 
-    if key == "hidden":
+    if key in ("hidden", "po-box"):
         return True if shown.lower() in ("yes", "true") else None
 
     if key == "parent":
