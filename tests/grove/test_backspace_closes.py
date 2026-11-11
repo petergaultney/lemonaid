@@ -1,9 +1,19 @@
 import asyncio
+import types
+
+import pytest
 
 from lemonaid.grove.tui import screen
 from lemonaid.grove.tui.app import GroveApp
 
 from .test_frame import GROVE
+
+
+@pytest.fixture(autouse=True)
+def _still_clock(monkeypatch):
+    """The grove's clock stands still, so only the time a test moves `_backed_out_at` by passes
+    between keys, however slowly they arrive."""
+    monkeypatch.setattr(screen, "time", types.SimpleNamespace(monotonic=lambda: 1000.0))
 
 
 def _closes(keys: list[str], waited: float = 0.0) -> list[bool]:
