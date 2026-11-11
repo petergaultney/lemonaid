@@ -129,7 +129,7 @@ def test_renderer_used_by_popup_and_sidebar_includes_promoted_sections(brief, tm
     for expected in ("apply the color", "implemented", "r#12", "Review", "reviewer", "#12 open"):
         assert expected in out
     assert "Pick blue or green." in out
-    assert out.index("The lookup works.") < out.index("Decision")
+    assert "▸ Executive Summary of Results" in out and "The lookup works." not in out
 
 
 def test_brief_show_cli_reads_promoted_sections(brief, tmp_path, capsys):

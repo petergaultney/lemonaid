@@ -98,7 +98,9 @@ class Section:
     parent_name: str = ""  # its parent's session name, when lemonaid knows it
     children: tuple[Child, ...] = ()
     contested: str = ""  # the open challenge that disputes its Status
-    summary: str = ""  # rendered first when populated
+    summary: str = ""  # rendered first, expanded or collapsed by `summary_open`
+    summary_open: bool = False
+    summary_long: bool = False  # enough text to suggest it is not a placeholder
 
 
 @dataclasses.dataclass(frozen=True)
@@ -107,6 +109,30 @@ class View:
     in_session: bool  # the sections are the lemons of one tmux session
     sections: tuple[Section, ...]
     fallback: str  # Markdown shown when there is no brief
+
+
+class SummaryPolicy(ty.NamedTuple):
+    open: abc.Collection[str] = ("done", "merge", "approve", "review")  # Statuses shown expanded
+    long_chars: int = 300
+
+
+DEFAULT_SUMMARY = SummaryPolicy()
+
+
+def summary_title(section: Section) -> str:
+    """The summary's one line when collapsed; it states its length only when that suggests real content."""
+    size = f" ({len(section.summary)} characters)" if section.summary_long else ""
+    return f"Executive Summary of Results{size}"
+
+
+def summary_markdown(section: Section) -> str:
+    if not section.summary:
+        return ""
+
+    if section.summary_open:
+        return _part("Executive Summary of Results", section.summary)
+
+    return f"▸ {summary_title(section)}"
 
 
 def _prs(text: str, cwd: Path | None, pr_state: pr.Lookup) -> tuple[tuple[str, str], ...]:
@@ -128,6 +154,7 @@ def _section(
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot],
     vaults: abc.Collection[Path],
+    summary: SummaryPolicy,
 ) -> Section:
     parts = status.split(brief.text)
     parsed = now.parse(parts.now)
@@ -162,6 +189,8 @@ def _section(
         lemon_id=_lemon_id(brief.text),
         compact=detail == "compact",
         summary=parts.summary,
+        summary_open=parts.status in summary.open,
+        summary_long=len(parts.summary) >= summary.long_chars,
     )
 
 
@@ -250,6 +279,7 @@ def _session_view(
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot],
     vaults: abc.Collection[Path],
+    summary: SummaryPolicy,
 ) -> View:
     members = sorted(found.members, key=lambda m: _window_order(m.lemon))
     sections: list[Section] = []
@@ -262,7 +292,7 @@ def _session_view(
 
         taken.add(brief.path)
         detail = "now" if not sections else "compact"
-        sections.append(_section(brief, member.lemon, detail, pr_state, roots, vaults))
+        sections.append(_section(brief, member.lemon, detail, pr_state, roots, vaults, summary))
 
     return View(found.header, True, tuple(sections), "")
 
@@ -273,13 +303,14 @@ def view(
     pr_state: pr.Lookup,
     roots: abc.Sequence[PlaceRoot] = (),
     vaults: abc.Collection[Path] = (),
+    summary: SummaryPolicy = DEFAULT_SUMMARY,
 ) -> View:
     """*roots* are the `[[places.roots]]` that name each section's project.
 
     *vaults* resolve `obsidian://` links in Needs bullets to the sections they ask from.
     """
     if found.members:
-        return _session_view(found, now_seconds, pr_state, roots, vaults)
+        return _session_view(found, now_seconds, pr_state, roots, vaults, summary)
 
     located = status.find(found.attached, found.dirs, found.place, found.names, now_seconds)
     if isinstance(located, str):
@@ -305,6 +336,7 @@ def view(
                 pr_state,
                 roots,
                 vaults,
+                summary,
             )
             for i, brief in enumerate(ordered)
         ),
@@ -410,7 +442,7 @@ def _markdown_section(section: Section, in_session: bool, expanded: bool) -> str
                     ),
                 ]
             ),
-            _part("Executive Summary of Results", section.summary) if section.summary else "",
+            summary_markdown(section),
             needs(section, expanded),
             section.body,
             _children(section),

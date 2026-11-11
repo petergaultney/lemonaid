@@ -20,8 +20,6 @@ Hidden: yes
 
 A cross-harness review of $pr_link, with a verdict, in the review doc at $output_doc_link.
 
-## Executive Summary of Results
-
 ## Context
 
 ## Acceptance Criteria
@@ -30,7 +28,7 @@ A cross-harness review of $pr_link, with a verdict, in the review doc at $output
 
 Don't post to GitHub, push, merge, or edit the author's worktree. Findings go only in the review doc, never in this brief or on the PR.
 
-Write the review verdict in `## Executive Summary of Results`, including any critical findings or that the PR is clear.
+When the review is done, add `## Executive Summary of Results` after `## Goal` with the verdict, including any critical findings or that the PR is clear.
 
 Write the review doc at `$output_doc`. When it's written, $tell a one-line pointer to it.
 

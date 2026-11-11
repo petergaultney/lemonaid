@@ -264,6 +264,12 @@ class BriefConfig:
     # Obsidian vault roots, expanded. A bare `.md` path under one becomes an
     # `obsidian://` link.
     vaults: tuple[Path, ...] = ()
+    # Statuses whose brief shows its Executive Summary of Results expanded; any
+    # other brief shows it collapsed to one line.
+    summary_open: tuple[str, ...] = ("done", "merge", "approve", "review")
+    # A collapsed summary at least this many characters long says how long it is,
+    # since that much text suggests real content rather than a placeholder.
+    summary_long: int = 300
     # Who a new top-level brief names in `responsible-parties`. Unset is the
     # account's full name; a child copies its parent's.
     responsible_parties: tuple[str, ...] = ()
@@ -785,6 +791,10 @@ def _parse_config(data: dict[str, Any]) -> Config:
         name_idle_days=_idle_days(brief_data.get("name_idle_days", 14)),
         archive_idle_days=_idle_days(brief_data.get("archive_idle_days", 14), "archive_idle_days"),
         vaults=_vaults(brief_data.get("vaults")),
+        summary_open=tuple(
+            str(s).lower() for s in brief_data.get("summary_open", BriefConfig.summary_open)
+        ),
+        summary_long=_idle_days(brief_data.get("summary_long", 300), "summary_long"),
         responsible_parties=tuple(str(p) for p in brief_data.get("responsible_parties", ())),
         statuses=status_registry.parse(brief_data.get("statuses")),
     )

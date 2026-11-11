@@ -566,6 +566,19 @@ clickable in a terminal.
 vaults = ["~/notes", "~/work/kb"]
 ```
 
+`summary_open` lists the statuses whose brief shows its `## Executive Summary of Results`
+expanded (default `["done", "merge", "approve", "review"]`). Any other brief shows it collapsed
+to one line, which `brief show` writes as `▸ Executive Summary of Results` and the inbox view
+draws as a collapsed section you can open. A collapsed summary of at least `summary_long`
+characters (default 300) adds its length to that line, since that much text is rarely a
+placeholder.
+
+```toml
+[brief]
+summary_open = ["done", "merge", "approve"]
+summary_long = 500
+```
+
 
 ### Brief statuses
 

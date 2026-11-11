@@ -6,7 +6,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
 
-from ....brief import pr, target
+from ....brief import pr, render, target
 from ....config import Config
 from .. import utils
 from ..crash_logging import CrashLoggedApp
@@ -42,6 +42,9 @@ class BriefPopup(CrashLoggedApp[None]):
             self._config.tui.mid_turn_working,
             self._config.places.roots,
             self._config.tui.project_name_colors,
+            summary=render.SummaryPolicy(
+                self._config.brief.summary_open, self._config.brief.summary_long
+            ),
         )
 
     def watch_theme(self, theme: str) -> None:
