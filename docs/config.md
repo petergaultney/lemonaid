@@ -816,6 +816,17 @@ autoresume_window = "20m"
 
 When `lemonaid tell` finds that its recipient won't read the message, because its harness exited or it is idle with no mailbox waiter, it starts that lemon on a prompt to read its mailbox. `autoresume` limits that to one harness, or turns it off. A lemon whose brief says `done`, or whose inbox row is archived, is never started. A lemon already started `autoresume_max` times within `autoresume_window` isn't started again: the sender is told it is crash-looping, and an alert goes to the inbox. A lemon found dead again within three minutes of a start counts that start twice. See [messages](messages.md#will-it-be-read).
 
+## `[po-box]`
+
+```toml
+[po-box]
+root = "~/work/vault/lemon-post"  # the shared folder; unset means no PO boxes
+owner = "sam"                     # this machine's folder under lemons/; default $USER
+keep_read_days = 7
+```
+
+Gives a lemon whose brief says `po-box: true` a second mailbox in a shared folder that teammates' lemonaids can write. See [PO boxes](po-box.md).
+
 ## `[restore]`
 
 How `lemonaid restore` brings lost lemons back; see [tmux.md](tmux.md#bringing-lemons-back-to-work).

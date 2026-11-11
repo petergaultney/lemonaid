@@ -18,6 +18,7 @@ from . import (
     launch_config,
     messages_config,
     palette,
+    po_box_config,
     restore_config,
     status_registry,
     tasks_config,
@@ -426,6 +427,7 @@ class Config:
     watch: watch_config.WatchConfig = field(default_factory=watch_config.WatchConfig)
     usage: settings.UsageConfig = field(default_factory=settings.UsageConfig)
     messages: messages_config.MessagesConfig = field(default_factory=messages_config.MessagesConfig)
+    po_box: po_box_config.PoBoxConfig = field(default_factory=po_box_config.PoBoxConfig)
     codex: codex_config.CodexConfig = field(default_factory=codex_config.CodexConfig)
     tasks: tasks_config.TasksConfig = field(default_factory=tasks_config.TasksConfig)
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
@@ -882,6 +884,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         watch=watch_config.parse(data.get("watch", {})),
         usage=settings.parse(data.get("usage", {})),
         messages=messages_config.parse(data.get("messages", {})),
+        po_box=po_box_config.parse(data.get("po-box", {})),
         tasks=tasks_config.parse(data.get("tasks", {})),
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),
