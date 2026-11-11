@@ -155,6 +155,7 @@ def test_codex_hooks_are_named_and_claude_hooks_are_not(tmp_path):
         "lemonaid: own-change",
         "lemonaid: stop",
         "lemonaid: session-start",
+        "lemonaid: session-end",
         "lemonaid: tool-used",
     }
     assert "statusMessage" not in claude.read_text()

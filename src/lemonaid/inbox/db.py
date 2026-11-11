@@ -519,8 +519,11 @@ def record_model(conn: sqlite3.Connection, channel: str, provider: str, model: s
     return True
 
 
-def record_exit(conn: sqlite3.Connection, channel: str, at: float, reason: str) -> bool:
-    """Record that a session's harness exited and the reason it gave.
+def record_exit(
+    conn: sqlite3.Connection, channel: str, at: float, reason: str, deliberate: bool
+) -> bool:
+    """Record that a session's harness exited, the reason it gave, and whether that
+    reason means someone quit it.
 
     The session's next registration or report (`add`, `register_working`) replaces
     its metadata and so drops this; the watcher's own observations keep it.
@@ -531,7 +534,17 @@ def record_exit(conn: sqlite3.Connection, channel: str, at: float, reason: str) 
 
     conn.execute(
         "UPDATE notifications SET metadata = ? WHERE id = ?",
-        (json.dumps({**existing.metadata, "exited_at": at, "exit_reason": reason}), existing.id),
+        (
+            json.dumps(
+                {
+                    **existing.metadata,
+                    "exited_at": at,
+                    "exit_reason": reason,
+                    "exit_deliberate": deliberate,
+                }
+            ),
+            existing.id,
+        ),
     )
     conn.commit()
 
@@ -1075,6 +1088,35 @@ def mark_lost(conn: sqlite3.Connection, channel: str, by: str, detail: str) -> i
     return cursor.rowcount
 
 
+def mark_crashed(conn: sqlite3.Connection, channel: str, by: str, detail: str) -> int:
+    """Record that *channel*'s harness stopped without being quit, leaving the row active
+    for restore."""
+    cursor = conn.execute(
+        """UPDATE notifications
+           SET metadata = json_set(COALESCE(metadata, '{}'), '$.ended', json(?))
+           WHERE channel = ? AND status != 'archived'""",
+        (json.dumps(ended.record(ended.CRASHED, by, detail)), channel),
+    )
+    if cursor.rowcount:
+        _log.info("crashed channel=%s by=%s %s", channel, by, detail)
+    conn.commit()
+    return cursor.rowcount
+
+
+def newer_on_tty(conn: sqlite3.Connection, row: Notification) -> bool:
+    """Whether another active row on *row*'s tty registered after it."""
+    tty = row.metadata.get("tty")
+    return bool(tty) and (
+        conn.execute(
+            """SELECT 1 FROM notifications
+               WHERE status != 'archived' AND channel != ? AND created_at > ?
+               AND json_extract(metadata, '$.tty') = ? LIMIT 1""",
+            (row.channel, row.created_at, tty),
+        ).fetchone()
+        is not None
+    )
+
+
 def restore_failed(conn: sqlite3.Connection, channel: str, detail: str) -> int:
     """Mark *channel* lost again because restore could not bring it back, and say why.
 
@@ -1096,11 +1138,11 @@ def restore_failed(conn: sqlite3.Connection, channel: str, detail: str) -> int:
 
 
 def clear_lost(conn: sqlite3.Connection, channel: str) -> int:
-    """Forget that *channel*'s lemon was lost, now that it runs again."""
+    """Forget that *channel*'s lemon was lost or crashed, now that it runs again."""
     cursor = conn.execute(
         """UPDATE notifications SET metadata = json_remove(metadata, '$.ended')
-           WHERE channel = ? AND json_extract(metadata, '$.ended.cause') = ?""",
-        (channel, ended.SERVER_LOST),
+           WHERE channel = ? AND json_extract(metadata, '$.ended.cause') IN (?, ?)""",
+        (channel, ended.SERVER_LOST, ended.CRASHED),
     )
     conn.commit()
     return cursor.rowcount

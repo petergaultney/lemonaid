@@ -612,11 +612,44 @@ server, or the server on it started after the one their session was made on. It 
 that itself, so it works with no inbox running, and the inbox's watcher judges the same
 way: it marks a lost lemon's row and leaves it in the inbox rather than archiving it.
 It checks every 30 seconds, and checks a lemon's server again before archiving it.
-A lemon whose pane was closed on a server that still runs, one that ended itself (Claude's
-`SessionEnd`, including `/clear`), and one whose place was tossed are archived, and
-restore leaves them alone. A row records why it ended under `ended` in its metadata
-(`server-lost`, `pane-closed`, `process-exited`, `user-exit`, `replaced`, `tossed`,
-`archived` or `dismissed`), and loses it when the lemon is heard from again.
+A lemon whose pane was closed on a server that still runs, one that was quit (its
+harness's `SessionEnd`, including `/clear`), and one whose place was tossed are archived,
+and restore leaves them alone. A row records why it ended under `ended` in its metadata
+(`server-lost`, `crashed`, `pane-closed`, `process-exited`, `user-exit`, `replaced`,
+`tossed`, `archived` or `dismissed`), and loses it when the lemon is heard from again.
+
+Restore brings back only lemons recorded on the tmux server it opens windows on: the one
+it runs under, or tmux's default socket. A lemon lost with a server on another socket is
+reported `not restored`, naming that socket; `lemonaid restore dismiss` archives it.
+
+### Telling a quit from a crash
+
+A harness that stops while its pane and server still run was either quit or killed.
+Each harness says which through its `SessionEnd` hook, which `lemonaid hooks install`
+adds for both Claude and Codex:
+
+| How it ended | Claude reports | Codex reports |
+|---|---|---|
+| Ctrl-D, `/exit`, `/quit`, Ctrl-C twice, logging out | its own reason (`prompt_input_exit`, `logout`) | `other` |
+| `/clear` | `clear` | |
+| a signal (`kill`, an OOM kill, a shutdown) | `other`, or nothing for SIGKILL | nothing |
+
+A quit is archived as `user-exit`. A stop with no quit reported is marked `crashed`: its
+card stays, and `lemonaid restore` resumes it in its own pane when that pane sits idle
+at a shell, else in its window or the next free one. `lemonaid restore dismiss` archives
+it instead. The inbox doesn't restore a crash by itself, since only a lost server
+triggers `--auto`.
+
+A pane counts as idle when its shell is interactive and holds the terminal's foreground,
+so a command, a script or an `exec` started there keeps restore out of it. A loop of shell
+builtins typed at that prompt (`while :; do :; done`) looks the same as an idle shell, and
+restore would replace it.
+
+That needs the harness's reports to reach lemonaid: Claude's hook installed with
+`disableAllHooks` set in none of its settings, and Codex's hook enabled and trusted in its
+`/hooks` as installed, with its shared app-server daemon off (a session in the daemon
+reports nothing when quit). Otherwise a stop is archived as `process-exited`, as
+before. Closing a lemon's pane is a quit for both.
 
 ### Restoring by itself
 

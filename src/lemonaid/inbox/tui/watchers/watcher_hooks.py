@@ -1,6 +1,7 @@
 """The inbox's side of the transcript watcher: what it reads and records in the database."""
 
 import functools
+import sqlite3
 import time
 import typing as ty
 from collections import abc
@@ -10,6 +11,7 @@ from ....audit import events
 from ....brief import attached
 from ....claude import live_sessions
 from ....config import Config
+from ....hooks import end_reports
 from ....lemon_watchers import ModelInfo, start_unified_watcher, tty_processes, watcher
 from ....restore import auto, front_ends, loss, readiness
 from ....watch import codex_waiter
@@ -27,8 +29,8 @@ def active_sessions() -> list[_ActiveRow]:
 
     Stale cleanup archives dead sessions regardless of where they can be switched from.
     Each is (channel, session_id, cwd, created_at, is_unread, tty, message, switch_source).
-    A lemon lost with its terminal server is left out: nothing about its pane or tty
-    says anything about it now, and restore needs its row as it is.
+    A lemon lost with its terminal server, or whose harness crashed, is left out: nothing
+    about its pane or tty says anything about it now, and restore needs its row as it is.
     """
     with db.connect() as conn:
         notifications = db.get_active(conn, switch_source=None)
@@ -45,7 +47,9 @@ def active_sessions() -> list[_ActiveRow]:
             n.switch_source,
         )
         for n in notifications
-        if n.metadata.get("session_id") and n.metadata.get("cwd") and not ended.lost(n.metadata)
+        if n.metadata.get("session_id")
+        and n.metadata.get("cwd")
+        and not ended.revivable(n.metadata)
     ]
 
 
@@ -195,11 +199,24 @@ _CAUSES = {
 }
 
 
+def _crashed(conn: sqlite3.Connection, row: db.Notification | None, why: str) -> bool:
+    """Whether the newest lemon on its tty stopped while its pane lives, without the quit
+    report its harness gives (only a harness that reports quits counts)."""
+    return (
+        row is not None
+        and why.split(" ", 1)[0] == "process-exited"
+        and not ended.reported(row.metadata)
+        and not db.newer_on_tty(conn, row)
+        and end_reports.reported(row.channel.partition(":")[0], row.metadata.get("cwd") or "")
+    )
+
+
 def archive_channel(channel: str, why: str) -> None:
     """Archive all notifications for a channel whose session exited, and audit it.
 
-    A lemon whose server is gone is marked lost instead. A harness that reported its
-    own end (`exit_reason`) ended by the user's hand, whatever the watcher then saw.
+    A lemon whose server is gone is marked lost instead, and one whose harness crashed
+    is marked crashed. A harness that reported its own end (`exit_reason`) ended by the
+    user's hand, whatever the watcher then saw.
     """
     with db.connect() as conn:
         row = db.get_by_channel(conn, channel, unread_only=False)
@@ -210,6 +227,11 @@ def archive_channel(channel: str, why: str) -> None:
 
         if gone:
             events.record("inbox-archive", channel, why, by="inbox watcher")
+            return
+
+        if _crashed(conn, row, why):
+            db.mark_crashed(conn, channel, "inbox watcher", why)
+            events.record("inbox-crashed", channel, why, by="inbox watcher")
             return
 
         cause = (row is not None and ended.reported(row.metadata)) or _CAUSES.get(

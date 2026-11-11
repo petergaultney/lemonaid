@@ -51,7 +51,7 @@ def build(
     rows: abc.Iterable[db.Notification],
     place: abc.Callable[
         [abc.Iterable[db.Notification]],
-        tuple[list[tuple[db.Notification, run.Spot]], list[db.Notification]],
+        tuple[list[tuple[db.Notification, run.Spot]], list[tuple[db.Notification, str]]],
     ],
     config: Config,
     briefs: abc.Mapping[str, Brief],
@@ -73,7 +73,7 @@ def build(
 
     launches = {row.channel: resumed for row, resumed in startable}
     placed, unplaced = place(row for row, _ in startable)
-    skipped += [_skipped(row, "no place in its terminal is recorded for it") for row in unplaced]
+    skipped += [_skipped(row, why) for row, why in unplaced]
     lemons: list[run.Lemon] = []
     for row, spot in placed:
         harness = row.channel.partition(":")[0]

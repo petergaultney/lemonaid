@@ -56,7 +56,7 @@ def _relinks(dry_run: bool) -> list[relink.Relink]:
             *(r for r in relinks if r.state == relink.OK),
         ]
         for r in found:
-            if ended.lost(r.row.metadata):
+            if ended.revivable(r.row.metadata):
                 db.clear_lost(conn, r.row.channel)
         return applied
 

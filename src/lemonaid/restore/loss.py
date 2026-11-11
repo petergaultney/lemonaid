@@ -35,8 +35,9 @@ def candidates(conn: sqlite3.Connection) -> list[db.Notification]:
 
 
 def restorable(rows: abc.Iterable[db.Notification]) -> list[db.Notification]:
-    """The rows in *rows* that `mark` leaves lost: their server is gone, or they were marked
-    lost and their server can't be asked now, and their harness reported no end of its own.
+    """The rows in *rows* to restore: those `mark` leaves lost (their server is gone, or
+    they were marked lost and their server can't be asked now) and their harness reported
+    no end of its own, and those whose harness crashed.
     """
     return [
         row
@@ -46,6 +47,7 @@ def restorable(rows: abc.Iterable[db.Notification]) -> list[db.Notification]:
             verdict is True
             or (verdict is None and ended.lost(row.metadata))
             or ended.failed(row.metadata)
+            or ended.cause(row.metadata) == ended.CRASHED
         )
     ]
 

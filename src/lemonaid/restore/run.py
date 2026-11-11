@@ -43,12 +43,12 @@ class Terminal(ty.NamedTuple):
 
     place: abc.Callable[
         [abc.Iterable[db.Notification]],
-        tuple[list[tuple[db.Notification, Spot]], list[db.Notification]],
+        tuple[list[tuple[db.Notification, Spot]], list[tuple[db.Notification, str]]],
     ]
-    """(each lost row it can place, with its spot, in the order to start them; the rows
-    with no recorded place)."""
+    """(each lost row it can place, with its spot, in the order to start them; each row it
+    can't, with why)."""
     open: abc.Callable[[Spot, str, abc.Mapping[str, str]], tuple[str, str]]
-    """Open a spot's window: (the window it made, why not or "")."""
+    """Open a spot's window: (the window it made or reused, why not or "")."""
     type: abc.Callable[[str, str], str]  # type a line into the window made; why not, or ""
     close: abc.Callable[[str], None]  # close a window restore made, and only such a window
     running: abc.Callable[[abc.Sequence[Lemon]], set[str]]

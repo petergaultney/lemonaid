@@ -10,7 +10,7 @@ from lemonaid.config import Config
 from lemonaid.inbox import db, ended
 from lemonaid.restore import cli, inbox_report, report
 from lemonaid.restore_config import RestoreConfig
-from lemonaid.tmux import navigation, relink, restore_relink, server
+from lemonaid.tmux import home, navigation, relink, restore_relink, server
 from lemonaid.tmux import restore as tmux_restore
 
 # Two lemons in window 1 of two sessions, as restore commonly rebuilds them.
@@ -47,6 +47,7 @@ def _terminal(monkeypatch, **changes) -> None:
     """tmux's restore terminal, placing lemons in an empty server, with *changes* made."""
     terminal = tmux_restore.terminal(True)
     monkeypatch.setattr(tmux_restore, "layout", dict)
+    monkeypatch.setattr(home, "socket", lambda: "/tmp/tmux-dead/default")
     monkeypatch.setattr(
         tmux_restore,
         "terminal",
