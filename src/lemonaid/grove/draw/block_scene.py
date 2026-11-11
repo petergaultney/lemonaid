@@ -1,15 +1,15 @@
 """One block zoomed in to fill the screen, each tree with its lemons listed beside it."""
 
+import dataclasses
 import math
-from collections import abc
 
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import house, lemon_list, plots, scene_parts, tag_fit, trees
+from . import house, lemon_list, list_spot, plots, scene_parts, trees
 from .canvas import Canvas
 
 Spot = tuple[int, int, float]  # a list's top left, and how much it covered when put there
-Rect = tuple[int, int, int, int]
+Rect = list_spot.Rect
 
 
 def zoomed(
@@ -75,26 +75,38 @@ def zoomed(
         for tree in block.trees
     ]
     fitted = scene_parts.plant(canvas, planted, arrangement, phase, highlight, [sign])
-    taken = [_footprint(p, tag) for p, tag in zip(planted, fitted, strict=True)]
-    footprints = dict(zip((p.tree.key for p in planted), list(taken), strict=True))
+    crowns = [trees.crown_box(p.placed[2], *p.placed[:2]) for p in planted]
+    taken = [list_spot.footprint(c, tag) for c, tag in zip(crowns, fitted, strict=True)]
+    trees_at = list(enumerate(taken))  # each tree's footprint, by its place in *planted*
     spots: dict[str, tuple[int, int]] = {}
+    letters = [arrangement.trees[(block.name, p.tree.key)].letter for p in planted]
+    caps: list[Rect] = []  # the letters of the titles placed so far, kept in sight
     w = lemon_list.width(canvas.width)
     # Lists where they were last drawn first, while they cover no more than they did there, so
     # a list in a crowded block stays put as its neighbors change; then the rest.
-    for p in sorted(planted, key=lambda p: p.tree.key not in lists):
+    for i in sorted(range(len(planted)), key=lambda i: planted[i].tree.key not in lists):
+        p = planted[i]
         rows = len(p.tree.lemons) + 2  # its lemons, and its box's edges
         was = lists.get(p.tree.key)
-        now = _crowding(canvas, (was[0], was[1], w, rows), taken) if was else math.inf
-        if was and now < math.inf and now <= was[2]:
+        now = list_spot.crowding(canvas, (was[0], was[1], w, rows), taken) if was else math.inf
+        hides = was and list_spot.overlap((was[0], was[1], w, rows), caps)
+        if was and now < math.inf and now <= was[2] and not hides:
             x, y, covered = was
         else:
-            x, y = _list_spot(canvas, p.placed[0], footprints[p.tree.key], w, rows, taken)
-            covered = _crowding(canvas, (x, y, w, rows), taken)
+            others = [f for j, f in trees_at if j != i]
+            x, y = list_spot.spot(canvas, crowns[i], fitted[i], others, w, rows, taken, caps)
+            covered = list_spot.crowding(canvas, (x, y, w, rows), taken)
         spots[p.tree.key] = (x, y)
+        caps.append((x + 2, y, len(key_prefix + letters[i]), 1))
         lists[p.tree.key] = (x, y, covered)
         taken.append((x, y, w, rows))
+    titles = []
     for p in planted:
         letter = arrangement.trees[(block.name, p.tree.key)].letter
+        labeled = dataclasses.replace(
+            p.tree, label=arrangement.trees[(block.name, p.tree.key)].label
+        )
+        title = trees.short_tag(labeled, key_prefix + letter, w - 4).rstrip() + " "
         x, y = spots[p.tree.key]
         canvas.dim = p.dim
         canvas.target = (block.digit, letter)
@@ -111,65 +123,17 @@ def zoomed(
             edited=highlight.edited if highlight else "",
             flipped=flipped,
             width=w,
+            tagged=len(title),
         )
-        canvas.target = ()
-        canvas.dim = 0.0
+        titles.append((p, labeled, title, x, y, letter))
+    # Every list's title, the tree's tag, over all the lists, so where a crowded screen makes lists
+    # overlap, each tree's tag still shows.
+    for p, labeled, title, x, y, letter in titles:
+        canvas.dim = p.dim
+        canvas.target = (block.digit, letter)
+        trees.draw_tag(
+            canvas, labeled, (title,), x + 1, y, (x + 1, y), phase, key=len(key_prefix + letter)
+        )
+    canvas.target = ()
+    canvas.dim = 0.0
     return {p.tree.key: (*spots[p.tree.key], w, len(p.tree.lemons) + 2) for p in planted}
-
-
-_GAP = 2  # columns kept clear beside a list; one row above and below
-
-
-def _footprint(planted: scene_parts.Planted, tag: tag_fit.Fitted) -> Rect:
-    """The tree and its tag together."""
-    ax, ay, shape = planted.placed
-    x, y, w, _ = trees.crown_box(shape, ax, ay)
-    left, right = min(x, tag.x), max(x + w, tag.x + len(tag.lines[0]))
-    return left, y, right - left, tag.y + len(tag.lines) - y
-
-
-def _overlap(a: Rect, others: abc.Iterable[Rect]) -> int:
-    x, y, w, h = a
-    return sum(
-        max(0, min(x + w, ox + ow) - max(x, ox)) * max(0, min(y + h, oy + oh) - max(y, oy))
-        for ox, oy, ow, oh in others
-    )
-
-
-def _attached(ax: float, footprint: Rect, w: int, height: int) -> list[tuple[int, int]]:
-    """Spots for a list touching its tree, best first: below the tag, above the crown, then
-    beside it. Above or below, the list may slide sideways while it still spans the trunk.
-    """
-    fx, fy, fw, fh = footprint
-    trunk = round(ax)
-    centered = trunk - w // 2
-    slides = sorted(range(trunk - w + 4, trunk - 2, 2), key=lambda x: abs(x - centered))
-    return [
-        *((x, fy + fh + 1) for x in slides),
-        *((x, fy - height - 1) for x in slides),
-        *((fx + fw + _GAP, y) for y in range(fy, fy + max(1, fh - height + 1))),
-        *((fx - w - _GAP, y) for y in range(fy, fy + max(1, fh - height + 1))),
-    ]
-
-
-def _crowding(canvas: Canvas, rect: Rect, taken: list[Rect]) -> float:
-    """How much of *taken*, and the room kept around it, *rect* covers; off the screen, too much."""
-    x, y, w, h = rect
-    if not (x >= 1 and x + w <= canvas.width - 1 and y >= 1 and y + h <= canvas.height - 1):
-        return math.inf
-
-    return _overlap(rect, [(tx - _GAP, ty - 1, tw + 2 * _GAP, th + 2) for tx, ty, tw, th in taken])
-
-
-def _list_spot(
-    canvas: Canvas, ax: float, footprint: Rect, w: int, height: int, taken: list[Rect]
-) -> tuple[int, int]:
-    """The best spot touching the tree that overlaps nothing, else the one overlapping least:
-    a list never leaves its tree, so on a crowded screen it may cover a neighbor a little.
-    """
-    clear = [(x - _GAP, y - 1, rw + 2 * _GAP, rh + 2) for x, y, rw, rh in taken]
-    spots = [
-        (min(max(1, x), canvas.width - w - 1), min(max(1, y), canvas.height - height - 2))
-        for x, y in _attached(ax, footprint, w, height)
-    ]
-    return min(spots, key=lambda spot: _overlap((*spot, w, height), clear))
