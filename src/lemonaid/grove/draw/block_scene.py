@@ -84,9 +84,18 @@ def zoomed(
     letters = [arrangement.trees[(block.name, p.tree.key)].letter for p in planted]
     caps: list[Rect] = []  # the letters of the titles placed so far, kept in sight
     w = lemon_list.width(canvas.width)
+    labeled = [
+        dataclasses.replace(p.tree, label=arrangement.trees[(block.name, p.tree.key)].label)
+        for p in planted
+    ]
+    titles = [
+        trees.short_tag(tree, key_prefix + letter, w - 4).rstrip() + " "
+        for tree, letter in zip(labeled, letters, strict=True)
+    ]
     # Lists where they were last drawn first, while they cover no more than they did there, so
     # a list in a crowded block stays put as its neighbors change; then the rest.
-    for i in sorted(range(len(planted)), key=lambda i: planted[i].tree.key not in lists):
+    order = sorted(range(len(planted)), key=lambda i: planted[i].tree.key not in lists)
+    for i in order:
         p = planted[i]
         rows = len(p.tree.lemons) + 2  # its lemons, and its box's edges
         was = lists.get(p.tree.key)
@@ -96,20 +105,24 @@ def zoomed(
             x, y, covered = was
         else:
             others = [f for j, f in trees_at if j != i]
-            x, y = list_spot.spot(canvas, crowns[i], fitted[i], others, w, rows, taken, caps)
+            # Each list still to be placed keeps the spot hanging from its own tag.
+            reserved = [
+                (fitted[j].x - 1, fitted[j].y, w, len(planted[j].tree.lemons) + 2)
+                for j in order[order.index(i) + 1 :]
+            ]
+            x, y = list_spot.spot(
+                canvas, crowns[i], fitted[i], others, w, rows, [*taken, *reserved], caps
+            )
             covered = list_spot.crowding(canvas, (x, y, w, rows), taken)
         spots[p.tree.key] = (x, y)
-        caps.append((x + 2, y, len(key_prefix + letters[i]), 1))
+        at = list_spot.title_at(fitted[i].x, x, w, len(titles[i]))
+        caps.append((at + 1, y, len(key_prefix + letters[i]), 1))
         lists[p.tree.key] = (x, y, covered)
         taken.append((x, y, w, rows))
-    titles = []
-    for p in planted:
-        letter = arrangement.trees[(block.name, p.tree.key)].letter
-        labeled = dataclasses.replace(
-            p.tree, label=arrangement.trees[(block.name, p.tree.key)].label
-        )
-        title = trees.short_tag(labeled, key_prefix + letter, w - 4).rstrip() + " "
+    for i, p in enumerate(planted):
+        letter = letters[i]
         x, y = spots[p.tree.key]
+        at = list_spot.title_at(fitted[i].x, x, w, len(titles[i]))
         canvas.dim = p.dim
         canvas.target = (block.digit, letter)
         lemon_list.draw(
@@ -125,16 +138,25 @@ def zoomed(
             edited=highlight.edited if highlight else "",
             flipped=flipped,
             width=w,
-            tagged=len(title),
+            tagged=len(titles[i]),
+            tag_at=at - x - 1,
         )
-        titles.append((p, labeled, title, x, y, letter))
     # Every list's title, the tree's tag, over all the lists, so where a crowded screen makes lists
     # overlap, each tree's tag still shows.
-    for p, labeled, title, x, y, letter in titles:
+    for i, p in enumerate(planted):
+        x, y = spots[p.tree.key]
+        at = list_spot.title_at(fitted[i].x, x, w, len(titles[i]))
         canvas.dim = p.dim
-        canvas.target = (block.digit, letter)
+        canvas.target = (block.digit, letters[i])
         trees.draw_tag(
-            canvas, labeled, (title,), x + 1, y, (x + 1, y), phase, key=len(key_prefix + letter)
+            canvas,
+            labeled[i],
+            (titles[i],),
+            at,
+            y,
+            (at, y),
+            phase,
+            key=len(key_prefix + letters[i]),
         )
     canvas.target = ()
     canvas.dim = 0.0
