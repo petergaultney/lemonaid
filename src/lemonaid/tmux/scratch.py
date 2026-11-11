@@ -18,6 +18,7 @@ is written, because the follow hook runs inside the tmux server and can read
 options but not files. The files are what survives a server restart.
 """
 
+import fnmatch
 import os
 import subprocess
 import sys
@@ -345,7 +346,8 @@ def _get_pane_window(pane_id: str) -> str | None:
 
 
 def _get_current_window() -> str | None:
-    """The invoking window's ID, or None when there is no invoking pane or session.
+    """The invoking window's ID, or None when there is no invoking pane or session, or it is
+    one of lemonaid's hidden sessions: a key pressed in a popup, such as the grove's, runs there.
 
     Never tmux's untargeted "current", which is whichever session was active last.
     """
@@ -354,14 +356,15 @@ def _get_current_window() -> str | None:
         return None
 
     result = subprocess.run(
-        ["tmux", "display-message", *target, "-p", "#{window_id}"],
+        ["tmux", "display-message", *target, "-p", "#{window_id} #{session_name}"],
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
+    window, _, session = result.stdout.strip().partition(" ")
+    if result.returncode != 0 or fnmatch.fnmatchcase(session, follow.INTERNAL_SESSION_GLOB):
         return None
 
-    return result.stdout.strip() or None
+    return window or None
 
 
 def _session_exists() -> bool:

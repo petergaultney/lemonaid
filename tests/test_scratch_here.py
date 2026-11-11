@@ -129,3 +129,20 @@ def test_an_unnamed_session_moves_nothing(tmux, monkeypatch):
 
     assert scratch.ensure_scratch(size="40", position="left") == "no target"
     assert run("display", "-t", pane, "-p", "#{session_name}") == "a"
+
+
+def test_a_key_pressed_in_a_popup_puts_no_inbox_pane_there(tmux, monkeypatch):
+    """A popup's keys run in its hidden session, the grove's `_lma_grove`, whose window it shows."""
+    run, pane = tmux
+    run("new-session", "-d", "-s", "_lma_grove")
+    monkeypatch.setenv(
+        "TMUX",
+        f"{run('display', '-p', '#{socket_path}')},0,"
+        f"{run('display', '-t', '_lma_grove', '-p', '#{session_id}')[1:]}",
+    )
+
+    assert scratch.toggle_scratch(size="40", position="left") == "no target"
+    assert scratch.ensure_scratch(size="40", position="left") == "no target"
+    assert run("list-panes", "-t", "_lma_grove", "-F", "#{pane_id}").split() != [pane]
+    assert len(run("list-panes", "-t", "_lma_grove", "-F", "#{pane_id}").split()) == 1
+    assert run("display", "-t", pane, "-p", "#{session_name}") == "a"

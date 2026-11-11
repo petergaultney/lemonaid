@@ -51,7 +51,7 @@ HOOKS = ("session-window-changed", "client-session-changed", "client-attached")
 RETIRED_HOOKS = ("after-select-window",)  # fires alongside session-window-changed
 _HOOK_INDEX = 100
 _SCRATCH_SESSION = "_lma_scratch"
-_INTERNAL_SESSION_GLOB = "_lma_*"
+INTERNAL_SESSION_GLOB = "_lma_*"  # lemonaid's hidden sessions: the scratch pane's, popups'
 
 
 def size_option(position: str) -> str:
@@ -197,7 +197,7 @@ def hook_condition() -> str:
     return (
         f"#{{&&:#{{==:#{{{FOLLOW_OPTION}}},on}},"
         f"#{{&&:#{{session_attached}},"
-        f"#{{&&:#{{!:#{{m:{_INTERNAL_SESSION_GLOB},#{{session_name}}}}}},"
+        f"#{{&&:#{{!:#{{m:{INTERNAL_SESSION_GLOB},#{{session_name}}}}}},"
         f"#{{&&:{_pane_exists()},#{{!:{_pane_is_here()}}}}}}}}}}}"
     )
 
