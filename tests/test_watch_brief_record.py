@@ -392,6 +392,15 @@ def test_an_orphans_row_and_a_plain_row_stay_separate(brief, tmp_path):
     assert any("--orphans" in command for command in commands)
 
 
+def test_an_orphans_row_and_a_plain_row_with_equal_to_sets_stay_separate(brief, tmp_path):
+    to = ("--to", "merge", "--to", "done")
+    assert brief_record.record(args("briefs", tmp_path, "--orphans", *to), "briefs") == ""
+    assert brief_record.record(args("briefs", tmp_path, *to), "briefs") == ""
+    commands = waiters.commands(brief.read_text())
+    assert len(commands) == 2
+    assert any("--orphans" in command for command in commands)
+
+
 def test_a_self_waiter_beside_an_armed_watcher_still_records_its_row(brief, tmp_path, monkeypatch):
     monkeypatch.setattr(briefs_cli.wait_state, "is_armed", lambda lemon_id, grace=0: True)
     monkeypatch.setattr(

@@ -80,6 +80,7 @@ def _identity(
         target,
         getattr(a, "repo", "") or repo,
         a.me,
+        kind == "briefs" and a.orphans,
         tuple(sorted(set(a.to or (briefs_cli.orphan_to() if a.orphans else briefs_cli.CHILD_TO))))
         if kind == "briefs"
         else (),
