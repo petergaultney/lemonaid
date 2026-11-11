@@ -624,6 +624,7 @@ lemonaid brief waiter add --self "lemonaid watch repo --wait owner/repo --label 
 lemonaid brief waiter add --self "lemonaid watch reviews --wait --scope org:acme --once"  # PRs requesting your review or assigned to you, from now on;
                                                # with --backlog, a lemon's first subscription reports the ones already open
 lemonaid brief waiter add --self "lemonaid watch mentions --wait --scope org:acme --once"  # direct @mentions of you on PRs no lemon hears comments on
+lemonaid brief waiter add --self "lemonaid watch notifications --wait --every 30"  # new unread GitHub notifications, batched, for triage
 lemonaid brief waiter set --self "wait 12" --head e4f5a6b  # seed a standalone waiter; unified waits prefer their saved head
 lemonaid brief waiter set --self "wait 12" "<command>"  # or replace its whole command
 lemonaid brief waiter rm --self "wait 12"       # remove the one waiter whose command contains that
@@ -1104,7 +1105,7 @@ Bare URLs and vault paths in a bullet become short links, as in the brief view.
 root, which becomes an `obsidian://` link. `pr` and `doc` edit either layout and create
 level-2 sections when missing.
 
-With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch reviews`, `watch mentions`, `watch file`, `watch command`, and `watch briefs` automatically
+With an attached brief, `watch doc`, `watch pr`, `watch repo`, `watch reviews`, `watch mentions`, `watch notifications`, `watch file`, `watch command`, and `watch briefs` automatically
 record their commands as invoked under `## Watching` after startup checks pass, without
 inserting omitted defaults or temporary state paths. Rearms update
 the same entry; it stays across one-shot events. With `--codex-thread`, recording uses the
@@ -1458,6 +1459,18 @@ kinds. Details: [event-notes.md](event-notes.md).
 ## Watching subscription usage
 
 `lemonaid usage` prints one line per Claude and Codex limit window. `lemonaid usage --watch` blocks until usage crosses a step or its pace projects running out, prints one line per alert, and exits. Run it as a background Bash task and rearm it after each wake. See `docs/usage.md`.
+
+## Triaging GitHub notifications
+
+```bash
+lemonaid github notifications list --json      # unread threads with state, author, your review, and `acted`
+lemonaid github notifications show <id> --json # one thread, read or not
+lemonaid github notifications read <id> ...    # mark read; the only call that changes GitHub
+```
+
+`acted` is true when the user's account wrote an unsigned review or comment after the
+thread's latest activity. The `triage-notifications` skill says what a lemon may mark read
+on its own; see [GitHub notifications](github-notifications.md).
 
 ## Installing the skills
 

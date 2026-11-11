@@ -24,6 +24,7 @@ from . import (
     doc_cli,
     file_cli,
     mentions_cli,
+    notifications_wait_cli,
     pr_cli,
     repo_cli,
     reviews_cli,
@@ -102,6 +103,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         repo_cli,
         reviews_cli,
         mentions_cli,
+        notifications_wait_cli,
         briefs_cli,
     ):
         module.add_parser(sub)
@@ -118,7 +120,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         target = (repo, str(number))
     elif kind == "repo":
         target = (args.wait,)
-    elif kind in ("reviews", "mentions"):
+    elif kind in ("reviews", "mentions", "notifications"):
         target = reviews_cli.target(args.scope)
     elif kind == "briefs":
         target = (parent if args.use_self else args.lemon,)

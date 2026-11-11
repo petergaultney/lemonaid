@@ -46,15 +46,6 @@ def state_stem(state_dir: pathlib.Path, scope: abc.Sequence[str], me: str) -> pa
     return state_dir / ("mentions-" + hashlib.sha1(key.encode()).hexdigest()[:16])
 
 
-def in_scope(repo: str, scope: abc.Iterable[str]) -> bool:
-    """Whether *repo* matches any `org:`, `user:` or `repo:` qualifier; any repo when none."""
-    scope = [s.lower() for s in scope]
-    owner = repo.split("/", 1)[0].lower()
-    return not scope or any(
-        s == f"repo:{repo.lower()}" or s in (f"org:{owner}", f"user:{owner}") for s in scope
-    )
-
-
 def window(cursor: Cursor | None, now: datetime.datetime, backlog: bool) -> str | None:
     """Where to start reading notifications; None when the first poll takes all as seen."""
     if cursor is None:
@@ -93,7 +84,7 @@ def events(
         if (
             number is None
             or t.updated_at < start
-            or not in_scope(t.repo, scope)
+            or not notifications.in_scope(t.repo, scope)
             or watched(t.repo, number)
         ):
             continue

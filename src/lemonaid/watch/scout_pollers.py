@@ -17,6 +17,7 @@ from . import (
     github_failures,
     mention_events,
     notes,
+    notification_events,
     own_edits,
     own_pushes,
     path_presence,
@@ -115,16 +116,15 @@ def _reviews_poller(
     return poll
 
 
-def _mentions_poller(
+def _interval_poller(
     spec: subscriptions.Subscription,
     root: Path,
-    directory: Path,
-    me: str,
     deliver: abc.Callable[[str], bool],
     debounce: float,
+    label: str,
+    read: abc.Callable[[], bool | None],
 ) -> abc.Callable[[], object]:
-    scope = spec.target[1:]
-    stem = mention_events.state_stem(directory, scope, me)
+    """Runs *read* once per `spec.interval`; *read* returns None when GitHub can't be read."""
     failed = failure_state.path(root, spec, "github")
     next_at = 0.0
 
@@ -133,13 +133,10 @@ def _mentions_poller(
         if time.monotonic() < next_at:
             return
 
-        if (
-            mention_events.poll(stem, scope, deliver, pr_poller.hears_comments, spec.backlog)
-            is None
-        ):
-            _log.warning("Cannot read GitHub notifications for mentions")
+        if read() is None:
+            _log.warning("Cannot read GitHub for %s", label)
             next_at = time.monotonic() + github_failures.failed(
-                root, failed, "mentions", deliver, spec.interval, debounce
+                root, failed, label, deliver, spec.interval, debounce
             )
             return
 
@@ -240,7 +237,27 @@ def open_poller(
     if spec.kind == "reviews":
         return _reviews_poller(spec, root, directory, me, deliver, settings.github_debounce)
     if spec.kind == "mentions":
-        return _mentions_poller(spec, root, directory, me, deliver, settings.github_debounce)
+        stem = mention_events.state_stem(directory, spec.target[1:], me)
+        return _interval_poller(
+            spec,
+            root,
+            deliver,
+            settings.github_debounce,
+            "mentions",
+            lambda: mention_events.poll(
+                stem, spec.target[1:], deliver, pr_poller.hears_comments, spec.backlog
+            ),
+        )
+    if spec.kind == "notifications":
+        stem = notification_events.state_stem(directory, spec.target[1:], me)
+        return _interval_poller(
+            spec,
+            root,
+            deliver,
+            settings.github_debounce,
+            "notifications",
+            lambda: notification_events.poll(stem, spec.target[1:], deliver, spec.backlog),
+        )
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)

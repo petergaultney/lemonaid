@@ -112,7 +112,7 @@ than refusing to start.
 
 ## Cursors
 
-Every watcher (`doc`, `pr`, `repo`, `reviews`, `mentions`, `file`, `command` and `briefs`) compares what it watches with a saved
+Every watcher (`doc`, `pr`, `repo`, `reviews`, `mentions`, `notifications`, `file`, `command` and `briefs`) compares what it watches with a saved
 record of what it last reported to the lemon, its cursor, and reports what differs. So a
 push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
 is reported twice.
@@ -401,6 +401,12 @@ mentions that arrived meanwhile. One waiter per scope and lemon may run; `--once
 ```
 
 Stop it with `lemonaid watch stop --self mentions`.
+
+## Watching for notifications
+
+`lemonaid watch notifications` wakes a lemon, in batches, with your new unread GitHub
+notifications, for the `triage-notifications` skill. It is described with the commands it
+feeds in [GitHub notifications](github-notifications.md#waking-a-lemon-to-triage).
 
 ## Watching files and directories
 
