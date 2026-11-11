@@ -63,6 +63,11 @@ def _available(window: str) -> str | None:
     return pane
 
 
+def beside(window: str) -> bool:
+    """Whether the sidebar can show a brief for *window*: the scratch pane is on its left."""
+    return _available(window) is not None
+
+
 def show(found: target.Target, window: str) -> bool:
     """Replace the visible sidebar brief and focus the pane displaying it."""
     pane = _available(window)

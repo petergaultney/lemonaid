@@ -184,7 +184,11 @@ def test_b_in_the_sidebar_keeps_focus_on_the_inbox(monkeypatch, tmp_path):
     found = _target(tmp_path)
     with db.connect() as conn:
         row = db.add(
-            conn, "claude:brief-test", "working", "work", {"cwd": str(tmp_path), "tty": "/dev/test"}
+            conn,
+            "claude:brief-test",
+            "working",
+            "work",
+            {"cwd": str(tmp_path), "tty": "/dev/test", "tmux_session": "work", "tmux_window": "2"},
         )
         conn.execute("UPDATE notifications SET switch_source = 'tmux' WHERE id = ?", (row.id,))
         conn.commit()
@@ -201,6 +205,7 @@ def test_b_in_the_sidebar_keeps_focus_on_the_inbox(monkeypatch, tmp_path):
     monkeypatch.setattr(sidebar, "window_id", lambda _: "@target")
     monkeypatch.setattr(sidebar, "toggle", lambda item, window: True)
     monkeypatch.setattr(sidebar, "read", lambda pane: (found, "@target"))
+    monkeypatch.setattr(session, "current_session", lambda: "work:2")
     monkeypatch.setattr(
         LemonaidApp,
         "_switch_to_notification",
@@ -417,7 +422,7 @@ def test_the_usage_key_opens_usage_over_the_brief_and_closes_it(tmp_path):
     asyncio.run(check())
 
 
-def test_a_window_with_no_lemon_keeps_the_brief_shown(monkeypatch, tmp_path):
+def test_a_window_with_no_lemon_keeps_the_brief_shown_but_not_as_its_own(monkeypatch, tmp_path):
     _two_lemons(tmp_path)
     shown = _target(tmp_path)
     remembered: list[tuple[str, target.Target, str]] = []
@@ -432,7 +437,7 @@ def test_a_window_with_no_lemon_keeps_the_brief_shown(monkeypatch, tmp_path):
             app.query_one(BriefPane).sync()
             await pilot.pause()
             assert app.query_one(BriefPane).target == shown
-            assert remembered == [("%9", shown, "@landed")]
+            assert remembered == []
 
     asyncio.run(check())
 
@@ -454,6 +459,6 @@ def test_a_brief_browsed_to_locally_stays_when_a_window_has_no_lemon(monkeypatch
             pane.sync()
             await pilot.pause()
             assert pane.target == browsed
-            assert remembered == [("%9", browsed, "@landed")]
+            assert remembered == []
 
     asyncio.run(check())

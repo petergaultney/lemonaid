@@ -145,7 +145,8 @@ dragging still scroll when you request them.
 ## Brief
 
 When the scratch pane follows on the left, `b` shows the selected lemon's brief
-in place of the inbox without leaving the inbox pane. Up/down arrows (or the configured
+in place of the inbox without leaving the inbox pane. When that lemon is in another
+window, the main pane follows it there, as with the arrows below. Up/down arrows (or the configured
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
 the lemon's name means its inbox entry is unread; `M`, `Alt`+`m`, `r` and `Z` mark it read,
@@ -153,7 +154,8 @@ mark it unread, rename it, and undo, as in the list. `U` shows the usage view ov
 `Escape` closes it. `q` or `Escape` restores the inbox. `prefix+b` toggles
 the brief from the lemon pane. The brief stays open when you switch windows or sessions, by the grove or any
 other way, and shows the brief of the lemon in the window you land in. A window with no lemon of its own, such as
-a shell, keeps the brief you were looking at.
+a shell, keeps the brief you were looking at, still as that lemon's. Whenever the pane shows a brief, it checks in the
+background that the brief is its window's lemon's, and shows that lemon's brief if not.
 
 The brief's top line is attention mode's summary from the top of the inbox, drawn the same way: each
 status's badge counts its lemons in the column the inbox gives that status, right-justified as on the group
