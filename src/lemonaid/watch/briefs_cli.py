@@ -14,12 +14,22 @@ import time
 from .. import config, status_registry
 from ..brief import lemon, store
 from ..inbox import db
-from . import brief_record, briefs_events, cursors, delivery, notes, registry, waiter_lock
+from . import (
+    brief_record,
+    briefs_events,
+    cursors,
+    delivery,
+    notes,
+    push_scout,
+    registry,
+    wait_state,
+    waiter_lock,
+)
 
 CHILD_TO = ("merge", "done")
 
 
-def _orphan_to() -> tuple[str, ...]:
+def orphan_to() -> tuple[str, ...]:
     """What a parentless lemon's watcher wakes for: the statuses that are the user's move,
     a review from outside the grove, and done."""
     configured = config.brief_statuses()
@@ -56,10 +66,20 @@ def run(a: argparse.Namespace) -> int:
     state_dir = a.state_dir or cursors.directory("briefs", a.me, thread)
     state_dir.mkdir(parents=True, exist_ok=True)
     cursor_key = a.me if a.state_dir else ""
-    to = frozenset(a.to or (_orphan_to() if a.orphans else CHILD_TO))
+    to = frozenset(a.to or (orphan_to() if a.orphans else CHILD_TO))
     lock_path = briefs_events.state_stem(state_dir, parent, cursor_key, to, a.orphans).with_suffix(
         ".lock"
     )
+    if a.use_self and wait_state.is_armed(parent):
+        if not a.status and (error := brief_record.record(a, "briefs", thread)):
+            print(f"not started: could not record waiter: {error}")
+            return 2
+        print(
+            f"{'push scout' if push_scout.running(parent) else 'watcher'} running; "
+            "it watches this from your brief's ## Watching, nothing to rearm"
+        )
+        return 0
+
     if a.status:
         running = waiter_lock.held(lock_path)
         print(

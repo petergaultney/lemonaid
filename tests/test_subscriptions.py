@@ -1,5 +1,5 @@
 from lemonaid.brief import doc_table
-from lemonaid.watch import subscriptions
+from lemonaid.watch import briefs_cli, subscriptions
 
 from .wait import shared
 
@@ -172,3 +172,10 @@ def test_with_link_nudge_off_only_pr_rows_are_watched(tmp_path):
 
     [pr] = [s for s in specs if s.kind == "pr"]
     assert (pr.target[1], pr.role, pr.mentioned) == ("12", "author", False)
+
+
+def test_an_orphans_briefs_row_wakes_for_the_same_statuses_as_the_cli(tmp_path):
+    text = shared.BRIEF + "- `lemonaid watch briefs --children --orphans --self --once`\n"
+    spec = next(s for s in subscriptions.read(text, tmp_path) if s.kind == "briefs")
+    assert spec.orphans
+    assert spec.to == frozenset(briefs_cli.orphan_to())

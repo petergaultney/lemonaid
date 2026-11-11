@@ -141,14 +141,15 @@ through its inbox socket; the file moves to `done/` as the record. See
 [the push scout](watch.md#the-push-scout).
 
 Otherwise a Claude lemon can only be woken by its own background task, so it keeps
-`lemonaid mailbox watch --self` running, and rearms it whenever the harness
-stops it. Claude Code stops background tasks after 30 minutes unless the
+`lemonaid watch --self` running, and rearms it whenever the harness
+stops it. That watcher also delivers the mailbox. Claude Code stops background tasks after 30 minutes unless the
 user raises the limit; see [Claude setup](claude.md#2-keep-background-waiters-running).
-The watch holds
+While a push scout or `lemonaid watch --self` runs, `lemonaid mailbox watch --self`
+prints `push scout running` or `watcher running` and exits 0. Otherwise the watch holds
 `<mailbox>/.waiter.lock` while it waits, and a second watch for the same lemon
 exits with an error naming the first one's pid. The optional Stop hook
 `lemonaid claude waiter-check` blocks a lemon with an attached brief (unless it
-is `done`) from ending its turn while no watch holds that lock. It waits up to
+is `done`) from ending its turn while no watcher runs for it. It waits up to
 three seconds for a watch that is still starting, and lets the second
 consecutive stop through, so a lemon that cannot arm one is never stuck.
 Install it with `lemonaid claude hooks --waiter-check` (`--uninstall` removes it).

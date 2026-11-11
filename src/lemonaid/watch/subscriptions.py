@@ -141,7 +141,9 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
     if kind == "repo":
         values["labels"], values["exclude_authors"] = tuple(args.label), tuple(args.exclude_author)
     values["to"] = (
-        frozenset(args.to or briefs_cli.CHILD_TO) if kind == "briefs" else Subscription.to
+        frozenset(args.to or (briefs_cli.orphan_to() if args.orphans else briefs_cli.CHILD_TO))
+        if kind == "briefs"
+        else Subscription.to
     )
     return Subscription(kind, target, args.me or me, tuple(getattr(args, "legacy", ())), **values)
 

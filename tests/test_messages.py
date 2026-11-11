@@ -394,3 +394,26 @@ def test_watch_stops_when_attachment_moves_or_timeout(tmp_path):
 
     with pytest.raises(TimeoutError, match="timeout"):
         store.watch_next(mailbox, lambda: True, timeout=0.01, interval=0.01)
+
+
+def test_watch_beside_an_armed_watcher_is_a_no_op(capsys, monkeypatch):
+    _attach("claude:recipient", "recipient")
+    monkeypatch.setattr(cli.wait_state, "is_armed", lambda lemon_id, grace=0: True)
+    monkeypatch.setattr(cli.push_scout, "running", lambda lemon_id, session_id="": True)
+    monkeypatch.setattr(
+        store, "watch_next", lambda *args, **kwargs: pytest.fail("started a second watcher")
+    )
+
+    _run(_parser(), "mailbox", "watch", "--self", "--channel", "claude:recipient")
+
+    assert "push scout running; " in capsys.readouterr().out
+
+
+def test_next_beside_an_armed_watcher_still_takes_a_message(capsys, monkeypatch):
+    _attach("claude:recipient", "recipient")
+    store.send(_mailbox("recipient"), "Waiting for you", "claude:sender")
+    monkeypatch.setattr(cli.wait_state, "is_armed", lambda lemon_id, grace=0: True)
+
+    _run(_parser(), "mailbox", "next", "--self", "--channel", "claude:recipient")
+
+    assert "Waiting for you" in capsys.readouterr().out

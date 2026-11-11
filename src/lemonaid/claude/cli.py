@@ -256,7 +256,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         "--waiter-check",
         action="store_true",
         help="Act on the Stop hook that blocks a briefed lemon from ending a turn "
-        "without `lemonaid mailbox watch --self` running",
+        "while no watcher runs for its brief",
     )
     hooks_parser.add_argument(
         "--session-end",

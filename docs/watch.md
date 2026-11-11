@@ -488,10 +488,11 @@ status is selected. The ask reported with a status event is the first `### Needs
 section (also a bare `### Needs`), or an older `- Needs <name>:` bullet and its
 continuation lines. Whitespace and bullet marks are normalized.
 
-A Claude lemon with children cannot end its turn until some `watch briefs --children`
-waiter is running for it. Any form counts, including `--orphans`, `--to` and `--me`, whichever
-lemon started it, so one `--orphans` waiter is enough and no second one is needed. The hook
-does not check which statuses the waiter wakes on.
+A Claude lemon with children cannot end its turn until a watcher for its brief runs: its
+push scout or `lemonaid watch --self`. That watcher reads a `watch briefs` row under
+`## Watching` as a subscription. While it runs, `watch briefs --children --self` records its
+row, prints `push scout running` or `watcher running`, and exits 0 without waiting, and so
+does `--status`.
 
 A report can end with your own [event notes](event-notes.md), one for each kind of event in it,
 such as `child.done` for a child entering `done`.

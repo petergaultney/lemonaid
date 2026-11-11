@@ -382,3 +382,21 @@ def test_invalid_context_refuses_registration_without_changing_brief(brief, tmp_
     brief.with_name(f".{brief.name}.waiter-context.json").write_text('{"command": []}')
     assert "Invalid waiter context" in brief_record.record(args("pr", tmp_path), "pr", repo="o/r")
     assert brief.read_text() == before
+
+
+def test_an_orphans_row_and_a_plain_row_stay_separate(brief, tmp_path):
+    assert brief_record.record(args("briefs", tmp_path, "--orphans"), "briefs") == ""
+    assert brief_record.record(args("briefs", tmp_path), "briefs") == ""
+    commands = waiters.commands(brief.read_text())
+    assert len(commands) == 2
+    assert any("--orphans" in command for command in commands)
+
+
+def test_a_self_waiter_beside_an_armed_watcher_still_records_its_row(brief, tmp_path, monkeypatch):
+    monkeypatch.setattr(briefs_cli.wait_state, "is_armed", lambda lemon_id, grace=0: True)
+    monkeypatch.setattr(
+        briefs_cli, "_wait", lambda *args, **kwargs: pytest.fail("started a second watcher")
+    )
+
+    assert briefs_cli.run(args("briefs", tmp_path, "--orphans", "--once")) == 0
+    assert any("--orphans" in command for command in waiters.commands(brief.read_text()))
