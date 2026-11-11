@@ -35,3 +35,23 @@ def test_a_list_whose_title_would_sit_nearer_another_tree_goes_where_it_reads_as
     title = (x + 1, y, len(TAG.lines[0]), 1)
     assert list_spot._apart(title, FOOTPRINT) < list_spot._apart(title, neighbor)
     assert x == CROWN[0] + CROWN[2] + list_spot.GAP
+
+
+def test_a_list_with_no_room_at_its_tree_goes_to_the_nearest_free_room_level_with_it():
+    hemmed = [(0, 0, 200, CROWN[1] - 1), (0, TAG.y + 1, 200, 20), (CROWN[0] + CROWN[2], 0, 40, 60)]
+    x, y = list_spot.spot(canvas.blank(200, 60), CROWN, TAG, (), W, H, [FOOTPRINT, *hemmed])
+    assert x + W <= CROWN[0] - list_spot.GAP + 3 and CROWN[1] - H <= y <= CROWN[1] + CROWN[3]
+
+
+def test_a_list_may_hang_to_the_left_of_its_tag_so_its_title_still_sits_under_the_tree():
+    right_taken = [(TAG.x + len(TAG.lines[0]) + 1 + list_spot.GAP, TAG.y, 100, H + 2)]
+    x, y = list_spot.spot(canvas.blank(200, 60), CROWN, TAG, (), W, H, [FOOTPRINT, *right_taken])
+    tlen = len(TAG.lines[0])
+    assert y == TAG.y and x + W == TAG.x + tlen + 1
+    assert list_spot.title_at(TAG.x, x, W, tlen) == TAG.x
+
+
+def test_a_list_covering_a_neighbor_at_its_tree_beats_a_free_spot_far_across_the_screen():
+    crowded = [(0, 0, 300, 60)]  # all the room within 200 columns is taken
+    x, y = list_spot.spot(canvas.blank(400, 60), CROWN, TAG, (), W, H, [FOOTPRINT, *crowded])
+    assert y == TAG.y and abs(x - TAG.x) < W

@@ -10,6 +10,7 @@ from .canvas import Canvas
 
 Rect = tuple[int, int, int, int]
 GAP = 2  # columns kept clear beside a list; one row above and below
+COVER_PER_COLUMN = 4  # cells covered that count as one more column from the tree
 
 
 def footprint(crown: Rect, tag: tag_fit.Fitted) -> Rect:
@@ -47,16 +48,34 @@ def _apart(a: Rect, b: Rect) -> float:
     return math.hypot(max(0, bx - ax - aw, ax - bx - bw), 2 * max(0, by - ay - ah, ay - by - bh))
 
 
-def _beside(crown: Rect, tag: tag_fit.Fitted, height: int) -> list[tuple[int, int, bool]]:
+def title_at(tag_x: int, x: int, w: int, title: int) -> int:
+    """The column of a *title*-wide title on the top border of a list at *x*, *w* wide: under the
+    tree's tag at *tag_x* when the border reaches it, else as near as the border gets.
+    """
+    return min(max(tag_x, x + 1), x + w - 1 - title)
+
+
+def _beside(
+    crown: Rect, tag: tag_fit.Fitted, height: int, width: int, w: int
+) -> list[tuple[int, int, bool]]:
     """Spots for a list at its tree, best first, each saying whether the list hangs from the tag,
-    where it may cover the tag as its title shows it. None left of the tag, where the title would
-    read as a tree's to the left.
+    where it may cover the tag as its title shows it. A hanging list's title slides along its top
+    border to sit under the tree, so the list may extend right from the tag, or left from it.
+    After those come spots across the screen's width, on rows around the crown, for a crowded
+    block to use the room beside it: `spot` picks the nearest.
     """
     cx, cy, cw, ch = crown
+    end = tag.x + len(tag.lines[0]) + 1
     return [
         *((tag.x - 1 - slide, tag.y, True) for slide in (0, 2, 4)),
+        *((end - w + slide, tag.y, True) for slide in (0, 2, 4)),
         (tag.x - 1, cy - height - 1, False),
         *((cx + cw + GAP, y, False) for y in range(cy, cy + ch)),
+        *(
+            (x, y, False)
+            for y in range(cy - height, cy + ch + height + 1, 2)
+            for x in range(1, width - w, 3)
+        ),
     ]
 
 
@@ -71,10 +90,12 @@ def spot(
     caps: abc.Sequence[Rect] = (),
 ) -> tuple[int, int]:
     """The spot at its tree whose list covers least of *taken*, its own crown and tag, and the room
-    kept around the rest; then one whose title is nearer its tree than any of *others*, the other
-    trees' footprints; then the first by `_beside`'s order. On a crowded screen a list may cover
-    a neighbor a little, but it never leaves its tree, and covers as little as it can of *caps*,
-    the letters of other lists' titles.
+    kept around the rest. A list never covers its own crown when another spot avoids it, nor puts
+    its title nearer another tree than its own if it can help it, and covers as little as it can
+    of *caps*, the letters of other lists' titles. Otherwise a spot's cost is its title's distance
+    from its tree in columns plus the cells it covers over `COVER_PER_COLUMN`, so a list covers a
+    neighbor a little before it goes far from its tree. Spots at the tree that cover nothing keep
+    `_beside`'s order.
     """
     own = footprint(crown, tag)
     clear = _kept_clear(r for r in taken if r != own)
@@ -85,11 +106,14 @@ def spot(
         len(tag.lines),
     )  # a list hanging from it may cover it
 
-    def cost(i: int, x: int, y: int, hangs: bool) -> tuple[int, int, bool, int]:
-        rect, title = (x, y, w, height), (x + 1, y, len(tag.lines[0]), 1)
+    def cost(i: int, x: int, y: int, hangs: bool) -> tuple[int, bool, bool, float, int]:
+        tlen = len(tag.lines[0])
+        rect, title = (x, y, w, height), (title_at(tag.x, x, w, tlen), y, tlen, 1)
         covers = overlap(rect, [*clear, crown, *(() if hangs else (tagged,))])
         astray = min((_apart(title, o) for o in others), default=math.inf) < _apart(title, own)
-        return overlap(rect, caps), covers, astray, i
+        away = _apart(title, own)
+        score = 0.0 if i < 7 + crown[3] and not covers else away + covers / COVER_PER_COLUMN
+        return overlap(rect, caps), overlap(rect, [crown]) > 0, astray, score, i
 
     _, x, y, _ = min(
         (
@@ -99,7 +123,7 @@ def spot(
                 min(max(1, y), canvas.height - height - 2),
                 hangs,
             )
-            for i, (x, y, hangs) in enumerate(_beside(crown, tag, height))
+            for i, (x, y, hangs) in enumerate(_beside(crown, tag, height, canvas.width, w))
         ),
         key=lambda s: cost(*s),
     )

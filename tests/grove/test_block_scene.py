@@ -14,7 +14,7 @@ def test_each_list_is_titled_with_its_trees_tag_then_its_place_key_muted():
     for key, (x, y, w, _) in spots.items():
         st = arrangement.trees[("g", key)]
         title = "".join(cell.char for cell in c.rows[y][x + 1 : x + w - 1])
-        assert title.startswith(f" {st.letter}  {st.label} ") and key in title
+        assert f" {st.letter}  {st.label} " in title and key in title
         at = x + 1 + title.index(key)
         assert c.rows[y][at].fg == colors.MUTED and c.rows[y][at].target == ("1", st.letter)
 
