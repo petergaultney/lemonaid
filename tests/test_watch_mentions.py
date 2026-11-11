@@ -233,7 +233,9 @@ def test_a_rearmed_mentions_waiter_is_the_same_watch():
 
 def test_the_scout_poller_reports_a_new_mention_once(tmp_path, monkeypatch):
     just_now = mention_events.iso(datetime.datetime.now(datetime.UTC))
-    monkeypatch.setattr(notifications, "fetch", lambda since, participating: [_thread()])
+    monkeypatch.setattr(
+        notifications, "fetch", lambda since, participating: [_thread(updated=just_now)]
+    )
     monkeypatch.setattr(
         mention_comments,
         "read",
