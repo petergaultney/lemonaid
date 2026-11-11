@@ -8,7 +8,7 @@ from ..codex import daemon_setup
 from ..config import BackendConfig, load_config
 from ..inbox import doctor
 from ..restore import cli as restore_cli
-from . import labels_cli, popup_cli, scratch
+from . import labels_cli, popup_cli, scratch, scratch_brief
 from . import restart as tmux_restart
 from .navigation import go_back, swap_back_location
 from .scratch import ensure_scratch, set_follow, toggle_scratch
@@ -33,6 +33,9 @@ def cmd_swap(args: argparse.Namespace) -> None:
     target_session, target_pane = swap_back_location(args.session, args.pane_id)
     if target_session is not None and target_pane is not None:
         print(f"{target_session}|{target_pane}")
+
+
+_OPENED = ("shown", "created", "selected")  # toggle results that leave the pane to be read
 
 
 def cmd_scratch(args: argparse.Namespace) -> None:
@@ -72,6 +75,9 @@ def cmd_scratch(args: argparse.Namespace) -> None:
             position=position,
             follow_default=config.tmux_session.follow_scratch,
         )
+        view = args.view or config.tmux_session.scratch_view
+        if view == "brief" and result in _OPENED:
+            scratch_brief.show_here()
 
     if args.verbose or args.restart:
         print(result)
@@ -197,6 +203,13 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("top", "left"),
         default=None,
         help="Move the scratch pane to this edge, and keep it there",
+    )
+    scratch_parser.add_argument(
+        "--view",
+        choices=("inbox", "brief"),
+        default=None,
+        help="What a toggle that opens the pane shows: the inbox, or the brief of the window"
+        " you pressed it in (default: scratch_view in config)",
     )
     scratch_parser.add_argument(
         "--flip",

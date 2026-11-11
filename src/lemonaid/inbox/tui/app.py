@@ -17,7 +17,7 @@ from textual.widget import Widget
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from textual.widgets.data_table import RowKey
 
-from ... import brief, messages
+from ... import brief, keys, messages
 from ...claude import patch_status
 from ...claude.patcher import find_binary
 from ...config import load_config
@@ -246,6 +246,13 @@ class LemonaidApp(CrashLoggedApp):
         self._input_watchdog.start()
         self.title = "lemonaid"
         self.sub_title = "attention inbox"
+        if keys.inbox_key_collisions(self.config.tui.keybindings):
+            self.notify(
+                f"[tui.keybindings] inbox = {self.config.tui.keybindings.inbox!r} is already "
+                'bound to something else, so it does nothing. Set another key, or "" to silence this.',
+                severity="warning",
+                timeout=10,
+            )
         if (
             self._scratch_mode
             and self.config.tmux_session.autosave_scratch_size
@@ -1223,6 +1230,11 @@ class LemonaidApp(CrashLoggedApp):
             and self.query_one(BriefPane).toggle(target)
         ):
             brief.popup.open_popup(target)
+
+    def action_inbox(self) -> None:
+        """Leave a brief view for the inbox list."""
+        if self._brief_target is not None:
+            self.query_one(BriefPane).dismiss()
 
     def action_jump_unread(self) -> None:
         """Jump directly to the earliest unread session."""

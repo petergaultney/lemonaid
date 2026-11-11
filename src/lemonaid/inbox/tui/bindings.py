@@ -69,6 +69,8 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     yield from build_bindings(kb.resume_detached, "resume_detached", "Resume")
 
     yield from build_bindings(kb.brief, "brief", "Brief")
+    if not keys.inbox_key_collisions(kb):
+        yield from build_bindings(kb.inbox, "inbox", "Inbox", show=False)
     if kb.brief_key:
         # Textual gives Tab to focus-next, so this has to come first; check_action
         # hands the key back where something else wants it.
@@ -181,6 +183,7 @@ _WHILE_BRIEF_SHOWN = frozenset(
         "quit_process",
         "back",
         "brief",
+        "inbox",
         "refresh",
         "help",
         "flip_position",
