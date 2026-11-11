@@ -21,6 +21,7 @@ from . import deaf_waiter, delivery, registry, scout_roster, scout_start, stop_s
 _log = get_logger("watch.push_scout")
 
 FLAG = "--push"
+RESTART_WAIT = 60.0  # the host takes up to 40s to stop its scouts, then re-execs
 _INSTRUCTION = (
     "Handle the entire batch. Comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event. lemonaid is watching for you "
     "and pushes the next batch into this session."
@@ -162,22 +163,31 @@ def _exit(fields: str, reason: str, normal: bool) -> None:
     )
 
 
-def _hosted(lemon_id: str, channel: str, grace: float) -> bool:
+def _hosted(lemon_id: str, channel: str, grace: float, restart_wait: float) -> bool:
     deadline = time.monotonic() + grace
+    restart_deadline = time.monotonic() + restart_wait
     while channel not in _scout_channels(lemon_id) or not wait_state.is_armed(lemon_id):
-        if time.monotonic() >= deadline:
+        now = time.monotonic()
+        if now >= deadline and not (now < restart_deadline and scout_roster.restarting()):
             return False
 
         time.sleep(0.1)
     return True
 
 
-def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) -> bool:
+def ensure(
+    session_id: str,
+    lemon_id: str,
+    grace: float = 3.0,
+    wait: float = 0,
+    restart_wait: float = RESTART_WAIT,
+) -> bool:
     """Have the scout host push into *session_id* for the lemon unless a waiter it armed itself runs; whether one now does.
 
     A scout still pushing into the lemon's previous session (before `/clear` or a resume)
     is replaced: the new registration stops a hosted one, and an older scout process exits
-    once it notices its session is gone.
+    once it notices its session is gone. While the host is restarting, waits up to
+    *restart_wait* seconds past *grace* for the new host to start the scout.
     """
     channel = channel_id("claude", session_id)
     deaf_waiter.clear(lemon_id, channel)
@@ -197,7 +207,7 @@ def ensure(session_id: str, lemon_id: str, grace: float = 3.0, wait: float = 0) 
         _log.warning("could not start a push scout for %s: %s", lemon_id, error)
         return False
 
-    if _hosted(lemon_id, channel, grace):
+    if _hosted(lemon_id, channel, grace, restart_wait):
         return True
 
     _log.warning(

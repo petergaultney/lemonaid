@@ -46,6 +46,10 @@ def host_lock_path() -> pathlib.Path:
     return _state() / "scout-host.lock"
 
 
+def _restarting_path() -> pathlib.Path:
+    return _state() / "scout-host.restarting"
+
+
 def log_path() -> pathlib.Path:
     """Where the host and every scout it runs write their output."""
     return _state() / "push-scout.log"
@@ -127,3 +131,24 @@ def serving(lemon_id: str, host: int) -> bool:
         and waiter_lock.held(lock)
         and waiter_lock.lock_holder(lock).startswith(f"pid {host} ")
     )
+
+
+def mark_restarting() -> None:
+    """Record that this process, the host, is stopping its scouts to restart; `host_started` clears it."""
+    _restarting_path().parent.mkdir(parents=True, exist_ok=True)
+    _restarting_path().write_text(str(os.getpid()))
+
+
+def host_started() -> None:
+    _restarting_path().unlink(missing_ok=True)
+
+
+def restarting() -> bool:
+    """Whether a host that marked itself restarting still runs, so its replacement is coming."""
+    try:
+        pid = int(_restarting_path().read_text())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+
+    return True

@@ -126,6 +126,7 @@ def serve(
     if lock is None:
         return 3
 
+    scout_roster.host_started()
     pacing = _pacing() if run is None else waits.TIMERS
     run = run or functools.partial(hosted_scout.run, pacing=pacing)
     scouts: dict[str, _Scout] = {}
@@ -156,6 +157,8 @@ def serve(
                     break
                 time.sleep(_TICK)
     finally:
+        if restart.requested():
+            scout_roster.mark_restarting()
         _stop_all(scouts, quitting, pacing)
         for service in running:
             service.join()
