@@ -104,3 +104,17 @@ def _conflicts(view: str, actions: abc.Mapping[str, abc.Iterable[str]]) -> abc.I
 
 def conflicts(kb: "KeybindingsConfig") -> list[str]:
     return [*_conflicts("inbox", _inbox(kb)), *_conflicts("brief", _brief(kb))]
+
+
+def inbox_key_collisions(kb: "KeybindingsConfig") -> list[str]:
+    """The views whose own keys already include the inbox key, which then goes unbound there.
+
+    Left out of `conflicts` so that a config predating the key isn't warned about
+    on every command; the TUI says so once instead.
+    """
+    taken = {_name(key) for key in key_names(kb.inbox) if key}
+    return [
+        view
+        for view, actions in (("inbox", _inbox(kb)), ("brief", _brief(kb)))
+        if taken & {_name(key) for keys in actions.values() for key in keys if key}
+    ]

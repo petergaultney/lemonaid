@@ -92,6 +92,9 @@ class TmuxSessionConfig:
     # switching position keeps the size you chose for each.
     scratch_height: str = "10"
     scratch_width: str = "45"
+    # What `tmux scratch` opens the pane on: "inbox", or "brief" for the brief of
+    # the window you pressed it in. `--view` overrides it per binding.
+    scratch_view: str = "inbox"
     # When true, the scratch pane follows across window/session switches.
     follow_scratch: bool = False
     autosave_scratch_size: bool = False
@@ -151,6 +154,7 @@ class KeybindingsConfig:
     # Unlike the fields above, these name one key each rather than a set of
     # single-character alternatives, so that they can be a named key or carry a modifier.
     brief_key: str = ""  # A second key for brief
+    inbox: str = "i"  # In a brief view, back to the inbox list
     group_key: str = "tab"  # Open or collapse the group of the row under the cursor
     grove: str = "space"  # Open the grove map, and close it again
     move_pin_up: str = "shift+up"
@@ -715,6 +719,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
             "scratch_height", tmux_session_defaults.scratch_height
         ),
         scratch_width=tmux_session_data.get("scratch_width", tmux_session_defaults.scratch_width),
+        scratch_view=tmux_session_data.get("scratch_view", tmux_session_defaults.scratch_view),
         follow_scratch=tmux_session_data.get("follow_scratch", False),
         autosave_scratch_size=tmux_session_data.get("autosave_scratch_size", False),
         popup_margin=max(0, int(tmux_session_data.get("popup_margin", 3))),

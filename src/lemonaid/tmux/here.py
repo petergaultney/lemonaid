@@ -11,6 +11,7 @@ A `run-shell` job has no TMUX_PANE, but tmux sets TMUX to
 """
 
 import os
+import subprocess
 
 
 def target() -> list[str]:
@@ -23,3 +24,26 @@ def target() -> list[str]:
         return ["-t", f"${fields[2]}"]
 
     return []
+
+
+def window() -> tuple[str, str, str] | None:
+    """The invoking window's session name, window index and window id, if tmux can say."""
+    if not (named := target()):
+        return None
+
+    result = subprocess.run(
+        [
+            "tmux",
+            "display-message",
+            *named,
+            "-p",
+            "#{session_name}\t#{window_index}\t#{window_id}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    found = result.stdout.strip().split("\t")
+    if result.returncode != 0 or len(found) != 3:
+        return None
+
+    return found[0], found[1], found[2]

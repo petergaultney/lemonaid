@@ -322,6 +322,7 @@ undo = "Z"
 rename = "r"
 brief = "b"  # show the session's brief
 brief_key = ""  # a second key for brief, as a key name
+inbox = "i"  # in a brief view, back to the inbox list
 group_key = "tab"  # collapse or open the group the cursor is in
 history = "h"  # toggle history view
 search = "/"  # search inbox and archive sessions; filter in history

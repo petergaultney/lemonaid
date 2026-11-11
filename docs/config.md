@@ -84,6 +84,7 @@ See [wezterm.md](wezterm.md).
 |-----|---------|-------------|
 | `scratch_position` | `"left"` | Which edge the scratch pane starts against: `top` or `left`. Move it at runtime with `--flip` or `F` in `lma`; that choice is remembered per tmux server. |
 | `scratch_height` | `"10"` | Height of the scratch pane on top, in rows. |
+| `scratch_view` | `"inbox"` | What `lemonaid tmux scratch` shows when it opens the pane: `inbox`, or `brief` for the brief of the window you pressed the key in (needs follow mode with the pane on the left; otherwise the inbox shows). A binding's `--view` overrides it. Press `i` or `b` in a brief to reach the inbox. |
 | `scratch_width` | `"45"` | Width of the scratch pane on the left, in columns. |
 | `autosave_scratch_size` | `false` | In follow mode, save settled scratch pane resizes automatically. Ctrl+s remains available to save explicitly. Restart the scratch inbox after changing this setting. See [tmux.md](tmux.md#saving-the-pane-size). |
 | `popup_margin` | `3` | Cells a fast tmux popup, such as the grove's, leaves clear on every side of the window. See [tmux.md](tmux.md#fast-popups). |
