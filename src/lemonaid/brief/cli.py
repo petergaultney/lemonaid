@@ -157,6 +157,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             pr.configured(config.brief.pr_state),
             config.places.roots,
             config.brief.vaults,
+            render.SummaryPolicy(config.brief.summary_open, config.brief.summary_long),
         )
     )
     print(render.to_markdown(shown, now, args.questions))

@@ -997,7 +997,7 @@ still works and warns; templates must use `$output_doc*` now.
 A template contains optional header fields followed by the brief's sections, with `$name`
 placeholders (`$$` is a literal `$`). Lemonaid packages two:
 
-- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, `## Executive Summary of Results` and `## Watching`.
+- `child` (the default): empty `## Goal`, `## Context`, `## Limits`, `## Acceptance Criteria`, and `## Watching`; a lemon adds `## Executive Summary of Results` when it finishes.
 - `review`: starts with `Hidden: yes`, keeping the reviewer out of the default inbox without
   a separate `brief hide` command. It requests a cross-harness review of `--pr` (a URL, or a
   number with `--repo owner/name`), with

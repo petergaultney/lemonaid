@@ -3,6 +3,8 @@
 import dataclasses
 from pathlib import Path
 
+import pytest
+
 from lemonaid.brief import render, target
 
 _WHERE = {"tmux_session": "work", "directory": "~/work", "branch": "feat/x"}
@@ -50,6 +52,30 @@ def test_brief_show_includes_the_results_summary(tmp_path):
     out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
 
     assert "**Executive Summary of Results:** The feature shipped." in out
+
+
+@pytest.mark.parametrize(
+    ("status", "summary", "shown"),
+    [
+        ("merge", "Shipped it.", "**Executive Summary of Results:** Shipped it."),
+        ("blocked", "Leave this blank.", "▸ Executive Summary of Results\n"),
+        ("blocked", "x" * 400, "▸ Executive Summary of Results (400 characters)"),
+    ],
+)
+def test_the_results_summary_is_expanded_for_some_statuses_and_collapsed_for_the_rest(
+    tmp_path, status, summary, shown
+):
+    path = _brief(
+        tmp_path,
+        "task",
+        f"# Task\n\nStatus: {status}\n\n## Now\n- Done: x\n\n"
+        f"## Executive Summary of Results\n\n{summary}\n",
+    )
+
+    out = render.markdown(target.Target([path], [], None, [], "", lemon=_AUTHOR), 0, _no_prs)
+
+    assert shown in out
+    assert (summary in out) == (status == "merge")
 
 
 def test_sub_headings_render_like_bullets(tmp_path):

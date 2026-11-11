@@ -178,6 +178,15 @@ def test_brief_pr_state_command_is_read_from_config():
     assert _parse_config({"brief": {"pr_state": "tool {ref}"}}).brief.pr_state == "tool {ref}"
 
 
+def test_brief_summary_settings_default_to_the_outcome_statuses_and_read_from_config():
+    default = _parse_config({}).brief
+    assert default.summary_open == ("done", "merge", "approve", "review")
+    assert default.summary_long == 300
+
+    custom = _parse_config({"brief": {"summary_open": ["Merge"], "summary_long": 80}}).brief
+    assert (custom.summary_open, custom.summary_long) == (("merge",), 80)
+
+
 def test_brief_vaults_expand_their_roots_and_default_to_none():
     assert _parse_config({}).brief.vaults == ()
     assert _parse_config({"brief": {"vaults": ["~/notes", "/srv/kb"]}}).brief.vaults == (

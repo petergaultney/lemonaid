@@ -18,7 +18,7 @@ from textual.binding import Binding, BindingsMap
 from textual.content import Content, Span
 from textual.geometry import Size
 from textual.style import Style
-from textual.widgets import Markdown, Rule, Static
+from textual.widgets import Collapsible, Markdown, Rule, Static
 from textual.widgets._markdown import (  # no public name
     MarkdownBlock,
     MarkdownTable,
@@ -260,6 +260,10 @@ class BriefView(scroll_position.StableScroll):
         color: $warning;
         margin-bottom: 1;
     }}
+    BriefView .brief-summary {{
+        padding: 0;
+        border-top: none;
+    }}
     BriefView Rule {{
         color: $foreground 30%;
         margin: 0;
@@ -286,9 +290,11 @@ class BriefView(scroll_position.StableScroll):
         mid_turn_working: bool = False,
         roots: abc.Sequence[PlaceRoot] = (),
         neutral_timing: bool = False,
+        summary: render.SummaryPolicy = render.DEFAULT_SUMMARY,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
+        self._summary = summary
         self._mid_turn_working = mid_turn_working
         self._neutral_timing = neutral_timing
         self._roots = roots
@@ -361,11 +367,11 @@ class BriefView(scroll_position.StableScroll):
                 _Card(section, shown.in_session, now, unread, self._neutral_timing),
                 *(
                     [
-                        _Markdown(
-                            links.linkify(
-                                "## Executive Summary of Results\n\n" + section.summary,
-                                self._vaults,
-                            )
+                        Collapsible(
+                            _Markdown(links.linkify(section.summary, self._vaults)),
+                            title=render.summary_title(section),
+                            collapsed=not section.summary_open,
+                            classes="brief-summary",
                         )
                     ]
                     if section.summary
@@ -473,13 +479,16 @@ class BriefView(scroll_position.StableScroll):
         """Redraw *found*, whose inbox row is *unread* or not."""
         now = time.time()
         shown = family.added(
-            render.view(found, now, self._pr_states.get, self._roots, self._vaults)
+            render.view(found, now, self._pr_states.get, self._roots, self._vaults, self._summary)
         )
         shown = _turns(shown, now, self._mid_turn_working)
         with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
             self._lemons = identity.known(conn)
 
-        rendered = render.to_markdown(shown, now, expanded=True)
+        # A collapsed summary leaves only its title in the Markdown, so its text is part of what changed.
+        rendered = "\0".join(
+            [render.to_markdown(shown, now, expanded=True), *(s.summary for s in shown.sections)]
+        )
         if rendered == self._rendered_markdown:
             for card in self.query(_Card):
                 card.now = now

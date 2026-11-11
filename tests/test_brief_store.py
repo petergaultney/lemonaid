@@ -108,7 +108,6 @@ def test_new_briefs_are_dated_and_named_after_the_work():
         "## Docs",
         "## Done",
         "## Goal",
-        "## Executive Summary of Results",
         "## Context",
         "## Acceptance Criteria",
         "## Limits",

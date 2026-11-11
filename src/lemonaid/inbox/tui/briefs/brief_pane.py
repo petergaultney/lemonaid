@@ -41,6 +41,9 @@ class BriefPane(BriefView):
             config.tui.mid_turn_working,
             config.places.roots,
             config.tui.project_name_colors,
+            summary=brief.render.SummaryPolicy(
+                config.brief.summary_open, config.brief.summary_long
+            ),
             **kwargs,
         )
         self._config = config
