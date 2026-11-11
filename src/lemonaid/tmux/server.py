@@ -22,6 +22,11 @@ GONE: ty.Final = "gone"
 _NO_SERVER = ("no server running on", "No such file or directory", "Connection refused")
 
 
+def gone(stderr: str) -> bool:
+    """Whether tmux's *stderr* says no server runs on the socket it was given."""
+    return any(marker in stderr for marker in _NO_SERVER)
+
+
 def started(socket: str | None) -> int | ty.Literal["gone"] | None:
     """The start time of the server on *socket*, GONE if none runs there, None if tmux can't say."""
     try:
@@ -35,7 +40,7 @@ def started(socket: str | None) -> int | ty.Literal["gone"] | None:
     if result.returncode == 0 and result.stdout.strip().isdigit():
         return int(result.stdout.strip())
 
-    if any(marker in result.stderr for marker in _NO_SERVER):
+    if gone(result.stderr):
         return GONE
 
     _log.warning("tmux did not say which server runs on %s: %s", socket, result.stderr.strip())

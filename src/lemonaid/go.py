@@ -11,11 +11,18 @@ from urllib.parse import quote, unquote, urlsplit
 
 from . import cmux, front_end
 from .brief import lemon, store
-from .inbox import db
+from .inbox import db, ended
 from .log import get_logger
-from .tmux import jump_target, navigation
+from .tmux import jump_target, navigation, server
 
 _log = get_logger("go")
+
+
+def _lost(channel: str) -> str:
+    return (
+        "lost with its tmux server; lemonaid restore brings it back,"
+        f" lemonaid restore dismiss {channel} clears it"
+    )
 
 
 def _target(value: str) -> str:
@@ -61,6 +68,10 @@ def jump_problems(rows: abc.Iterable[db.Notification]) -> dict[str, str]:
         if row.switch_source != "tmux":
             continue
 
+        if ended.lost(row.metadata):
+            problems[row.channel] = _lost(row.channel)
+            continue
+
         try:
             jump_target.require_identity(row.metadata)
         except LookupError as error:
@@ -72,10 +83,13 @@ def jump_problems(rows: abc.Iterable[db.Notification]) -> dict[str, str]:
             try:
                 panes[socket] = _tmux(navigation.server_args(socket), *jump_target.QUERY)
             except (OSError, subprocess.SubprocessError) as error:
-                failures[socket] = "Cannot check the recorded tmux server"
+                gone = isinstance(error, subprocess.CalledProcessError) and server.gone(
+                    error.stderr or ""
+                )
+                failures[socket] = "" if gone else "Cannot check the recorded tmux server"
                 _log.warning("could not check grove jump targets: %s", error)
         if socket in failures:
-            problems[row.channel] = failures[socket]
+            problems[row.channel] = failures[socket] or _lost(row.channel)
             continue
 
         try:
