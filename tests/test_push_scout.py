@@ -461,3 +461,43 @@ def test_a_lemon_with_a_background_waiter_is_not_told_it_is_off_push():
     wait_state.lock_path(_LEMON).parent.mkdir(parents=True, exist_ok=True)
     with waiter_lock.acquire(wait_state.lock_path(_LEMON), grace=1):
         assert push_scout.not_pushing("abcd1234", _LEMON) == ""
+
+
+def _hosting_after(monkeypatch, delay: float) -> None:
+    """A registration only gets its scout `delay` seconds after the call, as when the host restarts."""
+    started = time.monotonic()
+    monkeypatch.setattr(scout_start, "host", lambda *a: None)
+    monkeypatch.setattr(
+        push_scout,
+        "_scout_channels",
+        lambda lemon_id: {_CHANNEL} if time.monotonic() - started >= delay else set(),
+    )
+    monkeypatch.setattr(
+        wait_state, "is_armed", lambda lemon_id, grace=0: time.monotonic() - started >= delay
+    )
+
+
+def test_ensure_waits_out_a_host_restart_longer_than_the_grace(monkeypatch):
+    _briefed()
+    _session("/tmp/unused.sock")
+    _hosting_after(monkeypatch, 0.5)
+    scout_roster.mark_restarting()
+
+    assert push_scout.ensure("abcd1234", _LEMON, grace=0.1, restart_wait=5)
+
+
+def test_ensure_does_not_wait_for_a_host_that_is_not_restarting(monkeypatch):
+    _briefed()
+    _session("/tmp/unused.sock")
+    _hosting_after(monkeypatch, 0.5)
+
+    assert not push_scout.ensure("abcd1234", _LEMON, grace=0.1, restart_wait=5)
+
+
+def test_ensure_gives_up_when_a_restarting_host_never_returns(monkeypatch):
+    _briefed()
+    _session("/tmp/unused.sock")
+    _hosting_after(monkeypatch, 60)
+    scout_roster.mark_restarting()
+
+    assert not push_scout.ensure("abcd1234", _LEMON, grace=0.1, restart_wait=0.5)
