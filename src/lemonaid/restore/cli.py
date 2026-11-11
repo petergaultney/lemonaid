@@ -13,7 +13,7 @@ from collections import abc
 
 from ..brief import attached, identity
 from ..config import Config, load_config
-from ..inbox import db
+from ..inbox import db, ended
 from ..launch.restart import native
 from . import auto, dismiss, front_ends, inbox_report, loss, plan, report, run, wake
 
@@ -225,7 +225,9 @@ def cmd_restore(args: argparse.Namespace) -> None:
             print("Another restore is running; it will do this one's work.", file=sys.stderr)
             sys.exit(0 if args.auto else 1)
 
-        lost = _lost(dry_run=False)
+        lost = [
+            row for row in _lost(dry_run=False) if not args.auto or ended.lost(row.metadata)
+        ]  # a trigger means a lost server; a crash waits to be restored by hand
         with db.connect() as conn:
             if args.auto and config.restore.auto == "ask":
                 auto.ask(conn, lost)
@@ -274,13 +276,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 DESCRIPTION = (
     "Brings back every lemon lost with its terminal: for tmux, no server runs on its "
-    "recorded socket, or a newer one replaced it. Run it again at any time; it does only what is "
-    "still undone.\n\n"
+    "recorded socket, or a newer one replaced it. It also brings back every lemon whose harness "
+    "crashed: it stopped without reporting a quit while its pane ran. Run it again at any time; "
+    "it does only what is still undone.\n\n"
     "A lost lemon already running somewhere (resumed by hand) has its row pointed at its "
-    "pane. Each other one goes back to its recorded window, or the next free index when "
+    "pane. A crashed lemon goes back into its own pane when that is idle at a shell. Each "
+    "other one goes back to its recorded window, or the next free index when "
     "that is taken, in a session recreated if it is missing; a running session gains the "
     "windows it lacks and nothing in it is touched. Each is resumed with the model and "
-    "effort it was started with.\n\n"
+    "effort it was started with. A lemon recorded on another tmux server than the one restore "
+    "opens windows on is not restored.\n\n"
     "Lemons start a few at a time ([restore] parallel). Each counts as restored only when "
     "its own conversation runs in its window; one that doesn't is stopped and started once "
     "more, then reported. A restored lemon whose push scout runs gets its subscriptions back "

@@ -241,7 +241,7 @@ def test_another_clear_event_while_waiting_cancels_transfer(lemon, tmp_path, mon
     def clear_again_then_register(seconds):
         with db.connect() as conn:
             old = db.get_by_channel(conn, "claude:6f3198c7", unread_only=False)
-            db.record_exit(conn, old.channel, old.metadata["exited_at"] + 0.01, "clear")
+            db.record_exit(conn, old.channel, old.metadata["exited_at"] + 0.01, "clear", True)
         _start(_NEW, "clear", tmp_path)
 
     _during_registration(monkeypatch, clear_again_then_register)

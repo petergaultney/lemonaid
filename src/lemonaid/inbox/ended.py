@@ -1,7 +1,7 @@
 """Why a lemon's inbox row stopped being a running lemon, kept on the row as `ended`.
 
-`server-lost` leaves the row active, for restore to bring back. Every other cause
-goes with archiving the row. A row's next registration (`db.add`,
+`server-lost` and `crashed` leave the row active, for restore to bring back. Every
+other cause goes with archiving the row. A row's next registration (`db.add`,
 `db.register_working`) replaces its metadata, so a lemon heard from again has no
 `ended`.
 """
@@ -12,6 +12,7 @@ from collections import abc
 
 SERVER_LOST = "server-lost"  # its terminal server went away with it
 USER_EXIT = "user-exit"  # the harness reported its own end
+CRASHED = "crashed"  # its harness stopped unasked, while its pane and server run
 PANE_CLOSED = "pane-closed"  # its pane went away on a server that still runs
 PROCESS_EXITED = "process-exited"  # its pane lives, its harness doesn't
 REPLACED = "replaced"  # another channel took over its session
@@ -28,12 +29,16 @@ def record(cause: str, by: str, detail: str = "", at: float | None = None) -> di
 
 
 def reported(metadata: abc.Mapping[str, ty.Any]) -> str:
-    """The cause a harness's own end report (`exit_reason`) gives, "" when it made none.
+    """The cause a harness's own end report (`exit_reason`) gives, "" when it made none
+    or its handler judged the end not deliberate (`exit_deliberate`): Claude reports a
+    SIGTERM too, as `other`, which is how a row recorded before `exit_deliberate` is read.
 
     Claude reports `/clear` as an end, and the session that follows in the same
     process is the lemon now.
     """
-    if "exit_reason" not in metadata:
+    if "exit_reason" not in metadata or not metadata.get(
+        "exit_deliberate", metadata["exit_reason"] not in ("", "other")
+    ):
         return ""
 
     return REPLACED if metadata["exit_reason"] == "clear" else USER_EXIT
@@ -47,6 +52,11 @@ def cause(metadata: abc.Mapping[str, ty.Any]) -> str:
 
 def lost(metadata: abc.Mapping[str, ty.Any]) -> bool:
     return cause(metadata) == SERVER_LOST
+
+
+def revivable(metadata: abc.Mapping[str, ty.Any]) -> bool:
+    """Whether the row is kept for restore: lost with its server, or its harness crashed."""
+    return cause(metadata) in (SERVER_LOST, CRASHED)
 
 
 def failed(metadata: abc.Mapping[str, ty.Any]) -> bool:

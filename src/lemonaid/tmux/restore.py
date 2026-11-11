@@ -13,7 +13,7 @@ from ..inbox import db
 from ..launch import window as launch_window
 from ..log import get_logger
 from ..restore import run
-from . import inspect, placement, readiness, restore_relink, server
+from . import home, inspect, own_pane, placement, readiness, restore_relink, server
 
 _log = get_logger("tmux.restore")
 
@@ -109,13 +109,33 @@ def _spot(at: placement.Spot) -> run.Spot:
 
 def place(
     rows: abc.Iterable[db.Notification],
-) -> tuple[list[tuple[db.Notification, run.Spot]], list[db.Notification]]:
-    placed, unplaced = placement.place(rows, layout())
-    return [(row, _spot(at)) for row, at in placed], unplaced
+) -> tuple[list[tuple[db.Notification, run.Spot]], list[tuple[db.Notification, str]]]:
+    """Lemons go back only onto the server restore opens windows on; one whose own pane
+    still runs there idle at a shell goes back into it."""
+    rows = list(rows)
+    away = [(row, socket) for row in rows if (socket := home.elsewhere(row.metadata))]
+    here = [row for row in rows if not home.elsewhere(row.metadata)]
+    own = own_pane.idle(here)
+    placed, unplaced = placement.place((row for row in here if row.channel not in own), layout())
+    return [
+        *(
+            (row, run.Spot(own[row.channel].where, "", own[row.channel]))
+            for row in here
+            if row.channel in own
+        ),
+        *((row, _spot(at)) for row, at in placed),
+    ], [
+        *((row, f"it ran on another tmux server ({socket})") for row, socket in away),
+        *((row, "no place in its terminal is recorded for it") for row in unplaced),
+    ]
 
 
 def close_window(window: str) -> None:
-    """Close the window restore made, by its id, so no other window is ever closed."""
+    """Close the window restore made, by its id, so no other window is ever closed. A
+    lemon's own pane (a pane id, not a window's) is left as it is."""
+    if window.startswith("%"):
+        return
+
     _run("tmux", "kill-window", "-t", window)
 
 
@@ -138,6 +158,9 @@ def open_window(
     added, so a window lemonaid knows nothing about leaves a gap rather than shifting
     the others down.
     """
+    if isinstance(to.at, own_pane.Pane):
+        return own_pane.respawn(to.at, cwd, environment)
+
     spot: placement.Spot = to.at
     environment_args = launch_window.environment_args(dict(environment))
     new = ("-P", "-F", "#{window_id}")

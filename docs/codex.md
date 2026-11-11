@@ -49,7 +49,9 @@ which can differ from a session's effective settings.
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
 waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
 (section 3 below), a Stop hook that requires the unified watcher for subscribed briefs
-and a valid brief, and a SessionStart hook. The SessionStart hook also gives a new
+and a valid brief, a SessionStart hook, and a SessionEnd hook that records a quit, so a
+thread that stops without one is kept to restore (see [tmux](tmux.md#telling-a-quit-from-a-crash)).
+The SessionStart hook also gives a new
 thread its inbox row, with its pane, so a brief waiting on its window (`place open
 --brief`, `lemon start --brief`) is attached as it starts rather than when its first turn
 ends. The SessionStart and Stop hooks start the lemon's push scout (below). Each hook is

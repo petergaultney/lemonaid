@@ -12,6 +12,7 @@ import pytest  # noqa: E402
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.codex import queued as codex_queued  # noqa: E402
+from lemonaid.hooks import end_reports  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
@@ -86,6 +87,15 @@ def _no_live_codex_queue(monkeypatch):
     tests/test_codex_queued.py keeps the real `held` from import time.
     """
     monkeypatch.setattr(codex_queued, "held", lambda home: {})
+
+
+@pytest.fixture(autouse=True)
+def _no_harness_end_reports(monkeypatch):
+    """No harness reports its quits, whatever the developer's own Claude and Codex settings.
+
+    tests/hooks/test_end_reports.py keeps the real `reported` from import time.
+    """
+    monkeypatch.setattr(end_reports, "reported", lambda harness, cwd: False)
 
 
 class _NoLoopWatchdog:

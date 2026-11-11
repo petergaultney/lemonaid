@@ -95,7 +95,7 @@ def test_orphans_are_lemons_with_no_live_parent(capsys):
 def test_an_exit_is_reported_with_its_reason(capsys):
     lemon_id = _attach("quit", "claude:quit", "Status: working")
     with db.connect() as conn:
-        db.record_exit(conn, "claude:quit", 1.0, "logout")
+        db.record_exit(conn, "claude:quit", 1.0, "logout", True)
 
     _doctor(lemon_id)
     assert "(logout)" in capsys.readouterr().out

@@ -171,9 +171,13 @@ lemonaid restore --auto             # what a trigger runs: follows [restore] aut
 lemonaid restore --into-running     # restore only into a terminal that runs; "waiting" lists the rest
 ```
 
-Restore plans only lemons lost with their tmux server. A row's `metadata.ended`
-(`{at, cause, by, detail}`) says why it stopped being a running lemon; `cause` is
-`server-lost` for a row restore will bring back, which stays active.
+Restore plans only lemons lost with their tmux server, or whose harness crashed: it
+stopped without reporting a quit through its `SessionEnd` hook while its pane and server
+ran. A row's `metadata.ended` (`{at, cause, by, detail}`) says why it stopped being a
+running lemon; `cause` is `server-lost` or `crashed` for a row restore will bring back,
+which stays active. A crashed lemon goes back into its own pane when that pane is idle
+at a shell. A lemon recorded on another tmux server than the one restore opens windows
+on is `not restored`.
 
 `lemonaid tmux restore` and `lemonaid restore tmux` are the same command. Only tmux restores lemons yet; a lemon lost in another terminal is `not restored`. It brings back the lost lemons not already running,
 each in its recorded window or the next free index (a running session gains only the windows it
@@ -219,16 +223,18 @@ Sessions register as working, never unread. Installing is additive and idempoten
 write are never touched.
 
 ```bash
-lemonaid claude hooks --session-end   # record when, and why, each session ended
+lemonaid hooks install                # among lemonaid's hooks, SessionEnd for Claude and Codex
+lemonaid claude hooks --session-end   # Claude's alone
 ```
 
-Claude Code runs `SessionEnd` when a session ends, with its own word for why. lemonaid records
-the time and that word on the session's inbox row as `exited_at` and `exit_reason`, and they are
-cleared the next time the session registers or reports (any hook that writes its row). A record
-means Claude reported an end. It doesn't mean the process stopped: `clear` ends a session id
-while Claude carries on under a new one. No record means nothing on its own: the hook may not
-be installed, the session may have been killed or crashed, or Claude may not have waited for
-the hook. Codex has no such hook.
+Claude Code and Codex run `SessionEnd` when a session ends, with a word for why. lemonaid records
+the time and that word on the session's inbox row as `exited_at` and `exit_reason`, with
+`exit_deliberate` saying whether it means someone quit it, and they are cleared the next time
+the session registers or reports (any hook that writes its row). Claude's `other` is what a
+signal gives, so it is not a quit; every Codex report is one. A record doesn't mean the process
+stopped: `clear` ends a session id while Claude carries on under a new one. No record means
+nothing on its own: the hook may not be installed, the session may have been killed or crashed,
+or Codex ran it in its shared app-server daemon.
 
 ## Places
 
@@ -458,7 +464,7 @@ for a lemon that has since started.
 | `harness_running` | A `claude` or `codex` process on the terminal the lemon last reported, and not another lemon's (by its Claude session file or Codex open thread); cmux is asked where its session is now | `null` when the terminal can't be checked |
 | `mailbox_waiter` | The lock its `mailbox watch` holds; `inbox_waiter` repeats it for older readers | Codex lemons don't need one |
 | `pane` | `empty prompt`, `dialog: <what>`, or `other`, from a capture of its tmux pane | `other` covers working, a draft, and a permission prompt alike |
-| `exited_at`, `exit_reason` | The `SessionEnd` hook (`claude hooks --session-end`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; missing when the hook isn't installed, for Codex, and for a session that was killed or crashed |
+| `exited_at`, `exit_reason` | The `SessionEnd` hook (`hooks install`), cleared when the session next registers or reports | `clear` ends a session id while the process carries on; Claude's `other` is a signal, not a quit; missing when the hook isn't installed and for a session that was killed |
 | `last_activity` | The transcript file's last write | A lemon waiting on a long process writes nothing |
 | `waiters_listed`, `waiters_running` | The brief's `## Watching` bullets, and the waiters registered under its channel | Listed commands are as written, so compare them by hand |
 | `messages_queued` | Unread messages in its mailbox | |

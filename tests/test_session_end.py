@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from lemonaid.claude import install_hooks, session_end
 from lemonaid.inbox import db
 
@@ -23,6 +25,19 @@ def test_an_exit_is_recorded_with_claudes_reason():
     assert metadata["exit_reason"] == "logout"
     assert metadata["exited_at"] > 0
     assert metadata["tty"] == "/dev/ttys900"
+
+
+@pytest.mark.parametrize(
+    ("reason", "deliberate"),
+    [("prompt_input_exit", True), ("logout", True), ("clear", True), ("other", False)],
+)
+def test_only_a_signal_is_recorded_as_not_quit(reason, deliberate):
+    with db.connect() as conn:
+        db.add(conn, "claude:abcd1234", "")
+
+    session_end.handle_session_end(json.dumps({"session_id": "abcd1234", "reason": reason}))
+
+    assert _row("claude:abcd1234").metadata["exit_deliberate"] is deliberate
 
 
 def test_the_next_hook_clears_the_exit():

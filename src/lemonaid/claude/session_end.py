@@ -2,6 +2,9 @@
 
 The record says Claude reported an end, not that its process stopped. Its absence
 says nothing on its own: the hook may not be installed, or never got to run.
+
+Every way of quitting Claude (Ctrl-D, `/exit`, `/clear`, logging out) gives its own
+reason. `other` is what a signal gives, SIGTERM included, so it is not a quit.
 """
 
 import json
@@ -13,6 +16,8 @@ from ..inbox.channel import channel_id
 from ..log import get_logger
 
 _log = get_logger("claude.session_end")
+
+_SIGNALED = "other"
 
 
 def handle_session_end(stdin_data: str | None = None) -> None:
@@ -29,5 +34,6 @@ def handle_session_end(stdin_data: str | None = None) -> None:
 
     channel = channel_id("claude", session_id)
     with db.connect() as conn:
-        if not db.record_exit(conn, channel, time.time(), str(data.get("reason") or "")):
+        reason = str(data.get("reason") or "")
+        if not db.record_exit(conn, channel, time.time(), reason, reason not in ("", _SIGNALED)):
             _log.info("session end for %s, which the inbox has no row for", channel)

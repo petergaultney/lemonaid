@@ -1,14 +1,15 @@
 """Install lemonaid's lemon-side hooks in Claude Code and Codex, without disturbing others.
 
 Both read hooks in the same format, Claude from `~/.claude/settings.json` and Codex from
-`~/.codex/hooks.json` (`$CODEX_HOME` moves it). Each gets the same three:
+`~/.codex/hooks.json` (`$CODEX_HOME` moves it). Each gets the same four:
 
 - PreToolUse and PostToolUse on every tool: own_change, so a lemon's own edits and pushes
   don't wake its waiters;
 - Stop: block ending a turn while the attached brief's waiters aren't armed (stop_check);
   for a Claude lemon, it first starts the push scout when the session can take one;
 - SessionStart: start a Claude lemon's push scout, or remind a lemon with an attached brief
-  which waiters to arm.
+  which waiters to arm;
+- SessionEnd: record why the session ended, so a quit is told from a crash.
 
 Codex also gets `lemonaid codex tool-used` on PreToolUse and PostToolUse, which clears a
 permission notice when its requested tool starts or returns.
@@ -80,6 +81,7 @@ def previous_own_change_command(harness: str) -> str:
 
 
 _CODEX_TOOL_USED_COMMAND = "lemonaid codex tool-used"
+SESSION_END_CODEX = "lemonaid codex session-end"
 
 
 def stop_command(harness: str) -> str:
@@ -94,6 +96,10 @@ def session_start_command(harness: str) -> str:
     return f"lemonaid hooks session-start --harness {harness}"
 
 
+def session_end_command(harness: str) -> str:
+    return install_hooks.SESSION_END_COMMAND if harness == "claude" else SESSION_END_CODEX
+
+
 def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
     if harness != "codex":
@@ -102,6 +108,7 @@ def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     return {
         "statusMessage": f"lemonaid: {name}",
         **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
+        **({"timeout": 3} if event == "SessionEnd" else {}),  # Codex's longest; 1s by default
     }
 
 
@@ -112,6 +119,7 @@ def hooks(harness: str) -> list[tuple[str, str, str]]:
         ("PostToolUse", own_change_command(harness), "own-change"),
         ("Stop", stop_command(harness), "stop"),
         ("SessionStart", session_start_command(harness), "session-start"),
+        ("SessionEnd", session_end_command(harness), "session-end"),
         *(
             [
                 ("PreToolUse", _CODEX_TOOL_USED_COMMAND, "tool-used"),

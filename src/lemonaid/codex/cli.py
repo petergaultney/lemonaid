@@ -2,6 +2,7 @@
 
 import argparse
 
+from . import session_end
 from .notify import dismiss_session, handle_dismiss, handle_notification, handle_tool_used
 
 
@@ -29,6 +30,10 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
 def cmd_tool_used(_args: argparse.Namespace) -> None:
     """Clear a matching permission notice when Codex starts or finishes tool use."""
     handle_tool_used()
+
+
+def cmd_session_end(_args: argparse.Namespace) -> None:
+    session_end.handle_session_end()
 
 
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -91,5 +96,10 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Clear a matching permission notice when tool use starts or finishes (reads hook JSON)",
     )
     tool_used_parser.set_defaults(func=cmd_tool_used)
+
+    codex_subparsers.add_parser(
+        "session-end",
+        help="Record that a session was quit (SessionEnd hook; reads JSON from stdin)",
+    ).set_defaults(func=cmd_session_end)
 
     codex_parser.set_defaults(func=lambda a: codex_parser.print_help())

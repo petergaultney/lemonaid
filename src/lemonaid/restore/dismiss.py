@@ -1,4 +1,4 @@
-"""`lemonaid restore dismiss`: say that lost lemons are not to come back."""
+"""`lemonaid restore dismiss`: say that lost or crashed lemons are not to come back."""
 
 import argparse
 import sys
@@ -30,7 +30,7 @@ def chosen(
 def cmd_dismiss(args: argparse.Namespace) -> None:
     with db.connect() as conn:
         loss.mark(conn, by="restore dismiss")
-        lost = [row for row in loss.candidates(conn) if ended.lost(row.metadata)]
+        lost = [row for row in loss.candidates(conn) if ended.revivable(row.metadata)]
         rows, unknown = (lost, []) if args.all else chosen(lost, args.lemons)
         for row in rows:
             db.archive_channel(
@@ -52,9 +52,10 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
 def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "dismiss",
-        help="Archive lost lemons instead of restoring them",
-        description="Marks lemons lost with their terminal server as dismissed and archives "
-        "them, so no restore brings them back. Use it after killing a server on purpose.",
+        help="Archive lost or crashed lemons instead of restoring them",
+        description="Marks lemons lost with their terminal server, or whose harness crashed, "
+        "as dismissed and archives them, so no restore brings them back. Use it after killing "
+        "a server or a lemon on purpose.",
     )
     parser.add_argument(
         "lemons", nargs="*", metavar="LEMON", help="A channel, channel prefix, or lemon name"
