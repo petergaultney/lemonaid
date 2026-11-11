@@ -17,6 +17,7 @@ from . import (
     status,
     store,
     target,
+    window_lemon,
 )
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     "status",
     "store",
     "target",
+    "window_lemon",
 ]

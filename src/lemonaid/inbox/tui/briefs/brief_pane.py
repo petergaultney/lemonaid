@@ -11,6 +11,7 @@ from textual.widgets import ContentSwitcher, DataTable
 
 from .... import brief
 from ....config import Config
+from ....front_end import location
 from ....log import get_logger
 from ... import db, emoji
 from ..tables import row_keys
@@ -233,59 +234,120 @@ class BriefPane(BriefView):
 
         return False
 
-    def _followed(self, pane: str, window: str, kept: brief.target.Target) -> brief.target.Target:
-        """The brief of the lemon in the window this pane has moved to, recorded as its own;
-        *kept*, the brief already shown, when no lemon runs in that window.
+    def _own(self, pane: str, window: str, found: brief.target.Target, rows: list[int]) -> None:
+        """Show *found*, the brief of the lemons in *rows*, as this window's own.
 
         The inbox cursor moves to that lemon's row, which the brief view's keys act on.
         """
-        tmux_session, _, index = brief.session.current_session().partition(":")
-        with db.connect(timeout=db.UI_TIMEOUT_SECONDS) as conn:
-            rows = db.get_active(conn)
-            in_window = [
-                n
-                for n in brief.target.session_rows(tmux_session, rows, index)
-                if str(n.metadata.get("tmux_window") or "") == index
-            ]
-            if not in_window:
-                brief.sidebar.remember(pane, kept, window)
-                return kept
-
-            found = brief.target.for_session(
-                tmux_session,
-                rows,
-                brief.attached.for_rows(conn, rows),
-                index,
-                emoji.by_channel(conn),
-            )
-        self.unselected = not (len(in_window) == 1 and self._select(in_window[0].id))
+        self.unselected = not (len(rows) == 1 and self._select(rows[0]))
         brief.sidebar.remember(pane, found, window)
-        return found
+        self.set_view(found)
+
+    def _check(self, pane: str, window: str, shown: brief.target.Target) -> None:
+        """Make sure, off the event loop, that *shown* is the brief of this window's lemon,
+        and show that lemon's brief if it is not."""
+
+        def check() -> None:
+            try:
+                if brief.sidebar.window_id(pane) != window:
+                    return  # moved on; the move's wake checks again
+
+                own = brief.window_lemon.find(brief.session.current_session())
+                if brief.sidebar.window_id(pane) != window:
+                    return  # moved during the lookup, which may be for either window
+            except Exception:  # the thread's top level; the next wake checks again
+                _log.exception("could not check the sidebar brief's lemon")
+                return
+            if own is not None and not brief.window_lemon.same_lemons(own[0], shown):
+                self.app.call_from_thread(self._correct, pane, window, shown, *own)
+
+        self.run_worker(check, thread=True, group="brief-own")
+
+    def _correct(
+        self,
+        pane: str,
+        window: str,
+        shown: brief.target.Target,
+        found: brief.target.Target,
+        rows: list[int],
+    ) -> None:
+        if self.target != shown or self.local or self._switching:
+            return  # another brief was chosen meanwhile, and is checked in its turn
+
+        if brief.sidebar.window_id(pane) != window:
+            return  # the pane moved, and its new window's wake checks again
+
+        _log.warning("sidebar in %s showed %r, not its lemon's brief", window, shown.title)
+        self._own(pane, window, found, rows)
 
     def sync(self) -> None:
-        """Show what the sidebar says this window's brief is, unless one is kept here.
+        """Show this window's brief as the sidebar records it, unless one is kept here.
 
-        A brief shown for another window was open when this pane followed you here,
-        so it follows too, to this window's lemon, or stays when this window has none.
+        A brief recorded for another window was open when this pane followed you
+        here, so it follows too: to this window's lemon, or, when this window has
+        none, it stays on screen while still recorded for the window it belongs to.
+        A brief recorded for this window is shown at once and checked against the
+        window's lemon in the background.
         """
         pane = os.environ.get("TMUX_PANE")
         shown = brief.sidebar.read(pane) if pane else None
         window = brief.sidebar.window_id(pane) if pane and shown else ""
         if pane and shown and window and shown[1] != window:
             self.local = False
-            self.set_view(self._followed(pane, window, self.target or shown[0]))
+            if own := brief.window_lemon.find(brief.session.current_session()):
+                self._own(pane, window, *own)
+            else:
+                self.set_view(self.target or shown[0])
             return
 
         if self.target is not None and self.local:
             return
 
-        self.set_view(shown[0] if shown and shown[1] == window else None)
+        if pane and shown and shown[1] == window:
+            self.set_view(shown[0])
+            self._check(pane, window, shown[0])
+            return
 
-    def toggle(self, found: brief.target.Target) -> bool:
-        """Open *found* in the sidebar, or close it there; False if the sidebar can't."""
-        if not brief.sidebar.toggle(
-            found, brief.sidebar.window_id(os.environ.get("TMUX_PANE", ""))
-        ):
+        self.set_view(None)
+
+    def _go(
+        self, notification: db.Notification, found: brief.target.Target, detached: abc.Set[str]
+    ) -> None:
+        """Show *found* now, and move the main pane to *notification*'s lemon after."""
+        self.unselected = False
+        self.set_view(found)
+        self.prefetch(self._main())
+        if notification.channel in detached or notification.switch_source != "tmux":
+            self.stay_local(
+                f"Its terminal is unavailable here. Press {self._config.tui.keybindings.resume_detached} "
+                "to resume; up/down keeps browsing."
+            )
+            return
+
+        self.request_switch(notification, found)
+
+    def _elsewhere(self, notification: db.Notification) -> bool:
+        """Whether *notification*'s lemon is outside the window this pane is in."""
+        where = location.of(notification.metadata, notification.switch_source)
+        return where.front_end != "tmux" or brief.session.current_session() != (
+            f"{where.workspace}:{where.slot}"
+        )
+
+    def toggle(
+        self, notification: db.Notification, found: brief.target.Target, detached: abc.Set[str]
+    ) -> bool:
+        """Open *found*, *notification*'s brief, in the sidebar, or close it there;
+        False if the sidebar can't.
+
+        Another window's lemon is switched to, as browsing does, so the brief
+        shown here is never recorded as this window's.
+        """
+        window = brief.sidebar.window_id(os.environ.get("TMUX_PANE", ""))
+        if self._elsewhere(notification) and brief.sidebar.beside(window):
+            self._go(notification, found, detached)
+            return True
+
+        if not brief.sidebar.toggle(found, window):
             return False
 
         self.sync()
@@ -317,19 +379,8 @@ class BriefPane(BriefView):
             return
 
         row, notification = step
-        found = self.target_for(notification)
         main.move_cursor(row=row)
-        self.unselected = False
-        self.set_view(found)
-        self.prefetch(main)
-        if notification.channel in detached or notification.switch_source != "tmux":
-            self.stay_local(
-                f"Its terminal is unavailable here. Press {self._config.tui.keybindings.resume_detached} "
-                "to resume; up/down keeps browsing."
-            )
-            return
-
-        self.request_switch(notification, found)
+        self._go(notification, self.target_for(notification), detached)
 
     def _switched(self, notification: db.Notification, switched: bool) -> None:
         if self.target is None:

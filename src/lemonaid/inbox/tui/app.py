@@ -1227,7 +1227,8 @@ class LemonaidApp(CrashLoggedApp):
             and is_follow_enabled()
             and self._mode is None
             and current_position(self.config.tmux_session.scratch_position) == "left"
-            and self.query_one(BriefPane).toggle(target)
+            and notification is not None
+            and self.query_one(BriefPane).toggle(notification, target, self._detached_channels)
         ):
             brief.popup.open_popup(target)
 
