@@ -183,6 +183,23 @@ def test_every_tree_shows_its_letter_where_a_click_reaches_it(seed, size):
                     assert (target, letter) in shown, (where.block or "overview", tree.key)
 
 
+def _hidden_letters(grove: Grove, digit: str, size: tuple[int, int], lists: dict) -> list[str]:
+    picture = render(grove, keys.Where(block=digit, digits=digit), *size, 0.5, lists=lists)
+    shown = {(cell.target, cell.char) for row in picture.rows for cell in row}
+    block = next(b for b in grove.blocks if b.digit == digit)
+    letters = {t.key: grove.arrangement.trees[(block.name, t.key)].letter for t in block.trees}
+    return [key for key, letter in letters.items() if ((digit, letter), letter) not in shown]
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_a_zoomed_blocks_letters_all_show_at_every_step_as_its_lists_stay_put(seed):
+    lists: dict = {}  # where the lists went, kept across steps as the grove keeps it
+    for step, grove in enumerate(_scenario(seed)):
+        for block in grove.blocks:
+            assert _hidden_letters(grove, block.digit, (120, 40), {}) == [], (step, block.name)
+            assert _hidden_letters(grove, block.digit, (120, 40), lists) == [], (step, block.name)
+
+
 def test_a_scenario_is_the_same_every_time():
     first, again = (tuple(g for g, _ in _steps.__wrapped__(7)) for _ in range(2))
     assert [g.arrangement.trees for g in first] == [g.arrangement.trees for g in again]

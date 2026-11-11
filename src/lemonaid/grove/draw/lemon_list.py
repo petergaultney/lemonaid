@@ -117,12 +117,15 @@ def draw(
     flipped: bool = False,
     title_key: str = "",
     width: int = WIDTH,
+    tagged: int = 0,
 ) -> None:
     """*most*, when given, lists that many rows at most, the last saying how many more there are.
     *edited* marks what an edit would change: a lemon's row, or the session, named in the title;
     a list cut short scrolls to keep an edited lemon in it. *flipped* lists each lemon's model,
     where it is and when it last reported in place of its name, WordyBin and context.
     *title_key*, when given, is a key named in the title before the tree, as select mode's `$l`.
+    *tagged* columns of the top border, from *x* + 1, are left for the tree's tag, which the caller
+    draws there; the title follows it, muted.
     """
     shown = len(tree.lemons) if not most or len(tree.lemons) <= most else most - 1
     at = next((i for i, lemon in enumerate(tree.lemons) if lemon.channel == edited), 0)
@@ -139,10 +142,11 @@ def draw(
         DOUBLE if opened else ROUND,
     )
     title = f" {title_key}  {tree.key} " if title_key else f" {tree.key} "
+    at, room = (x + 1 + tagged, width - 3 - tagged) if tagged else (x + 2, width - 4)
     if edited == session(tree):
-        text(canvas, x + 2, y, title, BACKGROUND, colors.LEMON, bold=True, limit=width - 4)
+        text(canvas, at, y, title, BACKGROUND, colors.LEMON, bold=True, limit=room)
     else:
-        text(canvas, x + 2, y, title, "#9aa5b8", _PANEL, limit=width - 4)
+        text(canvas, at, y, title, colors.MUTED if tagged else "#9aa5b8", _PANEL, limit=room)
     dim = canvas.dim
     for i, lemon in enumerate(tree.lemons[first : first + shown], start=first):
         row = y + 1 + i - first
