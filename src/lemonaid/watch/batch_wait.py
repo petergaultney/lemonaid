@@ -25,6 +25,28 @@ def _messages(mailbox: Path) -> list[tuple[Path, str]]:
     ]
 
 
+_HEADLINE_LABELS = 3
+_HEADLINE_WIDTH = 110
+
+
+def _from(body: str) -> str:
+    """Who sent a mailbox message: the capitalized word of its `From:` line, or what it says."""
+    sender = body.partition("\n")[0].removeprefix("From:").partition(" (")[0].strip()
+    return next((part for part in sender.split(".") if part[:1].isupper()), sender)
+
+
+def _fallback(source: str) -> str:
+    return f"{source.partition(':')[0]} event"
+
+
+def _headline(labels: list[str]) -> str:
+    """The first line of a pushed batch, naming its events in a few words."""
+    shown = "; ".join(labels[:_HEADLINE_LABELS])
+    more = len(labels) - _HEADLINE_LABELS
+    line = shown + (f" (+{more} more)" if more > 0 else "")
+    return line if len(line) <= _HEADLINE_WIDTH else line[: _HEADLINE_WIDTH - 3] + "..."
+
+
 def _reconcile(
     running: dict[tuple, scouts.Scout],
     specs: dict,
@@ -178,13 +200,21 @@ def wait(
                         ),
                     )
                     deliver(
-                        "\n\n".join(
-                            clip.share(
+                        delivery.Labeled(
+                            "\n\n".join(
+                                clip.share(
+                                    [
+                                        *(f"[{p.source}] {p.message}" for p in pending),
+                                        *(f"[mailbox] {body.rstrip()}" for _, body in messages),
+                                    ]
+                                )
+                            ),
+                            _headline(
                                 [
-                                    *(f"[{p.source}] {p.message}" for p in pending),
-                                    *(f"[mailbox] {body.rstrip()}" for _, body in messages),
+                                    *(p.label or _fallback(p.source) for p in pending),
+                                    *(f"mail from {_from(body)}" for _, body in messages),
                                 ]
-                            )
+                            ),
                         )
                     )
                     for message, _ in messages:

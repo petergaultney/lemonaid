@@ -28,6 +28,8 @@ def test_inbox_and_two_changed_files_arrive_in_one_batch(tmp_path):
         assert not thread.is_alive()
         assert len(sent) == 1 and not errors
         assert str(one) in sent[0] and str(two) in sent[0] and "Please read both" in sent[0]
+        headline = delivery.label_of(sent[0]).strip()
+        assert sorted(headline.split("; ")) == ["mail from IndexElf", "one changed", "two changed"]
         assert store.pending_count(inbox) == 0
     finally:
         stop.set()

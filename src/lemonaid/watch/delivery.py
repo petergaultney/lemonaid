@@ -29,6 +29,21 @@ class Failed(Exception):
     pass
 
 
+class Labeled(str):
+    """An event message with the few words its source gives for a one-line summary of the batch."""
+
+    label: str
+
+    def __new__(cls, message: str, label: str) -> "Labeled":
+        found = super().__new__(cls, message)
+        found.label = label
+        return found
+
+
+def label_of(message: str) -> str:
+    return message.label if isinstance(message, Labeled) else ""
+
+
 def to_stdout(message: str) -> None:
     print(message, flush=True)
 

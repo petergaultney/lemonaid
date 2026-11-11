@@ -255,6 +255,7 @@ def open_poller(
             trusted=trusted,
             wake=wake,
             mentioned=spec.mentioned,
+            repo=repo,
         )
         head = ""
         # a closed PR can reopen, so it is still read unless the brief only links to it

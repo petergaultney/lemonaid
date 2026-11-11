@@ -17,7 +17,7 @@ import typing as ty
 from collections import abc
 
 from ..log import get_logger
-from . import cursors, deadline, path_presence
+from . import cursors, deadline, delivery, path_presence
 
 _log = get_logger("watch.file_events")
 
@@ -162,8 +162,11 @@ def _report_deadline(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
         return False
 
     deliver(
-        f"nothing changed in {', '.join(map(str, w.paths))} by {deadline.shown(w.deadline['at'])}"
-        f" (--deadline {w.deadline['spec']}); the watch continues"
+        delivery.Labeled(
+            f"nothing changed in {', '.join(map(str, w.paths))} by {deadline.shown(w.deadline['at'])}"
+            f" (--deadline {w.deadline['spec']}); the watch continues",
+            f"{', '.join(p.name for p in w.paths)} unchanged by deadline",
+        )
     )
     _settle_deadline(w)
     return True
@@ -190,16 +193,17 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
     if time.time() - w.pending_since < w.quiet:
         return False
 
-    message = "; ".join(
-        path_presence.missing_message(w.presence[p], d) if new is None else d
+    described = {
+        p: path_presence.missing_message(w.presence[p], d) if new is None else d
         for p, new in current.items()
         if new != w.reported[p] and (d := _describe(p, w.reported[p], new, w.ignore_removed))
-    )
-    if message:
-        deliver(message)
+    }
+    if described:
+        names = ", ".join(pathlib.Path(p).name for p in described)
+        deliver(delivery.Labeled("; ".join(described.values()), f"{names} changed"))
         _settle_deadline(w)
 
     w.reported = current
     cursors.write_json(w.reported_path, current)
     _log.info("%s advanced to %s", w.reported_path, _short(current))
-    return bool(message)
+    return bool(described)

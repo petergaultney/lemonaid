@@ -13,7 +13,7 @@ import time
 import typing as ty
 
 from ..log import get_logger
-from . import command_record, cursors
+from . import command_record, cursors, delivery
 
 _log = get_logger("watch.command_events")
 
@@ -111,7 +111,7 @@ def poll(w: CommandWatch, deliver: ty.Callable[[str], object]) -> bool:
     if not message:
         return False
 
-    deliver(message)
+    deliver(delivery.Labeled(message, f"pid {w.pid} exited"))
     w.reported = True
     cursors.write_json(w.cursor, {"started": w.started, "reported": True, "at": time.time()})
     _log.info("reported pid %s: %s", w.pid, message)

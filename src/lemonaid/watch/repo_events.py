@@ -98,6 +98,6 @@ def poll(
     path = stem.with_suffix(".seen.json")
     lines, now = events(repo, _load(path), prs, labels, exclude_authors, pushes)
     if lines:
-        deliver("; ".join(lines))
+        deliver(delivery.Labeled("; ".join(lines), f"{repo} PR activity"))
     cursors.write_json(path, now)
     return bool(lines)

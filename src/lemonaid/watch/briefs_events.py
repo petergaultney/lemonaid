@@ -180,6 +180,11 @@ def open_watch(
     )
 
 
+def _who(child: str) -> str:
+    """The capitalized word of a Brief-ID or Lemon-ID, which is the lemon's name."""
+    return next((part for part in child.split(".") if part[:1].isupper()), child)
+
+
 def _describe(child: str, previous: _Mark | None, current: _Mark) -> str:
     state = (
         f"Status: {previous.status or 'none'} -> {current.status or 'none'}"
@@ -276,22 +281,38 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
         *(kinds.problem(seen.origins[child], problem.kind) for child, problem in stopped.items()),
         *(kinds.cleanup_ready("child") for _ in ready),
     ]
+    labels = [
+        *(
+            f"{_who(child)} -> {mark.status or 'none'}"
+            if not (before := w.reported.get(child)) or before.status != mark.status
+            else f"{_who(child)} needs"
+            for child, mark in changed.items()
+        ),
+        *(f"{_who(child)} {problem.kind}" for child, problem in stopped.items()),
+        *(f"{_who(child)} cleanup ready" for child in ready),
+    ]
     deliver(
-        "\n".join(
-            [
-                *(_describe(child, w.reported.get(child), mark) for child, mark in changed.items()),
-                *(
-                    f"{child}: {problem.detail}; Status: {current[child].status or 'none'}"
-                    f" ({current[child].path})"
-                    for child, problem in stopped.items()
-                ),
-                *(
-                    f"{child}: cleanup ready, nothing holds its place now (held by: "
-                    f"{', '.join(reasons)}); Status: done ({current[child].path})"
-                    for child, reasons in ready.items()
-                ),
-                *filter(None, [notes.appendix(present, w.read_notes())]),
-            ]
+        delivery.Labeled(
+            "\n".join(
+                [
+                    *(
+                        _describe(child, w.reported.get(child), mark)
+                        for child, mark in changed.items()
+                    ),
+                    *(
+                        f"{child}: {problem.detail}; Status: {current[child].status or 'none'}"
+                        f" ({current[child].path})"
+                        for child, problem in stopped.items()
+                    ),
+                    *(
+                        f"{child}: cleanup ready, nothing holds its place now (held by: "
+                        f"{', '.join(reasons)}); Status: done ({current[child].path})"
+                        for child, reasons in ready.items()
+                    ),
+                    *filter(None, [notes.appendix(present, w.read_notes())]),
+                ]
+            ),
+            "; ".join(labels),
         )
     )
     if changed:
