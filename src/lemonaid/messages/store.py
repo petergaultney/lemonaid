@@ -73,7 +73,7 @@ def forwarded(mailbox: Path) -> Path:
     raise ValueError(f"Mailbox forwards more than {_MAX_HOPS} times: {mailbox}")
 
 
-def _write(mailbox: Path, body: str, sender: str, key: str = "") -> Path:
+def write(mailbox: Path, body: str, sender: str, key: str = "") -> Path:
     mailbox.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
     path = mailbox / f"{stamp}-{key or uuid.uuid4().hex}.md"
@@ -107,7 +107,7 @@ def send(mailbox: Path, body: str, sender: str, key: str = "") -> Path:
         if mailbox.is_symlink():
             raise ValueError(f"Mailbox is a symlink: {mailbox}")
 
-        return _write(mailbox, body, sender, key)
+        return write(mailbox, body, sender, key)
 
 
 def _pending(mailbox: Path) -> abc.Iterator[Path]:

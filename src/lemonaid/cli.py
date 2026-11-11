@@ -26,6 +26,7 @@ import lemonaid.messages.mailbox_command
 import lemonaid.openclaw.cli
 import lemonaid.opencode.cli
 import lemonaid.places.cli
+import lemonaid.po_box.cli
 import lemonaid.restore.cli
 import lemonaid.skills.cli
 import lemonaid.slack.cli
@@ -161,6 +162,7 @@ def main() -> None:
     lemonaid.inbox.cli.setup_parser(subparsers)
     lemonaid.messages.cli.add_tell_parser(subparsers)
     lemonaid.messages.cli.setup_parser(subparsers)
+    lemonaid.po_box.cli.setup_parser(subparsers)
     go.setup_parser(subparsers)
     lemonaid.lineage.cli.setup_parser(subparsers)
     lemonaid.groups.cli.setup_parser(subparsers)

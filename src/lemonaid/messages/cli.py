@@ -7,7 +7,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from .. import brief, lineage
+from .. import brief, lineage, po_box, po_box_config
+from ..config import load_config
 from ..inbox import db
 from ..launch.restart import state
 from ..log import get_logger
@@ -115,8 +116,15 @@ def cmd_tell(args: argparse.Namespace) -> None:
     message = args.target if linked and args.message is None else args.message
     if (not linked and not args.target) or message is None:
         _fail(
-            "Usage: lemonaid tell (<lemon-id-or-channel-or-brief> | --parent | --child <lemon>) <message>"
+            "Usage: lemonaid tell (<lemon-id-or-channel-or-brief> | <owner>/<lemon> | --parent | --child <lemon>) <message>"
         )
+    if not linked and po_box.tell.is_address(args.target):
+        with db.connect() as conn:
+            sender = _sender(conn, args.channel or "")
+        body = sys.stdin.read() if message == "-" else message
+        po_box.tell.send(args.target, body, sender, load_config().po_box)
+        return
+
     if args.wake_parent and linked:
         _fail("--wake-parent names its lemon itself; drop --parent or --child")
 
@@ -159,11 +167,11 @@ def own_lemon(explicit_channel: str) -> tuple[str, str]:
             raise
 
 
-def _take_and_print(mailbox: Path, channel: str):
+def _take_and_print(mailbox: Path, channel: str, boxes: po_box_config.PoBoxConfig):
     with state.admission(channel) as allowed:
         if not allowed:
             return None
-        result = store.take_next(mailbox)
+        result = store.take_next(mailbox) or po_box.inbox.take_own(mailbox, boxes)
         if result is not None:
             path, message = result
             try:
@@ -178,6 +186,7 @@ def _take_and_print(mailbox: Path, channel: str):
 def _receive(args: argparse.Namespace, wait: bool) -> None:
     channel, lemon_id = own_lemon(args.channel or "")
     mailbox = store.mailbox_for_id(lemon_id)
+    boxes = load_config().po_box
 
     if wait and wait_state.is_armed(lemon_id):
         print(
@@ -223,7 +232,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
                     find=(
                         (lambda mailbox: codex_delivery.deliver_next(mailbox, codex_thread))
                         if codex_thread
-                        else lambda mailbox: _take_and_print(mailbox, channel)
+                        else lambda mailbox: _take_and_print(mailbox, channel, boxes)
                     ),
                 )
         except (ValueError, TimeoutError, RuntimeError, waiter.AlreadyArmed) as error:
@@ -233,7 +242,7 @@ def _receive(args: argparse.Namespace, wait: bool) -> None:
             print(result[1], end="")
             return
     else:
-        result = _take_and_print(mailbox, channel)
+        result = _take_and_print(mailbox, channel, boxes)
 
     if result is None:
         raise SystemExit(1)
@@ -287,7 +296,9 @@ def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--channel", help="Sender channel, overriding self detection")
     parser.add_argument(
-        "target", nargs="?", help="Stable lemon ID, channel, or attached brief name"
+        "target",
+        nargs="?",
+        help="Stable lemon ID, channel, attached brief name, or owner/lemon for another machine's lemon with a PO box",
     )
     parser.add_argument("message", nargs="?", help="Message text")
     parser.set_defaults(func=cmd_tell)
