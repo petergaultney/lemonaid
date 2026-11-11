@@ -12,7 +12,7 @@ from ..config import load_config
 from ..inbox import db
 from ..launch.restart import state
 from ..log import get_logger
-from ..watch import push_scout, registry
+from ..watch import push_scout, registry, wait_state
 from . import (
     autoresume,
     codex_delivery,
@@ -185,6 +185,13 @@ def _take_and_print(mailbox: Path, channel: str):
 def _receive(args: argparse.Namespace, wait: bool) -> None:
     channel, lemon_id = own_lemon(args.channel or "")
     mailbox = store.mailbox_for_id(lemon_id)
+
+    if wait and wait_state.is_armed(lemon_id):
+        print(
+            f"{'push scout' if push_scout.running(lemon_id) else 'watcher'} running; "
+            "it watches your mailbox, nothing to rearm"
+        )
+        return
 
     if wait:
 

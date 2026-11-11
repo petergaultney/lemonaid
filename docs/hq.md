@@ -18,7 +18,7 @@ lemonaid claude hooks --waiter-check --status-note --own-edits
 ```
 
 - **No flag (SessionStart)** registers every Claude session, and where it runs, the moment it starts or is resumed. Without it a session nobody has spoken to yet is invisible, and that is the session a restore needs to find.
-- **`--waiter-check`** adds a Stop hook that stops a lemon with a brief from ending its turn while its `lemonaid mailbox watch --self` isn't running. An HQ with children is also held to a running `watch briefs --children` waiter. See [messages](messages.md#will-it-be-read).
+- **`--waiter-check`** adds a Stop hook that stops a lemon with a brief from ending its turn while no watcher runs for its brief: its push scout, or a `lemonaid watch --self` task. See [messages](messages.md#will-it-be-read).
 - **`--status-note`** reminds a lemon whose brief is `blocked`, `alert`, `merge` or `approve` what it is waiting on, once per turn.
 - **`--own-edits`** records a lemon's own edits to the documents it watches, by any tool, and its own `git push`es, so `watch doc` and `watch pr` don't wake it for them.
 
@@ -131,7 +131,7 @@ lemonaid group add "Billing" <lemon>
 
 `create` makes a group and `add` needs one that exists, so a typo is an error rather than a second group. See [groups](groups.md).
 
-Tell each adopted lemon what a brief is and to keep Status and `## Now` true. `lemonaid tell <lemon> "..."` reaches it ([messages](messages.md)). A Claude lemon with a brief must also keep `lemonaid mailbox watch --self` running; the Stop hook enforces it.
+Tell each adopted lemon what a brief is and to keep Status and `## Now` true. `lemonaid tell <lemon> "..."` reaches it ([messages](messages.md)). A lemon with a brief also needs one watcher running for it (see `lemonaid watch --self --status`); for a Claude lemon the Stop hook starts its push scout or asks for one.
 
 Two lemons given the same brief ID, usually from copying a brief file, share a mailbox and confuse messaging. Give one a new ID:
 
@@ -145,23 +145,26 @@ The old ID keeps working as an alias, so mail already in flight still arrives. T
 
 ## 4. The HQ's waiters
 
-A lemon wakes only when a background task it started exits. The HQ keeps three running:
+A lemon wakes when lemonaid pushes a batch into its session, or when a background task it started exits.
+
+Like any lemon with a brief, the HQ has one watcher for everything its brief lists: its push scout, or `lemonaid watch --self` where no scout can run. Check which with `lemonaid watch --self --status`. See [Watch everything in your attached brief](for-lemons.md#watch-everything-in-your-attached-brief).
+
+The watcher reads the `lemonaid watch` commands under the brief's `## Watching` as its subscriptions. It does not run them. Put the children waiter there, once:
 
 ```bash
-lemonaid watch briefs --children --orphans --self --once
-lemonaid mailbox watch --self
-lemonaid usage --watch
+lemonaid brief waiter add --self "lemonaid watch briefs --children --orphans --self --once"
 ```
 
-- **`watch briefs --children --orphans --self --once`** wakes when a child's brief Status enters `blocked`, `alert`, `merge`, `approve`, `review` or `done`, A change to a child's `Needs` alone doesn't wake it. `--orphans` adds briefs no live lemon owns (the lemons you adopted without a parent, and ones whose parent's session is gone), and their `Needs` changes do wake. The first run takes the current state as its baseline, and each rearm reports what changed since. Without `--orphans` it wakes only on `merge` and `done`.
-- **`mailbox watch --self`** wakes when another lemon, or you, `tell`s the HQ something.
-- **`usage --watch`** wakes when a Claude or Codex limit window crosses a step or is on pace to run out before it resets. Skip it if you don't watch your usage.
+- **`watch briefs --children --orphans --self --once`** wakes when a child's brief Status enters `blocked`, `alert`, `merge`, `approve`, `review` or `done`, or when a `Needs` ask appears or changes. `--orphans` adds briefs no live lemon owns (the lemons you adopted without a parent, and ones whose parent's session is gone). The first run takes the current state as its baseline, and each rearm reports what changed since.
+- Without `--orphans`, or without the row at all, a child's status wakes the HQ only when it enters `merge` or `done`.
+- Keep one `watch briefs` row. With several, the watcher uses only the last one.
+- The watcher always delivers the HQ's mailbox. Don't run `mailbox watch --self` beside it.
 
-Each prints what woke it and exits. Read it, act, and rearm the same command.
+While the watcher runs, `watch briefs --self` and `mailbox watch --self` start no second waiter. They print `push scout running` (or `watcher running`) and exit 0. `watch briefs` still records its row under `## Watching`, so the watcher picks it up.
 
-Run them as tracked background tasks of the harness, with `timeout: 2147483647` for Claude. A detached process (`nohup`, `&`, `disown`) won't wake the lemon, and the Stop hook can't tell it is running. If one stops, rearm it. Lemonaid records `watch` waiters under `## Watching` in the brief when they start. List the others there yourself with `lemonaid brief waiter add --self "<command>"`, since `restore` rearms only what the brief lists.
+`lemonaid usage --watch` is separate. It wakes when a Claude or Codex limit window crosses a step or is on pace to run out before it resets. Run it as a tracked background task, with `timeout: 2147483647` for Claude (see [Claude setup](claude.md#2-keep-background-waiters-running)), and rearm it after each wake. A detached process (`nohup`, `&`, `disown`) won't wake the lemon. Skip it if you don't watch your usage. Don't list it under `## Watching`: the watcher reports any row other than a `lemonaid watch` or `lemonaid mailbox watch` command as an invalid subscription. So `restore` doesn't rearm it; start it again yourself after a restore.
 
-The Stop hook accepts any running `watch briefs --children` waiter, including the `--orphans` form. It does not check which statuses it wakes on. Details: [watch](watch.md#watching-childrens-briefs) and [usage](usage.md).
+Details: [watch](watch.md#watching-childrens-briefs) and [usage](usage.md).
 
 `lemonaid watch stop --self` stops all of your waiters. Never `pkill -f` one: the pattern matches every lemon's.
 
@@ -221,9 +224,10 @@ Your job:
   `--parent self`.
 - Do not do implementation work yourself. Hand it to a child with a brief,
   using `lemonaid place open` or `lemonaid lemon start`.
-- Keep these running as background tasks, and rearm each when it wakes you:
-  `lemonaid watch briefs --children --orphans --self --once`,
-  `lemonaid mailbox watch --self`, [and `lemonaid usage --watch`].
+- List `lemonaid watch briefs --children --orphans --self --once` under
+  `## Watching` in your brief, and keep one watcher running for the brief (see
+  `lemonaid watch --self --status`). [Keep `lemonaid usage --watch` running as a
+  background task, and rearm it when it wakes you.]
 - When a child's Status becomes `blocked`, `alert`, `merge` or `approve`, read its
   brief and tell me in one line what I need to decide.
 - Keep your own Status and `## Now` true. Leave Status unset when nothing applies.

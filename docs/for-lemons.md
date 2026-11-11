@@ -1303,9 +1303,12 @@ reminder to stderr when they link a child, saying to check
 `lemonaid watch --self --status` (a Codex lemon runs `--push` with escalated permissions). A Claude
 lemon's `waiter-check` Stop hook refuses to let the turn end while it has a child with a brief
 and no watcher is running. A Codex lemon has no Stop hook, so the reminder is all it gets.
-A Claude lemon with a brief keeps `lemonaid mailbox watch --self` running as a
-background task; if the `waiter-check` Stop hook is installed, it refuses to
-let your turn end until that watch is running. Start it with
+A lemon with a brief gets its messages from the one watcher for its brief (see
+[Watch everything in your attached brief](#watch-everything-in-your-attached-brief)).
+Don't run `lemonaid mailbox watch --self` beside it: while that watcher runs, the
+command prints `push scout running` or `watcher running` and exits 0. A Claude lemon without a scout runs
+`lemonaid watch --self` as a background task; if the `waiter-check` Stop hook is
+installed, it refuses to let your turn end until a watcher runs. Start the task with
 `run_in_background` and `timeout: 2147483647`: since Claude Code 2.1.285 a
 background task otherwise stops after 30 minutes. That timeout needs
 `BASH_MAX_TIMEOUT_MS` raised in the user's settings (see
@@ -1449,6 +1452,13 @@ independent per database, parent, optional `--me` name, and target-status set. A
 `--orphans` to also watch briefs no live lemon owns (default `--to`: `blocked`, `alert`,
 `merge`, `approve`, `review`, `done`; Needs asks wake too). Details:
 [watch.md](watch.md#watching-childrens-briefs).
+
+A push scout or `lemonaid watch --self` reads a `watch briefs` command under your brief's
+`## Watching` as a subscription, with the same `--to` and `--orphans` defaults, and does
+not run it. Keep one such row: with several, it uses only the last. With no row, a direct
+child's status wakes you only when it enters `merge` or `done`. While that watcher runs,
+`watch briefs --self` (and its `--status`) records the row, prints `push scout running` or
+`watcher running`, and exits 0.
 
 A child whose inbox row is archived drops out of watching: its brief is no longer read
 and its later changes don't wake you. Its parent link stays, so `lemon children` and
