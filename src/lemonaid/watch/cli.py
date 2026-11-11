@@ -9,6 +9,7 @@ from . import (
     doc_cli,
     file_cli,
     host_services,
+    mentions_cli,
     notes_cli,
     openclaw_cli,
     pr_cli,
@@ -37,6 +38,7 @@ def setup_parser(
     pr_cli.add_parser(watch_subparsers)
     repo_cli.add_parser(watch_subparsers)
     reviews_cli.add_parser(watch_subparsers)
+    mentions_cli.add_parser(watch_subparsers)
     file_cli.add_parser(watch_subparsers)
     command_cli.add_parser(watch_subparsers)
     briefs_cli.add_parser(watch_subparsers)

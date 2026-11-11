@@ -112,7 +112,7 @@ than refusing to start.
 
 ## Cursors
 
-Every watcher (`doc`, `pr`, `repo`, `reviews`, `file`, `command` and `briefs`) compares what it watches with a saved
+Every watcher (`doc`, `pr`, `repo`, `reviews`, `mentions`, `file`, `command` and `briefs`) compares what it watches with a saved
 record of what it last reported to the lemon, its cursor, and reports what differs. So a
 push, comment or edit made while no waiter ran is reported by the next waiter, and nothing
 is reported twice.
@@ -355,6 +355,52 @@ One waiter per scope and lemon may run; `--once`, `--codex-thread` and
 ```
 
 Stop it with `lemonaid watch stop --self reviews`.
+
+## Watching for mentions
+
+`lemonaid watch mentions` wakes a lemon when someone writes `@<you>` (the `gh` user) on a
+PR that no lemon is already watching for comments, so a lemon such as HQ can bring it to
+you. It is read-only: it never marks a notification read, so it neither depends on nor
+changes how you triage them.
+
+```bash
+lemonaid watch mentions --wait --scope org:acme --once
+lemonaid watch mentions --status --scope org:acme
+```
+
+It reports, once each, a direct mention in a conversation comment, a review, an inline
+review comment, or the description of a PR opened since the last poll. Each event names
+the repo, PR number and title, who wrote it, where (`conversation`, `review`,
+`description` or `path:line`), the comment's URL, and its first 200 characters. It does
+not report:
+
+- team mentions such as `@acme/ml`, or `@you` inside quoted lines or code;
+- anything written by your own account, since lemons post as you, or by bots;
+- a mention added later by editing a comment or description;
+- a PR some lemon's `watch --self` read in the last 5 minutes with its comments on (an
+  author's PR by default), since that lemon hears the comment itself.
+
+Each poll reads your notification threads you participate in, including read ones, that
+were updated since the last poll (`gh api notifications?all=true&participating=true`), then
+reads the comments of each PR among them. It does not rely on a thread's `reason`, which
+is only its latest: a merge after the mention changes it. `--scope` (repeatable) keeps
+repos matching `org:NAME`, `user:NAME` or `repo:OWNER/NAME`. Polls run every `--interval`
+(3 minutes by default) and pause with every other GitHub reader when the quota runs low.
+
+The first waiter takes current mentions as seen; `--backlog` instead reports the last 24
+hours' on a lemon's first subscription to a scope. The cursor lives under the lemon's
+Lemon-ID and the scope, like the other [cursors](#cursors), so a restarted waiter reports
+mentions that arrived meanwhile. One waiter per scope and lemon may run; `--once`,
+`--codex-thread` and `--state-dir` work as in `watch pr`. Subscribe through a brief's
+`## Watching` section:
+
+```markdown
+## Watching
+
+- `lemonaid watch mentions --wait --scope org:acme --once`
+```
+
+Stop it with `lemonaid watch stop --self mentions`.
 
 ## Watching files and directories
 

@@ -28,7 +28,7 @@ import time
 from . import brief_record, cursors, delivery, registry, review_events, review_requests, waiter_lock
 
 
-def _scope(value: str) -> str:
+def scope_qualifier(value: str) -> str:
     if not re.fullmatch(r"(org|user|repo):[\w.-]+(/[\w.-]+)?", value):
         raise argparse.ArgumentTypeError(
             f"not a scope: {value!r} (use org:NAME, user:NAME or repo:OWNER/NAME)"
@@ -123,7 +123,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     ap.add_argument(
         "--scope",
-        type=_scope,
+        type=scope_qualifier,
         action="append",
         default=[],
         metavar="QUALIFIER",

@@ -15,6 +15,7 @@ from . import (
     failure_state,
     file_events,
     github_failures,
+    mention_events,
     notes,
     own_edits,
     own_pushes,
@@ -114,6 +115,40 @@ def _reviews_poller(
     return poll
 
 
+def _mentions_poller(
+    spec: subscriptions.Subscription,
+    root: Path,
+    directory: Path,
+    me: str,
+    deliver: abc.Callable[[str], bool],
+    debounce: float,
+) -> abc.Callable[[], object]:
+    scope = spec.target[1:]
+    stem = mention_events.state_stem(directory, scope, me)
+    failed = failure_state.path(root, spec, "github")
+    next_at = 0.0
+
+    def poll() -> None:
+        nonlocal next_at
+        if time.monotonic() < next_at:
+            return
+
+        if (
+            mention_events.poll(stem, scope, deliver, pr_poller.hears_comments, spec.backlog)
+            is None
+        ):
+            _log.warning("Cannot read GitHub notifications for mentions")
+            next_at = time.monotonic() + github_failures.failed(
+                root, failed, "mentions", deliver, spec.interval, debounce
+            )
+            return
+
+        github_failures.recovered(root, failed)
+        next_at = time.monotonic() + spec.interval
+
+    return poll
+
+
 def open_poller(
     spec: subscriptions.Subscription,
     root: Path,
@@ -204,6 +239,8 @@ def open_poller(
         return _repo_poller(spec, root, directory, me, deliver, settings.github_debounce)
     if spec.kind == "reviews":
         return _reviews_poller(spec, root, directory, me, deliver, settings.github_debounce)
+    if spec.kind == "mentions":
+        return _mentions_poller(spec, root, directory, me, deliver, settings.github_debounce)
 
     repo, number = spec.target
     stem = pr_wait.state_stem(directory, repo, int(number), me)
@@ -225,7 +262,9 @@ def open_poller(
         if finished or time.monotonic() < retry_at:
             return
 
-        pr_poller.interested(repo, int(number), root.name)
+        pr_poller.interested(
+            repo, int(number), root.name, comments=spec.comments and roles.COMMENTS in wake
+        )
         snapshot = pr_activity.fetch(
             repo,
             int(number),

@@ -64,9 +64,11 @@ def _beat() -> None:
     _heartbeat_path().touch()
 
 
-def interested(repo: str, number: int, watcher: str) -> None:
+def interested(repo: str, number: int, watcher: str, *, comments: bool = False) -> None:
+    """Mark *watcher*'s interest in the PR; *comments* says whether its comments wake it."""
     path = _interest_root() / repo / str(number) / watcher
     path.parent.mkdir(parents=True, exist_ok=True)
+    cursors.write_text(path, "comments" if comments else "")
     path.touch()
 
 
@@ -87,6 +89,18 @@ def snapshot(repo: str, number: int) -> dict | None:
 
 def _watched(repo: str, number: int, now: float) -> bool:
     return any(_age(p, now) < _INTEREST for p in (_interest_root() / repo / str(number)).glob("*"))
+
+
+def hears_comments(repo: str, number: int) -> bool:
+    """Whether a scout watched the PR lately for a lemon its comments wake."""
+    now = time.time()
+    for path in (_interest_root() / repo / str(number)).glob("*"):
+        try:
+            if _age(path, now) < _INTEREST and path.read_text() == "comments":
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def read(repo: str, number: int) -> dict | None:
