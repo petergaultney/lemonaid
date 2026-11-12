@@ -228,8 +228,8 @@ def permitted(
     if action in _YIELDING and overlaid:
         return False
 
-    if action == "edit_brief":
-        return not (brief_shown or overlaid or searching)
+    if action == "edit_brief":  # a brief view edits the brief it shows, when it shows one
+        return not (overlaid or searching or (brief_shown and brief_unselected))
 
     if action in {"copy_resume", "tmux_resume"} and searching:
         return history_focused()

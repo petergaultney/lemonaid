@@ -443,6 +443,11 @@ class BriefView(scroll_position.StableScroll):
             if (widget := self._needs.get(path)) and (section := self._section(path)):
                 widget.update(self._needs_markdown(section))
 
+    def single_brief(self) -> tuple[Path, str] | None:
+        """The one brief this view shows, with its lemon's name; None when it shows none or several."""
+        paths = [section.path for section in self._sections if section.path is not None]
+        return (paths[0], self._lemon_name(paths[0])) if len(paths) == 1 else None
+
     def _lemon_name(self, path: Path) -> str:
         section = self._section(path)
         return (section.lemon.name if section and section.lemon else "") or path.stem

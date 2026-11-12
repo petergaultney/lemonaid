@@ -38,7 +38,7 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("hide", "Hide/unhide in inbox; / finds hidden; status explains rows kept visible"),
             (
                 "edit_brief",
-                "Edit the brief in $EDITOR; merged with the lemon's writes, and the lemon is told",
+                "Edit the brief in $EDITOR; merged with the lemon's writes on quit, and the lemon is told",
             ),
             ("archive", "Archive - remove it from the list"),
             ("snooze", "Snooze until a time you pick"),
