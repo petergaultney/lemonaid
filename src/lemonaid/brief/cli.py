@@ -21,6 +21,7 @@ from . import (
     dismiss,
     docs_cli,
     family,
+    hand_edit_cli,
     lemon,
     lemons_cli,
     popup,
@@ -261,6 +262,7 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     write_cli.add_parsers(brief_subparsers)
     archive_cli.add_parsers(brief_subparsers)
     handoff_cli.add_parser(brief_subparsers)
+    hand_edit_cli.add_parser(brief_subparsers)
     lemonaid.tasks.briefs.ensure_cli.add_parser(brief_subparsers)
 
     brief_parser.set_defaults(func=lambda a: brief_parser.print_help())

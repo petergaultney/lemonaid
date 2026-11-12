@@ -133,6 +133,7 @@ class KeybindingsConfig:
     mark_read: str = "M"
     mark_unread: str = "alt+m"  # one key name, like move_pin_up
     hide: str = "H"  # Toggle Hidden: yes in the selected lemon's brief
+    edit_brief: str = "e"  # Edit the selected lemon's brief in $EDITOR (`brief edit`)
     archive: str = "A"
     rename: str = "r"
     snooze: str = "s"  # Snooze a session out of the inbox for a while

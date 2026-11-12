@@ -40,8 +40,9 @@ def edit(
     *,
     preserve_existing: bool = False,
     convert: bool = False,
+    written: abc.Callable[[str, str], None] | None = None,
 ) -> str:
-    """An error, or "" once *change* is written."""
+    """An error, or "" once *change* is written; *written* is as `store.edit` takes it."""
 
     def checked(before: str) -> str:
         after = change(before)
@@ -65,7 +66,7 @@ def edit(
     with db.connect() as conn:
         editor = created.by(conn)
     try:
-        store.edit(path.resolve(), checked, editor, convert=convert)
+        store.edit(path.resolve(), checked, editor, convert=convert, written=written)
     except (store.ChangedUnderneath, ValueError) as e:
         return str(e)
 

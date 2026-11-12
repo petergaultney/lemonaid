@@ -30,7 +30,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import fast_popup, navigation, pane_state, rename, scratch_autosave
+from ...tmux import command_popup, fast_popup, navigation, pane_state, rename, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -59,6 +59,7 @@ from .edits import (
     edit_dialogs,
     group_dialogs,
     handoff_dialog,
+    inbox_brief_edit,
     inbox_edits,
     inbox_groups,
     inbox_hidden,
@@ -1077,6 +1078,21 @@ class LemonaidApp(CrashLoggedApp):
         self._stop_hint_timer()
         self._show_keys(False)
         self.query_one(StatusLine).show_notice(message)
+
+    def action_edit_brief(self) -> None:
+        table = self._focused_table()
+        if (
+            self._mode is None
+            and table.id in {"main_table", "other_sources_table"}
+            and (notification := row_keys.notification(row_keys.notification_at_cursor(table)))
+        ):
+            message = inbox_brief_edit.edit(self, notification, command_popup.open_popup)
+        else:
+            message = "Editing a brief is available on a lemon in the inbox; exit this view first"
+        if message:
+            self._stop_hint_timer()
+            self._show_keys(False)
+            self.query_one(StatusLine).show_notice(message)
 
     def action_archive(self) -> None:
         """Archive the selected session (removes from active list)."""
