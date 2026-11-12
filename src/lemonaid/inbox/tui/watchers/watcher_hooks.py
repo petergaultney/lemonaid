@@ -210,6 +210,21 @@ def _brief_done(conn: sqlite3.Connection, channel: str) -> bool:
     )
 
 
+def sweep_done_crashed(conn: sqlite3.Connection, by: str) -> list[str]:
+    """Archive crashed rows whose brief says `done`; returns their channels."""
+    swept = [
+        row.channel
+        for row in loss.candidates(conn)
+        if ended.cause(row.metadata) == ended.CRASHED and _brief_done(conn, row.channel)
+    ]
+    for channel in swept:
+        db.archive_channel(
+            conn, channel, "crashed with a done brief", cause=ended.PROCESS_EXITED, by=by
+        )
+
+    return swept
+
+
 def _crashed(conn: sqlite3.Connection, row: db.Notification | None, why: str) -> bool:
     """Whether the newest lemon on its tty stopped while its pane lives, without the quit
     report its harness gives (only a harness that reports quits counts). A lemon whose
@@ -295,6 +310,10 @@ def start(
                 for row in newly:
                     events.record(
                         "inbox-lost", row.channel, row.metadata.get("tty", ""), by="inbox watcher"
+                    )
+                for channel in sweep_done_crashed(conn, by="inbox watcher"):
+                    events.record(
+                        "inbox-archive", channel, "crashed with a done brief", by="inbox watcher"
                     )
                 if auto.due(conn, config.restore.auto, bool(newly) or first or came_up):
                     auto.trigger()
