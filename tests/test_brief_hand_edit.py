@@ -273,3 +273,40 @@ def test_cmd_edit_accepts_a_brief_holding_literal_conflict_markers(
 
     assert capsys.readouterr().out == expected_out
     assert _MARKER_EXAMPLE in path.read_text()
+
+
+def test_copy_shows_an_empty_status_line_for_a_brief_without_one():
+    path = _registered(_brief())
+
+    assert "\nStatus:\n" in hand_edit.copy_text(path)
+
+
+def test_apply_sets_a_status_typed_into_the_empty_line():
+    path = _registered(_brief())
+    base = hand_edit.copy_text(path)
+
+    outcome = hand_edit.apply(path, base, base.replace("\nStatus:\n", "\nStatus: blocked\n"))
+
+    assert isinstance(outcome, hand_edit.Applied)
+    assert "status: blocked" in path.read_text()
+
+
+def test_apply_leaves_the_brief_without_a_status_when_the_line_stays_empty():
+    path = _registered(_brief())
+    base = hand_edit.copy_text(path)
+
+    outcome = hand_edit.apply(path, base, base.replace("Fix the flaky test.", "Fix it."))
+
+    assert isinstance(outcome, hand_edit.Applied)
+    assert "status" not in path.read_text().split("\n---\n")[0]
+
+
+def test_apply_refuses_a_status_word_the_cli_would_not_set():
+    path = _registered(_brief())
+    before = path.read_text()
+    base = hand_edit.copy_text(path)
+
+    outcome = hand_edit.apply(path, base, base.replace("\nStatus:\n", "\nStatus: bogus\n"))
+
+    assert isinstance(outcome, str) and "bogus" in outcome
+    assert path.read_text() == before

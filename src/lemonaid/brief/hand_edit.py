@@ -21,7 +21,7 @@ from pathlib import Path
 
 from ..log import get_logger
 from ..messages import to_brief
-from . import frontmatter, three_way, verbs_cli
+from . import frontmatter, store, three_way, verbs_cli
 
 _log = get_logger("brief.hand_edit")
 
@@ -44,8 +44,46 @@ class _Conflict(Exception):
         self.conflicted = conflicted
 
 
+def _with_status_line(text: str) -> str:
+    """*text* with a `Status:` header line, empty when the brief has none, after `Brief-ID:` if shown."""
+    lines = text.split("\n")
+    found = frontmatter.header_lines(lines)
+    if any(key == "status" for _, key, _ in found):
+        return text
+
+    after = next((i for i, key, _ in found if key == "brief-id"), None)
+    if after is None:
+        after = 0 if lines and lines[0].startswith("# ") else -1
+
+    return "\n".join([*lines[: after + 1], "Status:", *lines[after + 1 :]])
+
+
+def _status(text: str) -> str:
+    return next(
+        (v for _, key, v in frontmatter.header_lines(text.split("\n")) if key == "status"), ""
+    )
+
+
+def _without_empty_status(text: str) -> str:
+    lines = text.split("\n")
+    empty = {i for i, key, v in frontmatter.header_lines(lines) if key == "status" and not v}
+    return "\n".join(line for i, line in enumerate(lines) if i not in empty)
+
+
+def _status_error(text: str, base: str) -> str:
+    """Why *text*'s `Status:` isn't one `lemonaid brief status` would set; "" if fine or unchanged from *base*."""
+    value = _status(text)
+    if not value or value == _status(base) or value in store.states():
+        return ""
+
+    return (
+        f"Refused: `Status: {value}` is not one of: {', '.join(store.states())}."
+        " Leave it empty for none."
+    )
+
+
 def copy_text(path: Path) -> str:
-    return frontmatter.legacy(path.read_text())
+    return _with_status_line(frontmatter.legacy(path.read_text()))
 
 
 def apply(path: Path, base: str, yours: str) -> Applied | Conflicted | str:
@@ -53,11 +91,15 @@ def apply(path: Path, base: str, yours: str) -> Applied | Conflicted | str:
     diffs: list[str] = []
 
     def merged(current: str) -> str:
+        current = _with_status_line(current)
         result = three_way.merge(base, yours, current, YOURS, THEIRS)
         if result.conflicts:
             raise _Conflict(Conflicted(result.text, current))
 
-        return result.text
+        if error := _status_error(result.text, base):
+            raise ValueError(error)
+
+        return _without_empty_status(result.text)
 
     def written(before: str, after: str) -> None:
         diffs.append(_diff(before, after))  # of the file itself, so its line numbers are the file's
