@@ -31,7 +31,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `A` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
-| `U` | Show usage over the inbox, a brief or the grove: each limit window's pace, projection and reset, worst first; `U`, `q` or `Escape` closes it |
+| `U` | Show usage over the inbox, a brief or the grove: each limit window's pace, projection and reset, worst first; `U`, `q`, `Escape` or `Backspace` closes it |
 | `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set or attention mode is on |
 | `!` | Turn [attention mode](config.md#attention-mode) on or off: rows only for what needs you, with a count of everything at the top |
@@ -180,8 +180,8 @@ window, the main pane follows it there, as with the arrows below. Up/down arrows
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
 the lemon's name means its inbox entry is unread; `M`, `Alt`+`m`, `r` and `Z` mark it read,
 mark it unread, rename it, and undo, as in the list, and `e` edits the brief shown (see
-[above](#default-keybindings)). `U` shows the usage view over the brief; `U`, `q` or
-`Escape` closes it. `q` or `Escape` restores the inbox. `prefix+b` toggles
+[above](#default-keybindings)). `U` shows the usage view over the brief; `U`, `q`, `Escape` or
+`Backspace` closes it. `q` or `Escape` restores the inbox. `prefix+b` toggles
 the brief from the lemon pane. The brief stays open when you switch windows or sessions, by the grove or any
 other way, and shows the brief of the lemon in the window you land in. A window with no lemon of its own, such as
 a shell, keeps the brief you were looking at, still as that lemon's. Whenever the pane shows a brief, it checks in the
