@@ -67,6 +67,7 @@ class FrontEnd:
     """Bring back lemons lost when this terminal went away, in the places they had; with
     False, never by starting the terminal itself."""
     relocation: Relocation | None = None  # None: a moved lemon's old tab stays open
-    popup: abc.Callable[[abc.Sequence[str], str], None] | None = None
-    """Run a command, given (argv, title), in a window over the caller's view, and return
-    without waiting for it; None where the caller runs the command in its own terminal."""
+    popup: abc.Callable[[abc.Sequence[str], str], int | None] | None = None
+    """Run a command, given (argv, title), in a window over the caller's view, wait for it to
+    close, and return its exit status, or None when the window never ran it. It blocks, so a
+    UI calls it from a worker. None where the caller runs the command in its own terminal."""
