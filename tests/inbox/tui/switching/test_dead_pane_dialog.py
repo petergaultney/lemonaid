@@ -85,6 +85,7 @@ def test_missing_directory_without_tmux_destination_shows_fallback_command(monke
             {"cwd": str(tmp_path / "gone"), "session_id": "id"},
             switch_source="tmux",
         )
+    monkeypatch.setattr(watcher_hooks, "start", lambda *a, **k: None)  # it would archive the row
     monkeypatch.setattr(
         "lemonaid.inbox.tui.switching.inbox_switch.handle_notification", lambda *a, **k: False
     )
@@ -93,6 +94,7 @@ def test_missing_directory_without_tmux_destination_shows_fallback_command(monke
         app = LemonaidApp()
         async with app.run_test(size=(50, 30)) as pilot:
             app._set_detached_channels({row.channel})
+            await pilot.pause()
             await pilot.press("enter")
             await pilot.pause()
             assert isinstance(app.screen, ResumeErrorScreen)
