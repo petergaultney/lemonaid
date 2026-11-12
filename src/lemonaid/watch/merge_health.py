@@ -1,6 +1,6 @@
 """Merge blockers a PR's author should fix before anyone asks: a conflict with its base branch, and failed CI.
 
-Each is reported once per head commit, except that a CI failure is reported again when a re-run fails again. A conflict is reported when GitHub first says
+Each is reported once per head commit, except that a CI failure is reported again when the checks have since all finished without a failure (a rerun fixed it) and one then fails again. A new run of a still-failing check, such as a scheduled one, is not news. A conflict is reported when GitHub first says
 CONFLICTING at a head, and again if the PR became mergeable in between; UNKNOWN (GitHub
 still computing) changes nothing. CI is reported once no check on the head is still
 running and any check has failed, whether or not it is required for merging. With `--ci`,
@@ -25,7 +25,7 @@ from . import cursors, pr_activity, roles
 
 class Seen(ty.NamedTuple):
     conflict_head: str  # head last seen CONFLICTING; "" once seen MERGEABLE
-    ci_head: str  # head and failed checks (with finish times) last reported
+    ci_head: str  # head and names of the failed checks last reported; "" once none failed
     stable: str = ""  # head and checks of the previous poll if all had passed, else ""
     passed: str = ""  # head and checks of the last reported pass
     awaiting: str = ""  # head last seen without a passing set of checks; "" once one settles
@@ -82,7 +82,7 @@ def _detail(check: pr_activity.Check) -> str:
 
 
 def _failure_id(head: str, failed: ty.Sequence[pr_activity.Check]) -> str:
-    return head + ":" + ",".join(sorted(f"{c.name}@{c.finished}" for c in failed))
+    return head + ":" + ",".join(sorted(c.name for c in failed))
 
 
 def _all_passed(snap: pr_activity.Snapshot) -> str:
@@ -109,6 +109,9 @@ def events(
     failed = _failed(snap.checks)
     failure = _failure_id(snap.head, failed) if failed else ""
     failed = failed if failure != seen.ci_head else []
+    recovered = (
+        bool(snap.checks) and not failure and all(c.outcome != "pending" for c in snap.checks)
+    )
     now = _all_passed(snap)
     settled = bool(now) and now == seen.stable
     green = settled and bool(seen.awaiting) and not snap.draft
@@ -161,7 +164,7 @@ def events(
         {"CONFLICTING": snap.head, "MERGEABLE": ""}.get(snap.mergeable, seen.conflict_head)
         if comments
         else seen.conflict_head,
-        failure if failed else seen.ci_head,
+        failure if failed else "" if recovered else seen.ci_head,
         now,
         now if passed or green else seen.passed,
         "" if settled else seen.awaiting if now else snap.head,

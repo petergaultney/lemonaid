@@ -1,4 +1,4 @@
-"""A CI re-run on an unchanged head is a new outcome."""
+"""A failed check on a head is reported once, until it passes in between."""
 
 from lemonaid.watch import merge_health, pr_activity, roles
 
@@ -17,7 +17,7 @@ def _kinds(events):
     return [e.kind for e in events]
 
 
-def test_a_rerun_that_fails_again_is_reported_again():
+def test_a_new_run_failing_again_is_not_reported_again():
     first, seen = merge_health.events(
         1, _snap(_check("failed", "10:00")), merge_health.Seen("", "")
     )
@@ -30,7 +30,16 @@ def test_a_rerun_that_fails_again_is_reported_again():
     assert running == []
 
     second, seen = merge_health.events(1, _snap(_check("failed", "10:20")), seen)
-    assert _kinds(second) == [roles.CI_FAILED]
+    assert second == []
+
+
+def test_a_failure_after_a_pass_is_reported_again():
+    _, seen = merge_health.events(1, _snap(_check("failed", "10:00")), merge_health.Seen("", ""))
+    _, seen = merge_health.events(1, _snap(_check("passed", "10:10")), seen)
+
+    again, _ = merge_health.events(1, _snap(_check("failed", "10:20")), seen)
+
+    assert _kinds(again) == [roles.CI_FAILED]
 
 
 def test_a_rerun_that_passes_is_reported_when_ci_is_watched():
