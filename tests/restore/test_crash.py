@@ -137,6 +137,23 @@ def test_a_lemon_whose_brief_is_done_is_archived_rather_than_crashed(tmp_path):
     assert _cause("claude:a") == ("archived", ended.PROCESS_EXITED)
 
 
+def test_a_crashed_row_whose_brief_turns_done_is_swept(tmp_path):
+    brief = tmp_path / "brief.md"
+    brief.write_text("# Work\n\nStatus: review\n")
+    _row("claude:a")
+    _row("claude:b", tty="/dev/ttys901")
+    watcher_hooks.archive_channel("claude:a", _EXITED)
+    watcher_hooks.archive_channel("claude:b", "process-exited tty=/dev/ttys901")
+    with db.connect() as conn:
+        attached.attach(conn, "claude:a", brief)
+        assert watcher_hooks.sweep_done_crashed(conn, by="test") == []
+        brief.write_text("# Work\n\nStatus: done\n")
+        assert watcher_hooks.sweep_done_crashed(conn, by="test") == ["claude:a"]
+
+    assert _cause("claude:a") == ("archived", ended.PROCESS_EXITED)
+    assert _cause("claude:b") == ("unread", ended.CRASHED)
+
+
 def test_a_lemon_killed_with_its_server_stays_lost(monkeypatch):
     monkeypatch.setattr(tmux.server, "started", lambda socket: tmux.server.GONE)
     _row("claude:a", exit_reason="other", exit_deliberate=False)
