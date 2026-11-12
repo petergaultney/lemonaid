@@ -116,7 +116,6 @@ def test_cmd_edit_saves_the_edit_and_tells_the_lemon(tmp_path, capsys):
     args = argparse.Namespace(
         lemon=str(path),
         editor=_editor(tmp_path, "Fix the flaky test.", "Fix every flaky test."),
-        popup=False,
     )
 
     hand_edit_cli.cmd_edit(args)
@@ -130,7 +129,7 @@ def test_cmd_edit_saves_the_edit_and_tells_the_lemon(tmp_path, capsys):
 def test_cmd_edit_neither_writes_nor_tells_when_the_copy_is_unchanged(tmp_path, capsys):
     path = _registered(_brief())
     before = path.read_text()
-    args = argparse.Namespace(lemon=str(path), editor=_editor(tmp_path, "x", "x"), popup=False)
+    args = argparse.Namespace(lemon=str(path), editor=_editor(tmp_path, "x", "x"))
 
     hand_edit_cli.cmd_edit(args)
 
@@ -154,7 +153,7 @@ def test_cmd_edit_keeps_the_copy_when_the_person_stops_at_a_conflict(tmp_path, m
         )
     )
     monkeypatch.setattr("builtins.input", lambda prompt: "")
-    args = argparse.Namespace(lemon=str(path), editor=f"{sys.executable} {script}", popup=False)
+    args = argparse.Namespace(lemon=str(path), editor=f"{sys.executable} {script}")
 
     with pytest.raises(SystemExit):
         hand_edit_cli.cmd_edit(args)
@@ -241,7 +240,7 @@ def test_cmd_edit_applies_nothing_when_the_editor_exits_with_an_error(
         )
     )
     monkeypatch.setattr("builtins.input", lambda prompt: "")
-    args = argparse.Namespace(lemon=str(path), editor=f"{sys.executable} {script}", popup=False)
+    args = argparse.Namespace(lemon=str(path), editor=f"{sys.executable} {script}")
 
     with pytest.raises(SystemExit):
         hand_edit_cli.cmd_edit(args)
@@ -268,7 +267,7 @@ def test_cmd_edit_accepts_a_brief_holding_literal_conflict_markers(
     tmp_path, capsys, old, new, expected_out
 ):
     path = _registered(_brief(goal=_MARKER_EXAMPLE))
-    args = argparse.Namespace(lemon=str(path), editor=_editor(tmp_path, old, new), popup=False)
+    args = argparse.Namespace(lemon=str(path), editor=_editor(tmp_path, old, new))
 
     hand_edit_cli.cmd_edit(args)
 

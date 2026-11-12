@@ -200,5 +200,5 @@ def restorer(start: bool) -> run.Terminal:
     return restore.terminal(start)
 
 
-def popup(command: abc.Sequence[str], title: str) -> None:
-    command_popup.open_popup(command, title)
+def popup(command: abc.Sequence[str], title: str) -> int | None:
+    return command_popup.run(command, title)

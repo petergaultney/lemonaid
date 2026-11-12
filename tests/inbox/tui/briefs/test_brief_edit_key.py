@@ -12,6 +12,7 @@ from lemonaid.inbox import db
 from lemonaid.inbox.tui import bindings
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.briefs import brief_popup
+from lemonaid.inbox.tui.briefs.brief_pane import BriefPane
 from lemonaid.inbox.tui.edits import inbox_brief_edit
 
 
@@ -41,11 +42,11 @@ def _edits(monkeypatch) -> list[tuple[Path, object]]:
     [
         (False, False, False, False, True),
         (True, False, False, False, True),
-        (True, True, False, False, False),
+        (True, True, False, False, True),
         (False, False, True, False, False),
         (False, False, False, True, False),
     ],
-    ids=["inbox", "a brief shown", "a brief for no single row", "a dialog", "searching"],
+    ids=["inbox", "a brief shown", "a brief whose row is unselected", "a dialog", "searching"],
 )
 def test_edit_brief_is_permitted(brief_shown, brief_unselected, overlaid, searching, expected):
     assert (
@@ -73,6 +74,25 @@ def test_e_in_the_scratch_pane_edits_the_brief_shown_not_the_row_under_the_curso
             await pilot.pause()
             app._set_brief_view(target.Target([shown], [shown.parent], None, [], "shown"))
             await pilot.pause()
+            await pilot.press("e")
+            await pilot.pause()
+
+    asyncio.run(check())
+
+    assert [path for path, _ in calls] == [shown]
+
+
+def test_e_edits_the_one_brief_shown_when_no_inbox_row_is_selected(monkeypatch):
+    shown = _attached_brief("shown", "claude:shown")
+    calls = _edits(monkeypatch)
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True)
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            app._set_brief_view(target.Target([shown], [shown.parent], None, [], "shown"))
+            await pilot.pause()
+            app.query_one(BriefPane).unselected = True
             await pilot.press("e")
             await pilot.pause()
 

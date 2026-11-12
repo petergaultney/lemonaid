@@ -71,9 +71,9 @@ row to restore it to the default list.
 `e` opens the selected lemon's brief in your editor (`$VISUAL`, then `$EDITOR`, then
 `vi`), in a tmux popup over the window, or in place of the inbox outside tmux. In a brief
 view (`b`, in the sidebar or its popup) it edits the brief shown, when the view shows one;
-the popup opens the editor in place. It runs
-`lemonaid brief edit`, which you can also run from any terminal with a Lemon-ID, a
-channel or a brief's name:
+the popup opens the editor in place. `lma` does the edit itself, starting only the
+editor; `lemonaid brief edit` does the same from any terminal, given a Lemon-ID, a channel
+or a brief's name:
 
 - **You edit a copy, not the brief.** The copy shows the brief as lemonaid's edit
   verbs see it, with its frontmatter's fields (`Brief-ID:`, `Status:`, `Parent:`,
@@ -85,14 +85,16 @@ channel or a brief's name:
   before replacing it; a write that lands between that re-read and the replace is
   still overwritten.
 - **If you and the lemon changed the same lines,** the brief is left alone and the
-  copy shows both, between `<<<<<<< your edit` and `>>>>>>> the brief now`.
-  Resolve them and quit again. The same choice follows a refused edit: edit
-  again, or stop, keeping the copy and printing where it is.
+  copy shows both, between `<<<<<<< your edit` and `>>>>>>> the brief now`. You
+  choose to edit the copy again (`e`) and resolve them, or stop (`s`): the brief
+  stays as it is, and the copy is kept where it says. `lma` asks in a dialog, the
+  CLI at its prompt. A refused edit asks the same.
 - **The lemon is told what changed,** as a message in its mailbox with the diff, so
   its next write to the brief starts from your version rather than its memory of
   the old one. Quitting without a change writes and sends nothing.
-- **An editor that exits with an error applies nothing,** such as Vim's `:cq`
-  after a `:w`: you get the same choice to edit again or stop, and stopping keeps the copy.
+- **An editor that exits with an error applies nothing,** such as Vim's `:cq` after
+  a `:w` (Emacs: `M-: (kill-emacs 1)`, or `M-x server-edit-abort` under
+  `emacsclient`): you get the same choice to edit again or stop.
 
 Rows retained after their terminal pane closes show a `detached` marker. When the
 saved session details are insufficient to resume one, its marker also says
