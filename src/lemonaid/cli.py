@@ -228,7 +228,10 @@ def inbox_main() -> None:
         return
 
     set_terminal_title("lma")
-    app = LemonaidApp(scratch_mode=args.scratch)
+    pane = os.environ.get("TMUX_PANE")
+    # Read before the app starts: a respawned scratch pane opens in the brief it showed.
+    restored = lemonaid.brief.sidebar.recorded(pane) if args.scratch and pane else (None, "")
+    app = LemonaidApp(scratch_mode=args.scratch, restored=restored)
     app.run()
 
     # If the user chose to resume a session, exec it in this terminal

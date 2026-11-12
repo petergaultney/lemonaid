@@ -14,8 +14,10 @@ Until now the only way to pick up new code was `prefix+:kill-pane` then
 
 import subprocess
 
+from .. import brief
+from ..config import load_config
 from ..log import get_logger
-from . import follow, scratch
+from . import follow, scratch, scratch_brief
 
 _log = get_logger("tmux.restart")
 
@@ -44,6 +46,11 @@ def restart_scratch() -> str:
     pane_id = scratch.marked_pane()
     if not pane_id:
         return "no scratch pane to restart; create one first"
+
+    # The pane's recorded brief is a pane option, which the respawn keeps and the new TUI
+    # reads before it starts; one that showed the inbox records the config's view first.
+    if not brief.sidebar.read(pane_id) and load_config().tmux_session.scratch_view == "brief":
+        scratch_brief.show_here()
 
     if not _respawn(pane_id, "lma --scratch"):
         return f"could not restart {pane_id}"

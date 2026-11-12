@@ -51,11 +51,10 @@ def test_another_lemons_brief_recorded_for_this_window_is_replaced_by_its_own(
     remembered = _in_window(monkeypatch, tmp_path, target.for_notification(hq, {}))
 
     async def check() -> None:
-        app = LemonaidApp(scratch_mode=True)
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
         async with app.run_test(size=(50, 30)) as pilot:
             await pilot.pause()
             pane = app.query_one(BriefPane)
-            pane.sync()
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert pane.target is not None
@@ -182,3 +181,59 @@ def test_a_check_finished_after_the_pane_moved_is_dropped(monkeypatch, tmp_path)
         asyncio.run(check())
     finally:
         release.set()
+
+
+def test_a_restored_brief_selects_its_own_lemons_row(monkeypatch, tmp_path):
+    own = _lemon(tmp_path, "own", "work", "2")
+    other = _lemon(tmp_path, "other", "other", "1")
+    assert own is not None and other is not None
+    _in_window(monkeypatch, tmp_path, target.for_notification(own, {}))
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
+        async with app.run_test(size=(50, 30)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            table = app.query_one("#main_table", DataTable)
+            selected = str(table.coordinate_to_cell_key(table.cursor_coordinate)[0].value)
+            assert selected == str(own.id)
+            assert not app.query_one(BriefPane).unselected
+
+    asyncio.run(check())
+
+
+def test_a_restored_brief_in_a_window_without_a_lemon_selects_no_row(monkeypatch, tmp_path):
+    other = _lemon(tmp_path, "other", "other", "1")
+    assert other is not None
+    _in_window(monkeypatch, tmp_path, target.for_notification(other, {}))
+    monkeypatch.setattr(window_lemon, "find", lambda current: None)
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
+        async with app.run_test(size=(50, 30)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert app.query_one(BriefPane).unselected
+
+    asyncio.run(check())
+
+
+def test_a_restored_brief_carried_into_a_window_without_a_lemon_selects_no_row(
+    monkeypatch, tmp_path
+):
+    own = _lemon(tmp_path, "own", "work", "2")
+    assert own is not None
+    _in_window(monkeypatch, tmp_path, target.for_notification(own, {}))
+    monkeypatch.setattr(sidebar, "read", lambda pane: (target.for_notification(own, {}), "@old"))
+    monkeypatch.setattr(window_lemon, "find", lambda current: None)
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
+        async with app.run_test(size=(50, 30)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            pane = app.query_one(BriefPane)
+            assert pane.target is not None
+            assert pane.unselected
+
+    asyncio.run(check())

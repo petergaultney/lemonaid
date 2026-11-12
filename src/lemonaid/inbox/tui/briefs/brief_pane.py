@@ -243,7 +243,7 @@ class BriefPane(BriefView):
         brief.sidebar.remember(pane, found, window)
         self.set_view(found)
 
-    def _check(self, pane: str, window: str, shown: brief.target.Target) -> None:
+    def _check(self, pane: str, window: str, shown: brief.target.Target, restoring: bool) -> None:
         """Make sure, off the event loop, that *shown* is the brief of this window's lemon,
         and show that lemon's brief if it is not."""
 
@@ -258,10 +258,22 @@ class BriefPane(BriefView):
             except Exception:  # the thread's top level; the next wake checks again
                 _log.exception("could not check the sidebar brief's lemon")
                 return
-            if own is not None and not brief.window_lemon.same_lemons(own[0], shown):
+            if own is None:
+                if restoring:
+                    self.app.call_from_thread(self._reselect, shown, [])
+            elif brief.window_lemon.same_lemons(own[0], shown):
+                self.app.call_from_thread(self._reselect, shown, own[1])
+            else:
                 self.app.call_from_thread(self._correct, pane, window, shown, *own)
 
         self.run_worker(check, thread=True, group="brief-own")
+
+    def _reselect(self, shown: brief.target.Target, rows: list[int]) -> None:
+        """Point the inbox cursor at the lemon whose brief *shown* is, or mark none selected."""
+        if self.target != shown or self.local or self._switching:
+            return  # another brief was chosen meanwhile
+
+        self.unselected = not (len(rows) == 1 and self._select(rows[0]))
 
     def _correct(
         self,
@@ -280,7 +292,11 @@ class BriefPane(BriefView):
         _log.warning("sidebar in %s showed %r, not its lemon's brief", window, shown.title)
         self._own(pane, window, found, rows)
 
-    def sync(self) -> None:
+    def sync(
+        self,
+        restoring: bool = False,
+        recorded: brief.sidebar.Recorded | None = None,
+    ) -> None:
         """Show this window's brief as the sidebar records it, unless one is kept here.
 
         A brief recorded for another window was open when this pane followed you
@@ -288,15 +304,23 @@ class BriefPane(BriefView):
         none, it stays on screen while still recorded for the window it belongs to.
         A brief recorded for this window is shown at once and checked against the
         window's lemon in the background.
+
+        *recorded* is the sidebar's brief and the pane's window id, when the caller
+        has already read them off the event loop.
         """
         pane = os.environ.get("TMUX_PANE")
-        shown = brief.sidebar.read(pane) if pane else None
-        window = brief.sidebar.window_id(pane) if pane and shown else ""
+        if recorded is None:
+            shown = brief.sidebar.read(pane) if pane else None
+            window = brief.sidebar.window_id(pane) if pane and shown else ""
+        else:
+            shown, window = recorded
         if pane and shown and window and shown[1] != window:
             self.local = False
             if own := brief.window_lemon.find(brief.session.current_session()):
                 self._own(pane, window, *own)
             else:
+                if restoring:
+                    self.unselected = True  # the carried brief belongs to no row here
                 self.set_view(self.target or shown[0])
             return
 
@@ -305,7 +329,7 @@ class BriefPane(BriefView):
 
         if pane and shown and shown[1] == window:
             self.set_view(shown[0])
-            self._check(pane, window, shown[0])
+            self._check(pane, window, shown[0], restoring)
             return
 
         self.set_view(None)
