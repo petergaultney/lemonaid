@@ -84,6 +84,8 @@ class Pending:
     acknowledged: threading.Event = dataclasses.field(default_factory=threading.Event)
     delivered: bool = False
     label: str = ""
+    events: int = 1
+    comments: bool = False
 
 
 class Scout:
@@ -112,7 +114,13 @@ class Scout:
     def deliver(self, message: str) -> bool:
         version = doc_version.of(Path(self.spec.target[0])) if self.spec.kind == "doc" else 0
         pending = Pending(
-            self.spec.source, message, self, version, label=delivery.label_of(message)
+            self.spec.source,
+            message,
+            self,
+            version,
+            label=delivery.label_of(message),
+            events=delivery.events_in(message),
+            comments=delivery.has_comments(message),
         )
         self.output.put(pending)
         self.detected.set()

@@ -200,7 +200,7 @@ def poll(w: FileWatch, deliver: ty.Callable[[str], None]) -> bool:
     }
     if described:
         names = ", ".join(pathlib.Path(p).name for p in described)
-        deliver(delivery.Labeled("; ".join(described.values()), f"{names} changed"))
+        deliver(delivery.Labeled("; ".join(described.values()), f"{names} changed", len(described)))
         _settle_deadline(w)
 
     w.reported = current

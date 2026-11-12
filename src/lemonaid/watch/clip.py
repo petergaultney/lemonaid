@@ -4,13 +4,18 @@ COMMENT_LIMIT = 4000
 BATCH_LIMIT = 30000
 
 
+_CUT_MARK = "characters omitted; read the source for the rest"
+
+
+def was_cut(text: str) -> bool:
+    return _CUT_MARK in text
+
+
 def shorten(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
 
-    return (
-        f"{text[:limit]}... ({len(text) - limit} characters omitted; read the source for the rest)"
-    )
+    return f"{text[:limit]}... ({len(text) - limit} {_CUT_MARK})"
 
 
 def share(parts: list[str], limit: int = BATCH_LIMIT) -> list[str]:

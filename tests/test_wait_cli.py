@@ -115,7 +115,7 @@ def test_codex_rearm_waits_for_an_old_waiter_that_is_delivering(monkeypatch):
         thread.start()
         threading.Timer(0.15, releasing.set).start()
 
-    monkeypatch.setattr(delivery, "to_codex", lambda *args: queue)
+    monkeypatch.setattr(delivery, "queue_text", lambda *args: queue)
 
     def wait(*args, **kwargs):
         runs.append(True)

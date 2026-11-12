@@ -48,6 +48,7 @@ DEFAULT_WAKE: dict[str, frozenset[str]] = {
 class Event(ty.NamedTuple):
     kind: str
     text: str
+    items: int = 1  # individual things the text reports; a comments event counts its comments
 
 
 def wake(role: str, overrides: abc.Mapping[str, frozenset[str]]) -> frozenset[str]:

@@ -4,7 +4,7 @@ import hashlib
 
 import pytest
 
-from lemonaid.watch import doc_events
+from lemonaid.watch import delivery, doc_events
 
 _ASK = '{{authorId="1" author="Sam">>is this true?<<}}'
 _ME = "Author (MotorHoe)"
@@ -167,3 +167,13 @@ def test_a_comment_and_a_large_edit_each_keep_a_share_of_the_batch(doc, state_di
     assert len(sent[0]) < 31000
     assert "Sam:\nis this true?" in sent[0]
     assert "body of" in sent[0]
+
+
+def test_two_new_threads_are_counted_as_two_events(doc, state_dir):
+    w = doc_events.open_watch(state_dir, doc, _ME, [], edits=False, quiet=45)
+    doc.write_text(doc.read_text() + _ASK + '\n\n{{authorId="2" author="Kit">>and this?<<}}')
+    sent: list[str] = []
+
+    doc_events.poll(w, _collect(sent))
+
+    assert (delivery.events_in(sent[0]), delivery.has_comments(sent[0])) == (2, True)

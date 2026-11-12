@@ -44,7 +44,9 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
     monkeypatch.setattr(codex_scout, "_ALIVE_EVERY", 0)
     monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: alive[0])
     monkeypatch.setattr(
-        delivery, "to_codex", lambda thread, kind, instruction: lambda m: queued.append(instruction)
+        delivery,
+        "queue_text",
+        lambda thread, kind, text_of: lambda m: queued.append(text_of(m)),
     )
 
     def wait(*args, **kwargs):
@@ -57,7 +59,7 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
     with hosted.hosting():
         assert hosted.run("task.IndexElf", "codex:test", "test") == "ended"
     assert len(queued) == 2
-    assert all("queues the next batch" in text and "rearm" not in text for text in queued)
+    assert all(text.endswith("\n\n---\nlemonaid keeps watching.") for text in queued)
     assert all(push_scout.FLAG in command.split() for command in commands)
     assert not wait_state.is_armed("task.IndexElf")
 
@@ -65,7 +67,7 @@ def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
 def test_a_batch_for_a_dead_thread_is_not_queued(monkeypatch):
     queued = []
     monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: False)
-    monkeypatch.setattr(delivery, "to_codex", lambda *args: queued.append)
+    monkeypatch.setattr(delivery, "queue_text", lambda *args: queued.append)
 
     with pytest.raises(delivery.Failed):
         codex_scout.to_thread("test")("batch")

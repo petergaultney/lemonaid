@@ -16,16 +16,22 @@ from collections import abc
 from ..claude import inbound, session_socket
 from ..inbox.channel import channel_id
 from ..log import get_logger
-from . import deaf_waiter, delivery, registry, scout_roster, scout_start, stop_sender, wait_state
+from . import (
+    batch_text,
+    deaf_waiter,
+    delivery,
+    registry,
+    scout_roster,
+    scout_start,
+    stop_sender,
+    wait_state,
+)
 
 _log = get_logger("watch.push_scout")
 
 FLAG = "--push"
 RESTART_WAIT = 60.0  # the host takes up to 40s to stop its scouts, then re-execs
-_INSTRUCTION = (
-    "Handle the entire batch. Comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event. lemonaid is watching for you "
-    "and pushes the next batch into this session."
-)
+_NEXT = "pushes the next batch into this session"
 
 
 def session(session_id: str, wait: float = 0) -> session_socket.Session | None:
@@ -60,7 +66,7 @@ def to_session(entry: session_socket.Session) -> delivery.Deliver:
         try:
             session_socket.send(
                 entry,
-                f"{delivery.label_of(message) or 'lemonaid watch event:'}\n\n{message}\n\n{_INSTRUCTION}",
+                batch_text.compose(message, _NEXT),
             )
         except session_socket.Refused as error:
             raise delivery.Failed(f"Claude session refused the batch ({error})") from error

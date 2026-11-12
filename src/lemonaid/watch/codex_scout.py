@@ -13,12 +13,9 @@ from ..brief import identity
 from ..codex import channels, processes
 from ..inbox import db
 from ..log import LOG_PATH
-from . import codex_waiter, delivery, push_scout
+from . import batch_text, codex_waiter, delivery, push_scout
 
-_INSTRUCTION = (
-    "Handle the entire batch. Comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event. lemonaid is watching for you "
-    "and queues the next batch into this thread"
-)
+_NEXT = "queues the next batch into this thread"
 _ALIVE_EVERY = 30.0
 _LISTED_WITHIN = 15.0  # every scout checks, so one recent listing serves the rest
 
@@ -45,7 +42,7 @@ def liveness(thread: str) -> abc.Callable[[], bool]:
 
 
 def to_thread(thread: str) -> delivery.Deliver:
-    queue = delivery.to_codex(thread, "lemonaid watch", _INSTRUCTION)
+    queue = delivery.queue_text(thread, "lemonaid watch", lambda m: batch_text.compose(m, _NEXT))
 
     def deliver(message: str) -> None:
         if not thread_alive(thread):
