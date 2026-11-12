@@ -36,6 +36,10 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("mark_read", "Mark as read"),
             ("mark_unread", "Mark as unread"),
             ("hide", "Hide/unhide in inbox; / finds hidden; status explains rows kept visible"),
+            (
+                "edit_brief",
+                "Edit the brief in $EDITOR; merged with the lemon's writes, and the lemon is told",
+            ),
             ("archive", "Archive - remove it from the list"),
             ("snooze", "Snooze until a time you pick"),
             ("rename", "Rename (clear it to go back to the auto name)"),

@@ -54,6 +54,7 @@ def _bindings(config: Config) -> abc.Iterator[Binding]:
     else:
         yield from build_bindings(kb.mark_unread, "mark_unread", "Mark Unread")
     yield from build_bindings(kb.hide, "hide", "Hide/show", show=False)
+    yield from build_bindings(kb.edit_brief, "edit_brief", "Edit brief", show=False)
     yield from build_bindings(kb.archive, "archive", "Archive")
     yield from build_bindings(kb.rename, "rename", "Rename")
     if kb.handoff:
@@ -226,6 +227,9 @@ def permitted(
 
     if action in _YIELDING and overlaid:
         return False
+
+    if action == "edit_brief":
+        return not (brief_shown or overlaid or searching)
 
     if action in {"copy_resume", "tmux_resume"} and searching:
         return history_focused()

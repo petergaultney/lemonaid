@@ -27,6 +27,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `M` | Mark as read |
 | `Alt`+`m` | Mark as unread again |
 | `H` | Hide/unhide the lemon via its attached brief; `/` search includes hidden lemons |
+| `e` | Edit the lemon's brief in your editor, merged with what the lemon writes meanwhile (see below) |
 | `A` | Archive (remove from list) |
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
@@ -66,6 +67,28 @@ a result with Down to hide or unhide it.
 Hidden lemons still appear when focused, pinned, deaf, blocked, or in a specially
 ranked brief status. Search with `/` to find a hidden lemon, then press `H` on its
 row to restore it to the default list.
+
+`e` opens the selected lemon's brief in your editor (`$VISUAL`, then `$EDITOR`, then
+`vi`), in a tmux popup over the window, or in place of the inbox outside tmux. It runs
+`lemonaid brief edit`, which you can also run from any terminal with a Lemon-ID, a
+channel or a brief's name:
+
+- **You edit a copy, not the brief.** The copy shows the brief as lemonaid's edit
+  verbs see it, with its frontmatter's fields (`Brief-ID:`, `Status:`, `Parent:`,
+  `Groups:` ...) as header lines under the title. The other frontmatter keys
+  (`created`, `contributors` ...) aren't in it, and stay as they are.
+- **When you quit, lemonaid merges your change into the brief as it is by then,**
+  so lines the lemon wrote meanwhile are kept. The write is the same checked edit
+  as the `brief` verbs, so one that would fail `lemonaid brief check` is refused.
+- **If you and the lemon changed the same lines,** the brief is left alone and the
+  copy shows both, between `<<<<<<< your edit` and `>>>>>>> the brief now`.
+  Resolve them and quit again. The same choice follows a refused edit: edit
+  again, or stop, keeping the copy and printing where it is.
+- **The lemon is told what changed,** as a message in its mailbox with the diff, so
+  its next write to the brief starts from your version rather than its memory of
+  the old one. Quitting without a change writes and sends nothing.
+- **An editor that exits with an error applies nothing,** such as Vim's `:cq`
+  after a `:w`: you get the same choice to edit again or stop, and stopping keeps the copy.
 
 Rows retained after their terminal pane closes show a `detached` marker. When the
 saved session details are insufficient to resume one, its marker also says
@@ -308,6 +331,7 @@ mark_read = "M"
 mark_unread = "alt+m"  # a key name, not a set of characters
 archive = "A"
 hide = "H"  # hide/unhide through the attached brief
+edit_brief = "e"  # edit the attached brief in $EDITOR, merged with the lemon's writes
 snooze = "s"
 snoozed_list = "S"
 usage_view = "U"

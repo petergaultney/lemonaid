@@ -198,6 +198,7 @@ def edit(
     *,
     migrate: bool = True,
     convert: bool = False,
+    written: abc.Callable[[str, str], None] | None = None,
 ) -> None:
     """Apply *change* to the file's text, re-applying it if the file is saved meanwhile.
 
@@ -209,8 +210,8 @@ def edit(
     *change* sees the brief with header lines (see `frontmatter`), and its result
     goes back into frontmatter, so a brief without a block gets one here unless
     *migrate* is false; *convert* gives it one even when *change* changes nothing.
-    *editor* joins the block's `contributors`. Raises ValueError for
-    a block that isn't valid YAML.
+    *editor* joins the block's `contributors`. *written* gets the file's text before and
+    after, once it is written. Raises ValueError for a block that isn't valid YAML.
     """
     with home.guard.operation():
         for _ in range(_EDIT_ATTEMPTS):
@@ -232,6 +233,8 @@ def edit(
 
             if path.read_text() == before:
                 _replace(path, after)
+                if written:
+                    written(before, after)
                 return
 
     raise ChangedUnderneath(f"{path} kept changing while it was being edited; try again")
