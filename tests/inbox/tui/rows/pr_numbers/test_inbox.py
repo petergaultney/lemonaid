@@ -50,7 +50,7 @@ def test_hook_number_reaches_both_layouts_without_blocking(monkeypatch, tmp_path
             table = tui.query_one("#main_table", app.ClickToActTable)
             assert table.row_count == 2
             assert all("#123" not in str(table.get_row_at(i)) for i in range(2))
-            tui._refresh_notifications()
+            tui._refresh_inbox()
             assert len(calls) == 1
             assert calls[0] != ui_thread
             release.set()

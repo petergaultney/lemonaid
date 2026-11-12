@@ -44,7 +44,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
 
             active = True
             app._attention.input_at = 0
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert app.has_class("-input-active")
             assert app.query_one(Header).styles.background == Color.parse("#2bd9cf")
@@ -52,7 +52,7 @@ def test_scratch_header_changes_when_tmux_focus_changes(monkeypatch):
 
             active = False
             app._attention.input_at = 0
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert not app.has_class("-input-active")
             assert app.screen.styles.border_bottom[1] != Color.parse("#2bd9cf")
@@ -103,7 +103,7 @@ def test_the_cursor_row_dims_only_while_tmux_says_the_pane_is_inactive(monkeypat
 
             receives = False
             app._attention.input_at = 0
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert app.has_class("-input-inactive")
 
@@ -121,7 +121,7 @@ def test_the_cursor_row_is_not_dimmed_outside_scratch_mode(monkeypatch):
         app = LemonaidApp()
         async with app.run_test(size=(50, 20)) as pilot:
             await pilot.pause()
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert not app.has_class("-input-inactive")
 

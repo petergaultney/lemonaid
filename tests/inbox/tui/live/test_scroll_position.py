@@ -57,7 +57,7 @@ def test_refresh_keeps_visible_row(monkeypatch, tmp_path, size, change):
                     conn.commit()
             if change == "focus":
                 app._attention.focused = frozenset({"/dev/test-44"})
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert top() == before
             if change in {"focus", "unchanged"}:

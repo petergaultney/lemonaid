@@ -160,12 +160,12 @@ def test_brief_view_replaces_the_inbox_then_restores_it(tmp_path):
             await pilot.pause()
             assert switcher.current == "brief_view"
             assert app.sub_title == "brief"
-            app._refresh_notifications()
+            app._refresh_inbox()
             app._show_keys(False)
             assert switcher.current == "brief_view"
 
             (tmp_path / "task.md").write_text("# Work\n\nStatus: blocked\n\n## Now\n- Changed.\n")
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert "Changed." in view._rendered_markdown
             assert "blocked" in view._rendered_markdown

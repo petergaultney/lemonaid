@@ -188,9 +188,7 @@ class LemonaidApp(CrashLoggedApp):
                 Input(
                     placeholder="Search name, brief, message, cwd, branch...", id="history_filter"
                 ),
-                InboxList(
-                    lists, self._refresh_notifications, self._attention_mode, id="inbox_list"
-                ),
+                InboxList(lists, self._refresh_inbox, self._attention_mode, id="inbox_list"),
                 Static("", id="search_archive_label"),
                 # History resumes a session, replacing the terminal you are sitting in.
                 # That wants picking a row and committing to it to stay separate.
@@ -198,7 +196,7 @@ class LemonaidApp(CrashLoggedApp):
                     lists,
                     self._back_to_inbox,
                     self._exec_here,
-                    self._refresh_notifications,
+                    self._refresh_inbox,
                     id="history_table",
                 ),
                 SnoozedTable(lists, self._refresh_snoozed, id="snoozed_table"),
@@ -284,7 +282,7 @@ class LemonaidApp(CrashLoggedApp):
             self._content.wants_cards(self.size.width, self.size.height), history_marker=False
         )
 
-        self._refresh_notifications()
+        self._refresh_inbox()
         self.query_one("#main_table", DataTable).focus()
         self.set_interval(self.config.tui.refresh_interval, self._tick)
         # Transcript watchers: auto-dismiss, message updates, and exit detection
@@ -325,7 +323,7 @@ class LemonaidApp(CrashLoggedApp):
     def _set_patch_status(self, status: str) -> None:
         """Set patch status and refresh UI (called from main thread)."""
         self._claude_patch_status = status
-        self._refresh_notifications()
+        self._refresh_inbox()
 
     def on_app_focus(self) -> None:
         """Refresh when the app regains focus."""
@@ -333,7 +331,7 @@ class LemonaidApp(CrashLoggedApp):
         if self._user_changed_focus():
             self._focus_gained = time.monotonic()
             self._last_activation = None
-        self._refresh_notifications()
+        self._refresh_inbox()
         self._recheck_pane_focus()
 
     def on_app_blur(self) -> None:
@@ -423,7 +421,7 @@ class LemonaidApp(CrashLoggedApp):
         # stretched to, which is not the placeholder width table_setup gave it.
         self._content.stretch(width)
         if crossed:
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def _sidebar(self) -> bool | None:
         if not self._scratch_mode:
@@ -462,9 +460,17 @@ class LemonaidApp(CrashLoggedApp):
         if self._mode is view_modes.HISTORY:
             self._refresh_history()
         else:
-            self._refresh_notifications()
+            self._refresh_inbox()
 
-    def _refresh_notifications(self, *, stay_on_unread: bool = False) -> None:
+    def _refresh_notifications(self) -> None:
+        """Textual's: draw the toasts. Textual also calls it whenever a screen resumes (at
+        startup, and as each dialog closes) and as toasts come and go, and the inbox has
+        always refreshed then too, so it still does.
+        """
+        super()._refresh_notifications()
+        self._refresh_inbox()
+
+    def _refresh_inbox(self, *, stay_on_unread: bool = False) -> None:
         if not self.is_running:
             return  # a timer tick during shutdown, while the screen's widgets are being removed
 
@@ -519,11 +525,11 @@ class LemonaidApp(CrashLoggedApp):
             return
 
         if self._mode is not None:
-            self._refresh_notifications()
+            self._refresh_inbox()
             return
 
         if self._brief_target is not None:
-            self._refresh_notifications()
+            self._refresh_inbox()
 
         self._content.refresh_notes()
         self._names.maybe_scan(lambda: self.call_from_thread(self._fetched))
@@ -621,7 +627,7 @@ class LemonaidApp(CrashLoggedApp):
 
         self._attention_mode = not self._attention_mode
         self._content.inbox.attention = self._attention_mode
-        self._refresh_notifications()
+        self._refresh_inbox()
         self.run_worker(
             lambda: attention.save_latest(lambda: self._attention_mode),
             thread=True,
@@ -637,7 +643,7 @@ class LemonaidApp(CrashLoggedApp):
 
         inbox = self.query_one(InboxList)
         inbox.fold_open = not inbox.fold_open
-        self._refresh_notifications()
+        self._refresh_inbox()
 
     def action_back(self) -> None:
         """Escape: leave history for the inbox, otherwise whatever quit does, except that
@@ -743,10 +749,10 @@ class LemonaidApp(CrashLoggedApp):
 
     def action_toggle_notes(self) -> None:
         self._content.notes_open = not self._content.notes_open
-        self._refresh_notifications()  # refreshes the notes, then sizes the cards to them
+        self._refresh_inbox()  # refreshes the notes, then sizes the cards to them
 
     def on_notes_panel_resized(self, _message: NotesPanel.Resized) -> None:
-        self._refresh_notifications()
+        self._refresh_inbox()
 
     def action_toggle_keys(self) -> None:
         # An explicit toggle outranks the startup timer, which would otherwise
@@ -803,7 +809,7 @@ class LemonaidApp(CrashLoggedApp):
 
         self.sub_title = mode.sub_title if enabled else "attention inbox"
         if not enabled:
-            self._refresh_notifications()
+            self._refresh_inbox()
             self._content.inbox.main.focus()
         elif mode is view_modes.HISTORY:
             self._refresh_history()
@@ -877,7 +883,7 @@ class LemonaidApp(CrashLoggedApp):
         tty = notification.metadata.get("tty")
         if isinstance(tty, str) and tty:
             self._attention.note(tty)
-            self._refresh_notifications()
+            self._refresh_inbox()
 
         # In scratch mode the pane hides after navigation, unless follow
         # mode is on - there the hook re-shows it in the target window.
@@ -905,7 +911,7 @@ class LemonaidApp(CrashLoggedApp):
         """A session resumed from history that never stopped: show it in the inbox."""
         if not self._search_mode:
             self._set_history_mode(False)
-        self._refresh_notifications()
+        self._refresh_inbox()
         self.notify(f"{notification.name or notification.channel} is running - back in the inbox")
         self._switch_to_notification(notification)
 
@@ -944,7 +950,7 @@ class LemonaidApp(CrashLoggedApp):
             self._content.start_search()
             self.sub_title = "search"
             self.set_class(True, "-search")
-            self._refresh_notifications()
+            self._refresh_inbox()
         self._content.open_search_box()
 
     def _stop_search(self, *, refresh: bool = True) -> None:
@@ -952,14 +958,14 @@ class LemonaidApp(CrashLoggedApp):
         self.sub_title = "attention inbox"
         self.set_class(False, "-search")
         if refresh:
-            self._refresh_notifications()
+            self._refresh_inbox()
             self._content.inbox.main.focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "history_filter":
             self._content.filter_text = event.value
             if self._search_mode:
-                self._refresh_notifications()
+                self._refresh_inbox()
             elif self._mode is view_modes.HISTORY:
                 self._refresh_history()
 
@@ -972,7 +978,7 @@ class LemonaidApp(CrashLoggedApp):
                 self.query_one(BriefPane).sync()
             # The follow hook sends it after moving this pane, so the focused pane has changed.
             self._attention.focused_at = 0.0
-            self._refresh_notifications()
+            self._refresh_inbox()
             return
 
         if not (
@@ -1022,7 +1028,7 @@ class LemonaidApp(CrashLoggedApp):
 
     def _brief_closed(self) -> None:
         self._show_keys(self._keys_shown)
-        self._refresh_notifications()
+        self._refresh_inbox()
 
     def action_select(self) -> None:
         """Select the current row (same as Enter). No-op on non-switchable table."""
@@ -1044,7 +1050,7 @@ class LemonaidApp(CrashLoggedApp):
             )
             return
 
-        self._refresh_notifications()
+        self._refresh_inbox()
 
     def _focused_row_id(self) -> int | None:
         table = self._focused_table()
@@ -1057,14 +1063,14 @@ class LemonaidApp(CrashLoggedApp):
             entry := inbox_edits.mark_read(found)
         ):
             self._undo_stack.push(entry)
-            self._refresh_notifications(stay_on_unread=True)  # keep the cursor on unread rows
+            self._refresh_inbox(stay_on_unread=True)  # keep the cursor on unread rows
 
     def action_mark_unread(self) -> None:
         if (found := self._focused_row_id()) is not None and (
             entry := inbox_edits.mark_unread(found)
         ):
             self._undo_stack.push(entry)
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def action_hide(self) -> None:
         table = self._focused_table()
@@ -1119,7 +1125,7 @@ class LemonaidApp(CrashLoggedApp):
 
     def _archive_notification(self, notification_id: int) -> None:
         if entry := inbox_edits.archive(notification_id):
-            self._refresh_notifications()
+            self._refresh_inbox()
             self._undoable(entry)
 
     def _row_channels(self) -> list[str]:
@@ -1175,7 +1181,7 @@ class LemonaidApp(CrashLoggedApp):
             edit_dialogs.snooze(self, notification, self.config, self._snoozed)
 
     def _snoozed(self, entry: undo.Entry) -> None:
-        self._refresh_notifications()
+        self._refresh_inbox()
         self._undoable(entry)
 
     def action_undo(self) -> None:
@@ -1201,7 +1207,7 @@ class LemonaidApp(CrashLoggedApp):
         elif self._mode is view_modes.SNOOZED:
             self._refresh_snoozed()
         else:
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def action_rename(self) -> None:
         """Rename the selected session, or the group whose header is under the cursor."""
@@ -1222,7 +1228,7 @@ class LemonaidApp(CrashLoggedApp):
             self._refresh_history()
         else:
             self._retarget_brief()
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def _retarget_brief(self) -> None:
         if self._brief_target is not None and (notification := self._selected_notification()):
@@ -1329,7 +1335,7 @@ class LemonaidApp(CrashLoggedApp):
         """Patch Claude Code binary for faster notifications."""
         if self._claude_binary and self._claude_patch_status == "unpatched":
             self._claude_patch_status = claude_patch.apply(self, self._claude_binary)
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def action_flip_position(self) -> None:
         if self._scratch_mode:
@@ -1345,7 +1351,7 @@ class LemonaidApp(CrashLoggedApp):
             position = current_position(self.config.tmux_session.scratch_position)
             save_current_size(position)
             self.notify("Pane width saved" if position == "left" else "Pane height saved")
-            self._refresh_notifications()
+            self._refresh_inbox()
 
     def _hide_scratch_pane(self) -> None:
         """Hide the scratch pane back to its holding session.

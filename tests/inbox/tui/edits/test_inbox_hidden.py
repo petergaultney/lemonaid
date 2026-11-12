@@ -71,7 +71,7 @@ def test_hide_removes_row_and_keeps_neighbor_and_scroll(size, count, index):
         if remaining:
             assert app._selected_channel() == remaining[min(position, len(remaining) - 1)]
             assert table.scroll_y == min(before, table.max_scroll_y)
-        app._refresh_notifications()
+        app._refresh_inbox()
         assert row.channel not in app._row_channels()
 
     _run(steps, size)

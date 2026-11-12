@@ -35,7 +35,7 @@ def test_app_invalidates_cached_labels_after_background_lookup(tmp_path, monkeyp
         n = db.add(conn, "test", "hello", metadata={"cwd": str(tmp_path), "git_branch": "main"})
     workers = []
     monkeypatch.setattr(inbox, "run_worker", lambda worker, **kwargs: workers.append(worker))
-    monkeypatch.setattr(inbox, "_refresh_notifications", lambda: None)
+    monkeypatch.setattr(inbox, "_refresh_inbox", lambda: None)
     monkeypatch.setattr(inbox, "_refresh_history", lambda: None)
     monkeypatch.setattr(inbox, "_refresh_snoozed", lambda: None)
     assert inbox._parts.project(n, "inbox").text.plain == "repo: inbox"

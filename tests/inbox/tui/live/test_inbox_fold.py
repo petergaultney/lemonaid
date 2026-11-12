@@ -259,15 +259,15 @@ def test_a_focused_idle_lemon_leaves_the_fold_and_returns_when_focus_moves(fold_
     async def steps(app, pilot):
         app._select_channel(working)
         focus["ttys"] = {"/dev/ttys-focus"}
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         focused = app._row_channels(), _label(app)
         focus["ttys"] = set()
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         held = app._row_channels()
         app._select_channel(working)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return focused, held, (app._row_channels(), _label(app))
 
@@ -288,15 +288,15 @@ def test_a_lemon_that_loses_focus_under_the_cursor_stays_until_the_cursor_moves(
 
     async def steps(app, pilot):
         focus["ttys"] = {"/dev/ttys-focus"}
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         app._select_channel(waiting)
         focus["ttys"] = set()
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         held = app._row_channels(), _selected(app)
         app._select_channel(working)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return held, app._row_channels()
 
@@ -321,7 +321,7 @@ def test_focusing_an_archived_lemon_that_is_still_running_brings_it_back(
     async def steps(app, pilot):
         before = app._row_channels()
         focus["ttys"] = {"/dev/ttys-old"}
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return before, app._row_channels()
 

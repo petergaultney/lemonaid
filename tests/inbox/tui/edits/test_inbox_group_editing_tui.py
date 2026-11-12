@@ -155,7 +155,7 @@ def test_an_undo_refused_for_a_taken_name_can_be_tried_again(inbox):
     async def steps(app, pilot):
         with db.connect() as conn:
             groups.store.create(conn, "Other")  # so a new group can't reuse Work's ID
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         app.query_one("#main_table", DataTable).move_cursor(row=channels(app).index(""))
         await pilot.press("minus")
@@ -182,7 +182,7 @@ def test_the_cursor_follows_a_lemon_into_a_collapsed_group_and_out_to_another(in
         with db.connect() as conn:
             groups.store.add(conn, groups.store.create(conn, "Other"), [inbox["lead"]])
             groups.arrangement.set_collapsed(conn, groups.store.find(conn, "Work"), True)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         _cursor_on(app, "claude:lead")
         await pilot.press("plus")

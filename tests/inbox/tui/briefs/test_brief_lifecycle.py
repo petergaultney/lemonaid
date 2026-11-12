@@ -42,7 +42,7 @@ def test_repeated_brief_transitions_with_queued_refreshes(monkeypatch, tmp_path)
             pane = app.query_one(BriefPane)
             for index in range(30):
                 pane.set_view(state["targets"][index % 3])
-                app._refresh_notifications()
+                app._refresh_inbox()
                 pane.action_question(1)
                 app.call_later(pane.set_view, None)
                 await pilot.pause(0.001)

@@ -281,12 +281,12 @@ def test_switching_to_a_reviewer_shows_it_in_both_inbox_layouts(monkeypatch, siz
     async def steps(app, pilot):
         before = app._row_channels()
         focused.add("/dev/ttys-reviewer")
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         shown = app._row_channels()
         focused.clear()
         app._select_channel(ordinary)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return before, shown, app._row_channels()
 
@@ -304,12 +304,12 @@ def test_selected_reviewer_stays_until_the_cursor_moves():
     async def steps(app, pilot):
         app._select_channel(reviewer)
         path.write_text(path.read_text().replace("Status: blocked", "Status: waiting"))
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         held = app._row_channels()
         selected = held[app.query_one("#main_table", DataTable).cursor_row]
         app._select_channel(ordinary)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return held, selected, app._row_channels()
 
@@ -331,7 +331,7 @@ def test_reviewer_stays_visible_with_here_bar_when_inbox_cursor_moves(monkeypatc
 
     async def steps(app, pilot):
         app._select_channel(ordinary)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         rows = app._row_channels()
         table = app.query_one("#main_table", DataTable)
@@ -358,12 +358,12 @@ def test_selected_reviewer_in_lower_table_stays_selected_when_status_turns_quiet
         table.move_cursor(row=0)
         await pilot.pause()
         path.write_text(path.read_text().replace("Status: blocked", "Status: waiting"))
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         held = _channels(table)
         selected = held[table.cursor_row]
         table.move_cursor(row=held.index(ordinary))
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return held, selected, _channels(table)
 
@@ -386,7 +386,7 @@ def test_search_keeps_a_deaf_lemon_in_the_lower_table(monkeypatch):
     async def steps(app, pilot):
         app._content.searching = True
         app._content.filter_text = "no-such-text"
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return _channels(app.query_one("#other_sources_table", DataTable))
 
