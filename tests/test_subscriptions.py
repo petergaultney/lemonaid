@@ -179,3 +179,14 @@ def test_an_orphans_briefs_row_wakes_for_the_same_statuses_as_the_cli(tmp_path):
     spec = next(s for s in subscriptions.read(text, tmp_path) if s.kind == "briefs")
     assert spec.orphans
     assert spec.to == frozenset(briefs_cli.orphan_to())
+
+
+def test_a_watching_only_author_subscription_gets_comments_by_default(tmp_path):
+    pr = "https://github.com/o/r/pull/12"
+    text = (
+        shared.BRIEF + f'- `lemonaid watch pr --wait {pr} --role author --me "Author (IndexElf)"`\n'
+    )
+
+    prs = [s for s in subscriptions.read(text, tmp_path) if s.kind == "pr"]
+
+    assert [(s.role, s.comments) for s in prs] == [("author", True)]
