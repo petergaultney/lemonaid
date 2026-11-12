@@ -64,6 +64,6 @@ def poll(
     path = stem.with_suffix(".seen.json")
     lines, now = events(_load(path), prs, backlog)
     if lines:
-        deliver(delivery.Labeled("; ".join(lines), "review requested"))
+        deliver(delivery.Labeled("; ".join(lines), "review requested", len(lines)))
     cursors.write_json(path, now)
     return bool(lines)

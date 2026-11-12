@@ -133,7 +133,10 @@ def test_the_scout_pushes_each_batch_and_stops_with_its_session(capsys):
 
     assert "push scout started" in received[0] and sock in received[0]
     assert "first message" in received[1] and "second message" in received[2]
-    assert "lemonaid is watching for you" in received[1]
+    assert (
+        "first message\n\n---\nlemonaid keeps watching." in received[1]
+        and "batch" not in received[1]
+    )
     assert "don't" not in (received[0] + received[1]).lower()
     _until(lambda: messages.pending_count(mailbox) == 0)  # marked done after the push
     registration = scout_roster.read(_LEMON)

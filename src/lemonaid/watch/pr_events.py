@@ -113,13 +113,14 @@ def events(
                         + "\n\n".join(pr_comments.gist(c, trusted) for c in new),
                         clip.BATCH_LIMIT,
                     ),
+                    len(new),
                 )
             ]
             if new
             else []
         ),
         *(
-            [roles.Event(roles.COMMENTS, _OUTSIDERS)]
+            [roles.Event(roles.COMMENTS, _OUTSIDERS, 0)]
             if snap.visibility not in _CLOSED
             and any(pr_comments.is_outsider(c, trusted) for c in new)
             else []
@@ -127,9 +128,15 @@ def events(
     ]
 
 
-def _load_dropped(path: pathlib.Path) -> list[str]:
+def _load_dropped(path: pathlib.Path) -> list[roles.Event]:
     try:
-        return [str(text) for text in json.loads(path.read_text())]
+        saved = json.loads(path.read_text())
+        return [
+            roles.Event("", entry)
+            if isinstance(entry, str)
+            else roles.Event(*entry)  # older releases saved bare text
+            for entry in saved
+        ]
     except (OSError, ValueError, TypeError):
         return []
 
@@ -213,20 +220,24 @@ def poll(
             delivery.Labeled(
                 "; ".join(
                     [
-                        *([f"Seen without waking you: {'; '.join(dropped)}"] if dropped else []),
+                        *(
+                            [f"Seen without waking you: {'; '.join(d.text for d in dropped)}"]
+                            if dropped
+                            else []
+                        ),
                         *(change.text for change in changes),
                     ]
                 ),
                 "; ".join(
                     dict.fromkeys(_label(repo, pr, snap.state, change.kind) for change in changes)
                 ),
+                sum(change.items for change in [*dropped, *changes]),
+                any(c.kind == roles.COMMENTS and c.items for c in [*dropped, *changes]),
             )
         )
         dropped_path.unlink(missing_ok=True)
     elif changes:
-        cursors.write_json(
-            dropped_path, [*dropped, *(change.text for change in changes)][-_DROPPED_KEPT:]
-        )
+        cursors.write_json(dropped_path, [*dropped, *changes][-_DROPPED_KEPT:])
     seen = now_seen
     merge_health.save(merge_path, seen)
     reported = reported | set(candidates)

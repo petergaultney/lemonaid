@@ -313,6 +313,7 @@ def poll(w: BriefsWatch, deliver: delivery.Deliver) -> bool:
                 ]
             ),
             "; ".join(labels),
+            len(labels),
         )
     )
     if changed:

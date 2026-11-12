@@ -62,12 +62,16 @@ def poll(
     lines, now = events(_load(path), threads, scope, backlog)
     if lines:
         deliver(
-            "\n".join(
-                [
-                    f"{len(lines)} GitHub notification thread(s) new or active since last told;"
-                    " triage with `lemonaid github notifications list --json`:",
-                    *lines,
-                ]
+            delivery.Labeled(
+                "\n".join(
+                    [
+                        f"{len(lines)} GitHub notification thread(s) new or active since last told;"
+                        " triage with `lemonaid github notifications list --json`:",
+                        *lines,
+                    ]
+                ),
+                "GitHub notifications",
+                len(lines),
             )
         )
     cursors.write_json(path, now)

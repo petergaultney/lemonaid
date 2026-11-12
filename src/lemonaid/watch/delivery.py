@@ -30,18 +30,31 @@ class Failed(Exception):
 
 
 class Labeled(str):
-    """An event message with the few words its source gives for a one-line summary of the batch."""
+    """An event message with the few words its source gives for a one-line summary of the batch,
+    how many events it holds, and whether any is a comment."""
 
     label: str
+    events: int
+    comments: bool
 
-    def __new__(cls, message: str, label: str) -> "Labeled":
+    def __new__(
+        cls, message: str, label: str, events: int = 1, comments: bool = False
+    ) -> "Labeled":
         found = super().__new__(cls, message)
-        found.label = label
+        found.label, found.events, found.comments = label, events, comments
         return found
 
 
 def label_of(message: str) -> str:
     return message.label if isinstance(message, Labeled) else ""
+
+
+def events_in(message: str) -> int:
+    return message.events if isinstance(message, Labeled) else 1
+
+
+def has_comments(message: str) -> bool:
+    return message.comments if isinstance(message, Labeled) else False
 
 
 def to_stdout(message: str) -> None:
@@ -86,20 +99,13 @@ def codex_thread(arg: str | None) -> tuple[str, str]:
     return thread, "" if thread else "--codex-thread without a THREAD_ID needs CODEX_THREAD_ID set"
 
 
-def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
-    """Queues `<kind> event: <message>. <instruction>` into a Codex thread."""
+def queue_text(thread: str, kind: str, text_of: ty.Callable[[str], str]) -> Deliver:
+    """Queues `text_of(message)` into a Codex thread, held by the alias gate like any Codex delivery."""
 
     def queue(message: str) -> None:
         try:
             subprocess.run(
-                [
-                    "codex",
-                    "queue",
-                    "--thread",
-                    thread,
-                    "--message",
-                    f"{kind} event: {message}. {instruction}",
-                ],
+                ["codex", "queue", "--thread", thread, "--message", text_of(message)],
                 check=True,
             )
         except subprocess.CalledProcessError as e:
@@ -113,6 +119,11 @@ def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
         gates.deliver(channel, queue)(message)
 
     return deliver
+
+
+def to_codex(thread: str, kind: str, instruction: str) -> Deliver:
+    """Queues `<kind> event: <message>. <instruction>` into a Codex thread."""
+    return queue_text(thread, kind, lambda message: f"{kind} event: {message}. {instruction}")
 
 
 def openclaw_setup_problem(cli: str) -> str:

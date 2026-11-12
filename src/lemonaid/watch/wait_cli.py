@@ -14,6 +14,7 @@ from ..launch.restart import gates
 from ..messages import store, waiter
 from . import (
     attachment,
+    batch_text,
     batch_wait,
     codex_scout,
     cursors,
@@ -79,10 +80,12 @@ def run(args: argparse.Namespace) -> int:
         return 3
     output = gates.deliver(
         channel,
-        delivery.to_codex(
+        delivery.queue_text(
             thread,
             "lemonaid watch",
-            "Handle the entire batch (comments are included in full; fetch a comment only if a cut marks it as omitted, and read other source context as needed for each event), then rearm `lemonaid watch --self --codex-thread`.",
+            lambda m: batch_text.compose(
+                m, then="Then rearm `lemonaid watch --self --codex-thread`."
+            ),
         )
         if thread
         else delivery.to_stdout,

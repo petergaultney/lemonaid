@@ -66,7 +66,7 @@ def test_unified_watch_arms_alias_inbox_and_delivers_to_real_thread(alias, monke
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
     queued = []
     monkeypatch.setattr(
-        delivery, "to_codex", lambda thread, *args: lambda text: queued.append((thread, text))
+        delivery, "queue_text", lambda thread, *args: lambda text: queued.append((thread, text))
     )
 
     def batch(*args, **kwargs):

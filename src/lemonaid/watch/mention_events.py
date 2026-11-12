@@ -134,6 +134,6 @@ def poll(
 
     lines, saved = events(cursor, threads, mention_comments.read, watched, scope, now, backlog)
     if lines:
-        deliver("\n\n".join(lines))
+        deliver(delivery.Labeled("\n\n".join(lines), "mentioned", len(lines), True))
     cursors.write_json(path, saved)
     return bool(lines)

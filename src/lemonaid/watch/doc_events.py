@@ -191,7 +191,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     if edit:
         messages.append(edit)
     label = f"{w.doc.name} " + ("edited" if edit and len(messages) == 1 else "comments")
-    if messages and not deliver(delivery.Labeled("\n\n".join(clip.share(messages)), label)):
+    if messages and not deliver(
+        delivery.Labeled("\n\n".join(clip.share(messages)), label, len(new) + bool(edit), bool(new))
+    ):
         return Outcome.FAILED
 
     if set(threads) != w.reported:

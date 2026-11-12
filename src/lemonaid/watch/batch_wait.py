@@ -215,6 +215,8 @@ def wait(
                                     *(f"mail from {_from(body)}" for _, body in messages),
                                 ]
                             ),
+                            sum(p.events for p in pending) + len(messages),
+                            any(p.comments for p in pending),
                         )
                     )
                     for message, _ in messages:
