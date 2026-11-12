@@ -6,6 +6,7 @@ import json
 import pytest
 
 from lemonaid import tmux
+from lemonaid.brief import attached
 from lemonaid.config import Config
 from lemonaid.hooks import end_reports
 from lemonaid.inbox import db, ended
@@ -122,6 +123,18 @@ def test_a_crashed_lemon_is_restored_and_can_be_dismissed(capsys):
     dismiss.cmd_dismiss(argparse.Namespace(all=True, lemons=[]))
 
     assert _cause("claude:a") == ("archived", ended.DISMISSED)
+
+
+def test_a_lemon_whose_brief_is_done_is_archived_rather_than_crashed(tmp_path):
+    brief = tmp_path / "brief.md"
+    brief.write_text("# Work\n\nStatus: done\n")
+    _row("claude:a")
+    with db.connect() as conn:
+        attached.attach(conn, "claude:a", brief)
+
+    watcher_hooks.archive_channel("claude:a", _EXITED)
+
+    assert _cause("claude:a") == ("archived", ended.PROCESS_EXITED)
 
 
 def test_a_lemon_killed_with_its_server_stays_lost(monkeypatch):

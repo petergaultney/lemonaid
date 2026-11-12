@@ -9,6 +9,7 @@ from collections import abc
 from .... import claude, codex, config, handlers, openclaw, opencode, status_registry
 from ....audit import events
 from ....brief import attached
+from ....brief import status as brief_status
 from ....claude import live_sessions
 from ....config import Config
 from ....hooks import end_reports
@@ -199,11 +200,23 @@ _CAUSES = {
 }
 
 
+def _brief_done(conn: sqlite3.Connection, channel: str) -> bool:
+    path = attached.by_channel(conn, [channel]).get(channel)
+
+    return (
+        path is not None
+        and path.is_file()
+        and brief_status.split(path.read_text()).status == "done"
+    )
+
+
 def _crashed(conn: sqlite3.Connection, row: db.Notification | None, why: str) -> bool:
     """Whether the newest lemon on its tty stopped while its pane lives, without the quit
-    report its harness gives (only a harness that reports quits counts)."""
+    report its harness gives (only a harness that reports quits counts). A lemon whose
+    brief says `done` finished its work, so there is nothing for restore to bring back."""
     return (
         row is not None
+        and not _brief_done(conn, row.channel)
         and why.split(" ", 1)[0] == "process-exited"
         and not ended.reported(row.metadata)
         and not db.newer_on_tty(conn, row)
