@@ -228,9 +228,8 @@ def permitted(
     if action in _YIELDING and overlaid:
         return False
 
-    if (
-        action == "edit_brief"
-    ):  # the action finds the one brief a view shows, whatever row is selected
+    # The action finds the one brief a view shows, whatever row is selected.
+    if action == "edit_brief":
         return not (overlaid or searching)
 
     if action in {"copy_resume", "tmux_resume"} and searching:
