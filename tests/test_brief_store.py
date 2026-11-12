@@ -169,6 +169,26 @@ def test_a_file_that_never_settles_is_refused(tmp_path):
         store.edit(path, change)
 
 
+def test_a_save_while_the_new_text_is_being_written_is_kept(tmp_path, monkeypatch):
+    path = tmp_path / "brief.md"
+    path.write_text(_BRIEF)
+    real_chmod = os.chmod
+    saved = []
+
+    def chmod_after_a_foreign_save(target, mode):
+        if not saved:  # the first temp file has been written; someone else saves now
+            saved.append(path.write_text(f"{_BRIEF}foreign\n"))
+        real_chmod(target, mode)
+
+    monkeypatch.setattr(store.os, "chmod", chmod_after_a_foreign_save)
+
+    store.edit(path, lambda text: store.with_now(text, "- x"))
+
+    assert "foreign" in path.read_text()
+    assert "- x" in path.read_text()
+    assert [p.name for p in tmp_path.iterdir() if p.name != "state"] == ["brief.md"]
+
+
 def test_an_edit_that_changes_nothing_leaves_the_file_alone(tmp_path):
     path = tmp_path / "brief.md"
     path.write_text(_BRIEF)

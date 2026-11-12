@@ -178,7 +178,7 @@ def test_refused_delivery_setup_and_duplicate_do_not_change_brief(brief, tmp_pat
 
 
 def test_unwritable_attached_brief_prevents_startup(brief, tmp_path, monkeypatch):
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise PermissionError("brief is read-only")
 
     monkeypatch.setattr(store, "_replace", fail)
