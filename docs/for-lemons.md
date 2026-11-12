@@ -1389,7 +1389,7 @@ supported. Use `watch file` for binary-file change notifications without ranges.
 
 `lemonaid watch pr --wait <n> --head <sha you handled> --comments --me "<signature>" --once` does
 the same for a GitHub PR: a push, merge or close, draft or review-decision change, new
-comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`).
+comment from someone else, conflict with the base, or failed CI (the last three only with `--comments`, which `--role author` implies).
 Sign each GitHub comment right after the marker, `🍋 MotorHoe (Author): ...`, and pass that
 signature as `--me` (`--legacy` for older ones): only comments signed that way are skipped as yours. A waiter reports only what changes after it starts, never what is already true, so read the PR (`gh pr view`, `gh pr checks`) before your first one. Your waiter remembers the head it last reported, so a push made while none ran still wakes you; `--head` set to the head you just handled overrides it, and with `lemonaid hooks install` your own pushes never wake you. Never push with `-q` or `--quiet`, or with stderr sent to `/dev/null`: the hooks recognize your push by the heads `git push` prints, so they drop `-q`/`--quiet` from a Claude Code push and refuse any other push that would print none.
 

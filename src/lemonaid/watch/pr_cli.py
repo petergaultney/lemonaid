@@ -131,11 +131,6 @@ def run(a: argparse.Namespace, repo: str) -> int:
         print(f"not started: {problem}")
         return 2
 
-    if error := brief_record.record(a, "pr", a.codex_thread, repo=repo):
-        print(f"not started: could not record waiter: {error}")
-        lock.close()
-        return 2
-
     unified = wait_state.lock_path(state_dir.parent.name)
     if not a.state_dir and waiter_lock.held(unified):
         print(
@@ -144,6 +139,11 @@ def run(a: argparse.Namespace, repo: str) -> int:
         )
         lock.close()
         return 3
+
+    if error := brief_record.record(a, "pr", a.codex_thread, repo=repo):
+        print(f"not started: could not record waiter: {error}")
+        lock.close()
+        return 2
 
     writer = own_edits.writer_from_env(os.environ, a.codex_thread)
     if writer:
@@ -185,6 +185,7 @@ def run(a: argparse.Namespace, repo: str) -> int:
 
 
 def _cmd(a: argparse.Namespace) -> None:
+    a.comments = a.comments or a.role == "author"
     if a.comments and not a.me:
         a.parser.error("--comments needs --me")
 
@@ -230,7 +231,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     ap.add_argument(
         "--comments",
         action="store_true",
-        help="also report new human review and conversation comments, a conflict with the base, and failed CI",
+        help="also report new human review and conversation comments, a conflict with the base, and failed CI"
+        " (implied by --role author)",
     )
     ap.add_argument(
         "--ci", action="store_true", help="also report completed CI, passing or failing"
