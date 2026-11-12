@@ -1,4 +1,4 @@
-"""`lemonaid brief edit`: edit a lemon's brief in your editor without losing the lemon's own writes."""
+"""`lemonaid brief edit`: edit a lemon's brief in your editor, merged on quit with the lemon's own writes."""
 
 import argparse
 import os

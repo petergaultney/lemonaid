@@ -10,6 +10,7 @@ from ....brief import pr, render, target
 from ....config import Config
 from .. import utils
 from ..crash_logging import CrashLoggedApp
+from ..edits import inbox_brief_edit
 from .brief_view import BriefView
 
 
@@ -31,6 +32,8 @@ class BriefPopup(CrashLoggedApp[None]):
         self._last_key = ""
         for key in config.tui.keybindings.quit:
             self.bind(key, "quit", description="Close")
+        for key in config.tui.keybindings.edit_brief:
+            self.bind(key, "edit_brief", description="Edit brief")
         if config.tui.transparent:
             self.ansi_color = True
 
@@ -59,6 +62,18 @@ class BriefPopup(CrashLoggedApp[None]):
         view.focus()
         # PR states arrive in the background, and the brief can change while it is open.
         self.set_interval(self._config.tui.refresh_interval, lambda: view.update_brief(self._found))
+
+    def action_edit_brief(self) -> None:
+        """Edit the brief shown, in this terminal: the popup is already a window of its own."""
+        if isinstance(self.screen, ModalScreen):
+            return
+
+        shown = self.query_one(BriefView).single_brief()
+        message = (
+            inbox_brief_edit.edit(self, *shown, None) if shown else inbox_brief_edit.SEVERAL_BRIEFS
+        )
+        if message:
+            self.notify(message, severity="warning")
 
     def on_key(self, event: events.Key) -> None:
         """Close on the tmux key that opened the popup, which reaches it as two keys."""

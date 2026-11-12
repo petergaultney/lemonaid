@@ -69,7 +69,9 @@ ranked brief status. Search with `/` to find a hidden lemon, then press `H` on i
 row to restore it to the default list.
 
 `e` opens the selected lemon's brief in your editor (`$VISUAL`, then `$EDITOR`, then
-`vi`), in a tmux popup over the window, or in place of the inbox outside tmux. It runs
+`vi`), in a tmux popup over the window, or in place of the inbox outside tmux. In a brief
+view (`b`, in the sidebar or its popup) it edits the brief shown, when the view shows one;
+the popup opens the editor in place. It runs
 `lemonaid brief edit`, which you can also run from any terminal with a Lemon-ID, a
 channel or a brief's name:
 
@@ -77,9 +79,11 @@ channel or a brief's name:
   verbs see it, with its frontmatter's fields (`Brief-ID:`, `Status:`, `Parent:`,
   `Groups:` ...) as header lines under the title. The other frontmatter keys
   (`created`, `contributors` ...) aren't in it, and stay as they are.
-- **When you quit, lemonaid merges your change into the brief as it is by then,**
-  so lines the lemon wrote meanwhile are kept. The write is the same checked edit
-  as the `brief` verbs, so one that would fail `lemonaid brief check` is refused.
+- **When you quit, lemonaid merges your change with what the lemon wrote meanwhile,**
+  and writes the result with the same checked edit as the `brief` verbs, so one that
+  would fail `lemonaid brief check` is refused. That edit re-reads the brief just
+  before replacing it; a write that lands between that re-read and the replace is
+  still overwritten.
 - **If you and the lemon changed the same lines,** the brief is left alone and the
   copy shows both, between `<<<<<<< your edit` and `>>>>>>> the brief now`.
   Resolve them and quit again. The same choice follows a refused edit: edit
@@ -172,7 +176,8 @@ in place of the inbox without leaving the inbox pane. Up/down arrows (or the con
 `up_down` keys) move between briefs. Each brief is drawn at once and the main pane
 follows it to that lemon a moment later, while focus stays on the brief. A dot before
 the lemon's name means its inbox entry is unread; `M`, `Alt`+`m`, `r` and `Z` mark it read,
-mark it unread, rename it, and undo, as in the list. `U` shows the usage view over the brief; `U`, `q` or
+mark it unread, rename it, and undo, as in the list, and `e` edits the brief shown (see
+[above](#default-keybindings)). `U` shows the usage view over the brief; `U`, `q` or
 `Escape` closes it. `q` or `Escape` restores the inbox. `prefix+b` toggles
 the brief from the lemon pane. The brief stays open when you switch windows or sessions, by the grove or any
 other way, and shows the brief of the lemon in the window you land in. A window with no lemon of its own, such as

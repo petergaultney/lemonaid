@@ -21,6 +21,7 @@ from ... import brief, keys, messages
 from ...claude import patch_status
 from ...claude.patcher import find_binary
 from ...config import load_config
+from ...front_end import pick
 from ...grove import popup_app
 from ...grove.source import inbox_keys, inbox_screen
 from ...grove.tui import jump_bar
@@ -30,7 +31,7 @@ from ...lemon_watchers import (
 )
 from ...log import get_logger
 from ...skills import refresh
-from ...tmux import command_popup, fast_popup, navigation, pane_state, rename, scratch_autosave
+from ...tmux import fast_popup, navigation, pane_state, rename, scratch_autosave
 from ...tmux.scratch import (
     _clear_state,
     _hide,
@@ -1080,15 +1081,32 @@ class LemonaidApp(CrashLoggedApp):
         self.query_one(StatusLine).show_notice(message)
 
     def action_edit_brief(self) -> None:
+        """Edit the brief shown, or else the brief of the lemon under the inbox's cursor."""
+        if self._brief_target is not None:
+            shown = self.query_one(BriefPane).single_brief()
+            message = (
+                inbox_brief_edit.edit(self, *shown, pick.around_caller())
+                if shown
+                else inbox_brief_edit.SEVERAL_BRIEFS
+            )
+            if message:
+                self.notify(message, severity="warning")
+            return
+
         table = self._focused_table()
-        if (
-            self._mode is None
-            and table.id in {"main_table", "other_sources_table"}
-            and (notification := row_keys.notification(row_keys.notification_at_cursor(table)))
-        ):
-            message = inbox_brief_edit.edit(self, notification, command_popup.open_popup)
-        else:
+        notification = (
+            row_keys.notification(row_keys.notification_at_cursor(table))
+            if self._mode is None and table.id in {"main_table", "other_sources_table"}
+            else None
+        )
+        path = inbox_brief_edit.row_brief(notification) if notification else None
+        if notification is None:
             message = "Editing a brief is available on a lemon in the inbox; exit this view first"
+        elif path is None:
+            message = "No attached brief to edit"
+        else:
+            title = notification.name or path.stem
+            message = inbox_brief_edit.edit(self, path, title, pick.around_caller())
         if message:
             self._stop_hint_timer()
             self._show_keys(False)

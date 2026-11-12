@@ -27,6 +27,7 @@ def _front_end(terminal: interface.Terminal) -> interface.FrontEnd | None:
                 autoresume_tmux.prompt,
                 restore=tmux.restorer,
                 relocation=tmux.relocation(),
+                popup=tmux.popup,
             )
         case "wezterm":
             return interface.FrontEnd(
