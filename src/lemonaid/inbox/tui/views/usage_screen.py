@@ -43,7 +43,7 @@ class UsageScreen(ModalScreen[None]):
     def __init__(self, config: Config) -> None:
         super().__init__()
         self._config = config
-        for key in {self._config.tui.keybindings.usage_view, "escape", "q"}:
+        for key in {self._config.tui.keybindings.usage_view, "escape", "q", "backspace"}:
             self._bindings.bind(key, "dismiss", "Close", show=False)
 
     def compose(self) -> ComposeResult:

@@ -57,3 +57,20 @@ def test_u_opens_the_usage_table_and_back(monkeypatch):
             assert app.query_one("#inbox_list").display and app.is_running
 
     asyncio.run(check())
+
+
+def test_backspace_closes_the_usage_modal(monkeypatch):
+    _half_used(monkeypatch)
+
+    async def check() -> None:
+        app = LemonaidApp()
+        async with app.run_test(size=(120, 30)) as pilot:
+            await pilot.press("U")
+            await until(pilot, lambda: isinstance(app.screen, UsageScreen))
+            await until(pilot, lambda: app.screen.query_one(DataTable).row_count == 2)
+            app.screen.query_one(DataTable).focus()
+
+            await pilot.press("backspace")
+            await until(pilot, lambda: not isinstance(app.screen, UsageScreen))
+
+    asyncio.run(check())
