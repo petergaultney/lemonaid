@@ -8,7 +8,9 @@ visited, and all of that is addressed by pane id.
 
 import subprocess
 
-from lemonaid.tmux import restart, scratch
+from lemonaid import brief
+from lemonaid.config import Config
+from lemonaid.tmux import restart, scratch, scratch_brief
 
 
 def _tmux(monkeypatch, calls: list[list[str]], respawn_rc: int = 0) -> None:
@@ -94,3 +96,59 @@ def test_a_stale_state_file_falls_back_to_the_marker(monkeypatch, tmp_path):
     scratch._save_pane_id("%3")
 
     assert scratch.marked_pane() == "%9"
+
+
+def _view(monkeypatch, *, recorded: bool, scratch_view: str) -> list[bool]:
+    shown: list[bool] = []
+    config = Config()
+    config.tmux_session.scratch_view = scratch_view
+    monkeypatch.setattr(restart, "load_config", lambda: config)
+    monkeypatch.setattr(brief.sidebar, "read", lambda pane: ("t", "@1") if recorded else None)
+    monkeypatch.setattr(scratch_brief, "show_here", lambda: shown.append(True) or True)
+    return shown
+
+
+def test_a_pane_that_showed_a_brief_is_left_to_restore_it(monkeypatch):
+    """The recorded brief is a pane option the respawn keeps; the new TUI reads it."""
+    _tmux(monkeypatch, [])
+    monkeypatch.setattr(scratch, "marked_pane", lambda: "%7")
+    shown = _view(monkeypatch, recorded=True, scratch_view="brief")
+
+    restart.restart_scratch()
+
+    assert not shown
+
+
+def test_a_pane_that_showed_the_inbox_follows_scratch_view(monkeypatch):
+    _tmux(monkeypatch, [])
+    monkeypatch.setattr(scratch, "marked_pane", lambda: "%7")
+    shown = _view(monkeypatch, recorded=False, scratch_view="brief")
+
+    restart.restart_scratch()
+
+    assert shown
+
+
+def test_scratch_view_inbox_leaves_the_inbox(monkeypatch):
+    _tmux(monkeypatch, [])
+    monkeypatch.setattr(scratch, "marked_pane", lambda: "%7")
+    shown = _view(monkeypatch, recorded=False, scratch_view="inbox")
+
+    restart.restart_scratch()
+
+    assert not shown
+
+
+def test_the_configured_view_is_recorded_before_the_respawn(monkeypatch):
+    """The new TUI reads the recorded brief before it starts, so it must be there first."""
+    calls: list[list[str]] = []
+    _tmux(monkeypatch, calls)
+    monkeypatch.setattr(scratch, "marked_pane", lambda: "%7")
+    order: list[str] = []
+    _view(monkeypatch, recorded=False, scratch_view="brief")
+    monkeypatch.setattr(scratch_brief, "show_here", lambda: order.append("show") or True)
+    monkeypatch.setattr(restart, "_respawn", lambda pane, command: order.append("respawn") or True)
+
+    restart.restart_scratch()
+
+    assert order == ["show", "respawn"]

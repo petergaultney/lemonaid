@@ -226,7 +226,8 @@ lemonaid tmux scratch --restart
 ```
 
 Replaces the `lma` process in place - the pane keeps its id, window, size, and
-the recent placeholder follow mode has kept. Killing
+the recent placeholder follow mode has kept. A pane that was showing a brief comes
+back showing it; one that was showing the inbox comes back on `scratch_view`. Killing
 the pane instead discards that arrangement, which is what `prefix+: kill-pane`
 followed by `prefix+l` used to do. In follow mode it also reinstalls the follow hooks,
 so a new version's hooks take effect with its TUI.

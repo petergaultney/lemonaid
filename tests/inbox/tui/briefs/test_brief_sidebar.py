@@ -203,8 +203,11 @@ def test_b_in_the_sidebar_keeps_focus_on_the_inbox(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(target, "for_notification", lambda *args: found)
     monkeypatch.setattr(sidebar, "window_id", lambda _: "@target")
-    monkeypatch.setattr(sidebar, "toggle", lambda item, window: True)
-    monkeypatch.setattr(sidebar, "read", lambda pane: (found, "@target"))
+    recorded: list[tuple] = []
+    monkeypatch.setattr(
+        sidebar, "toggle", lambda item, window: recorded.append((found, window)) or True
+    )
+    monkeypatch.setattr(sidebar, "read", lambda pane: recorded[-1] if recorded else None)
     monkeypatch.setattr(session, "current_session", lambda: "work:2")
     monkeypatch.setattr(
         LemonaidApp,
@@ -276,11 +279,8 @@ def test_a_sidebar_brief_follows_the_pane_to_another_window(monkeypatch, tmp_pat
         db.add(conn, "claude:w2", "working", "w2", {"tmux_session": "work", "tmux_window": "2"})
 
     async def check() -> None:
-        app = LemonaidApp(scratch_mode=True)
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
         async with app.run_test(size=(50, 30)) as pilot:
-            app._set_brief_view(old)
-            await pilot.pause()
-            app.query_one(BriefPane).sync()
             await pilot.pause()
             assert app.query_one(ContentSwitcher).current == "brief_view"
             assert app.query_one(BriefPane).target == landed
@@ -460,5 +460,22 @@ def test_a_brief_browsed_to_locally_stays_when_a_window_has_no_lemon(monkeypatch
             await pilot.pause()
             assert pane.target == browsed
             assert remembered == []
+
+    asyncio.run(check())
+
+
+def test_a_started_scratch_pane_shows_the_brief_its_pane_records(monkeypatch, tmp_path):
+    found = _target(tmp_path)
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    monkeypatch.setattr(sidebar, "read", lambda pane: (found, "@here"))
+    monkeypatch.setattr(sidebar, "window_id", lambda _: "@here")
+    monkeypatch.setattr(sidebar, "remember", lambda *args: None)
+    monkeypatch.setattr(session, "current_session", lambda: "work:2")
+
+    async def check() -> None:
+        app = LemonaidApp(scratch_mode=True, restored=sidebar.recorded("%9"))
+        async with app.run_test(size=(50, 30)) as pilot:
+            await pilot.pause()
+            assert app.query_one(ContentSwitcher).current == "brief_view"
 
     asyncio.run(check())

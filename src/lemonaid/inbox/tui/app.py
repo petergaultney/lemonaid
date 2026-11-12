@@ -100,7 +100,11 @@ class LemonaidApp(CrashLoggedApp):
 
     CSS = styles.CSS
 
-    def __init__(self, scratch_mode: bool = False) -> None:
+    def __init__(
+        self,
+        scratch_mode: bool = False,
+        restored: brief.sidebar.Recorded = (None, ""),
+    ) -> None:
         self.config = load_config()  # before super(), which reads the CSS variables
         super().__init__()
         self._jump_bar: jump_bar.JumpBar | None = None
@@ -109,6 +113,7 @@ class LemonaidApp(CrashLoggedApp):
         self._claude_patch_status: str | None = None
         self._claude_binary = find_binary()
         self._scratch_mode = scratch_mode
+        self._restored = restored
         self._last_activation: double_activate.Activation | None = None
         self._focus_gained = 0.0  # monotonic seconds
         self._input_at = 0.0  # monotonic seconds of the last key or mouse event
@@ -284,6 +289,8 @@ class LemonaidApp(CrashLoggedApp):
 
         self._refresh_inbox()
         self.query_one("#main_table", DataTable).focus()
+        if self._scratch_mode:
+            self.query_one(BriefPane).sync(restoring=True, recorded=self._restored)
         self.set_interval(self.config.tui.refresh_interval, self._tick)
         # Transcript watchers: auto-dismiss, message updates, and exit detection
         watcher_hooks.start(self.config, self._brief_cache, self._set_detached_channels)

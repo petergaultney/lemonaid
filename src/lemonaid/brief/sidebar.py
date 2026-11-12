@@ -39,6 +39,16 @@ def read(pane: str) -> tuple[target.Target, str] | None:
     return decode(_tmux("show-option", "-pqv", "-t", pane, follow.BRIEF_OPTION) or "")
 
 
+Recorded = tuple[tuple[target.Target, str] | None, str]
+
+
+def recorded(pane: str) -> Recorded:
+    """The brief *pane* records and the window it is in, read before the TUI starts."""
+    shown = read(pane)
+
+    return (shown, window_id(pane)) if shown else (None, "")
+
+
 def remember(pane: str, found: target.Target, window: str) -> None:
     """Record *found* as *pane*'s brief in *window*, without waking or focusing it."""
     _tmux("set-option", "-p", "-t", pane, follow.BRIEF_OPTION, _encode(found, window))
