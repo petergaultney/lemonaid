@@ -36,13 +36,13 @@ def test_ungrouped_order_and_cursor(size, enabled):
         assert table.cursor_coordinate.row == 0
         table.move_cursor(row=expected.index("claude:loose"))
         await pilot.pause()
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert channels(app)[table.cursor_coordinate.row] == "claude:loose"
         with db.connect() as conn:
             session(conn, "pin", "active")
             pins.pin(conn, "claude:pin")
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert channels(app) == ["claude:pin", *expected]
         assert channels(app)[table.cursor_coordinate.row] == "claude:loose"

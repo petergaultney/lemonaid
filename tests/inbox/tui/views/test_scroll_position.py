@@ -48,7 +48,7 @@ def test_view_refill_keeps_visible_row(monkeypatch, tmp_path, mode):
                 screen = app.screen
                 refresh = lambda: screen._fill(current)  # noqa: E731
             else:
-                refresh = app._refresh_notifications
+                refresh = app._refresh_inbox
                 table_id = "other_sources"
             await pilot.pause()
             table = (

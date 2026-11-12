@@ -135,7 +135,7 @@ def test_the_first_paint_already_leaves_room_for_the_notes(notes):
 
     def first_then_refreshed(tui: app.LemonaidApp) -> tuple[list[int], list[int]]:
         first = _drawn_heights(tui)
-        tui._refresh_notifications()
+        tui._refresh_inbox()
         return first, _drawn_heights(tui)
 
     first, refreshed = _run(_SIDEBAR, first_then_refreshed)

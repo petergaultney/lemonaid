@@ -24,7 +24,7 @@ def test_switching_between_idle_lemons_keeps_their_group_order(size):
         app.query_one(InboxList).fold_open = True
         for name in ("older", "newer", "older"):
             app._attention.note(ttys[f"claude:{name}"])
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             assert channels(app) == ["", "claude:newer", "claude:older"]
 

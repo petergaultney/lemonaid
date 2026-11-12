@@ -54,7 +54,7 @@ def test_b_shows_results_before_needs_and_refreshes_them(
                 assert 0 <= paragraph.region.y < app.size.height
 
             path.write_text(source.format(summary="Delivery is verified.", status=status))
-            app._refresh_notifications()
+            app._refresh_inbox()
             await pilot.pause()
             paragraphs = [p._content.plain for p in view.query(MarkdownParagraph)]
             assert "Delivery is verified." in paragraphs

@@ -131,7 +131,7 @@ def test_highlight_tracks_relatives_across_the_two_inbox_tables(size, monkeypatc
         await pilot.pause()
         assert _relation(_row(main, "parent")[1], "\u2193")
         assert not _relation(_row(other, "child")[1], "\u2191")
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert _relation(_row(main, "parent")[1], "\u2193")
 
@@ -155,18 +155,18 @@ def test_relationship_marks_survive_refresh_folding_and_search(size):
         await pilot.press("w")
         await pilot.pause()
         assert _relation(_row(table, "child")[1], "\u2191")
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert _relation(_row(table, "child")[1], "\u2191")
         app._content.searching = True
         app._content.filter_text = "parent"
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert "\u21930/1" in _row(table, "parent")[1].plain
         assert not any(_relation(c, "\u2191") for key in table.rows for c in table.get_row(key))
         app._content.searching = False
         app._content.filter_text = ""
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert _relation(_row(table, "child")[1], "\u2191")
         table.move_cursor(row=0)

@@ -61,12 +61,12 @@ def test_focus_keeps_open_fold_ungrouped_order(tmp_path, monkeypatch, size, enab
         expected = ["claude:hq", *(loose + grouped if enabled else grouped + loose)]
         assert channels(app) == expected
         focused.add(tty)
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert channels(app) == expected
         focused.clear()
         app._select_channel("claude:hq")
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert channels(app) == expected
 

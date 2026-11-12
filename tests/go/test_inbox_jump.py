@@ -66,7 +66,7 @@ def test_selecting_sender_after_external_jump_returns_to_it(server, clients, mon
             run("codex:real")
             assert _query(server, "list-clients", "-F", "#{pane_tty}") == target.metadata["tty"]
             app._attention.focused_at = 0
-            app._refresh_notifications()
+            app._refresh_inbox()
             if action == "marker":
                 assert table.get_row(str(target.id))[3].plain.startswith(HERE_BLOCK)
                 assert not table.get_row(str(old.id))[3].plain.startswith(HERE_BLOCK)

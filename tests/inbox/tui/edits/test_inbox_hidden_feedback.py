@@ -25,7 +25,7 @@ def test_hidden_done_lemon_reports_each_toggle_in_status_line(size):
         await pilot.press("H")
         assert hidden.is_hidden(path.read_text())
         assert row.channel in app._row_channels()
-        app._refresh_notifications()
+        app._refresh_inbox()
         message = str(app.query_one("#status", Static).render())
         assert "Hidden" in message
         assert "still visible: done" in message
@@ -50,7 +50,7 @@ def test_no_brief_reports_in_status_line():
 
     async def steps(app, pilot):
         await pilot.press("H")
-        app._refresh_notifications()
+        app._refresh_inbox()
         assert app.query_one("#status", Static).display
         assert "No attached brief" in str(app.query_one("#status", Static).render())
 

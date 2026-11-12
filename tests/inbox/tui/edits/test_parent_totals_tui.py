@@ -55,7 +55,7 @@ def test_total_includes_quiet_and_other_group_children_but_excludes_retired_sess
         assert "\u21933/4" in parent_text()
         app._content.searching = True
         app._content.filter_text = "parent"
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         assert "\u21930/4" in parent_text()
 

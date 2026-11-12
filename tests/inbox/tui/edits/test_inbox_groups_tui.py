@@ -92,7 +92,7 @@ def test_tab_on_a_lemon_collapses_its_group_around_it_until_the_cursor_leaves():
         kept = channels(app), table.cursor_coordinate.row
         table.move_cursor(row=2)
         await pilot.pause()
-        app._refresh_notifications()
+        app._refresh_inbox()
         await pilot.pause()
         return kept, channels(app)
 
@@ -183,7 +183,7 @@ def _add_row_above(app):
     with db.connect() as conn:
         session(conn, "newcomer", "working")
         pins.pin(conn, "claude:newcomer")  # pins in no group come first
-    app._refresh_notifications()
+    app._refresh_inbox()
 
 
 @pytest.mark.usefixtures("inbox")
@@ -221,7 +221,7 @@ def test_staying_on_unread_lands_on_the_unread_lemon_below_a_header():
         app.query_one("#main_table", DataTable).move_cursor(row=0)
         with db.connect() as conn:
             session(conn, "quiet", "working")
-        app._refresh_notifications(stay_on_unread=True)
+        app._refresh_inbox(stay_on_unread=True)
         await pilot.pause()
         return app._row_channels()[app.query_one("#main_table", DataTable).cursor_coordinate.row]
 

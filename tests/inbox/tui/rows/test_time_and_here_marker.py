@@ -410,7 +410,7 @@ def test_a_successful_inbox_switch_marks_its_tty_immediately(monkeypatch):
     pane = app_mod.LemonaidApp()
     refreshed: list[bool] = []
     monkeypatch.setattr(inbox_switch, "handle_notification", lambda *args, **kwargs: True)
-    monkeypatch.setattr(pane, "_refresh_notifications", lambda: refreshed.append(True))
+    monkeypatch.setattr(pane, "_refresh_inbox", lambda: refreshed.append(True))
     notification = db.Notification(
         id=1,
         channel="claude:session",
