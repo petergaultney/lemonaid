@@ -1,11 +1,13 @@
 """Reread subscriptions while waiting and deliver every pending source in one wake."""
 
+import datetime
 import queue
 import threading
 import time
 from collections import abc
 from pathlib import Path
 
+from .. import po_box
 from ..brief import identity
 from ..config import load_config
 from ..log import get_logger
@@ -17,11 +19,17 @@ _CHILDREN_EVERY = 10.0  # seconds between rereads of the children's PRs
 _log = get_logger("watch.batch_wait")
 
 
-def _messages(mailbox: Path) -> list[tuple[Path, str]]:
+def _messages(mailbox: Path, box: Path | None) -> list[tuple[Path, str]]:
     return [
-        (path, path.read_text())
-        for path in sorted(mailbox.glob("*.md"))
-        if path.is_file() and not path.is_symlink()
+        *(
+            (path, path.read_text())
+            for path in sorted(mailbox.glob("*.md"))
+            if path.is_file() and not path.is_symlink()
+        ),
+        *(
+            (path, po_box.inbox.labeled(path))
+            for path in (po_box.inbox.pending(box) if box else ())
+        ),
     ]
 
 
@@ -45,6 +53,10 @@ def _headline(labels: list[str]) -> str:
     more = len(labels) - _HEADLINE_LABELS
     line = shown + (f" (+{more} more)" if more > 0 else "")
     return line if len(line) <= _HEADLINE_WIDTH else line[: _HEADLINE_WIDTH - 3] + "..."
+
+
+def _source(message: Path, mailbox: Path) -> str:
+    return "mailbox" if message.parent == mailbox else "po-box"
 
 
 def _reconcile(
@@ -148,12 +160,21 @@ def wait(
     pending: list[scouts.Pending] = []
     wake = threading.Event()
     unwatch = pacing.watch([path, mailbox, *harness[0]], harness[1], wake)
+    box: Path | None = None
+    unwatch_box = pacing.watch([], [], wake)
     since, last_messages = 0.0, ()
     children: frozenset[tuple[str, ...]] = frozenset()
     children_at = -_CHILDREN_EVERY
     try:
         while still_attached():
             beat()
+            card = po_box.enrollment.sync(
+                config.po_box, path, mailbox, datetime.datetime.now(datetime.UTC)
+            )
+            if (card.inbox if card else None) != box:
+                unwatch_box()
+                box = card.inbox if card else None
+                unwatch_box = pacing.watch([box] if box else [], [], wake)
             if time.monotonic() - children_at >= _CHILDREN_EVERY:
                 children, children_at = (
                     pr_roles.children_author(mailbox.name, cwd, vaults),
@@ -176,7 +197,7 @@ def wait(
                 return True
 
             with store.receive_lock(mailbox, wait=False) as held:
-                messages = _messages(mailbox) if held else []
+                messages = _messages(mailbox, box) if held else []
                 names = tuple(p.name for p, _ in messages)
                 if names != last_messages:
                     last_messages, since = names, time.monotonic()
@@ -193,7 +214,7 @@ def wait(
                             [
                                 *(f"[{p.source}] {time.time() - p.detected:.1f}s" for p in pending),
                                 *(
-                                    f"[mailbox] {time.time() - m.stat().st_mtime:.1f}s"
+                                    f"[{_source(m, mailbox)}] {time.time() - m.stat().st_mtime:.1f}s"
                                     for m, _ in messages
                                 ),
                             ]
@@ -205,14 +226,22 @@ def wait(
                                 clip.share(
                                     [
                                         *(f"[{p.source}] {p.message}" for p in pending),
-                                        *(f"[mailbox] {body.rstrip()}" for _, body in messages),
+                                        *(
+                                            f"[{_source(m, mailbox)}] {body.rstrip()}"
+                                            for m, body in messages
+                                        ),
                                     ]
                                 )
                             ),
                             _headline(
                                 [
                                     *(p.label or _fallback(p.source) for p in pending),
-                                    *(f"mail from {_from(body)}" for _, body in messages),
+                                    *(
+                                        f"mail from {_from(body)}"
+                                        if _source(m, mailbox) == "mailbox"
+                                        else "PO box mail"
+                                        for m, body in messages
+                                    ),
                                 ]
                             ),
                             sum(p.events for p in pending) + len(messages),
@@ -220,7 +249,10 @@ def wait(
                         )
                     )
                     for message, _ in messages:
-                        store.mark_done(message)
+                        if _source(message, mailbox) == "mailbox":
+                            store.mark_done(message)
+                        else:
+                            po_box.inbox.claim(message, mailbox, config.po_box.keep_read_days)
                     for event in pending:
                         if event.source == "brief":
                             subscription_state.remember(root, event.message)
@@ -238,6 +270,7 @@ def wait(
         return False
     finally:
         unwatch()
+        unwatch_box()
         for scout in running.values():
             scout.stop()
         for event in pending:

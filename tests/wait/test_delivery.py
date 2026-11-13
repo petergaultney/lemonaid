@@ -1,9 +1,12 @@
+import datetime
 import time
 
+from lemonaid import po_box
 from lemonaid.brief import doc_table
 from lemonaid.messages import store
 from lemonaid.watch import batch_wait, delivery
 
+from ..po_box.shared import configure_po_box
 from . import shared
 
 
@@ -155,6 +158,60 @@ def test_deleting_a_doc_with_a_pending_event_does_not_stop_inbox_delivery(tmp_pa
         thread.join(5)
         assert not thread.is_alive() and not errors
         assert len(sent) == 1 and "still here" in sent[0]
+    finally:
+        stop.set()
+        thread.join(5)
+
+
+_BOXED = shared.BRIEF.replace("Brief-ID: task.IndexElf\n", "Brief-ID: task.IndexElf\nPO box: yes\n")
+
+
+def _box(root):
+    return po_box.cards.registered(root, "sam", "task.IndexElf")
+
+
+def test_po_box_mail_arrives_labeled_and_is_marked_read(tmp_path, monkeypatch):
+    root = configure_po_box(monkeypatch, tmp_path)
+    sent = []
+    _path, mailbox, _root, stop, thread, errors = shared.start(tmp_path, _BOXED, sent.append)
+    try:
+        shared.eventually(lambda: _box(root) is not None)
+        card = _box(root)
+        po_box.inbox.send(card, "From a teammate", "kim: other.AuditInk")
+        thread.join(5)
+        assert not thread.is_alive() and not errors
+        assert sent[0].startswith(f"[po-box] {po_box.inbox.LABEL}") and "From a teammate" in sent[0]
+        assert delivery.label_of(sent[0]).strip() == "PO box mail"
+        assert po_box.inbox.pending(card.inbox) == []
+        assert len(list((card.inbox / po_box.inbox.READ).glob("*.md"))) == 1
+        assert len(list((mailbox / "done").glob("*.md"))) == 1
+    finally:
+        stop.set()
+        thread.join(5)
+
+
+def test_an_idle_watcher_renews_its_po_box(tmp_path, monkeypatch):
+    root = configure_po_box(monkeypatch, tmp_path)
+    nearly = (
+        datetime.datetime.now(datetime.UTC) - po_box.cards.LIFETIME + datetime.timedelta(hours=1)
+    )
+    card = po_box.cards.register(root, "sam", "task.IndexElf", "task", "", nearly)
+    _path, _mailbox, _root, stop, thread, _errors = shared.start(tmp_path, _BOXED, [].append)
+    try:
+        shared.eventually(lambda: po_box.cards.read(card.folder).expires > card.expires)
+    finally:
+        stop.set()
+        thread.join(5)
+
+
+def test_a_watcher_without_the_toggle_closes_the_box(tmp_path, monkeypatch):
+    root = configure_po_box(monkeypatch, tmp_path)
+    card = po_box.cards.register(
+        root, "sam", "task.IndexElf", "task", "", datetime.datetime.now(datetime.UTC)
+    )
+    _path, _mailbox, _root, stop, thread, _errors = shared.start(tmp_path, shared.BRIEF, [].append)
+    try:
+        shared.eventually(lambda: not card.folder.exists())
     finally:
         stop.set()
         thread.join(5)

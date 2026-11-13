@@ -189,5 +189,7 @@ if delivery is interrupted.
 `lemonaid lemon parent` (see `docs/lineage.md`). A child that hasn't started
 yet has a mailbox already, so its messages wait there.
 
+A lemon whose brief turns on its PO box also has a mailbox teammates' lemons can write, addressed as `tell <owner>/<lemon>`. See [PO boxes](po-box.md).
+
 `LEMONAID_MESSAGES_DIR` overrides the mailbox root. When `LEMONAID_BRIEFS_DIR`
 is set, the default mailbox root follows it, at `<briefs-dir>/mailbox/`.
