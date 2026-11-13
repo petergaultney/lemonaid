@@ -150,6 +150,9 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         )
         if hasattr(args, name) and getattr(args, name) is not None
     }
+    if kind == "pr" and getattr(args, "role", "") == "author":
+        values["comments"] = True
+
     if kind == "repo":
         values["labels"], values["exclude_authors"] = tuple(args.label), tuple(args.exclude_author)
     values["to"] = (

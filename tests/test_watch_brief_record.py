@@ -8,7 +8,16 @@ import pytest
 
 from lemonaid.brief import attached, frontmatter, store, waiters
 from lemonaid.inbox import db
-from lemonaid.watch import brief_record, briefs_cli, delivery, doc_cli, file_cli, pr_cli
+from lemonaid.watch import (
+    brief_record,
+    briefs_cli,
+    cursors,
+    delivery,
+    doc_cli,
+    file_cli,
+    pr_cli,
+    waiter_lock,
+)
 
 
 @pytest.fixture
@@ -165,7 +174,7 @@ def test_refused_delivery_setup_and_duplicate_do_not_change_brief(brief, tmp_pat
     assert doc_cli.run(a) == 2
     assert brief.read_text() == before
     monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
-    from lemonaid.watch import doc_events, waiter_lock
+    from lemonaid.watch import doc_events
 
     lock = waiter_lock.acquire(
         doc_events.state_stem(a.state_dir, a.wait, a.me).with_suffix(".lock")
@@ -175,6 +184,37 @@ def test_refused_delivery_setup_and_duplicate_do_not_change_brief(brief, tmp_pat
         assert brief.read_text() == before
     finally:
         lock.close()
+
+
+def test_pr_watch_refused_beside_the_unified_watcher_leaves_the_brief_alone(
+    brief, tmp_path, monkeypatch
+):
+    first = args("pr", tmp_path, "--comments", "--role", "author")
+    assert brief_record.record(first, "pr", repo="o/r") == ""
+    recorded = brief.read_text()
+    assert "--comments --role author" in recorded
+
+    second = args("pr", tmp_path, "--ci", "--role", "author")
+    second.state_dir = None
+    monkeypatch.setattr(cursors, "directory", lambda *_: tmp_path / "owner" / "pr")
+    monkeypatch.setattr(pr_cli.wait_state, "lock_path", lambda owner: tmp_path / "unified.lock")
+    monkeypatch.setattr(waiter_lock, "held", lambda path: path.name == "unified.lock")
+    monkeypatch.setattr(waiter_lock, "lock_holder", lambda path: "pid 1")
+
+    assert pr_cli.run(second, "o/r") == 3
+    assert brief.read_text() == recorded
+
+
+def test_role_author_implies_comments(monkeypatch):
+    monkeypatch.setattr(pr_cli, "_repo_name", lambda repo: "o/r")
+    monkeypatch.setattr(pr_cli, "run", lambda a, repo: 0)
+    parser = argparse.ArgumentParser()
+    pr_cli.add_parser(parser.add_subparsers())
+    a = parser.parse_args(["pr", "--wait", "12", "--me", "X (Author)", "--role", "author"])
+    a.repo = ""
+    with pytest.raises(SystemExit):
+        pr_cli._cmd(a)
+    assert a.comments
 
 
 def test_unwritable_attached_brief_prevents_startup(brief, tmp_path, monkeypatch):
