@@ -4,7 +4,13 @@ from lemonaid.grove.draw import canvas, colors, house
 from lemonaid.grove.draw.plots import View
 from lemonaid.grove.layout import arrange
 
-from .shared import NOW, block, lemon, tree
+from . import shared
+from .shared import NOW, block, lemon
+
+
+def tree(key: str, *lemons):
+    """A bay whose lemon is named for its key, so the bay reads as the key."""
+    return shared.tree(key, *(lemons or (dataclasses.replace(lemon(f"claude:{key}"), name=key),)))
 
 
 def _bay_b(packhouse, saved, now, zoomed: bool):
@@ -82,7 +88,9 @@ def test_bays_keep_their_rows_on_a_small_screen_when_the_last_bay_leaves():
 
 def test_a_bay_shows_its_main_lemons_emoji_after_its_key_and_its_pin_before_it():
     packhouse = block(
-        "", "0", tree("b", dataclasses.replace(lemon("claude:b"), emoji="🌎", pinned=True))
+        "",
+        "0",
+        tree("b", dataclasses.replace(lemon("claude:b"), name="b", emoji="🌎", pinned=True)),
     )
     found, _ = arrange.arrange((packhouse,), {"plots": {}, "trees": {}}, NOW)
     picture = canvas.blank(200, 60)

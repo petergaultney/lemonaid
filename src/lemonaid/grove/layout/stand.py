@@ -119,9 +119,11 @@ def stand_trees(
 
     derived = labels.labels(block.name, [tree.key for tree in block.trees])
     # A tree takes the name given to its main lemon, as the inbox shows it; else its session's.
+    # A packhouse bay holding one lemon takes that lemon's name either way: tmux's own `22` says
+    # nothing, and the session only groups lemons when there are several.
     short = {
         t.key: labels.without_group(block.name, t.lemons[0].name)
-        if t.lemons[0].named
+        if t.lemons[0].named or (bays and len(t.lemons) == 1)
         else derived[t.key]
         for t in block.trees
     }
