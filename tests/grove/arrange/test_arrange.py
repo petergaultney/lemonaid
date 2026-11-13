@@ -178,6 +178,19 @@ def test_a_tree_shows_the_name_given_to_its_main_lemon():
     assert found.trees[("g", "edi/other")].label == "other"
 
 
+def test_a_packhouse_bay_with_one_lemon_shows_its_name_but_a_shared_bay_keeps_its_session():
+    alone = lemon("claude:x")
+    pair = (lemon("claude:y"), lemon("claude:z"))
+    found, _ = arrange(
+        (block("", "1", tree("22", alone), tree("24", *pair)), block("g", "2", tree("30", alone))),
+        EMPTY,
+        NOW,
+    )
+    assert found.trees[("", "22")].label == alone.name
+    assert found.trees[("", "24")].label == "24"
+    assert found.trees[("g", "30")].label == "30"
+
+
 def test_a_saved_capital_letter_is_picked_again_in_lowercase():
     named = dataclasses.replace(lemon("claude:x"), name="Stray inbox cards", named=True)
     saved = {"plots": {}, "trees": {"g": {"stray": {"x": 10, "y": 5, "letter": "S"}}}}
