@@ -10,6 +10,15 @@ whenever a session stops or needs input. The `lma` inbox shows those sessions,
 what each is doing, and jumps you to its tmux pane or WezTerm tab. Archived
 sessions stay searchable and resumable.
 
+## The grove
+
+Press `Space` in `lma` and your lemons become a map. Each group is a block of
+ground, each terminal session a tree, and each lemon a dot hanging on its tree,
+colored by brief status. Nothing moves once it is placed, so you find a lemon by
+where it lives. The grove is in beta.
+
+<img width="900" alt="The grove: four blocks of trees around a packhouse, each tree tagged with its session and a status color" src="https://raw.githubusercontent.com/petergaultney/lemonaid/main/docs/images/grove-overview.png" />
+
 ## Install
 
 ```bash
