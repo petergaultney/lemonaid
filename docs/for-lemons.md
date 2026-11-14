@@ -365,7 +365,7 @@ in cmux, named for `--name` or the directory. It says where.
 
 ```bash
 lemonaid lemon start :4 --preset codex --prompt 'REVIEW #12. Instructions are in <file>; follow them.' \
-    --brief <file> --parent parent --name 'REVIEW #12 thing' --json
+    --brief <file> --parent <self|parent> --name 'REVIEW #12 thing' --json
 ```
 
 It resolves the same lemon command as `place open`, with `--preset`, `--shape` and `-- <harness arguments>` available. It runs only that command in the session's directory, leaving other shape windows alone. The window is made if it doesn't exist and respawned if its panes are dead; a window
