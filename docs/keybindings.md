@@ -32,7 +32,7 @@ Keys you set in `[tui.keybindings]` are untouched; only the defaults moved.
 | `s` | Snooze session (pick a duration) |
 | `S` | Toggle snoozed view |
 | `U` | Show usage over the inbox, a brief or the grove: each limit window's pace, projection and reset, worst first; `U`, `q`, `Escape` or `Backspace` closes it |
-| `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it |
+| `Space` | Open the [grove](grove.md): groups as blocks, sessions as trees, each lemon in a place that stays put. `Space` again closes it. A click on the attention bar at the top of the inbox or the brief view does the same |
 | `w` | Show or hide the folded sessions, including hidden lemons, when `[tui] fold_statuses` is set or attention mode is on |
 | `!` | Turn [attention mode](config.md#attention-mode) on or off: rows only for what needs you, with a count of everything at the top |
 | `N` | Show or hide your notes under the sessions, when `[tui] notes` is set |

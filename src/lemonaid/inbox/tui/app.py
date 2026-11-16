@@ -44,6 +44,7 @@ from ...tmux.scratch import (
 )
 from .. import attention, db, sections, undo
 from . import (
+    bar_click,
     bindings,
     claude_patch,
     error_screen,
@@ -1399,6 +1400,10 @@ class LemonaidApp(CrashLoggedApp):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self._activate_row(event.data_table.id, event.row_key)
+
+    def on_bar_clicked(self, event: bar_click.BarClicked) -> None:
+        if self.config.tui.keybindings.grove:
+            self.action_grove()
 
     def on_click_to_act_table_badge_clicked(self, event: ClickToActTable.BadgeClicked) -> None:
         """In attention mode, a header's status badge opens its group's block in the grove."""

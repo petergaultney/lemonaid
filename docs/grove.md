@@ -8,7 +8,7 @@ Zoomed into a block, each tree lists its lemons:
 
 ![One block of the grove zoomed in, each tree beside a card for its lemons](images/grove-block.png)
 
-The grove is a map of your lemons that keeps each one in the same place, so you can find a lemon by where it lives instead of scanning a list whose order changes with every status. Press `Space` in `lma` to open it, and `Space` again to close it. In tmux, from the sidebar or any pane too small for a map, it opens in a popup over the whole window instead, with a 3-cell margin (`popup_margin` in `[tmux-session]`). To open that popup from anywhere, bind a tmux key by adding what this prints to your tmux.conf:
+The grove is a map of your lemons that keeps each one in the same place, so you can find a lemon by where it lives instead of scanning a list whose order changes with every status. Press `Space` in `lma` to open it, and `Space` again to close it. Clicking the attention bar at the top of the inbox or of the brief view opens it the same way, unless `grove` is unset in `[tui.keybindings]`. In tmux, from the sidebar or any pane too small for a map, it opens in a popup over the whole window instead, with a 3-cell margin (`popup_margin` in `[tmux-session]`). To open that popup from anywhere, bind a tmux key by adding what this prints to your tmux.conf:
 
 ```sh
 lemonaid tmux popup grove --binding Space --title ' lemon grove '
