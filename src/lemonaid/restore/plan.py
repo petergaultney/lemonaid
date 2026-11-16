@@ -9,32 +9,15 @@ import typing as ty
 from collections import abc
 from pathlib import Path
 
-from ..claude import session_socket
-from ..codex import channels, utils
 from ..config import Config
 from ..inbox import db, ended
+from ..inbox.transcript import transcript_missing
 from . import carried, launch, prompt, report, run
 
 
 class Plan(ty.NamedTuple):
     lemons: list[run.Lemon]  # in the order to start them
     skipped: list[report.Result]  # lost lemons restore can't start, and why
-
-
-def transcript_missing(row: db.Notification) -> bool:
-    """Whether the conversation a resume would reopen is gone, so a resume would start an
-    empty one under the lemon's name."""
-    harness = row.channel.partition(":")[0]
-    if harness == "claude":
-        session = str(row.metadata.get("session_id") or "")
-        return not session or not any(
-            session_socket.claude_dir().glob(f"projects/*/{session}.jsonl")
-        )
-
-    if harness == "codex":
-        return utils.find_session_path(channels.owner_id(row.channel, row.metadata, {})) is None
-
-    return False
 
 
 def _skipped(row: db.Notification, why: str) -> report.Result:

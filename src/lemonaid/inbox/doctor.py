@@ -14,7 +14,9 @@ from pathlib import Path
 
 from .. import tmux
 from ..claude import install_hooks
-from ..inbox import db
+from ..config import Config, load_config
+from ..inbox import db, transcript
+from ..resume import build_resume_command
 
 _CLAUDE_PROCESSES = ("claude", "codex", "openclaw", "opencode")
 _MIN_TRANSCRIPT_BYTES = 5000
@@ -61,26 +63,19 @@ def _looks_like_a_lemon(command: str) -> bool:
     return command.replace(".", "").isdigit() and "." in command
 
 
-def transcript_for(session_id: str) -> Path | None:
-    """The transcript file for a session, if one exists on disk."""
-    if not session_id:
-        return None
-
-    return next(Path.home().joinpath(".claude/projects").rglob(f"{session_id}.jsonl"), None)
-
-
-def _known_sessions() -> list[tuple[str, str, dict]]:
+def _known_sessions() -> list[db.Notification]:
     with db.connect() as conn:
         rows = conn.execute(
-            "SELECT name, status, metadata FROM notifications "
+            "SELECT * FROM notifications "
             "WHERE status IN ('unread', 'read') ORDER BY created_at DESC"
         ).fetchall()
 
-    return [(r[0] or "", r[1], json.loads(r[2] or "{}")) for r in rows]
+    return [db.Notification.from_row(r) for r in rows]
 
 
-def _restorable(metadata: dict) -> tuple[bool, str]:
+def _restorable(row: db.Notification, config: Config) -> tuple[bool, str]:
     """Whether this row could be restored, and what is missing if not."""
+    metadata = row.metadata
     session_id = metadata.get("session_id")
     if not session_id:
         return False, "no session_id"
@@ -88,7 +83,10 @@ def _restorable(metadata: dict) -> tuple[bool, str]:
     if not metadata.get("cwd"):
         return False, "no cwd"
 
-    if transcript_for(session_id) is None:
+    if build_resume_command(config, row.channel, metadata) is None:
+        return False, "no resume command for its harness"
+
+    if transcript.transcript_missing(row):
         return False, "transcript not on disk"
 
     if not metadata.get("tmux_session"):
@@ -102,7 +100,8 @@ def report() -> list[str]:
     panes = live_panes()
     lemons = [p for p in panes if _looks_like_a_lemon(p.command)]
     known = _known_sessions()
-    known_ttys = {m.get("tty") for _, _, m in known if m.get("tty")}
+    known_ttys = {r.metadata.get("tty") for r in known if r.metadata.get("tty")}
+    config = load_config()
 
     hook_installed = (
         "SessionStart" in json.loads(install_hooks.settings_path().read_text()).get("hooks", {})
@@ -110,8 +109,8 @@ def report() -> list[str]:
         else False
     )
 
-    restorable = [m for _, _, m in known if _restorable(m)[0]]
-    placed = [m for m in restorable if m.get("tmux_session")]
+    restorable = [r for r in known if _restorable(r, config)[0]]
+    placed = [r for r in restorable if r.metadata.get("tmux_session")]
 
     lines = [
         "Coverage",
@@ -134,10 +133,10 @@ def report() -> list[str]:
         ]
 
     missing = []
-    for name, _status, metadata in known:
-        ok, why = _restorable(metadata)
+    for row in known:
+        ok, why = _restorable(row, config)
         if not ok:
-            missing.append((name, why))
+            missing.append((row.name or "", why))
 
     if missing:
         lines += ["", "Not restorable"]
@@ -172,7 +171,7 @@ def report() -> list[str]:
 
 def unknown_panes() -> list[Pane]:
     """Agent panes with no inbox row, which a restore would not bring back."""
-    known_ttys = {m.get("tty") for _, _, m in _known_sessions() if m.get("tty")}
+    known_ttys = {r.metadata.get("tty") for r in _known_sessions() if r.metadata.get("tty")}
 
     return [p for p in live_panes() if _looks_like_a_lemon(p.command) and p.tty not in known_ttys]
 
@@ -263,9 +262,7 @@ def plan_adoption() -> list[Adoption]:
     # not the one in this pane.
     claims = Counter(session_id for _cwd, session_id in found_by_pane.values())
     claims.update(
-        metadata["session_id"]
-        for _n, _s, metadata in _known_sessions()
-        if metadata.get("session_id")
+        row.metadata["session_id"] for row in _known_sessions() if row.metadata.get("session_id")
     )
 
     return [

@@ -6,8 +6,9 @@ hook that was never installed. These pin that each of those is reported rather
 than discovered afterwards.
 """
 
-import json
+import pytest
 
+from lemonaid.config import Config
 from lemonaid.inbox import db, doctor
 
 
@@ -16,42 +17,78 @@ def _session(**metadata) -> None:
         db.add(conn, f"claude:{metadata.get('session_id', 'x')}", "m", "a-session", metadata)
 
 
+def _row(*, channel: str = "claude:abc", **metadata) -> db.Notification:
+    return db.Notification(id=1, channel=channel, message="m", metadata=metadata)
+
+
 def test_a_session_without_a_transcript_is_not_restorable(monkeypatch):
     """Resuming this one starts a fresh conversation - the failure that reads
     like success, because `claude --resume` on a missing id does not complain."""
-    monkeypatch.setattr(doctor, "transcript_for", lambda sid: None)
+    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: True)
 
-    ok, why = doctor._restorable({"session_id": "abc", "cwd": "/tmp"})
+    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config())
     assert not ok
     assert "transcript" in why
 
 
+def test_a_codex_session_with_its_rollout_on_disk_is_restorable(monkeypatch, tmp_path):
+    """Codex keeps its transcripts under its own home, not Claude's projects."""
+    thread = "01a1d2dd-f50b-7321-8f79-c76783f22ada"
+    rollout = tmp_path / f".codex/sessions/2026/11/12/rollout-2026-11-12T22-05-24-{thread}.jsonl"
+    rollout.parent.mkdir(parents=True)
+    rollout.write_text("{}\n")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    ok, why = doctor._restorable(
+        _row(channel=f"codex:{thread}", session_id=thread, cwd="/tmp", tmux_session="krc-ua"),
+        Config(),
+    )
+
+    assert (ok, why) == (True, "restorable")
+
+
+@pytest.mark.parametrize(
+    "channel",
+    [
+        "lemonaid:example",  # no harness resumes it
+        "openclaw:example",  # its resume command needs a session_key this row lacks
+    ],
+)
+def test_a_session_with_no_resume_command_is_not_restorable(channel):
+    """Restore can't start what it has no resume line for, whatever is on disk."""
+    ok, why = doctor._restorable(
+        _row(channel=channel, session_id="example", cwd="/tmp", tmux_session="t"), Config()
+    )
+
+    assert (ok, why) == (False, "no resume command for its harness")
+
+
 def test_a_session_without_an_id_is_not_restorable():
-    ok, why = doctor._restorable({"cwd": "/tmp"})
+    ok, why = doctor._restorable(_row(cwd="/tmp"), Config())
     assert not ok
     assert "session_id" in why
 
 
 def test_a_session_without_a_cwd_is_not_restorable():
-    ok, why = doctor._restorable({"session_id": "abc"})
+    ok, why = doctor._restorable(_row(session_id="abc"), Config())
     assert not ok
     assert "cwd" in why
 
 
-def test_a_complete_session_is_restorable(monkeypatch, tmp_path):
-    monkeypatch.setattr(doctor, "transcript_for", lambda sid: tmp_path / "t.jsonl")
+def test_a_complete_session_is_restorable(monkeypatch):
+    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
 
     ok, _ = doctor._restorable(
-        {"session_id": "abc", "cwd": "/tmp", "tmux_session": "relay", "tmux_window": "2"}
+        _row(session_id="abc", cwd="/tmp", tmux_session="relay", tmux_window="2"), Config()
     )
     assert ok
 
 
-def test_a_session_with_no_window_restores_but_is_not_placed(monkeypatch, tmp_path):
+def test_a_session_with_no_window_restores_but_is_not_placed(monkeypatch):
     """It comes back, just not where it was - worth saying, not worth refusing."""
-    monkeypatch.setattr(doctor, "transcript_for", lambda sid: tmp_path / "t.jsonl")
+    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
 
-    ok, why = doctor._restorable({"session_id": "abc", "cwd": "/tmp"})
+    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config())
     assert ok
     assert "not be placed" in why
 
@@ -147,18 +184,17 @@ def test_a_conversation_already_in_the_inbox_makes_it_a_guess(monkeypatch):
     assert doctor.plan_adoption()[0].contested
 
 
-def test_adopting_records_the_window(monkeypatch, tmp_path):
+def test_adopting_records_the_window(monkeypatch):
     """The point: an adopted session can then be placed by restore."""
     pane = doctor.Pane("relay", "2", "/dev/ttys001", "2.1.245")
     doctor.adopt([doctor.Adoption(pane, "/work/a", "sid-a", contested=False)])
 
     with db.connect() as conn:
-        row = conn.execute("SELECT metadata FROM notifications").fetchone()
-    metadata = json.loads(row[0])
-    assert (metadata["tmux_session"], metadata["tmux_window"]) == ("relay", "2")
+        row = db.Notification.from_row(conn.execute("SELECT * FROM notifications").fetchone())
+    assert (row.metadata["tmux_session"], row.metadata["tmux_window"]) == ("relay", "2")
 
-    monkeypatch.setattr(doctor, "transcript_for", lambda sid: tmp_path / "t.jsonl")
-    assert doctor._restorable(metadata) == (True, "restorable")
+    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
+    assert doctor._restorable(row, Config()) == (True, "restorable")
 
 
 def test_the_report_says_what_to_do(monkeypatch):
