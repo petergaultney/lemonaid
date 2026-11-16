@@ -44,7 +44,7 @@ def _pushed(spot: dict[str, Any], w: int, h: int) -> dict[str, Any] | None:
     return {**spot, "x": x, "y": y}
 
 
-def _push_back_cut_off(changed: dict[str, Any], group: str) -> dict[str, Any]:
+def push_back_cut_off(changed: dict[str, Any], group: str) -> dict[str, Any]:
     plot, spots = _plot(changed, group), changed["trees"].get(group, {})
     for key in arrange.cut_off(plot, spots):
         if not spots[key].get("gone_since"):
@@ -70,7 +70,7 @@ def _rect(plot: dict[str, Any]) -> placement.Rect:
     return plot["x"], plot["y"], plot["w"], plot["h"]
 
 
-def _settle(changed: dict[str, Any], group: str) -> None:
+def settle(changed: dict[str, Any], group: str) -> None:
     """After *group*'s plot changed: a block takes over the open ground it now covers, and open
     ground can't be put on a block. Neither can go over a road or the stream.
     """
@@ -102,7 +102,7 @@ def move(saved: dict[str, Any], group: str, x: int, y: int) -> dict[str, Any]:
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(x=x, y=y)
-    _settle(changed, group)
+    settle(changed, group)
     return changed
 
 
@@ -112,8 +112,8 @@ def resize(saved: dict[str, Any], group: str, w: int, h: int) -> dict[str, Any]:
 
     changed = copy.deepcopy(saved)
     _plot(changed, group).update(w=w, h=h)
-    _settle(changed, group)
-    return _push_back_cut_off(changed, group)
+    settle(changed, group)
+    return push_back_cut_off(changed, group)
 
 
 def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -> dict[str, Any]:
@@ -130,8 +130,8 @@ def reframe(saved: dict[str, Any], group: str, x: int, y: int, w: int, h: int) -
         if "x" in spot:
             spot["x"], spot["y"] = spot["x"] + shift[0], spot["y"] + shift[1]
     plot.update(x=x, y=y, w=w, h=h)
-    _settle(changed, group)
-    return _push_back_cut_off(changed, group)
+    settle(changed, group)
+    return push_back_cut_off(changed, group)
 
 
 def place_tree(
@@ -178,6 +178,7 @@ def reshape(saved: dict[str, Any], group: str, roundness: float) -> dict[str, An
 
     changed = copy.deepcopy(saved)
     _plot(changed, group)["roundness"] = roundness
+    settle(changed, group)  # squarer corners can reach a road
     return changed
 
 

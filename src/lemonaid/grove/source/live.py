@@ -7,6 +7,7 @@ was first given.
 import dataclasses
 import time
 from collections import abc
+from pathlib import Path
 from typing import Any
 
 from ... import go
@@ -15,11 +16,14 @@ from ...inbox import db
 from ...inbox.tui.live import inbox_frame
 from ..draw import card
 from ..layout import arrange, state
+from ..model import Block
 from ..tui.frame import Grove
 from . import blocks, inputs, lemon_cards
 
 
-def _arranged(read: inputs.Inputs, config: Config, cards: bool = True) -> Grove:
+def _arranged(
+    read: inputs.Inputs, config: Config, cards: bool = True, where: Path | None = None
+) -> Grove:
     """*cards* makes each lemon's card, which reads the filesystem: only off the event loop."""
     read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows)) if cards else read
     found = blocks.blocks(read, config.tui.context_threshold)
@@ -29,7 +33,7 @@ def _arranged(read: inputs.Inputs, config: Config, cards: bool = True) -> Grove:
         arranged.append(arrange.arrange(found, saved))
         return arranged[0][1]
 
-    state.update(lay_out)
+    state.update(lay_out, where)
     return Grove(
         found,
         *arranged[0],
@@ -53,16 +57,20 @@ def from_inbox(
     return load
 
 
-def fresh(config: Config, switch_source: str | None) -> Grove:
+def fresh(config: Config, switch_source: str | None, where: Path | None = None) -> Grove:
     with db.connect() as conn:
         read = inputs.read(conn, config, switch_source)
-    return _arranged(read, config)
+    return _arranged(read, config, where=where)
 
 
-def preview(config: Config, switch_source: str | None) -> Grove:
-    """The grove as `fresh` would lay it out, without saving anything new."""
+def current_blocks(config: Config, switch_source: str | None) -> tuple[Block, ...]:
     with db.connect() as conn:
         read = inputs.read(conn, config, switch_source)
     read = dataclasses.replace(read, jump_problems=go.jump_problems(read.rows))
-    found = blocks.blocks(read, config.tui.context_threshold)
-    return Grove(found, *arrange.arrange(found, state.load()))
+    return blocks.blocks(read, config.tui.context_threshold)
+
+
+def preview(config: Config, switch_source: str | None, where: Path | None = None) -> Grove:
+    """The grove as `fresh` would lay it out, without saving anything new."""
+    found = current_blocks(config, switch_source)
+    return Grove(found, *arrange.arrange(found, state.load(where)))

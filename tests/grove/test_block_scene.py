@@ -43,3 +43,21 @@ def test_a_list_clamped_away_from_its_tree_leaves_no_second_copy_of_the_title():
     screen = ["".join(cell.char for cell in row) for row in c.rows]
     for st in arrangement.trees.values():
         assert sum(row.count(f" {st.letter}  {st.label} ") for row in screen) == 1
+
+
+def test_a_list_that_cannot_hang_from_its_tag_is_reported_astray():
+    grove = block(
+        "g",
+        "1",
+        tree("inbox/brief-first", lemon("claude:a")),
+        tree("tars/two", lemon("claude:b"), lemon("claude:c")),
+    )
+    arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
+    roomy: list[str] = []
+    cramped: list[str] = []
+
+    block_scene.zoomed(canvas.blank(200, 60), grove, arrangement, 0.0, lists={}, astray=roomy)
+    block_scene.zoomed(canvas.blank(60, 14), grove, arrangement, 0.0, lists={}, astray=cramped)
+
+    assert roomy == []
+    assert cramped

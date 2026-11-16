@@ -1,6 +1,7 @@
 import pytest
 
 from lemonaid.grove.layout import edit
+from tests.grove.shared import plot_data
 
 _GROUND = {"seed": 1, "texture": "rows"}
 SAVED = {
@@ -152,3 +153,15 @@ def test_a_block_cannot_go_over_a_road_or_the_stream():
     with pytest.raises(edit.EditError, match="road or the stream"):
         edit.move(saved, "relay", 10, 30)
     assert edit.move(saved, "relay", 10, 20)["plots"]["relay"]["y"] == 20
+
+
+def test_a_squarer_corner_cannot_reach_a_road():
+    saved = {
+        "plots": {"a": plot_data(0, 9, 20, 8, roundness=1.5)},
+        "trees": {},
+        "roads": [[[0, 0], [60, 30]]],
+        "stream": [[0, 100], [300, 100]],
+    }
+
+    with pytest.raises(edit.EditError, match="road"):
+        edit.reshape(saved, "a", 12)

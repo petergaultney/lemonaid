@@ -5,7 +5,7 @@ from collections import abc
 from typing import Any
 
 from ..draw import ground, plots, refusal
-from ..layout import arrange, edit, lead_spot, placement, room, sizes, terrain
+from ..layout import arrange, edit, lead_spot, placement, tangles, terrain
 from ..model import Block, Plot
 from . import garden, stump_drag
 from .frame import Grove
@@ -70,17 +70,6 @@ def dragged(grove: Grove, drag: Drag) -> Grove:
     return _placed(grove, drag, _aim(grove, drag))
 
 
-def _tangled(block: Block, arrangement: arrange.Arrangement) -> bool:
-    oldest_first = sorted(block.trees, key=lambda t: (not t.lead, t.born, t.key))
-    # At their smallest, as the layout judges it: trees near each other shrink to fit.
-    footprints = (
-        (t, room.footprint(t, s.label, s.letter, sizes.SMALLEST, s.cx, s.cy))
-        for t in oldest_first
-        for s in [arrangement.trees[(block.name, t.key)]]
-    )
-    return bool(room.tangled(footprints))
-
-
 def _crowded(grove: Grove, block: Block, plot: Plot) -> bool:
     """Whether *block* resized to *plot* is too small for its trees: the layout would put it
     elsewhere, or make it bigger, or its trees would stand on each other.
@@ -90,20 +79,7 @@ def _crowded(grove: Grove, block: Block, plot: Plot) -> bool:
     if laid_out.plots[block.name] != plot:
         return True
 
-    return _tangled(block, laid_out) and not _tangled(block, grove.arrangement)
-
-
-def _on_ground_of(plot: Plot, other: Plot) -> bool:
-    """Whether the two plots' ground, not just their boxes, shares a grove unit: rounded blocks
-    can tuck a corner into each other's box.
-    """
-    left, right = max(plot.x, other.x), min(plot.x + plot.w, other.x + other.w)
-    top, bottom = max(plot.y, other.y), min(plot.y + plot.h, other.y + other.h)
-    return any(
-        ground.inside(plot, x + 0.5, y + 0.5) and ground.inside(other, x + 0.5, y + 0.5)
-        for y in range(top, bottom)
-        for x in range(left, right)
-    )
+    return bool(tangles.tangled(block, laid_out)) and not tangles.tangled(block, grove.arrangement)
 
 
 def _on_terrain(arrangement: arrange.Arrangement, plot: Plot, drag: Drag) -> str:
@@ -143,14 +119,14 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
         s = after.trees[(name, drag.tree)]
         if not ground.inside(plot, plot.x + s.cx, plot.y + s.cy):
             return "a tree stays on its block's ground"
-        return "another tree stands there" if _tangled(drag.block, after) else ""
+        return "another tree stands there" if tangles.tangled(drag.block, after) else ""
 
     if plot.w < 12 or plot.h < 5:
         return "a block needs at least 12 columns and 5 rows"
     if plot.x < 0 or plot.y < 1:
         return "that's past the grove's edge"
     others = [p for other, p in after.plots.items() if other != name]  # open ground is built over
-    if any(_on_ground_of(plot, other) for other in others):
+    if any(ground.shared(plot, other) for other in others):
         return "another block's ground is there"
     if crossed := _on_terrain(after, plot, drag):
         return crossed

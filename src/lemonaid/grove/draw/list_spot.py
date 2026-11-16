@@ -55,6 +55,13 @@ def title_at(tag_x: int, x: int, w: int, title: int) -> int:
     return min(max(tag_x, x + 1), x + w - 1 - title)
 
 
+def astray(crown: Rect, tag: tag_fit.Fitted, title_x: int, y: int) -> bool:
+    """Whether a list whose title starts at (*title_x*, *y*) sits away from its tree: its title more
+    than a row from the tree's crown and tag.
+    """
+    return _apart((title_x, y, len(tag.lines[0]), 1), footprint(crown, tag)) > 2
+
+
 def _beside(
     crown: Rect, tag: tag_fit.Fitted, height: int, width: int, w: int
 ) -> list[tuple[int, int, bool]]:

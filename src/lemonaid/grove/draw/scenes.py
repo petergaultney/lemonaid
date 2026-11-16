@@ -4,7 +4,7 @@ from collections import abc
 
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import house, plots, scene_parts
+from . import house, plots, scene_parts, tag_fit
 from .canvas import Canvas
 
 
@@ -16,9 +16,11 @@ def overview(
     highlight: scene_parts.Highlight | None = None,
     pan: tuple[float, float] = (0.0, 0.0),
     stats: bool = False,
+    drawn: list[tuple[scene_parts.Planted, tag_fit.Fitted]] | None = None,
 ) -> None:
     """The whole grove, scaled to fit the screen below its title row and above its prompt row,
-    or panned to *pan* when it can't fit. With *stats*, trees' tags show their stats.
+    or panned to *pan* when it can't fit. With *stats*, trees' tags show their stats. *drawn* is
+    told each tree drawn outside the packhouse and where its tag went.
     """
     if not scene_parts.fits(canvas):
         return
@@ -73,7 +75,9 @@ def overview(
             )
             for tree in block.trees
         ]
-    scene_parts.plant(canvas, planted, arrangement, phase, highlight, taken, stats)
+    fitted = scene_parts.plant(canvas, planted, arrangement, phase, highlight, taken, stats)
+    if drawn is not None:
+        drawn.extend(zip(planted, fitted, strict=True))
     for plot, block in signs:  # again, over any pennant that reached a sign
         canvas.dim = scene_parts.fade(highlight, scene_parts.block_channels(block))
         plots.sign(canvas, plot, view, block.digit, block.name, block.color)

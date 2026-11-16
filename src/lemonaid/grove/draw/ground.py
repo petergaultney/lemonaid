@@ -53,6 +53,19 @@ def inside(plot: Plot, x: float, y: float) -> bool:
     return dx * dx + dy * dy <= 1
 
 
+def shared(plot: Plot, other: Plot) -> bool:
+    """Whether the two plots' ground, not just their boxes, shares a grove unit: rounded blocks
+    can tuck a corner into each other's box.
+    """
+    left, right = max(plot.x, other.x), min(plot.x + plot.w, other.x + other.w)
+    top, bottom = max(plot.y, other.y), min(plot.y + plot.h, other.y + other.h)
+    return any(
+        inside(plot, x + 0.5, y + 0.5) and inside(other, x + 0.5, y + 0.5)
+        for y in range(top, bottom)
+        for x in range(left, right)
+    )
+
+
 def texture(plot: Plot, x: int, y: int) -> str:
     """The ground mark at a cell, or " "; *x* and *y* are relative to the plot."""
     match plot.texture:

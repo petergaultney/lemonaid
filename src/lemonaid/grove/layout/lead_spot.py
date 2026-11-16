@@ -7,11 +7,25 @@ import math
 from typing import Any
 
 from ..model import Block, Plot, Tree
-from . import labels, new_spots, placement, sizes
+from . import labels, landmarks, new_spots, placement, sizes
 
 # Its key among the block's saved tree spots. No tree's key can start with a colon: tmux
 # session names can't hold one, directories start with `/`, and channels with their backend.
 KEY = ":lead"
+
+
+def from_packhouse(saved: dict[str, Any], group: str, x: float, y: float) -> float | None:
+    """How far a tree at (*x*, *y*) in *group*'s saved plot stands from the packhouse's middle, a
+    row counting as two columns as `_free` weighs it; None without a packhouse.
+    """
+    house, plot = saved["plots"].get(landmarks.PACKHOUSE), saved["plots"].get(group)
+    if not house or not plot or group == landmarks.PACKHOUSE:
+        return None
+
+    return math.hypot(
+        plot["x"] + x - house["x"] - house["w"] / 2,
+        (plot["y"] + y - house["y"] - house["h"] / 2) * 2,
+    )
 
 
 def standing_at(tree: Tree, spots: dict[str, Any]) -> dict[str, Any]:
