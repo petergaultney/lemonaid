@@ -25,6 +25,7 @@ from ....log import get_logger
 from ....stalls import inbox as stalls_inbox
 from ....stalls import pulls as stalls_pulls
 from ... import db, parent_order, presence, scout_revival, sections, unarchive, view
+from .. import bar_click
 from ..rows import family_highlight, pr_numbers, row_parts
 from ..tables import cursor_target, layout, row_keys
 from ..tables.scroll_position import StableTable
@@ -109,7 +110,7 @@ class InboxList(Vertical):
         self._drawn_at = 0.0
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="attention_summary")
+        yield bar_click.SummaryBar("", id="attention_summary")
         yield ClickToActTable(id="main_table")
         yield Static("", id="fold_label")
         yield Static("", id="other_sources_label")

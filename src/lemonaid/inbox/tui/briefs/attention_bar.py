@@ -16,6 +16,7 @@ from textual.widgets import Static
 
 from .... import config, status_registry
 from ... import db, view
+from .. import bar_click
 from ..live import attention_summary
 
 _PERIOD = 2.0  # seconds a badge takes to brighten and fade back
@@ -102,6 +103,9 @@ class AttentionBar(Static):
 
     def on_resize(self, event: events.Resize) -> None:
         self._draw()
+
+    def on_click(self) -> None:
+        self.post_message(bar_click.BarClicked())
 
     def _draw(self) -> None:
         now = self._clock()
