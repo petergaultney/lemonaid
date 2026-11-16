@@ -115,11 +115,29 @@ lemonaid grove show --json       # blocks, trees, spots, letters and lemons
 lemonaid grove move 2 40 10      # put block 2's top-left corner at column 40, row 10
 lemonaid grove resize oria 60 18 # by digit or by group name
 lemonaid grove reshape 2 6       # 2 rounds its corners most, 12 squares them
+lemonaid grove plant 2 c 30 8    # stand tree 2c at 30,8 in its block's plot
 lemonaid grove move open:0 40 10 # open ground is open:N; resize takes it too
 lemonaid grove clear-open        # forget open ground left by groups that ended
 lemonaid grove clear-open open:1 # or just one
 ```
 
-The grove is 210 columns by 60 rows at full size. A larger grove is drawn smaller to fit the screen. `show --json` is meant for lemons: one can read the layout, propose a tidier one, and apply it with `move`, `resize` and `reshape` once you agree.
+The grove is 210 columns by 60 rows at full size. A larger grove is drawn smaller to fit the screen. `show --json` is meant for lemons.
+
+### Gardening by a lemon
+
+A lemon can garden your blocks for you: tidy each block so its trees stand on top of their lemon lists, their tags clear of their neighbors, and its lead nearest the packhouse. It works in a copy of the layout, so nothing you see moves until you agree, then applies it in one step:
+
+```bash
+lemonaid grove propose .z/grove.json                    # copy the live layout to a file
+lemonaid grove show --json --layout .z/grove.json       # its layout, and warnings about what looks off
+lemonaid grove plant 5 g 60 21 --layout .z/grove.json   # stand tree 5g at 60,21 in its plot
+lemonaid grove move 6 2 2 --layout .z/grove.json        # move, resize, reshape and clear-open take --layout
+lemonaid grove show 5 --plain --layout .z/grove.json    # draw block 5 with your live trees and lemons
+lemonaid grove apply .z/grove.json                      # give the live grove the file's plots and tree spots
+```
+
+`show --json` lists `warnings`, judged on a screen of `--width` by `--height` (your terminal's by default): a tag that runs into or sits level beside another tree in the grove view, a crown past its block's edge, a trunk off its block's ground, a lead with another tree nearer the packhouse, and a lemon list drawn away from its tree when zoomed in. They are advice for the lemon, which reads them with the drawing; they don't refuse anything.
+
+The file is in `grove.json`'s format. `apply` copies each block's plot (place, size and roundness) and each tree's spot; a tree the proposal didn't move moves with its block, and a smaller block pushes back the trees it cuts off. A group that ended since the proposal is skipped, and one that started since keeps its plot. `plant` and `apply` refuse a tree moved off its block's ground or onto another tree, and a lead moved farther from the packhouse; `apply` also refuses a block on another block's ground, a road or the stream, and `reshape` won't round a block's corners out from under a tree. An open grove shows the new layout on its next refresh, and a drag under way is checked again against it when you let go.
 
 To tell a lemon "clean up 5e", see [Naming a lemon by its key](keybindings.md#naming-a-lemon-by-its-key).

@@ -1,4 +1,6 @@
-"""`lemonaid grove move|resize|reshape|clear-open`: rearrange the grove from the command line."""
+"""`lemonaid grove move|resize|reshape|clear-open`: rearrange the grove's blocks, or a proposed
+layout's, from the command line.
+"""
 
 __lazy_modules__ = ["lemonaid.grove.source"]
 
@@ -6,10 +8,12 @@ import argparse
 import json
 import sys
 from collections import abc
+from pathlib import Path
 from typing import Any
 
 from ..config import load_config
-from .layout import edit, state
+from . import layout_cli
+from .layout import edit, state, tangles
 from .source import live
 
 
@@ -31,12 +35,21 @@ def _open_index(args: argparse.Namespace) -> int | None:
     return int(index)
 
 
-def _group(args: argparse.Namespace) -> str:
+def _where(args: argparse.Namespace) -> Path | None:
+    """The proposed layout `--layout` names, laid out afresh, or None for the saved layout."""
+    if args.layout is None:
+        return None
+
+    live.fresh(load_config(), None, where=layout_cli.proposed(args, args.layout))
+    return args.layout
+
+
+def _group(args: argparse.Namespace, where: Path | None) -> str:
     """The group a BLOCK argument names: a digit as the grove numbers it, else a group name."""
     if not args.block.isdigit():
         return args.block
 
-    grove = live.fresh(load_config(), None)
+    grove = live.fresh(load_config(), None, where=where)
     found = next((block.name for block in grove.blocks if block.digit == args.block), None)
     if found is None:
         _fail(args, f"No block {args.block}; blocks are {', '.join(b.digit for b in grove.blocks)}")
@@ -47,10 +60,11 @@ def _apply(
     args: argparse.Namespace, change: abc.Callable[[dict[str, Any], str], dict[str, Any]]
 ) -> None:
     index = _open_index(args)
-    if index is not None:
+    where = _where(args)
+    if index is not None and where is None:
         live.fresh(load_config(), None)  # lays out, so ground a group just left is marked open
 
-    group = "" if index is not None else _group(args)
+    group = "" if index is not None else _group(args, where)
     named: list[str] = []
 
     def apply(saved: dict[str, Any]) -> dict[str, Any]:
@@ -59,7 +73,7 @@ def _apply(
         return change(saved, key)
 
     try:
-        changed = state.update(apply)
+        changed = state.update(apply, where)
     except edit.EditError as error:
         _fail(args, str(error))
         raise
@@ -80,18 +94,28 @@ def _cmd_resize(args: argparse.Namespace) -> None:
 
 
 def _cmd_reshape(args: argparse.Namespace) -> None:
-    _apply(args, lambda saved, group: edit.reshape(saved, group, args.roundness))
+    where = layout_cli.proposed(args, args.layout) if args.layout else None
+    blocks = live.fresh(load_config(), None, where=where).blocks
+
+    def change(saved: dict[str, Any], group: str) -> dict[str, Any]:
+        changed = edit.reshape(saved, group, args.roundness)
+        tangles.check(blocks, saved, changed, {group})  # rounder corners can drop a tree's trunk
+        return changed
+
+    _apply(args, change)
 
 
 def _cmd_clear_open(args: argparse.Namespace) -> None:
     cleared: list[str] = []
     index = None
+    where = _where(args)
     if args.open:
         args.block = args.open
         index = _open_index(args)
         if index is None:
             _fail(args, f"{args.open!r} isn't open ground; use open:0, open:1, ...")
-        live.fresh(load_config(), None)
+        if where is None:
+            live.fresh(load_config(), None)
 
     def clear(saved: dict[str, Any]) -> dict[str, Any]:
         changed, gone = edit.clear_open(saved, index)
@@ -99,13 +123,22 @@ def _cmd_clear_open(args: argparse.Namespace) -> None:
         return changed
 
     try:
-        state.update(clear)
+        state.update(clear, where)
     except edit.EditError as error:
         _fail(args, str(error))
     if args.json:
         print(json.dumps({"cleared": cleared, "error": None}))
     else:
         print(f"Cleared open ground left by {', '.join(cleared)}" if cleared else "No open ground")
+
+
+def _layout_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--layout",
+        type=Path,
+        metavar="FILE",
+        help="Change the proposed layout in FILE (from `grove propose`), not the live grove",
+    )
 
 
 def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
@@ -115,6 +148,7 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
             "block", help="A block's digit, a group's name, or open:N for open ground"
         )
         parser.add_argument("--json", action="store_true", help="Print the result as JSON")
+        _layout_option(parser)
         return parser
 
     move = block_parser("move", "Move a block's plot so its top-left corner is at X, Y")
@@ -136,4 +170,5 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
     )
     clear.add_argument("open", nargs="?", default="", help="One open ground, as open:N")
     clear.add_argument("--json", action="store_true", help="Print the result as JSON")
+    _layout_option(clear)
     clear.set_defaults(func=_cmd_clear_open)

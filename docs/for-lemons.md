@@ -980,22 +980,37 @@ lemonaid grove show --plain 2          # block 2 drawn as text
 lemonaid grove move 2 40 10            # move block 2's corner; resize, reshape, clear-open too
 ```
 
-Propose a layout and wait for the person's agreement before moving blocks: they find lemons
-by where blocks are.
+Gardening means laying out a block's trees so that, zoomed in, each tree stands on top of its
+lemon list, its tag clear of its neighbors in the grove view, and the block's lead nearest the
+packhouse. Blocks were placed with care; tidy what is off, moving as little as you can, rather
+than rearranging. Garden in a proposed layout of your own and apply it only once the person
+agrees:
 
-To move a block where the person asks:
+1. `lemonaid grove propose FILE` copies the live layout to FILE, which you own; put it in your
+   place's `.z/`. The live grove is untouched until step 4.
+2. Read the layout and its warnings with `show --json --layout FILE --width W --height H`, at
+   the person's screen size (`tmux display -p '#{window_width} #{window_height}'` in their
+   window), and draw it with `show --plain` (and `show N --plain` for a block zoomed in). The
+   JSON's `warnings` name each thing judged off, by block, tree and kind: a tag running into
+   (`touching`) or sitting level beside (`level`) another tree in the grove view, a crown past
+   its block's edge (`border`), a trunk off its block's ground (`off-ground`), a lead with
+   another tree nearer the packhouse (`lead-far`), and a lemon list drawn away from its tree
+   zoomed in (`list-away`). They inform you; they don't refuse anything. Read the drawing and
+   the warnings together, and use your own judgment as well.
+3. Move trees with `plant N TREE X Y --layout FILE` (the tree's letter or key; X, Y is the
+   `spot` in its plot that `show --json` gives). It refuses a spot off the block's ground or on
+   another tree, and won't move a block's lead farther from the packhouse. `move`, `resize`,
+   `reshape` and `clear-open` take `--layout FILE` for whole blocks; don't round a block's
+   corners so far that a tree's trunk falls off it, which `reshape` refuses.
+4. Show the person the drawing, and once they agree, `lemonaid grove apply FILE` gives the live
+   grove FILE's block plots and tree spots in one step. It refuses, changing nothing, when a
+   block would sit on another block's ground, a road or the stream, or a moved tree breaks
+   `plant`'s rules, and names the block or tree.
 
-1. Read every plot from `show --json`. The grove is 210 columns by 60 rows; a plot's `x` and
-   `y` are its top-left corner, and `w` and `h` its size. "Above oria" means a `y + h` short
-   of oria's `y`, within oria's columns.
-2. Find room. Nothing stops a block landing on another; overlapping blocks draw over each
-   other, so leave a gap of a column or two. When the room is too small, `resize` the block
-   or move whatever stands there, and say which you chose.
-3. Copy `~/.local/state/lemonaid/grove.json` aside, run `move` and `resize`, and check the
-   result with `show --plain --width 210 --height 60` before reporting.
-
-An open grove reads the layout again on its next refresh, within a few seconds, so nothing
-needs restarting.
+A tree the proposal didn't move moves with its block. A group that ended since `propose` is
+skipped, and a group new since then keeps its live plot; `apply` lists both (`--json` gives
+`applied`, `skipped` and `kept`). An open grove shows the result on its next refresh, within a
+few seconds.
 
 ### Child briefs
 

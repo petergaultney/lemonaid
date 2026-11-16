@@ -7,24 +7,27 @@ import dataclasses
 import json
 import shutil
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.segment import Segment, Segments
 
 from ..config import load_config
 from ..lemon_watchers.common import detect_terminal_switch_source
-from . import edit_cli
+from . import edit_cli, garden_cli, layout_cli
 from .draw import block_scene, canvas, scenes
-from .layout import arrange
+from .layout import advice, arrange
 from .source import live, standalone
 from .tui.frame import Grove
 
 
-def _grove(save: bool) -> Grove:
+def _grove(save: bool, where: Path | None) -> Grove:
     config = load_config()
     source = detect_terminal_switch_source()
     switch_source = None if source == "unknown" else source
-    return live.fresh(config, switch_source) if save else live.preview(config, switch_source)
+    if save:
+        return live.fresh(config, switch_source, where)
+    return live.preview(config, switch_source, where)
 
 
 def _as_json(found: tuple, arrangement: arrange.Arrangement) -> dict:
@@ -56,14 +59,22 @@ def _as_json(found: tuple, arrangement: arrange.Arrangement) -> dict:
 
 
 def _cmd_show(args: argparse.Namespace) -> None:
-    grove = _grove(save=not args.dry_run)
+    where = layout_cli.proposed(args, args.layout) if args.layout else None
+    grove = _grove(not args.dry_run, where)
     found, arrangement = grove.blocks, grove.arrangement
+    size = shutil.get_terminal_size((214, 64))
+    screen = args.width or size.columns, args.height or size.lines - 1
     if args.json:
-        print(json.dumps(_as_json(found, arrangement)))
+        advised = advice.advise(found, arrangement, screen)
+        print(
+            json.dumps(
+                _as_json(found, arrangement)
+                | {"warnings": [a._asdict() for a in advised], "screen": list(screen)}
+            )
+        )
         return
 
-    size = shutil.get_terminal_size((214, 64))
-    picture = canvas.blank(args.width or size.columns, args.height or size.lines - 1)
+    picture = canvas.blank(*screen)
     chosen = next((block for block in found if block.digit == args.block), None)
     if args.block and chosen is None:
         print(
@@ -72,10 +83,18 @@ def _cmd_show(args: argparse.Namespace) -> None:
         )
         raise SystemExit(1)
 
+    astray: list[str] = []
     if chosen:
-        block_scene.zoomed(picture, chosen, arrangement, phase=0.0)
+        block_scene.zoomed(picture, chosen, arrangement, phase=0.0, astray=astray)
     else:
         scenes.overview(picture, found, arrangement, phase=0.0)
+    if astray and chosen:
+        keys = (f"{chosen.digit}{arrangement.trees[(chosen.name, key)].letter}" for key in astray)
+        print(
+            f"Lists drawn away from their trees at {picture.width}x{picture.height}: "
+            f"{', '.join(keys)}",
+            file=sys.stderr,
+        )
     if args.plain:
         print("\n".join(canvas.plain_lines(picture)))
         return
@@ -113,8 +132,16 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     show.add_argument(
         "--json", action="store_true", help="Print the blocks, trees and lemons as JSON"
     )
+    show.add_argument(
+        "--layout",
+        type=Path,
+        metavar="FILE",
+        help="Draw the proposed layout in FILE (from `grove propose`) instead of the live one",
+    )
     show.set_defaults(func=_cmd_show)
     grove_subparsers.add_parser(
         "open", help="Open the grove full-screen here; choosing a lemon switches to it"
     ).set_defaults(func=_cmd_open)
     edit_cli.add_parsers(grove_subparsers)
+    garden_cli.add_parsers(grove_subparsers)
+    layout_cli.add_parsers(grove_subparsers)
