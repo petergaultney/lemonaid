@@ -12,9 +12,11 @@ from pathlib import Path
 from .. import front_end
 from ..config import Config
 from ..front_end import pick
-from ..inbox import db
+from ..inbox import db, ended
 from ..launch.restart import native, state
-from . import resume_log, wake
+from ..lemon_watchers import owners as lemon_owners
+from ..restore import auto
+from . import resume_log, start_lock, wake
 
 STARTED = "started"
 STARTING = "starting"  # a start in the last minute may still be coming up
@@ -40,6 +42,29 @@ def bring_back(row: db.Notification, start: bool, config: Config, text: str) -> 
         f"{terminal or 'this terminal'}"
         + (f"; it resumes with: {by_hand}" if start and by_hand else "")
     )
+
+
+def _taken(row: db.Notification) -> str:
+    """Why *row*'s lemon, found dead by the caller, must not be started now, or "": a
+    restore is bringing it back, or its own process runs again since the caller looked.
+
+    Asked under its start lock, which restore holds through each start. The process is
+    asked rather than the row: a harness that starts again re-registers its row without
+    any timestamp moving, and a tty alone may be another lemon's.
+    """
+    with db.connect() as conn:
+        now = db.get_by_channel(conn, row.channel, unread_only=False)
+    if now is None:
+        return ""
+
+    owners = lemon_owners.running()
+    if owners is not None and lemon_owners.ttys(now, owners):
+        return "it came back after it was found dead"
+
+    if ended.revivable(now.metadata) and auto.running():
+        return "a restore is bringing it back"
+
+    return ""
 
 
 def _revive(row: db.Notification, mailbox: Path, dead: bool, config: Config, text: str) -> Outcome:
@@ -69,9 +94,12 @@ def _revive(row: db.Notification, mailbox: Path, dead: bool, config: Config, tex
 
 
 def revive(row: db.Notification, mailbox: Path, dead: bool, config: Config, text: str) -> Outcome:
-    with state.admission(row.channel) as allowed:
+    with start_lock.held(row.channel), state.admission(row.channel) as allowed:
         if not allowed:
             return Outcome(STARTING, "restart in progress")
+
+        if dead and (why := _taken(row)):
+            return Outcome(STARTING, why)
 
         if dead and native.recovery_required(row.channel):
             return Outcome(

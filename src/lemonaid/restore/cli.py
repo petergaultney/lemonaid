@@ -11,11 +11,12 @@ import time
 import typing as ty
 from collections import abc
 
+from ..audit import events
 from ..brief import attached, identity
 from ..config import Config, load_config
 from ..inbox import db, ended
 from ..launch.restart import native
-from . import auto, dismiss, front_ends, inbox_report, loss, plan, report, run, wake
+from . import auto, dismiss, front_ends, inbox_report, loss, plan, report, run, starts, wake
 
 _DEFAULT_WAIT_SECONDS = 180
 
@@ -116,7 +117,7 @@ def _restore_group(
     terminal = each.group.terminal
     progress = _progress if not args.json else _quiet
     started_at = time.time()
-    started, failed = run.start(
+    started, failed = starts.start(
         each.plan.lemons,
         terminal,
         config.restore.parallel,
@@ -168,8 +169,8 @@ def _restore(
     deadline = time.time() + args.wait
     done = [_restore_group(each, config, args, deadline) for each in planned]
     started = [lemon for each in done for lemon in each.started]
-    running = sorted(c for each in planned for c in each.running)
     results = [*(r for each in done for r in each.results), *unable]
+    running = sorted(r.channel for r in results if r.outcome == report.RUNNING)
     with db.connect() as conn:
         missing = inbox_report.post(
             conn, [r for r in results if args.wait > 0 or r.outcome != report.PROMPTED]
@@ -228,6 +229,7 @@ def cmd_restore(args: argparse.Namespace) -> None:
         lost = [
             row for row in _lost(dry_run=False) if not args.auto or ended.lost(row.metadata)
         ]  # a trigger means a lost server; a crash waits to be restored by hand
+        events.record("restore", f"{len(lost)} lemons", "auto" if args.auto else "by hand")
         with db.connect() as conn:
             if args.auto and config.restore.auto == "ask":
                 auto.ask(conn, lost)

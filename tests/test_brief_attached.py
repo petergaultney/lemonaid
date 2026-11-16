@@ -19,7 +19,7 @@ from lemonaid.brief import (
     target,
     write_cli,
 )
-from lemonaid.inbox import db, self_session
+from lemonaid.inbox import db, ended, self_session
 
 
 @pytest.fixture(autouse=True)
@@ -97,6 +97,28 @@ def test_attaching_a_brief_elsewhere_moves_it(capsys):
 
     assert moved["moved_from"] == "claude:a"
     assert _attached_to("claude:a") is None
+
+
+def test_a_brief_moved_off_a_lost_lemon_retires_its_row(capsys):
+    _lemon("claude:lost", "one", "2", 1)
+    _lemon("claude:live", "one", "3", 1)
+    _lemon("claude:new", "two", "2", 1)
+    _brief("lost-task")
+    _brief("live-task")
+    _run(capsys, "attach", "--channel", "claude:lost", "lost-task")
+    _run(capsys, "attach", "--channel", "claude:live", "live-task")
+    with db.connect() as conn:
+        db.mark_lost(conn, "claude:lost", "test", "")
+
+    _run(capsys, "attach", "--force", "--channel", "claude:new", "lost-task")
+    _run(capsys, "attach", "--force", "--channel", "claude:new", "live-task")
+
+    with db.connect() as conn:
+        lost = db.get_by_channel(conn, "claude:lost", unread_only=False)
+        live = db.get_by_channel(conn, "claude:live", unread_only=False)
+    assert lost is not None and lost.is_archived
+    assert ended.cause(lost.metadata) == ended.REPLACED
+    assert live is not None and not live.is_archived
 
 
 def test_detach_takes_a_claude_channel_with_the_whole_session_id(capsys):

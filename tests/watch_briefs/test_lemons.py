@@ -6,6 +6,7 @@ import pytest
 from lemonaid.brief import archive, lemon_table
 from lemonaid.claude import session_socket
 from lemonaid.inbox import db
+from lemonaid.restore import auto
 from lemonaid.watch import briefs_events, briefs_orphans, lemon_liveness
 
 from .shared import lemon, link
@@ -107,6 +108,17 @@ def test_a_gone_session_is_reported_once_per_exit(grove, sessions):
     sessions.add("s-child")
     assert _poll(w) == []
     sessions.discard("s-child")
+    assert len(_poll(w)) == 1
+
+
+def test_a_lost_lemon_is_not_reported_gone_while_a_restore_runs(grove, sessions):
+    _, child, _, _, _, _ = grove
+    w = _watch(grove)
+    sessions.discard("s-child")
+    with db.connect() as conn:
+        db.mark_lost(conn, "codex:child", "test", "")
+    with auto.lock():
+        assert _poll(w) == []
     assert len(_poll(w)) == 1
 
 

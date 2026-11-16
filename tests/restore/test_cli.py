@@ -152,6 +152,30 @@ def test_restore_ends_by_dropping_a_pane_another_running_lemon_now_holds(monkeyp
     }
 
 
+def test_a_lemon_resumed_by_someone_else_while_restore_runs_is_not_started_again(
+    monkeypatch, capsys
+):
+    """Restore starts one lemon at a time; while it starts the first, a lead resumes the
+    second, whose next registration clears its lost mark."""
+    _lemons_from_the_dead_server()
+    monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
+    opened: list[str] = []
+
+    def resume_the_other(channel: str) -> None:
+        opened.append(channel)
+        [other] = set(LEMONS) - {channel}
+        with db.connect() as conn:
+            db.add(conn, other, "resumed", metadata={"tty": "/dev/ttys990"}, switch_source="tmux")
+
+    _restore(monkeypatch, set(LEMONS), opened=resume_the_other)
+
+    out = json.loads(capsys.readouterr().out)
+    [other] = set(LEMONS) - set(opened)
+    assert len(opened) == 1
+    assert out["running"] == [other]
+    assert {r["channel"]: r["outcome"] for r in out["lemons"]}[other] == report.RUNNING
+
+
 @pytest.mark.parametrize("as_json", [True, False], ids=["json", "text"])
 def test_a_dry_run_with_nothing_to_rebuild_still_shows_the_rows_it_would_repair(
     monkeypatch, capsys, as_json

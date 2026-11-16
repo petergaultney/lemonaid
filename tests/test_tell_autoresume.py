@@ -9,6 +9,7 @@ from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
 from lemonaid.inbox import db
+from lemonaid.lemon_watchers import owners as lemon_owners
 from lemonaid.messages import (
     autoresume,
     autoresume_cmux,
@@ -16,9 +17,12 @@ from lemonaid.messages import (
     cli,
     dead_letters,
     recipient,
+    revive,
+    store,
     tell_delivery,
 )
 from lemonaid.messages_config import MessagesConfig
+from lemonaid.restore import auto
 
 
 @pytest.fixture(autouse=True)
@@ -159,6 +163,46 @@ def test_a_second_tell_while_it_starts_does_not_start_it_again(capsys, started):
     assert _tell("claude:gone") == 0
     assert started == ["start"]
     assert "already being started" in capsys.readouterr().err
+
+
+def test_a_lost_lemon_is_left_to_a_running_restore(capsys, started):
+    _attach("claude:gone", "# t\n\nStatus: working\n")
+    with db.connect() as conn:
+        db.mark_lost(conn, "claude:gone", "test", "")
+
+    with auto.lock():
+        assert _tell("claude:gone") == 0
+    assert started == []
+    assert "already being started" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("lost_first", [True, False], ids=["read-lost", "read-before-lost"])
+def test_a_resume_that_found_it_dead_does_not_start_one_restored_since(
+    started, monkeypatch, lost_first
+):
+    """The caller judged the lemon dead, from a row read before or after restore marked it
+    lost; then restore won its start lock and the lemon's harness started and registered
+    before the caller got in."""
+    _attach("claude:gone", "# t\n\nStatus: working\n", session_id="gone")
+    with db.connect() as conn:
+        if lost_first:
+            db.mark_lost(conn, "claude:gone", "test", "")
+        found_dead = db.get_by_channel(conn, "claude:gone", unread_only=False)
+        db.mark_lost(conn, "claude:gone", "test", "")
+        db.register_working(
+            conn,
+            "claude:gone",
+            "",
+            metadata={"tty": "/dev/ttys991", "session_id": "gone"},
+            switch_source="tmux",
+        )
+    assert found_dead is not None
+    monkeypatch.setattr(lemon_owners, "running", lambda: {"gone": {"/dev/ttys991"}})
+
+    outcome = revive.revive(found_dead, store.mailbox_for_id("x.Gone"), True, Config(), "hello")
+
+    assert outcome == revive.Outcome(revive.STARTING, "it came back after it was found dead")
+    assert started == []
 
 
 def test_a_lemon_at_a_question_is_not_typed_into(capsys, started, monkeypatch):

@@ -16,10 +16,10 @@ from pathlib import Path
 from .. import brief
 from ..brief import archive, archived_channel
 from ..config import Config
-from ..inbox import db
+from ..inbox import db, ended
 from ..log import get_logger
 from ..places import audit
-from ..restore import plan
+from ..restore import auto, plan
 from . import autoresume, autoresume_tmux, recipient, recreate, revive, store
 
 _log = get_logger("messages.bring_back")
@@ -178,6 +178,12 @@ def _resume(
     if row is None:
         raise Refused(
             f"{lemon_id} has no session recorded, so there is nothing to resume", permanent=True
+        )
+
+    if ended.revivable(row.metadata) and auto.running():
+        raise Refused(
+            f"{lemon_id} was lost with its terminal, and the restore running now will bring "
+            "it back. Check on it once the restore has finished."
         )
 
     mailbox = store.mailbox_for_id(lemon_id)

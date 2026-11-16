@@ -20,6 +20,8 @@ from ..watch import cursors
 from . import loss
 
 ASK_CHANNEL = "lemonaid:restore-lost"
+_LOCK_TRIES = 20
+_LOCK_PAUSE_SECONDS = 0.05
 
 
 def _lock_path() -> pathlib.Path:
@@ -28,17 +30,38 @@ def _lock_path() -> pathlib.Path:
 
 @contextlib.contextmanager
 def lock() -> abc.Iterator[bool]:
-    """Whether this process holds the restore lock, for as long as the block runs."""
+    """Whether this process holds the restore lock, for as long as the block runs.
+
+    It tries for about a second, since `running` takes the lock shared for an instant.
+    """
     path = _lock_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a") as held:
-        try:
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        for _ in range(_LOCK_TRIES):
+            try:
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                time.sleep(_LOCK_PAUSE_SECONDS)
+        else:
             yield False
             return
 
         yield True
+
+
+def running() -> bool:
+    """Whether a restore holds its lock now, and may still start any lost lemon."""
+    path = _lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+
+        fcntl.flock(probe, fcntl.LOCK_UN)
+        return False
 
 
 def _when(lost: abc.Sequence[db.Notification]) -> str:
