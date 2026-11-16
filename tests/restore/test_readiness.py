@@ -1,5 +1,9 @@
 """Which running lemons a restore would miss, known before a crash."""
 
+import fcntl
+import os
+import threading
+
 from lemonaid.config import Config
 from lemonaid.inbox import db, doctor, ended
 from lemonaid.restore import auto, readiness
@@ -84,3 +88,22 @@ def test_the_lock_admits_one_holder_at_a_time():
         assert (first, second) == (True, False)
     with auto.lock() as again:
         assert again
+
+
+def test_a_running_restore_is_seen_by_its_lock_alone():
+    """A file left by a restore that was killed holds no lock, so it says nothing."""
+    auto._lock_path().parent.mkdir(parents=True, exist_ok=True)
+    auto._lock_path().write_text(str(os.getpid()))
+    assert not auto.running()
+    with auto.lock() as held:
+        assert held and auto.running()
+    assert not auto.running()
+
+
+def test_a_probe_of_the_lock_does_not_turn_a_restore_away():
+    auto._lock_path().parent.mkdir(parents=True, exist_ok=True)
+    with open(auto._lock_path(), "a") as probe:
+        fcntl.flock(probe, fcntl.LOCK_SH)
+        threading.Timer(0.2, fcntl.flock, (probe, fcntl.LOCK_UN)).start()
+        with auto.lock() as held:
+            assert held

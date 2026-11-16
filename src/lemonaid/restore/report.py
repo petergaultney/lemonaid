@@ -22,7 +22,7 @@ BY_HAND = "rearm by hand"  # its brief lists waiters, but its harness can't be s
 NOT_RESTORED = "not restored"
 SUBSCRIBED = "subscribed"  # its push scout runs, so it needed no prompt
 DETACHED = "brief detached"  # running, but its brief is no longer attached to it
-RUNNING = "already running"  # found running before restore started anything
+RUNNING = "already running"  # found running, started by someone other than restore
 
 OK = frozenset({WORKING, NO_BRIEF, NOTHING_TO_REARM, SUBSCRIBED, RUNNING})
 

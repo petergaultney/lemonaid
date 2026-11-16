@@ -54,7 +54,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Resume a lemon whose harness exited, or prompt one that is deaf",
         description="Resume a lemon in a new window of the terminal it ran in, or type a "
         "prompt into one that is idle with no mailbox waiter. A lemon that is listening or "
-        "mid-turn is left alone. This resumes lemons marked done or archived too, and "
+        "mid-turn is left alone, and so is one lost with its terminal while a restore runs. "
+        "This resumes lemons marked done or archived too, and "
         "counts against the same limit as tell's autoresume ([messages] autoresume_max). "
         "Without --recreate, a lemon whose tmux session is gone can't be resumed, and one "
         "whose directory is gone is resumed in the nearest directory that still exists.",

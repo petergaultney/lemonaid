@@ -22,7 +22,7 @@ from collections import abc
 from pathlib import Path
 
 from .. import launch_token
-from ..inbox import db, pins
+from ..inbox import db, ended, pins
 from . import pending_gate, session
 
 _PENDING_DAYS = 15
@@ -40,6 +40,7 @@ class Attachment:
 
 def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
     """Attach *path* to *channel*, which takes over the pin of the channel it moved from.
+    A lost or crashed lemon it moved from is archived as replaced.
 
     Returns the channel it moved from, or "".
     """
@@ -54,10 +55,17 @@ def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
         (channel, str(path), time.time()),
     )
     conn.commit()
-    if previous:
-        pins.carry(conn, previous["channel"], channel)
+    if not previous:
+        return ""
 
-    return previous["channel"] if previous else ""
+    pins.carry(conn, previous["channel"], channel)
+    old = db.get_by_channel(conn, previous["channel"], unread_only=False)
+    if old is not None and not old.is_archived and ended.revivable(old.metadata):
+        # A restore would otherwise bring the old conversation back beside the new one.
+        db.archive_channel(
+            conn, old.channel, f"its brief moved to {channel}", cause=ended.REPLACED, by="brief"
+        )
+    return previous["channel"]
 
 
 def detach(conn: sqlite3.Connection, channel: str) -> Path | None:

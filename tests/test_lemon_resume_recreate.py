@@ -13,7 +13,7 @@ from lemonaid.config import Config, PlaceRoot, PlacesConfig
 from lemonaid.inbox import db
 from lemonaid.messages import autoresume_tmux, recipient, recreate, resume_cli
 from lemonaid.places import audit
-from lemonaid.restore import plan
+from lemonaid.restore import auto, plan
 
 _CHANNEL = "claude:tossed"
 
@@ -124,6 +124,21 @@ def test_recreate_revives_the_brief_onto_its_session_and_the_tmux_session(
     out = capsys.readouterr().out
     assert "revived tossed.md" in out
     assert "recreated tmux session feat-x" in out
+
+
+def test_a_lemon_lost_with_its_terminal_is_left_to_a_running_restore(capsys, started, root, tmux):
+    _lemon(root.path)
+    with db.connect() as conn:
+        db.mark_lost(conn, _CHANNEL, "test", "")
+
+    with auto.lock():
+        assert _resume(_CHANNEL, "--recreate") == 1
+    assert started == []
+    assert tmux == []
+    assert "the restore running now will bring it back" in capsys.readouterr().err
+
+    assert _resume(_CHANNEL, "--recreate") == 0
+    assert started == [_CHANNEL]
 
 
 def test_a_live_tmux_session_is_left_alone(started, root, monkeypatch):

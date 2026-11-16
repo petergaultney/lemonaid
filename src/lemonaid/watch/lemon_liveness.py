@@ -1,6 +1,8 @@
 """Whether watched lemons are still running, reported once per exit.
 
 A lemon whose brief is `done` is never a problem: its session going away is normal.
+Nor is one lost with its terminal while a restore runs: the restore is bringing it
+back, and a parent told it is gone would resume it alongside.
 """
 
 import dataclasses
@@ -12,9 +14,11 @@ import time
 from collections import abc
 
 from ..brief import attached, lemon
+from ..inbox import ended
 from ..launch.restart import state
 from ..log import get_logger
 from ..messages import recipient, store, waiter
+from ..restore import auto
 from . import briefs_orphans, cursors
 
 _log = get_logger("watch.liveness")
@@ -40,10 +44,14 @@ def _problem(
     sessions: abc.Callable[[str], abc.Set[str] | None],
     parked: abc.Callable[[], abc.Mapping[str, str]],
     unrun: abc.Callable[[], abc.Mapping[str, str]],
+    restoring: abc.Callable[[], bool],
 ) -> Problem | None:
     """A parked lemon is reported as deaf, with the reason in its detail."""
     row = entry.notification
     if state.blocked(entry.channel):
+        return None
+
+    if row is not None and ended.revivable(row.metadata) and restoring():
         return None
 
     if row is None:
@@ -97,6 +105,7 @@ def probe(
     sessions = functools.cache(sessions or briefs_orphans.live_sessions)
     parked = functools.cache(recipient.parked_jobs)
     unrun = functools.cache(recipient.unrun_codex)
+    restoring = functools.cache(auto.running)
     attached.claim_pending(conn)
     paths = {lemon_id: lemon.brief_of(conn, lemon_id) for lemon_id in statuses}
     by_path = {
@@ -111,7 +120,7 @@ def probe(
         elif entry is None:
             found[lemon_id] = Problem("gone", "", "no session is attached to its brief")
         else:
-            found[lemon_id] = _problem(entry, lemon_id, sessions, parked, unrun)
+            found[lemon_id] = _problem(entry, lemon_id, sessions, parked, unrun, restoring)
     return found
 
 

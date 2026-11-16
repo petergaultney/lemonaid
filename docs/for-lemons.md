@@ -191,6 +191,16 @@ its own process runs in that window; one that fails twice stays lost, with the r
 time; it does only what is still undone. `--dry-run` lists each lemon's planned window under
 `lemons` and the ones it can't start under `not_restored`.
 
+Restore checks each lemon again just before starting it, under a per-lemon start lock that
+`lemon resume` and `tell`'s autoresume also hold through their launch. A lemon someone else
+brought back meanwhile (`lemon resume`, a person, its brief attached to a new conversation) is
+left alone and reported `already running`. While a restore runs, `lemon resume` refuses a lemon
+lost with its terminal (exit 1), `tell` leaves it to the restore ("already being started"), and
+`watch` holds back the `gone` and `exited` reports for such a lemon until the restore ends. A parent should leave a lost child to the restore and act only on the
+ones it reports not back to work. Attaching a lost lemon's brief to another conversation
+archives the lost row as `replaced`, so no restore brings back the old conversation beside it.
+Each restore, and each lemon it starts, is recorded in `lemonaid audit`.
+
 Last, restore points every active row at the pane its lemon's process runs in: the Claude process
 running that session (checked against its pid's start time), or the Codex process with that thread
 open, never a tty alone. That includes rows in sessions it skipped, so re-running it after a restore
@@ -395,7 +405,8 @@ workspace, or a new cmux workspace) and an idle one has the prompt typed into it
 [messages](messages.md#will-it-be-read)). The default prompt names you and tells it to read its
 inbox and rearm its waiters. Unlike autoresume, this resumes a lemon marked `done` or archived:
 you decided. A lemon that is listening or mid-turn is left alone (exit 0); one stopped at a
-question for its user is refused, as is one started too often recently (exit 1). Each start,
+question for its user is refused, as is one started too often recently, or one lost with its
+terminal while a restore runs, which brings it back (exit 1). Each start,
 and each failed start, adds a line to the user's inbox.
 
 A toss archives the lemon's brief, closes its tmux session and may release its directory, so
