@@ -1,7 +1,7 @@
 import copy
 
 from lemonaid.grove.draw import block_scene, canvas, colors, lemon_list
-from lemonaid.grove.layout import arrange
+from lemonaid.grove.layout import arrange, compact
 from lemonaid.grove.tui import drop, frame, garden, keys
 
 from .shared import NOW, block, lemon, tree
@@ -50,7 +50,7 @@ def test_a_list_clamped_away_from_its_tree_leaves_no_second_copy_of_the_title():
         assert sum(row.count(f" {st.letter}  {st.label} ") for row in screen) == 1
 
 
-def test_a_list_that_cannot_hang_from_its_tag_is_reported_astray():
+def test_a_list_that_cannot_hang_from_its_tag_leaves_its_tree_off_it():
     grove = block(
         "g",
         "1",
@@ -58,14 +58,12 @@ def test_a_list_that_cannot_hang_from_its_tag_is_reported_astray():
         tree("tars/two", lemon("claude:b"), lemon("claude:c")),
     )
     arrangement, _ = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
-    roomy: list[str] = []
-    cramped: list[str] = []
 
-    block_scene.zoomed(canvas.blank(200, 60), grove, arrangement, 0.0, lists={}, astray=roomy)
-    block_scene.zoomed(canvas.blank(60, 14), grove, arrangement, 0.0, lists={}, astray=cramped)
+    roomy = [p.off for p in compact.placed(grove, arrangement, (200, 60))]
+    cramped = [p.off for p in compact.placed(grove, arrangement, (60, 14))]
 
-    assert roomy == []
-    assert cramped
+    assert roomy == ["the list starts 1 row below the trunk's foot", ""]
+    assert any(cramped)
 
 
 def test_a_dropped_trees_list_moves_no_other_list_on_the_next_frame():

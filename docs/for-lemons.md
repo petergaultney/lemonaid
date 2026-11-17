@@ -1007,14 +1007,18 @@ agrees:
 
 1. `lemonaid grove propose FILE` copies the live layout to FILE, which you own; put it in your
    place's `.z/`. The live grove is untouched until step 4.
-2. Read the layout and its warnings with `show --json --layout FILE --width W --height H`, at
-   the person's screen size (`tmux display -p '#{window_width} #{window_height}'` in their
-   window), and draw it with `show --plain` (and `show N --plain` for a block zoomed in). The
+2. Read the layout and its warnings with `show --json --layout FILE`. It judges the layout on
+   the size the grove screen had the last time one was open (its `screen`), not your
+   terminal's; `--width W --height H` overrides. Each tree's `zoomed` gives its crown `center`, list
+   position and whether it `stands` on the list (else `off_stand` says how it is off) on the zoomed screen, so after `plant` you can see where its list goes. A zoomed
+   block drawn with `show --plain` is large; read `show N --compact --layout FILE` instead,
+   one line per tree, saying whether it stands on its list, plus its warnings. Lists are laid out afresh, so an open grove that kept a
+   list where it was may differ. The
    JSON's `warnings` name each thing judged off, by block, tree and kind: a tag running into
    (`touching`) or sitting level beside (`level`) another tree in the grove view, a crown past
    its block's edge (`border`), a trunk off its block's ground (`off-ground`), a lead with
-   another tree nearer the packhouse (`lead-far`), and a lemon list drawn away from its tree
-   zoomed in (`list-away`). They inform you; they don't refuse anything. Read the drawing and
+   another tree nearer the packhouse (`lead-far`), and a tree that doesn't stand on its lemon list zoomed in (`list-away`: the list should hang
+   directly under the trunk, the trunk over its top edge; the reason says which way it is off). They inform you; they don't refuse anything. Read the drawing and
    the warnings together, and use your own judgment as well.
 3. Move trees with `plant N TREE X Y --layout FILE` (the tree's letter or key; X, Y is the
    `spot` in its plot that `show --json` gives). It refuses a spot off the block's ground or on

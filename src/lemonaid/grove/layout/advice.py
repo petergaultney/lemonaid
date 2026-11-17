@@ -8,9 +8,9 @@ import itertools
 import math
 from typing import NamedTuple
 
-from ..draw import block_scene, canvas, ground, scene_parts, scenes, tag_fit, trees
+from ..draw import canvas, ground, scene_parts, scenes, tag_fit, trees
 from ..model import Block
-from . import landmarks
+from . import compact, landmarks
 from .arrange import Arrangement
 
 _LEVEL_GAP = 2  # columns between a tag and something on its row that read as bumping into it
@@ -140,11 +140,10 @@ def advise(
             found.append((d.block, d.key, "off-ground", "its trunk stands off its block's ground"))
     for block in blocks:
         found += [(block, key, kind, why) for key, kind, why in _lead_far(block, arrangement)]
-        astray: list[str] = []
-        block_scene.zoomed(canvas.blank(*size), block, arrangement, 0.0, astray=astray)
         found += [
-            (block, key, "list-away", "zoomed in, its lemon list is drawn away from it")
-            for key in astray
+            (block, p.key, "list-away", f"zoomed in, it doesn't stand on its list: {p.off}")
+            for p in compact.placed(block, arrangement, size)
+            if p.off
         ]
     return [
         Advice(block.digit, block.name, key, arrangement.trees[(block.name, key)].letter, kind, why)

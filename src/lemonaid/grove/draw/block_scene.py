@@ -5,7 +5,7 @@ import math
 
 from ..layout.arrange import Arrangement
 from ..model import Block
-from . import house, lemon_list, list_spot, plots, scene_parts, trees
+from . import house, lemon_list, list_spot, plots, scene_parts, tag_fit, trees
 from .canvas import Canvas
 
 Spot = tuple[int, int, float]  # a list's top left, and how much it covered when put there
@@ -23,7 +23,7 @@ def zoomed(
     tallest: float = trees.GROWN,
     flipped: bool = False,
     key_prefix: str = "",
-    astray: list[str] | None = None,
+    fitted_out: dict[str, tag_fit.Fitted] | None = None,
 ) -> dict[str, Rect]:
     """*block* filling the screen, each tree with its lemons listed beside it; returns where each
     tree's list went. *opened* is the
@@ -31,8 +31,8 @@ def zoomed(
     drawn last time, keeps a list there while it covers no more than it did then, and is told
     where each one goes. Its trees' crowns grow no taller than *tallest* rows from their centers.
     *flipped* shows each list's other page. *key_prefix* goes before each tree's key, as select
-    mode's `$` that chooses a whole tree. *astray* is told the key of each tree whose list
-    had to go away from its tree, for want of room there.
+    mode's `$` that chooses a whole tree. *fitted_out* is told where each tree's tag, and so its
+    trunk, was fitted.
     """
     lists = {} if lists is None else lists
     if not scene_parts.fits(canvas):
@@ -79,6 +79,8 @@ def zoomed(
     fitted = scene_parts.plant(
         canvas, planted, arrangement, phase, highlight, [sign], tags_drawn=False
     )
+    if fitted_out is not None:
+        fitted_out.update({p.tree.key: f for p, f in zip(planted, fitted, strict=True)})
     crowns = [trees.crown_box(p.placed[2], *p.placed[:2]) for p in planted]
     taken = [list_spot.footprint(c, tag) for c, tag in zip(crowns, fitted, strict=True)]
     trees_at = list(enumerate(taken))  # each tree's footprint, by its place in *planted*
@@ -121,8 +123,6 @@ def zoomed(
             covered = list_spot.crowding(canvas, (x, y, w, rows), taken)
         spots[p.tree.key] = (x, y)
         at = list_spot.title_at(fitted[i].x, x, w, len(titles[i]))
-        if astray is not None and list_spot.astray(crowns[i], fitted[i], at, y):
-            astray.append(p.tree.key)
         caps.append((at + 1, y, len(key_prefix + letters[i]), 1))
         lists[p.tree.key] = (x, y, covered)
         taken.append((x, y, w, rows))

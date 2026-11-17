@@ -12,7 +12,7 @@ from textual.screen import ModalScreen, Screen
 from textual.timer import Timer
 
 from ..draw import canvas, refusal
-from ..layout import edit, state
+from ..layout import edit, screen_size, state
 from . import (
     choice,
     compass,
@@ -135,6 +135,7 @@ class GroveScreen(ModalScreen[str]):
         self._reload()  # what it was given may be a while old
 
     def on_resize(self, _event: events.Resize) -> None:
+        screen_size.record((self.size.width, self.size.height))
         self._redraw()
         for panel in self.query(help_panel.HelpPanel):
             panel.center()
