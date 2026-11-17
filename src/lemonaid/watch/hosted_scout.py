@@ -2,6 +2,7 @@
 
 import contextlib
 import functools
+import time
 import typing as ty
 from collections import abc
 from pathlib import Path
@@ -23,6 +24,7 @@ from . import (
     own_edits,
     pr_poller,
     push_scout,
+    scout_failures,
     scout_roster,
     wait_state,
     waiter_lock,
@@ -54,7 +56,7 @@ class _Harness(ty.NamedTuple):
 def _harness(registration: scout_roster.Registration) -> _Harness | str:
     """How to deliver to the lemon's harness, or why it can't be."""
     if thread := registration.thread:
-        if problem := delivery.codex_setup_problem():
+        if problem := delivery.codex_setup_problem(delivery.codex_executable(thread)):
             return problem
 
         return _Harness(
@@ -107,10 +109,24 @@ def run(
     harness = _harness(registration)
     if isinstance(harness, str):
         _log.info("no scout for %s: %s", lemon_id, harness)
-        return "retry" if registration.thread else "ended"
+        if not registration.thread:
+            return "ended"
+
+        scout_failures.record(lemon_id, harness)
+        return "retry"
+
+    settles_at = time.monotonic() + scout_failures.SETTLED_SECONDS
 
     def still() -> bool:
+        nonlocal settles_at
+        if time.monotonic() >= settles_at:
+            settles_at = float("inf")
+            scout_failures.clear(lemon_id)
         return not stopping() and harness.alive() and attachment.holds(path, channel, harness.alive)
+
+    def output(message: str) -> None:
+        harness.output(message)
+        scout_failures.clear(lemon_id)
 
     wait_state.lock_path(lemon_id).parent.mkdir(parents=True, exist_ok=True)
     lock = waiter_lock.acquire(wait_state.lock_path(lemon_id), grace=5)  # an old scout exits
@@ -136,7 +152,7 @@ def run(
                     mailbox,
                     cursors.root() / lemon_id,
                     harness.writer,
-                    gates.deliver(channel, harness.output),
+                    gates.deliver(channel, output),
                     still,
                     cwd=Path(registration.cwd),
                     notes=notes.reader(
@@ -153,8 +169,16 @@ def run(
     except waiter.AlreadyArmed as error:
         _log.info("scout for %s waits: %s", lemon_id, error)
         return "retry"
-    except (delivery.Failed, ValueError, OSError) as error:
-        _log.warning("scout for %s failed: %s; undelivered changes stay pending", lemon_id, error)
+    except ValueError as error:  # a restart holds delivery
+        _log.info("scout for %s waits: %s; undelivered changes stay pending", lemon_id, error)
+        return "retry"
+    except (delivery.Failed, OSError) as error:
+        failure = scout_failures.record(lemon_id, str(error))
+        _log.warning(
+            "scout for %s failed: %s; undelivered changes stay pending",
+            lemon_id,
+            scout_failures.describe(failure),
+        )
         return "retry"
     finally:
         wait_state.clear_delivery(lemon_id)

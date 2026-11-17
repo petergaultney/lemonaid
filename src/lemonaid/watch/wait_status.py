@@ -3,14 +3,17 @@
 import os
 from pathlib import Path
 
-from . import codex_scout, pr_roles, push_path, push_scout, wait_state
+from . import codex_scout, pr_roles, push_path, push_scout, scout_failures, scout_roster, wait_state
 
 
 def report(lemon_id: str, channel: str, thread: str, brief: Path) -> int:
     """0 when a watcher runs. Also names the role each PR in *brief* wakes the lemon as."""
-    running = wait_state.is_armed(lemon_id)
+    failure = scout_failures.failing(lemon_id) if scout_roster.read(lemon_id) else None
+    running = wait_state.is_armed(lemon_id) and failure is None
     lines = [
-        ("push scout running" if push_scout.running(lemon_id) else "watcher running")
+        f"push scout failing: {scout_failures.describe(failure)}; the scout host keeps retrying"
+        if failure
+        else ("push scout running" if push_scout.running(lemon_id) else "watcher running")
         if running
         else f"watcher deaf: it holds its lock but has not polled for "
         f"{wait_state.silent_for(lemon_id):.0f}s; `lemonaid watch --self --push` replaces it"

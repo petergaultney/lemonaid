@@ -63,7 +63,7 @@ def test_unified_watch_arms_alias_inbox_and_delivers_to_real_thread(alias, monke
         foreground=False,
     )
     # None is the bare --codex-thread form and reads CODEX_THREAD_ID.
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     queued = []
     monkeypatch.setattr(
         delivery, "queue_text", lambda thread, *args: lambda text: queued.append((thread, text))

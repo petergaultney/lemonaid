@@ -22,6 +22,7 @@ from ..codex import utils as codex_utils
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
+from ..watch import scout_failures, scout_roster
 from . import waiter
 
 LISTENING = "listening"
@@ -168,13 +169,15 @@ def classify(
     now: float,
     parked: str = "",
     unrun: str = "",
+    scout_failure: str = "",
 ) -> State:
     """The recipient's state, from facts already gathered.
 
     *alive* is None when the terminal can't be checked; *armed* is whether a
     waiter holds the recipient's mailbox lock; *parked* is the background job
     holding its conversation (see `parked_jobs`), and *unrun* why Codex starts
-    no turn from the messages it holds for it (see `unrun_codex`). A parked
+    no turn from the messages it holds for it (see `unrun_codex`), and *scout_failure*
+    why its push scout keeps failing (see `scout_failure`). A parked
     lemon's scout may still hold the lock for a moment, and a Codex lemon's
     scout holds it while Codex holds its messages, so both outrank *armed*.
     *unrun* also outranks the row's turn: Codex's rollout says no turn is open.
@@ -204,6 +207,9 @@ def classify(
 
     if row.turn_at is not None:  # however old: it may have sat at a permission prompt for hours
         return State(ASKING, "it stopped mid-turn to ask its user something")
+
+    if scout_failure:  # its scout holds the lock now and then, between failures
+        return State(DEAF, f"its push scout keeps failing: {scout_failure}")
 
     if armed:
         return State(LISTENING, "its mailbox waiter is armed")
@@ -242,6 +248,11 @@ def confirmed(row: db.Notification, state: State) -> State:
     return state
 
 
+def scout_failure(lemon_id: str) -> str:
+    failure = scout_failures.failing(lemon_id) if scout_roster.read(lemon_id) else None
+    return scout_failures.describe(failure) if failure else ""
+
+
 def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
     if not channel:
         return classify(channel, row, None, False, time.time())
@@ -254,6 +265,7 @@ def probe(channel: str, row: db.Notification | None, mailbox: Path) -> State:
         time.time(),
         parked_jobs().get(channel, "") if channel.startswith("claude:") else "",
         unrun_codex().get(channel, "") if channel.startswith("codex:") else "",
+        scout_failure(mailbox.name),  # a mailbox is named by its Lemon-ID
     )
 
 

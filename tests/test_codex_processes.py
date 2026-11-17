@@ -118,3 +118,27 @@ def test_a_failed_listing_is_not_kept(monkeypatch, tmp_path):
 
     assert _open_threads() is None
     assert not processes._shared().exists()
+
+
+def test_executable_is_that_of_a_process_with_the_thread_open(tmp_path, monkeypatch):
+    thread = "01a1e7ad-bbe3-73c3-bbf9-dd42257d3b33"
+    mine, other = (
+        _rollout(tmp_path, thread),
+        _rollout(tmp_path, "01a1e7ad-bbb7-7c82-a5f8-d57796a4dab2"),
+    )
+    codex = tmp_path / "codex"
+    codex.write_text("#!/bin/sh\n")
+    codex.chmod(0o755)
+
+    def run(argv, **kwargs):
+        output = f"p11\nn{other}\np22\nn{mine}\n" if argv[0] == "lsof" else f"{codex}\n"
+        assert argv[0] == "lsof" or argv[-1] == "22"
+        return subprocess.CompletedProcess(argv, 0, stdout=output, stderr="")
+
+    def no_proc(path):
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(os, "readlink", no_proc)
+    assert processes.executable(thread) == str(codex)
+    assert processes.executable("01a1e6af-a8f9-7040-aed2-8d46f618db65") == ""

@@ -123,6 +123,7 @@ def gather(
         time.time(),
         parked.get(found.channel, ""),
         unrun.get(found.channel, ""),
+        recipient.scout_failure(lemon_id),
     )
     metadata = row.metadata if row is not None else {}
     return Facts(

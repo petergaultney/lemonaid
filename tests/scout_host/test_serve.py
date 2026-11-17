@@ -6,10 +6,11 @@ The scouts here are fakes; nothing is delivered anywhere.
 import json
 import threading
 import time
+import types
 
 import pytest
 
-from lemonaid.watch import registry, scout_host, scout_roster
+from lemonaid.watch import registry, scout_failures, scout_host, scout_roster
 
 
 def _until(condition, timeout: float = 10) -> None:
@@ -120,3 +121,38 @@ def test_a_second_host_refuses_to_start(host):
 
     assert scout_host.serve(fake) == 3
     fake.outcomes["task.IndexElf"] = "ended"
+
+
+def test_restoring_a_failing_scout_waits_out_its_backoff_but_a_new_session_does_not(monkeypatch):
+    monkeypatch.setattr(scout_host, "time", types.SimpleNamespace(monotonic=lambda: 100.0))
+    started: list[scout_roster.Registration] = []
+
+    def run(registration, stopping):
+        started.append(registration)
+        return "retry"
+
+    scouts: dict = {}
+    retry_at: dict = {}
+    quitting = threading.Event()
+
+    def tick() -> None:
+        scout_host._tick(scouts, retry_at, run, quitting)
+        for scout in scouts.values():
+            scout.thread.join(10)
+
+    scout_roster.register("task.IndexElf", "codex:t", "t", "/work")
+    for _ in range(6):
+        scout_failures.record("task.IndexElf", "codex queue exited 1")
+    tick()
+    tick()
+    assert len(started) == 1
+    assert list(retry_at.values()) == [700.0]  # 30s doubled five times, capped at 600s
+
+    scout_roster.register("task.IndexElf", "codex:t", "t", "/work")  # as restoring it writes
+    tick()
+    assert len(started) == 1
+
+    scout_roster.register("task.IndexElf", "codex:u", "u", "/work")
+
+    tick()
+    assert [r.thread for r in started] == ["t", "u"]

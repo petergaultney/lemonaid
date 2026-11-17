@@ -2,7 +2,8 @@
 
 It runs a scout for each registration in `scout_roster`, and stops one when its
 registration is removed or replaced. A scout that ends normally removes its own
-registration; one that fails is tried again after `RETRY_SECONDS`. On `restart.SIGNAL`
+registration; one that fails is tried again after `RETRY_SECONDS`, doubling with each
+failure in a row (`scout_failures`). On `restart.SIGNAL`
 it stops every scout and re-execs itself, and the registrations on disk bring them back
 on the new code. It exits once it has had no registrations for `IDLE_SECONDS`.
 
@@ -26,6 +27,7 @@ from . import (
     kqueue_waits,
     registry,
     restart,
+    scout_failures,
     scout_roster,
     waiter_lock,
     waits,
@@ -56,8 +58,9 @@ def _start(registration: scout_roster.Registration, run: Run, quitting: threadin
     def body() -> None:
         try:
             scout.outcome = run(registration, lambda: stop.is_set() or quitting.is_set())
-        except Exception:  # the host outlives any one lemon's scout
+        except Exception as error:  # the host outlives any one lemon's scout
             _log.exception("scout for %s crashed", registration.lemon_id)
+            scout_failures.record(registration.lemon_id, f"crashed: {error!r}")
             scout.outcome = "retry"
 
     scout.thread = threading.Thread(target=body, name=f"scout-{registration.lemon_id}", daemon=True)
@@ -65,9 +68,15 @@ def _start(registration: scout_roster.Registration, run: Run, quitting: threadin
     return scout
 
 
+def _destination(registration: scout_roster.Registration) -> tuple[str, str, str]:
+    """What a retry deadline belongs to: a re-registration for the same lemon and session
+    (as restoring a scout writes) waits it out, and one for a new session does not."""
+    return registration.lemon_id, registration.channel, registration.thread
+
+
 def _tick(
     scouts: dict[str, _Scout],
-    retry_at: dict[str, float],
+    retry_at: dict[tuple[str, str, str], float],
     run: Run,
     quitting: threading.Event,
 ) -> int:
@@ -87,10 +96,13 @@ def _tick(
             scout_roster.remove(lemon_id, scout.registration.token)
             wanted.pop(lemon_id, None)
         elif scout.outcome == "retry":
-            retry_at[scout.registration.token] = time.monotonic() + RETRY_SECONDS
+            retry_at[_destination(scout.registration)] = time.monotonic() + scout_failures.delay(
+                lemon_id, RETRY_SECONDS
+            )
     for lemon_id, registration in wanted.items():
-        if lemon_id not in scouts and time.monotonic() >= retry_at.get(registration.token, 0):
-            retry_at.pop(registration.token, None)
+        destination = _destination(registration)
+        if lemon_id not in scouts and time.monotonic() >= retry_at.get(destination, 0):
+            retry_at.pop(destination, None)
             scouts[lemon_id] = _start(registration, run, quitting)
     return len(wanted)
 
@@ -130,7 +142,7 @@ def serve(
     pacing = _pacing() if run is None else waits.TIMERS
     run = run or functools.partial(hosted_scout.run, pacing=pacing)
     scouts: dict[str, _Scout] = {}
-    retry_at: dict[str, float] = {}  # by registration token
+    retry_at: dict[tuple[str, str, str], float] = {}
     running = [start() for start in services]
     quitting = threading.Event()
     empty_since = time.monotonic()

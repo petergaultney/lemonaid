@@ -76,6 +76,43 @@ def open_threads(max_age: float = 0.0) -> set[str] | None:
     }
 
 
+def _executable_of(pid: str) -> str:
+    """The executable file process *pid* runs, or "" if it can't be found or is gone."""
+    try:
+        found = os.readlink(f"/proc/{pid}/exe")  # Linux; macOS has no /proc
+    except OSError:
+        try:
+            found = subprocess.run(
+                ["ps", "-o", "comm=", "-p", pid], capture_output=True, text=True, timeout=_TIMEOUT
+            ).stdout.strip()  # the full path on macOS
+        except (OSError, subprocess.SubprocessError) as error:
+            _log.debug("could not read the executable of pid %s: %s", pid, error)
+            return ""
+
+    return found if os.path.isabs(found) and os.access(found, os.X_OK) else ""
+
+
+def executable(thread: str, max_age: float = 0.0) -> str:
+    """The executable of a Codex process that has *thread*'s rollout open, or "".
+
+    Running `codex queue` with it works even where `codex` on PATH does not.
+    """
+    try:
+        listing = _lsof(max_age)
+    except (OSError, subprocess.SubprocessError) as error:
+        _log.debug("could not inspect Codex processes: %s", error)
+        return ""
+
+    for pid, paths in _open_paths(listing or "").items():
+        has_thread = any(
+            utils.extract_session_id_from_filename(Path(p).name) == thread for p in paths
+        )
+        if has_thread and (found := _executable_of(pid)):
+            return found
+
+    return ""
+
+
 def thread_ttys() -> dict[str, set[str]] | None:
     try:
         listing = _lsof()

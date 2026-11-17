@@ -9,12 +9,14 @@ from collections import abc
 from pathlib import Path
 
 from .. import brief, daily_date, home
-from ..codex import channels
+from ..codex import channels, processes
 from ..config import load_config
 from ..inbox import db
 from ..inbox.channel import full_channel_id
 from ..launch.restart import state
 from . import store
+
+_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 
 def own_thread(channel: str) -> str:
@@ -38,10 +40,13 @@ def _with_status_note(mailbox: Path, message: str) -> str:
 
 
 def _queue(thread: str, path: Path, message: str) -> None:
+    executable = (
+        processes.executable(thread, _LISTED_WITHIN) or "codex"
+    )  # PATH may have none that works
     try:
         result = subprocess.run(
             [
-                "codex",
+                executable,
                 "queue",
                 "--thread",
                 thread,
@@ -52,11 +57,11 @@ def _queue(thread: str, path: Path, message: str) -> None:
             text=True,
         )
     except OSError as error:
-        raise RuntimeError(f"Could not run codex queue: {error}") from error
+        raise RuntimeError(f"Could not run {executable} queue: {error}") from error
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"codex queue exited {result.returncode}; {path.name} stays pending:\n"
+            f"{executable} queue exited {result.returncode}; {path.name} stays pending:\n"
             + (result.stderr or result.stdout).strip()
         )
 
