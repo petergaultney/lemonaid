@@ -15,12 +15,13 @@ import subprocess
 import tempfile
 import typing as ty
 
-from ..codex import channels
+from ..codex import channels, processes
 from ..inbox import db
 from ..launch.restart import gates
 from ..log import get_logger
 
 _log = get_logger("watch.delivery")
+_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 Deliver = ty.Callable[[str], None]
 
@@ -61,10 +62,19 @@ def to_stdout(message: str) -> None:
     print(message, flush=True)
 
 
-def codex_setup_problem() -> str:
+def codex_executable(thread: str) -> str:
+    """The executable of the Codex process that has *thread* open, else `codex` from PATH."""
+    return processes.executable(thread, _LISTED_WITHIN) or "codex"
+
+
+def codex_setup_problem(executable: str = "codex") -> str:
     """Why `codex queue` would fail from this process, or "" - checked before waiting, not at the first event."""
-    if not shutil.which("codex"):
-        return "`codex` is not on PATH"
+    if not shutil.which(executable):
+        return (
+            f"`{executable}` is not on PATH"
+            if executable == "codex"
+            else f"{executable} is not executable"
+        )
 
     home = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex"))
     try:
@@ -103,13 +113,28 @@ def queue_text(thread: str, kind: str, text_of: ty.Callable[[str], str]) -> Deli
     """Queues `text_of(message)` into a Codex thread, held by the alias gate like any Codex delivery."""
 
     def queue(message: str) -> None:
+        executable = codex_executable(thread)
         try:
-            subprocess.run(
-                ["codex", "queue", "--thread", thread, "--message", text_of(message)],
-                check=True,
+            result = subprocess.run(
+                [
+                    executable,
+                    "queue",
+                    "--thread",
+                    thread,
+                    "--message",
+                    text_of(message),
+                ],
+                capture_output=True,
+                text=True,
             )
-        except subprocess.CalledProcessError as e:
-            raise Failed(f"codex queue failed ({e})") from e
+        except OSError as e:
+            raise Failed(f"could not run {executable} queue ({e})") from e
+
+        if result.returncode != 0:
+            raise Failed(
+                f"{executable} queue exited {result.returncode}: "
+                + ((result.stderr or result.stdout).strip()[-500:] or "no output")
+            )
 
         _log.info("queued a %s event into Codex thread %s", kind, thread)
 

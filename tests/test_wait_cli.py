@@ -72,7 +72,7 @@ def test_a_scout_keeps_watching_an_archived_session_whose_thread_runs(monkeypatc
         conn.execute("UPDATE notifications SET status = 'archived' WHERE channel = 'codex:test'")
         conn.commit()
     alive = [True]
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     monkeypatch.setattr(codex_scout, "liveness", lambda thread: lambda: alive[0])
     watched = []
 
@@ -106,7 +106,7 @@ def test_codex_rearm_waits_for_an_old_waiter_that_is_delivering(monkeypatch):
     )
     releasing, next_armed, stop_next = threading.Event(), threading.Event(), threading.Event()
     runs, results, threads = [], [], []
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
 
     def queue(message):
         assert wait_state.delivering("task.IndexElf")

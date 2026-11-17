@@ -18,7 +18,7 @@ from collections import abc
 from ..claude import session_socket
 from ..inbox import db
 from ..log import get_logger
-from . import wait_state, waiter_lock
+from . import scout_failures, wait_state, waiter_lock
 
 _log = get_logger("watch.scout_roster")
 
@@ -103,13 +103,15 @@ def listed() -> dict[str, Registration]:
 
 
 def remove(lemon_id: str, token: str = "", by: str = "") -> None:
-    """Stop *lemon_id*'s scout; with *token*, only if its registration is still that one."""
+    """Stop *lemon_id*'s scout, forgetting its failures; with *token*, only if its registration
+    is still that one."""
     with _changing(lemon_id):
         current = read(lemon_id)
         if current is None or (token and current.token != token):
             return
 
         path(lemon_id).unlink(missing_ok=True)
+        scout_failures.clear(lemon_id)
     if by:
         _log.info("%s removed the scout registration of %s", by, lemon_id)
 

@@ -1,4 +1,6 @@
 import argparse
+import os
+from pathlib import Path
 
 import pytest
 
@@ -10,8 +12,10 @@ from lemonaid.watch import (
     delivery,
     push_scout,
     registry,
+    scout_failures,
     wait_cli,
     wait_state,
+    wait_status,
 )
 from tests.scout_host import shared as hosted
 
@@ -23,6 +27,33 @@ def _briefed() -> None:
     with db.connect() as conn:
         db.add(conn, "codex:test", "", metadata={})
         attached.attach(conn, "codex:test", path)
+
+
+def _codex(directory: Path, body: str) -> Path:
+    directory.mkdir()
+    codex = directory / "codex"
+    codex.write_text(f"#!/bin/sh\n{body}\n")
+    codex.chmod(0o755)
+    return codex
+
+
+def _broken_codex_on_path(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    shim = _codex(
+        tmp_path / "shims", 'echo "mise ERROR No version is set for shim: codex" >&2; exit 1'
+    )
+    monkeypatch.setenv("PATH", f"{shim.parent}{os.pathsep}{os.environ['PATH']}")
+
+
+def _one_batch_then(monkeypatch, alive: list[bool], still_alive: bool) -> None:
+    monkeypatch.setattr(codex_scout, "_ALIVE_EVERY", 0)
+    monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: alive[0])
+
+    def wait(*args, **kwargs):
+        args[4]("batch")
+        alive[0] = still_alive
+
+    monkeypatch.setattr(batch_wait, "wait", wait)
 
 
 def _args(push: bool) -> argparse.Namespace:
@@ -40,7 +71,7 @@ def _args(push: bool) -> argparse.Namespace:
 def test_the_scout_keeps_queueing_batches_until_its_thread_dies(monkeypatch):
     _briefed()
     queued, commands, alive = [], [], [True]
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     monkeypatch.setattr(codex_scout, "_ALIVE_EVERY", 0)
     monkeypatch.setattr(codex_scout, "thread_alive", lambda thread, max_age=0.0: alive[0])
     monkeypatch.setattr(
@@ -102,3 +133,37 @@ def test_a_thread_open_only_in_the_shared_daemon_is_alive(monkeypatch):
 
     assert codex_scout.thread_alive("daemon-thread")
     assert not codex_scout.thread_alive("exited-thread")
+
+
+def test_the_scout_queues_with_the_codex_that_has_its_thread_open(tmp_path, monkeypatch):
+    _briefed()
+    _broken_codex_on_path(tmp_path, monkeypatch)
+    real = _codex(tmp_path / "real", 'echo "$@" > "$(dirname "$0")/args"')
+    monkeypatch.setattr(delivery.processes, "executable", lambda thread, max_age=0.0: str(real))
+    _one_batch_then(monkeypatch, [True], still_alive=False)
+    scout_failures.record("task.IndexElf", "an earlier failure")
+
+    with hosted.hosting():
+        assert hosted.run("task.IndexElf", "codex:test", "test") == "ended"
+    assert (real.parent / "args").read_text().startswith("queue --thread test --message ")
+    assert scout_failures.read("task.IndexElf") is None
+
+
+def test_a_scout_that_keeps_failing_reports_why(tmp_path, monkeypatch, capsys):
+    _briefed()
+    _broken_codex_on_path(tmp_path, monkeypatch)
+    monkeypatch.setattr(delivery.processes, "executable", lambda thread, max_age=0.0: "")
+    _one_batch_then(monkeypatch, [True], still_alive=True)
+
+    with hosted.hosting():
+        assert hosted.run("task.IndexElf", "codex:test", "test") == "retry"
+        assert hosted.run("task.IndexElf", "codex:test", "test") == "retry"
+    assert (
+        wait_status.report("task.IndexElf", "codex:test", "test", store.briefs_dir() / "task.md")
+        == 1
+    )
+    assert capsys.readouterr().out.startswith(
+        "push scout failing: codex queue exited 1: mise ERROR No version is set for shim: codex"
+        " (2 attempts in a row since "
+    )
+    assert scout_failures.delay("task.IndexElf", 30) == 60

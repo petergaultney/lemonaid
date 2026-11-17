@@ -857,7 +857,9 @@ and otherwise checks everything every 45 seconds, so a missed event delays a bat
 most that long. After a change, a scout polls at its usual intervals until the change
 settles. PR and repo watches keep their own intervals, and elsewhere the scouts keep
 today's timers. A Codex
-lemon's scout queues each batch into its thread with `codex queue`, checks before each
+lemon's scout queues each batch into its thread with `codex queue`, run with the
+executable of the Codex process that has the thread open (falling back to `codex` on
+`PATH`, which the scout host may not share with the lemon), and checks before each
 delivery that some Codex process (a terminal or the shared daemon) still has the thread's
 rollout open, and exits when none does or the brief is detached. When `lsof` can't be read,
 the scout counts the thread as live and keeps delivering, so a scout can outlive its session
@@ -889,6 +891,14 @@ would hold the message (bypass-permissions mode without `"crossSessionInbound": 
 see [Claude setup](claude.md#3-let-lemonaid-push-events-into-each-lemon)), nothing starts
 and the lemon falls back to a background `watch --self`. If the socket refuses a batch, the
 batch stays pending and the host tries the scout again.
+
+A scout that fails in a row waits 30 seconds before its next attempt, doubling each time up
+to ten minutes. From the second failure in a row, `watch --self --status` says `push scout
+failing:` with the last reason (for a Codex scout, `codex queue`'s stderr) and exits 1, and
+`tell` and `lemonaid lemon` call the lemon deaf with the same reason, even in the moments the
+scout holds its lock. A delivery, a scout that stays up for two minutes, or removing its
+registration clears it. Restoring the scout for the same session waits out the backoff; a
+registration for a new session starts at once.
 
 Each scout logs `push scout started` and `push scout exited normally` or `exited
 abnormally` to the lemonaid log, with its Lemon-ID, session and the host's pid. A normal

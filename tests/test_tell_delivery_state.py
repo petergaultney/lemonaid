@@ -17,6 +17,7 @@ from lemonaid.codex import queued
 from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import autoresume, cli, recipient, store, tell_delivery, waiter
+from lemonaid.watch import scout_failures, scout_roster
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +92,35 @@ def test_idle_codex_with_a_live_harness_and_no_waiter_is_deaf(capsys, monkeypatc
 
     assert _tell("codex:idle") == 1
     assert "is deaf (it is idle with no mailbox waiter" in capsys.readouterr().err
+
+
+def test_codex_whose_scout_keeps_failing_is_deaf_with_the_reason(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
+    lemon_id = _attach("codex:live", {"tty": "/dev/ttys998"})
+    scout_roster.register(lemon_id, "codex:live", "live", "")
+    for _ in range(scout_failures.FAILING_AFTER):
+        scout_failures.record(lemon_id, "codex queue exited 1: no codex")
+
+    with waiter.armed(store.mailbox_for_id(lemon_id)):  # between failures, it holds the lock
+        assert _tell("codex:live") == 1
+
+    assert "is deaf (its push scout keeps failing: codex queue exited 1: no codex" in (
+        capsys.readouterr().err
+    )
+
+
+def test_a_removed_scouts_failures_leave_its_replacement_listening(capsys, monkeypatch):
+    monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish", "codex"])
+    lemon_id = _attach("codex:live", {"tty": "/dev/ttys998"})
+    scout_roster.register(lemon_id, "codex:live", "live", "")
+    for _ in range(scout_failures.FAILING_AFTER):
+        scout_failures.record(lemon_id, "codex queue exited 1: no codex")
+
+    scout_roster.remove(lemon_id)
+
+    with waiter.armed(store.mailbox_for_id(lemon_id)):  # a foreground watcher replaces it
+        assert _tell("codex:live") == 0
+    assert "listening" in capsys.readouterr().err
 
 
 def test_codex_with_a_live_harness_and_armed_waiter_is_listening(capsys, monkeypatch):

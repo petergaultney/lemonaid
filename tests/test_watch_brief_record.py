@@ -142,7 +142,7 @@ def test_cli_registers_before_waiting_and_keeps_entry_after_one_shot(
 
 @pytest.mark.parametrize("codex", [False, True])
 def test_pr_ci_startup_and_rearm_record_the_supplied_flags(brief, tmp_path, monkeypatch, codex):
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     mode = ["--codex-thread", "owner"] if codex else ["--once"]
     for head, ci in [("abcdef0", True), ("1234567", True), ("1234567", False)]:
         a = args("pr", tmp_path, "--head", head, "--comments", *mode, *(["--ci"] if ci else []))
@@ -160,11 +160,11 @@ def test_pr_ci_startup_and_rearm_record_the_supplied_flags(brief, tmp_path, monk
 
 def test_refused_delivery_setup_and_duplicate_do_not_change_brief(brief, tmp_path, monkeypatch):
     a = args("doc", tmp_path, "--codex-thread", "owner")
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "queue unavailable")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "queue unavailable")
     before = brief.read_text()
     assert doc_cli.run(a) == 2
     assert brief.read_text() == before
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     from lemonaid.watch import doc_events, waiter_lock
 
     lock = waiter_lock.acquire(
@@ -231,7 +231,7 @@ def test_saved_child_self_command_and_explicit_defaults_are_replaced(brief, tmp_
 
 def test_failed_delivery_keeps_recorded_command_for_rearm(brief, tmp_path, monkeypatch):
     a = args("doc", tmp_path, "--codex-thread", "owner")
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
 
     def fail(*args):
         raise delivery.Failed("queue failed")

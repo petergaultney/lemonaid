@@ -1,4 +1,5 @@
 import dataclasses
+import subprocess
 
 import pytest
 
@@ -80,7 +81,12 @@ def test_alias_reservation_holds_mailbox_delivery_until_release(alias, monkeypat
 def test_alias_reservation_holds_direct_watch_delivery_until_release(alias, tmp_path, monkeypatch):
     channel, _, _ = alias
     queued = []
-    monkeypatch.setattr(delivery.subprocess, "run", lambda args, **kw: queued.append(args))
+    monkeypatch.setattr(delivery, "codex_executable", lambda thread: "codex")
+    monkeypatch.setattr(
+        delivery.subprocess,
+        "run",
+        lambda args, **kw: queued.append(args) or subprocess.CompletedProcess(args, 0),
+    )
     file = tmp_path / "watched"
     file.write_text("before")
     cursor_dir = tmp_path / "cursors"

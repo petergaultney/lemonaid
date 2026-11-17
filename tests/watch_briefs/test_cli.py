@@ -40,7 +40,7 @@ def test_cli_codex_delivery_is_one_shot_and_releases_lock(family, monkeypatch):
     open_watch(family, me="")
     path.write_text(path.read_text().replace("working", "done"))
     monkeypatch.setenv("CODEX_THREAD_ID", "thread")
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
     sent = []
     monkeypatch.setattr(
         delivery,
@@ -59,7 +59,7 @@ def test_cli_failed_delivery_does_not_consume_change(family, monkeypatch):
     parent, _, path, state_dir = family
     open_watch(family, me="")
     path.write_text(path.read_text().replace("working", "done"))
-    monkeypatch.setattr(delivery, "codex_setup_problem", lambda: "")
+    monkeypatch.setattr(delivery, "codex_setup_problem", lambda *_: "")
 
     def fail(message):
         raise delivery.Failed("queue failed")
