@@ -9,13 +9,21 @@ from lemonaid import messages_config
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, autoresume_tmux, cli, recipient, resume_log, store
+from lemonaid.messages import (
+    autoresume,
+    autoresume_tmux,
+    cli,
+    recipient,
+    resume_log,
+    store,
+    tell_delivery,
+)
 
 
 @pytest.fixture(autouse=True)
 def _sender(monkeypatch):
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
-    monkeypatch.setattr(cli.service, "ensure_running", lambda: None)
+    monkeypatch.setattr(tell_delivery.service, "ensure_running", lambda: None)
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish"])  # nothing runs there
 
 

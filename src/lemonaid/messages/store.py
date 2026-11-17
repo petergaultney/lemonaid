@@ -122,6 +122,19 @@ def _pending(mailbox: Path) -> abc.Iterator[Path]:
             yield path
 
 
+def pending_copy(mailbox: Path, body: str, sender: str) -> Path | None:
+    """A pending message *sender* already sent with *body*, which a resend reuses."""
+    for path in _pending(forwarded(mailbox)):
+        try:
+            head, _, text = path.read_text(encoding="utf-8").partition("\n\n")
+        except OSError:
+            continue
+        if head.startswith(f"From: {sender}\n") and text == f"{body.rstrip()}\n":
+            return path
+
+    return None
+
+
 def pending_count(mailbox: Path) -> int:
     return sum(1 for _ in _pending(mailbox))
 

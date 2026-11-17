@@ -16,6 +16,7 @@ from lemonaid.messages import (
     cli,
     dead_letters,
     recipient,
+    tell_delivery,
 )
 from lemonaid.messages_config import MessagesConfig
 
@@ -23,7 +24,7 @@ from lemonaid.messages_config import MessagesConfig
 @pytest.fixture(autouse=True)
 def _sender(monkeypatch):
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
-    monkeypatch.setattr(cli.service, "ensure_running", lambda: None)
+    monkeypatch.setattr(tell_delivery.service, "ensure_running", lambda: None)
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish"])  # nothing runs there
 
 
@@ -95,7 +96,7 @@ def test_a_deaf_lemon_is_prompted(capsys, started, monkeypatch):
     assert "prompted it to read the message" in capsys.readouterr().err
 
 
-def test_a_done_lemon_is_left_alone_with_its_status_and_resume_command(capsys, started):
+def test_a_done_lemon_is_left_alone_with_its_status_and_the_wake_flag(capsys, started):
     _attach(
         "claude:finished",
         "# t\n\nStatus: done\n\n## Now\n\n### Done\n\n- PR merged\n",
@@ -107,7 +108,7 @@ def test_a_done_lemon_is_left_alone_with_its_status_and_resume_command(capsys, s
     assert started == []
     err = capsys.readouterr().err
     assert "was marked done (Status: done; Now: PR merged)" in err
-    assert "run: cd /tmp && lemonaid claude resume abc" in err
+    assert "run the same `lemonaid tell` with --wake" in err
 
 
 def test_a_failed_start_tells_the_sender_whom_to_inform(capsys, monkeypatch):
@@ -125,7 +126,9 @@ def test_a_failed_start_tells_the_sender_whom_to_inform(capsys, monkeypatch):
 
 def test_autoresume_off_names_the_recovery_step(capsys, started, monkeypatch):
     monkeypatch.setattr(
-        cli, "load_config", lambda: Config(messages=MessagesConfig(autoresume=frozenset()))
+        tell_delivery,
+        "load_config",
+        lambda: Config(messages=MessagesConfig(autoresume=frozenset())),
     )
     _attach("claude:gone", "# t\n\nStatus: working\n")
 

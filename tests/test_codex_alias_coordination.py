@@ -176,7 +176,15 @@ def test_explicit_raw_channel_names_alias_for_brief_tell_and_doctor(alias, monke
         recipient, "probe", lambda *args: recipient.State(recipient.LISTENING, "armed")
     )
     messages_cli.cmd_tell(
-        argparse.Namespace(parent=False, child="", target=raw, message="alias target", channel="")
+        argparse.Namespace(
+            parent=False,
+            child="",
+            target=raw,
+            message="alias target",
+            channel="",
+            wake=False,
+            wake_parent=False,
+        )
     )
     assert "alias target" in messages.peek_next(messages.mailbox_for_id(lemon_id))[1]
 

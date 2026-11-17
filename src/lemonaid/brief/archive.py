@@ -200,6 +200,16 @@ def _archived_mailboxes(folder: Path) -> list[Path]:
     )
 
 
+def archived_mailboxes(lemon_id: str) -> list[Path]:
+    """The attic folders holding *lemon_id*'s messages while its brief is archived."""
+    return [
+        slot
+        for month in sorted(attic_dir().glob("*"))
+        for name in (home.layout.OLD_MAILBOX, home.layout.MAILBOX)
+        for slot in _archived_mailboxes(month / name / lemon_id)
+    ]
+
+
 def _merge_mailbox(source: Path, dest: Path) -> None:
     """Move *source*'s messages into *dest*, keeping any already there.
 
