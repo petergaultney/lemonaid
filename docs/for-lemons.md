@@ -414,6 +414,14 @@ plain `lemon resume` can't bring that lemon back. Add `--recreate` to put those 
 
 Without `--recreate`, a lemon whose brief is archived is refused with the command to run.
 
+A lemon whose conversation transcript is gone is refused too (exit 1), since a resume would
+start an empty conversation under its name. Like a missing directory, this is checked before
+the brief leaves the attic, so a refusal changes nothing.
+
+To send a finished lemon a message and wake it in one step, use `lemonaid tell --wake`; see
+[messages](messages.md#waking-a-finished-lemon---wake). `lemonaid lemon archived` lists the
+archived lemons and whether each can be woken.
+
 ### Restarting one live lemon: `lemon restart`
 
 ```sh

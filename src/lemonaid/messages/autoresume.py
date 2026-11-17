@@ -1,7 +1,7 @@
 """What `tell` does about a recipient that won't read the message: start it, or say why not.
 
-A `done` or archived lemon finished its work, so it is left alone and the
-sender is told how to resume it by hand. So is a parked one. A parked Claude's pane
+A `done` or archived lemon finished its work, so it is left alone unless the
+sender passed `--wake` (see `tell_delivery`). So is a parked one. A parked Claude's pane
 shows Claude Code's agents view, and typing there would not reach its conversation.
 A parked Codex holds its messages after an Esc interrupt, and a typed prompt would
 undo its user's interrupt.
@@ -41,10 +41,21 @@ class Recipient(ty.NamedTuple):
     mailbox: Path
 
 
+WAKE_HINT = (
+    "To wake it so it reads this, run the same `lemonaid tell` with --wake; "
+    "the message isn't sent twice."
+)
+
+
+def is_finished(brief_status: str, archived: bool) -> bool:
+    """*archived*: its inbox row is."""
+    return brief_status == "done" or archived
+
+
 def plan(
     state: str, harness: str, brief_status: str, archived: bool, harnesses: frozenset[str]
 ) -> str:
-    if brief_status == "done" or archived:
+    if is_finished(brief_status, archived):
         return FINISHED
 
     if state == recipient.ASKING:
@@ -60,26 +71,35 @@ def _ask(parent: str) -> str:
     return f"ask its parent {parent} to resume it" if parent else "ask your user to resume it"
 
 
-def _now_line(text: str) -> str:
-    """The first line of `## Now` that isn't a sub-heading."""
+def now_line(text: str) -> str:
+    """The first line of `## Now` that isn't a sub-heading or a table."""
     lines = (line.strip() for line in status.split(text).now.splitlines())
     return next(
-        (line.removeprefix("- ") for line in lines if line and not line.startswith("#")), ""
+        (line.removeprefix("- ") for line in lines if line and not line.startswith(("#", "|"))),
+        "",
     )
 
 
-def finished(found: Recipient, state: recipient.State, config: Config) -> str:
-    parts = status.split(found.brief_text)
-    marked = "archived" if found.row.is_archived else f"marked {parts.status or 'done'}"
-    running = "is not running and " if state.state == recipient.DEAD else ""
-    command = wake.resume_line(found.row, config)
+def finished_line(lemon_id: str, brief_text: str, marked: str, running: bool) -> str:
+    """*marked* says how it finished: "archived", or "marked done"."""
+    parts = status.split(brief_text)
     return " ".join(
         [
-            f"{found.lemon_id} {running}was {marked}",
-            f"(Status: {parts.raw_status or 'none'}; Now: {_now_line(found.brief_text) or 'empty'}).",
-            "The message is queued. If you want it to resume and continue,",
-            f"run: {command}" if command else _ask(found.parent) + ".",
+            f"{lemon_id} {'' if running else 'is not running and '}was {marked}",
+            f"(Status: {parts.raw_status or 'none'}; Now: {now_line(brief_text) or 'empty'}).",
+            "The message is queued.",
+            WAKE_HINT,
         ]
+    )
+
+
+def finished(found: Recipient, state: recipient.State) -> str:
+    parts = status.split(found.brief_text)
+    return finished_line(
+        found.lemon_id,
+        found.brief_text,
+        "archived" if found.row.is_archived else f"marked {parts.status or 'done'}",
+        state.state != recipient.DEAD,
     )
 
 
@@ -164,7 +184,7 @@ def respond(found: Recipient, state: recipient.State, config: Config) -> tuple[s
         config.messages.autoresume,
     )
     if action == FINISHED:
-        return finished(found, state, config), False
+        return finished(found, state), False
 
     if action == OFF:
         return off(found.lemon_id, found.parent, state), False

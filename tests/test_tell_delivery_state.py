@@ -16,7 +16,7 @@ from lemonaid.codex import processes as codex_processes
 from lemonaid.codex import queued
 from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
-from lemonaid.messages import autoresume, cli, recipient, store, waiter
+from lemonaid.messages import autoresume, cli, recipient, store, tell_delivery, waiter
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +24,7 @@ def _sender(monkeypatch):
     for name in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "TMUX_PANE"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:sender")
-    monkeypatch.setattr(cli.service, "ensure_running", lambda: None)
+    monkeypatch.setattr(tell_delivery.service, "ensure_running", lambda: None)
 
 
 def _attach(channel: str, metadata: dict, turn_at: float | None = None) -> str:
@@ -221,7 +221,7 @@ def test_an_idle_claude_whose_scout_starts_is_listening(capsys, monkeypatch):
         scout.enter_context(waiter.armed(store.mailbox_for_id(recipient_id)))
         return True
 
-    monkeypatch.setattr(cli.push_scout, "ensure", ensure)
+    monkeypatch.setattr(tell_delivery.push_scout, "ensure", ensure)
 
     with scout:
         assert _tell("claude:pushed") == 0

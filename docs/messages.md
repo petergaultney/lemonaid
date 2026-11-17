@@ -99,13 +99,28 @@ A `dead` or `deaf` lemon's message stays in its mailbox, so it reads it once it 
 - **A Claude or Codex stopped at a question** (`asking`) is left alone, since typing would answer it; the sender is told to tell its user.
 - **A parked Claude** (`parked`) is left alone, since its pane shows the agents view and typing there would not reach the conversation; the sender is told the background job's ID, to tell its user, and where the recovery steps are. Its scout stops, so its batches stay pending too. See [recovery](recovery.md#a-parked-claude-lemon) for how to bring it back.
 - **A parked Codex** (`parked`) is left alone too: after an Esc interrupt, a prompt typed into its pane would undo its user's interrupt. The sender is told why, to tell its user, and where the recovery steps are. Codex keeps the messages and runs them after its user's next prompt. See [codex](codex.md#messages-codex-holds), and [recovery](recovery.md#a-codex-lemon-whose-messages-codex-holds) for what to do.
-- **A lemon whose brief says `done`, or whose inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and the command that would resume it.
+- **A lemon whose brief says `done`, or whose brief or inbox row is archived,** is left alone. The sender gets its Status, the first line of its `## Now`, and a note that rerunning the same `tell` with `--wake` wakes it.
+
+### Waking a finished lemon: `--wake`
+
+`lemonaid tell --wake <lemon> <message>` brings back a lemon that finished, the way `lemonaid lemon resume --recreate` does: its brief comes back from the attic, attached to its old session, and a tossed directory and tmux session are recreated. It then reads the message once it is up. A pending message from the same sender with the same text is reused rather than queued again, so rerunning a plain `tell` with `--wake` delivers it once. A lemon that hasn't finished but won't read the message is brought back the same way under `--wake`, with the checks below, rather than by autoresume.
+
+`--wake` refuses, and exits 1, when the lemon can't come back at all:
+
+- no session was recorded for it;
+- its conversation's transcript is gone, since a resume would start an empty conversation under its name;
+- its directory is gone and the places log doesn't say which place held it;
+- its old session holds another brief now.
+
+These are checked before anything changes; a refusal after that, such as a place's hook failing or the start limit, puts the brief back in the attic. The refusal says what to do instead, and for these four names `lemonaid tell --wake-parent <lemon> <message>`. A failure a retry could fix, such as a hook that failed, says to try again instead. That sends the message, headed by a line saying whom it was meant for, to the nearest lemon above it (its parent, then its parent's parent) that reads it or can be woken, waking that one if needed.
+
+`lemonaid lemon archived` lists lemons whose brief is archived, with their last Status and `## Now` line and whether `--wake` could bring each back (`--days`, default 14; `--all`; `--json`).
 
 A second `tell` within a minute of a start doesn't start the lemon again. After 3 starts in 20 minutes (`autoresume_max`, `autoresume_window`), `tell` stops starting it, tells the sender it is crash-looping, and posts an alert to the inbox; a lemon dead again within three minutes of a start counts that start twice. A snoozed lemon is resumed too, and its row stays snoozed. Each start, and each failed start, adds a line to the inbox under `lemonaid:autoresume`. `[messages] autoresume` in [config](config.md#messages) chooses which harnesses are brought back.
 
 Every message `tell` exits 1 for is also appended to `dead-letters.jsonl` in the mailbox root (`~/.lemons/mailbox/dead-letters.jsonl` by default), one JSON object per line with `at`, `from`, `to`, `state`, `said` (the line the sender saw) and `message` (the queued file). Whoever minds the lemons can wait on it with `lemonaid watch file --wait <path>`.
 
-`tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again would only deliver it twice.
+`tell` exits 0 when a resume or prompt was started (it doesn't wait to see the lemon come up), and 1 when it won't read the message: it finished, autoresume is off for it, or starting it failed. Its stderr line says what to do next. Sending the message again without `--wake` would only deliver it twice.
 
 `lemonaid lemon resume <lemon>` starts or prompts one lemon the same way, on request: it also resumes a lemon marked `done` or archived, ignores `[messages] autoresume`, and counts against the same start limit. With `--recreate` it first puts back the brief, directory and tmux session a toss took. See [for lemons](for-lemons.md#bringing-one-back-lemon-resume).
 

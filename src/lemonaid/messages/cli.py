@@ -8,21 +8,18 @@ import sys
 from pathlib import Path
 
 from .. import brief, lineage
-from ..config import load_config
 from ..inbox import db
 from ..launch.restart import state
 from ..log import get_logger
 from ..watch import push_scout, registry, wait_state
 from . import (
-    autoresume,
     codex_delivery,
     dead_letters,
     mailbox_command,
     receipts,
-    recipient,
-    service,
     service_cli,
     store,
+    tell_delivery,
     waiter,
 )
 
@@ -66,22 +63,51 @@ def _linked(conn: sqlite3.Connection, args: argparse.Namespace) -> str:
     return child
 
 
-def _text(path: Path) -> str:
-    try:
-        return path.read_text()
-    except OSError as error:
-        _log.warning("Could not read brief %s: %s", path, error)
-        return ""
+def _sender(conn: sqlite3.Connection, explicit_channel: str) -> str:
+    sender = brief.lemon.self_channel(conn, explicit_channel, os.environ.get("USER") or "unknown")
+    sender_brief = brief.attached.by_channel(conn, [sender]).get(sender)
+    if sender_brief is None:
+        return sender
 
-
-def _recipient(conn: sqlite3.Connection, target: str) -> tuple[str, brief.attached.Attachment]:
-    """(Lemon-ID, attachment) for *target*."""
     try:
-        recipient = brief.lemon.attachment(conn, target)
-        return brief.identity.ensure(conn, recipient.path), recipient
-    except (LookupError, ValueError, brief.store.ChangedUnderneath) as error:
+        return f"{brief.identity.ensure(conn, sender_brief)} ({sender}, {sender_brief.name})"
+    except (ValueError, brief.store.ChangedUnderneath) as error:
         _fail(str(error))
         raise
+
+
+def _report(delivery: tell_delivery.Delivery, sender: str, lemon_id: str, prefix: str = "") -> None:
+    print(receipts.message_id(delivery.message))
+    if delivery.line:
+        print(prefix + delivery.line, file=sys.stderr)
+    if not delivery.will_read:
+        dead_letters.record(sender, lemon_id, delivery.state, delivery.line, delivery.message)
+
+
+def _wake_parent(lemon_id: str, message: str, sender: str) -> None:
+    """Send *message* to the nearest lemon above *lemon_id* that reads it or can be woken."""
+    with db.connect() as conn:
+        above = [
+            tell_delivery.by_id(conn, each) for each in lineage.links.ancestors(conn, lemon_id)
+        ]
+    body = f"This was meant for {lemon_id}, which can't be woken.\n\n{message}"
+    for to in above:
+        try:
+            delivery = tell_delivery.deliver(to, body, sender, wake_it=True)
+        except ValueError as error:
+            _fail(str(error))
+        _report(delivery, sender, to.lemon_id, f"{to.lemon_id}: ")
+        if delivery.will_read:
+            return
+
+        if not delivery.unwakeable:
+            raise SystemExit(1)
+
+    _fail(
+        f"no lemon above {lemon_id} can be woken"
+        if above
+        else f"{lemon_id} has no parent; tell your user instead"
+    )
 
 
 def cmd_tell(args: argparse.Namespace) -> None:
@@ -91,63 +117,30 @@ def cmd_tell(args: argparse.Namespace) -> None:
         _fail(
             "Usage: lemonaid tell (<lemon-id-or-channel-or-brief> | --parent | --child <lemon>) <message>"
         )
+    if args.wake_parent and linked:
+        _fail("--wake-parent names its lemon itself; drop --parent or --child")
 
     with db.connect() as conn:
-        if linked:
-            lemon_id = _linked(conn, args)
-            try:
-                found = brief.lemon.attachment(conn, lemon_id)
-                channel, row, brief_path = found.channel, found.notification, found.path
-            except LookupError:
-                channel, row, brief_path = "", None, None  # not started; its messages wait
-        else:
-            lemon_id, found = _recipient(conn, args.target)
-            channel, row, brief_path = found.channel, found.notification, found.path
-        parent = lineage.links.parent_of(conn, lemon_id) or ""
+        try:
+            to = (
+                tell_delivery.by_id(conn, _linked(conn, args))
+                if linked
+                else tell_delivery.resolve(conn, args.target)
+            )
+        except LookupError as error:
+            _fail(str(error))
+        sender = _sender(conn, args.channel or "")
+    text = sys.stdin.read() if message == "-" else message
+    if args.wake_parent:
+        _wake_parent(to.lemon_id, text, sender)
+        return
 
-        sender = brief.lemon.self_channel(
-            conn, args.channel or "", os.environ.get("USER") or "unknown"
-        )
-        sender_brief = brief.attached.by_channel(conn, [sender]).get(sender)
-        if sender_brief is not None:
-            try:
-                sender_id = brief.identity.ensure(conn, sender_brief)
-                sender = f"{sender_id} ({sender}, {sender_brief.name})"
-            except (ValueError, brief.store.ChangedUnderneath) as error:
-                _fail(str(error))
     try:
-        mailbox = store.mailbox_for_id(lemon_id)
-        path = store.send(mailbox, sys.stdin.read() if message == "-" else message, sender)
+        delivery = tell_delivery.deliver(to, text, sender, wake_it=args.wake)
     except ValueError as error:
         _fail(str(error))
-
-    if state.blocked(channel):
-        print(receipts.message_id(path))
-        print(f"queued for {lemon_id}: restart in progress", file=sys.stderr)
-        return
-
-    if channel.startswith("codex:"):
-        service.ensure_running()
-    elif channel.startswith("claude:") and row is not None:
-        push_scout.ensure(channel.removeprefix("claude:"), lemon_id)
-    print(receipts.message_id(path))
-    found_state = recipient.probe(channel, row, mailbox)
-    if found_state.state not in recipient.UNREAD:
-        print(recipient.describe(lemon_id, found_state), file=sys.stderr)
-        return
-
-    line, will_read = (
-        (autoresume.off(lemon_id, parent, found_state), False)  # no record of its session to start
-        if row is None or brief_path is None
-        else autoresume.respond(
-            autoresume.Recipient(lemon_id, parent, row, _text(brief_path), mailbox),
-            found_state,
-            load_config(),
-        )
-    )
-    print(line, file=sys.stderr)
-    if not will_read:
-        dead_letters.record(sender, lemon_id, found_state.state, line, path)
+    _report(delivery, sender, to.lemon_id)
+    if not delivery.will_read:
         raise SystemExit(1)
 
 
@@ -257,9 +250,11 @@ _TELL_EPILOG = """\
 The message is always queued. tell then says on stderr whether the recipient
 will read it. A lemon whose harness exited, or an idle Claude with no mailbox
 waiter, is started on a prompt to read its mailbox, unless it is done or
-archived ([messages] autoresume). tell exits 1 when the recipient still won't
-read it. On exit 1, don't resend or wait for a reply; follow the next step
-that line gives.
+archived ([messages] autoresume). --wake starts a done or archived lemon too,
+putting back its brief, directory and tmux session as `lemon resume
+--recreate` does; rerunning a tell with --wake doesn't queue the message
+twice. tell exits 1 when the recipient still won't read it. On exit 1, don't
+resend or wait for a reply; follow the next step that line gives.
 """
 
 
@@ -276,6 +271,18 @@ def add_tell_parser(subparsers: argparse._SubParsersAction) -> None:
         "--child",
         metavar="LEMON",
         help="Send to this lemon's child (a Lemon-ID, channel, or brief)",
+    )
+    waking = parser.add_mutually_exclusive_group()
+    waking.add_argument(
+        "--wake",
+        action="store_true",
+        help="Start the recipient even if it is done or archived",
+    )
+    waking.add_argument(
+        "--wake-parent",
+        action="store_true",
+        help="Send to the nearest lemon above the target that reads it or can be woken, waking "
+        "it if needed; for a target that can't be woken itself",
     )
     parser.add_argument("--channel", help="Sender channel, overriding self detection")
     parser.add_argument(
