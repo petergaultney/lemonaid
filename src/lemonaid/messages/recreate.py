@@ -13,7 +13,7 @@ from collections import abc
 from pathlib import Path
 
 from ..brief import archive, archived_channel, attached, identity, lemon
-from ..config import Config
+from ..config import Config, PlaceRoot
 from ..inbox import db
 from ..places import audit, lifecycle
 
@@ -39,7 +39,7 @@ def archived_id(conn: sqlite3.Connection, target: str) -> str:
     return matches[0] if len(matches) == 1 else ""
 
 
-def _holder(conn: sqlite3.Connection, channel: str) -> str:
+def holder(conn: sqlite3.Connection, channel: str) -> str:
     row = conn.execute("SELECT path FROM session_briefs WHERE channel = ?", (channel,)).fetchone()
     return row["path"] if row else ""
 
@@ -66,14 +66,14 @@ def brief(conn: sqlite3.Connection, lemon_id: str) -> Path:
             "lemon's session and resume that"
         )
 
-    if holder := _holder(conn, channel):
-        raise ValueError(_taken(lemon_id, channel, holder))
+    if taken := holder(conn, channel):
+        raise ValueError(_taken(lemon_id, channel, taken))
 
     path = archive.revive(conn, lemon_id, why="resume of an archived lemon")
     conn.execute("BEGIN IMMEDIATE")
-    if holder := _holder(conn, channel):
+    if taken := holder(conn, channel):
         conn.rollback()
-        raise ValueError(f"{_taken(lemon_id, channel, holder)}; its brief is back at {path}")
+        raise ValueError(f"{_taken(lemon_id, channel, taken)}; its brief is back at {path}")
 
     attached.attach(conn, channel, path)  # commits
     return path
@@ -92,6 +92,33 @@ def place_of(cwd: Path, events: abc.Iterable[dict]) -> Place | None:
     return max(reversed(found), key=lambda place: len(place.directory.parts), default=None)
 
 
+def _place(cwd: Path, config: Config, events: abc.Iterable[dict]) -> tuple[Place, PlaceRoot] | None:
+    place = place_of(cwd, events)
+    root = config.places.root_for(place.directory) if place else None
+    return (place, root) if place and root else None
+
+
+def _unknown_place(cwd: str) -> str:
+    return (
+        f"its directory {cwd} is gone, and lemonaid can't tell which place it was: no place "
+        "under a configured root holds it in the places log"
+    )
+
+
+def directory_problem(cwd: str, config: Config, events: abc.Iterable[dict]) -> str:
+    """Why `directory` would refuse *cwd*, judged without acquiring anything; "" if it wouldn't.
+
+    *events* are the places log's entries.
+    """
+    if not cwd:
+        return "no working directory is recorded for it"
+
+    if Path(cwd).is_dir() or _place(Path(cwd), config, events):
+        return ""
+
+    return _unknown_place(cwd)
+
+
 def directory(cwd: str, config: Config) -> tuple[str, str]:
     """Recreate *cwd* through its place's hooks if it is gone: (what was done, why not)."""
     if not cwd:
@@ -100,14 +127,11 @@ def directory(cwd: str, config: Config) -> tuple[str, str]:
     if Path(cwd).is_dir():
         return "", ""
 
-    place = place_of(Path(cwd), audit.entries(0))
-    root = config.places.root_for(place.directory) if place else None
-    if place is None or root is None:
-        return "", (
-            f"its directory {cwd} is gone, and lemonaid can't tell which place it was: no place "
-            "under a configured root holds it in the places log. Recreate the directory "
-            "(`lemonaid place acquire <key>`), then resume it again"
-        )
+    found = _place(Path(cwd), config, audit.entries(0))
+    if found is None:
+        return "", _unknown_place(cwd)
+
+    place, root = found
 
     made, why = lifecycle.acquire_key(place.key, root)
     if made is None:
