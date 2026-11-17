@@ -72,14 +72,26 @@ def _replant(changed: dict[str, Any], proposed: dict[str, Any], group: str) -> N
         live.update(x=spot["x"], y=spot["y"])
 
 
-def apply(saved: dict[str, Any], proposed: dict[str, Any], blocks: abc.Iterable[Block]) -> Applied:
+def apply(
+    saved: dict[str, Any],
+    proposed: dict[str, Any],
+    blocks: abc.Iterable[Block],
+    only: str | None = None,
+) -> Applied:
     """*saved*, laid out for *blocks*, with each plot and tree spot it shares with *proposed*
-    placed as *proposed* has it. Raises EditError, naming the block or tree, if a block would
+    placed as *proposed* has it, or just group *only*'s when given (a group is "" for the
+    ungrouped block). Raises EditError, naming the block or tree, if a block would
     cross a road or the stream or another block, or a tree would reach past its block or stand
-    on another tree.
+    on another tree, or if *only* isn't in both layouts.
     """
     changed = copy.deepcopy(saved)
     common = [name for name in proposed["plots"] if name in changed["plots"]]
+    if only is not None:
+        if only not in common or changed["plots"][only].get("open_since") is not None:
+            raise edit.EditError(
+                f"{_name(only)} isn't in both the proposal and the grove as it is now"
+            )
+        common = [only]
     for name in common:
         _check_plot(name, proposed["plots"][name])
         changed["plots"][name].update({key: proposed["plots"][name][key] for key in _PLACED})
@@ -104,6 +116,6 @@ def apply(saved: dict[str, Any], proposed: dict[str, Any], blocks: abc.Iterable[
     return Applied(
         changed,
         [name for name in common if name in changed["plots"]],
-        [name for name in proposed["plots"] if name not in saved["plots"]],
-        [name for name in saved["plots"] if name not in proposed["plots"]],
+        [] if only is not None else [n for n in proposed["plots"] if n not in saved["plots"]],
+        [] if only is not None else [n for n in saved["plots"] if n not in proposed["plots"]],
     )

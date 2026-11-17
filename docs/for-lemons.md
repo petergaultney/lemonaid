@@ -1026,6 +1026,12 @@ agrees:
    block would sit on another block's ground, a road or the stream, or a moved tree breaks
    `plant`'s rules, and names the block or tree.
 
+To garden one block, `apply FILE --block N` (a digit as `show --layout FILE` numbers it, or a
+group's name) changes only that block's plot and trees. Every other block stays as the live
+grove has it now, so other groups moving since `propose` can't be overwritten, and the block is
+checked against where they are now: it is refused, changing nothing, if it no longer fits or its
+group has ended. Prefer it whenever you changed one block.
+
 A tree the proposal didn't move moves with its block. A group that ended since `propose` is
 skipped, and a group new since then keeps its live plot; `apply` lists both (`--json` gives
 `applied`, `skipped` and `kept`). An open grove shows the result on its next refresh, within a

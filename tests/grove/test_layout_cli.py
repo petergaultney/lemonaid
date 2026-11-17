@@ -169,3 +169,19 @@ def test_plant_refuses_moving_a_lead_away_from_the_packhouse(monkeypatch, tmp_pa
 
     assert proposed.read_text() == before
     assert "nearest the packhouse" in capsys.readouterr().err
+
+
+def test_apply_block_changes_only_that_block(monkeypatch, tmp_path, capsys):
+    live_blocks = (block("a", "1", tree("s")), block("b", "2", tree("t")))
+    monkeypatch.setattr(blocks, "blocks", lambda *_args: live_blocks)
+    state.save(_saved())
+    proposed = tmp_path / "proposed.json"
+    _run(monkeypatch, "propose", str(proposed))
+    _run(monkeypatch, "move", "1", "100", "40", "--layout", str(proposed))
+    _run(monkeypatch, "move", "2", "150", "40", "--layout", str(proposed))
+
+    _run(monkeypatch, "apply", str(proposed), "--block", "1", "--json")
+
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["applied"] == ["a"]
+    plots = state.load()["plots"]
+    assert (plots["a"]["x"], plots["b"]["x"]) == (100, 60)

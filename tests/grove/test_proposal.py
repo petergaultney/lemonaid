@@ -106,3 +106,64 @@ def test_a_rounder_plot_cannot_leave_an_unmoved_tree_off_its_ground():
 
     with pytest.raises(edit.EditError, match="^a: tree t.s trunk would be off"):
         proposal.apply(saved, proposed, _BLOCKS)
+
+
+def test_applying_one_block_leaves_the_others_where_the_grove_has_them():
+    proposed = _proposed(a=plot_data(100, 40, 40, 12), b=plot_data(150, 40, 30, 10))
+
+    applied = proposal.apply(_saved(), proposed, _BLOCKS, only="a")
+
+    assert applied.layout["plots"]["a"]["x"] == 100
+    assert applied.layout["plots"]["b"] == _saved()["plots"]["b"]
+    assert (applied.applied, applied.skipped, applied.kept) == (["a"], [], [])
+
+
+def test_one_block_is_checked_against_where_the_others_are_now():
+    moved = _saved()
+    moved["plots"]["b"].update(x=100, y=40)
+    proposed = _proposed(a=plot_data(100, 40, 40, 12))
+
+    with pytest.raises(edit.EditError, match="a and b"):
+        proposal.apply(moved, proposed, _BLOCKS, only="a")
+
+
+def test_one_block_the_grove_no_longer_has_is_refused():
+    with pytest.raises(edit.EditError, match="^gone isn't in both"):
+        proposal.apply(_saved(), _proposed(gone=plot_data(2, 40, 20, 8)), _BLOCKS, only="gone")
+
+
+def test_one_block_whose_group_ended_is_refused_though_its_open_ground_remains():
+    ended = arrange.arrange((_BLOCKS[1],), _saved(), NOW + 1)[1]
+
+    with pytest.raises(edit.EditError, match="^a isn't in both"):
+        proposal.apply(ended, _proposed(a=plot_data(100, 40, 40, 12)), (_BLOCKS[1],), only="a")
+
+
+def _with_a_new_tree() -> tuple[tuple, dict, dict]:
+    """The grove now, with tree n new in block a, and a proposal made before n was there."""
+    proposed = _saved()
+    grown = (block("a", "1", tree("t"), tree("u"), tree("n")), _BLOCKS[1])
+    return grown, arrange.arrange(grown, proposed, NOW)[1], proposed
+
+
+def test_a_tree_new_since_the_proposal_stays_where_it_stands():
+    grown, saved, proposed = _with_a_new_tree()
+    x, y = _spot(proposed, "a", "t")
+    proposed["trees"]["a"]["t"].update(x=x + 1, y=y + 1)
+
+    applied = proposal.apply(saved, proposed, grown, only="a")
+
+    assert _spot(applied.layout, "a", "n") == _spot(saved, "a", "n")
+    assert _spot(applied.layout, "a", "t") == (x + 1, y + 1)
+
+
+def test_a_tree_moved_onto_one_new_since_the_proposal_is_refused():
+    grown, saved, proposed = _with_a_new_tree()
+    x, y = _spot(saved, "a", "n")
+    proposed["trees"]["a"]["t"].update(x=x, y=y)
+    letters = {k: v["letter"] for k, v in saved["trees"]["a"].items()}
+
+    with pytest.raises(edit.EditError, match=rf"^a: tree [{letters['t']}{letters['n']}] ") as e:
+        proposal.apply(saved, proposed, grown, only="a")
+
+    assert "can't stand at" in str(e.value) or "would be pushed" in str(e.value)

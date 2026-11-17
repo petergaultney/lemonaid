@@ -38,6 +38,24 @@ def _cmd_propose(args: argparse.Namespace) -> None:
         print(f"Proposed layout at {args.file}, from the live grove's {len(grove.blocks)} blocks")
 
 
+def _only(args: argparse.Namespace) -> str | None:
+    """The group `--block` names: a digit as the proposal numbers it, else a group's name."""
+    if args.block is None:
+        return None
+
+    if not args.block.isdigit():
+        return args.block
+
+    blocks = live.fresh(load_config(), None, where=args.file).blocks
+    found = next((b.name for b in blocks if b.digit == args.block), None)
+    if found is None:
+        _fail(
+            args,
+            f"No block {args.block} in {args.file}; blocks are {', '.join(b.digit for b in blocks)}",
+        )
+    return found
+
+
 def _cmd_apply(args: argparse.Namespace) -> None:
     proposed(args, args.file)
     try:
@@ -48,13 +66,14 @@ def _cmd_apply(args: argparse.Namespace) -> None:
     if not isinstance(wanted, dict) or not isinstance(wanted.get("plots"), dict):
         _fail(args, f"{args.file} isn't a grove layout: it has no plots")
 
+    only = _only(args)
     found = live.current_blocks(load_config(), None)
     done: list[proposal.Applied] = []
 
     def change(saved: dict) -> dict:
         # Laid out first, so a group the proposal placed but the saved layout hasn't seen yet
         # isn't taken for one that ended.
-        done.append(proposal.apply(arrange.arrange(found, saved)[1], wanted, found))
+        done.append(proposal.apply(arrange.arrange(found, saved)[1], wanted, found, only))
         return done[-1].layout
 
     try:
@@ -95,5 +114,10 @@ def add_parsers(grove_subparsers: argparse._SubParsersAction) -> None:
         "apply", help="Give the live grove's blocks the plots in proposed layout FILE"
     )
     apply.add_argument("file", type=Path)
+    apply.add_argument(
+        "--block",
+        help="Apply only this block's plot and trees, a digit as FILE numbers it or a group's "
+        "name; every other block stays as the live grove has it",
+    )
     apply.add_argument("--json", action="store_true", help="Print the result as JSON")
     apply.set_defaults(func=_cmd_apply)
