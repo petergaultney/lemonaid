@@ -116,10 +116,7 @@ def _refused(grove: Grove, drag: Drag, aim: Aim) -> str:
     after = _placed(grove, drag, aim).arrangement
     plot = after.plots[name]
     if drag.tree:
-        s = after.trees[(name, drag.tree)]
-        if not ground.inside(plot, plot.x + s.cx, plot.y + s.cy):
-            return "a tree stays on its block's ground"
-        return "another tree stands there" if tangles.tangled(drag.block, after) else ""
+        return tangles.refusal(drag.block, after, drag.tree)
 
     if plot.w < 12 or plot.h < 5:
         return "a block needs at least 12 columns and 5 rows"
@@ -249,7 +246,7 @@ def drop(
 
         changed = _edit(drag, aim)(saved)
         if _stands(arrange.arrange(grove.blocks, changed, now)[0], drag) != aim:
-            raise edit.EditError("the grove would move it from there; try farther from the rest")
+            raise edit.EditError("the grove would move it from there")
         return changed
 
     return apply

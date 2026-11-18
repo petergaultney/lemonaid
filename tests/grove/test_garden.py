@@ -62,9 +62,9 @@ def test_a_tree_moves_inside_its_block_but_not_out_of_it_or_onto_another():
     at = GROVE.arrangement.trees[(block.name, tree.key)]
     lead = GROVE.arrangement.trees[(block.name, block.trees[0].key)]
     onto = dataclasses.replace(drag, moved=(lead.cx - at.cx, lead.cy - at.cy))
-    assert drop.refused(GROVE, onto) == "another tree stands there"
+    assert drop.refused(GROVE, onto) == "tree l stands there"
     away = dataclasses.replace(drag, moved=(1000, 0))
-    assert drop.refused(GROVE, away) == "a tree stays on its block's ground"
+    assert drop.refused(GROVE, away) == "its trunk would be off the block"
 
 
 def test_dragging_a_block_saves_where_it_was_dropped():

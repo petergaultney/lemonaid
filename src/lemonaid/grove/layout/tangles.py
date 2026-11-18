@@ -1,22 +1,52 @@
 """Whether a laid-out block's trees stand where their saved spots put them, clear of each other."""
 
+import dataclasses
 from collections import abc
 from typing import Any
 
 from ..draw import ground
 from ..model import Block, Tree
-from . import arrange, edit, lead_spot, room, sizes
+from . import arrange, edit, footing, lead_spot, placement, room, sizes
 
 
-def tangled(block: Block, arrangement: arrange.Arrangement) -> list[Tree]:
+def _footprints(
+    block: Block, arrangement: arrange.Arrangement
+) -> list[tuple[Tree, placement.Rect]]:
     oldest_first = sorted(block.trees, key=lambda t: (not t.lead, t.born, t.key))
     # At their smallest, as the layout judges it: trees near each other shrink to fit.
-    footprints = (
+    return [
         (t, room.footprint(t, s.label, s.letter, sizes.SMALLEST, s.cx, s.cy))
         for t in oldest_first
         for s in [arrangement.trees[(block.name, t.key)]]
+    ]
+
+
+def tangled(block: Block, arrangement: arrange.Arrangement) -> list[Tree]:
+    return [tree for tree, _ in room.tangled(_footprints(block, arrangement))]
+
+
+def in_the_way(block: Block, arrangement: arrange.Arrangement, key: str) -> str:
+    """The tree *key* would stand on, as a refusal, or "" when it stands clear."""
+    footprints = _footprints(block, arrangement)
+    moved = next(f for f in footprints if f[0].key == key)
+    return next(
+        (
+            f"tree {arrangement.trees[(block.name, other.key)].letter} stands there"
+            for other, rect in footprints
+            if other.key != key and room.tangled([(other, rect), moved])
+        ),
+        "",
     )
-    return [tree for tree, _ in room.tangled(footprints)]
+
+
+def refusal(block: Block, arrangement: arrange.Arrangement, key: str) -> str:
+    """Why tree *key* can't stand where *arrangement* has it, or "" when it can: the rule a drag,
+    a drop and a gardening lemon all follow, so a tree stood where it passes stays there.
+    """
+    tree = next(t for t in block.trees if t.key == key)
+    s = arrangement.trees[(block.name, key)]
+    plot = arrangement.plots[block.name]
+    return footing.refusal(tree, plot, s.cx, s.cy) or in_the_way(block, arrangement, key)
 
 
 def spot_key(spots: dict[str, Any], tree: Tree) -> str:
@@ -31,7 +61,7 @@ def check(
     groups: abc.Container[str],
 ) -> None:
     """Raise EditError, naming the tree, if a tree in *groups* whose spot *after* changed would
-    stand anywhere but that spot, or off its block's rounded ground, or if *after* would tangle a
+    stand anywhere but that spot, or where `refusal` turns it down, or if *after* would tangle a
     tree that *before* left clear, or push a tree whose spot didn't change from it, or leave one
     that stood on its block's ground off the block's new shape, or move a block's lead farther
     from the packhouse. The packhouse,
@@ -52,18 +82,17 @@ def check(
             spot, s = spots.get(key, {}), now.trees[(block.name, tree.key)]
             was_at = kept.get(key, {})
             moved = (spot.get("x"), spot.get("y")) != (was_at.get("x"), was_at.get("y"))
-            if (
-                moved
-                and "x" in spot
-                and (
-                    (s.cx, s.cy) != (spot["x"], spot["y"])
-                    or not ground.inside(plot, plot.x + s.cx, plot.y + s.cy)
-                )
-            ):
-                raise edit.EditError(
-                    f"{block.name or 'the ungrouped block'}: tree {s.letter} can't stand at "
-                    f"{spot['x']},{spot['y']}: it would be off its block's ground or on another tree"
-                )
+            if moved and "x" in spot:
+                asked = dataclasses.replace(s, cx=spot["x"], cy=spot["y"])
+                stood = dataclasses.replace(now, trees={**now.trees, (block.name, tree.key): asked})
+                problem = refusal(block, stood, tree.key)
+                if not problem and (s.cx, s.cy) != (asked.cx, asked.cy):
+                    problem = "the grove would move it from there"
+                if problem:
+                    raise edit.EditError(
+                        f"{block.name or 'the ungrouped block'}: tree {s.letter} can't stand at "
+                        f"{spot['x']},{spot['y']}: {problem}"
+                    )
             if moved and key == lead_spot.KEY and "x" in spot and "x" in was_at:
                 far = lead_spot.from_packhouse(after, block.name, spot["x"], spot["y"])
                 near = lead_spot.from_packhouse(before, block.name, was_at["x"], was_at["y"])

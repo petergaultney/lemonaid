@@ -38,7 +38,7 @@ def _changed(a: canvas.Canvas, b: canvas.Canvas) -> list[tuple[canvas.Cell, canv
 def test_a_refused_tree_is_drawn_red_with_its_reason_in_alert():
     onto = _tree_drag(onto_lead=True)
     problem = drop.refused(GROVE, onto)
-    assert problem == "another tree stands there"
+    assert problem == "tree l stands there"
     shown = drop.shown_refused(GROVE, onto)
     assert shown == refusal.Refusal(target=("1", _LETTER))
 
@@ -101,7 +101,7 @@ def test_a_drag_is_red_only_while_it_would_be_refused(monkeypatch):
         return frames
 
     (refused_note, red), (valid_note, plain) = asyncio.run(run())
-    assert "another tree stands there" in refused_note
+    assert "tree l stands there" in refused_note
     assert red and all(r == refusal.Refusal(target=("1", _LETTER)) for r in red)
     assert "release to drop" in valid_note
     assert plain and all(r is None for r in plain)
