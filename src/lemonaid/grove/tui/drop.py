@@ -64,10 +64,32 @@ def _placed(grove: Grove, drag: Drag, aim: Aim) -> Grove:
     )
 
 
+def _sized(grove: Grove, drag: Drag, placed: Grove, aim: tuple[int, int]) -> Grove:
+    """*placed* with its block's trees at the sizes the grove gives them once the dragged tree
+    stands at *aim*: a tree near another shrinks, and its neighbor may too, so a drag shows what
+    dropping it does.
+    """
+    name = drag.block.name
+    lead = next(t for t in drag.block.trees if t.key == drag.tree).lead
+    laid_out = arrange.arrange(
+        grove.blocks, edit.place_tree(grove.saved, name, drag.tree, lead, *aim)
+    )[0]
+    trees = {
+        key: dataclasses.replace(s, size=laid_out.trees[key].size) if key[0] == name else s
+        for key, s in placed.arrangement.trees.items()
+    }
+    return dataclasses.replace(
+        placed, arrangement=dataclasses.replace(placed.arrangement, trees=trees)
+    )
+
+
 def dragged(grove: Grove, drag: Drag) -> Grove:
     if drag.stump:
         return stump_drag.dragged(grove, drag)
-    return _placed(grove, drag, _aim(grove, drag))
+
+    aim = _aim(grove, drag)
+    placed = _placed(grove, drag, aim)
+    return _sized(grove, drag, placed, aim) if isinstance(aim, tuple) else placed
 
 
 def _crowded(grove: Grove, block: Block, plot: Plot) -> bool:
