@@ -384,7 +384,9 @@ with anything running in it is refused. `--brief`, `--parent` and `--name` work 
 and the brief and the name go to the first lemon that records it, in any terminal. In tmux the
 brief also waits on the window, for a lemon the inbox places there before any hook has run.
 Afterwards it checks a tmux pane once and fails if the lemon is stuck at a startup dialog;
-`--no-check` skips that. `--json` returns `{"front_end", "where", "dir", "harness", "brief",
+`--no-check` skips that. It prints the window and the directory it started in. A lemon that
+never takes up the brief, or goes idle without touching it, is reported to whoever watches it
+(see [watch](watch.md#watching-other-lemons)). `--json` returns `{"front_end", "where", "dir", "harness", "brief",
 "lemon_id", "parent", "name", "error"}`, where `front_end` is `tmux` or `wezterm` and `where` is
 a phrase like `tmux window work:5`, plus the front end's own keys: `session`, `window` and
 `window_id` for tmux, `wezterm_pane` and `wezterm_workspace` for WezTerm, `cmux_workspace` for cmux.

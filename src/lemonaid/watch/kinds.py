@@ -17,6 +17,8 @@ _PROBLEMS = {
     "exited": "its harness exited",
     "gone": "its tmux session, directory or attachment is gone",
     "deaf": "a message sent to it would not be read",
+    "unstarted": "no lemon took up its brief within 5 minutes of its start",
+    "untouched": "it went idle without touching its brief since it started",
 }
 
 

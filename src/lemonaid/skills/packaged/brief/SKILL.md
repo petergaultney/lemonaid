@@ -7,6 +7,12 @@ description: Update or create your attached lemonaid brief, choose its status, r
 
 Your user reads your brief through `lemonaid brief show`, the inbox's `b` key, or tmux's `prefix+b`. Keep `Status:` and `## Now` current so they can tell whose move comes next. Read the whole brief before editing it: its goal, limits, and output still apply.
 
+## Take up your brief, or say why you can't
+
+When a brief was handed to you, your first turn writes a line in `## Now` or sets a status. A watcher reports to your parent a lemon that goes idle with both empty and its brief untouched since it started.
+
+If you can't start the work (the wrong directory, missing access, a brief you can't follow), run `lemonaid tell --parent "<why, and what would let you start>"` before ending your turn, then put the same line in `## Now`.
+
 ## Find or create your brief
 
 Run `lemonaid brief show --self`. Your brief is the file attached to your session, normally in `~/.lemons/brief/`. If none is attached but an older `.z/brief*.md` in your place is clearly yours, move it into that folder with a dated name for the work and run `lemonaid brief attach --self <file>`.
@@ -100,7 +106,7 @@ Use the verbs to update a brief outside your workspace. Whether they run without
 
 List every doc you wrote for someone to read as a Docs row. The Watch column accepts `Relay comments` (the default) or `All edits`, not booleans. `brief doc rm` removes the row. `Output-Doc:` supplies the first row, starting `watch doc` adds one, and `brief check` warns about linked documents without rows.
 
-List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to STATUS` (or `needs`) to choose what wakes you. `brief lemon set` changes a row and `brief lemon rm` removes it. An explicit row for a child replaces its defaults. Every watched lemon is reported once when its harness exits, its session or place is gone, or it is deaf, unless its brief is `done`.
+List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to STATUS` (or `needs`) to choose what wakes you. `brief lemon set` changes a row and `brief lemon rm` removes it. An explicit row for a child replaces its defaults. Every watched lemon is reported once when its harness exits, its session or place is gone, it is deaf, no lemon takes up its brief within 5 minutes of its start, or it goes idle with its brief untouched since it started, unless its brief is `done`.
 
 `lemonaid watch --self` reads these sources together and reports what changed in one batch:
 
@@ -108,7 +114,7 @@ List a lemon you must hear about, a child or not, as a Lemons row; repeat `--to 
 |---|---|---|
 | PR | `brief pr add --self <url> "<purpose>" [--review <doc>]` | By your role on it: merge or close, a push you didn't make, a draft or review-decision change, new comments, a base conflict, failed CI (passed CI only with `--ci`). `--review` also watches that review doc. |
 | Doc | `brief doc add --self <path> "<purpose>" [--watch "All edits"]` | An unanswered Relay comment; with `All edits`, also a body edit after a quiet period. |
-| Lemon | `brief lemon add --self <lemon> --purpose "<why>" [--to STATUS ...]` | Its Status reaching a `--to` status, or a new Needs ask if `needs` is among them (default `merge`, `done`, `needs`; an explicit `--to` replaces the default); its harness exiting, its place going, or it going deaf. |
+| Lemon | `brief lemon add --self <lemon> --purpose "<why>" [--to STATUS ...]` | Its Status reaching a `--to` status, or a new Needs ask if `needs` is among them (default `merge`, `done`, `needs`; an explicit `--to` replaces the default); its harness exiting, its place going, it going deaf, it never starting, or it going idle with its brief untouched. |
 | Children | Automatic; `brief watching add --self "lemonaid watch briefs --children --self --to <status>"` to choose statuses | A child reaching `merge` or `done`; the same liveness failures as a Lemon row. |
 | Repo | `brief watching add --self "lemonaid watch repo --wait <owner/name> --once"` | A PR opened ready or marked ready, a `--label` added, a seen PR closed or merged, or with `--pushes` a ready PR's head moving. |
 | File | `brief watching add --self "lemonaid watch file --wait <path> --quiet 2"` | A file created, removed or changed; for a directory, a visible file directly in it added, removed or rewritten (`--ignore-removed` skips removals). With `--deadline 45m`, also nothing changing by then. |

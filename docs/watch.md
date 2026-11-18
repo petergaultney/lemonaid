@@ -503,10 +503,12 @@ Whatever the Watch column says, every watched lemon also reports, once per occur
 - Its harness exited (the SessionEnd hook recorded it, or no harness runs on its terminal).
 - Its tmux session or its directory is gone, or no session is attached to its brief.
 - It is deaf: idle with no mailbox waiter, with its conversation parked in a Claude Code background job, or with messages that Codex has held for a minute on its idle thread, for 60 seconds, as `lemonaid lemon doctor` derives it.
+- It never started: its brief has waited 5 minutes for a lemon (`lemon start` or `place open --brief`) and none has taken it up (`unstarted`). Only a start in the last hour is reported, so briefs left waiting from long ago stay quiet.
+- It went idle for 60 seconds with no Status, nothing in `## Now`, and its brief file unchanged since the brief was attached to it (`untouched`). A lemon that takes up its brief writes its Now or Status in its first turn, so this is a lemon that refused or never got going. A brief carried over by a handoff, `/clear` or `brief attach` already has them, and an edit by anyone, the parent included, counts.
 
 A report repeats only after the lemon was healthy (or had a different problem) in between,
 so a second exit is a second report. A lemon whose brief is `done` is never reported, since
-its session going away is normal, and one still waiting for its lemon to start is skipped.
+its session going away is normal.
 A first watch, and a lemon newly listed in a row, takes the current state as seen.
 A row whose lemon cannot be resolved is logged as a warning and not watched.
 
