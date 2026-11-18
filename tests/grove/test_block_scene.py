@@ -1,7 +1,12 @@
+import copy
+
 from lemonaid.grove.draw import block_scene, canvas, colors, lemon_list
 from lemonaid.grove.layout import arrange
+from lemonaid.grove.tui import drop, frame, garden, keys
 
 from .shared import NOW, block, lemon, tree
+
+_SIZE = (200, 64)
 
 
 def test_each_list_is_titled_with_its_trees_tag_then_its_place_key_muted():
@@ -61,3 +66,23 @@ def test_a_list_that_cannot_hang_from_its_tag_is_reported_astray():
 
     assert roomy == []
     assert cramped
+
+
+def test_a_dropped_trees_list_moves_no_other_list_on_the_next_frame():
+    grove = block("g", "1", tree("t0"), tree("t1"), tree("t2"))
+    arrangement, saved = arrange.arrange((grove,), {"plots": {}, "trees": {}}, NOW)
+    shown = frame.Grove((grove,), arrangement, saved)
+    at = arrangement.trees[("g", "t0")]
+    drag = garden.Drag(grove, "t0", frozenset(), (0, 0), (1.0, 1.0), moved=(6 - at.cx, 1 - at.cy))
+    assert not drop.refused(shown, drag)
+
+    where = keys.Where(block="1")
+    lists: frame.Lists = {}
+    frame.render(shown, where, *_SIZE, 0.0, lists=lists)
+    for spots in lists.values():  # as the screen does on a drop
+        spots.pop("t0", None)
+    dropped = drop.dragged(shown, drag)
+    frame.render(dropped, where, *_SIZE, 0.0, lists=lists)
+    first = copy.deepcopy(lists)
+    frame.render(dropped, where, *_SIZE, 0.0, lists=lists)
+    assert lists == first

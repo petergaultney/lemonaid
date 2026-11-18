@@ -95,8 +95,11 @@ def zoomed(
         for tree, letter in zip(labeled, letters, strict=True)
     ]
     # Lists where they were last drawn first, while they cover no more than they did there, so
-    # a list in a crowded block stays put as its neighbors change; then the rest.
-    order = sorted(range(len(planted)), key=lambda i: planted[i].tree.key not in lists)
+    # a list in a crowded block stays put as its neighbors change; then the rest. Kept lists go
+    # in the order they were first placed, so a list placed last, as a dropped tree's is, is
+    # judged last on every later frame too, and doesn't move a neighbor's list a frame later.
+    kept = {key: n for n, key in enumerate(lists)}
+    order = sorted(range(len(planted)), key=lambda i: kept.get(planted[i].tree.key, len(kept)))
     for i in order:
         p = planted[i]
         rows = len(p.tree.lemons) + 2  # its lemons, and its box's edges
