@@ -1,6 +1,9 @@
 """Whether watched lemons are still running, reported once per exit.
 
 A lemon whose brief is `done` is never a problem: its session going away is normal.
+A started lemon is expected to write its brief's Now or Status in its first turn, so one
+that goes idle with both empty and the file unchanged since it was attached has not taken
+it up. A brief carried over by a handoff, `/clear` or `brief attach` has them already.
 Nor is one lost with its terminal while a restore runs: the restore is bringing it
 back, and a parent told it is gone would resume it alongside.
 """
@@ -13,7 +16,7 @@ import sqlite3
 import time
 from collections import abc
 
-from ..brief import attached, lemon
+from ..brief import attached, lemon, now_edit
 from ..inbox import ended
 from ..launch.restart import state
 from ..log import get_logger
@@ -25,11 +28,14 @@ _log = get_logger("watch.liveness")
 
 _DEAF_SETTLE = 60.0  # a lemon is briefly deaf between finishing a turn and rearming its waiter
 _ROW_GRACE = 600.0  # a Codex lemon has no inbox row until its first turn ends
+_START_GRACE = 300.0  # how long a brief may wait for its lemon to start
+_START_WINDOW = 3600.0  # an older start is old news, such as one from before an upgrade
+_SETTLED = frozenset({"deaf", "untouched"})
 
 
 @dataclasses.dataclass(frozen=True)
 class Problem:
-    kind: str  # "exited", "gone" or "deaf"
+    kind: str  # "exited", "gone", "deaf", "unstarted" or "untouched"
     stamp: str  # tells one exit from the next
     detail: str
 
@@ -38,9 +44,35 @@ class Problem:
         return f"{self.kind}:{self.stamp}"
 
 
+def _untouched(entry: attached.Attachment, status: str) -> bool:
+    if status:
+        return False
+
+    try:
+        if entry.path.stat().st_mtime > entry.attached_at:
+            return False
+
+        now = now_edit.now_of(entry.path.read_text())
+    except (OSError, UnicodeError):
+        return False
+
+    return not now.lead and not any(section.body for section in now.sections)
+
+
+def _unstarted(entry: attached.Attachment, now: float) -> Problem | None:
+    if not _START_GRACE <= now - entry.requested_at < _START_WINDOW:
+        return None
+
+    asked = time.strftime("%H:%M", time.localtime(entry.requested_at))
+    return Problem(
+        "unstarted", str(entry.requested_at), f"no lemon has taken up its brief since {asked}"
+    )
+
+
 def _problem(
     entry: attached.Attachment,
     lemon_id: str,
+    status: str,
     sessions: abc.Callable[[str], abc.Set[str] | None],
     parked: abc.Callable[[], abc.Mapping[str, str]],
     unrun: abc.Callable[[], abc.Mapping[str, str]],
@@ -86,11 +118,17 @@ def _problem(
         parked().get(entry.channel, ""),
         unrun().get(entry.channel, ""),
     )
-    return (
-        Problem("deaf", "", found_state.detail)
-        if found_state.state in (recipient.DEAF, recipient.PARKED)
-        else None
-    )
+    if found_state.state in (recipient.DEAF, recipient.PARKED):
+        return Problem("deaf", "", found_state.detail)
+
+    if found_state.state == recipient.LISTENING and _untouched(entry, status):
+        return Problem(
+            "untouched",
+            str(entry.attached_at),
+            "it went idle without touching its brief since it started",
+        )
+
+    return None
 
 
 def probe(
@@ -115,12 +153,14 @@ def probe(
     for lemon_id, status in statuses.items():
         path = paths[lemon_id]
         entry = by_path.get(path) if path else None
-        if status == "done" or (entry is not None and not entry.channel):
-            found[lemon_id] = None  # finished, or still waiting for its lemon to start
+        if status == "done":
+            found[lemon_id] = None
+        elif entry is not None and not entry.channel:
+            found[lemon_id] = _unstarted(entry, time.time())
         elif entry is None:
             found[lemon_id] = Problem("gone", "", "no session is attached to its brief")
         else:
-            found[lemon_id] = _problem(entry, lemon_id, sessions, parked, unrun, restoring)
+            found[lemon_id] = _problem(entry, lemon_id, status, sessions, parked, unrun, restoring)
     return found
 
 
@@ -173,7 +213,7 @@ def due(
             held = tracker.held.get(lemon_id)
             if held is None or held[0] != token:
                 held = tracker.held[lemon_id] = (token, now)
-            if now - held[1] >= (_DEAF_SETTLE if problem.kind == "deaf" else settle):
+            if now - held[1] >= (_DEAF_SETTLE if problem.kind in _SETTLED else settle):
                 ready[lemon_id] = problem
     if changed:
         cursors.write_json(tracker.path, tracker.reported)

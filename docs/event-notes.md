@@ -67,6 +67,8 @@ The event is one of:
 | `exited` | its harness exited |
 | `gone` | its tmux session, directory or brief attachment is gone |
 | `deaf` | a message sent to it would not be read |
+| `unstarted` | no lemon took up its brief within 5 minutes of its start |
+| `untouched` | it went idle without touching its brief since it started |
 | `cleanup_ready` | its place can be cleaned up now, after something held it when it went `done` (only `child`) |
 
 So `child.done` is for a parent whose child goes `done`, and `orphan.done` is for the lemon

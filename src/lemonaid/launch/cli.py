@@ -49,7 +49,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
     elif error:
         print(error, file=sys.stderr)
     else:
-        print(f"started {result['harness']} in {result['where']}")
+        print(f"started {result['harness']} in {result['where']}, in {result['dir']}")
 
     if error:
         sys.exit(1)

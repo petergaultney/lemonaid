@@ -36,6 +36,7 @@ class Attachment:
     tmux_window: str
     notification: db.Notification | None
     attached_at: float = 0.0  # 0 while pending
+    requested_at: float = 0.0  # when a pending brief was requested; 0 once attached
 
 
 def attach(conn: sqlite3.Connection, channel: str, path: Path) -> str:
@@ -251,7 +252,14 @@ def _attachments(
         for found in [db.Notification.from_row(row) if row["id"] is not None else None]
     ]
     pending = [
-        Attachment(Path(row["path"]), "", row["tmux_session"], row["tmux_window"], None)
+        Attachment(
+            Path(row["path"]),
+            "",
+            row["tmux_session"],
+            row["tmux_window"],
+            None,
+            requested_at=row["requested_at"],
+        )
         for row in conn.execute(
             f"SELECT * FROM pending_briefs p WHERE {where.format(table='p')} ORDER BY requested_at",
             params,

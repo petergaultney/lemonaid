@@ -26,6 +26,8 @@ A cross-harness review of $pr_link, with a verdict, in the review doc at $output
 
 ## Limits
 
+If you can't start the review (the PR isn't checked out where you are, a skill refuses), run `lemonaid tell --parent "<why>"` before ending your turn.
+
 Don't post to GitHub, push, merge, or edit the author's worktree. Findings go only in the review doc, never in this brief or on the PR.
 
 When the review is done, add `## Executive Summary of Results` after `## Goal` with the verdict, including any critical findings or that the PR is clear.
