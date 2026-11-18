@@ -220,9 +220,9 @@ def test_an_unreceived_challenge_is_replaced_each_interval_and_never_doubled():
         def sent(at: float) -> int:
             return len(challenges.deliver(conn, 100, (), _NOW + at))
 
-        timeline = [sent(at) for at in (0, 99, 100, 199, 200)]
+        timeline = [sent(at) for at in (99, 100, 199, 200, 299)]
 
-    assert timeline == [1, 0, 1, 0, 1]
+    assert timeline == [0, 1, 0, 1, 0]  # the first send waits an interval after opening
     assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
 
 
@@ -242,14 +242,14 @@ def test_a_received_challenge_is_never_sent_again_even_reopened_on_the_same_fact
         def sent(at: float) -> int:
             return len(challenges.deliver(conn, 100, (), _NOW + at))
 
-        timeline = [sent(0)]
+        timeline = [sent(100)]
         assert store.take_next(store.mailbox_for_id("Work.alpha")) is not None
-        timeline.append(sent(100))
-        reopened(150)
-        timeline += [sent(150), sent(1000)]
+        timeline.append(sent(200))
+        reopened(250)
+        timeline += [sent(250), sent(1000)]
         record = (*record[:5], "Other.one", record[6])
         reopened(1050)
-        timeline.append(sent(1050))
+        timeline.append(sent(1150))
 
     assert timeline == [1, 0, 0, 0, 1]  # a new recipient is new facts
 
@@ -273,7 +273,7 @@ def test_a_custom_checker_writes_the_words_a_brief_with_no_task_reads(tmp_path):
     with db.connect() as conn:
         _brief(conn, "Loose.one")
         _run(conn, _seen("Loose.one"), argv=(sys.executable, str(script)))
-        sent = challenges.deliver(conn, 300, (), _NOW)
+        sent = challenges.deliver(conn, 300, (), _NOW + 300)
 
     [message] = store.mailbox_for_id("Loose.one").glob("*.md")
     assert len(sent) == 1 and "our own words" in message.read_text()
@@ -285,8 +285,8 @@ def test_challenges_go_to_every_brief_not_opted_out_and_only_once():
             _started(conn, brief)
         _run(conn, _seen("Work.alpha"), _seen("Work.bravo"), _seen("Quiet.one"))
 
-        first = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW)
-        again = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW)
+        first = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW + 300)
+        again = challenges.deliver(conn, 300, {"Quiet.one"}, _NOW + 300)
 
     assert len(first) == 2 and again == []
     assert len(list(store.mailbox_for_id("Work.alpha").glob("*.md"))) == 1
@@ -300,7 +300,7 @@ def test_a_dry_run_sends_nothing_and_leaves_the_challenge_for_a_later_pass():
         _run(conn, _seen("Work.alpha"))
 
         dry = challenges.deliver(conn, 0, (), _NOW)
-        sent = challenges.deliver(conn, 300, (), _NOW)
+        sent = challenges.deliver(conn, 300, (), _NOW + 300)
 
     assert len(dry) == 1 and dry[0].startswith("would tell Work.alpha")
     assert len(sent) == 1 and sent[0].startswith("told Work.alpha")
@@ -413,7 +413,7 @@ def test_a_closed_task_is_told_about_once_received_and_not_while_an_unclosed_tas
                 check=True,
             )
         inspector.run(conn, _NOW, rules.respond, {}, observers)
-        sent = [challenges.deliver(conn, 300, (), _NOW)]
+        sent = [challenges.deliver(conn, 300, (), _NOW + 300)]
         store.take_next(store.mailbox_for_id("Work.alpha"))
         sent += [challenges.deliver(conn, 300, (), _NOW + d) for d in (3600, 86400)]
         found = [c for c in _open(conn) if c[1] == "closed-unmerged"]
