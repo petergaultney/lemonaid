@@ -48,6 +48,6 @@ def nudged(base: Grove, drag: garden.Drag, by: tuple[int, int]) -> tuple[garden.
         problem = drop.refused(base, tried)
         if not problem:
             return tried, ""
-        if extra == 0 and problem == "a tree stays on its block's ground":
-            break  # past the edge, farther is off the ground too
+        if extra == 0 and not problem.endswith(" stands there"):
+            break  # past the block's edge, farther is too; only another tree is hopped past
     return drag, problem

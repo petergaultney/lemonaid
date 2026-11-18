@@ -13,7 +13,7 @@ import time
 from typing import Any, NamedTuple
 
 from ..model import WORLD_HEIGHT, WORLD_WIDTH, Block, Plot, Tree
-from . import landmarks, lead_spot, new_spots, placement, regrow, sizes, stand, terrain
+from . import footing, landmarks, lead_spot, new_spots, placement, regrow, sizes, stand, terrain
 
 _STUMP_NAMED_FOR = 2 * 3600  # a stump shows its tree's name, and a few dead leaves, this long
 
@@ -126,8 +126,19 @@ def _off(w: int, h: int, spot: dict[str, Any]) -> bool:
     return x < 0 or spot["y"] < 0 or x + spot["w"] > w or y + spot["h"] > h
 
 
+def _spills(tree: Tree, plot: Plot, spot: dict[str, Any]) -> bool:
+    """Whether a tree's spot is off its plot, both as it was placed and as `footing` judges where
+    a gardener may stand it: a tree grown wider by its plot's edge stays, and so does one stood
+    where a gardener may.
+    """
+    if "x" not in spot:
+        return True  # waiting to stand afresh
+
+    return _off(plot.w, plot.h, spot) and footing.spills(tree, plot, spot["x"], spot["y"])
+
+
 def _spilled(block: Block, plot: Plot, spots: dict[str, Any]) -> list[Tree]:
-    return [tree for tree in block.trees if not tree.lead and _off(plot.w, plot.h, spots[tree.key])]
+    return [tree for tree in block.trees if not tree.lead and _spills(tree, plot, spots[tree.key])]
 
 
 def cut_off(plot: dict[str, Any], spots: dict[str, Any]) -> list[str]:
@@ -137,9 +148,8 @@ def cut_off(plot: dict[str, Any], spots: dict[str, Any]) -> list[str]:
 
 def _free_lead(block: Block, plot: Plot, spots: dict[str, Any]) -> None:
     """Forget a lead spot off its plot, for the lead to be given a spot on it again."""
-    if any(t.lead for t in block.trees) and _off(
-        plot.w, plot.h, spots.get(lead_spot.KEY, {"x": 0, "y": 0})
-    ):
+    lead = next((t for t in block.trees if t.lead), None)
+    if lead and lead_spot.KEY in spots and _spills(lead, plot, spots[lead_spot.KEY]):
         del spots[lead_spot.KEY]
 
 

@@ -24,7 +24,7 @@ def test_a_step_moves_the_tree_and_one_off_its_ground_leaves_it():
     moved, problem = tree_nudge.nudged(GROVE, drag, (1, 0))
     assert (moved.moved, problem) == ((1, 0), "")
     stuck, problem = tree_nudge.nudged(GROVE, drag, (-1000, 0))
-    assert (stuck.moved, problem) == ((0, 0), "a tree stays on its block's ground")
+    assert (stuck.moved, problem) == ((0, 0), "its trunk would be off the block")
 
 
 def test_a_step_onto_another_tree_hops_past_it():
@@ -33,7 +33,7 @@ def test_a_step_onto_another_tree_hops_past_it():
     def refused(dx: int) -> str:
         return drop.refused(GROVE, dataclasses.replace(drag, moved=(dx, 0)))
 
-    onto = next(dx for dx in range(1, 40) if refused(dx) == "another tree stands there")
+    onto = next(dx for dx in range(1, 40) if refused(dx).endswith(" stands there"))
     past = next(dx for dx in range(onto, 60) if not refused(dx))
     moved, problem = tree_nudge.nudged(
         GROVE, dataclasses.replace(drag, moved=(onto - 1, 0)), (1, 0)

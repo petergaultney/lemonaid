@@ -95,7 +95,7 @@ def test_a_tree_off_a_rounded_corner_is_refused_by_plant_and_apply(monkeypatch, 
     with pytest.raises(SystemExit):
         _run(monkeypatch, "apply", str(proposed))
     assert state.load() == live
-    assert capsys.readouterr().err.count("off its block's ground") == 2
+    assert capsys.readouterr().err.count("its trunk would be off the block") == 2
 
 
 def test_apply_leaves_an_untouched_packhouse_alone(monkeypatch, tmp_path, capsys):
