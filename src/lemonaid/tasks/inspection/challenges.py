@@ -5,7 +5,8 @@ disposition since its evaluation sends nothing. Each case's message is named by 
 hashed from its facts (subject, obligation, evidence, recipient and basis), so its read
 receipt is found again without storing the message ID, and a case reopened on the same facts
 finds the message already sent. A message its lemon received is never sent again; one still
-waiting (the lemon was dead or deaf) is replaced by a fresh copy every interval.
+waiting (the lemon was dead or deaf) is replaced by a fresh copy every interval. The first
+message waits an interval after the case opened, so the lemon's own watches report first.
 """
 
 import functools
@@ -43,12 +44,12 @@ def message_key(case: ty.Mapping[str, ty.Any]) -> str:
 
 
 def _due(case: ty.Mapping[str, ty.Any], receipt: str, interval: float, now: float) -> bool:
-    """Never sent, or sent and still unreceived for *interval*."""
+    """Unreceived for *interval* since it was last sent, or since it opened if never sent."""
     if receipt.startswith("delivered"):
         return False
 
-    last = case["notified_at"]
-    return last is None or now >= last + interval
+    last = case["opened_at"] if case["notified_at"] is None else case["notified_at"]
+    return now >= last + interval
 
 
 def deliver(
