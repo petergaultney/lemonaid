@@ -10,11 +10,10 @@ import pytest
 from lemonaid.brief import archive, attached, identity, lemon
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
-from lemonaid.inbox import db
+from lemonaid.inbox import db, transcript
 from lemonaid.lineage import links
 from lemonaid.messages import autoresume_tmux, cli, recipient, store, tell_delivery, waiter
 from lemonaid.places import audit
-from lemonaid.restore import plan
 
 _CHILD = "claude:child"
 _PARENT = "codex:parent"
@@ -27,7 +26,7 @@ def _world(tmp_path, monkeypatch):
     monkeypatch.setattr(
         recipient, "_tty_commands", lambda tty: ["codex"] if tty.endswith("901") else ["-fish"]
     )
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(transcript, "missing", lambda rows: {row.channel for row in rows if False})
     monkeypatch.setattr(
         autoresume_tmux.tmux,
         "run",
@@ -126,7 +125,7 @@ def test_wake_starts_a_done_lemon(tmp_path, started):
 
 
 def test_an_unwakeable_lemon_points_at_wake_parent(capsys, tmp_path, started, monkeypatch):
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: True)
+    monkeypatch.setattr(transcript, "missing", lambda rows: {row.channel for row in rows if True})
     path, lemon_id = _child(tmp_path)
     _archive(path, _CHILD)
 
@@ -197,7 +196,11 @@ def test_a_failed_acquire_leaves_the_brief_in_the_attic_and_can_be_retried(
 
 
 def test_wake_parent_skips_an_ancestor_whose_transcript_is_gone(tmp_path, started, monkeypatch):
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: row.channel == "claude:parent")
+    monkeypatch.setattr(
+        transcript,
+        "missing",
+        lambda rows: {row.channel for row in rows if row.channel == "claude:parent"},
+    )
     _, child_id = _child(tmp_path)
     _, parent_id = _lemon(
         "parent", "claude:parent", "# p\n\nStatus: working\n", "/dev/ttys902", tmp_path

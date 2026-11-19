@@ -11,15 +11,16 @@ directory and the tmux session (see `recreate`).
 import sqlite3
 import time
 import typing as ty
+from collections import abc
 from pathlib import Path
 
 from .. import brief
 from ..brief import archive, archived_channel
 from ..config import Config
-from ..inbox import db, ended
+from ..inbox import db, ended, transcript
 from ..log import get_logger
 from ..places import audit
-from ..restore import auto, plan
+from ..restore import auto
 from . import autoresume, autoresume_tmux, recipient, recreate, revive, store
 
 _log = get_logger("messages.bring_back")
@@ -63,7 +64,11 @@ class Problem(ty.NamedTuple):
 
 
 def unwakeable(
-    conn: sqlite3.Connection, lemon_id: str, config: Config, events: list[dict]
+    conn: sqlite3.Connection,
+    lemon_id: str,
+    config: Config,
+    events: list[dict],
+    transcript_missing: abc.Callable[[db.Notification], bool],
 ) -> Problem:
     """Why the archived *lemon_id* could never come back, judged without changing anything.
 
@@ -77,7 +82,7 @@ def unwakeable(
     if row is None:
         return Problem(f"its session {channel} has no inbox row", None, False)
 
-    if plan.transcript_missing(row):
+    if transcript_missing(row):
         return Problem(_TRANSCRIPT_GONE, row, False)
 
     if holder := recreate.holder(conn, channel):
@@ -118,7 +123,9 @@ def _found(
                     "--recreate` brings it back with the lemon"
                 ) from error
 
-        problem = unwakeable(conn, lemon_id, config, list(audit.entries(0)))
+        problem = unwakeable(
+            conn, lemon_id, config, list(audit.entries(0)), transcript.transcript_missing
+        )
         if problem.why:
             brief_path = brief.lemon.brief_of(conn, lemon_id) or Path(lemon_id)
             raise _refusal(lemon_id, problem, brief_path, permanent=True)
@@ -199,7 +206,7 @@ def _resume(
         raise Refused(f"{lemon_id} is {state.state}: {state.detail}. lemonaid won't resume it.")
 
     dead = state.state == recipient.DEAD
-    if dead and plan.transcript_missing(row):
+    if dead and transcript.transcript_missing(row):
         raise _refusal(lemon_id, Problem(_TRANSCRIPT_GONE, row, False), found.path, True)
 
     if dead and recreating:

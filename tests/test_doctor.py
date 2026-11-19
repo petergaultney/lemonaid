@@ -21,12 +21,10 @@ def _row(*, channel: str = "claude:abc", **metadata) -> db.Notification:
     return db.Notification(id=1, channel=channel, message="m", metadata=metadata)
 
 
-def test_a_session_without_a_transcript_is_not_restorable(monkeypatch):
+def test_a_session_without_a_transcript_is_not_restorable():
     """Resuming this one starts a fresh conversation - the failure that reads
     like success, because `claude --resume` on a missing id does not complain."""
-    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: True)
-
-    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config())
+    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config(), {"claude:abc"})
     assert not ok
     assert "transcript" in why
 
@@ -41,10 +39,8 @@ def test_a_codex_session_with_its_rollout_on_disk_is_restorable(monkeypatch, tmp
     rollout.write_text("{}\n")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    ok, why = doctor._restorable(
-        _row(channel=f"codex:{thread}", session_id=thread, cwd="/tmp", tmux_session="krc-ua"),
-        Config(),
-    )
+    row = _row(channel=f"codex:{thread}", session_id=thread, cwd="/tmp", tmux_session="krc-ua")
+    ok, why = doctor._restorable(row, Config(), doctor.transcript.missing([row]))
 
     assert (ok, why) == (True, "restorable")
 
@@ -59,38 +55,34 @@ def test_a_codex_session_with_its_rollout_on_disk_is_restorable(monkeypatch, tmp
 def test_a_session_with_no_resume_command_is_not_restorable(channel):
     """Restore can't start what it has no resume line for, whatever is on disk."""
     ok, why = doctor._restorable(
-        _row(channel=channel, session_id="example", cwd="/tmp", tmux_session="t"), Config()
+        _row(channel=channel, session_id="example", cwd="/tmp", tmux_session="t"), Config(), set()
     )
 
     assert (ok, why) == (False, "no resume command for its harness")
 
 
 def test_a_session_without_an_id_is_not_restorable():
-    ok, why = doctor._restorable(_row(cwd="/tmp"), Config())
+    ok, why = doctor._restorable(_row(cwd="/tmp"), Config(), set())
     assert not ok
     assert "session_id" in why
 
 
 def test_a_session_without_a_cwd_is_not_restorable():
-    ok, why = doctor._restorable(_row(session_id="abc"), Config())
+    ok, why = doctor._restorable(_row(session_id="abc"), Config(), set())
     assert not ok
     assert "cwd" in why
 
 
-def test_a_complete_session_is_restorable(monkeypatch):
-    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
-
+def test_a_complete_session_is_restorable():
     ok, _ = doctor._restorable(
-        _row(session_id="abc", cwd="/tmp", tmux_session="relay", tmux_window="2"), Config()
+        _row(session_id="abc", cwd="/tmp", tmux_session="relay", tmux_window="2"), Config(), set()
     )
     assert ok
 
 
-def test_a_session_with_no_window_restores_but_is_not_placed(monkeypatch):
+def test_a_session_with_no_window_restores_but_is_not_placed():
     """It comes back, just not where it was - worth saying, not worth refusing."""
-    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
-
-    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config())
+    ok, why = doctor._restorable(_row(session_id="abc", cwd="/tmp"), Config(), set())
     assert ok
     assert "not be placed" in why
 
@@ -195,8 +187,7 @@ def test_adopting_records_the_window(monkeypatch):
         row = db.Notification.from_row(conn.execute("SELECT * FROM notifications").fetchone())
     assert (row.metadata["tmux_session"], row.metadata["tmux_window"]) == ("relay", "2")
 
-    monkeypatch.setattr(doctor.transcript, "transcript_missing", lambda row: False)
-    assert doctor._restorable(row, Config()) == (True, "restorable")
+    assert doctor._restorable(row, Config(), set()) == (True, "restorable")
 
 
 def test_the_report_says_what_to_do(monkeypatch):

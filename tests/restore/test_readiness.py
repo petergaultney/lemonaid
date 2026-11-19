@@ -23,7 +23,9 @@ def _row(channel: str, **metadata: object) -> db.Notification:
 
 def test_a_lemon_with_no_recorded_window_or_transcript_would_not_come_back(monkeypatch):
     monkeypatch.setattr(
-        readiness.plan, "transcript_missing", lambda row: row.channel.endswith("gone")
+        readiness.transcript,
+        "missing",
+        lambda rows: {row.channel for row in rows if row.channel.endswith("gone")},
     )
     placed = {
         "tmux_session": "work",

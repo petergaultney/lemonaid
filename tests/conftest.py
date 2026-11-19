@@ -12,6 +12,7 @@ import pytest  # noqa: E402
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.codex import queued as codex_queued  # noqa: E402
+from lemonaid.codex import threads as codex_threads  # noqa: E402
 from lemonaid.hooks import end_reports  # noqa: E402
 from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
@@ -78,6 +79,15 @@ def _no_real_tmux(monkeypatch):
 def _no_live_codex_threads(monkeypatch):
     monkeypatch.setattr(codex_processes, "thread_ttys", lambda: None)
     monkeypatch.setattr(codex_processes, "open_threads", lambda max_age=0.0: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_codex_app_server(monkeypatch):
+    """Codex can't be asked about threads, so their rollout files decide.
+
+    tests/test_codex_threads.py keeps the real `_ask` from import time.
+    """
+    monkeypatch.setattr(codex_threads, "_ask", lambda threads: {})
 
 
 @pytest.fixture(autouse=True)
