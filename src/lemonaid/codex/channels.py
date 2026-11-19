@@ -27,7 +27,7 @@ def _matches(row: db.Notification, thread: str, location: dict[str, Any]) -> boo
     if not (same_rollout or same_location):
         return False
     # Real sessions on the same pane can be a /clear or a restart.
-    return utils.find_session_path(recorded) is None
+    return utils.find_session_path(recorded, compressed=True) is None
 
 
 def _attached_rows(conn: sqlite3.Connection) -> list[db.Notification]:
@@ -120,7 +120,7 @@ def for_session(conn: sqlite3.Connection, thread: str) -> str:
         and row.channel.startswith("codex:")
         and row.metadata.get("session_id") == thread
         and utils.extract_session_id_from_filename(row.metadata.get("session_path") or "") == thread
-        and utils.find_session_path(row.channel.removeprefix("codex:")) is None
+        and utils.find_session_path(row.channel.removeprefix("codex:"), compressed=True) is None
     ]
     return matches[0] if len(matches) == 1 else channel
 

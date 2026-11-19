@@ -51,8 +51,12 @@ def is_spawned_thread(meta: dict) -> bool:
     return bool(meta.get("parent_thread_id"))
 
 
-def find_session_path(session_id: str) -> Path | None:
-    """Find a Codex session file by session ID."""
+def find_session_path(session_id: str, compressed: bool = False) -> Path | None:
+    """Find a Codex session file by session ID.
+
+    Codex zstd-compresses idle rollouts to `.jsonl.zst` and still resumes them. *compressed*
+    finds those too, for callers that only ask whether the conversation exists.
+    """
     if not session_id:
         return None
 
@@ -60,6 +64,7 @@ def find_session_path(session_id: str) -> Path | None:
     if not root.exists():
         return None
 
+    suffixes = (".jsonl", ".jsonl.zst") if compressed else (".jsonl",)
     try:
         thread = UUID(session_id)
     except ValueError:
@@ -73,15 +78,16 @@ def find_session_path(session_id: str) -> Path | None:
             return None
         for offset in (0, -1, 1):
             directory = root / (day + timedelta(days=offset)).strftime("%Y/%m/%d")
-            for path in directory.glob(f"rollout-*-{session_id}.jsonl"):
-                if path.is_file():
-                    return path
+            for suffix in suffixes:
+                for path in directory.glob(f"rollout-*-{session_id}{suffix}"):
+                    if path.is_file():
+                        return path
         return None
 
-    pattern = f"*{session_id}.jsonl"
-    for path in root.rglob(pattern):
-        if path.is_file():
-            return path
+    for suffix in suffixes:
+        for path in root.rglob(f"*{session_id}{suffix}"):
+            if path.is_file():
+                return path
 
     return None
 

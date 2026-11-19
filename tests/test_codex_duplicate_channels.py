@@ -24,7 +24,9 @@ def setup(monkeypatch, tmp_path):
         json.dumps({"type": "session_meta", "payload": {"id": _ROOT, "cwd": "/work/shared"}}) + "\n"
     )
     monkeypatch.setattr(notify, "find_session_path", lambda sid: rollout if sid == _ROOT else None)
-    monkeypatch.setattr(utils, "find_session_path", lambda sid: rollout if sid == _ROOT else None)
+    monkeypatch.setattr(
+        utils, "find_session_path", lambda sid, compressed=False: rollout if sid == _ROOT else None
+    )
     monkeypatch.setattr(
         notify, "find_latest_session_for_cwd", lambda cwd: pytest.fail("directory is not identity")
     )
@@ -89,7 +91,9 @@ def test_real_restart_with_a_rollout_keeps_its_new_channel(setup, monkeypatch, t
         notify, "find_session_path", lambda sid: real if sid == _TRANSIENT else setup
     )
     monkeypatch.setattr(
-        utils, "find_session_path", lambda sid: real if sid == _TRANSIENT else setup
+        utils,
+        "find_session_path",
+        lambda sid, compressed=False: real if sid == _TRANSIENT else setup,
     )
     with db.connect() as conn:
         _row(conn, _ROOT, _LOCATION, attach=True)
@@ -128,7 +132,9 @@ def test_real_new_thread_is_not_archived_as_duplicate(setup, monkeypatch, tmp_pa
     real = tmp_path / f"rollout-2026-10-20-{_TRANSIENT}.jsonl"
     real.write_text("{}\n")
     monkeypatch.setattr(
-        utils, "find_session_path", lambda sid: real if sid == _TRANSIENT else setup
+        utils,
+        "find_session_path",
+        lambda sid, compressed=False: real if sid == _TRANSIENT else setup,
     )
     with db.connect() as conn:
         _row(conn, _ROOT, _LOCATION, attach=True)
@@ -199,7 +205,7 @@ def test_real_restart_does_not_take_a_reconciled_alias(setup, monkeypatch, tmp_p
         return real if sid == _REVIEWER else setup if sid == _ROOT else None
 
     monkeypatch.setattr(notify, "find_session_path", lookup)
-    monkeypatch.setattr(utils, "find_session_path", lookup)
+    monkeypatch.setattr(utils, "find_session_path", lambda sid, compressed=False: lookup(sid))
     with db.connect() as conn:
         alias = _row(conn, _TRANSIENT, _LOCATION, attach=True)
         db.repair_location(conn, alias, {"session_id": _ROOT, "session_path": str(setup)})
@@ -293,3 +299,19 @@ def test_persistent_thread_keeps_its_row_after_terminal_move(setup, monkeypatch,
         assert db.get(conn, author.id).metadata["tty"] == "/dev/new-terminal"
         assert db.get(conn, reviewer.id) == before
         assert attachments == [tuple(r) for r in conn.execute("SELECT * FROM session_briefs")]
+
+
+def test_an_old_thread_whose_rollout_codex_compressed_keeps_its_channel(tmp_path, monkeypatch):
+    """A compressed rollout is still a real conversation, so a new thread on its pane
+    doesn't take over its channel."""
+    monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path)
+    day = tmp_path / "2025/09/30"
+    day.mkdir(parents=True)
+    (day / f"rollout-2025-09-30T07-58-27-{_REVIEWER}.jsonl.zst").write_bytes(b"compressed")
+    old = db.Notification(
+        id=1,
+        channel=f"codex:{_REVIEWER}",
+        message="old",
+        metadata={**_LOCATION, "session_id": _REVIEWER},
+    )
+    assert not channels._matches(old, _TRANSIENT, _LOCATION)

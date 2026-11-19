@@ -16,6 +16,11 @@ def transcript_missing(row: db.Notification) -> bool:
         )
 
     if harness == "codex":
-        return utils.find_session_path(channels.owner_id(row.channel, row.metadata, {})) is None
+        return (
+            utils.find_session_path(
+                channels.owner_id(row.channel, row.metadata, {}), compressed=True
+            )
+            is None
+        )
 
     return False

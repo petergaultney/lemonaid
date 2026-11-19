@@ -31,10 +31,12 @@ def test_a_session_without_a_transcript_is_not_restorable(monkeypatch):
     assert "transcript" in why
 
 
-def test_a_codex_session_with_its_rollout_on_disk_is_restorable(monkeypatch, tmp_path):
-    """Codex keeps its transcripts under its own home, not Claude's projects."""
+@pytest.mark.parametrize("suffix", [".jsonl", ".jsonl.zst"])
+def test_a_codex_session_with_its_rollout_on_disk_is_restorable(monkeypatch, tmp_path, suffix):
+    """Codex keeps its transcripts under its own home, not Claude's projects, and
+    compresses idle ones, which it still resumes."""
     thread = "01a1d2dd-f50b-7321-8f79-c76783f22ada"
-    rollout = tmp_path / f".codex/sessions/2026/11/12/rollout-2026-11-12T22-05-24-{thread}.jsonl"
+    rollout = tmp_path / f".codex/sessions/2026/11/12/rollout-2026-11-12T22-05-24-{thread}{suffix}"
     rollout.parent.mkdir(parents=True)
     rollout.write_text("{}\n")
     monkeypatch.setenv("HOME", str(tmp_path))
