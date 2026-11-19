@@ -10,10 +10,10 @@ import pytest
 from lemonaid.brief import archive, attached, identity, lemon
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config, PlaceRoot, PlacesConfig
-from lemonaid.inbox import db
+from lemonaid.inbox import db, transcript
 from lemonaid.messages import autoresume_tmux, recipient, recreate, resume_cli
 from lemonaid.places import audit
-from lemonaid.restore import auto, plan
+from lemonaid.restore import auto
 
 _CHANNEL = "claude:tossed"
 
@@ -22,7 +22,7 @@ _CHANNEL = "claude:tossed"
 def _caller(monkeypatch):
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:caller")
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish"])  # nothing runs there
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(transcript, "missing", lambda rows: {row.channel for row in rows if False})
 
 
 @pytest.fixture
@@ -222,7 +222,7 @@ def test_a_session_now_holding_another_brief_keeps_it(capsys, started, root, tmu
 def test_a_lost_transcript_is_refused_before_the_brief_leaves_the_attic(
     capsys, started, root, tmux, monkeypatch
 ):
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: True)
+    monkeypatch.setattr(transcript, "missing", lambda rows: {row.channel for row in rows if True})
     path, lemon_id = _lemon(root.path)
     _toss(path)
 

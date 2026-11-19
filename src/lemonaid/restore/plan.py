@@ -10,8 +10,7 @@ from collections import abc
 from pathlib import Path
 
 from ..config import Config
-from ..inbox import db, ended
-from ..inbox.transcript import transcript_missing
+from ..inbox import db, ended, transcript
 from . import carried, launch, prompt, report, run
 
 
@@ -44,12 +43,14 @@ def build(
     brief, and the launch argv recorded for a channel (`flags`)."""
     startable: list[tuple[db.Notification, launch.Launch]] = []
     skipped: list[report.Result] = []
+    rows = list(rows)
+    gone = transcript.missing(rows)
     for row in rows:
         harness = row.channel.partition(":")[0]
         resumed = launch.launch(row, config, "", flags=carried.flags(harness, flags(row.channel)))
         if resumed is None:
             skipped.append(_skipped(row, "no working directory or resume command is recorded"))
-        elif transcript_missing(row):
+        elif row.channel in gone:
             skipped.append(_skipped(row, "its conversation's transcript is gone"))
         else:
             startable.append((row, resumed))

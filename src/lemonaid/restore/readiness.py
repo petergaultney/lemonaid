@@ -12,20 +12,22 @@ from collections import abc
 
 from .. import resume
 from ..config import Config
-from ..inbox import db, ended
-from . import front_ends, plan, run
+from ..inbox import db, ended, transcript
+from . import front_ends, run
 
 CHANNEL = "lemonaid:restore-readiness"
 
 
-def _why(row: db.Notification, terminal: run.Terminal, config: Config) -> str:
+def _why(
+    row: db.Notification, terminal: run.Terminal, config: Config, gone: abc.Container[str]
+) -> str:
     if why := terminal.unready(row):
         return why
 
     if resume.build_resume_command(config, row.channel, row.metadata) is None:
         return "no way to resume it"
 
-    if plan.transcript_missing(row):
+    if row.channel in gone:
         return "its transcript is gone"
 
     return ""
@@ -36,11 +38,12 @@ def unready(
 ) -> list[tuple[db.Notification, str]]:
     """Each running lemon that its front end could not bring back, and why."""
     groups, _ = front_ends.groups((row for row in rows if not ended.cause(row.metadata)), False)
+    gone = transcript.missing(row for group in groups for row in group.rows)
     return [
         (row, why)
         for group in groups
         for row in group.rows
-        if (why := _why(row, group.terminal, config))
+        if (why := _why(row, group.terminal, config, gone))
     ]
 
 

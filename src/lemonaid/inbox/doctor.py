@@ -8,7 +8,7 @@ to find out.
 
 import json
 import typing as ty
-from collections import Counter
+from collections import Counter, abc
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -73,7 +73,7 @@ def _known_sessions() -> list[db.Notification]:
     return [db.Notification.from_row(r) for r in rows]
 
 
-def _restorable(row: db.Notification, config: Config) -> tuple[bool, str]:
+def _restorable(row: db.Notification, config: Config, gone: abc.Container[str]) -> tuple[bool, str]:
     """Whether this row could be restored, and what is missing if not."""
     metadata = row.metadata
     session_id = metadata.get("session_id")
@@ -86,7 +86,7 @@ def _restorable(row: db.Notification, config: Config) -> tuple[bool, str]:
     if build_resume_command(config, row.channel, metadata) is None:
         return False, "no resume command for its harness"
 
-    if transcript.transcript_missing(row):
+    if row.channel in gone:
         return False, "transcript not on disk"
 
     if not metadata.get("tmux_session"):
@@ -109,7 +109,8 @@ def report() -> list[str]:
         else False
     )
 
-    restorable = [r for r in known if _restorable(r, config)[0]]
+    gone = transcript.missing(known)
+    restorable = [r for r in known if _restorable(r, config, gone)[0]]
     placed = [r for r in restorable if r.metadata.get("tmux_session")]
 
     lines = [
@@ -134,7 +135,7 @@ def report() -> list[str]:
 
     missing = []
     for row in known:
-        ok, why = _restorable(row, config)
+        ok, why = _restorable(row, config, gone)
         if not ok:
             missing.append((row.name or "", why))
 

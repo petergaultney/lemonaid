@@ -8,17 +8,16 @@ import pytest
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
-from lemonaid.inbox import db
+from lemonaid.inbox import db, transcript
 from lemonaid.messages import autoresume, autoresume_tmux, recipient, resume_cli, store, waiter
 from lemonaid.messages_config import MessagesConfig
-from lemonaid.restore import plan
 
 
 @pytest.fixture(autouse=True)
 def _caller(monkeypatch):
     monkeypatch.setenv("LEMONAID_CHANNEL", "claude:caller")
     monkeypatch.setattr(recipient, "_tty_commands", lambda tty: ["-fish"])  # nothing runs there
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(transcript, "missing", lambda rows: {row.channel for row in rows if False})
 
 
 @pytest.fixture

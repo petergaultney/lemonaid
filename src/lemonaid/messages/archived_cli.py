@@ -14,7 +14,7 @@ from pathlib import Path
 from .. import brief, lineage
 from ..brief import archive, archived_channel
 from ..config import Config, load_config
-from ..inbox import db
+from ..inbox import db, transcript
 from ..places import audit
 from . import autoresume, bring_back
 
@@ -42,14 +42,19 @@ def _archived_briefs(conn: sqlite3.Connection) -> abc.Iterator[tuple[str, Path]]
 def archived(conn: sqlite3.Connection, since: float, config: Config) -> list[Archived]:
     """Archived lemons whose brief changed after *since*, most recent first."""
     events = list(audit.entries(0))
+    recent = [
+        (lemon_id, path, path.stat().st_mtime, archived_channel.of(conn, lemon_id))
+        for lemon_id, path in _archived_briefs(conn)
+        if path.stat().st_mtime >= since
+    ]
+    gone = transcript.missing(
+        row
+        for _id, _path, _changed, channel in recent
+        if channel and (row := db.get_by_channel(conn, channel, unread_only=False))
+    )
     found = []
-    for lemon_id, path in _archived_briefs(conn):
-        changed = path.stat().st_mtime
-        if changed < since:
-            continue
-
+    for lemon_id, path, changed, channel in recent:
         text = path.read_text(errors="replace")
-        channel = archived_channel.of(conn, lemon_id)
         found.append(
             Archived(
                 lemon_id,
@@ -59,7 +64,9 @@ def archived(conn: sqlite3.Connection, since: float, config: Config) -> list[Arc
                 autoresume.now_line(text),
                 channel,
                 lineage.links.parent_of(conn, lemon_id) or "",
-                bring_back.unwakeable(conn, lemon_id, config, events).why,
+                bring_back.unwakeable(
+                    conn, lemon_id, config, events, lambda row: row.channel in gone
+                ).why,
             )
         )
     return sorted(found, key=lambda each: each.changed, reverse=True)

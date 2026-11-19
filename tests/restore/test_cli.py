@@ -69,7 +69,7 @@ def _restore(
     the windows restore closes.
     """
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
-    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(cli.plan.transcript, "missing", lambda rows: set())
     _terminal(
         monkeypatch,
         open=lambda spot, cwd, environment: (
@@ -293,7 +293,7 @@ def test_a_window_that_could_not_be_opened_is_never_closed(monkeypatch):
     _lemons_from_the_dead_server()
     monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
-    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(cli.plan.transcript, "missing", lambda rows: set())
     closed: list[str] = []
     _terminal(
         monkeypatch,
@@ -317,7 +317,7 @@ def test_a_lost_lemon_is_restored_or_waits_however_tmux_changes_meanwhile(monkey
     _lemons_from_the_dead_server()
     monkeypatch.setattr(relink, "survey", lambda conn, rows=None: [])
     monkeypatch.setattr(cli, "load_config", lambda: Config(restore=RestoreConfig(1, 0.05)))
-    monkeypatch.setattr(cli.plan, "transcript_missing", lambda row: False)
+    monkeypatch.setattr(cli.plan.transcript, "missing", lambda rows: set())
     answers = iter(ups)
     _terminal(
         monkeypatch,

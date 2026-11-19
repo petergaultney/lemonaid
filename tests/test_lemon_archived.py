@@ -7,14 +7,17 @@ import pytest
 from lemonaid.brief import archive, attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.config import Config
-from lemonaid.inbox import db
+from lemonaid.inbox import db, transcript
 from lemonaid.messages import archived_cli
-from lemonaid.restore import plan
 
 
 @pytest.fixture(autouse=True)
 def _transcripts(monkeypatch):
-    monkeypatch.setattr(plan, "transcript_missing", lambda row: row.channel == "claude:lost")
+    monkeypatch.setattr(
+        transcript,
+        "missing",
+        lambda rows: {row.channel for row in rows if row.channel == "claude:lost"},
+    )
 
 
 def _archived(name: str, channel: str, tmp_path) -> str:
