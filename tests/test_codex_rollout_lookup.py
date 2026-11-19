@@ -22,6 +22,17 @@ def test_uuid_timestamp_finds_rollout_on_adjacent_local_days(tmp_path, monkeypat
     assert utils.find_session_path(_THREAD) == path
 
 
+def test_a_compressed_rollout_is_found_only_when_asked_for(tmp_path, monkeypatch):
+    day = datetime.fromtimestamp((UUID(_THREAD).int >> 80) / 1000, UTC).date()
+    directory = tmp_path / day.strftime("%Y/%m/%d")
+    directory.mkdir(parents=True)
+    path = directory / f"rollout-2026-10-20T19-50-22-{_THREAD}.jsonl.zst"
+    path.write_bytes(b"compressed")
+    monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path)
+    assert utils.find_session_path(_THREAD) is None
+    assert utils.find_session_path(_THREAD, compressed=True) == path
+
+
 def test_missing_uuid_uses_only_three_date_directories(tmp_path, monkeypatch):
     monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path)
     visited = []
