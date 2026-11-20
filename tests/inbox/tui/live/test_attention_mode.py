@@ -334,3 +334,26 @@ def test_a_row_chosen_by_search_stays_after_the_search_closes():
         return app._row_channels(), app._selected_channel()
 
     assert _run(steps) == ([blocked, done], done)
+
+
+@pytest.mark.parametrize("size", [(200, 40), (120, 40), (90, 40), (70, 40)])
+def test_the_brief_views_bar_uses_the_group_bar_slots_at_any_size(size):
+    rows = [db.Notification(i, f"c:{i}", "", status="read") for i in range(2)]
+    statuses = {"c:0": "blocked", "c:1": "merge"}
+
+    async def steps(app, pilot):
+        content = app.query_one("#inbox_content")
+        main = content.inbox.main
+        _, starts, got_slot = content.summary_layout(size[0], rows, statuses)
+        return starts, group_headers.slot_starts(
+            content.card_width(),
+            [c.width for c in main.ordered_columns],
+            3,
+            main.cell_padding,
+            got_slot,
+        )
+
+    starts, expected = _run(steps, size)
+
+    assert starts
+    assert starts == expected
