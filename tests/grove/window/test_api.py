@@ -9,7 +9,11 @@ def _api(grove=None):
     calls = []
     shared = api.Shared(load_config(), grove=grove, client="/dev/ttys004")
     return api.Api(
-        shared, hide=lambda: calls.append("hide"), refresh=lambda: calls.append("refresh")
+        shared,
+        hide=lambda: calls.append("hide"),
+        refresh=lambda: calls.append("refresh"),
+        jumped=lambda: calls.append("jumped"),
+        stick=lambda: calls.append("stick"),
     ), calls
 
 
@@ -24,7 +28,7 @@ def test_before_the_first_load_the_page_gets_no_grove_and_no_drop_is_taken():
     assert calls == []
 
 
-def test_a_jump_hides_the_window_only_when_it_switched_the_client(monkeypatch):
+def test_a_jump_tells_the_window_only_when_it_switched_the_client(monkeypatch):
     page_api, calls = _api()
     asked = []
     monkeypatch.setattr(data, "jump", lambda channel, client: asked.append((channel, client)) or "")
@@ -33,7 +37,7 @@ def test_a_jump_hides_the_window_only_when_it_switched_the_client(monkeypatch):
     monkeypatch.setattr(data, "jump", lambda *_args: "No live lemon on claude:2")
     assert page_api.jump("claude:2") == "No live lemon on claude:2"
     assert asked == [("claude:1", "/dev/ttys004")]
-    assert calls == ["hide"]
+    assert calls == ["jumped"]
 
 
 def test_a_drop_reloads_the_grove_only_when_it_was_saved(monkeypatch):
