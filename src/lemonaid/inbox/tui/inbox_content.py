@@ -12,6 +12,7 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 
 from ...config import Config
+from .. import db
 from .live import search_archive
 from .live.inbox_draw import Drawn
 from .live.inbox_list import InboxList
@@ -91,6 +92,15 @@ class InboxContent(Container):
             return 0
 
         return table_layout.card_width([c.width for c in self.inbox.main.columns.values()])
+
+    def summary_layout(
+        self,
+        width: int,
+        rows: abc.Iterable[db.Notification],
+        statuses: abc.Mapping[str, str],
+    ) -> tuple[bool, dict[str, int], int]:
+        """The attention line's form for a *width*-cell pane, from the columns as stretched now."""
+        return self.inbox.summary_layout(self.cards, self.card_width(), width, rows, statuses)
 
     def card_shape(self, extra_lines: int = 0) -> tuple[int, int]:
         if not self.cards:

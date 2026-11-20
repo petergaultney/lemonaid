@@ -217,7 +217,7 @@ class LemonaidApp(CrashLoggedApp):
             yield Vertical(
                 AttentionBar(
                     self.config.tui.status_pulse_seconds,
-                    lambda *args: self._content.inbox.summary_layout(*args),
+                    lambda *args: self._content.summary_layout(*args),
                 ),
                 BriefPane(
                     self.config,

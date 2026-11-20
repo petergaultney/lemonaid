@@ -96,9 +96,6 @@ class InboxList(Vertical):
         self.headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
         self._slot = 0  # every header's status slot width, as last drawn
-        self._card_width = 0  # as last drawn
-        self._width = 0  # the pane's, as last drawn
-        self._cards = False  # as last drawn
         self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
         # The row a group was collapsed from, drawn until the cursor leaves it.
         self.kept: frozenset[str] = frozenset()
@@ -243,32 +240,25 @@ class InboxList(Vertical):
             )
         return dataclasses.replace(frame, request=request.seq, search_text=request.search_text)
 
-    def summary_slots(self, width: int, slot: int) -> dict[str, int]:
-        """Where attention mode's line, *width* cells wide, puts each status's *slot*-wide badge.
-
-        The slots are the main table's as last drawn; a card's move with the pane's right
-        edge. Empty, for the packed form, when a table's columns were drawn for another width
-        or a slot would not fit.
+    def summary_slots(self, card_width: int, width: int, slot: int) -> dict[str, int]:
+        """Where attention mode's line, *width* cells wide, puts each status's *slot*-wide badge:
+        in the group bars' slots, which follow the main table's columns as they are stretched
+        now, or a card's *card_width*. Empty, for the packed form, when a slot would not fit.
         """
         main = self.main
-        if self._card_width:
-            starts = group_headers.slot_starts(
-                self._card_width + width - self._width, [], layout.NAME_CELL, 0, slot
-            )
-        elif width == self._width:
-            starts = group_headers.slot_starts(
-                0,
-                [c.width for c in main.ordered_columns],
-                layout.NAME_CELL,
-                main.cell_padding,
-                slot,
-            )
-        else:
-            starts = {}
+        starts = group_headers.slot_starts(
+            card_width,
+            [c.width for c in main.ordered_columns],
+            layout.NAME_CELL,
+            main.cell_padding,
+            slot,
+        )
         return {} if any(start + slot > width for start in starts.values()) else starts
 
     def summary_layout(
         self,
+        cards: bool,
+        card_width: int,
         width: int,
         rows: abc.Iterable[db.Notification],
         statuses: abc.Mapping[str, str],
@@ -280,7 +270,7 @@ class InboxList(Vertical):
             group_headers.slot_width(self.headers.values()),
             attention_summary.slot_width(rows, statuses),
         )
-        return self._cards, self.summary_slots(width, slot), slot
+        return cards, self.summary_slots(card_width, width, slot), slot
 
     def refresh_list(
         self,
@@ -356,9 +346,6 @@ class InboxList(Vertical):
             stay_on_unread=stay_on_unread,
         )
         self._drawn_at = time.monotonic()
-        self._card_width = card_width
-        self._width = width
-        self._cards = cards
         self.last_frame = frame
         self.grove = inbox_keys.grove(frame, self.config)
         in_block, in_tree = inbox_keys.zoomed(self.grove, *self.zoom)
@@ -461,7 +448,7 @@ class InboxList(Vertical):
                     cards,
                     self.config.tui.keybindings.fold[:1],
                     self.fold_open,
-                    self.summary_slots(width, self._slot),
+                    self.summary_slots(card_width, width, self._slot),
                     self._slot,
                 ),
             )
