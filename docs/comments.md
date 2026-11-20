@@ -272,6 +272,14 @@ unanswered comment, by id, and the wake says how to list and answer them. Marker
 threads section are not part of the body, so adding a comment or replying is never a body
 edit.
 
+## Review guides
+
+The packaged `review-guide` skill ([skills.md](skills.md)) has a lemon write a guide
+after each round of changes, ordered for reading, open it with `lemonaid editor open`,
+and watch it and the changed files. The lemon answers each comment in its thread, leaves
+resolving to you, and before a commit strips the threads and checks that none is staged.
+Put your preferences for guides in `~/.lemons/skills/review-guide/overlay.md`.
+
 ## Known limits
 
 - The Markdown reader doesn't follow every container: code inside a list item, and an

@@ -1588,7 +1588,7 @@ on its own; see [GitHub notifications](github-notifications.md).
 
 ## Installing the skills
 
-`lemonaid skills install` installs the `brief`, `watch-doc`, `watch-pr`, and `watch-briefs` skills for Claude Code
+`lemonaid skills install` installs the `brief`, `watch-doc`, `watch-pr`, `watch-briefs`, and `review-guide` skills for Claude Code
 and Codex, which describe brief upkeep and these waiters step by step. It never replaces a skill entry it
 didn't create; `--print <name>` gives the text instead. Run it after installing or
 upgrading lemonaid; `lma` also re-renders installed skills from the new packaged text when
