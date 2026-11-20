@@ -22,7 +22,7 @@ function dragging() {
     treeScale: () => 1, sx: x => x, sy: y => y, phase: () => 0, mix: () => "#111111", BG: "#000000", PULSE_DEPTH: 0.45,
   });
   vm.createContext(page);
-  vm.runInContext(`${source("drawDrag")}\n${source("pulse")}`, page);
+  vm.runInContext(`${source("drawDrag")}\n${source("pulse")}\n${source("frame")}`, page);
   return page;
 }
 
