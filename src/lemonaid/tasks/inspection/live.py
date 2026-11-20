@@ -51,7 +51,7 @@ def fact(
 def lemons(conn: sqlite3.Connection) -> dict[str, facts.Facts]:
     """What lemonaid sees about every lemon with an attached brief, by Lemon-ID."""
     window = load_config().messages.autoresume_window
-    running, waiters, commands = owners.running(), registry.by_lemon(conn), recipient.tty_commands()
+    running, waiters, commands = owners.running(), registry.by_lemon(), recipient.tty_commands()
     parked, unrun = recipient.parked_jobs(), recipient.unrun_codex()
     found: dict[str, facts.Facts] = {}
     for entry in brief.attached.everything(conn):

@@ -17,7 +17,7 @@ def missing(rows: abc.Iterable[db.Notification]) -> set[str]:
     under the lemon's name. Codex answers for all the Codex rows at once."""
     rows = list(rows)
     codex = {
-        row.channel: channels.owner_id(row.channel, row.metadata, {})
+        row.channel: channels.thread(row.channel)
         for row in rows
         if row.channel.startswith("codex:")
     }

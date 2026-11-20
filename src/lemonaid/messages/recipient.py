@@ -147,11 +147,7 @@ def unrun_codex() -> dict[str, str]:
         rows = {
             thread: row
             for thread in held
-            if (
-                row := db.get_by_channel(
-                    conn, codex_channels.for_session(conn, thread), unread_only=False
-                )
-            )
+            if (row := db.get_by_channel(conn, codex_channels.channel(thread), unread_only=False))
         }
     reasons = {
         row.channel: reason

@@ -163,7 +163,7 @@ def record(a: argparse.Namespace, kind: str, thread: str = "", repo: str = "") -
     with db.connect() as conn:
         try:
             channel = (
-                channels.for_session(conn, thread)
+                channels.channel(thread)
                 if thread
                 else lemon.self_channel(conn, getattr(a, "channel", "") or "")
             )

@@ -32,7 +32,7 @@ Thresholds are set in [`[usage]`](config.md#usage).
 
 ## Where the data comes from
 
-- **Codex:** the `rate_limits` in `token_count` events of the newest rollouts under `~/.codex/sessions`.
+- **Codex:** Codex's own `account/rateLimits/read`, asked of a short-lived `codex app-server` (see [What lemonaid asks Codex](codex.md#what-lemonaid-asks-codex)).
 - **Claude:** Claude Code passes `rate_limits` (`five_hour` and `seven_day`) to its statusLine command. `lemonaid-claude-statusline` saves them to `usage/claude-rate-limits.json` under the state directory on every render. This is undocumented Claude Code behavior, seen in 2.1.294. Use `lemonaid-claude-statusline` as the statusLine command, as described in [claude.md](claude.md). A statusLine command that wraps it must pass stdin through unchanged.
 
 Data updates only while a session of that harness is active.

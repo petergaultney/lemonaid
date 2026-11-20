@@ -72,13 +72,12 @@ def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None)
         row = entry.notification
         if not entry.channel.startswith("codex:") or row is None or row.is_archived:
             continue
-        thread = channels.owner_id(entry.channel, row.metadata, {})
+        thread = channels.thread(entry.channel)
         if (
             not thread
             or row.turn_at is not None
             or owners.get(thread) != {row.metadata.get("tty")}
             or thread in threads.gone([thread])
-            or channels.for_session(conn, thread) != entry.channel
         ):
             continue
         try:

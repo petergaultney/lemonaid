@@ -11,7 +11,6 @@ from pathlib import Path
 
 from ..brief import identity
 from ..codex import channels, processes
-from ..inbox import db
 from ..log import LOG_PATH
 from . import batch_text, codex_waiter, delivery, push_scout
 
@@ -66,8 +65,7 @@ def ensure_for(thread: str, path: Path) -> bool:
     except (OSError, ValueError):
         return False
 
-    with db.connect() as conn:
-        channel = channels.for_session(conn, thread)
+    channel = channels.channel(thread)
     return (
         bool(lemon_id)
         and codex_waiter.ensure(channel, thread, lemon_id)

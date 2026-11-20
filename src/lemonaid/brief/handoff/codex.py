@@ -9,7 +9,7 @@ _PHRASE_TURNS = 5  # how far back a typed handoff phrase is still looked for
 
 def _thread(conn, channel: str) -> str:
     notification = db.get_by_channel(conn, channel, unread_only=False)
-    return "" if notification is None else channels.owner_id(channel, notification.metadata, {})
+    return "" if notification is None else channels.thread(channel)
 
 
 def has_ready_marker(conn, row) -> bool:

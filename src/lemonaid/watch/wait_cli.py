@@ -41,11 +41,7 @@ def run(args: argparse.Namespace) -> int:
         return 2
     try:
         with db.connect() as conn:
-            channel = (
-                channels.for_session(conn, thread)
-                if thread
-                else lemon.self_channel(conn, args.channel)
-            )
+            channel = channels.channel(thread) if thread else lemon.self_channel(conn, args.channel)
             attached.claim_pending(conn)
             path = attached.by_channel(conn, [channel]).get(channel)
             lemon_id = identity.ensure(conn, path) if path else ""

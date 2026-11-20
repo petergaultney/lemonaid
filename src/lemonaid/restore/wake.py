@@ -32,7 +32,7 @@ def _subscribed(lemon: run.Lemon, row: db.Notification) -> bool:
         found = push_path.gather(lemon.lemon_id, session)
         return found.scout and not push_path.path_of(found).loud
 
-    if harness == "codex" and (thread := channels.owner_id(row.channel, row.metadata, {})):
+    if harness == "codex" and (thread := channels.thread(row.channel)):
         codex_waiter.ensure(row.channel, thread, lemon.lemon_id)
 
     return wait_state.is_armed(lemon.lemon_id)
