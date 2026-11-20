@@ -6,10 +6,9 @@ the gaps, and a road crosses the stream on a bridge.
 """
 
 import dataclasses
-import math
 from collections import abc
 
-from ..model import WORLD_HEIGHT, WORLD_WIDTH, Plot
+from ..model import Plot
 from . import placement
 
 PACKHOUSE = ""  # the block name of lemons in no group
@@ -24,19 +23,29 @@ def packhouse(sessions: int, taken: abc.Sequence[placement.Rect]) -> Plot:
 
 
 def default_roads() -> list[list[list[int]]]:
-    """Two roads that cross at the packhouse, each with a bend or two."""
-    cx, cy = WORLD_WIDTH // 2, WORLD_HEIGHT // 2
+    """Three roads to the packhouse: one in from the west edge, one down from the north edge,
+    and one from it south, over the stream, past the south edge.
+    """
     return [
-        [[0, cy - 3], [cx // 2, cy - 1], [cx, cy], [cx + cx // 2, cy + 2], [WORLD_WIDTH, cy]],
-        [[cx - 6, 0], [cx - 2, cy // 2], [cx, cy], [cx + 3, cy + cy // 2], [cx + 1, WORLD_HEIGHT]],
+        [[0, 20], [40, 19], [80, 20], [116, 19]],
+        [[122, 0], [120, 12], [118, 24], [113, 28], [108, 32]],
+        [[108, 35], [106, 40], [104, 46], [104, 72]],
     ]
 
 
 def default_stream() -> list[list[int]]:
-    """A stream meandering across the middle, mostly east to west, drifting a little south."""
-    points = []
-    for step in range(0, 13):
-        x = WORLD_WIDTH * step // 12
-        drift = -6 + 12 * step / 12
-        points.append([x, round(WORLD_HEIGHT / 2 + drift + 4 * math.sin(step * 1.3))])
-    return points
+    """A stream meandering west to east across the grove, a little south of its middle."""
+    return [
+        [0, 42],
+        [20, 44],
+        [40, 43],
+        [60, 45],
+        [80, 44],
+        [100, 46],
+        [120, 44],
+        [140, 45],
+        [160, 47],
+        [180, 45],
+        [200, 46],
+        [212, 46],
+    ]

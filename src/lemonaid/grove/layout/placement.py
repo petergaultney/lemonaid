@@ -73,8 +73,9 @@ def new_plot(
     right = max([WORLD_WIDTH, *(x + rw for x, _, rw, _ in taken)])
     bottom = max([WORLD_HEIGHT, *(y + rh for _, y, _, rh in taken)])
     # Inside the world first; then ever further past its right and bottom edges, where the
-    # roads and stream run on, until a spot clear of them and every block turns up.
-    found = _nearest((w, h), taken, crossing, right + w, max(2, WORLD_HEIGHT - h))
+    # roads and stream run on, until a spot clear of them and every block turns up. The first
+    # look reaches a block past both edges, so a full world grows down as readily as right.
+    found = _nearest((w, h), taken, crossing, right + w, bottom + h)
     reach = 1
     while found is None:
         found = _nearest((w, h), taken, crossing, reach * right + w, reach * bottom + h)
