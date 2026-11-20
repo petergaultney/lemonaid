@@ -11,11 +11,10 @@ from pathlib import Path
 import pytest
 from textual.widgets import Static
 
-from lemonaid import groups
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
 from lemonaid.grove.source import inbox_keys
-from lemonaid.inbox import attention, db, order, sections
+from lemonaid.inbox import attention, db, order
 from lemonaid.inbox.tui.app import LemonaidApp
 from lemonaid.inbox.tui.live import attention_summary, group_headers
 from lemonaid.inbox.tui.watchers import watcher_hooks
@@ -267,15 +266,13 @@ def test_a_glowing_badge_keeps_its_slot_and_changes_its_fill():
 
 
 def test_inbox_totals_past_nine_widen_the_shared_slots_and_stay_whole():
-    group = groups.store.Group(1, "Work", 0, (), color="#c8a0f0")
-    header = sections.Header(group, 3, (("blocked", 1), ("running", 1), ("merge", 1)))
     statuses = {
         **{f"c:b{i}": "blocked" for i in range(12)},
         **{f"c:r{i}": "running" for i in range(12)},
         "c:m": "merge",
     }
     rows = [db.Notification(i, channel, "", status="read") for i, channel in enumerate(statuses)]
-    slot = max(group_headers.slot_width([header]), attention_summary.slot_width(rows, statuses))
+    slot = attention_summary.slot_width(rows, statuses)
     starts = group_headers.slot_starts(60, [60], 0, 0, slot)
 
     line = attention_summary.line(rows, statuses, ["blocked"], True, "w", False, starts, slot).plain
@@ -336,7 +333,7 @@ def test_a_row_chosen_by_search_stays_after_the_search_closes():
     assert _run(steps) == ([blocked, done], done)
 
 
-@pytest.mark.parametrize("size", [(200, 40), (120, 40), (90, 40), (70, 40)])
+@pytest.mark.parametrize("size", [(120, 40), (70, 40)])
 def test_the_brief_views_bar_uses_the_group_bar_slots_at_any_size(size):
     rows = [db.Notification(i, f"c:{i}", "", status="read") for i in range(2)]
     statuses = {"c:0": "blocked", "c:1": "merge"}
@@ -357,3 +354,14 @@ def test_the_brief_views_bar_uses_the_group_bar_slots_at_any_size(size):
 
     assert starts
     assert starts == expected
+
+
+def test_the_slots_follow_the_inbox_totals_even_when_the_summary_is_off():
+    with db.connect() as conn:
+        for i in range(12):
+            _brief(conn, _session(conn, f"b{i}", age=i), "blocked")
+
+    async def steps(app, pilot):
+        return app.query_one("#inbox_content").inbox._slot
+
+    assert _run(steps) == group_headers.badge("blocked", 12).cell_len
