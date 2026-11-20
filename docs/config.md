@@ -860,6 +860,20 @@ challenge_interval = 300  # seconds before an unreceived challenge is replaced; 
 
 With `enabled = true`, `brief new` gives every new brief a task, hands it an existing one, or records a standing exemption, and a session's launch context lists the tasks its brief holds. A template in `existing_task_templates` needs `--task TASK_ID` (with or without `--observe`), or an explicit `--new-task`. With `inspect_interval` above 0, the scout host runs an inspector pass that often, against one long-running checker process; `lemonaid task inspect` runs one now. A pass sends each challenge to the brief it names once per set of facts, replacing a copy its lemon hasn't received every `challenge_interval` seconds, unless `challenge_interval` is 0 or the brief is in `opt_out`. `policy.recheck_text` ends each re-check the default checker sends (see [re-checks](tasks.md#re-checks)). See [tasks](tasks.md).
 
+## `[slack]`
+
+How lemons follow Slack threads; see [Following Slack threads](slack.md).
+
+```toml
+[slack]
+workspace = "https://acme.slack.com/"  # what `lemonaid slack signin` opens with no argument
+push = true            # hold one socket to Slack, so a reply wakes its followers at once
+fetch_every = 60       # seconds between fetches of each followed thread while no socket is up
+presence_every = 300   # seconds between presence readings while the socket is up; 0 takes none
+```
+
+With `push = false`, the scout host opens no socket, and each followed thread is fetched every `fetch_every` seconds (10 or more). `presence_every` is for the trial described in [Presence while the socket is up](slack.md#presence-while-the-socket-is-up-trial).
+
 ## `[claude.statusline]`
 
 Read by `lemonaid-claude-statusline` on each render.

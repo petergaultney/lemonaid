@@ -16,6 +16,12 @@ web = [
     "pywebview>=6.2",
     "pyobjc-framework-Quartz>=11; sys_platform == 'darwin'",
 ]
+# Following Slack threads (`lemonaid slack signin`, `lemonaid watch slack`), macOS only for now:
+# the sign-in window, and the socket that wakes a thread's followers.
+slack = [
+    "pywebview>=6.2",
+    "websockets>=15",
+]
 
 [project.urls]
 Homepage = "https://github.com/petergaultney/lemonaid"
