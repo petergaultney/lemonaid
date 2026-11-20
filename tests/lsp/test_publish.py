@@ -19,7 +19,7 @@ _FILE = (
 def test_a_thread_comes_in_tree_order_with_each_comment_s_depth() -> None:
     doc = parse.parse(_FILE, "python")
 
-    params = publish.threads_params("file:///x.py", 3, doc, positions.Codec(_FILE))
+    params = publish.threads_params("file:///x.py", 3, _FILE, doc, positions.Codec(_FILE))
 
     [thread] = params["threads"]
     assert thread["anchor"] == {
@@ -71,3 +71,35 @@ def test_a_new_resolution_or_a_lost_anchor_changes_the_threads_key() -> None:
 
     assert publish.threads_key(parse.parse(resolved, "python")) != key
     assert publish.threads_key(parse.parse(unanchored, "python")) != key
+
+
+def test_a_thread_names_only_its_own_markers() -> None:
+    text = (
+        'EXAMPLE = """\n'
+        "# [lma:SleepRib]\n"
+        '"""\n'
+        "# [lma:SleepRib]\n"
+        "x = 1\n"
+        "# [/lma:SleepRib]\n"
+        "# [lma:TinOwl]\n"
+        "\n"
+        "# [lma:threads]\n"
+        '# {"id": "SleepRib", "author": "Caleb Gregory", "at": "2026-11-19T19:40:00Z", "body": "why?"}\n'
+        '# {"id": "TinOwl", "re": "SleepRib", "author": "BraveFig (Author)", "at": "2026-11-19T19:41:00Z", "body": "because"}\n'
+    )
+
+    params = publish.threads_params(
+        "file:///x.py", 1, text, parse.parse(text, "python"), positions.Codec(text)
+    )
+
+    [thread] = params["threads"]
+    assert thread["markers"] == [
+        {
+            "range": {"start": {"line": 3, "character": 0}, "end": {"line": 4, "character": 0}},
+            "text": "# [lma:SleepRib]\n",
+        },
+        {
+            "range": {"start": {"line": 5, "character": 0}, "end": {"line": 6, "character": 0}},
+            "text": "# [/lma:SleepRib]\n",
+        },
+    ]

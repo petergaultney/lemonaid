@@ -16,9 +16,19 @@ from pygls.workspace import TextDocument
 from ..comments import model
 from . import positions, publish
 
+RefusalReason = ty.Literal["diverged", "moved"]
+
 
 class Refused(Exception):
-    """What the server says no to, with the reason for the person or lemon who asked."""
+    """What the server says no to, with the reason for the person or lemon who asked.
+    `reason` names the refusals an editor client acts on: `diverged`, the file changed on
+    disk since the buffer last matched it, before any edit went out (reload, then send
+    again), and `moved`, the buffer changed while the server wrote a comment (choose the
+    text again)."""
+
+    def __init__(self, message: str, reason: RefusalReason | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class CommentsServer(LanguageServer):

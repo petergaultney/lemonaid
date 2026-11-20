@@ -2,31 +2,30 @@ import os
 import subprocess
 import sys
 
-import pytest
-
+from lemonaid.front_end import location
 from lemonaid.lsp import registry
 
 
-def _record(pid: int, *, tmux: str | None = None, started: float = 0.0) -> registry.Record:
+def _in_session(session: str) -> location.Location:
+    return location.Location("tmux", "/tmp/tmux-1/default", session)
+
+
+def _record(pid: int, *, session: str = "", started: float = 0.0) -> registry.Record:
     return registry.Record(
-        pid=pid, socket=f"/s/{pid}.sock", roots=("/work",), tmux=tmux, started=started
+        pid=pid,
+        socket=f"/s/{pid}.sock",
+        roots=("/work",),
+        location=_in_session(session),
+        started=started,
     )
 
 
-@pytest.mark.parametrize(
-    ("tmux", "session"),
-    [("/tmp/tmux-1/default,123,4", "/tmp/tmux-1/default,4"), ("", None), ("x,1", None)],
-)
-def test_the_tmux_session_comes_from_the_socket_and_session_id(tmux, session) -> None:
-    assert registry.tmux_session({"TMUX": tmux}) == session
-
-
 def test_servers_in_the_caller_s_session_come_first_then_the_newest() -> None:
-    old_here = _record(1, tmux="s,1", started=1)
-    new_elsewhere = _record(2, tmux="s,2", started=2)
-    newest_here = _record(3, tmux="s,1", started=3)
+    old_here = _record(1, session="tools", started=1)
+    new_elsewhere = _record(2, session="notes", started=2)
+    newest_here = _record(3, session="tools", started=3)
 
-    ordered = registry.by_preference([old_here, new_elsewhere, newest_here], "s,1")
+    ordered = registry.by_preference([old_here, new_elsewhere, newest_here], _in_session("tools"))
 
     assert [r.pid for r in ordered] == [3, 1, 2]
 
@@ -37,9 +36,9 @@ def test_a_record_whose_process_is_gone_is_removed() -> None:
     )
     gone = _record(int(finished.stdout))
     registry.write(gone)
-    registry.write(_record(os.getpid()))
+    registry.write(_record(os.getpid(), session="tools"))
 
-    assert [r.pid for r in registry.live()] == [os.getpid()]
+    assert registry.live() == [_record(os.getpid(), session="tools")]
     assert not (registry.directory() / f"{gone.pid}.json").exists()
 
 

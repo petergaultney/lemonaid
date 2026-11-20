@@ -59,8 +59,9 @@ async def apply(
     if kind is None:
         raise Refused(f"{document.uri} is not a Python or Markdown document")
     if observed is not None and registry.text_digest(document.source) != observed:
-        raise Refused(_MOVED)
+        raise Refused(_MOVED, "moved")
     comment_id = None
+    sent = False
     for _ in range(_ATTEMPTS):
         if documents.managed(ls, document.uri) is not document:
             raise Refused("the editor closed the file before the comment was written")
@@ -75,11 +76,14 @@ async def apply(
         if not planned.edits or planned.landed(text):
             return planned.result
         if sync.disk_moved(ls, document):
-            raise Refused(sync.DIVERGED)
+            # Only a refusal before any edit went out tells a client it may reload and send
+            # again: an edit we sent may still reach the buffer, and a new command would
+            # write the comment a second time under another id.
+            raise Refused(sync.DIVERGED, None if sent else "diverged")
         codec = documents.codec(ls, text)
+        sent = True
         answer = await ls.workspace_apply_edit_async(
             types.ApplyWorkspaceEditParams(
-                label="lemonaid comments",
                 edit=types.WorkspaceEdit(
                     document_changes=[
                         types.TextDocumentEdit(
@@ -95,7 +99,7 @@ async def apply(
         if answer.applied and await _lands(ls, document, planned.landed):
             return planned.result
         if not retry:
-            raise Refused(_MOVED)
+            raise Refused(_MOVED, "moved")
     raise Refused(f"the editor didn't take the edit; tried {_ATTEMPTS} times")
 
 

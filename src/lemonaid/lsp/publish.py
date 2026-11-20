@@ -33,11 +33,14 @@ def threads_key(doc: model.Document) -> ThreadsKey:
 
 
 def threads_params(
-    uri: str, version: int | None, doc: model.Document, codec: positions.Codec
+    uri: str, version: int | None, text: str, doc: model.Document, codec: positions.Codec
 ) -> dict[str, ty.Any]:
     """The `lemonaid/threads` parameters. Each thread's comments come in tree order, each
     with its `depth` below the root, so the tree needs no nesting (a long chain of replies
-    would nest past what a JSON encoder will recurse through)."""
+    would nest past what a JSON encoder will recurse through). `markers` are the thread's
+    own markers, each the range of what removing it removes (its carrier) and that text,
+    so a client can hide them without telling them from marker-shaped text itself, and
+    can tell when its buffer no longer holds a marker where this notification put it."""
     return {
         "uri": uri,
         "version": version,
@@ -46,6 +49,13 @@ def threads_params(
                 "anchor": _range(codec, thread.anchor.start, thread.anchor.end)
                 if thread.anchor
                 else None,
+                "markers": [
+                    {"range": _range(codec, *carrier), "text": text[carrier[0] : carrier[1]]}
+                    for carrier in (
+                        (thread.anchor.opening, thread.anchor.closing) if thread.anchor else ()
+                    )
+                    if carrier is not None
+                ],
                 "comments": _comments_in_tree_order(thread.root),
             }
             for thread in threads.threads(doc)

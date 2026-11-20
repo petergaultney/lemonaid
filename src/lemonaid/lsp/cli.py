@@ -4,6 +4,7 @@ the editor that started it.
     lemonaid lsp
     lemonaid editor open <path> [--line <n>] [--focus]
     lemonaid editor notify <message>
+    lemonaid editor nvim-path
 """
 
 import argparse
@@ -11,8 +12,11 @@ import pathlib
 import sys
 import typing as ty
 
+from ..front_end import location
 from . import registry
 
+# The nvim client: a plugin directory to put on nvim's 'runtimepath' (see `nvim/lua/lma`).
+_NVIM_CLIENT: ty.Final = pathlib.Path(__file__).parent / "nvim"
 _INSTALL_HINT: ty.Final = (
     "`lemonaid lsp` needs the `lsp` extra: install lemonaid as `lemonaid-inbox[lsp]`"
     " (for an editable install, `uv tool install -e '.[lsp]'`)"
@@ -36,10 +40,19 @@ def _open(a: argparse.Namespace) -> None:
     target = a.path.resolve()
     if a.line is not None and a.line < 1:
         raise _NoEditor("--line counts from 1")
-    covering = [record for record in registry.live() if record.covers(target)]
-    if not covering:
-        raise _NoEditor(f"no editor server has a workspace that holds {a.path}")
-    answer = _ask(covering, {"op": "show", "path": str(target), "line": a.line, "focus": a.focus})
+    servers = registry.live()
+    caller = location.here()
+    # A review guide or a note lives outside every repo an editor has open, and the
+    # editor in your own terminal workspace is the one you are looking at.
+    candidates = [record for record in servers if record.covers(target)] or [
+        record for record in servers if location.near(record.location, caller)
+    ]
+    if not candidates:
+        raise _NoEditor(
+            f"no editor server has a workspace that holds {a.path}, and none runs in your"
+            " terminal workspace"
+        )
+    answer = _ask(candidates, {"op": "show", "path": str(target), "line": a.line, "focus": a.focus})
     if not answer.get("shown"):
         raise _NoEditor(f"the editor didn't open {a.path}")
 
@@ -51,11 +64,15 @@ def _notify(a: argparse.Namespace) -> None:
     _ask(servers, {"op": "message", "text": a.message})
 
 
+def _nvim_path(_: argparse.Namespace) -> None:
+    print(_NVIM_CLIENT)
+
+
 def _ask(servers: list[registry.Record], message: dict[str, ty.Any]) -> dict[str, ty.Any]:
-    """Ask the server in the caller's tmux session, else the newest, passing over any that
-    doesn't answer."""
+    """Ask the server in the caller's terminal workspace, else the newest, passing over any
+    that doesn't answer."""
     unreachable = []
-    for server in registry.by_preference(servers, registry.tmux_session()):
+    for server in registry.by_preference(servers, location.here()):
         try:
             answer = registry.request(server, message)
         except registry.Unreachable as error:
@@ -91,7 +108,9 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     sub = editor.add_subparsers(dest="editor_command", required=True)
 
     opening = sub.add_parser(
-        "open", help="open a file in the editor whose workspace holds it, in your tmux session"
+        "open",
+        help="open a file in the editor whose workspace holds it, else in the editor in your"
+        " terminal workspace (tmux session, WezTerm workspace)",
     )
     opening.add_argument("path", type=pathlib.Path)
     opening.add_argument("--line", type=int, help="the line to show, from 1")
@@ -103,5 +122,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     notify = sub.add_parser("notify", help="show a message in the editor")
     notify.add_argument("message")
     notify.set_defaults(editor_func=_notify)
+
+    nvim_path = sub.add_parser(
+        "nvim-path",
+        help="print the nvim client's plugin directory, to add to nvim's 'runtimepath'",
+    )
+    nvim_path.set_defaults(editor_func=_nvim_path)
 
     editor.set_defaults(func=_run_editor)

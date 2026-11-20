@@ -195,7 +195,9 @@ def env(tmp_path) -> ty.Iterator[dict[str, str]]:
         config = tmp_path / "config.toml"
         config.write_text('[comments]\nauthor = "Caleb Gregory"\n')
         environ = {**os.environ, "LEMONAID_STATE_DIR": state, "LEMONAID_CONFIG": str(config)}
-        environ.pop("TMUX", None)
+        # Outside every terminal, so no test finds the server through the terminal it runs in.
+        for name in ("TMUX", "TMUX_PANE", "WEZTERM_PANE", "CMUX_SURFACE_ID"):
+            environ.pop(name, None)
         yield environ
 
 
@@ -401,6 +403,7 @@ def test_editor_open_refuses_a_file_outside_every_workspace(env, tmp_path) -> No
 
         assert status == 1
         assert "no editor server has a workspace that holds" in err
+        assert editor.shown == []
 
     _drive(env, tmp_path, scenario)
 
@@ -666,7 +669,7 @@ def test_an_editor_comment_waits_for_the_reload_after_a_lemon_writes_the_file(
         await editor.lemonaid(*_add(code, "1"))
         await _until(lambda: bool(editor.diagnostics))
 
-        with pytest.raises(Exception, match="save or reload"):
+        with pytest.raises(Exception, match="save or reload") as refusal:
             await editor.command(
                 "lemonaid.comment",
                 {
@@ -678,6 +681,7 @@ def test_an_editor_comment_waits_for_the_reload_after_a_lemon_writes_the_file(
                     "body": "before the reload",
                 },
             )
+        assert refusal.value.data == {"reason": "diverged"}
         editor.reload(uri)
         await _until(lambda: "lma:" in editor.texts[uri])
         answer = await editor.command(
@@ -709,5 +713,88 @@ def test_a_buffer_unsaved_when_it_opens_notices_the_file_changing(env, tmp_path)
         assert "save or reload" in err
         assert "lma:" not in editor.texts[uri]
         assert "lma:" not in notes.read_text()
+
+    _drive(env, tmp_path, scenario)
+
+
+def test_an_editor_comment_the_editor_skips_is_refused_as_moved(env, tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text(_CODE)
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await _until(lambda: bool(editor.threads))
+        editor.skip_edits = 1
+
+        with pytest.raises(Exception, match="check them") as refusal:
+            await editor.command(
+                "lemonaid.comment",
+                {
+                    "uri": uri,
+                    "range": {
+                        "start": {"line": 1, "character": 0},
+                        "end": {"line": 1, "character": 0},
+                    },
+                    "body": "why?",
+                },
+            )
+
+        assert refusal.value.data == {"reason": "moved"}
+        assert str(refusal.value).startswith("your buffer changed")
+
+    _drive(env, tmp_path, scenario)
+
+
+def test_a_reply_refused_after_its_edit_went_out_is_not_marked_for_a_resend(env, tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text(
+        "# [lma:SleepRib]\n"
+        "x = 1\n"
+        "\n"
+        "# [lma:threads]\n"
+        '# {"id": "SleepRib", "author": "Caleb Gregory", "at": "2026-11-19T19:40:00Z", "body": "why?"}\n'
+    )
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await _until(lambda: bool(editor.threads))
+        editor.skip_edits = 1
+        editor.on_skip = lambda: code.write_text(code.read_text() + "# changed on disk\n")
+
+        with pytest.raises(Exception, match="save or reload") as refusal:
+            await editor.command("lemonaid.reply", {"uri": uri, "re": "SleepRib", "body": "hi"})
+
+        assert editor.edits_received == 1
+        assert refusal.value.data == {"reason": None}
+
+    _drive(env, tmp_path, scenario)
+
+
+@pytest.mark.parametrize(("quote", "written"), [("world", True), ("there", False)])
+def test_a_reply_about_part_of_a_comment_checks_it_still_says_that(
+    env, tmp_path, quote, written
+) -> None:
+    code = tmp_path / "code.py"
+    code.write_text(
+        "# [lma:SleepRib]\n"
+        "x = 1\n"
+        "\n"
+        "# [lma:threads]\n"
+        '# {"id": "SleepRib", "author": "Caleb Gregory", "at": "2026-11-19T19:40:00Z", "body": "hello world"}\n'
+    )
+    argument = {"re": "SleepRib", "body": "about it", "span": [6, 11], "quote": quote}
+
+    async def scenario(editor: _Editor) -> None:
+        uri = editor.open(code)
+        await _until(lambda: bool(editor.threads))
+
+        if written:
+            await editor.command("lemonaid.reply", {"uri": uri, **argument})
+        else:
+            with pytest.raises(Exception, match="no longer says") as refusal:
+                await editor.command("lemonaid.reply", {"uri": uri, **argument})
+            assert refusal.value.data == {"reason": "moved"}
+
+        assert ("about it" in editor.texts[uri]) is written
 
     _drive(env, tmp_path, scenario)
