@@ -3,6 +3,7 @@ import sys
 
 import pytest
 
+from lemonaid.grove import window
 from lemonaid.grove.window import cli, control
 
 
@@ -23,6 +24,7 @@ def test_the_window_runs_on_macos_only(monkeypatch):
 def test_without_the_web_extra_run_says_how_to_install_it(monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setitem(sys.modules, "lemonaid.grove.window.app", None)  # no pywebview
+    monkeypatch.delattr(window, "app", raising=False)  # another test may have imported it
 
     with pytest.raises(SystemExit, match=r"lemonaid-inbox\[web\]"):
         _run("run")
