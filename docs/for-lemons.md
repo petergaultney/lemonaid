@@ -140,6 +140,17 @@ lemonaid inbox snooze --self --clear   # back in the inbox now
 epoch seconds, `wakes` the same time as local ISO, and `woke` whether `--clear` woke a
 snoozed row.
 
+## Setting up a person's tmux keys
+
+When someone asks you to set up lemonaid, or doesn't know they can open it from any pane, offer the keys in [tmux.md's table](tmux.md#keys-that-work-from-any-pane). For each key they want:
+
+1. Check what the key does now with `tmux list-keys -T prefix <key>`. Say what it would replace, and offer another key if they use it.
+2. Print the lines (the table says which command, or which section holds them) and show them.
+3. With their agreement, add them to their `~/.tmux.conf`, under a `# Lemonaid:` comment saying what the key does, and reload with `tmux source-file ~/.tmux.conf`. Check the key is bound with `tmux list-keys -T prefix <key>`.
+4. Ask them to press it. Never press keys or type in their panes yourself.
+
+The grove window (`lemonaid grove window binding`) runs on macOS only and needs the `web` extra: `uv tool install 'lemonaid-inbox[web]'` (add `--force` over an existing install, or `--editable .` for a checkout). Its lines work unchanged on other systems, where the key opens the terminal grove instead, so one tmux.conf serves every machine. If the window doesn't appear, [the grove docs](grove.md#when-the-window-doesnt-appear) say what to check.
+
 ## Notification Fields
 
 | Field | Type | Description |
@@ -1020,7 +1031,7 @@ agrees:
    the warnings together, and use your own judgment as well.
 3. Move trees with `plant N TREE X Y --layout FILE` (the tree's letter or key; X, Y is the
    `spot` in its plot that `show --json` gives). It refuses a spot off the block's ground or on
-   another tree, and won't move a block's lead farther from the packhouse. `move`, `resize`,
+   another tree. `move`, `resize`,
    `reshape` and `clear-open` take `--layout FILE` for whole blocks; don't round a block's
    corners so far that a tree's trunk falls off it, which `reshape` refuses.
 4. Show the person the drawing, and once they agree, `lemonaid grove apply FILE` gives the live

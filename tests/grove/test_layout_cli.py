@@ -145,7 +145,7 @@ def test_reshape_refuses_corners_rounded_out_from_under_a_tree(monkeypatch, tmp_
     assert "keep its corners squarer" in capsys.readouterr().err
 
 
-def test_plant_refuses_moving_a_lead_away_from_the_packhouse(monkeypatch, tmp_path, capsys):
+def test_plant_moves_a_lead_away_from_the_packhouse(monkeypatch, tmp_path):
     grove_blocks = (block("", "0", tree("hq")), block("a", "1", tree("l", lead=True), tree("s")))
     monkeypatch.setattr(blocks, "blocks", lambda *_args: grove_blocks)
     proposed = tmp_path / "proposed.json"
@@ -153,19 +153,17 @@ def test_plant_refuses_moving_a_lead_away_from_the_packhouse(monkeypatch, tmp_pa
     layout = state.load(proposed)
     house, plot, lead = layout["plots"][""], layout["plots"]["a"], layout["trees"]["a"][":lead"]
     away = 1 if plot["x"] + lead["x"] > house["x"] + house["w"] / 2 else -1
-    before = proposed.read_text()
 
-    with pytest.raises(SystemExit):
-        _run(
-            monkeypatch,
-            "plant",
-            "1",
-            "l",
-            str(lead["x"] + away),
-            str(lead["y"]),
-            "--layout",
-            str(proposed),
-        )
+    _run(
+        monkeypatch,
+        "plant",
+        "1",
+        "l",
+        str(lead["x"] + away),
+        str(lead["y"]),
+        "--layout",
+        str(proposed),
+    )
 
-    assert proposed.read_text() == before
-    assert "nearest the packhouse" in capsys.readouterr().err
+    moved = state.load(proposed)["trees"]["a"][":lead"]
+    assert (moved["x"], moved["y"]) == (lead["x"] + away, lead["y"])

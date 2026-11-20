@@ -1,0 +1,162 @@
+"""What the grove window shows, and the changes it asks for: jumping and standing trees.
+
+Reads the live grove without saving anything; only a dropped tree writes the layout, through
+the same rule `lemonaid grove plant` follows.
+"""
+
+import subprocess
+from collections import abc
+
+from ... import go
+from ...config import Config
+from ...inbox import db
+from ...lemon_watchers.common import detect_terminal_switch_source
+from .. import as_json
+from ..draw import bars, tree_stats
+from ..layout import arrange, edit, state, tangles
+from ..model import Block
+from ..source import live
+from ..tui import drop, frame, garden, keys
+from ..tui.frame import Grove
+from . import roads
+
+
+def load(config: Config) -> Grove:
+    source = detect_terminal_switch_source()
+    return live.preview(config, None if source == "unknown" else source)
+
+
+def shown(grove: Grove) -> dict:
+    """The grove as `grove show --json` gives it, with roads as the window draws them, and the
+    terminal grove's top bar: its summary, and its attention chips as runs of [text, color, fill, bold]."""
+    houses = [p for p in grove.arrangement.plots.values() if p.texture == "house"]
+    shown = as_json.grove(grove.blocks, grove.arrangement)
+    for block, drawn in zip(grove.blocks, shown["blocks"], strict=True):
+        for tree, tree_drawn in zip(block.trees, drawn["trees"], strict=True):
+            tree_drawn["stats"] = tree_stats.line(tree) if tree.lemons else ""  # the flip key's tag
+    return shown | {
+        "roads": roads.drawn(grove.arrangement.roads, houses),
+        "summary": frame.summary(grove),
+        "attention": bars.chips(frame.attention(grove)),
+    }
+
+
+def search(grove: Grove, text: str) -> list[dict]:
+    """The lemons the terminal grove's `/` finds for *text*, best first, each by its block's digit,
+    its tree's key and letter, and its place on the tree."""
+    return [
+        {
+            "digit": match.block.digit,
+            "key": match.tree.key,
+            "letter": grove.arrangement.trees[(match.block.name, match.tree.key)].letter,
+            "index": match.tree.lemons.index(match.lemon),
+            "channel": match.lemon.channel,
+        }
+        for match in keys.matches(grove.blocks, text)
+    ]
+
+
+def jump(channel: str, client: str) -> str:
+    """Switch tmux *client* to the lemon on *channel*; returns why it couldn't, or ""."""
+    with db.connect() as conn:
+        found = db.get_by_channel(conn, channel, unread_only=False)
+    if found is None:
+        return f"No live lemon on {channel}"
+
+    try:
+        go.jump_tmux(found, client)
+    except (LookupError, ValueError, OSError, subprocess.SubprocessError) as error:
+        return f"Could not switch to {found.name or channel}: {error}"
+    return ""
+
+
+def refusal(grove: Grove, digit: str, key: str, x: int, y: int) -> str:
+    """Why tree *key* of block *digit* can't stand at (*x*, *y*) in its plot, or "": the spot itself,
+    then everything saving it checks, such as a lead tree standing nearest the packhouse, judged on a
+    copy of the layout the window drew."""
+    block = next((b for b in grove.blocks if b.digit == digit), None)
+    if block is None or not any(t.key == key for t in block.trees):
+        return "that tree is gone"
+    if grove.arrangement.plots[block.name].texture == "house":
+        return "the packhouse's bays stay in order"
+
+    problem = tangles.refusal_at(block, grove.arrangement, key, x, y)
+    if problem:
+        return problem
+
+    try:
+        tangles.plant(grove.blocks, grove.saved, block, {key: (x, y)})
+    except edit.EditError as error:
+        return str(error)
+    return ""
+
+
+def plant(grove: Grove, digit: str, key: str, x: int, y: int) -> str:
+    """Stand the tree at (*x*, *y*) in the live layout; returns why it didn't, or ""."""
+    problem = refusal(grove, digit, key, x, y)
+    if problem:
+        return problem
+
+    block = next(b for b in grove.blocks if b.digit == digit)
+
+    def stand(saved: dict) -> dict:
+        # The window reads without saving, so a tree no grove has saved yet has a spot only once
+        # the saved layout is arranged with today's blocks, here, under the layout's lock.
+        laid_out = arrange.arrange(grove.blocks, saved)[1]
+        return tangles.plant(grove.blocks, laid_out, block, {key: (x, y)})
+
+    try:
+        state.update(stand)
+    except edit.EditError as error:
+        return str(error)
+    return ""
+
+
+_SIDES = frozenset({"left", "right", "top", "bottom"})
+
+
+def _block_drag(
+    grove: Grove, digit: str, sides: abc.Iterable[str], dx: int, dy: int
+) -> garden.Drag:
+    """The terminal grove's drag of block *digit*, or of open ground `open:N`, by (*dx*, *dy*) grove
+    units: its *sides*, or all of it when there are none. Terrain is judged a cell per grove unit."""
+    sides = frozenset(sides) & _SIDES
+    if digit.startswith("open:"):
+        index = int(digit.removeprefix("open:"))
+        was = grove.arrangement.open[index]
+        return garden.Drag(
+            Block("", "", "", ()), "", sides, (0, 0), (1.0, 1.0), (dx, dy), open=index, open_was=was
+        )
+    block = next(b for b in grove.blocks if b.digit == digit)
+    return garden.Drag(block, "", sides, (0, 0), (1.0, 1.0), moved=(dx, dy))
+
+
+def _gone(grove: Grove, digit: str) -> bool:
+    if digit.startswith("open:"):
+        index = digit.removeprefix("open:")
+        return not index.isdigit() or int(index) >= len(grove.arrangement.open)
+    return not any(b.digit == digit for b in grove.blocks)
+
+
+def block_refusal(grove: Grove, digit: str, sides: abc.Iterable[str], dx: int, dy: int) -> str:
+    """Why block *digit* can't be moved, or its *sides* dragged, by (*dx*, *dy*), or ""."""
+    if _gone(grove, digit):
+        return "that block is gone"
+
+    return drop.refused(grove, _block_drag(grove, digit, sides, dx, dy))
+
+
+def reframe(grove: Grove, digit: str, sides: abc.Iterable[str], dx: int, dy: int) -> str:
+    """Move block *digit*, or drag its *sides*, by (*dx*, *dy*) in the live layout; returns why
+    it didn't, or ""."""
+    problem = block_refusal(grove, digit, sides, dx, dy)
+    if problem:
+        return problem
+
+    dropped = drop.drop(grove, _block_drag(grove, digit, sides, dx, dy))
+    try:
+        # As in `plant`: a block no grove has saved yet gets its plot from arranging, under the lock.
+        state.update(lambda saved: dropped(arrange.arrange(grove.blocks, saved)[1]))
+    except edit.EditError as error:
+        return str(error)
+    return ""

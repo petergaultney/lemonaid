@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from ..config import load_config
 from . import layout_cli
@@ -36,20 +36,9 @@ def _block(args: argparse.Namespace) -> tuple[Grove, Block, Path | None]:
     return grove, found, where
 
 
-def _planted(
-    blocks: tuple[Block, ...], saved: dict[str, Any], block: Block, spots: dict[str, Any]
-) -> dict[str, Any]:
-    changed = saved
-    for tree in block.trees:
-        if tree.key in spots:
-            changed = edit.place_tree(changed, block.name, tree.key, tree.lead, *spots[tree.key])
-    tangles.check(blocks, saved, changed, {block.name})
-    return changed
-
-
 def _save(args: argparse.Namespace, grove: Grove, block: Block, where: Path | None, spots) -> None:
     try:
-        state.update(lambda saved: _planted(grove.blocks, saved, block, spots), where)
+        state.update(lambda saved: tangles.plant(grove.blocks, saved, block, spots), where)
     except edit.EditError as error:
         _fail(args, str(error))
 

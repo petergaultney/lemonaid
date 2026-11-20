@@ -1,0 +1,872 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>lemon grove</title>
+<style>
+:root { --opacity: 1; }  /* `grove_window_opacity` in the config, set when the page loads */
+html,body { margin:0; height:100%; overflow:hidden; background:rgb(11 14 19 / var(--opacity)); user-select:none; -webkit-user-select:none; }
+body { font:600 13px "SF Mono", Menlo, monospace; color:#e6ebf2; }
+.bar { position:fixed; left:0; right:0; height:22px; line-height:22px; padding:0 8px; background:rgb(22 27 36 / max(0.86, var(--opacity))); white-space:nowrap; overflow:hidden; z-index:2; }
+#top { top:0; } #bottom { bottom:0; }
+.chip { background:#f2d94e; color:#0b0e13; padding:1px 6px; font-weight:800; }
+.hint { color:#7c8696; float:right; }
+#msg { color:#f2c14e; }
+#sum { color:#aab3c2; }
+#attention span { white-space:pre; }
+canvas { position:absolute; top:22px; left:0; }
+#card { position:fixed; display:none; background:rgba(22,27,36,0.97); border:1px solid #3a4250; padding:6px 10px; z-index:3; pointer-events:none; font-weight:500; max-width:640px; }
+#card div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.55; }
+#usage, #help { position:fixed; display:none; left:50%; top:50%; transform:translate(-50%,-50%); background:rgb(22 27 36); border:2px solid #f2d94e; padding:8px 14px 10px; z-index:4; font-weight:500; }
+#usage h1, #help h1 { font-size:13px; margin:0 0 6px; text-align:center; color:#f2d94e; }
+#usage td, #usage th { padding:1px 10px 1px 0; text-align:left; white-space:nowrap; }
+#usage th { color:#7c8696; font-weight:600; }
+#help th { color:#f2d94e; text-align:left; padding:1px 14px 1px 0; white-space:nowrap; } #help td { white-space:nowrap; }
+#menu, #dialog { position:fixed; display:none; background:rgb(22 27 36); border:1px solid #3a4250; z-index:5; font-weight:500; min-width:180px; }
+#dialog { left:50%; top:40%; transform:translate(-50%,-50%); border:2px solid #f2d94e; padding:8px 12px; min-width:340px; }
+#menu .title { color:#f2d94e; padding:4px 10px; white-space:nowrap; } #dialog .title { color:#f2d94e; padding:0 0 6px; }
+#menu .item, #dialog .item { padding:3px 10px; cursor:pointer; white-space:nowrap; }
+#menu .item:hover, #dialog .item:hover, #menu .item.on { background:#2d3442; }
+#menu .key { color:#f2d94e; font-weight:800; text-decoration:underline; }
+body.selecting canvas { outline:2px solid #f2d94e; outline-offset:-2px; } body.selecting .bar { color:#f2d94e; }
+#dialog input { width:100%; box-sizing:border-box; font:inherit; background:#0b0e13; color:#e6ebf2; border:1px solid #3a4250; padding:3px 6px; margin-bottom:6px; user-select:text; -webkit-user-select:text; }
+#dialog .hint { color:#7c8696; margin-top:6px; }
+</style></head><body>
+<div class="bar" id="top"><span class="chip">LEMON GROVE</span> <span id="sum"></span> <span id="attention"></span> <span id="msg"></span><span class="hint" id="hint"></span></div>
+<canvas id="c"></canvas>
+<div class="bar" id="bottom"><span id="where"></span><span class="hint" id="legend"></span></div>
+<div id="card"></div>
+<div id="usage"></div>
+<div id="help"></div>
+<div id="menu"></div>
+<div id="dialog"></div>
+<script src="layout.js"></script>
+<script src="keys.js"></script>
+<script>
+window.onerror = (m, src, line, col) => { try { window.pywebview.api.log(`error ${m} at ${line}:${col}`); } catch (_) {} };
+// ---- palette and ports of the terminal grove's shapes (src/lemonaid/grove/draw/) ----
+const BG = "#0b0e13", TEXT = "#e6ebf2", TAG = "#4a5260", TRUNK = "#8a6239", TRUNK_SHADE = "#5a3c24";
+const LEAF = ["#2b5230", "#3d7039", "#548f45", "#79b25a"], LEAD_LEAF = ["#33602f", "#4a8540", "#66a850", "#93cc68"];
+const STATUS = {alert:"#e5534b", blocked:"#f2c14e", merge:"#5fbf6a", approve:"#c58af9", review:"#a8794f", running:"#39b5a8", done:"#5a8dee"};
+const RANK = ["alert", "blocked", "merge", "approve", "review", "running", "done"];
+const FLOOR = "#1d1f24", ROOF = "#7a3b2e";
+
+const seedOf = t => t._seed ?? (t._seed = wordHash(t.key) % 9973);
+const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+function mix(a, b, t) { const x = hex(a), y = hex(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+
+function inset(seed, side, t) {
+  const lean = (noise(seed, side + 10) - 0.5) * 0.08 * t, bow = (noise(seed, side + 20) - 0.5) * 0.06 * (1 - t * t);
+  return Math.max(0, 0.03 + 0.05 * noise(seed, side) + lean + bow + 0.012 * Math.sin(t * 5 + seed + side));
+}
+function inside(p, x, y) {
+  const hw = p.w / 2, hh = p.h / 2, nx = (x - p.x - hw + 0.5) / hw, ny = (y - p.y - hh + 0.5) / hh;
+  const left = -1 + inset(p.seed, 0, ny), right = 1 - inset(p.seed, 1, ny), top = -1 + inset(p.seed, 2, nx), bottom = 1 - inset(p.seed, 3, nx);
+  if (!(left <= nx && nx <= right && top <= ny && ny <= bottom)) return false;
+  const rows = Math.max(0, Math.min(0.9, 1.3 / p.roundness - 0.1)) * Math.min(hh, hw / 2);
+  if (rows <= 0) return true;
+  const kx = 2 * rows / hw, ky = rows / hh;
+  const dx = Math.max(0, left + kx - nx, nx - (right - kx)) / kx, dy = Math.max(0, top + ky - ny, ny - (bottom - ky)) / ky;
+  return dx * dx + dy * dy <= 1;
+}
+function texture(p, x, y) {
+  switch (p.texture) {
+    case "rows": return y % 3 === 1 && x % 3 === 0 ? "·" : "";
+    case "diag": return (x + 2 * y) % 9 === 0 ? "/" : "";
+    case "wave": return y % 3 === 1 && (x + y) % 4 === 0 ? "~" : "";
+    case "dots": return noise(x * 3 + p.seed, y) < 0.07 ? "·" : "";
+  }
+  return "";
+}
+
+function leafShade(u, v, lit, low) {
+  if ((u + 0.3) ** 2 + (v + 0.42) ** 2 < 0.22 * lit - 0.03) return 3;
+  if ((u + 0.1) ** 2 + (v + 0.25) ** 2 < 0.5 + 0.35 * lit) return 2;
+  return low > 0.8 ? 0 : 1;
+}
+function front(blobs, dx, dy) {
+  for (let i = blobs.length - 1; i >= 0; i--) {
+    const [bx, by, brx, bry, lit] = blobs[i], u = (dx - bx) / brx, v = (dy - by) / bry;
+    if (u * u + v * v <= 1) return [u, v, lit];
+  }
+  return null;
+}
+
+// ---- view ----
+const cv = document.getElementById("c"), card = document.getElementById("card"), bg = document.createElement("canvas");
+let ctx = cv.getContext("2d");
+// Mid-turn lemons and their tags dim and brighten over 4.5 s, as in the terminal grove.
+const PULSE_SECONDS = 4.5, PULSE_DEPTH = 0.45, MIN_TEXT = 0.62, MAX_TEXT = 1;  // the smallest and largest label text, against the font
+let moving = null;  // a block being moved, or its sides dragged, in the grove view: {b, sides, dx, dy, aim, problem}
+const shift = b => moving && moving.b.digit === b.digit && !moving.sides.length ? [moving.dx, moving.dy] : [0, 0];
+const phase = () => (1 - Math.cos(2 * Math.PI * Date.now() / 1000 / PULSE_SECONDS)) / 2;
+// Label size against the map's text, per view; "-" and "+" (or "=", unshifted) change it, kept by window/settings.py.
+let labelScales = {grove: 0.85, block: 0.95};
+
+const labelScale = () => labelScales[zoomed ? "block" : "grove"];
+let shown = false;  // the app says when the window is up; nothing animates while it is hidden
+let flipped = false, flipKey = ";", flipHold = true;  // the lists' other page, and the key that shows it
+let usageKey = "U", usageTimer = 0, usageAsked = 0;  // the inbox's usage table, in a box, while it's open
+// Hidden after a jump or a dismissal, it goes back to the whole grove at once, so the next summon
+// opens there instead of showing the block it left for a moment.
+window.setShown = v => {
+  shown = v;
+  if (!v && DATA) { typed = ""; drag = press = moving = search = dot = selecting = null; flipped = false; hideUsage(); closeMenus(); help.style.display = "none"; goTo(null); }
+  if (DATA) draw();
+};
+const still = document.createElement("canvas");  // the last full frame, which a pulse frame starts from
+let pulsers = {dots: [], tags: []};
+let CW = 8, RH = 16, YS = 2, CAP = 9;  // a cell's width, a row's height, their ratio, and a capital's height, from the font
+let DATA = null, view = {x: 0, y: 0, k: 8}, zoomed = null, typed = "", hits = [], hover = null;
+// A `/` search under way, {text, found, chosen}, and a `.` typed in a block toward a lemon's place, {letter, num}.
+let search = null, dot = null, searchAsked = 0;  // searchAsked: the last search Python was asked for; navigating keeps its answer wanted
+// `Tab`'s select mode: {mode: "" | "." | "$", letter, num}, what's typed toward a choice, and the view it began in
+let selecting = null, selectFrom = null;
+let listMarks = [];  // what drawList drew that a click reaches, a lemon's row or a PR, in the list's own pixels
+const worst = t => RANK.find(s => t.lemons.some(l => l.status === s)) || "";
+const sx = x => (x - view.x) * view.k, sy = y => (y - view.y) * view.k * YS;
+
+function measure() {
+  const dpr = devicePixelRatio || 1, w = innerWidth, h = innerHeight - 44;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.width = w + "px"; cv.style.height = h + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.font = '600 13px "SF Mono", Menlo, monospace';
+  CW = ctx.measureText("M").width; RH = Math.round(CW * 2.05); YS = RH / CW; CAP = ctx.measureText("H").actualBoundingBoxAscent;
+}
+const W = () => cv.width / (devicePixelRatio || 1), H = () => cv.height / (devicePixelRatio || 1);
+const screen = () => ({W: W(), H: H(), CW, RH, YS});
+// Each view's last pan and zoom, the whole grove's and each block's (by its group), kept between summons
+// and restarts; a view with none opens at its own fit.
+let views = {}, savingViews = 0;
+const viewKey = d => d ? `block:${DATA.blocks.find(b => b.digit === d)?.group || "packhouse"}` : "grove";
+// Python keeps them (window/settings.py), a moment after the last change.
+function keepSettings() { clearTimeout(savingViews); savingViews = setTimeout(() => window.pywebview.api.keep({views, labelScales}), 300); }
+// Kept per window size, since the window takes the size of the terminal it covers: a laptop's screen and
+// a monitor's each keep their own views.
+const sizeKey = () => `${Math.round(W() / 20) * 20}x${Math.round(H() / 20) * 20}`;
+function keepView() { (views[sizeKey()] ??= {})[viewKey(zoomed)] = {x: view.x, y: view.y, k: view.k, W: W(), H: H()}; keepSettings(); }
+// The view kept at this size, else the one kept at the nearest size, carried to this one.
+function keptView(d) {
+  const key = viewKey(d), here = views[sizeKey()]?.[key];
+  if (here) return here;
+
+  const near = Object.values(views).map(size => size[key]).filter(v => v && v.W && v.H).sort((a, b) =>
+    Math.abs(a.W - W()) + Math.abs(a.H - H()) - Math.abs(b.W - W()) - Math.abs(b.H - H()))[0];
+  if (!near) return null;
+  const then = {...screen(), W: near.W, H: near.H};
+  return carriedView(near, then, screen(), homeView(DATA.blocks, d, then), homeView(DATA.blocks, d, screen()), YS);
+}
+// A block's kept view is used only while it is one of that block's own views: zoomed in as far as the
+// block's band reaches and centered on the block. Otherwise the block opens at its fit.
+function usable(d, kept) {
+  if (!kept || !d) return !!kept;
+
+  const p = DATA.blocks.find(b => b.digit === d)?.plot, cx = kept.x + W() / 2 / kept.k, cy = kept.y + H() / 2 / (kept.k * YS);
+  return !!p && kept.k >= homeView(DATA.blocks, d, screen()).k * 0.55 && cx >= p.x && cx <= p.x + p.w && cy >= p.y && cy <= p.y + p.h;
+}
+function goTo(d) { zoomed = d; const kept = keptView(d); view = usable(d, kept) ? {...kept} : homeView(DATA.blocks, d, screen()); }
+let layouts = {};  // by view ("grove" or a block's digit), from layOut
+const layout = () => layouts[zoomed || "grove"] ??= layOut(DATA.blocks, zoomed, screen(), labelScale());
+
+// ---- drawing ----
+function txt(s, x, y, color, bg, weight) {
+  if (bg) { ctx.fillStyle = bg; ctx.fillRect(x, y, s.length * CW, RH); }
+  ctx.font = `${weight || 600} 13px "SF Mono", Menlo, monospace`;
+  ctx.fillStyle = color; ctx.textBaseline = "alphabetic"; ctx.fillText(s, x, y + (RH + CAP) / 2);  // capitals centered in the row
+}
+
+function drawStars() {
+  for (let i = 0; i < 260; i++) {
+    const x = noise(i, 1) * 260 - 20, y = noise(i, 2) * 90 - 10;
+    ctx.fillStyle = noise(i, 3) < 0.3 ? "#2a323e" : "#1c222b";
+    ctx.fillRect(sx(x), sy(y), 2, 2);
+  }
+}
+
+// A smooth curve through the midpoints of a saved path, sampled in grove units.
+function smooth(points) {
+  const out = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = i === 1 ? points[0] : [(points[i - 1][0] + points[i][0]) / 2, (points[i - 1][1] + points[i][1]) / 2];
+    const c = points[i], b = [(points[i][0] + points[i + 1][0]) / 2, (points[i][1] + points[i + 1][1]) / 2];
+    for (let t = 0.1; t <= 1.001; t += 0.1) out.push([(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0], (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1]]);
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
+function strokeSmooth(points, width, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = ctx.lineCap = "round";
+  ctx.beginPath(); smooth(points).forEach(([x, y], i) => i ? ctx.lineTo(sx(x), sy(y)) : ctx.moveTo(sx(x), sy(y))); ctx.stroke();
+}
+function drawLandmarks() {
+  (DATA.roads || []).forEach(r => {
+    strokeSmooth(r, view.k * 1.6, "#221a12");
+    smooth(r).forEach(([x, y], i) => { if (i % 3 === 0) { ctx.fillStyle = "#4a3a28"; ctx.fillRect(sx(x) - 1, sy(y) - 1, 2, 2); } });
+  });
+  if (!(DATA.stream && DATA.stream.length > 1)) return;
+  const st = DATA.stream, out = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1; return [a[0] + dx / d * 400, a[1] + dy / d * 400]; };
+  const water = [out(st[0], st[1]), ...st, out(st[st.length - 1], st[st.length - 2])];  // a stream runs on past the map
+  const band = view.k * YS * 1.5;
+  strokeSmooth(water, band + Math.max(3, band * 0.18), "#1d4166");
+  strokeSmooth(water, band, "#11294a");
+  const pts = smooth(water).map(([x, y]) => [sx(x), sy(y)]);
+  ctx.strokeStyle = "rgba(92,146,196,0.75)"; ctx.lineWidth = Math.max(1, band / 22); ctx.lineCap = "round";
+  let next = 0, walked = 0, n = 0;
+  for (let i = 1; i < pts.length; i++) {  // short ripples, scattered across the water
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], len = Math.hypot(bx - ax, by - ay);
+    if (!len) continue;
+    const ux = (bx - ax) / len, uy = (by - ay) / len;
+    while (next <= walked + len) {
+      const d = next - walked, fx = ax + ux * d, fy = ay + uy * d, k = n++;
+      const off = (noise(k, 7) - 0.5) * band * 0.7, rx = fx - uy * off, ry = fy + ux * off, w = band * (0.25 + 0.2 * noise(k, 8));
+      if (rx > -50 && rx < W() + 50 && ry > -50 && ry < H() + 50) {
+        ctx.beginPath(); ctx.moveTo(rx - ux * w / 2, ry - uy * w / 2);
+        ctx.quadraticCurveTo(rx - ux * w / 4 - uy * w / 5, ry - uy * w / 4 + ux * w / 5, rx, ry);
+        ctx.quadraticCurveTo(rx + ux * w / 4 + uy * w / 5, ry + uy * w / 4 - ux * w / 5, rx + ux * w / 2, ry + uy * w / 2);
+        ctx.stroke();
+      }
+      next += band * (0.35 + 0.5 * noise(k, 9));
+    }
+    walked += len;
+  }
+  ctx.textAlign = "left";
+}
+
+function drawGround(b) {
+  const p = b.plot, color = b.color || "#8b949e";
+  const soil = mix(color, BG, 0.84), rim = mix(color, BG, 0.62), marks = mix(color, BG, 0.66);
+  const q = Math.max(3, Math.round(view.k / 2)), x0 = sx(p.x), y0 = sy(p.y), x1 = sx(p.x + p.w), y1 = sy(p.y + p.h);
+  const at = (px, py) => inside(p, view.x + px / view.k, view.y + py / (view.k * YS));
+  for (let py = Math.floor(y0); py < y1; py += q) for (let px = Math.floor(x0); px < x1; px += q) {
+    if (!at(px + q / 2, py + q / 2)) continue;
+    const edge = !(at(px - q / 2, py + q / 2) && at(px + 1.5 * q, py + q / 2) && at(px + q / 2, py - q / 2) && at(px + q / 2, py + 1.5 * q));
+    ctx.fillStyle = soil; ctx.fillRect(px, py, q, q);
+    if (edge) {
+      ctx.fillStyle = rim; const h = q / 2;
+      ctx.fillRect(px, py, h, h); ctx.fillRect(px + h, py + h, h, h);
+    }
+  }
+  if (view.k >= 4) {
+    ctx.fillStyle = marks; ctx.font = `600 ${Math.min(13, view.k * 1.5)}px "SF Mono", Menlo, monospace`; ctx.textBaseline = "middle";
+    for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
+      const m = texture(p, x, y);
+      if (m && inside(p, p.x + x + 0.5, p.y + y + 0.5) && inside(p, p.x + x + 1.5, p.y + y + 0.5) && inside(p, p.x + x - 0.5, p.y + y + 0.5))
+        ctx.fillText(m, sx(p.x + x), sy(p.y + y + 0.5));
+    }
+  }
+}
+
+// Crown, trunk and hanging lemons, the crown's center at screen (cx, cy); returns its box.
+// Text at *k* times the font's size, the scale every label in the view shares.
+function txtAt(s, x, y, color, bg, weight, k) { ctx.save(); ctx.translate(x, y); ctx.scale(k, k); txt(s, 0, 0, color, bg, weight); ctx.restore(); }
+function drawSign(b, k) {
+  const p = b.plot, x0 = sx(p.x), x1 = sx(p.x + p.w);
+  txtAt(` ${b.digit} ${b.group.toUpperCase()} `, x0 + Math.min(4 * CW, (x1 - x0) / 8), sy(p.y) - RH * 0.6 * k, "#0b0e13", b.color || "#8b949e", 800, k);
+}
+
+function drawTree(b, t, cx, cy, scale) {
+  const s = crownShape(t, scale), cw = CW * view.treeZ, rh = RH * view.treeZ;
+  const leaf = t.lead ? LEAD_LEAF : LEAF, px = Math.max(2, cw / 3);
+  const {top, bottom, left, right} = crownExtent(s), box = treeBox(t, s, cx, cy, cw, rh);
+  const trunkTop = cy + bottom * rh * 0.7, groundY = box.groundY, bark = s.bark * cw / 4;
+  ctx.fillStyle = TRUNK; ctx.fillRect(cx - bark / 2, trunkTop, bark / 2, groundY - trunkTop);
+  ctx.fillStyle = TRUNK_SHADE; ctx.fillRect(cx, trunkTop, bark / 2, groundY - trunkTop);
+  const solid = [];
+  for (let y = cy + top * rh; y < cy + bottom * rh; y += px) for (let x = cx + left * cw; x < cx + right * cw; x += px) {
+    const dx = (x + px / 2 - cx) / cw, dy = (y + px / 2 - cy) / rh, on = front(s.blobs, dx, dy);
+    if (!on) continue;
+    const d = px / cw, e = px / rh;  // ragged silhouette: drop some pixels on the crown's outer edge only
+    const edge = !front(s.blobs, dx - d, dy) || !front(s.blobs, dx + d, dy) || !front(s.blobs, dx, dy - e) || !front(s.blobs, dx, dy + e);
+    if (edge && noise(Math.round(x / px) + seedOf(t), Math.round(y / px)) < 0.45) continue;
+    const shade = leafShade(on[0], on[1], on[2], (dy - top) / (bottom - top));
+    ctx.fillStyle = leaf[shade]; ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(px), Math.ceil(px));
+    if (Math.abs(dx) < s.rx * 0.75 && dy > top + 0.4 && dy < bottom - 0.4) solid.push([x, y]);
+  }
+  const seed = wordHash(t.key), side = noise(seed, 1) > 0.5 ? 1 : -1, n = t.lemons.length;
+  t.lemons.slice(0, 6).forEach((l, i) => {
+    const u = side * (-1) ** i * (0.15 + 0.45 * noise(seed, i + 2)), v = n > 1 ? -0.75 + 1.2 * i / (Math.min(n, 6) - 1) : -0.25;
+    const tx = cx + u * s.rx * cw, ty = cy + v * s.ry * rh;
+    const [lx, ly] = solid.reduce((best, c) => Math.hypot(c[0] - tx, c[1] - ty) < Math.hypot(best[0] - tx, best[1] - ty) ? c : best, [tx, ty]);
+    const r = Math.max(3.4, px * 1.5), base = l.jump_problem ? "#8b949e" : STATUS[l.status] || "#b4bcc6";
+    const color = l.working ? mix(base, BG, PULSE_DEPTH * phase()) : base;
+    if (l.working && l.status !== "done") pulsers.dots.push({x: lx + px / 2, y: ly + px / 2, r, base});
+    ctx.beginPath(); ctx.arc(lx + px / 2, ly + px / 2, r, 0, 7);
+    if (l.status === "done") { ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke(); }
+    else { ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = "rgba(11,14,19,0.6)"; ctx.lineWidth = 1; ctx.stroke(); }
+  });
+  if (t.lead && b.group) {
+    const fx = cx, fy = cy + top * rh;
+    ctx.fillStyle = TRUNK; ctx.fillRect(fx, fy - rh * 1.6, 2, rh * 1.6);
+    ctx.fillStyle = b.color || TEXT; ctx.beginPath(); ctx.moveTo(fx + 2, fy - rh * 1.6); ctx.lineTo(fx + 2 + cw * 2.2, fy - rh * 1.25); ctx.lineTo(fx + 2, fy - rh * 0.9); ctx.fill();
+  }
+  return box;
+}
+
+// In select mode a block's tree titles show `$` before the letter, as the terminal grove's do: what to
+// type, after `$`, to choose the whole tree.
+const selectable = (t, parts) => selecting && zoomed ? {...parts, key: parts.key.replace(t.letter, "$" + t.letter)} : parts;
+function drawTag(b, t, x, y, parts) {
+  if (t.lemons[0]?.pinned && !(flipped && !zoomed)) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x - CW * 0.6, y + RH * 0.15, CW * 0.45, RH * 0.7); }  // the main lemon is pinned
+  const s = worst(t), working = t.lemons.some(l => l.working);
+  const fill = STATUS[s] && working ? mix(STATUS[s], BG, PULSE_DEPTH * 0.7 * phase()) : STATUS[s];
+  if (!parts.body) return txt(parts.key, x, y, "#0b0e13", fill || "#9aa3ad", 800);
+  txt(parts.key, x, y, "#0b0e13", s ? "#e6ebf2" : "#9aa3ad", 800);
+  txt(parts.body, x + parts.key.length * CW, y, fill ? "#0b0e13" : TEXT, fill || TAG, 700);
+}
+
+// A tree's lemon list as the terminal draws it (lemon_list.py): its tag is the list's title, set in
+// the top border and followed by the place key; a row per lemon: key, dot, name, status, Brief-ID, age.
+const ASKS = ["blocked", "alert", "merge", "approve", "review", "running"];
+// The border runs half a column inside the box on every side, the title set over its top line;
+// inside it, a column of room across, and a pad below the title and below the last row.
+// A row's other page, as the terminal's (draw/lemon_pages.py, `where_and_when`): its PRs and branch,
+// then its model and how much of its context it has used, between *x* and *right*.
+const BRANCH = "#d16ad8";
+function otherPage(l, x, right, y) {
+  const model = right - CW * 16, room = Math.floor((model - x) / CW) - 1;  // a column short of the model
+  let at = 0;
+  for (const [number, url] of l.prs || []) {
+    if (at + number.length + 2 > room) break;
+    txt(`#${number}`, x + CW * at, y, TEXT, null, 800);
+    if (url) listMarks.push({x: x + CW * at, y, w: CW * (number.length + 1), h: RH, lemon: l, url});
+    at += number.length + 2;
+  }
+  const where = l.jump_problem ? "no jump" : (l.branch || "").split("/").pop() || (l.cwd || "").split("/").pop();
+  const left = room - at;
+  txt(where.length > left ? where.slice(0, Math.max(0, left - 1)) + "…" : where, x + CW * at, y, l.jump_problem ? "#e5534b" : BRANCH, null, 600);
+  txt((l.model || "").slice(0, 10), model, y, "#9aa3ad", null, 600);
+  const used = (l.context || "").slice(-4), pct = parseInt(used, 10);
+  txt(used, right - CW * used.length, y, pct >= 80 ? "#e5534b" : pct >= 60 ? "#f2c14e" : "#9aa3ad", null, 600);
+}
+function drawList(b, t, x, y, w, parts) {
+  const cols = Math.floor(w / CW), bw = cols * CW, h = listHeight(t, RH), pad = listPad(RH), edge = mix(b.color || "#8b949e", BG, 0.25);
+  ctx.fillStyle = "rgba(13,17,23,0.95)"; ctx.fillRect(x, y, bw, h);
+  const bottom = y + RH + pad + t.lemons.length * RH + pad;
+  ctx.strokeStyle = edge; ctx.lineWidth = 1.2; ctx.strokeRect(x + CW / 2, y + CW / 2, bw - CW, bottom - y - CW / 2);
+  drawTag(b, t, x + CW, y, parts);
+  const after = x + CW + (parts.key.length + parts.body.length) * CW;
+  txt(` ${t.key} `.slice(0, Math.max(0, Math.floor((x + bw - after) / CW) - 2)), after, y, "#9aa3ad", "rgba(13,17,23,1)", 500);
+  const left = x + CW * 1.5, right = x + bw - CW * 1.5, nameW = cols - 36;
+  t.lemons.forEach((l, j) => {
+    const ly = y + RH + pad + RH * j, c = STATUS[l.status] || "#8b949e", key = j ? `.${t.letter}${j}` : t.letter, age = l.age.replace(" ago", "");
+    listMarks.push({x: left - CW, y: ly, w: right - left + 2 * CW, h: RH, lemon: l});
+    if (l.pinned) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x + CW * 0.25, ly + RH * 0.15, CW * 0.5, RH * 0.7); }  // in the left border, as the terminal marks a pin
+    txt(key, left + CW * (3 - key.length), ly, j ? "#c9d1d9" : c, null, 800);
+    txt(l.status === "done" ? "∘" : "●", left + CW * 4, ly, c, null, 800);
+    if (flipped) return otherPage(l, left + CW * 6, right, ly);
+
+    const name = l.name || l.session, room = nameW - (l.emoji ? 2 : 0);
+    if (l.emoji) txt(l.emoji, left + CW * 6, ly, TEXT, null, 500);
+    txt(name.length > room ? name.slice(0, room - 1) + "…" : name, left + CW * (l.emoji ? 8 : 6), ly, TEXT, null, 700);
+    if (ASKS.includes(l.status)) txt(l.status, right - CW * 25, ly, c, null, 700);
+    txt((l.brief_id || "").slice(0, 10), right - CW * 16, ly, "#7c8696", null, 500);
+    txt(age, right - CW * age.length, ly, "#9aa3ad", null, 500);
+  });
+  return h;
+}
+
+function drawHouse(b, P, k) {
+  const p = b.plot, inside_ = zoomed === b.digit, cw = CW * k, rh = RH * k;
+  const x = inside_ ? 3 * CW : sx(p.x), y = inside_ ? RH : sy(p.y), w = inside_ ? W() - 6 * CW : (p.w) * view.k, h = inside_ ? H() - 2 * RH : p.h * view.k * YS;
+  ctx.fillStyle = ROOF; ctx.fillRect(x - CW, y, w + 2 * CW, RH * 0.55);
+  ctx.fillStyle = FLOOR; ctx.fillRect(x, y + RH * 0.55, w, h - RH * 0.55);
+  ctx.strokeStyle = "#8f8574"; ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 2, y + RH * 0.75, w - 4, h - RH * 0.95); ctx.strokeRect(x + 6, y + RH * 0.75 + 4, w - 12, h - RH * 0.95 - 8);
+  const sign = ` ${b.digit} PACKHOUSE `;
+  txtAt(sign, x + (w - sign.length * cw) / 2, y - rh * 0.3, "#0b0e13", "#cbbf9f", 800, k);
+  P.reserve({x: x - CW, y: y - RH, w: w + 2 * CW, h: h + RH});
+  hits.push({x, y, w, h, block: b, ground: true});
+  const trees = [...b.trees].sort((a, c) => (a.bay ?? 0) - (c.bay ?? 0));
+  if (!inside_) {
+    const room = Math.floor((h - RH * 1.6) / rh), spaced = trees.every(t => (t.bay ?? 0) * 2 < room);
+    trees.slice(0, room).forEach((t, i) => {
+      const by = y + RH * 1.2 + rh * (spaced ? (t.bay ?? i) * 2 : trees.length * 2 - 1 <= room ? i * 2 : i), bx = x + cw * 1.5;
+      const s = worst(t), cap = ` ${b.digit}${t.letter} `, dots = t.lemons.length * 2;
+      txtAt(cap, bx, by, s ? "#0b0e13" : TEXT, STATUS[s] || TAG, 800, k);
+      const room2 = Math.floor(w / cw) - cap.length - dots - 5, label = t.label.length > room2 ? t.label.slice(0, room2 - 1) + "…" : t.label;
+      txtAt(label, bx + (cap.length + 1) * cw, by, TEXT, null, 700, k);
+      t.lemons.forEach((l, j) => txtAt(l.status === "done" ? "∘" : "●", x + w - cw * (dots + 1.5 - 2 * j), by, STATUS[l.status] || "#9aa3ad", null, 800, k));
+      hits.push({x: bx, y: by, w: w - 3 * cw, h: rh, block: b, tree: t});
+    });
+    return;
+  }
+  const across = Math.max(34, Math.min(60, Math.floor(W() * 0.3 / cw))) * CW, cols = Math.max(1, Math.floor((w - 2 * cw) / (across * k + 2 * cw)));
+  trees.forEach((t, i) => {
+    const bay = t.bay ?? i, bx = x + 2 * cw + (bay % cols) * (across * k + 2 * cw), by = y + RH * 1.6 + Math.floor(bay / cols) * (rh * 7.5);
+    ctx.save(); ctx.translate(bx, by); ctx.scale(k, k);
+    listMarks = [];
+    const h2 = drawList(b, t, 0, 0, across, selectable(t, tagParts(b, t, zoomed, false)));
+    ctx.restore();
+    hits.push({x: bx, y: by, w: across * k, h: h2 * k, block: b, tree: t});
+    markHits(b, t, bx, by, k);
+  });
+}
+
+// Open ground, left by a group that ended: an unnamed outline, which the next new group takes.
+function drawOpen(p) {
+  ctx.fillStyle = "rgba(58,66,80,0.18)"; ctx.fillRect(sx(p.x), sy(p.y), p.w * view.k, p.h * view.k * YS);
+  ctx.strokeStyle = "#4a5260"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.strokeRect(sx(p.x), sy(p.y), p.w * view.k, p.h * view.k * YS); ctx.setLineDash([]);
+}
+
+let bgKey = "";
+// Stars, landmarks and ground change only with the view, so they are drawn once into *bg* and a
+// pulse frame redraws only trees and labels over it.
+function drawBackground() {
+  const dpr = devicePixelRatio || 1, key = [view.x, view.y, view.k, cv.width, cv.height, window.groveShape].join();
+  if (key === bgKey) return;
+  bgKey = key; bg.width = cv.width; bg.height = cv.height;
+  const main = ctx; ctx = bg.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawStars(); drawLandmarks(); (DATA.open || []).forEach(drawOpen); DATA.blocks.filter(b => b.group).forEach(drawGround);
+  ctx = main;
+}
+
+// A tree's tag or list where the view's layout pinned it, moved by (*dx*, *dy*) grove units.
+function drawLabel(b, t, dx, dy) {
+  const placed = layout(), at = placed.get(`${b.digit}/${t.key}`);
+  if (!at) return;
+  // Labels scale with the map within a view, so its layout holds, between a smallest and a largest
+  // text size. Smaller, a tag would cover its neighbors' places, so it shows only its key; larger, the
+  // labels stop growing while the trees do, so zooming in opens room between them. Each stays hung
+  // from its tree: a tag centered under the trunk, a list as far from it as the layout put it, scaled.
+  const f = view.k / placed.k0, ls = placed.ls, k = Math.min(Math.max(f * ls, MIN_TEXT), MAX_TEXT), keysOnly = f * ls < MIN_TEXT;
+  const stats = flipped && !zoomed && at.kind === "tag" && !keysOnly && t.stats;  // the flip key, in the grove view
+  const parts = keysOnly && at.kind === "tag" ? {key: at.parts.key, body: ""} : stats ? {key: at.parts.key, body: ` ${t.stats} `} : at.kind === "list" ? selectable(t, at.parts) : at.parts;
+  const w = at.kind === "tag" ? (parts.key.length + parts.body.length) * CW * k : at.w * k / ls;
+  const trunk = sx(b.plot.x + t.spot[0] + dx), y = sy(at.wy + dy);
+  const x = at.kind === "tag" ? sx(at.wx + dx) + (at.w * f - w) / 2 : trunk + (sx(at.wx + dx) - trunk) * k / (f * ls);
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+  listMarks = [];
+  if (at.kind === "list") drawList(b, t, 0, 0, at.w / ls, parts); else drawTag(b, t, 0, 0, parts);
+  ctx.restore();
+  if (t.lemons.some(l => l.working) && worst(t)) pulsers.tags.push({b, t, x: x + (at.kind === "list" ? CW * k : 0), y, scale: k, parts});
+  hits.push({x, y, w, h: at.h * k / ls, block: b, tree: t, label: true});
+  markHits(b, t, x, y, k);
+}
+// A list's rows and PR numbers, as drawn at (*x*, *y*) and scaled by *k*: later than the list's own hit,
+// so a click on a row reaches its lemon.
+function markHits(b, t, x, y, k) {
+  listMarks.forEach(m => hits.push({x: x + m.x * k, y: y + m.y * k, w: m.w * k, h: m.h * k, block: b, tree: t, label: true, lemon: m.lemon, url: m.url}));
+  listMarks = [];
+}
+
+// A tree being dragged, over the frame drawn without it: each move redraws only this.
+const dragBase = document.createElement("canvas");
+function drawDrag() {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(dragBase, 0, 0); ctx.restore();
+  const {b, t, fx, fy, problem} = drag, kept = [hits.length, pulsers.tags.length];
+  ctx.save(); ctx.globalAlpha = drag.landing ? 1 : 0.85; const box = drawTree(b, t, sx(b.plot.x + fx), sy(b.plot.y + fy), treeScale(t, zoomed)); ctx.restore();
+  drawLabel(b, t, fx - t.spot[0], fy - t.spot[1]);
+  if (!drag.landing) {
+    ctx.strokeStyle = problem === null ? "#9aa3ad" : problem ? "#e5534b" : "#5fbf6a"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.strokeRect(box.x - 4, box.y - 4, box.w + 8, box.groundY - box.y + 8); ctx.setLineDash([]);
+  }
+  hits.length = kept[0]; pulsers.tags.length = kept[1];  // the frame's own registries; a drag's overlay adds nothing to them
+}
+
+// While a zoom or pan is under way, the last full frame is moved and scaled to the view, which takes a
+// fraction of a millisecond; the full frame is drawn once the gesture rests.
+let stillView = null, resting = 0;
+function moveFrame() {
+  if (!stillView) return draw();
+
+  const dpr = devicePixelRatio || 1, s = view.k / stillView.k;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(s, 0, 0, s, (stillView.x - view.x) * view.k * dpr, (stillView.y - view.y) * view.k * YS * dpr);
+  ctx.drawImage(still, 0, 0); ctx.restore();
+  clearTimeout(resting); resting = setTimeout(draw, 120);
+}
+
+function draw() {
+  if (!DATA) return;
+  clearTimeout(resting); resting = 0;
+  const began = performance.now();
+  hits = []; pulsers = {dots: [], tags: []};
+  const placed = layout();
+  view.treeZ = 0.75 * view.k / CW;  // trees are part of the map and scale with it
+  drawBackground();
+  ctx.clearRect(0, 0, W(), H());
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bg, 0, 0); ctx.restore();
+  DATA.blocks.filter(b => b.group).forEach(b => hits.push({x: sx(b.plot.x), y: sy(b.plot.y), w: b.plot.w * view.k, h: b.plot.h * view.k * YS, block: b, ground: true}));
+  const trees = [];
+  DATA.blocks.filter(b => b.group).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
+  // Drawn where the drag has it, below; a refresh brings new objects, so it's found by block and key.
+  const dragged = T => drag && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
+  trees.sort((a, c) => a.cy - c.cy).forEach(T => {
+    if (dragged(T)) return;
+    const box = drawTree(T.b, T.t, T.cx, T.cy, treeScale(T.t, zoomed)); hits.push({...box, block: T.b, tree: T.t});
+  });
+  const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
+  DATA.blocks.filter(b => !b.group).forEach(b => drawHouse(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
+  DATA.blocks.filter(b => b.group).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
+  trees.forEach(T => { if (!dragged(T)) drawLabel(T.b, T.t, ...shift(T.b)); });
+  if (moving && !moving.landing) {
+    const a = moving.aim;
+    ctx.strokeStyle = moving.problem === null ? "#9aa3ad" : moving.problem ? "#e5534b" : "#5fbf6a"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.strokeRect(sx(a.x), sy(a.y), a.w * view.k, a.h * view.k * YS); ctx.setLineDash([]);
+  }
+  if (search) drawSearch();
+  if (drag) { dragBase.width = cv.width; dragBase.height = cv.height; dragBase.getContext("2d").drawImage(cv, 0, 0); drawDrag(); }
+  if (!drag && !moving) status();
+  still.width = cv.width; still.height = cv.height; still.getContext("2d").drawImage(cv, 0, 0); stillView = {...view};
+  const took = performance.now() - began;
+  if (took > 50) try { window.pywebview.api.log(`slow frame ${Math.round(took)}ms`); } catch (_) {}
+}
+
+// While searching, blocks with no match fade, and the chosen match's tree is ringed.
+function drawSearch() {
+  const digits = new Set(search.found.map(m => m.digit)), m = search.found[search.chosen];
+  if (!zoomed && search.text) DATA.blocks.filter(b => !digits.has(b.digit)).forEach(b => {
+    ctx.fillStyle = "rgba(11,14,19,0.62)"; ctx.fillRect(sx(b.plot.x), sy(b.plot.y), b.plot.w * view.k, b.plot.h * view.k * YS);
+  });
+  const on = h => m && h.tree && h.block.digit === m.digit && h.tree.key === m.key;
+  const box = hits.find(h => on(h) && !h.label) || hits.find(on);
+  if (!box) return;
+  ctx.strokeStyle = "#f2d94e"; ctx.lineWidth = 2; ctx.setLineDash([5, 3]); ctx.strokeRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); ctx.setLineDash([]);
+}
+
+// A pulse frame: the last full frame, with only mid-turn lemons and their tags painted again.
+function pulse() {
+  if (!DATA || !shown || drag || resting || !(pulsers.dots.length || pulsers.tags.length)) return;  // a pulse would paint over a drag's overlay, or a moving frame
+  // Cleared first: drawn over itself, a see-through frame would grow more solid with every pulse.
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(still, 0, 0); ctx.restore();
+  const p = phase();
+  pulsers.dots.forEach(d => { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fillStyle = mix(d.base, BG, PULSE_DEPTH * p); ctx.fill(); ctx.strokeStyle = "rgba(11,14,19,0.6)"; ctx.lineWidth = 1; ctx.stroke(); });
+  pulsers.tags.forEach(g => { ctx.save(); ctx.translate(g.x, g.y); ctx.scale(g.scale, g.scale); drawTag(g.b, g.t, 0, 0, g.parts); ctx.restore(); });
+}
+setInterval(pulse, 70);
+
+function status() {
+  const lemons = DATA.blocks.flatMap(b => b.trees.flatMap(t => t.lemons)), trees = DATA.blocks.reduce((n, b) => n + b.trees.length, 0);
+  document.getElementById("sum").textContent = DATA.summary ?? `${lemons.length} lemons on ${trees} trees · ${lemons.filter(l => l.working).length} mid-turn`;
+  // The terminal grove's attention chips, as Python renders them (draw/bars.py).
+  const esc = s => s.replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+  document.getElementById("attention").innerHTML = (DATA.attention || []).map(([text, color, fill, bold]) =>
+    `<span style="color:${color};background:${fill};font-weight:${bold ? 800 : 500}">${esc(text)}</span>`).join("");
+  document.getElementById("hint").textContent = zoomed ? `letter jumps · .s1 other lemons · / search · right-click or tab edits · ${flipKey} other page · ? keys · esc back` : `digit zooms · click jumps · / search · right-click or tab edits · drag a block or its edge · ? keys · esc closes`;
+  const b = zoomed && DATA.blocks.find(b => b.digit === zoomed), where = document.getElementById("where");
+  where.style.color = "";
+  document.body.classList.toggle("selecting", !!selecting);
+  if (search) where.textContent = searchLine();
+  else if (selecting) where.textContent = !zoomed ? "select > a block's digit · tab leaves"
+    : selecting.mode === "$" ? `select > ${zoomed} $ · a tree's letter, for the whole tree`
+    : selecting.mode === "." ? `select > ${zoomed} .${selecting.letter || ""}${selecting.num || ""} · ${selecting.letter ? "the lemon's place: 1 for the second" : "a tree's letter"}`
+    : `select > ${zoomed} · a letter for its first lemon · .s1 another · $ and a letter the whole tree · # the block · tab leaves`;
+  else if (dot) where.textContent = `> ${zoomed} .${dot.letter}${dot.num}   ${dot.letter ? "the lemon's place: 1 for the second, 0a for the eleventh" : "a tree's letter for its other lemons, or . again to refit"}`;
+  else where.textContent = b ? `> ${b.digit} · ${b.group || "packhouse"}` : "> type a block number";
+  document.getElementById("legend").innerHTML = ["alert", "blocked", "running", "merge", "review"].map(s => `<span style="color:${STATUS[s]}">●</span> ${s}`).join("  ") + `  <span style="color:#9aa3ad">●</span> idle`;
+}
+
+// The search's prompt line: its text, and the chosen match by its key, as `2.s1`, and name.
+function searchLine() {
+  const n = search.found.length, m = search.found[search.chosen];
+  if (!m) return `/${search.text}   ${search.text ? "no lemon matches" : "type to search Brief-IDs, sessions and names"} · esc cancels`;
+  const l = DATA.blocks.find(b => b.digit === m.digit)?.trees.find(t => t.key === m.key)?.lemons[m.index];
+  const place = m.index ? `.${m.letter}${m.index < 10 ? m.index : "0" + String.fromCharCode(87 + m.index)}` : m.letter;
+  return `/${search.text}   ${search.chosen + 1} of ${n}: ${m.digit}${place} ${l ? (l.brief_id ? l.brief_id + " " : "") + (l.name || l.session) : ""} · ↑ ↓ choose · enter jumps · esc cancels`;
+}
+
+// ---- interaction ----
+const hitAt = (x, y) => [...hits].reverse().find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+function hideCard() { hover = null; card.style.display = "none"; }
+function showCard(e, b, t) {
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  card.innerHTML = `<div><b>${b.digit}${esc(t.letter)}</b> ${esc(t.label)}</div>` + t.lemons.map((l, j) =>
+    `<div style="color:${STATUS[l.status] || '#9aa3ad'}">${esc(t.letter)}${j || ""} ${esc(l.status || "·")} ${esc(l.brief_id)} <span style="color:#e6ebf2">${esc(l.name)}</span> · ${esc(l.model)} ${esc(l.context)} · ${esc(l.age)}${l.jump_problem ? " · no jump" : ""}</div>`).join("");
+  card.dataset.tree = JSON.stringify(t);
+  if (!e) return;  // the same tree's lines, where the card already is
+
+  card.style.left = Math.min(e.clientX + 14, innerWidth - 660) + "px"; card.style.top = Math.min(e.clientY + 14, innerHeight - 40 - 24 * t.lemons.length) + "px"; card.style.display = "block";
+}
+function jumpTo(l) {
+  if (!l) return;
+  if (l.jump_problem) { document.getElementById("msg").textContent = `can't jump: ${l.jump_problem}`; return; }
+  hideCard();
+  window.pywebview.api.jump(l.channel).then(problem => { if (problem) document.getElementById("msg").textContent = problem; });
+}
+function zoomTo(d) {
+  const b = DATA.blocks.find(b => b.digit === d);
+  if (!b) return;
+  goTo(d); draw();
+}
+function back() { if (zoomed) { goTo(null); draw(); } else window.pywebview.api.dismiss(); }
+
+// `grove_flip_key` as a character, or a key's name as the terminal grove's config spells it (`tab`).
+const isFlipKey = e => e.key === flipKey || e.key.toLowerCase() === flipKey.toLowerCase();
+// The usage table, as the inbox's `usage_view` key shows it, refreshed every 30 seconds while open.
+const usageOpen = () => document.getElementById("usage").style.display === "block";
+async function showUsage() {
+  const box = document.getElementById("usage"), esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+  const asked = ++usageAsked, rows = await window.pywebview.api.usage();
+  if (asked !== usageAsked) return;  // dismissed, or asked again, while Python answered
+
+  box.innerHTML = "<h1>Usage</h1>" + (rows.length ? "<table><tr><th>Window</th><th>Pace</th><th>Used</th><th>Elapsed</th><th>Resets</th></tr>" +
+    rows.map(r => `<tr><td>${esc(r.window)}</td><td style="color:${r.paceColor || "#7c8696"}">${esc(r.pace)}</td><td style="color:${r.usedColor}">${esc(r.used)}</td><td>${esc(r.elapsed)}</td><td>${esc(r.resets)}</td></tr>`).join("") +
+    "</table>" : "<div>No usage recorded yet.</div>");
+  box.style.display = "block";
+  clearTimeout(usageTimer); usageTimer = setTimeout(() => usageOpen() && showUsage(), 30000);
+}
+function hideUsage() {
+  usageAsked++; document.getElementById("usage").style.display = "none"; clearTimeout(usageTimer);
+}
+
+document.addEventListener("keyup", e => { if (flipHold && flipped && isFlipKey(e)) { flipped = false; draw(); } });
+// A new search: an answer still coming for an earlier one, closed since, isn't for it.
+function openSearch() {
+  search = {text: "", found: [], chosen: 0}; searchAsked++;
+}
+// A search takes every key but those that choose, jump or cancel (keys.js's `searchStep`).
+function searchKey(e) {
+  const next = searchStep(search, e.key);
+  if (next.close) {
+    search = null;
+    const m = next.jump && next.found[next.chosen];
+    if (m) jumpTo(DATA.blocks.find(b => b.digit === m.digit)?.trees.find(t => t.key === m.key)?.lemons[m.index]);
+    return draw();
+  }
+  const {ask, ...kept} = next;
+  search = kept;
+  if (ask) {
+    const asked = ++searchAsked;
+    window.pywebview.api.search(search.text).then(found => {
+      if (!search || asked !== searchAsked) return;  // closed, or the text changed since
+      search.found = found; search.chosen = 0;
+      const d = searchBlock(found);
+      if (d && zoomed !== d) goTo(d); else if (!d && zoomed && found.length) goTo(null);  // all in one block: zoom to it
+      draw();
+    });
+  }
+  draw();
+}
+// After `.` in a block: a tree's letter, then its lemon's place, as the terminal grove's `.s1`; `.` again refits.
+function dotKey(e) {
+  const b = DATA.blocks.find(b => b.digit === zoomed), was = dot;
+  dot = null;
+  if (e.key === "Escape" || e.key === "Backspace") return status();
+  if (!was.letter) {
+    if (e.key === ".") { view = homeView(DATA.blocks, zoomed, screen()); keepView(); return draw(); }
+    const t = b?.trees.find(t => t.letter === e.key);
+    if (!t) { status(); return said("a dot takes a tree's letter"); }
+    if (t.lemons.length < 2) { status(); return said("that tree has one lemon: its letter alone jumps to it"); }
+    dot = {letter: e.key, num: ""};
+    return status();
+  }
+  const t = b?.trees.find(t => t.letter === was.letter), num = was.num + e.key, i = lemonIndex(num);
+  if (t && num === "0" && t.lemons.length > 10) { dot = {...was, num}; return status(); }
+  status();
+  if (!t || i === null || i >= t.lemons.length) return said(`no lemon .${was.letter}${num} on this tree`);
+  jumpTo(t.lemons[i]);
+}
+
+function onKey(e) {
+  if (dialogOpen()) {  // its own field takes the keys (menu.js); Escape closes it from anywhere
+    if (e.key === "Escape") { e.preventDefault(); closeMenus(); }
+    return;
+  }
+  if (!e.metaKey) e.preventDefault();  // an unhandled key goes on to AppKit, which beeps
+  if (menuOpen()) return menuKey(e);
+  if (helpOpen()) { help.style.display = "none"; return; }
+  if (search) return searchKey(e);
+  if (selecting) return selectKey(e);
+  if (!/^[0-9]$/.test(e.key)) typed = "";  // only digits build a block's number
+  if (e.key === "Tab") { selecting = {mode: ""}; selectFrom = zoomed; return draw(); }
+  if (e.key === usageKey) return usageOpen() ? hideUsage() : showUsage();
+  if (usageOpen() && (e.key === "Escape" || e.key === "q" || e.key === "Backspace")) return hideUsage();
+  if (isFlipKey(e)) {  // shown while held, or until pressed again, as `grove_flip` says
+    if (e.repeat && flipHold) return;
+    flipped = flipHold ? true : !flipped;
+    return draw();
+  }
+  document.getElementById("msg").textContent = "";
+  if (e.key === "Escape" && (drag || moving)) { drag = press = moving = null; note(""); return draw(); }
+  if (dot) return dotKey(e);
+  if (e.key === "Escape" || e.key === "Backspace") return back();
+  if (e.key === "/") { openSearch(); return draw(); }
+  if (e.key === "?") return showHelp();
+  if (e.key === "-" || e.key === "+" || e.key === "=") {
+    const k = zoomed ? "block" : "grove";
+    labelScales[k] = Math.max(0.5, Math.min(1.3, labelScales[k] + (e.key === "-" ? -0.06 : 0.06)));
+    keepSettings();
+    layouts = {}; return draw();
+  }
+  if ((e.key === "q" || e.key === " ") && !typed) return window.pywebview.api.dismiss();
+  if (e.key === "." && zoomed) { dot = {letter: "", num: ""}; return status(); }
+  if (e.key === ".") { view = homeView(DATA.blocks, zoomed, screen()); keepView(); return draw(); }  // back to this view's fit
+  if (/^[0-9]$/.test(e.key)) { typed = (typed + e.key).slice(-2); return zoomTo(DATA.blocks.some(b => b.digit === typed) ? typed : e.key); }
+  if (zoomed && /^[a-z]$/.test(e.key) && !e.metaKey && !e.ctrlKey) {
+    const t = DATA.blocks.find(b => b.digit === zoomed)?.trees.find(t => t.letter === e.key);
+    t ? jumpTo(t.lemons[0]) : (document.getElementById("msg").textContent = `no tree ${zoomed}${e.key}`);
+  }
+}
+document.addEventListener("keydown", onKey);
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const wx = view.x + mx / view.k, wy = view.y + my / (view.k * YS), k = Math.max(2, Math.min(40, view.k * Math.exp(-e.deltaY * 0.003)));
+  view = {k, x: wx - mx / k, y: wy - my / (k * YS)};
+  const k0 = layout().k0, was = zoomed;
+  if (zoomed && k < k0 * 0.55) { zoomed = null; }  // zoomed out of a block: the grove view
+  else if (!zoomed && k > k0 * 1.9) {  // zoomed into the grove: the block under the pointer, else the nearest
+    const near = DATA.blocks.map(b => ({b, d: Math.hypot(b.plot.x + b.plot.w / 2 - wx, (b.plot.y + b.plot.h / 2 - wy) * YS)})).sort((a, c) => a.d - c.d)[0];
+    const under = DATA.blocks.find(b => wx >= b.plot.x && wx <= b.plot.x + b.plot.w && wy >= b.plot.y && wy <= b.plot.y + b.plot.h);
+    zoomed = (under || near.b).digit;
+  }
+  if (zoomed !== was) return draw();  // a new view lays its labels out afresh; this in-between view isn't the new one's to keep
+
+  keepView(); moveFrame();
+}, {passive: false});
+let press = null, drag = null;  // a drag moves a tree within a zoomed block, a grove unit at a time
+const note = (text, bad) => { const m = document.getElementById("where"); m.textContent = text || ""; m.style.color = bad ? "#e5534b" : ""; if (!text) status(); };
+const worldAt = e => { const r = cv.getBoundingClientRect(); return [view.x + (e.clientX - r.left) / view.k, view.y + (e.clientY - r.top) / (view.k * YS)]; };
+
+// In the grove view, a press on a block takes it: near an edge or corner, those sides; inside, all of it.
+function blockAt(wx, wy) {
+  const mx = Math.max(0.8, 9 / view.k), my = Math.max(0.4, 9 / (view.k * YS));
+  const open = (DATA.open || []).map((plot, i) => ({digit: `open:${i}`, plot, group: "", open: true, trees: []}));
+  const b = !zoomed && [...DATA.blocks, ...open].find(b => { const p = b.plot; return wx >= p.x - mx && wx <= p.x + p.w + mx && wy >= p.y - my && wy <= p.y + p.h + my; });
+  if (!b) return null;
+  const p = b.plot, sides = [];
+  if (Math.abs(wx - p.x) < mx) sides.push("left"); else if (Math.abs(wx - p.x - p.w) < mx) sides.push("right");
+  if (Math.abs(wy - p.y) < my) sides.push("top"); else if (Math.abs(wy - p.y - p.h) < my) sides.push("bottom");
+  return {b, sides};
+}
+const RESIZE = {left: "ew-resize", right: "ew-resize", top: "ns-resize", bottom: "ns-resize", lefttop: "nwse-resize", rightbottom: "nwse-resize", leftbottom: "nesw-resize", righttop: "nesw-resize"};
+// Where the block would go, as the terminal grove's drop works it out (tui/drop.py).
+function aimed(p, sides, dx, dy) {
+  if (!sides.length) return {...p, x: p.x + dx, y: p.y + dy};
+  const left = p.x + (sides.includes("left") ? dx : 0), top = p.y + (sides.includes("top") ? dy : 0);
+  const right = p.x + p.w + (sides.includes("right") ? dx : 0), bottom = p.y + p.h + (sides.includes("bottom") ? dy : 0);
+  return {...p, x: left, y: top, w: Math.max(1, right - left), h: Math.max(1, bottom - top)};
+}
+function moveTo(e) {
+  const {b, sides} = press.block, [wx, wy] = worldAt(e), dx = Math.round(wx - press.at[0]), dy = Math.round(wy - press.at[1]);
+  if (moving && moving.dx === dx && moving.dy === dy) return;
+  moving = {b, sides, dx, dy, aim: aimed(b.plot, sides, dx, dy), problem: null};
+  const name = b.open ? "open ground" : `block ${b.digit}`, asked = moving, what = sides.length ? `${sides.join(" and ")} of ${name}` : name;
+  window.pywebview.api.block_refusal(b.digit, sides, dx, dy).then(problem => {
+    if (moving !== asked) return;
+    moving.problem = problem;
+    note(problem ? `can't put the ${what} there: ${problem}` : `drop the ${what} ${dx},${dy} from where it was`, !!problem);
+    draw();
+  });
+  draw();
+}
+
+cv.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;  // a right-click opens the edit menu (menu.js), and moves nothing
+  if (drag?.landing || moving?.landing) { drag = moving = null; draw(); }
+  const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
+  const movable = zoomed && h && h.tree && h.block.group && !h.label, at = worldAt(e);
+  press = {x: e.clientX, y: e.clientY, v: {...view}, moved: false, tree: movable ? h : null, block: blockAt(...at), at};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove", e => {
+  if (press) {
+    const dx = e.clientX - press.x, dy = e.clientY - press.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) press.moved = true;
+    if (!press.moved) return;
+    hideCard();
+    if (press.tree) return dragTo(e);
+    if (press.block) return moveTo(e);
+    view.x = press.v.x - dx / view.k; view.y = press.v.y - dy / (view.k * YS); keepView(); moveFrame();
+    return;
+  }
+  const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top), on = blockAt(...worldAt(e));
+  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && h.tree ? (zoomed && h.block.group ? "grab" : "pointer") : on ? "move" : "default";
+  // The card stays put while the pointer is on one tree or its label; a refresh brings new objects for
+  // the same tree, so it's known by block and key, and only its lines are brought up to date.
+  if (h && h.tree) {
+    const id = `${h.block.digit}/${h.tree.key}`;
+    if (hover !== id) { hover = id; showCard(e, h.block, h.tree); }
+    else if (card.dataset.tree !== JSON.stringify(h.tree)) showCard(null, h.block, h.tree);
+  }
+  else { hideCard(); }
+});
+// The tree follows the pointer; it drops on the grove unit nearest, which is what Python is asked about.
+function dragTo(e) {
+  const {block: b, tree: t} = press.tree, [wx, wy] = worldAt(e);
+  const fx = t.spot[0] + wx - press.at[0], fy = t.spot[1] + wy - press.at[1], x = Math.round(fx), y = Math.round(fy);
+  const first = !drag;
+  if (!first && drag.x === x && drag.y === y) { drag.fx = fx; drag.fy = fy; return drawDrag(); }
+
+  drag = {b, t, x, y, fx, fy, problem: null};
+  const asked = drag;
+  window.pywebview.api.refusal(b.digit, t.key, x, y).then(problem => {
+    if (drag !== asked) return;
+    drag.problem = problem;
+    note(problem ? `can't drop here: ${problem}` : `drop ${b.digit}${t.letter} at ${x},${y}`, !!problem);
+    drawDrag();
+  });
+  first ? draw() : drawDrag();  // the first move draws the frame without the tree, for the rest to draw over
+}
+cv.addEventListener("pointerup", e => {
+  if (e.button !== 0) return;
+  // A drop that may stand stays drawn where it was dropped ("landing") until the grove's data shows it
+  // there (`landed`), so it never shows at its old place while Python saves it; a refused save puts it back.
+  const p = press, d = drag, m = moving; press = drag = moving = null;
+  const settle = (problem, landing) => {
+    note(problem ? `not moved: ${problem}` : "", !!problem);
+    const giveUp = () => { if (drag === landing || moving === landing) { drag = moving = null; draw(); } };
+    problem ? giveUp() : setTimeout(giveUp, 6000);  // the refresh a save starts shows it long before this
+  };
+  if (m) {
+    if (m.problem === "" && (m.dx || m.dy)) {
+      note(`moving ${m.b.digit}…`);
+      moving = {...m, landing: true};
+      const landing = moving;
+      window.pywebview.api.reframe(m.b.digit, m.sides, m.dx, m.dy).then(problem => settle(problem, landing));
+    } else note(m.problem ? `not moved: ${m.problem}` : "", !!m.problem);
+    return draw();
+  }
+  if (d) {
+    if (d.problem === "" && (d.x !== d.t.spot[0] || d.y !== d.t.spot[1])) {
+      note(`moving ${d.b.digit}${d.t.letter}…`);
+      drag = {...d, fx: d.x, fy: d.y, landing: true};
+      const landing = drag;
+      window.pywebview.api.plant(d.b.digit, d.t.key, d.x, d.y).then(problem => settle(problem, landing));
+      return drawDrag();
+    } else note(d.problem ? `not moved: ${d.problem}` : "", !!d.problem);
+    return draw();
+  }
+  if (!p || p.moved) return;
+  const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
+  if (h && h.url) return window.pywebview.api.open_link(h.url);  // a PR's number, on a list's other page
+  if (h && h.tree) jumpTo(h.lemon || h.tree.lemons[0]); else if (h && h.ground && zoomed !== h.block.digit) zoomTo(h.block.digit);
+});
+
+// The data now shows a dropped tree or block where it landed, or shows it gone: stop drawing it there.
+function landed(d) {
+  if (drag?.landing) {
+    const t = d.blocks.find(b => b.digit === drag.b.digit)?.trees.find(t => t.key === drag.t.key);
+    if (!t || (t.spot[0] === drag.x && t.spot[1] === drag.y)) drag = null;
+    else Object.assign(drag, {b: d.blocks.find(b => b.digit === drag.b.digit), t});  // still saving: the new objects, kept in the same landing
+  }
+  if (moving?.landing) {
+    const a = moving.aim, p = moving.b.open ? (d.open || [])[Number(moving.b.digit.slice(5))] : d.blocks.find(b => b.digit === moving.b.digit)?.plot;
+    if (!p || (p.x === a.x && p.y === a.y && p.w === a.w && p.h === a.h)) moving = null;
+  }
+}
+window.groveData = async () => {
+  const d = await window.pywebview.api.data();
+  if (!d) return;
+  const gone = zoomed && !d.blocks.some(b => b.digit === zoomed);  // the block's last lemon left
+  const groups = new Set(d.blocks.map(b => `block:${b.group || "packhouse"}`));
+  for (const size of Object.values(views)) for (const key of Object.keys(size)) if (key !== "grove" && !groups.has(key)) delete size[key];  // its block is gone
+  const shape = JSON.stringify([d.blocks.map(b => [b.digit, b.plot, b.trees.map(t => [t.key, t.spot, t.label, t.lemons.length])]), d.open]);
+  const first = !DATA;
+  if (shape !== window.groveShape) { layouts = {}; window.groveShape = shape; }
+  DATA = d;
+  if (first || gone) goTo(null);
+  if (drag?.landing || moving?.landing) landed(d);
+  draw();
+};
+window.addEventListener("pywebviewready", async () => {
+  const look = await window.pywebview.api.look();
+  document.documentElement.style.setProperty("--opacity", look.opacity);
+  flipKey = look.flipKey ?? flipKey; flipHold = look.flipHold ?? flipHold; usageKey = look.usageKey ?? usageKey;
+  const kept = await window.pywebview.api.settings();
+  views = Object.fromEntries(Object.entries(kept.views || {}).filter(([size]) => /^\d+x\d+$/.test(size)));  // by window size
+  Object.assign(labelScales, kept.labelScales || {});
+  measure(); window.groveData(); setTimeout(window.groveData, 3000);
+});
+window.addEventListener("resize", () => { measure(); layouts = {}; if (DATA) { goTo(zoomed); draw(); } });  // this size's own view
+window.addEventListener("focus", () => { typed = ""; drag = press = moving = search = dot = selecting = null; if (DATA) { goTo(null); draw(); } });  // a summon opens on the whole grove
+</script>
+<script src="menu.js"></script>
+</body></html>

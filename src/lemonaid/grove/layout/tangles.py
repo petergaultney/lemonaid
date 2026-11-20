@@ -49,6 +49,13 @@ def refusal(block: Block, arrangement: arrange.Arrangement, key: str) -> str:
     return footing.refusal(tree, plot, s.cx, s.cy) or in_the_way(block, arrangement, key)
 
 
+def refusal_at(block: Block, arrangement: arrange.Arrangement, key: str, x: int, y: int) -> str:
+    """`refusal` for tree *key* moved to (*x*, *y*) in its plot, as a drag previews a drop."""
+    standing = arrangement.trees[(block.name, key)]
+    moved = {**arrangement.trees, (block.name, key): dataclasses.replace(standing, cx=x, cy=y)}
+    return refusal(block, dataclasses.replace(arrangement, trees=moved), key)
+
+
 def spot_key(spots: dict[str, Any], tree: Tree) -> str:
     """The key *tree*'s saved spot is under: a lead tree stands at its block's lead spot."""
     return lead_spot.KEY if tree.lead and lead_spot.KEY in spots else tree.key
@@ -63,9 +70,8 @@ def check(
     """Raise EditError, naming the tree, if a tree in *groups* whose spot *after* changed would
     stand anywhere but that spot, or where `refusal` turns it down, or if *after* would tangle a
     tree that *before* left clear, or push a tree whose spot didn't change from it, or leave one
-    that stood on its block's ground off the block's new shape, or move a block's lead farther
-    from the packhouse. The packhouse,
-    which stands its bays in order, isn't checked.
+    that stood on its block's ground off the block's new shape. The packhouse, which stands its bays
+    in order, isn't checked.
     """
     blocks = tuple(blocks)
     was, now = arrange.arrange(blocks, before)[0], arrange.arrange(blocks, after)[0]
@@ -92,14 +98,6 @@ def check(
                     raise edit.EditError(
                         f"{block.name or 'the ungrouped block'}: tree {s.letter} can't stand at "
                         f"{spot['x']},{spot['y']}: {problem}"
-                    )
-            if moved and key == lead_spot.KEY and "x" in spot and "x" in was_at:
-                far = lead_spot.from_packhouse(after, block.name, spot["x"], spot["y"])
-                near = lead_spot.from_packhouse(before, block.name, was_at["x"], was_at["y"])
-                if far is not None and near is not None and far > near:
-                    raise edit.EditError(
-                        f"{block.name}: tree {s.letter} leads the block, so it stands nearest "
-                        "the packhouse; plant it nearer the packhouse, not farther"
                     )
             old_plot, w = was.plots.get(block.name), was.trees.get((block.name, tree.key))
             if (
@@ -128,3 +126,20 @@ def check(
                     f"{block.name or 'the ungrouped block'}: tree {letter} would stand on "
                     "another tree"
                 )
+
+
+def plant(
+    blocks: tuple[Block, ...],
+    saved: dict[str, Any],
+    block: Block,
+    spots: dict[str, tuple[int, int]],
+) -> dict[str, Any]:
+    """*saved* with each of *block*'s trees in *spots* (by key) standing at its (x, y), for
+    `state.update`; raises EditError, changing nothing, where `check` refuses it.
+    """
+    changed = saved
+    for tree in block.trees:
+        if tree.key in spots:
+            changed = edit.place_tree(changed, block.name, tree.key, tree.lead, *spots[tree.key])
+    check(blocks, saved, changed, {block.name})
+    return changed

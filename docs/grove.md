@@ -103,6 +103,55 @@ The first time lemonaid sees a group it gives it a plot of ground near the middl
 
 The layout is saved in `grove.json` in lemonaid's state directory (`~/.local/state/lemonaid`, or `LEMONAID_STATE_DIR`), per machine.
 
+## The grove window (beta, macOS)
+
+The grove can also open in a native window that covers your terminal's window, drawn in pixels rather than terminal cells: finer trees, smaller text, smooth zoom, and the grove's layout from the same `grove.json`. It is a second view of the grove, and the inbox and the terminal grove keep working as before.
+
+### Setting it up
+
+A lemon can do this with you: ask it to set up the grove window, and it follows [for-lemons.md](for-lemons.md#setting-up-a-persons-tmux-keys). By hand:
+
+1. Install lemonaid with the `web` extra (`pywebview`, which uses the system's WebKit). It runs on macOS only.
+
+   ```sh
+   uv tool install --force 'lemonaid-inbox[web]'
+   ```
+
+2. Add the summon key to `~/.tmux.conf`. This prints its lines, for `prefix Space` unless you pass `--key`:
+
+   ```sh
+   lemonaid grove window binding >> ~/.tmux.conf
+   tmux source-file ~/.tmux.conf
+   ```
+
+3. Press `prefix Space` in any pane. The first press starts the window in a hidden tmux session, `_lma_grove_window`, which takes a few seconds; later presses show it at once.
+
+The key replaces tmux's `next-layout`. Its lines work unchanged on other systems, where it opens the [terminal grove's popup](#the-grove) instead, so one tmux.conf serves every machine. To keep the terminal grove on a key of its own as well, bind its popup to `G` (see [the keys that work from any pane](tmux.md#keys-that-work-from-any-pane)).
+
+The key writes to the window's socket (`grove-window.sock` in lemonaid's state directory) with `nc -U` rather than running `lemonaid`, so the window appears at once. It covers the window of whichever app was in front when you pressed it, and hands that app the focus back when it closes.
+
+### When the window doesn't appear
+
+- **The key says the window did not start:** run `lemonaid grove window run` in a pane to see why, usually a missing `web` extra. Once it runs, leave it there or press the key again from another pane.
+- **Nothing happens at all:** check the key is bound with `tmux list-keys -T prefix Space`.
+- **Something else:** the window logs to `/tmp/lemonaid.log` (`$LEMONAID_LOG` when set) as `lemonaid.grove.window`, including the window it covered each time it was shown.
+
+After upgrading lemonaid, `tmux kill-session -t _lma_grove_window` so that the next press starts the new build.
+
+### Using it
+
+- **The grove view** shows every block with each tree's tag under its trunk; a digit, or scrolling in, zooms into a block, where each tree's lemon list hangs under it with its tag as the title.
+- **Choosing:** a click on a tree, or a letter in a block, switches the tmux client you summoned it from to the tree's first lemon and hides the window. A click on a lemon's row in a list, or `.`, the tree's letter and the lemon's place in a block (`.s1`, as in the terminal grove), switches to that lemon. Hover a tree for its lemons' cards.
+- **Searching:** `/` searches Brief-IDs, then sessions and names, as the terminal grove's does. Blocks without a match fade, the view zooms to the block when every match is in one, `↑`/`↓` choose a match and `enter` jumps to it.
+- **Editing:** right-click a lemon's row or a tree to rename, snooze, archive, pin or unpin, or move to another group, or a block's ground to recolor it: the terminal grove's select-mode edits, made by the same code. A right-click on a tree changes all its lemons. From the keyboard, `Tab` turns on select mode, as in the terminal grove: a block's digit, then a tree's letter for its first lemon, `.s1` for another, `$` and a letter for the whole tree, or `#` for the block opens the same menu beside it, where each edit's letter (`r s a p g c`, as in the terminal) or `↑`/`↓` and `enter` chooses it. While it's on, each tree's title in a block shows `$` before its letter, as `$s`. `Tab` or `esc` leaves select mode, and `backspace` backs out to the view it began in, then leaves it.
+- **Gardening:** zoomed into a block, drag a tree to move it; its lemon list goes with it, so you can see what it would cover. The drop rule is `grove plant`'s, asked on every grove unit you pass: the tree is ringed green where it may stand and red where it may not, with the reason at the bottom. The packhouse's bays stay in order.
+- **Blocks:** in the grove view, drag a block or open ground (the dashed outline a group that ended leaves) to move it, or an edge or corner to resize it. The terminal grove's rules decide where it may go, and its outline shows green or red as you drag, with the reason at the bottom.
+- **Keys:** `esc` cancels a drag. `esc` or `backspace` backs out of a block, then closes the window, as `q` and `Space` do. `-` and `+` make the labels smaller or larger in the view you're in. `.` puts the grove view back to its fit, and `.` twice does so in a block. `?` lists the keys for the view you're in. `U` (the inbox's `usage_view` key) shows the usage table in a box. Holding `;` (the terminal grove's `grove_flip_key` and `grove_flip`) shows each lemon's PRs, branch, model and context in a block, where a click on a PR number opens it, and each tree's mid-turn lemons, fullest context and latest report on its tag in the grove view. Labels and the packhouse share one text size, which follows the zoom between a smallest and a largest size. Zoomed far out, each tag shows only its key; zoomed far in, the text stops growing while the trees do, so the labels spread apart.
+- **Remembering:** the whole grove and each block keep their own last pan and zoom for each size of window, so a laptop's screen and a monitor keep their own; at a size the window hasn't had yet, a view starts from the nearest size's, with the same middle and zoomed as far past its fit. A summon always opens on the whole grove. These and the label sizes are kept in `grove-window.json` beside `grove.json`, across restarts.
+- **Looks:** the top bar is the terminal grove's: the lemon and tree counts and the status chips. The window is solid by default; `grove_window_opacity` under `[tui]` (see [config](config.md)) lets your terminal show through it. Mid-turn lemons and their tags pulse, as in the terminal grove. Each lemon's emoji follows its key in its list, and a pinned lemon is marked at the left of its row, and of its tree's tag when it's the tree's first.
+
+The window only reads the grove, every 3 seconds, and writes it only when you drop a tree or a block.
+
 ## From the command line
 
 ```bash
@@ -111,7 +160,7 @@ lemonaid tmux popup grove        # the same, in a tmux popup over this client
 lemonaid grove show              # draw the grove in this terminal, once
 lemonaid grove show 2            # draw block 2 zoomed in
 lemonaid grove show --plain      # characters only
-lemonaid grove show --json       # blocks, trees, spots, letters and lemons
+lemonaid grove show --json       # blocks, trees, spots, letters, lemons, roads and the stream
 lemonaid grove move 2 40 10      # put block 2's top-left corner at column 40, row 10
 lemonaid grove resize oria 60 18 # by digit or by group name
 lemonaid grove reshape 2 6       # 2 rounds its corners most, 12 squares them
@@ -138,6 +187,6 @@ lemonaid grove apply .z/grove.json                      # give the live grove th
 
 `show --json` lists `warnings`, judged on a screen of `--width` by `--height` (your terminal's by default): a tag that runs into or sits level beside another tree in the grove view, a crown past its block's edge, a trunk off its block's ground, a lead with another tree nearer the packhouse, and a lemon list drawn away from its tree when zoomed in. They are advice for the lemon, which reads them with the drawing; they don't refuse anything.
 
-The file is in `grove.json`'s format. `apply` copies each block's plot (place, size and roundness) and each tree's spot; a tree the proposal didn't move moves with its block, and a smaller block pushes back the trees it cuts off. A group that ended since the proposal is skipped, and one that started since keeps its plot. `plant` and `apply` refuse a tree moved where a drag couldn't drop it, naming the edge or the tree in the way, and a lead moved farther from the packhouse; `apply` also refuses a block on another block's ground, a road or the stream, and `reshape` won't round a block's corners out from under a tree. An open grove shows the new layout on its next refresh, and a drag under way is checked again against it when you let go.
+The file is in `grove.json`'s format. `apply` copies each block's plot (place, size and roundness) and each tree's spot; a tree the proposal didn't move moves with its block, and a smaller block pushes back the trees it cuts off. A group that ended since the proposal is skipped, and one that started since keeps its plot. `plant` and `apply` refuse a tree moved where a drag couldn't drop it, naming the edge or the tree in the way; `apply` also refuses a block on another block's ground, a road or the stream, and `reshape` won't round a block's corners out from under a tree. An open grove shows the new layout on its next refresh, and a drag under way is checked again against it when you let go.
 
 To tell a lemon "clean up 5e", see [Naming a lemon by its key](keybindings.md#naming-a-lemon-by-its-key).

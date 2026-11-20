@@ -10,6 +10,13 @@ dependencies = [
     "wordybin==0.2.0",
 ]
 
+[project.optional-dependencies]
+# The grove window (`lemonaid grove window`), macOS only for now: a native web view.
+web = [
+    "pywebview>=6.2",
+    "pyobjc-framework-Quartz>=11; sys_platform == 'darwin'",
+]
+
 [project.urls]
 Homepage = "https://github.com/petergaultney/lemonaid"
 Repository = "https://github.com/petergaultney/lemonaid"

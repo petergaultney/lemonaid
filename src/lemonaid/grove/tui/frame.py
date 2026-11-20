@@ -34,14 +34,14 @@ class Grove:
     cards: abc.Mapping[str, tuple[Text, ...]] = dataclasses.field(default_factory=dict)
 
 
-def _summary(grove: Grove) -> str:
+def summary(grove: Grove) -> str:
     lemons = [lemon for block in grove.blocks for tree in block.trees for lemon in tree.lemons]
     working = sum(lemon.working for lemon in lemons)
     trees = sum(len(block.trees) for block in grove.blocks)
     return f"{len(lemons)} lemons on {trees} trees · {working} mid-turn"
 
 
-def _attention(grove: Grove) -> Text:
+def attention(grove: Grove) -> Text:
     return badges.fixed(
         Counter(
             lemon.status for block in grove.blocks for tree in block.trees for lemon in tree.lemons
@@ -227,7 +227,7 @@ def render(
     panning = not block and scene_parts.pans(picture, grove.arrangement)
     bars.title(
         picture,
-        _summary(grove),
+        summary(grove),
         (
             "SELECT · letter chooses · enter jumps · "
             if where.selecting
@@ -236,7 +236,7 @@ def render(
         + "/ searches · "
         + ("arrows pan · ⇧1-8 compass · " if panning else "")
         + "? keys · space closes",
-        _attention(grove),
+        attention(grove),
     )
     bars.prompt(picture, *_Prompt(*_prompt(where, grove, select_key, refused is not None)))
     if flashed:

@@ -15,7 +15,7 @@ Zoomed into a block, each tree lists its lemons with their Brief-ID, status, mod
 
 <img width="900" alt="One block of the grove zoomed in, each tree beside a card for its lemons" src="docs/images/grove-block.png" />
 
-The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md).
+The grove is in beta. Keys, gardening and the command line are in [docs/grove.md](docs/grove.md). On macOS it can also open in a native window that a tmux key summons over your terminal, drawn in pixels rather than cells ([the grove window](docs/grove.md#the-grove-window-beta-macos)).
 
 ## An inbox that stays in view
 
@@ -156,6 +156,8 @@ lemonaid skills install
 
 `lma` also refreshes skills you've installed when it starts after an upgrade, but a fresh
 install needs the command once. See [Skills](docs/skills.md).
+
+In tmux, add the [keys that work from any pane](docs/tmux.md#keys-that-work-from-any-pane), such as the grove or the inbox on `prefix` and a letter. A lemon can set them up with you.
 
 To run from a checkout instead:
 

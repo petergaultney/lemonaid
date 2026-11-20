@@ -3,7 +3,6 @@
 __lazy_modules__ = ["lemonaid.grove.source", "lemonaid.grove.tui"]
 
 import argparse
-import dataclasses
 import json
 import shutil
 import sys
@@ -14,11 +13,12 @@ from rich.segment import Segment, Segments
 
 from ..config import load_config
 from ..lemon_watchers.common import detect_terminal_switch_source
-from . import edit_cli, garden_cli, layout_cli
+from . import as_json, edit_cli, garden_cli, layout_cli
 from .draw import block_scene, canvas, scenes
-from .layout import advice, arrange
+from .layout import advice
 from .source import live, standalone
 from .tui.frame import Grove
+from .window import cli as window_cli
 
 
 def _grove(save: bool, where: Path | None) -> Grove:
@@ -28,34 +28,6 @@ def _grove(save: bool, where: Path | None) -> Grove:
     if save:
         return live.fresh(config, switch_source, where)
     return live.preview(config, switch_source, where)
-
-
-def _as_json(found: tuple, arrangement: arrange.Arrangement) -> dict:
-    return {
-        "blocks": [
-            {
-                "digit": block.digit,
-                "group": block.name,
-                "plot": dataclasses.asdict(arrangement.plots[block.name]),
-                "trees": [
-                    {
-                        "key": tree.key,
-                        "letter": arrangement.trees[(block.name, tree.key)].letter,
-                        "label": arrangement.trees[(block.name, tree.key)].label,
-                        "spot": [
-                            arrangement.trees[(block.name, tree.key)].cx,
-                            arrangement.trees[(block.name, tree.key)].cy,
-                        ],
-                        "lemons": [dataclasses.asdict(lemon) for lemon in tree.lemons],
-                    }
-                    for tree in block.trees
-                ],
-            }
-            for block in found
-        ],
-        "open": [dataclasses.asdict(plot) for plot in arrangement.open],
-        "error": None,
-    }
 
 
 def _cmd_show(args: argparse.Namespace) -> None:
@@ -68,7 +40,7 @@ def _cmd_show(args: argparse.Namespace) -> None:
         advised = advice.advise(found, arrangement, screen)
         print(
             json.dumps(
-                _as_json(found, arrangement)
+                as_json.grove(found, arrangement)
                 | {"warnings": [a._asdict() for a in advised], "screen": list(screen)}
             )
         )
@@ -145,3 +117,4 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     edit_cli.add_parsers(grove_subparsers)
     garden_cli.add_parsers(grove_subparsers)
     layout_cli.add_parsers(grove_subparsers)
+    window_cli.add_parsers(grove_subparsers)

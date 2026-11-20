@@ -1,0 +1,56 @@
+import socketserver
+import tempfile
+import threading
+from pathlib import Path
+
+from lemonaid.grove.window import control
+
+
+def test_a_request_shows_over_its_client_or_hides_and_an_unknown_one_does_neither():
+    done = []
+
+    for line in ("show /dev/ttys004\n", "show\n", "hide\n", "raise\n", "\n"):
+        control.dispatch(
+            line, show=lambda client: done.append(client), hide=lambda: done.append("hidden")
+        )
+
+    assert done == ["/dev/ttys004", "", "hidden"]
+
+
+def test_the_binding_summons_the_window_on_macos_and_starts_it_when_it_isnt_running():
+    darwin, mac_bind, other, other_bind, end = control.binding("G").splitlines()
+
+    assert darwin == "if-shell 'test \"$(uname -s)\" = Darwin' {"
+    assert mac_bind.startswith(
+        '  bind-key G run-shell -b \'S="${LEMONAID_STATE_DIR:-$HOME/.local/state/lemonaid}/grove-window.sock"; '
+    )
+    assert 'echo "show #{client_tty}" | nc -U "$S"' in mac_bind
+    assert 'tmux new-session -d -s _lma_grove_window "lemonaid grove window run"' in mac_bind
+    assert (other, other_bind, end) == (
+        "} {",
+        "  bind-key G run-shell -b 'lemonaid tmux popup grove'",
+        "}",
+    )
+
+
+def test_send_delivers_one_line_and_fails_with_nobody_listening():
+    path = Path(tempfile.mkdtemp(dir="/tmp")) / "w.sock"  # short: a socket path has a length limit
+    got = []
+
+    class Handler(socketserver.StreamRequestHandler):
+        def handle(self) -> None:
+            got.append(self.rfile.readline().decode())
+
+    with socketserver.UnixStreamServer(str(path), Handler) as server:
+        serving = threading.Thread(target=server.handle_request, daemon=True)
+        serving.start()
+        control.send("show /dev/ttys001", path)
+        serving.join(timeout=5)
+
+    assert got == ["show /dev/ttys001\n"]
+    path.unlink()
+    try:
+        control.send("show", path)
+    except OSError:
+        return
+    raise AssertionError("send should fail with no window listening")
