@@ -1,8 +1,9 @@
+import json
 import textwrap
 
 import pytest
 
-from lemonaid.comments import model, parse
+from lemonaid.comments import model, parse, records
 
 _AT = "2026-11-19T19:40:00Z"
 _LINE_SEPARATOR = chr(0x2028)
@@ -332,14 +333,8 @@ def test_markers_alone_and_adjacent_never_make_a_backwards_anchor() -> None:
     assert [(a.start, a.end) for a in result.anchors] == [(10, 10)]
 
 
-@pytest.mark.parametrize(
-    "extra",
-    [
-        "9" * 4301,
-        "[" * 100_000 + "]" * 100_000,
-    ],
-)
-def test_a_record_past_the_decoder_s_limits_is_an_error(extra: str) -> None:
+def test_a_record_past_the_decoder_s_limits_is_an_error() -> None:
+    extra = "9" * 4301  # past the default limit on digits in an integer
     text = (
         "# [lma:K7]\nx = 1\n\n# [lma:threads]\n"
         f"# {_record('K7')}\n"
@@ -350,3 +345,60 @@ def test_a_record_past_the_decoder_s_limits_is_an_error(extra: str) -> None:
 
     assert [e.message for e in result.errors] == ["a record is too large to read"]
     assert [c.id for c in result.comments] == ["K7"]
+
+
+def test_a_record_nested_past_the_decoder_s_depth_is_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """How deep the decoder can nest depends on the Python and its stack, so the test makes
+    it fail where a real one would, on the deep record."""
+    decode = json.loads
+
+    def decode_until_too_deep(text: str) -> object:
+        if '"deep"' in text:
+            raise RecursionError("maximum recursion depth exceeded")
+        return decode(text)
+
+    monkeypatch.setattr(records.json, "loads", decode_until_too_deep)
+    text = (
+        "# [lma:K7]\nx = 1\n\n# [lma:threads]\n"
+        f"# {_record('K7')}\n"
+        f'# {{"id": "M2", "re": "K7", "author": "a", "at": "{_AT}", "body": "b", "deep": [[]]}}\n'
+    )
+
+    result = parse.parse(text, "python")
+
+    assert [e.message for e in result.errors] == ["a record is too large to read"]
+    assert [c.id for c in result.comments] == ["K7"]
+
+
+def test_a_file_with_bare_cr_line_endings_parses_without_error() -> None:
+    record = '# {"id": "Ghost", "author": "Sam", "at": "2026-11-19T19:40:00Z", "body": "boo"}'
+
+    doc = parse.parse(f"x = (1,\r2)\r# [lma:threads]\r{record}\r", "python")
+
+    assert doc.section is None
+
+
+def test_a_record_with_an_escaped_surrogate_is_a_record_error() -> None:
+    record = '# {"id": "Odd", "author": "Sam", "at": "2026-11-19T19:40:00Z", "body": "\\ud800"}'
+
+    doc = parse.parse(f"x = 1\n\n# [lma:threads]\n{record}\n", "python")
+
+    assert doc.comments == ()
+    assert [e.kind for e in doc.errors] == ["record"]
+
+
+def test_a_record_nested_near_the_recursion_limit_leaves_the_others_readable() -> None:
+    """Whether the decoder itself manages this depth depends on the Python and the stack
+    already in use; either way the parse returns, and the healthy record comes through."""
+    deep = "[" * 991 + "0" + "]" * 991
+    records = [
+        '# {"id": "Deep", "author": "Sam", "at": "2026-11-19T19:40:00Z", "body": "hi",'
+        f' "extra": {deep}}}',
+        '# {"id": "Fine", "author": "Sam", "at": "2026-11-19T19:40:00Z", "body": "hi"}',
+    ]
+
+    doc = parse.parse("x = 1\n\n# [lma:threads]\n" + "\n".join(records) + "\n", "python")
+
+    assert "Fine" in [c.id for c in doc.comments]

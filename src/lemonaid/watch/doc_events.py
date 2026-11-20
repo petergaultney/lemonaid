@@ -14,6 +14,7 @@ from . import (
     cursors,
     delivery,
     doc_body,
+    file_comments,
     own_edits,
     own_edits_replay,
     path_presence,
@@ -57,6 +58,52 @@ def _thread_key(thread: str) -> str:
     return hashlib.sha1(body_norm.normalized(thread).encode()).hexdigest()[:16]
 
 
+class _Unanswered(ty.NamedTuple):
+    text: str  # the comment in full, for the wake
+    gist: str  # one line, for a reminder
+
+
+class _Found(ty.NamedTuple):
+    in_file: bool  # read from the file's threads section, not Relay blocks
+    unanswered: dict[str, _Unanswered]  # by cursor key
+
+
+def _unanswered(w: DocWatch, text: str) -> _Found:
+    """What waits on the watcher: comments kept in the file when it has a threads section
+    (see file_comments), Relay threads otherwise. `text` has its line endings as they are;
+    Relay threads are keyed on LF text, as they always were."""
+    parsed = file_comments.document(w.doc, text)
+    if parsed is not None:
+        return _Found(
+            True,
+            {
+                file_comments.key(c): _Unanswered(
+                    file_comments.comment_text(c), file_comments.comment_gist(c)
+                )
+                for c in file_comments.unanswered(parsed, w.mine)
+            },
+        )
+    lf_text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return _Found(
+        False,
+        {
+            _thread_key(t): _Unanswered(
+                relay_comments.thread_text(t), relay_comments.thread_gist(t)
+            )
+            for t in relay_comments.unanswered_threads(lf_text, w.mine)
+        },
+    )
+
+
+def _still_reported(reported: set[str], found: _Found) -> set[str]:
+    """What stays reported after this poll. A key of the format this poll did not read stays,
+    so a section that disappears for one poll and comes back, or a Relay thread hidden while
+    a section exists, is not reported again; a key of the format it read stays only while
+    it is still unanswered, so an answered comment that waits again is reported again."""
+    other_format = {k for k in reported if k.startswith(file_comments.KEY_PREFIX) != found.in_file}
+    return other_format | set(found.unanswered)
+
+
 def _load_reported(path: pathlib.Path) -> set[str]:
     try:
         return set(json.loads(path.read_text()))
@@ -74,10 +121,10 @@ def _load_settled(path: pathlib.Path, doc: pathlib.Path) -> str:
     except OSError:
         pass
     try:
-        text = doc.read_text()
+        text = file_comments.read(doc)
     except FileNotFoundError:
         text = ""
-    body = relay_comments.body_without_threads(text)
+    body = file_comments.body(doc, text)
     cursors.write_text(path, body)
     return body
 
@@ -154,7 +201,7 @@ def _settle(w: DocWatch, body: str, consumed: int) -> None:
 def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     """Read the doc once and deliver at most one event; state advances only when `deliver` returns True."""
     try:
-        text = w.doc.read_text()
+        text = file_comments.read(w.doc)
         path_presence.observe(w.presence)
     except FileNotFoundError:
         result = path_presence.report_missing(w.presence, max(w.quiet, w.settled_quiet), deliver)
@@ -164,25 +211,27 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
         print(f"cannot read {w.doc}: {e}", flush=True)
         return Outcome.NOTHING
 
-    threads = {_thread_key(t): t for t in relay_comments.unanswered_threads(text, w.mine)}
-    new = [t for k, t in threads.items() if k not in w.reported]
+    found = _unanswered(w, text)
+    threads = found.unanswered
+    new_keys = [k for k in threads if k not in w.reported]
+    new = [threads[k] for k in new_keys]
     reminders = [t for k, t in threads.items() if k in w.reported] if w.all_threads else []
+    noun = "comment(s)" if found.in_file else "thread(s)"
+    new_ids = [file_comments.id_of(k) for k in new_keys]
     messages = (
         [
             clip.shorten(
-                f"{len(new)} new or changed unanswered thread(s) in {w.doc} ({len(threads)} unanswered in all)\n\n"
-                + "\n\n".join(relay_comments.thread_text(t) for t in new)
-                + "".join(
-                    f"\n\nStill unanswered, already reported: {relay_comments.thread_gist(t)}"
-                    for t in reminders
-                ),
+                f"{len(new)} new or changed unanswered {noun} in {w.doc} ({len(threads)} unanswered in all)\n\n"
+                + (f"{file_comments.how_to_answer(w.doc, new_ids)}\n\n" if found.in_file else "")
+                + "\n\n".join(t.text for t in new)
+                + "".join(f"\n\nStill unanswered, already reported: {t.gist}" for t in reminders),
                 clip.BATCH_LIMIT,
             )
         ]
         if new
         else []
     )
-    body = relay_comments.body_without_threads(text)
+    body = file_comments.body(w.doc, text)
     edit, consumed = (
         doc_body.changed(w, body, lambda consumed: _settle(w, body, consumed))
         if w.edits
@@ -196,8 +245,9 @@ def poll(w: DocWatch, deliver: ty.Callable[[str], bool]) -> Outcome:
     ):
         return Outcome.FAILED
 
-    if set(threads) != w.reported:
-        w.reported = set(threads)
+    still_reported = _still_reported(w.reported, found)
+    if still_reported != w.reported:
+        w.reported = still_reported
         cursors.write_json(w.reported_path, sorted(w.reported))
     if edit:
         _settle(w, body, consumed)
