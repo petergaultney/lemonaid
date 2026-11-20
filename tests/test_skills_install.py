@@ -43,7 +43,14 @@ def test_packaged_skills_name_no_user_and_call_only_lemonaid():
     raw = lambda name: (compose.PACKAGED_DIR / name / "SKILL.md").read_text()  # noqa: E731
     names = compose.packaged_names(compose.PACKAGED_DIR)
 
-    assert names == ["brief", "triage-notifications", "watch-briefs", "watch-doc", "watch-pr"]
+    assert names == [
+        "brief",
+        "review-guide",
+        "triage-notifications",
+        "watch-briefs",
+        "watch-doc",
+        "watch-pr",
+    ]
     for name in names:
         text = raw(name)
         assert text.startswith(f"---\nname: {name}\n")
@@ -59,6 +66,7 @@ def test_install_links_each_harness_to_its_own_rendered_copy(homes):
     report = json.loads(result.stdout)
     assert [r["skill"] for r in report] == [
         "brief",
+        "review-guide",
         "triage-notifications",
         "watch-briefs",
         "watch-doc",
