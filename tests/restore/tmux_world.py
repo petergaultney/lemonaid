@@ -48,13 +48,18 @@ def channel(name: str) -> str:
     return f"claude:{IDS[name][:8]}"
 
 
-def wait(what: str, check: abc.Callable[[], _T | None], timeout: float = 30) -> _T:
+def wait(
+    what: str,
+    check: abc.Callable[[], _T | None],
+    timeout: float = 30,
+    show: abc.Callable[[], str] | None = None,
+) -> _T:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if found := check():
             return found
         time.sleep(0.1)
-    pytest.fail(f"timed out waiting for {what}")
+    pytest.fail(f"timed out waiting for {what}" + (f"\n{show()}" if show else ""))
 
 
 def tmux(*args: str) -> str:
@@ -82,7 +87,11 @@ class World(ty.NamedTuple):
     def start(self, name: str, target: str) -> dict:
         """Start lemon *name* in *target*, with a brief of its own unless it is C."""
         tmux("send-keys", "-t", target, f"claude --session-id {IDS[name]}", "Enter")
-        running = wait(f"{name} to start", lambda: self.running(name))
+        running = wait(
+            f"{name} to start",
+            lambda: self.running(name),
+            show=lambda: tmux("capture-pane", "-p", "-t", target),
+        )
         for verb in (
             ()
             if name == BRIEFLESS
