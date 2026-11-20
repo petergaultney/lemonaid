@@ -146,6 +146,58 @@ lemonaid comments strip <path>
   not one.
 - `--as` and `--me` take the signature a lemon uses in Relay and on GitHub,
   `SleepRib (Author)`. `--me` also counts the spaced spelling, `Sleep Rib (Author)`.
+- When an editor running `lemonaid lsp` has the file open and its buffer has unsaved
+  changes, a write goes to that buffer instead of the file, and reaches the file when
+  you save. A buffer without unsaved changes is left to the editor to reload, and writes
+  made before it reloads go to the file too. `list` reads a buffer with unsaved changes,
+  so it shows unsaved comments and replies. A write refuses while the buffer and the file
+  have both changed since they last matched, until you save or reload, and `add` refuses
+  if the buffer changes between the command reading it and the server writing to it. The
+  server learns of your typing a moment after you type, so a write in that moment can
+  still go to the file; the editor then asks which version to keep.
+
+## The editor server: `lemonaid lsp`
+
+An editor starts `lemonaid lsp` over stdio for its Python and Markdown buffers. It needs
+the `lsp` extra: install lemonaid as `lemonaid-inbox[lsp]` (for an editable install,
+`uv tool install -e '.[lsp]'`). The server uses full document sync and reparses each
+buffer on every change, so it sees what you type before you save. It sends:
+
+- A diagnostic at each anchor, a hint with the author and first line of the thread's
+  first comment and its reply count, and an error at each format error.
+- `lemonaid/threads`, a notification with `uri`, `version` and `threads`, on open and
+  whenever the buffer's comments, resolutions or set of anchors change. An edit that only
+  moves text sends nothing, so a client tracks each anchor from where the last
+  notification put it. Each thread has an `anchor` range, or `null` for an orphan, and
+  its `comments` in tree order, each with `id`, `re`, `span`, `author`, `at`, `body`,
+  `resolved` and its `depth` below the first comment.
+
+Clients write comments through `workspace/executeCommand`, each with one object argument,
+and the server answers with `workspace/applyEdit`:
+
+| Command | Argument | Returns |
+|---|---|---|
+| `lemonaid.comment` | `{uri, range, body}` | `{id}` |
+| `lemonaid.reply` | `{uri, re, body, span?}` | `{id}` |
+| `lemonaid.resolve` | `{uri, id}` | `{}` |
+
+These comments are signed with `[comments] author` from lemonaid's config, else your
+login name ([config.md](config.md#comments)). Set it to the name your Relay comments
+carry, so a thread names you the same way in code and in a vault.
+
+The server also listens on a socket in lemonaid's state directory (`lsp/<pid>.sock`, with
+a record beside it), through which `lemonaid comments` writes to an unsaved buffer and a
+lemon reaches your editor:
+
+```sh
+lemonaid editor open <path> [--line <n>] [--focus]
+lemonaid editor notify <message>
+```
+
+`open` asks the server whose workspace holds the path to show it with
+`window/showDocument`; without `--focus` the cursor stays where it is. `notify` shows a
+message. When several servers qualify, the one in the caller's tmux session wins, then
+the newest. With no server, both print why and exit 1.
 
 ## Watching a file for comments
 

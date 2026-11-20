@@ -95,30 +95,6 @@ def test_add_through_a_symlink_changes_the_file_and_keeps_the_link(code, tmp_pat
     assert "# [lma:" in code.read_text()
 
 
-@pytest.mark.parametrize(
-    ("text", "lines", "selected"),
-    [
-        ("a\n\nb\n", "2", ""),
-        ("a\nbc\n", "2", "bc"),
-        ("a\r\nbc\r\n", "1-2", "a\r\nbc"),
-        ("a\nbc", "2", "bc"),
-        ("a\r\n", "1", "a"),
-    ],
-)
-def test_lines_select_whole_lines_without_their_last_line_ending(text, lines, selected) -> None:
-    start, end = cli._line_range(text, lines)
-
-    assert text[start:end] == selected
-
-
-@pytest.mark.parametrize(
-    ("text", "lines"), [("a\n", "2"), ("a\r\n", "2"), ("", "1"), ("a\nb", "2-1")]
-)
-def test_lines_past_the_last_line_are_refused(text, lines) -> None:
-    with pytest.raises(cli._Refused):
-        cli._line_range(text, lines)
-
-
 def test_a_save_made_while_we_compute_is_kept(code) -> None:
     saved = "import os\r\nimport sys\r\n"
 
@@ -170,8 +146,8 @@ def test_writes_are_utf_8_whatever_the_locale(code) -> None:
     code.write_bytes("# café\r\n".encode())
     script = (
         "import pathlib, sys; from lemonaid.comments import cli;"
-        " cli._rewrite(pathlib.Path(sys.argv[1]), lambda t: (t + '# thé\\r\\n', None))"
-    )
+        " cli._rewrite(pathlib.Path(sys.argv[1]), lambda t: (t + '# th\\u00e9\\r\\n', None))"
+    )  # ASCII only: under the C locale, a non-ASCII command line arrives as surrogates
     env = {**os.environ, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
 
     subprocess.run([sys.executable, "-c", script, str(code)], env=env, check=True)

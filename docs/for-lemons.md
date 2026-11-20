@@ -1428,7 +1428,14 @@ A Python or Markdown file can also hold comment threads of its own, in a section
 end ([comments.md](comments.md)). For such a file, `watch doc` wakes you for each new
 unanswered comment instead of Relay threads. Read them with `lemonaid comments list <path>
 --unanswered --me <your name>` and answer each with `lemonaid comments reply <path> --re
-<id> --as <your name> <body>`; never edit the section by hand.
+<id> --as <your name> <body>`; never edit the section by hand. When the user's editor has
+the file open with unsaved changes, your reply goes into their buffer and reaches the
+file when they save; `list` reads the buffer, so it shows your reply either way.
+
+To show the user a file, run `lemonaid editor open <path> [--line <n>]`, which opens it
+in the editor running `lemonaid lsp` in your tmux session, without moving their cursor
+(`--focus` moves it). `lemonaid editor notify <message>` shows a message there. Both exit
+1 when no editor server is running; then tell the user the path in chat.
 
 Your own edits to the doc's body don't wake your own waiter, as long as they're recorded,
 and reformatting such as a re-padded table never does. With `lemonaid hooks install`, Claude
