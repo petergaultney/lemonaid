@@ -22,6 +22,7 @@ FIELDS = (
     ("area", "area"),
     ("groups", "groups"),
     ("hidden", "hidden"),
+    ("po box", "po-box"),
     ("name words", "name-words"),
 )
 _LABELS = {
@@ -32,10 +33,11 @@ _LABELS = {
     "area": "Area",
     "groups": "Groups",
     "hidden": "Hidden",
+    "po-box": "PO box",
     "name-words": "Name words",
 }
 _HEADER = re.compile(
-    r"(?P<label>Brief-ID|Lemon-ID|Status|Parent|Output-Doc|Area|Groups|Hidden|Name words"
+    r"(?P<label>Brief-ID|Lemon-ID|Status|Parent|Output-Doc|Area|Groups|Hidden|PO box|Name words"
     r"|type|created):(?P<value>.*)",
     re.IGNORECASE,
 )
@@ -116,7 +118,7 @@ def contributors(values: abc.Mapping) -> list:
 
 def shown(key: str, value: object) -> str | None:
     """*value* as its header line shows it, or None when one line can't hold it."""
-    if key == "hidden":
+    if key in ("hidden", "po-box"):
         return "yes" if value is True or str(value).lower() in ("yes", "true") else ""
 
     if value is None:
