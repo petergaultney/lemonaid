@@ -20,6 +20,8 @@ from lemonaid.inbox import db, presence  # noqa: E402
 from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
+from lemonaid.slack import api as slack_api  # noqa: E402
+from lemonaid.slack import session as slack_session  # noqa: E402
 from lemonaid.watch import restart, scout_start  # noqa: E402
 from tests import codex_fakes, tmux_guard  # noqa: E402
 
@@ -266,3 +268,17 @@ def _watchers_must_not_outlive_tests(_no_real_tmux, _own_database):
     if thread is not None and thread.is_alive():
         watcher.stop_unified_watcher()
         pytest.fail("test leaked the unified watcher thread")
+
+
+def _offline(*args, **kwargs):
+    raise AssertionError("a test reached the real Keychain or Slack; stub it")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_slack(monkeypatch):
+    """No test reads the user's Slack session from the Keychain, or calls Slack with it.
+
+    Tests of either stub `session._run` or `api._open` themselves (tests/slack/shared.py).
+    """
+    monkeypatch.setattr(slack_session, "_run", _offline)
+    monkeypatch.setattr(slack_api, "_open", _offline)

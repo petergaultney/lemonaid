@@ -19,6 +19,7 @@ from . import (
     restart_cli,
     reviews_cli,
     scout_host,
+    slack_cli,
     stop_cli,
     wait_cli,
 )
@@ -30,7 +31,7 @@ def setup_parser(
 ) -> None:
     parser = subparsers.add_parser(
         "watch",
-        help="Watch your brief with --self, or watch a document, PR, file, command or children",
+        help="Watch your brief with --self, or watch a document, PR, file, command, children or Slack thread",
     )
     wait_cli.add_arguments(parser)
     watch_subparsers = parser.add_subparsers(dest="watch_command")
@@ -44,6 +45,7 @@ def setup_parser(
     file_cli.add_parser(watch_subparsers)
     command_cli.add_parser(watch_subparsers)
     briefs_cli.add_parser(watch_subparsers)
+    slack_cli.add_parser(watch_subparsers)
     notes_cli.add_parser(watch_subparsers)
     reconcile.add_parser(watch_subparsers)
     stop_cli.add_parser(watch_subparsers)

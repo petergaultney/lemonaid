@@ -15,6 +15,7 @@ from ..brief import (
     pr_mentions,
     pr_table,
     sections,
+    status,
     waiters,
 )
 from ..messages import mailbox_command
@@ -29,6 +30,7 @@ from . import (
     repo_cli,
     reviews_cli,
     roles,
+    slack_cli,
 )
 
 
@@ -71,6 +73,9 @@ class Subscription:
     role: str = ""  # a PR's, see watch/roles.py
     deadline: str = ""  # a file watch's
     mentioned: bool = False  # the brief links to this PR, so its merge or close asks about that
+    link: str = ""  # a Slack thread's permalink
+    after: str = ""  # a Slack thread's first fetch reports replies after this ts
+    brief_done: bool = False  # the brief's Status is done, which ends a Slack subscription
 
     @property
     def source(self) -> str:
@@ -105,6 +110,7 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         mentions_cli,
         notifications_wait_cli,
         briefs_cli,
+        slack_cli,
     ):
         module.add_parser(sub)
     args = parser.parse_args(words[2:])
@@ -112,6 +118,17 @@ def _parse(command: str, parent: str, me: str, cwd: Path) -> Subscription | None
         raise Problem(f"Use the --wait form: {command}")
 
     kind = args.kind
+    if kind == "slack":
+        thread = args.link
+        return Subscription(
+            kind,
+            (thread.channel, thread.ts),
+            args.me or me,
+            interval=1,  # a look at the thread's wake file; Slack is read only when it changed
+            link=thread.link,
+            after=args.after,
+        )
+
     if kind == "pr":
         repo, number = args.wait
         repo = repo or args.repo
@@ -230,7 +247,10 @@ def report(
         old = specs.get(key, Subscription("pr", found, me, interval=60, role=roles.MENTION))
         specs[key] = dataclasses.replace(old, mentioned=True)
     output = output_doc.read(text)
+    done = status.split(text).status == "done"
     for key, spec in specs.items():
+        if spec.kind == "slack" and done:
+            specs[key] = dataclasses.replace(spec, brief_done=True)
         if spec.kind == "pr":
             review = reviews.get(spec.target)
             specs[key] = dataclasses.replace(
