@@ -170,7 +170,9 @@ buffer on every change, so it sees what you type before you save. It sends:
   moves text sends nothing, so a client tracks each anchor from where the last
   notification put it. Each thread has an `anchor` range, or `null` for an orphan, and
   its `comments` in tree order, each with `id`, `re`, `span`, `author`, `at`, `body`,
-  `resolved` and its `depth` below the first comment.
+  `resolved` and its `depth` below the first comment, and `markers`, the ranges of its
+  own markers, each the `range` of what removing it removes and that `text`, for a
+  client that hides them.
 
 Clients write comments through `workspace/executeCommand`, each with one object argument,
 and the server answers with `workspace/applyEdit`:
@@ -178,8 +180,18 @@ and the server answers with `workspace/applyEdit`:
 | Command | Argument | Returns |
 |---|---|---|
 | `lemonaid.comment` | `{uri, range, body}` | `{id}` |
-| `lemonaid.reply` | `{uri, re, body, span?}` | `{id}` |
+| `lemonaid.reply` | `{uri, re, body, span?, quote?}` | `{id}` |
 | `lemonaid.resolve` | `{uri, id}` | `{}` |
+
+A command the server declines fails with LSP's `RequestFailed` (-32803), the reason as
+its message, and `data.reason` set for the two a client can act on: `diverged`, the file
+changed on disk since the buffer last matched it and no edit went out (reload an
+unmodified buffer, then send again; after an edit went out, the reason is null, since a
+resend could write the comment twice), and `moved`, the buffer changed while the server
+wrote a comment (choose the text again).
+
+A reply's `quote` is the text its `span` covered when you chose it; the server refuses
+the reply (`moved`) when the comment no longer says that.
 
 These comments are signed with `[comments] author` from lemonaid's config, else your
 login name ([config.md](config.md#comments)). Set it to the name your Relay comments
@@ -195,9 +207,62 @@ lemonaid editor notify <message>
 ```
 
 `open` asks the server whose workspace holds the path to show it with
-`window/showDocument`; without `--focus` the cursor stays where it is. `notify` shows a
-message. When several servers qualify, the one in the caller's tmux session wins, then
-the newest. With no server, both print why and exit 1.
+`window/showDocument`, or, for a file outside every workspace (a review guide, a note),
+the server in the caller's terminal workspace; without `--focus` the cursor stays where
+it is. `notify` shows a message. When several servers qualify, the one in the caller's
+terminal workspace wins, then the newest. A terminal workspace is a tmux session or a
+WezTerm workspace (`front_end.location`); cmux has none, so there only the newest
+server counts. With no server, both print why and exit 1.
+
+## The nvim client
+
+lemonaid ships an nvim client beside the server, as a plugin directory that
+`lemonaid editor nvim-path` prints. It needs nvim 0.12. Put the directory on
+`'runtimepath'`, set it up, and enable the server:
+
+```lua
+vim.opt.rtp:append(vim.trim(vim.fn.system({ "lemonaid", "editor", "nvim-path" })))
+require("lma").setup({
+  -- these are the defaults
+  keys = { comment = "<leader>cc", resolve = "<leader>cr", thread = "<leader>ct", panel = "<leader>cp" },
+  -- true in a buffer without threads leaves the comment and panel keys to the
+  -- buffer's own mappings, such as another comment plugin's in a vault doc
+  yield_to = function(buf) return false end,
+})
+vim.lsp.enable("lemonaid")
+```
+
+`vim.fn.system` waits for Python to start; to keep startup fast, ask with
+`vim.system` and set up in its callback, as enabling after startup attaches the
+server to the buffers already open.
+
+- **Threads.** The client lights up the text each thread is about, puts the first
+  line of its first comment after it, and hides the markers. `:LmaMarkers` shows
+  them again. A Markdown window hides markers only while its `'conceallevel'` is
+  above 0, so a renderer that raises it while it draws decides when.
+- **Comment.** `<leader>cc` on code opens a small window to write a comment on the
+  line or the selection; `:w` sends it and `q` keeps it as a draft. In the panel or a
+  thread float, the same key replies to the comment under the cursor, about the
+  selected part of it if there is a selection.
+- **Read.** `<leader>cp` opens the panel, every thread of the buffer beside it;
+  moving through it lights up each thread's text, and `Enter` jumps there.
+  `<leader>ct` shows the thread under the cursor in a float, and pressing it again
+  moves into the float.
+- **Resolve.** `<leader>cr` resolves the thread under the cursor, or in the panel or
+  a float, the comment under the cursor and its replies.
+- **Drafts.** The client saves what you write as you type, in nvim's state
+  directory, and deletes it once the server confirms the comment. A refusal, a closed
+  window or nvim exiting keeps it, the comment key offers it again on the same file,
+  and `:LmaDrafts` lists what is left.
+- **A lemon's writes.** The client watches each file the server has open, and reloads
+  a buffer without unsaved changes when a lemon writes its file. When the server
+  refuses a command because the file changed before nvim noticed (`diverged`), the
+  client reloads an unmodified buffer and sends it once more. A comment checks first
+  that the text you chose is still there, and asks you to choose it again if not,
+  keeping your draft.
+- **`lemonaid editor open`** shows the file in a vertical split of the current tab,
+  or in the window already showing it, and leaves the cursor where it was unless
+  given `--focus`.
 
 ## Watching a file for comments
 

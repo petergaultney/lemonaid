@@ -12,9 +12,12 @@ back as `workspace/applyEdit`, so only the server inserts anchors and appends re
 """
 
 import asyncio
+import functools
 import typing as ty
+from collections import abc
 
 from lsprotocol import types
+from pygls.exceptions import JsonRpcException
 
 from .. import config
 from ..comments import edits, model, operations, parse
@@ -25,6 +28,8 @@ THREADS: ty.Final = "lemonaid/threads"
 COMMENT: ty.Final = "lemonaid.comment"
 REPLY: ty.Final = "lemonaid.reply"
 RESOLVE: ty.Final = "lemonaid.resolve"
+# LSP's RequestFailed: the request was well formed, and the server declined it.
+_REQUEST_FAILED: ty.Final = -32803
 
 
 def build() -> CommentsServer:
@@ -60,6 +65,7 @@ def build() -> CommentsServer:
         )
 
     @server.command(COMMENT)
+    @_refusals_as_errors
     async def comment(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
         """Arguments: `{uri, range, body}`. Anchors a thread on the range."""
         uri, body = _argument(arguments, "uri", str), _argument(arguments, "body", str)
@@ -80,15 +86,34 @@ def build() -> CommentsServer:
         return {"id": await editing.apply(ls, document, change, retry=False)}
 
     @server.command(REPLY)
+    @_refusals_as_errors
     async def reply(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
-        """Arguments: `{uri, re, body, span?}`, `span` a `[start, end]` range of characters in
-        the body of the comment `re` names."""
+        """Arguments: `{uri, re, body, span?, quote?}`, `span` a `[start, end]` range of
+        characters in the body of the comment `re` names, and `quote` the text the client saw
+        there. We refuse when the parent no longer says that in the document we edit, since a
+        client's view of it can lag behind its buffer."""
         uri, body = _argument(arguments, "uri", str), _argument(arguments, "body", str)
         re_ = _argument(arguments, "re", str)
         span = _span(arguments[0].get("span") if arguments else None)
+        quote = arguments[0].get("quote") if arguments else None
+        if quote is not None and (span is None or not isinstance(quote, str)):
+            raise Refused("`quote` is a string, and comes with `span`")
         author = config.load_config().comments.signature()
 
         def change(text: str, kind: model.FileKind, comment_id: str | None) -> editing.Change:
+            parent = parse.parse(text, kind).comment(re_)
+            quoted_text_changed = (
+                span is not None
+                and quote is not None
+                and parent is not None
+                and parent.body[span[0] : span[1]] != quote
+            )
+            if quoted_text_changed:
+                raise Refused(
+                    "the comment you replied about no longer says what you selected;"
+                    " select it again",
+                    "moved",
+                )
             added = edits.reply(
                 text, kind, re_, author=author, body=body, span=span, comment_id=comment_id
             )
@@ -99,6 +124,7 @@ def build() -> CommentsServer:
         return {"id": await editing.apply(ls, documents.open_by_uri(ls, uri), change)}
 
     @server.command(RESOLVE)
+    @_refusals_as_errors
     async def resolve(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
         """Arguments: `{uri, id}`."""
         uri, comment_id = _argument(arguments, "uri", str), _argument(arguments, "id", str)
@@ -127,9 +153,32 @@ def _refresh(ls: CommentsServer, uri: str) -> None:
     if ls.sent_keys.get(key) != threads_key:
         ls.sent_keys[key] = threads_key
         ls.protocol.notify(
-            THREADS, publish.threads_params(document.uri, document.version, doc, codec)
+            THREADS,
+            publish.threads_params(document.uri, document.version, document.source, doc, codec),
         )
     ls.changed.setdefault(key, asyncio.Event()).set()
+
+
+class _CommandRefused(JsonRpcException):
+    CODE = _REQUEST_FAILED
+
+
+_Command = abc.Callable[..., abc.Awaitable[dict[str, ty.Any]]]
+
+
+def _refusals_as_errors(command: _Command) -> _Command:
+    """Answer a refusal with its reason as the error's message, and `data.reason` for a
+    client that acts on it (`documents.Refused`), rather than pygls's internal error with
+    the exception's type and traceback."""
+
+    @functools.wraps(command)
+    async def refusing(ls: CommentsServer, *arguments: ty.Any) -> dict[str, ty.Any]:
+        try:
+            return await command(ls, *arguments)
+        except Refused as refusal:
+            raise _CommandRefused(str(refusal), data={"reason": refusal.reason}) from None
+
+    return refusing
 
 
 _Field = ty.TypeVar("_Field")

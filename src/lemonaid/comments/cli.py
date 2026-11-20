@@ -21,6 +21,7 @@ import sys
 import typing as ty
 
 from .. import file
+from ..front_end import location
 from ..lsp import registry
 from ..watch import signature
 from . import edits, listing, model, operations, parse
@@ -198,7 +199,7 @@ def _open_buffers(target: pathlib.Path) -> list[_Buffer]:
     """The editor buffers that hold the file, those that have diverged from it or have
     unsaved changes first. A server that doesn't answer is passed over."""
     buffers = []
-    for server in registry.by_preference(registry.live(), registry.tmux_session()):
+    for server in registry.by_preference(registry.live(), location.here()):
         try:
             answer = registry.request(server, {"op": "buffer", "path": str(target)})
         except registry.Unreachable:

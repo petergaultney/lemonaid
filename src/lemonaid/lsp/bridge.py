@@ -14,6 +14,7 @@ from lsprotocol import types
 from pygls import uris
 
 from ..comments import edits, operations
+from ..front_end import location
 from . import documents, editing, registry, sync
 from .documents import CommentsServer, Refused
 
@@ -43,7 +44,7 @@ async def start(ls: CommentsServer) -> None:
             pid=pid,
             socket=str(path),
             roots=tuple(str(root.resolve()) for root in roots if str(root)),
-            tmux=registry.tmux_session(),
+            location=location.here(),
             started=time.time(),
         )
     )
@@ -88,7 +89,7 @@ async def _answer(ls: CommentsServer, message: dict[str, ty.Any]) -> dict[str, t
                 return {"open": False}
             state = sync.state(ls, document)
             if state == "diverged":
-                raise Refused(sync.DIVERGED)
+                raise Refused(sync.DIVERGED, "diverged")
             if state == "clean":
                 return {"open": True, "state": state}
             operation = operations.from_json(message["operation"])
