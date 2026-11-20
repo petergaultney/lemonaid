@@ -5,3 +5,5 @@ The grove window's trees look more like lemon trees: a domed crown wider than it
 The grove window's stream is drawn in the same pixel style: deep water and shallows streaked along the flow, muddy banks and grass, with reeds, stones and lily pads along its edges.
 
 The grove window draws stumps where trees whose sessions ended stood: bare pixel trees, a recent one keeping a few dead leaves and its tree's name, as in the terminal grove. `grove show --json` now lists each block's stumps.
+
+Roads, shadows, the packhouse's roof, frames and lemons, list borders, and the dashed frames of a drag are drawn in the same pixel style, and lead trees' flags are pixel pennants.
