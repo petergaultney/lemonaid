@@ -96,6 +96,23 @@ def test_unknown_ci_falls_to_the_idle_rule():
     assert _kinds(_evaluate([task(subject_url=_URL)], unknown)) == [("challenge", "progress")]
 
 
+def test_a_teammates_open_pr_the_user_approved_is_a_wait_for_its_merge():
+    def pr(**fields: str) -> list[dict[str, str]]:
+        return [
+            *idle(since="2026-10-31T11:30:00Z"),
+            *(fact("pr", _URL, name, value) for name, value in fields.items()),
+        ]
+
+    approved = {"state": "OPEN", "authored": "false", "user_verdict": "APPROVED"}
+    waiting = _evaluate([task(subject_url=_URL)], pr(**approved))
+
+    assert waiting[0][:5] == ("wait", "t1", "progress", "waiting-for-merge", f"{_URL} approved")
+    for change in ({"state": "MERGED"}, {"authored": "true"}, {"user_verdict": "COMMENTED"}):
+        other = _evaluate([task(subject_url=_URL)], pr(**{**approved, **change}))
+
+        assert _kinds(other) == [("challenge", "progress")]
+
+
 def _child(lifecycle: str, finding: str = "", closed: str = "") -> list[dict[str, str]]:
     return [
         *idle(),
