@@ -132,6 +132,14 @@ The key replaces tmux's `next-layout`. Its lines work unchanged on other systems
 
 The key writes to the window's socket (`grove-window.sock` in lemonaid's state directory) with `nc -U` rather than running `lemonaid`, so the window appears at once. It covers the window of whichever app was in front when you pressed it, and hands that app the focus back when it closes.
 
+#### Where the window opens
+
+At first the window covers the terminal you summon it from, and hides once you choose a lemon. Drag its top bar to move it, or an edge to resize it, and leave it away from the terminal, say on another display: from then on it opens there, and stays up after you choose a lemon, giving the terminal the focus while the window stays in view. Move it back over the terminal and it covers the terminal again. The top bar says which: `over terminal`, or `floating`, which a click puts back over the terminal.
+
+Each set of displays, arranged as it is, keeps its own place, since macOS doesn't: the window remembers where you left it on the laptop alone and where you left it at your desk. With a set it hasn't seen, it covers the terminal. Connect or disconnect a display while it's up and it moves to its place for the new set.
+
+It counts as over the terminal when it covers a tenth or more of the terminal's window (`grove_window_cover_share` under `[tui]`; see [config](config.md)).
+
 ### When the window doesn't appear
 
 - **The key says the window did not start:** run `lemonaid grove window run` in a pane to see why, usually a missing `web` extra. Once it runs, leave it there or press the key again from another pane.

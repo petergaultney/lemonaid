@@ -233,6 +233,10 @@ class TuiConfig:
     grove_pulse_seconds: float = 4.5
     # How solid the grove window's background is: 1 hides the terminal under it, lower shows it through.
     grove_window_opacity: float = 1.0
+    # How much of the terminal's front window the grove window must cover to count as over it:
+    # over it, the window covers the terminal and hides after a jump; elsewhere it stays where it
+    # was left and stays up.
+    grove_window_cover_share: float = 0.1
     # Seconds the brief view's attention line shows a brief's new status after it changes.
     status_pulse_seconds: float = 10.0
     # The key that flips a zoomed block's lemon lists to their other page, and whether it shows
@@ -782,6 +786,9 @@ def _parse_config(data: dict[str, Any]) -> Config:
         status_pulse_seconds=max(0.0, float(tui_data.get("status_pulse_seconds", 10.0))),
         grove_flip_key=_grove_flip_key(tui_data.get("grove_flip_key", ";")),
         grove_flip=_grove_flip(tui_data.get("grove_flip", "hold")),
+        grove_window_cover_share=min(
+            1.0, max(0.0, float(tui_data.get("grove_window_cover_share", 0.1)))
+        ),
         grove_select_key=_grove_select_key(
             tui_data.get("grove_select_key", "tab"), str(tui_data.get("grove_flip_key", ";"))
         ),

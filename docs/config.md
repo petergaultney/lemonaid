@@ -233,6 +233,7 @@ The name may come from the interpreter's command line or the pane title. Add
 | `grove_pan_rows` | `1` | Screen rows an arrow key moves the grove view down. |
 | `grove_big_trees` | `false` | Let a zoomed block's trees grow past a grown tree's size to fill a big screen. Off, they stop at the size the grove view draws a grown tree. |
 | `grove_pulse_seconds` | `4.5` | Seconds a working lemon's pulse takes in the grove, from rest to darkest and back; at least `0.5`. A shorter pulse redraws more often, up to 20 times a second, so it stays smooth. |
+| `grove_window_cover_share` | `0.1` | How much of the terminal's window the [grove window](grove.md#where-the-window-opens) must cover to count as over it, from `0` to `1`. Over it, the window covers the terminal on each summon and hides after a jump; moved away, it stays where you left it and stays up. |
 | `grove_window_opacity` | `1.0` | How solid the [grove window](grove.md#the-grove-window-beta-macos)'s background is, from `0.2` to `1`. `1` hides the terminal under it; lower values let it show through. |
 | `status_pulse_seconds` | `10.0` | Seconds a status's badge pulses in the brief view's top line after a lemon's brief enters that status. `0` turns it off. |
 | `grove_flip_key` | `";"` | The key that flips a zoomed block's lemon lists from names to branches, models and context use, and the grove view's tree tags to each tree's stats. Any key but a letter, a digit, `.`, `/`, `?`, space, `escape`, `enter`, `backspace` or `tab`; name a non-printing key as Textual does, such as `"f5"`. |
