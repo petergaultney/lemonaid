@@ -47,6 +47,16 @@ def test_the_window_shows_what_grove_show_json_prints_with_colors_leads_and_land
     )
 
 
+def test_a_tree_whose_session_ended_shows_as_a_stump_with_its_name(monkeypatch):
+    _grove(monkeypatch)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
+    live.fresh(load_config(), None)
+
+    stumps = data.shown(data.load(load_config()))["blocks"][0]["stumps"]
+    assert [(s["key"], s["label"]) for s in stumps] == [("t", "t")]
+    assert stumps[0]["spot"] == [state.load()["trees"]["a"]["t"][k] for k in ("x", "y")]
+
+
 def test_a_tree_no_grove_has_saved_yet_can_be_dropped(monkeypatch):
     monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
     state.save({"version": state.VERSION} | stream_saved({"a": plot_data(2, 2, 60, 14)}))
