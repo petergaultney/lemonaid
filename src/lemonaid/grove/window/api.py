@@ -49,7 +49,7 @@ class Api:
         return data.shown(self._shared.grove) if self._shared.grove else None
 
     def jump(self, channel: str) -> str:
-        problem = data.jump(channel, self._shared.client)
+        problem = data.jump(channel, self._shared.client, self._shared.config)
         if not problem:
             self._jumped()
         return problem

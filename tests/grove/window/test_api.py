@@ -31,7 +31,9 @@ def test_before_the_first_load_the_page_gets_no_grove_and_no_drop_is_taken():
 def test_a_jump_tells_the_window_only_when_it_switched_the_client(monkeypatch):
     page_api, calls = _api()
     asked = []
-    monkeypatch.setattr(data, "jump", lambda channel, client: asked.append((channel, client)) or "")
+    monkeypatch.setattr(
+        data, "jump", lambda channel, client, _config: asked.append((channel, client)) or ""
+    )
 
     assert page_api.jump("claude:1") == ""
     monkeypatch.setattr(data, "jump", lambda *_args: "No live lemon on claude:2")

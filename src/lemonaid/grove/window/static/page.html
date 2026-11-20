@@ -936,7 +936,7 @@ function showCard(e, b, t) {
 }
 function jumpTo(l) {
   if (!l) return;
-  if (l.jump_problem) { document.getElementById("msg").textContent = `can't jump: ${l.jump_problem}`; return; }
+  // A lemon with a jump problem still asks Python, which resumes one whose pane is gone (window/data.py).
   hideCard();
   window.pywebview.api.jump(l.channel).then(problem => { if (problem) document.getElementById("msg").textContent = problem; });
 }
