@@ -100,7 +100,14 @@ def jump_problems(rows: abc.Iterable[db.Notification]) -> dict[str, str]:
 
 
 def _client(command: list[str], explicit: str, source_pane: str) -> str:
-    clients = _tmux(command, "list-clients", "-F", "#{client_name}|#{session_name}")
+    clients = _tmux(
+        command,
+        "list-clients",
+        "-f",
+        "#{==:#{client_control_mode},0}",  # lemonaid's own label client is not a terminal
+        "-F",
+        "#{client_name}|#{session_name}",
+    )
     rows = [line.split("|", 1) for line in clients.splitlines() if "|" in line]
     if explicit:
         if explicit not in [row[0] for row in rows]:
