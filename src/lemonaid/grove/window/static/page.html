@@ -202,6 +202,70 @@ function strokeSmooth(points, width, color) {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = ctx.lineCap = "round";
   ctx.beginPath(); smooth(points).forEach(([x, y], i) => i ? ctx.lineTo(sx(x), sy(y)) : ctx.moveTo(sx(x), sy(y))); ctx.stroke();
 }
+// Things along the stream, a cell a character, keyed by STREAM_PAINT; each stands on its bottom
+// middle cell. Reeds and tufts on the banks, stones at the water's edge, lily pads on the shallows.
+const STREAM_PAINT = {s: "#3a5a2e", d: "#283f22", b: "#4e3824", g: "#4b4f55", G: "#363a40", l: "#2f5a2c", L: "#244522"};
+const REEDS = [[".b..", ".b.b", ".s.b", "ss.s", "dsds"], ["b...", "b.b.", "s.s.", "s.ss", "dsds"], ["s.s", "dsd"], ["..s..", "s.s.s", "dsdsd"]];
+const STONES = [[".g.", "gGG"], ["gg.", "gGG"]], PADS = [["ll.", "lLl"], ["lll", ".Ll"]];
+// The stream in the map's pixel style: deep water and shallows streaked along the flow, a muddy bank,
+// grass thinning out beyond it, and reeds, stones and lily pads along its edges. *band* is the
+// water's width in pixels. Its cells and textures are fixed to the map, so panning doesn't shimmer.
+function drawStream(water, band) {
+  const q = Math.max(2, Math.round(view.k / 3)), half = band / 2, reach = 2 * half;
+  const gx = ((sx(0) % q) + q) % q - q, gy = ((sy(0) % q) + q) % q - q;
+  const cols = Math.ceil((W() - gx) / q) + 1, rows = Math.ceil((H() - gy) / q) + 1;
+  const near = new Float32Array(cols * rows).fill(Infinity), seg = new Int32Array(cols * rows);
+  const pts = smooth(water).map(([x, y]) => [sx(x), sy(y)]);
+  for (let n = 1; n < pts.length; n++) {  // each cell's distance to the stream's middle, and the stretch it is nearest
+    const [ax, ay] = pts[n - 1], [bx, by] = pts[n], dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy || 1;
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - reach - gx) / q)), i1 = Math.min(cols - 1, Math.ceil((Math.max(ax, bx) + reach - gx) / q));
+    const j0 = Math.max(0, Math.floor((Math.min(ay, by) - reach - gy) / q)), j1 = Math.min(rows - 1, Math.ceil((Math.max(ay, by) + reach - gy) / q));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const px = gx + (i + 0.5) * q, py = gy + (j + 0.5) * q, f = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+      const d = Math.hypot(px - ax - f * dx, py - ay - f * dy), k = j * cols + i;
+      if (d < near[k]) { near[k] = d; seg[k] = n; }
+    }
+  }
+  const img = new ImageData(cols, rows), paint = (i, j, c) => { if (i >= 0 && j >= 0 && i < cols && j < rows) img.data.set([...hex(c), 255], 4 * (j * cols + i)); };
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const k = j * cols + i;
+    if (near[k] >= reach) continue;
+
+    // Map position in columns both ways, so the textures stay put and keep their shape as the view moves.
+    const px = gx + (i + 0.5) * q, py = gy + (j + 0.5) * q, wx = view.x + px / view.k, wy = (view.y + py / (view.k * YS)) * YS;
+    const [ax, ay] = pts[seg[k] - 1], [bx, by] = pts[seg[k]], l = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / l, ty = (by - ay) / l;
+    const along = wx * tx + wy * ty, across = wy * tx - wx * ty, e = near[k] / half + 0.3 * (patchy(wx * 1.5, wy * 1.5, 31) - 0.5);
+    if (e < 1) {
+      const deep = e < 0.55 + 0.25 * (patchy(wx * 0.8, wy * 0.8, 37) - 0.5), streak = patchy(along * 0.7, across * 7, 41);
+      paint(i, j, streak > 0.95 && e < 0.7 ? "#2a4c72" : streak > 0.86 ? "#1c3858" : deep ? "#0f2036" : "#142a45");
+    } else if (e < 1.15) paint(i, j, patchy(wx * 3, wy * 3, 43) > 0.6 ? "#2f281e" : "#2a241b");
+    else if (e < 1.6 && patchy(wx * 2.2, wy * 2.2, 47) > 0.4 + 0.5 * (e - 1.15) / 0.45) {
+      const tone = patchy(wx * 3.5, wy * 3.5, 53);
+      paint(i, j, tone > 0.6 ? "#253b22" : tone > 0.3 ? "#1f321d" : "#1a2a19");
+    }
+  }
+  const place = (shape, cx, cy, flip) => shape.forEach((row, r) => [...row].forEach((c, n) => {
+    if (c !== ".") paint(Math.round((cx - gx) / q) - (row.length >> 1) + (flip ? row.length - 1 - n : n), Math.round((cy - gy) / q) - shape.length + 1 + r, STREAM_PAINT[c]);
+  }));
+  let next = 0, walked = 0, n = 0;
+  for (let s = 1; s < pts.length; s++) {  // walked from the stream's start, so things stay where they grew as the view moves
+    const [ax, ay] = pts[s - 1], [bx, by] = pts[s], len = Math.hypot(bx - ax, by - ay);
+    if (!len) continue;
+
+    const ux = (bx - ax) / len, uy = (by - ay) / len;
+    for (; next <= walked + len; n++, next += band * (0.5 + 0.8 * noise(n, 14))) {
+      const at = next - walked, fx = ax + ux * at, fy = ay + uy * at, kind = noise(n, 11), side = noise(n, 12) < 0.5 ? -1 : 1;
+      const out = kind < 0.35 ? 1.05 + 0.2 * noise(n, 13) : kind < 0.42 ? 0.95 + 0.1 * noise(n, 13) : 0.5 + 0.25 * noise(n, 13);
+      const cx = fx - uy * side * out * half, cy = fy + ux * side * out * half;
+      if (cx < -band || cx > W() + band || cy < -band || cy > H() + band || kind > 0.5) continue;
+
+      const pick = list => list[Math.floor(noise(n, 15) * list.length)], flip = noise(n, 16) < 0.5;
+      place(kind < 0.35 ? pick(REEDS) : kind < 0.42 ? pick(STONES) : pick(PADS), cx, cy, flip);
+    }
+    walked += len;
+  }
+  stamp(img, gx, gy, q);
+}
 function drawLandmarks() {
   (DATA.roads || []).forEach(r => {
     strokeSmooth(r, view.k * 1.6, "#221a12");
@@ -210,29 +274,7 @@ function drawLandmarks() {
   if (!(DATA.stream && DATA.stream.length > 1)) return;
   const st = DATA.stream, out = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1; return [a[0] + dx / d * 400, a[1] + dy / d * 400]; };
   const water = [out(st[0], st[1]), ...st, out(st[st.length - 1], st[st.length - 2])];  // a stream runs on past the map
-  const band = view.k * YS * 1.5;
-  strokeSmooth(water, band + Math.max(3, band * 0.18), "#1d4166");
-  strokeSmooth(water, band, "#11294a");
-  const pts = smooth(water).map(([x, y]) => [sx(x), sy(y)]);
-  ctx.strokeStyle = "rgba(92,146,196,0.75)"; ctx.lineWidth = Math.max(1, band / 22); ctx.lineCap = "round";
-  let next = 0, walked = 0, n = 0;
-  for (let i = 1; i < pts.length; i++) {  // short ripples, scattered across the water
-    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], len = Math.hypot(bx - ax, by - ay);
-    if (!len) continue;
-    const ux = (bx - ax) / len, uy = (by - ay) / len;
-    while (next <= walked + len) {
-      const d = next - walked, fx = ax + ux * d, fy = ay + uy * d, k = n++;
-      const off = (noise(k, 7) - 0.5) * band * 0.7, rx = fx - uy * off, ry = fy + ux * off, w = band * (0.25 + 0.2 * noise(k, 8));
-      if (rx > -50 && rx < W() + 50 && ry > -50 && ry < H() + 50) {
-        ctx.beginPath(); ctx.moveTo(rx - ux * w / 2, ry - uy * w / 2);
-        ctx.quadraticCurveTo(rx - ux * w / 4 - uy * w / 5, ry - uy * w / 4 + ux * w / 5, rx, ry);
-        ctx.quadraticCurveTo(rx + ux * w / 4 + uy * w / 5, ry + uy * w / 4 - ux * w / 5, rx + ux * w / 2, ry + uy * w / 2);
-        ctx.stroke();
-      }
-      next += band * (0.35 + 0.5 * noise(k, 9));
-    }
-    walked += len;
-  }
+  drawStream(water, view.k * YS * 1.5);
   ctx.textAlign = "left";
 }
 
