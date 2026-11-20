@@ -118,6 +118,22 @@ class Api:
     def usage(self) -> list[dict]:
         return usage.rows(self._shared.config)
 
+    def stump_refusal(self, digit: str, key: str, dx: int, dy: int) -> str:
+        grove = self._shared.grove
+        if grove is None:
+            return "the grove is loading"
+        return data.stump_refusal(grove, digit, key, int(dx), int(dy))
+
+    def stump_drop(self, digit: str, key: str, dx: int, dy: int) -> str:
+        grove = self._shared.grove
+        if grove is None:
+            return "the grove is loading"
+
+        problem = data.stump_drop(grove, digit, key, int(dx), int(dy))
+        if not problem:
+            self._refresh()
+        return problem
+
     def settings(self) -> dict:
         return settings.load()
 
