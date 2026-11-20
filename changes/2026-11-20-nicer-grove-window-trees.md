@@ -10,4 +10,4 @@ Roads, shadows, the packhouse's roof, frames and lemons, list borders, and the d
 
 In the grove window, a bare tree can be gardened as in the terminal grove: dragged within its block to move it, or off its block's ground to clear it.
 
-The grove window's block ground is drawn in the same pixel style: plain soil in the block's color, faintly varied, with tufts of grass in a few loose patches.
+The grove window's block ground is drawn in the same pixel style: plain soil in the block's color, faintly varied, with tufts of grass in a few loose patches. The ground between the blocks has a fainter, colorless version of it that keeps a translucent window translucent.
