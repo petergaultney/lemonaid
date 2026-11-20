@@ -1,7 +1,6 @@
 """The delivery service queues each Codex lemon's messages into its thread, once."""
 
 import argparse
-import json
 import os
 import stat
 import threading
@@ -12,10 +11,10 @@ import pytest
 from lemonaid.brief import attached, identity
 from lemonaid.brief import store as brief_store
 from lemonaid.codex import notify as codex_notify
-from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import cli, service, store, waiter
 from lemonaid.messages.service import ensure_running as real_ensure_running
+from tests import codex_fakes
 
 _FAKE_CODEX = """#!/bin/sh
 printf '%s\\n' "$@" >> "$FAKE_CODEX_ARGS"
@@ -143,11 +142,7 @@ def test_telling_a_codex_lemon_starts_the_service(capsys, monkeypatch):
 
 
 def test_a_codex_turn_with_mail_waiting_starts_the_service(monkeypatch, tmp_path):
-    rollout = tmp_path / "rollout-01a0d8ce-long-thread-id.jsonl"
-    rollout.write_text(
-        json.dumps({"type": "session_meta", "payload": {"id": "01a0d8ce-long-thread-id"}}) + "\n"
-    )
-    monkeypatch.setattr(codex_utils, "get_sessions_root", lambda: tmp_path)
+    codex_fakes.answer(monkeypatch, lambda thread: codex_fakes.thread(thread, "/tmp"))
     started: list[bool] = []
     monkeypatch.setattr(service, "ensure_running", lambda: started.append(True))
     mailbox = _lemon("codex-lemon", "codex:01a0d8ce-long-thread-id", "01a0d8ce-long-thread-id")

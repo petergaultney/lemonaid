@@ -42,76 +42,83 @@ def test_claude_with_hooks_disabled_reports_nothing(homes, where):
     assert not _REPORTED("claude", str(homes / "project"))
 
 
-def _trust(home, state: str) -> None:
-    hooks = home / "codex" / "hooks.json"
-    [handler] = [
-        handler
-        for entry in json.loads(hooks.read_text())["hooks"]["SessionEnd"]
-        for handler in entry["hooks"]
-    ]
-    trusted = {
-        "trusted": hook_trust._session_end_hash(handler),
-        "stale": hook_trust._session_end_hash({**handler, "timeout": 2}),
-        "disabled": hook_trust._session_end_hash(handler),
-    }[state]
-    (home / "codex" / "config.toml").write_text(
-        "[features]\ndaemon_auto_start = false\n\n"
-        f'[hooks.state."{hooks}:session_end:0:0"]\ntrusted_hash = "{trusted}"\n'
-        + ("enabled = false\n" if state == "disabled" else "")
+class _Codex:
+    """An app-server answering `hooks/list` with *hooks*."""
+
+    def __init__(self, hooks: list[dict]) -> None:
+        self.hooks = hooks
+
+    def ask(self, calls, timeout):
+        assert [method for method, _ in calls] == ["hooks/list"]
+        return [{"result": {"data": [{"cwd": "/", "hooks": self.hooks}]}}]
+
+
+@pytest.fixture
+def codex_hooks(homes, monkeypatch):
+    """Set what Codex says about the hooks it would run; lemonaid's daemon check passes."""
+    hook_trust._runs.cache_clear()
+    (homes / "codex" / "config.toml").write_text("[features]\ndaemon_auto_start = false\n")
+    answers = _Codex([])
+    monkeypatch.setattr(
+        hook_trust.app_server,
+        "once",
+        lambda question, about, unanswered, timeout: question(answers),
     )
+
+    def hooks(**fields) -> None:
+        hook_trust._runs.cache_clear()
+        answers.hooks = [
+            {
+                "eventName": "sessionEnd",
+                "sourcePath": str(install.settings_path("codex")),
+                "statusMessage": install.status_message("session-end"),
+                "enabled": True,
+                "trustStatus": "trusted",
+                **fields,
+            }
+        ]
+
+    return hooks
 
 
 @pytest.mark.parametrize(
-    ("state", "expected"), [("trusted", True), ("stale", False), ("disabled", False)]
+    ("fields", "expected"),
+    [
+        ({}, True),
+        ({"trustStatus": "modified"}, False),
+        ({"trustStatus": "untrusted"}, False),
+        ({"enabled": False}, False),
+        ({"statusMessage": "my own end"}, False),
+        ({"eventName": "stop"}, False),
+    ],
 )
-def test_codex_reports_only_with_its_own_hook_trusted_at_its_hash_and_enabled(
-    homes, state, expected
-):
+def test_codex_reports_only_with_lemonaids_hook_trusted_and_enabled(codex_hooks, fields, expected):
     install.install("codex", events=["SessionEnd"])
-    _trust(homes, state)
+    codex_hooks(**fields)
 
     assert _REPORTED("codex", "") is expected
 
 
-def test_codex_trust_for_another_session_end_hook_is_not_lemonaids(homes):
-    hooks = homes / "codex" / "hooks.json"
-    mine = {"type": "command", "command": "my-own-end"}
-    hooks.write_text(json.dumps({"hooks": {"SessionEnd": [{"hooks": [mine]}]}}))
+def test_codex_with_its_daemon_on_reports_nothing(homes, codex_hooks):
     install.install("codex", events=["SessionEnd"])
-    (homes / "codex" / "config.toml").write_text(
-        "[features]\ndaemon_auto_start = false\n\n"
-        f'[hooks.state."{hooks}:session_end:0:0"]\n'
-        f'trusted_hash = "{hook_trust._session_end_hash(mine)}"\n'
-    )
+    codex_hooks()
+    (homes / "codex" / "config.toml").write_text("[features]\ndaemon_auto_start = true\n")
 
     assert not _REPORTED("codex", "")
-
-
-def test_codex_with_its_daemon_on_reports_nothing(homes):
-    install.install("codex", events=["SessionEnd"])
-    _trust(homes, "trusted")
-    config = homes / "codex" / "config.toml"
-    config.write_text(
-        config.read_text().replace("daemon_auto_start = false", "daemon_auto_start = true")
-    )
-
-    assert not _REPORTED("codex", "")
-
-
-_CODEX_TRUSTED = "sha256:9f9337c92115356e7107de78bbcec70d6b5888a1d8312033ae4c21053efb7b91"
-# What Codex 0.166 wrote to `[hooks.state]` when this handler was trusted in its `/hooks`.
-
-
-def test_the_trust_hash_is_codexs():
-    handler = {
-        "type": "command",
-        "command": install.SESSION_END_CODEX,
-        "statusMessage": "lemonaid: session-end",
-        "timeout": 3,
-    }
-
-    assert hook_trust._session_end_hash(handler) == _CODEX_TRUSTED
 
 
 def test_other_harnesses_never_report(homes):
     assert not _REPORTED("opencode", "")
+
+
+def test_codex_that_could_not_be_asked_is_asked_again(homes, codex_hooks, monkeypatch):
+    install.install("codex", events=["SessionEnd"])
+    codex_hooks()
+    healthy = hook_trust.app_server.once
+    monkeypatch.setattr(
+        hook_trust.app_server, "once", lambda question, about, unanswered, timeout: unanswered
+    )
+    assert not _REPORTED("codex", "")
+
+    monkeypatch.setattr(hook_trust.app_server, "once", healthy)
+    assert _REPORTED("codex", "")

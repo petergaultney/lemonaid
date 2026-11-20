@@ -4,7 +4,7 @@ import sqlite3
 from typing import Any
 
 from ..inbox import db, ended
-from . import utils
+from . import threads, utils
 
 
 def _matches(row: db.Notification, thread: str, location: dict[str, Any]) -> bool:
@@ -27,7 +27,7 @@ def _matches(row: db.Notification, thread: str, location: dict[str, Any]) -> boo
     if not (same_rollout or same_location):
         return False
     # Real sessions on the same pane can be a /clear or a restart.
-    return utils.find_session_path(recorded, compressed=True) is None
+    return recorded in threads.gone([recorded])
 
 
 def _attached_rows(conn: sqlite3.Connection) -> list[db.Notification]:
@@ -85,9 +85,9 @@ def repair_duplicates(conn: sqlite3.Connection, locations: dict[str, list[dict[s
         if target in protected:
             continue
         current = db.get_by_channel(conn, target, unread_only=False)
-        path = utils.find_session_path(thread)
-        if current is not None and path is not None:
-            db.repair_location(conn, current, {"session_id": thread, "session_path": str(path)})
+        record = threads.get([thread], running=True).get(thread)
+        if current is not None and record is not None and record.path:
+            db.repair_location(conn, current, {"session_id": thread, "session_path": record.path})
         for row in rows:
             if not row.channel.startswith("codex:") or row.channel in attached | protected:
                 continue
@@ -120,7 +120,7 @@ def for_session(conn: sqlite3.Connection, thread: str) -> str:
         and row.channel.startswith("codex:")
         and row.metadata.get("session_id") == thread
         and utils.extract_session_id_from_filename(row.metadata.get("session_path") or "") == thread
-        and utils.find_session_path(row.channel.removeprefix("codex:"), compressed=True) is None
+        and row.channel.removeprefix("codex:") in threads.gone([row.channel.removeprefix("codex:")])
     ]
     return matches[0] if len(matches) == 1 else channel
 

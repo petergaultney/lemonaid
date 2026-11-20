@@ -3,19 +3,14 @@
 import json
 
 from lemonaid.codex import watcher
+from tests import codex_fakes
 
 
-def test_session_path_falls_back_to_latest_rollout_for_cwd(tmp_path, monkeypatch):
-    sessions = tmp_path / "sessions"
-    sessions.mkdir()
-    expected = sessions / "rollout-real-session.jsonl"
-    expected.write_text("{}\n")
-
-    monkeypatch.setattr(watcher, "get_sessions_root", lambda: sessions)
-    monkeypatch.setattr(
-        watcher,
-        "find_latest_session_for_cwd",
-        lambda cwd: expected if cwd == "/tmp/project" else None,
+def test_session_path_falls_back_to_latest_rollout_for_cwd(tmp_path, codex_records):
+    expected = tmp_path / "rollout-real-session.jsonl"
+    codex_records["turn-id-with-no-file"] = None
+    codex_records["01a0d8ce-0000-7000-8000-000000000001"] = codex_fakes.thread(
+        "01a0d8ce-0000-7000-8000-000000000001", "/tmp/project", path=str(expected)
     )
 
     assert watcher.get_session_path("turn-id-with-no-file", "/tmp/project") == expected

@@ -18,7 +18,7 @@ from .. import handlers
 from ..claude import session_socket
 from ..codex import channels as codex_channels
 from ..codex import daemon_setup, processes, queued
-from ..codex import utils as codex_utils
+from ..codex import threads as codex_threads
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
@@ -146,8 +146,9 @@ def unrun_codex() -> dict[str, str]:
     reasons = {
         thread: reason
         for thread, found in queued.held(daemon_setup.codex_home()).items()
-        if (rollout := codex_utils.find_session_path(thread))
-        and (reason := queued.unrun(found, queued.last_turn_end(rollout), now))
+        if (record := codex_threads.get([thread]).get(thread)) is not None
+        and record.path
+        and (reason := queued.unrun(found, queued.last_turn_end(Path(record.path)), now))
     }
     open_threads = processes.open_threads(_LISTED_WITHIN) if reasons else None
     if not open_threads:

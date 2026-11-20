@@ -16,6 +16,7 @@ from lemonaid.lemon_watchers import watcher
 from lemonaid.openclaw import watcher as openclaw_watcher
 from lemonaid.opencode import notify as opencode_notify
 from lemonaid.opencode import watcher as opencode_watcher
+from tests import codex_fakes
 
 _A_MINUTE_AGO = (datetime.now(UTC) - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
 _THREAD = "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"
@@ -30,8 +31,7 @@ def quiet_config():
 @pytest.fixture(autouse=True)
 def _persistent_notify_thread(tmp_path, monkeypatch):
     path = tmp_path / "rollout.jsonl"
-    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": _THREAD}}) + "\n")
-    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+    codex_fakes.answer(monkeypatch, lambda thread: codex_fakes.thread(thread, path=str(path)))
 
 
 def _status(channel: str) -> str:

@@ -10,6 +10,7 @@ from lemonaid.inbox import db
 from lemonaid.inbox.channel import UnidentifiedSession, channel_id
 from lemonaid.openclaw import notify as openclaw_notify
 from lemonaid.opencode import notify as opencode_notify
+from tests import codex_fakes
 
 
 def test_a_session_id_becomes_a_channel():
@@ -37,17 +38,10 @@ def test_codex_drops_a_payload_with_no_session(tmp_path, monkeypatch):
     assert _rows() == []
 
 
-def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch):
+def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch, codex_records):
     monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
-
-    path = tmp_path / "rollout.jsonl"
-    path.write_text(
-        json.dumps(
-            {"type": "session_meta", "payload": {"id": "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"}}
-        )
-        + "\n"
-    )
-    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+    thread = "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"
+    codex_records[thread] = codex_fakes.thread(thread, "/tmp")
 
     codex_notify.handle_notification(
         json.dumps(
@@ -63,25 +57,13 @@ def test_codex_keeps_a_payload_that_names_its_thread(tmp_path, monkeypatch):
     assert [r["channel"] for r in _rows()] == ["codex:01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"]
 
 
-def test_codex_resolves_a_generic_notification_id_through_the_cwd(tmp_path, monkeypatch):
+def test_codex_resolves_a_generic_notification_id_through_the_cwd(
+    tmp_path, monkeypatch, codex_records
+):
     monkeypatch.setenv("LEMONAID_DB", str(tmp_path / "inbox.db"))
     session_path = tmp_path / "rollout-01a03bff-a7bb-77a2-9b4d-d63cfe32fd00.jsonl"
-    session_path.write_text(
-        json.dumps(
-            {
-                "type": "session_meta",
-                "payload": {
-                    "id": "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00",
-                    "cwd": "/tmp/project",
-                },
-            }
-        )
-        + "\n"
-    )
-    monkeypatch.setattr(
-        codex_notify,
-        "find_latest_session_for_cwd",
-        lambda cwd: session_path if cwd == "/tmp/project" else None,
+    codex_records["01a03bff-a7bb-77a2-9b4d-d63cfe32fd00"] = codex_fakes.thread(
+        "01a03bff-a7bb-77a2-9b4d-d63cfe32fd00", "/tmp/project", path=str(session_path)
     )
 
     codex_notify.handle_notification(

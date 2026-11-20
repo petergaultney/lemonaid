@@ -100,13 +100,18 @@ def session_end_command(harness: str) -> str:
     return install_hooks.SESSION_END_COMMAND if harness == "claude" else SESSION_END_CODEX
 
 
+def status_message(name: str) -> str:
+    """How Codex titles lemonaid's handler *name* in `/hooks`."""
+    return f"lemonaid: {name}"
+
+
 def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
     if harness != "codex":
         return {}
 
     return {
-        "statusMessage": f"lemonaid: {name}",
+        "statusMessage": status_message(name),
         **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
         **({"timeout": 3} if event == "SessionEnd" else {}),  # Codex's longest; 1s by default
     }

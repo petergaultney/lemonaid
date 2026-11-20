@@ -10,6 +10,7 @@ os.environ["LEMONAID_LOG"] = str(_LAST_RESORT / "lemonaid.log")
 import pytest  # noqa: E402
 
 from lemonaid.claude import notify, print_mode, session_socket  # noqa: E402
+from lemonaid.codex import app_server as codex_app_server  # noqa: E402
 from lemonaid.codex import processes as codex_processes  # noqa: E402
 from lemonaid.codex import queued as codex_queued  # noqa: E402
 from lemonaid.codex import threads as codex_threads  # noqa: E402
@@ -19,6 +20,7 @@ from lemonaid.inbox.tui import app as tui_app  # noqa: E402
 from lemonaid.lemon_watchers import watcher  # noqa: E402
 from lemonaid.messages import service  # noqa: E402
 from lemonaid.watch import restart, scout_start  # noqa: E402
+from tests import codex_fakes  # noqa: E402
 
 # The per-test fixtures below are monkeypatches, and `monkeypatch.undo()` in a test
 # reverts them all, which once pointed a test's migration at the live database and
@@ -35,6 +37,7 @@ for _name, _path in (
 ):
     os.environ[_name] = str(_LAST_RESORT / _path)
 os.environ["TMUX"] = "/nonexistent/lemonaid-tests,0,0"
+os.environ[codex_app_server.NO_APP_SERVER] = "1"  # also for lemonaid run as a subprocess
 
 
 @pytest.fixture(autouse=True)
@@ -82,12 +85,24 @@ def _no_live_codex_threads(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _no_live_codex_app_server(monkeypatch):
-    """Codex can't be asked about threads, so their rollout files decide.
+def codex_records(monkeypatch) -> codex_fakes.Records:
+    """What a test's Codex has stored: a record, or None for a thread it has no conversation
+    for. A thread left out is one Codex can't be asked about.
 
     tests/test_codex_threads.py keeps the real `_ask` from import time.
     """
-    monkeypatch.setattr(codex_threads, "_ask", lambda threads: {})
+    records = codex_fakes.Records()
+    monkeypatch.setattr(codex_threads, "_ask", records.answers)
+    monkeypatch.setattr(
+        codex_threads,
+        "latest_in",
+        lambda cwd: max(
+            (r for r in records.values() if r and r.cwd == cwd and not r.parent),
+            key=lambda r: r.updated_at,
+            default=None,
+        ),
+    )
+    return records
 
 
 @pytest.fixture(autouse=True)

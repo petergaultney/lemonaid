@@ -17,6 +17,7 @@ from lemonaid.codex import hosting
 from lemonaid.codex import notify as codex_notify
 from lemonaid.inbox import db
 from lemonaid.lemon_watchers import untracked, watcher
+from tests import codex_fakes
 
 _DAEMON = (
     "/Users/me/.codex/packages/app-server-daemon/releases/0.159.0/bin/codex "
@@ -29,8 +30,7 @@ _CWD = "/work/review"
 @pytest.fixture(autouse=True)
 def _persistent_notify_thread(tmp_path, monkeypatch):
     path = tmp_path / "rollout.jsonl"
-    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": _THREAD}}) + "\n")
-    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+    codex_fakes.answer(monkeypatch, lambda thread: codex_fakes.thread(thread, path=str(path)))
 
 
 def _process_tree(monkeypatch, chain: list[str]) -> None:

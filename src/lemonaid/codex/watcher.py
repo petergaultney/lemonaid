@@ -20,7 +20,7 @@ from collections import abc
 from pathlib import Path
 
 from ..lemon_watchers.common import ContextReading, ModelInfo
-from .utils import find_latest_session_for_cwd, get_sessions_root
+from . import threads
 
 # Channel prefix for Codex notifications
 CHANNEL_PREFIX = "codex:"
@@ -79,42 +79,22 @@ def get_initial_model(session_path: Path) -> ModelInfo | None:
 
 
 def get_session_path(session_id: str, cwd: str) -> Path | None:
-    """Find a Codex session file by session ID.
+    """The rollout Codex records for the thread, to read its activity from.
 
-    Codex stores sessions in ~/.codex/sessions/ with filenames like:
-    rollout-2026-01-23T23-32-37-<uuid>.jsonl
-
-    Note: Codex may organize sessions in date-based subdirectories
-    (e.g., 2026/01/24/), so we search recursively.
+    Some older inbox rows hold a short id that names no thread; the latest thread in
+    their directory stands in for it. A full id Codex doesn't know yet is a thread still
+    starting, and the latest thread in its directory may be a sibling started beside it.
     """
     if not session_id:
         return None
 
-    root = get_sessions_root()
-    if not root.exists():
+    record = threads.get([session_id], running=True).get(session_id)
+    if record is None and len(session_id) < 36 and cwd:
+        record = threads.latest_in(cwd)
+    if record is None or not record.path.endswith(".jsonl"):
         return None
 
-    # Try exact match first (recursive search)
-    pattern = f"**/*{session_id}.jsonl"
-    for path in root.glob(pattern):
-        if path.is_file():
-            return path
-
-    # A short id matches by prefix. A full one must not: UUIDv7 prefixes are
-    # shared by threads started within a minute of each other.
-    if 8 <= len(session_id) < 36:
-        for path in root.rglob("*.jsonl"):
-            if session_id[:8] in path.name:
-                return path
-
-    # A full id with no rollout yet is a thread still starting; the latest
-    # rollout in its cwd may belong to a sibling started beside it.
-    if len(session_id) >= 36:
-        return None
-
-    # Some older inbox rows hold an id that names no rollout. Recover them from
-    # the cwd rather than leaving them permanently on the provider fallback.
-    return find_latest_session_for_cwd(cwd)
+    return Path(record.path)
 
 
 def _describe_custom_tool_call(payload: dict) -> str:
