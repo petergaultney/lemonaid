@@ -463,6 +463,69 @@ function drawTree(b, t, cx, cy, scale) {
 // In select mode a block's tree titles show `$` before the letter, as the terminal grove's do: what to
 // type, after `$`, to choose the whole tree.
 const selectable = (t, parts) => selecting && zoomed ? {...parts, key: parts.key.replace(t.letter, "$" + t.letter)} : parts;
+// A bare tree where a tree whose session ended stood (the terminal's plots.stump), within the crown
+// a one-lemon tree would have at (cx, cy) and on the same ground, with a few brown and yellow leaves
+// left. With a *label*, its tree went recently: it keeps more leaves and shows the tree's name, at
+// label size *k*.
+const DEAD_LEAVES = ["#b8925e", "#c9a446", "#8a6a3a"];
+function drawStump(stump, cx, cy, k) {
+  const ghost = {key: stump.key, lemons: [{}], lead: false}, s = crownShape(ghost, treeScale(ghost, zoomed));
+  const cw = CW * view.treeZ, rh = RH * view.treeZ, px = Math.max(2, Math.round(cw / 3)), seed = wordHash(stump.key);
+  const {top, bottom, left, right} = crownExtent(s), ground = Math.round(treeBox(ghost, s, cx, cy, cw, rh).groundY);
+  const x0 = Math.round(cx + left * cw), y0 = Math.round(cy + top * rh);
+  const w = Math.max(5, Math.round((right - left) * cw / px)), h = Math.max(4, Math.round((ground - y0) / px)), crown = (bottom - top) * rh / px;
+  const grid = new Int8Array(w * h).fill(-1), at = (i, j) => i < 0 || j < 0 || i >= w || j >= h ? -1 : grid[j * w + i];
+  const set = (i, j, v) => { if (i >= 0 && j >= 0 && i < w && j < h) grid[j * w + i] = v; };
+  // The trunk runs up to where the crown's base was and forks there. Each limb grows a cell at a time,
+  // wandering a little, sometimes splitting in two, and stops about halfway up the old crown; the
+  // twigs above it fell long ago.
+  const mid = Math.round(w / 2 + (cx - (x0 + w * px / 2)) / px), fork = Math.max(2, Math.round(crown) - 1), r = k => noise(seed, k);
+  for (let j = fork; j < h; j++) { set(mid - 1, j, 0); set(mid, j, 1); }  // the trunk, lit on its left
+  set(mid - 2, h - 1, 0); set(mid + 1, h - 1, 1);
+  const cells = [], highest = fork - 0.55 * crown;
+  let turn = 100;
+  const grow = (x, y, angle, steps, thick, split) => {
+    const v = Math.cos(angle) < 0 ? 0 : 1;  // lit on the side toward the light
+    for (let n = 0; n < steps; n++) {
+      angle = Math.max(-Math.PI + 0.2, Math.min(-0.2, angle + 0.55 * (r(turn++) - 0.5)));
+      const nx = x + Math.cos(angle), ny = y + 0.8 * Math.sin(angle);
+      if (ny < highest || nx < 0.5 || nx > w - 1.5) break;
+
+      x = nx; y = ny;
+      const c = [Math.round(x), Math.round(y)];
+      set(...c, v); cells.push(c);
+      if (thick && n < steps * 0.5) set(c[0], c[1] + 1, v);  // thicker near the fork
+      if (split && n === Math.round(steps * (0.45 + 0.2 * r(turn++)))) {
+        const spread = 0.35 + 0.3 * r(turn++);
+        grow(x, y, angle - spread, Math.round(steps * 0.55), false, false);
+        angle += spread * 0.6; steps = Math.round(n + (steps - n) * 0.7);
+      }
+    }
+  };
+  const limbs = 2 + (r(1) < 0.5 ? 1 : 0), reach = 0.42 * w;
+  [...Array(limbs).keys()].forEach(n => {
+    const angle = -Math.PI / 2 + (n - (limbs - 1) / 2) * (1.9 / limbs) * (0.8 + 0.4 * r(2 + n));
+    grow(mid - 0.5 + 0.5 * Math.sign(Math.cos(angle)), fork, angle, Math.round(reach * (0.7 + 0.5 * r(6 + n))), true, r(10 + n) < 0.7);
+  });
+  const hanging = stump.label ? 7 : 3;  // leaves still on its limbs
+  for (let n = 0; n < hanging && cells.length; n++) {
+    const [x, y] = cells[Math.floor(noise(seed, 20 + n) * cells.length)], leaf = 2 + Math.floor(noise(seed, 30 + n) * DEAD_LEAVES.length);
+    set(x + (noise(seed, 40 + n) < 0.5 ? -1 : 1), y, leaf); if (noise(seed, 50 + n) < 0.4) set(x, y - 1, leaf);
+  }
+  const paints = [mix(TRUNK, BG, 0.3), mix(TRUNK_SHADE, BG, 0.3), ...DEAD_LEAVES], edge = mix(TRUNK_SHADE, BG, 0.65);
+  const img = new ImageData(w + 2, h + 2), paint = (i, j, c) => img.data.set([...hex(c), 255], 4 * ((j + 1) * (w + 2) + i + 1));
+  for (let j = -1; j <= h; j++) for (let i = -1; i <= w; i++) {
+    if (at(i, j) >= 0) paint(i, j, paints[at(i, j)]);
+    else if (at(i - 1, j) >= 0 || at(i + 1, j) >= 0 || at(i, j - 1) >= 0 || at(i, j + 1) >= 0) paint(i, j, edge);
+  }
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(cx, ground, 1.2 * cw, Math.max(2, 0.25 * rh), 0, 0, 7); ctx.fill();
+  stamp(img, x0 - px, ground - h * px - px, px);
+  if (!stump.label) return;
+
+  const name = stump.label.length > 20 ? stump.label.slice(0, 19) + "…" : stump.label;
+  txtAt(name, cx - name.length * CW * k / 2, ground + 0.2 * rh, mix(DEAD_LEAVES[0], BG, 0.3), null, 600, k);
+}
+
 function drawTag(b, t, x, y, parts) {
   if (t.lemons[0]?.pinned && !(flipped && !zoomed)) { ctx.fillStyle = "#c9d1d9"; ctx.fillRect(x - CW * 0.6, y + RH * 0.15, CW * 0.45, RH * 0.7); }  // the main lemon is pinned
   const s = worst(t), working = t.lemons.some(l => l.working);
@@ -649,11 +712,12 @@ function draw() {
   DATA.blocks.filter(b => b.group).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
   // Drawn where the drag has it, below; a refresh brings new objects, so it's found by block and key.
   const dragged = T => drag && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
+  const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
+  DATA.blocks.filter(b => b.group).forEach(b => (b.stumps || []).forEach(st => drawStump(st, sx(b.plot.x + shift(b)[0] + st.spot[0]), sy(b.plot.y + shift(b)[1] + st.spot[1]), k)));
   trees.sort((a, c) => a.cy - c.cy).forEach(T => {
     if (dragged(T)) return;
     const box = drawTree(T.b, T.t, T.cx, T.cy, treeScale(T.t, zoomed)); hits.push({...box, block: T.b, tree: T.t});
   });
-  const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
   DATA.blocks.filter(b => !b.group).forEach(b => drawHouse(moving && moving.b.digit === b.digit ? {...b, plot: moving.aim} : b, placer(), k));
   DATA.blocks.filter(b => b.group).forEach(b => { const [dx] = shift(b); drawSign({...b, plot: {...b.plot, x: b.plot.x + dx, y: b.plot.y + shift(b)[1]}}, k); });
   trees.forEach(T => { if (!dragged(T)) drawLabel(T.b, T.t, ...shift(T.b)); });

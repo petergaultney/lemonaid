@@ -30,6 +30,10 @@ def grove(found: abc.Iterable[Block], arrangement: arrange.Arrangement) -> dict[
                     for tree in block.trees
                     for standing in (arrangement.trees[(block.name, tree.key)],)
                 ],
+                "stumps": [
+                    {"key": stump.key, "label": stump.label, "spot": [stump.cx, stump.cy]}
+                    for stump in arrangement.stumps.get(block.name, ())
+                ],
             }
             for block in found
         ],
