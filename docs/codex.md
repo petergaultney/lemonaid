@@ -270,6 +270,23 @@ Lemonaid also checks for alternative key names (`session_id`, `sessionId`, `thre
    rg 'lemonaid\\.codex\\.(turns|threads|service)' /tmp/lemonaid.log
    ```
 
+### Codex lemons stay after uninstalling Codex
+
+A Codex lemon's row is archived when its pane or process goes, like any lemon's. A lemon
+kept to restore, though, stays until Codex says its thread is gone, and with no `codex` to
+ask (which looks the same as a broken `PATH`) that never happens. Once you have stopped using
+Codex, archive its rows yourself:
+
+```sh
+sqlite3 ~/.local/share/lemonaid/lemonaid.db \
+  "select distinct channel from notifications where channel like 'codex:%' and status != 'archived'" |
+  while read -r channel; do lemonaid inbox archive --channel "$channel"; done
+```
+
+That hides each row as the inbox's archive key does, and `lemonaid inbox unarchive` brings
+one back. Briefs and places stay; close a place with `lemonaid place toss <key>`. To remove
+one lemon, run `lemonaid inbox archive --lemon <Lemon-ID>`.
+
 ### Switching to pane doesn't work
 
 1. **Check switch-source**: Codex pane switching is auto-selected from notification `switch_source` (`tmux`/`wezterm`/`cmux`), no `[handlers]` mapping required
