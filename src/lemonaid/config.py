@@ -14,6 +14,7 @@ from typing import Any
 from . import (
     auto_read,
     codex_config,
+    comments_config,
     keys,
     launch_config,
     messages_config,
@@ -432,6 +433,7 @@ class Config:
     codex: codex_config.CodexConfig = field(default_factory=codex_config.CodexConfig)
     tasks: tasks_config.TasksConfig = field(default_factory=tasks_config.TasksConfig)
     restore: restore_config.RestoreConfig = field(default_factory=restore_config.RestoreConfig)
+    comments: comments_config.CommentsConfig = field(default_factory=comments_config.CommentsConfig)
 
     def get_handler(self, channel: str) -> str | None:
         """Get the handler for a channel, using pattern matching."""
@@ -889,6 +891,7 @@ def _parse_config(data: dict[str, Any]) -> Config:
         tasks=tasks_config.parse(data.get("tasks", {})),
         restore=restore_config.parse(data.get("restore", {})),
         codex=codex_config.parse(data.get("codex", {})),
+        comments=comments_config.parse(data.get("comments", {})),
     )
 
 

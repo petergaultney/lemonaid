@@ -806,6 +806,18 @@ These filters do not affect submitted review bodies or PR conversation comments.
 wake = ["state", "conflict"]
 ```
 
+## `[comments]`
+
+```toml
+[comments]
+author = "Sam Lee"
+```
+
+The name your review comments are signed with when you write them in your editor through
+`lemonaid lsp`. Without it, they are signed with your login name. Set it to the name your
+Relay comments carry, so a thread names you the same way in code and in a vault. See
+[comments](comments.md#the-editor-server-lemonaid-lsp).
+
 ## `[messages]`
 
 ```toml

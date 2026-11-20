@@ -20,6 +20,7 @@ import lemonaid.hooks.cli
 import lemonaid.inbox.cli
 import lemonaid.lemon_keys.cli
 import lemonaid.lineage.cli
+import lemonaid.lsp.cli
 import lemonaid.messages.cli
 import lemonaid.messages.mailbox_command
 import lemonaid.openclaw.cli
@@ -162,6 +163,7 @@ def main() -> None:
     lemonaid.claude.cli.setup_parser(subparsers)
     lemonaid.codex.cli.setup_parser(subparsers)
     lemonaid.comments.cli.setup_parser(subparsers)
+    lemonaid.lsp.cli.setup_parser(subparsers)
     lemonaid.openclaw.cli.setup_parser(subparsers)
     lemonaid.opencode.cli.setup_parser(subparsers)
     lemonaid.places.cli.setup_parser(subparsers)

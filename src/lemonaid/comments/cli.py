@@ -4,6 +4,10 @@ The CLI makes each comment's id and timestamp and encodes its body, so a lemon n
 the JSON itself. Commands that write refuse what the model refuses (see `edits`) and
 leave the file as it was.
 
+When an editor's `lemonaid lsp` has the file open with unsaved changes, a command that
+writes sends its change to that server, which applies it to the buffer, and `list` reads
+the buffer. Otherwise the command reads and writes the file.
+
     lemonaid comments list <path> [--unanswered --me <name>] [--resolved]
     lemonaid comments add <path> --lines <a>[-<b>] --as <name> <body | ->
     lemonaid comments reply <path> --re <id> --as <name> <body | ->
@@ -17,8 +21,9 @@ import sys
 import typing as ty
 
 from .. import file
+from ..lsp import registry
 from ..watch import signature
-from . import edits, listing, model, parse
+from . import edits, listing, model, operations, parse
 
 _ATTEMPTS: ty.Final = 3
 _T = ty.TypeVar("_T")
@@ -90,26 +95,9 @@ def _body(given: str) -> str:
     return body.rstrip("\n")
 
 
-def _line_range(text: str, lines: str) -> tuple[int, int]:
-    """`a-b` or `a` (1-based, inclusive) as offsets from the start of line a to the end of
-    line b's text, before its own line ending. The empty "line" after a file's last line
-    ending is not a line."""
-    first_text, _, last_text = lines.partition("-")
-    try:
-        first, last = int(first_text), int(last_text or first_text)
-    except ValueError:
-        raise _Refused(f"--lines {lines}: expected <a>-<b> or <a>") from None
-    starts = listing.line_starts(text)
-    line_count = len(starts) - (starts[-1] == len(text))
-    if not 1 <= first <= last <= line_count:
-        raise _Refused(f"--lines {lines}: the file has {line_count} line(s)")
-    last_line_end = starts[last] if last < len(starts) else len(text)
-    last_line_text = text[starts[last - 1] : last_line_end].rstrip("\r\n")
-    return starts[first - 1], starts[last - 1] + len(last_line_text)
-
-
 def _list(a: argparse.Namespace) -> int:
-    text = _read(a.target)
+    unsaved = [buffer for buffer in _open_buffers(a.target) if buffer.state == "unsaved"]
+    text = unsaved[0].text if unsaved else _read(a.target)
     doc = parse.parse(text, _kind(a.target))
     if a.unanswered and not a.me:
         raise _Refused("--unanswered needs --me, the names whose comments count as answers")
@@ -127,49 +115,106 @@ def _list(a: argparse.Namespace) -> int:
 
 
 def _add(a: argparse.Namespace) -> int:
-    kind, body = _kind(a.target), _body(a.body)
-
-    def add(text: str) -> tuple[str, str]:
-        start, end = _line_range(text, a.lines)
-        added = edits.add_comment(text, kind, start, end, author=a.author, body=body)
-        return edits.apply(text, added.edits), added.comment_id
-
-    print(_rewrite(a.target, add, retry=False))
+    print(_carry_out(a.target, operations.Add(a.lines, a.author, _body(a.body)), retry=False))
     return 0
 
 
 def _reply(a: argparse.Namespace) -> int:
-    kind, body = _kind(a.target), _body(a.body)
-
-    def reply(text: str) -> tuple[str, str]:
-        added = edits.reply(text, kind, a.re, author=a.author, body=body)
-        return edits.apply(text, added.edits), added.comment_id
-
-    print(_rewrite(a.target, reply))
+    print(_carry_out(a.target, operations.Reply(a.re, a.author, _body(a.body))))
     return 0
 
 
 def _resolve(a: argparse.Namespace) -> int:
-    kind = _kind(a.target)
-
-    def resolve(text: str) -> tuple[str, None]:
-        return edits.apply(text, [edits.resolve(text, kind, a.id, author=a.author)]), None
-
-    _rewrite(a.target, resolve)
+    _carry_out(a.target, operations.Resolve(a.id, a.author))
     return 0
 
 
 def _strip(a: argparse.Namespace) -> int:
-    kind = _kind(a.target)
-    _rewrite(a.target, lambda text: (edits.strip(text, kind), None))
+    _carry_out(a.target, operations.Strip())
     return 0
+
+
+def _carry_out(
+    target: pathlib.Path, operation: operations.Operation, *, retry: bool = True
+) -> str | None:
+    """Send `operation` to an editor whose buffer of the file has unsaved changes, or else
+    write it to the file.
+
+    A buffer without unsaved changes is left to the editor to reload, which it does without
+    asking. We refuse while a buffer and the file have both changed since they last
+    matched, since either write would leave them with different comments. An `add` that
+    chose its lines from an unsaved buffer refuses if that buffer is saved, reverted or
+    closed before the server writes, rather than anchor the same line numbers in the file.
+    The server learns of your typing a moment after you type, so a write in that moment
+    can still meet a buffer you have just changed; the editor then asks which version to
+    keep.
+    """
+    kind = _kind(target)
+    for buffer in _open_buffers(target):
+        if buffer.state == "diverged":
+            raise _Refused(_DIVERGED)
+        if buffer.state != "unsaved":
+            continue
+        request: dict[str, ty.Any] = {
+            "op": "apply",
+            "path": str(target),
+            "operation": operations.to_json(operation),
+        }
+        line_based = isinstance(operation, operations.Add)
+        if line_based:
+            request["observed"] = registry.text_digest(buffer.text)
+        answer = registry.request(buffer.server, request)
+        if "error" in answer:
+            raise _Refused(answer["error"])
+        if answer.get("open") and answer.get("state") == "unsaved":
+            return answer.get("result")
+        if line_based:
+            raise _Refused(_MOVED)
+
+    def change(text: str) -> tuple[str, str | None]:
+        planned, result = operations.edits_for(operation, text, kind)
+        return edits.apply(text, planned), result
+
+    return _rewrite(target, change, retry=retry)
+
+
+_DIVERGED: ty.Final = (
+    "the file changed on disk since the editor's buffer last matched it; ask the user"
+    " to save or reload the file, then try again"
+)
+_MOVED: ty.Final = (
+    "the editor's buffer changed while we wrote the comment, so its line numbers may name"
+    " other code now; check them and run the command again"
+)
+
+
+class _Buffer(ty.NamedTuple):
+    server: registry.Record
+    text: str
+    state: str  # `clean`, `unsaved` or `diverged`, see the server's `_state`
+
+
+def _open_buffers(target: pathlib.Path) -> list[_Buffer]:
+    """The editor buffers that hold the file, those that have diverged from it or have
+    unsaved changes first. A server that doesn't answer is passed over."""
+    buffers = []
+    for server in registry.by_preference(registry.live(), registry.tmux_session()):
+        try:
+            answer = registry.request(server, {"op": "buffer", "path": str(target)})
+        except registry.Unreachable:
+            continue
+        text, state = answer.get("text"), answer.get("state")
+        if answer.get("open") and isinstance(text, str) and isinstance(state, str):
+            buffers.append(_Buffer(server, text, state))
+    order = {"diverged": 0, "unsaved": 1}
+    return sorted(buffers, key=lambda b: order.get(b.state, 2))
 
 
 def _run(a: argparse.Namespace) -> ty.NoReturn:
     try:
         a.target = a.path.resolve()
         code = a.comments_func(a)
-    except (_Refused, ValueError) as refusal:
+    except (_Refused, ValueError, registry.Unreachable) as refusal:
         print(f"{a.path}: {refusal}", file=sys.stderr)
         code = 2
     sys.exit(code)
