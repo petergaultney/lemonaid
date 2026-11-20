@@ -9,3 +9,5 @@ The grove window draws stumps where trees whose sessions ended stood: bare pixel
 Roads, shadows, the packhouse's roof, frames and lemons, list borders, and the dashed frames of a drag are drawn in the same pixel style, and lead trees' flags are pixel pennants.
 
 In the grove window, a bare tree can be gardened as in the terminal grove: dragged within its block to move it, or off its block's ground to clear it.
+
+The grove window's block ground is drawn in the same pixel style: plain soil in the block's color, faintly varied, with tufts of grass in a few loose patches.

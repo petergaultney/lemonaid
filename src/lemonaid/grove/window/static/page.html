@@ -66,15 +66,6 @@ function inside(p, x, y) {
   const dx = Math.max(0, left + kx - nx, nx - (right - kx)) / kx, dy = Math.max(0, top + ky - ny, ny - (bottom - ky)) / ky;
   return dx * dx + dy * dy <= 1;
 }
-function texture(p, x, y) {
-  switch (p.texture) {
-    case "rows": return y % 3 === 1 && x % 3 === 0 ? "·" : "";
-    case "diag": return (x + 2 * y) % 9 === 0 ? "/" : "";
-    case "wave": return y % 3 === 1 && (x + y) % 4 === 0 ? "~" : "";
-    case "dots": return noise(x * 3 + p.seed, y) < 0.07 ? "·" : "";
-  }
-  return "";
-}
 
 // Smooth noise, 0 to 1, varying over about a unit: hashed corners blended across each unit square.
 function patchy(x, y, seed) {
@@ -83,6 +74,8 @@ function patchy(x, y, seed) {
   return (at(0, 0) * (1 - u) + at(1, 0) * u) * (1 - v) + (at(0, 1) * (1 - u) + at(1, 1) * u) * v;
 }
 const GAP = 4;
+// Smooth noise with no lattice showing: patchy at two scales, each turned off the axes.
+const organic = (x, y, seed) => 0.65 * patchy(0.8 * x + 0.6 * y, 0.8 * y - 0.6 * x, seed) + 0.35 * patchy(2.1 * (0.6 * x - 0.8 * y), 2.1 * (0.6 * y + 0.8 * x), seed + 29);
 // A leaf cell's shade, 0 darkest to 3 lightest (or a GAP), at (*i*, *j*) cells into a crown: lit from the upper
 // left by where it is on the crown (*across* -1 to 1, *low* 0 at the top to 1 at the bottom), and
 // broken into leafy patches by noise at two scales, turned off the pixel grid so no rows show.
@@ -292,28 +285,46 @@ function drawLandmarks() {
   ctx.textAlign = "left";
 }
 
+// A block's ground in the map's pixel cells, fixed to the map as the stream's are: plain soil in the
+// block's color with a faint, broad variation, its edge rimmed, and a little vegetation: tufts of grass
+// in a few loose patches, bare ground between them. (The terminal's regular texture marks would read as
+// a grid here, so the window leaves them out.)
+const TUFTS = [[[0, 0], [-1, -1], [1, -1]], [[0, 0], [0, -1]], [[-1, 0], [1, 0], [-1, -1], [0, -1], [1, -2]]];
 function drawGround(b) {
-  const p = b.plot, color = b.color || "#8b949e";
-  const soil = mix(color, BG, 0.84), rim = mix(color, BG, 0.62), marks = mix(color, BG, 0.66);
-  const q = Math.max(3, Math.round(view.k / 2)), x0 = sx(p.x), y0 = sy(p.y), x1 = sx(p.x + p.w), y1 = sy(p.y + p.h);
-  const at = (px, py) => inside(p, view.x + px / view.k, view.y + py / (view.k * YS));
-  for (let py = Math.floor(y0); py < y1; py += q) for (let px = Math.floor(x0); px < x1; px += q) {
-    if (!at(px + q / 2, py + q / 2)) continue;
-    const edge = !(at(px - q / 2, py + q / 2) && at(px + 1.5 * q, py + q / 2) && at(px + q / 2, py - q / 2) && at(px + q / 2, py + 1.5 * q));
-    ctx.fillStyle = soil; ctx.fillRect(px, py, q, q);
-    if (edge) {
-      ctx.fillStyle = rim; const h = q / 2;
-      ctx.fillRect(px, py, h, h); ctx.fillRect(px + h, py + h, h, h);
-    }
+  const p = b.plot, color = b.color || "#8b949e", q = Math.max(3, Math.round(view.k / 2)), seed = p.seed || 0;
+  const soil = mix(color, BG, 0.85), shade = mix(color, BG, 0.865), rim = mix(color, BG, 0.62);
+  const tufts = [mix(color, BG, 0.74), mix(color, BG, 0.79)], pebble = mix(mix(color, "#9aa3ad", 0.5), BG, 0.72);
+  const gx = ((sx(0) % q) + q) % q - q, gy = ((sy(0) % q) + q) % q - q;
+  const i0 = Math.max(0, Math.floor((sx(p.x) - gx) / q)), i1 = Math.min(Math.ceil((W() - gx) / q), Math.ceil((sx(p.x + p.w) - gx) / q));
+  const j0 = Math.max(0, Math.floor((sy(p.y) - gy) / q)), j1 = Math.min(Math.ceil((H() - gy) / q), Math.ceil((sy(p.y + p.h) - gy) / q));
+  if (i1 <= i0 || j1 <= j0) return;
+
+  const cols = i1 - i0, rows = j1 - j0, img = new ImageData(cols, rows);
+  const world = (i, j) => [view.x + (gx + (i0 + i + 0.5) * q) / view.k, view.y + (gy + (j0 + j + 0.5) * q) / (view.k * YS)];
+  const on = new Uint8Array(cols * rows);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) on[j * cols + i] = inside(p, ...world(i, j)) ? 1 : 0;
+  const ground = (i, j) => i >= 0 && j >= 0 && i < cols && j < rows ? on[j * cols + i] === 1 : inside(p, ...world(i, j));
+  const paint = (i, j, c) => { if (i >= 0 && j >= 0 && i < cols && j < rows && on[j * cols + i]) img.data.set([...hex(c), 255], 4 * (j * cols + i)); };
+  const edges = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if (!on[j * cols + i]) continue;
+
+    const [wx, wy] = world(i, j), wc = wy * YS;  // in columns both ways
+    paint(i, j, organic(wx * 0.3, wc * 0.3, seed + 3) > 0.58 ? shade : soil);
+    if (!(ground(i - 1, j) && ground(i + 1, j) && ground(i, j - 1) && ground(i, j + 1))) edges.push([i, j]);
   }
-  if (view.k >= 4) {
-    ctx.fillStyle = marks; ctx.font = `600 ${Math.min(13, view.k * 1.5)}px "SF Mono", Menlo, monospace`; ctx.textBaseline = "middle";
-    for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
-      const m = texture(p, x, y);
-      if (m && inside(p, p.x + x + 0.5, p.y + y + 0.5) && inside(p, p.x + x + 1.5, p.y + y + 0.5) && inside(p, p.x + x - 0.5, p.y + y + 0.5))
-        ctx.fillText(m, sx(p.x + x), sy(p.y + y + 0.5));
-    }
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {  // tufts and pebbles, away from the edge
+    if (!on[j * cols + i] || !ground(i, j - 2) || !ground(i - 1, j) || !ground(i + 1, j)) continue;
+
+    const [wx, wy] = world(i, j), wc = wy * YS, r = noise(Math.round(wx * 2) + 7 * seed, Math.round(wc * 2) + 11);
+    const lush = organic(wx * 0.2, wc * 0.2, seed + 9) > 0.62, often = lush ? 0.045 : 0.003;
+    if (r < often) TUFTS[Math.floor(noise(Math.round(wx * 2), Math.round(wc * 2) + seed) * TUFTS.length)].forEach(([a, c]) => paint(i + a, j + c, tufts[r < often / 2 ? 0 : 1]));
+    else if (r > 0.997) paint(i, j, pebble);
   }
+  stamp(img, gx + i0 * q, gy + j0 * q, q);
+  ctx.fillStyle = rim;
+  const h = q / 2;
+  edges.forEach(([i, j]) => { const x = gx + (i0 + i) * q, y = gy + (j0 + j) * q; ctx.fillRect(x, y, h, h); ctx.fillRect(x + h, y + h, h, h); });
 }
 
 // Crown, trunk and hanging lemons, the crown's center at screen (cx, cy); returns its box.
