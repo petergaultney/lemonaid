@@ -9,27 +9,47 @@ function noise(a, b) {
 }
 function wordHash(w) { let h = 7; for (const c of w) h = (Math.imul(h, 31) + c.codePointAt(0)) & 0x7fffffff; return h; }
 
-// A crown as lit leaf clumps (clumps.crown), in cell units: x in columns, y in rows.
+const BIGGEST_CLUMP = 1.3;  // in columns
+// (x, y, scale) of clumps packed through a crown too big for its ring to cover: staggered rows inside
+// a dome *w* across and *h* up from its middle (clumps.py's _filling), and as wide a little below it.
+function* filling(w, h, size, j) {
+  const across = 1.3 * size, down = 1.1 * size;
+  for (let row = 0, y = -h + size; y < 0.25 * h; row++, y += down) {
+    const half = y < 0 ? w * Math.sqrt(1 - (y / h) ** 2) : w;
+    for (let col = -Math.ceil(half / across); col <= Math.ceil(half / across); col++) {
+      const x = (col + 0.5 * (row % 2)) * across, k = 1000 + 64 * row + 2 * col;
+      if (Math.abs(x) <= half) yield [x + 0.25 * across * j(k), y, 0.85 + 0.3 * j(k + 1)];
+    }
+  }
+}
+// A crown as leaf clumps (after clumps.crown), each (x, y, rx, ry) in cell units: x in columns, y in rows.
 function crownShape(t, size) {
   const n = Math.min(t.lemons.length, 5), seed = wordHash(t.key), lead = t.lead, j = k => noise(seed, k) - 0.5;
   const ry = 0.85 * Math.max(1.35, 0.5 * n + 0.6, Math.min((1.2 + n * 0.15 + (lead ? 0.4 : 0)) * size, 4));
   const rx = Math.min(Math.max(2.6, (3.6 + n * 1.0 + (lead ? 1.4 : 0)) * size, 2.6 * Math.min(ry, 2.6)), 3.1 * ry);
-  const cy = -0.25 * ry, tall = 2 * 1.1 * ry, sz = 0.62 * Math.min(0.5 * Math.min(rx, tall), 4.8);
+  // A bigger crown gets more clumps rather than bigger ones, which read as bubbles.
+  const cy = -0.25 * ry, tall = 2 * 1.1 * ry, sz = 0.62 * Math.min(0.5 * Math.min(rx, tall), BIGGEST_CLUMP / 0.62);
   const count = Math.max(3, Math.round(1.8 * rx / sz));
-  const clump = (x, y, scale) => {
-    const r = sz * scale, shine = j(5000 + 37 * Math.round(4 * x / rx) + Math.round(8 * y / tall));
-    let lit = 0.5 - 0.45 * x / rx - 0.6 * y / tall - 0.7 * Math.max(0, y / tall + 0.1);
-    return [x, cy + y / 2, r, r / 2, Math.min(1, Math.max(0, lit + 0.4 * shine))];
-  };
+  const clump = (x, y, scale) => [x, cy + y / 2, sz * scale, sz * scale / 2];
   const ring = [...Array(count).keys()].map(i => {
     const a = (175 + 190 * (i + 0.5 + 0.4 * j(3 * i)) / count) * Math.PI / 180, scale = 0.95 + 0.35 * j(3 * i + 1), r = sz * scale;
-    return clump((rx - r) * Math.cos(a), (tall - r) * Math.sin(a), scale);
+    return clump((rx - r) * Math.cos(a), (1.2 * tall - r) * Math.sin(a), scale);  // a dome, taller than the crown's lower part
   });
-  const middle = [...Array(rx < 5 ? 1 : 2).keys()].map(i => clump(0.5 * rx * j(40 + 2 * i), tall * (0.3 * j(41 + 2 * i) - 0.1), 0.8));
-  // One wide, shallow clump underneath instead of an arc of them, which read as two lobes.
-  const under = [[0.08 * rx * j(50), cy + 0.3 * tall, 0.82 * rx, 0.22 * tall, 0.15]];
-  const behind = [0, cy - 0.05 * tall, 0.88 * rx, 0.62 * tall / 2, 0.45];
-  return {rx, ry, blobs: [behind, ...[...ring, ...middle, ...under].sort((a, b) => a[1] - b[1])], bark: rx < 7 ? 2 : rx < 13 ? 4 : 6};
+  const middle = sz < BIGGEST_CLUMP
+    ? [...Array(rx < 5 ? 1 : 2).keys()].map(i => clump(0.5 * rx * j(40 + 2 * i), tall * (0.3 * j(41 + 2 * i) - 0.1), 0.8))
+    : [...filling(rx - sz, 1.2 * tall - sz, sz, j)].map(([x, y, scale]) => clump(x, y, scale));
+  // One over the middle of the top, so no dip between ring clumps there gives the crown two lobes.
+  const crest = clump(0.2 * rx * j(60), -(1.2 * tall - sz) * 0.88, 1.05);
+  // Below the dome the sides round down into a shallow underside nearly as wide as the dome, so the
+  // crown never steps in at its waist. Its lowest point is the same for every tree its size.
+  const floor = 0.6 * tall, sides = [-1, 1].map(d => clump(d * (rx - sz) * 0.93, 0.2 * tall, 1));
+  const across = Math.max(2, Math.round(1.4 * rx / (1.2 * sz)));
+  // Its clumps hang to uneven depths, the middle one lowest, so the underside is flat but not ruled.
+  const hem = [...Array(across + 1).keys()].map(i => clump((2 * i / across - 1 + 0.25 * j(75 + i) / across) * 0.66 * rx, floor - 0.8 * sz, 0.75 + 0.3 * j(70 + i)))
+    .map(([x, y, r, ry], i) => [x, cy + (floor - r - (i === across >> 1 ? 0 : 0.15 * tall * noise(seed, 90 + i))) / 2, r, ry]);
+  const under = [0.04 * rx * j(50), cy + 0.13 * tall, 0.84 * rx, 0.13 * tall];
+  const behind = [0, cy - 0.05 * tall, 0.9 * rx, 0.62 * tall / 2];
+  return {rx, ry, blobs: [behind, under, ...[...ring, crest, ...middle, ...sides, ...hem].sort((a, b) => a[1] - b[1])], bark: rx < 7 ? 2 : rx < 13 ? 4 : 6};
 }
 function crownExtent(s) {
   return {
@@ -40,7 +60,7 @@ function crownExtent(s) {
 // A tree's whole box (a lead's crown above it included), its crown alone, and the ground its trunk
 // stands on, in screen pixels for a cell *cw* by *rh*.
 function treeBox(t, s, cx, cy, cw, rh) {
-  const {top, bottom, left, right} = crownExtent(s), groundY = cy + (bottom + 0.55) * rh, crown = t.lead ? rh * 1.6 : 0;
+  const {top, bottom, left, right} = crownExtent(s), groundY = cy + (bottom + 0.8) * rh, crown = t.lead ? rh * 1.6 : 0;
   return {x: cx + left * cw, y: cy + top * rh - crown, w: (right - left) * cw, h: groundY - (cy + top * rh) + crown, groundY,
     crown: {x: cx + left * cw, y: cy + top * rh, w: (right - left) * cw, h: (bottom - top) * rh * 0.9}};
 }
