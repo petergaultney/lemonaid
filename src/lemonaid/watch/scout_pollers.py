@@ -7,6 +7,7 @@ from pathlib import Path
 from .. import pr_states, pr_url, watch_config
 from ..config import load_config
 from ..log import get_logger
+from ..slack import permalink, signed_out
 from . import (
     briefs_events,
     command_cli,
@@ -30,6 +31,7 @@ from . import (
     review_events,
     review_requests,
     roles,
+    slack_events,
     subscriptions,
 )
 
@@ -230,6 +232,18 @@ def open_poller(
             notes,
         )
         return lambda: briefs_events.poll(watch, deliver)
+
+    if spec.kind == "slack":
+        return slack_events.poller(
+            permalink.parse(spec.link),
+            spec.after,
+            spec.brief_done,
+            directory,
+            root.name,
+            deliver,
+            lambda problem: signed_out.tell_once(directory.parent, problem, deliver),
+            load_config().slack,
+        )
 
     settings = load_config().watch
     if spec.kind == "repo":
