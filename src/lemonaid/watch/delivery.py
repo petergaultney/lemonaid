@@ -21,7 +21,6 @@ from ..launch.restart import gates
 from ..log import get_logger
 
 _log = get_logger("watch.delivery")
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 Deliver = ty.Callable[[str], None]
 
@@ -64,7 +63,7 @@ def to_stdout(message: str) -> None:
 
 def codex_executable(thread: str) -> str:
     """The executable of the Codex process that has *thread* open, else `codex` from PATH."""
-    return processes.executable(thread, _LISTED_WITHIN) or "codex"
+    return processes.executable(thread) or "codex"
 
 
 def codex_setup_problem(executable: str = "codex") -> str:
