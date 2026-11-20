@@ -56,14 +56,18 @@ def _part(statuses: abc.Sequence[str], every: Counter[str], glow: abc.Mapping[st
 
 
 def slot_width(rows: abc.Iterable[db.Notification], statuses: abc.Mapping[str, str]) -> int:
-    """The widest badge this line draws, so the group bars' slots can hold it too."""
+    """The slot every badge gets, on this line and on the group bars: the widest badge here.
+
+    A group's count of a status never exceeds this line's total for it, since each lemon
+    is one row, in any number of groups, and both count the same statuses.
+    """
     return max(
         (
             group_headers.badge(s, n).cell_len
             for s, n in _counts(rows, statuses).items()
             if group_headers.has_badge(s)
         ),
-        default=0,
+        default=group_headers.slot_width(()),
     )
 
 

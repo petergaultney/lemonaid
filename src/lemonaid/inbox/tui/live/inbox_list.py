@@ -95,7 +95,7 @@ class InboxList(Vertical):
         self.families = family_highlight.Highlighter()
         self.headers: dict[str, sections.Header] = {}  # the drawn headers, by row key
         self._marked_header = ""  # the header drawn with the cursor's marker
-        self._slot = 0  # every header's status slot width, as last drawn
+        self._slot = 0  # every status slot's width, from the inbox totals, as last drawn
         self._followed_focus: frozenset[str] = frozenset()  # the lemons the cursor last went to
         # The row a group was collapsed from, drawn until the cursor leaves it.
         self.kept: frozenset[str] = frozenset()
@@ -266,10 +266,7 @@ class InboxList(Vertical):
         """Attention mode's line for *rows* as the inbox would draw it *width* cells wide:
         whether in card form, each status's slot start, and the slots' width."""
         rows = list(rows)
-        slot = max(
-            group_headers.slot_width(self.headers.values()),
-            attention_summary.slot_width(rows, statuses),
-        )
+        slot = attention_summary.slot_width(rows, statuses)
         return cards, self.summary_slots(card_width, width, slot), slot
 
     def refresh_list(
@@ -414,10 +411,7 @@ class InboxList(Vertical):
         )
         visible_counts = parent_order.counts(visible_channels.values(), frame.parents)
         counted = view.statuses(active.cards, active.rows)
-        self._slot = max(
-            group_headers.slot_width(self.headers.values()),
-            attention_summary.slot_width(active.rows, counted) if summary_shown else 0,
-        )
+        self._slot = attention_summary.slot_width(active.rows, counted)
         rebuilt = inbox_main_table.draw(
             main,
             entries,
