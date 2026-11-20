@@ -7,6 +7,7 @@ _FILES = {
     "changes/2026-10-14-other-feature.md": "# Patch\n\n- **Another.**\n",
     "changes/2026-10-14-bad-file.md": "- no heading\n",
     "changes/new-feature.md": "# Minor\n\n- **Misnamed.**\n",
+    "changes/2026-10-14-new-hook.md": "# Minor\n\n- **A hook.** Run `lemonaid hooks install`.\n",
 }
 _ADDED = ("A", "changes/2026-10-14-new-feature.md")
 
@@ -69,3 +70,9 @@ def test_pr_outside_src_still_fails_the_conflict_guard():
 
 def test_pr_outside_src_may_add_a_change_file():
     assert _check([("M", "docs/x.md"), _ADDED]) == []
+
+
+def test_changing_installed_hooks_needs_an_entry_saying_to_reinstall_them():
+    for definitions in ("src/lemonaid/hooks/install.py", "src/lemonaid/claude/install_hooks.py"):
+        assert len(_check([("M", definitions), _ADDED])) == 1
+        assert _check([("M", definitions), ("A", "changes/2026-10-14-new-hook.md")]) == []

@@ -121,6 +121,11 @@ A pushed batch arrives as a message from another session, not as tool output, an
 can quote PR and document comments other people wrote. Claude frames it as input that
 the user did not type, as it does for Codex's queued events.
 
+### After upgrading lemonaid
+
+When a release's notes say its hooks changed, run `lemonaid hooks install --harness claude`
+so Claude Code runs the new ones. Claude Code needs no separate trust step.
+
 ## How it works
 
 ### Notification flow
