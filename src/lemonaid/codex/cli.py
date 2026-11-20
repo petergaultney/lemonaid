@@ -3,7 +3,7 @@
 import argparse
 
 from . import session_end
-from .notify import dismiss_session, handle_dismiss, handle_notification, handle_tool_used
+from .notify import dismiss_session, handle_dismiss, handle_notification, handle_turn_hook
 
 
 def cmd_notify(args: argparse.Namespace) -> None:
@@ -27,9 +27,8 @@ def cmd_dismiss(args: argparse.Namespace) -> None:
         handle_dismiss()
 
 
-def cmd_tool_used(_args: argparse.Namespace) -> None:
-    """Clear a matching permission notice when Codex starts or finishes tool use."""
-    handle_tool_used()
+def cmd_turn(_args: argparse.Namespace) -> None:
+    handle_turn_hook()
 
 
 def cmd_session_end(_args: argparse.Namespace) -> None:
@@ -91,11 +90,11 @@ def setup_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     dismiss_parser.set_defaults(func=cmd_dismiss)
 
-    tool_used_parser = codex_subparsers.add_parser(
-        "tool-used",
-        help="Clear a matching permission notice when tool use starts or finishes (reads hook JSON)",
-    )
-    tool_used_parser.set_defaults(func=cmd_tool_used)
+    codex_subparsers.add_parser(
+        "turn",
+        help="Record a turn's start, tool use or interrupt from Codex's hooks (reads hook JSON)",
+    ).set_defaults(func=cmd_turn)
+    codex_subparsers.add_parser("tool-used", help=argparse.SUPPRESS).set_defaults(func=cmd_turn)
 
     codex_subparsers.add_parser(
         "session-end",

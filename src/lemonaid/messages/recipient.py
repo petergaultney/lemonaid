@@ -18,7 +18,7 @@ from .. import handlers
 from ..claude import session_socket
 from ..codex import channels as codex_channels
 from ..codex import daemon_setup, processes, queued
-from ..codex import threads as codex_threads
+from ..codex import turns as codex_turns
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
@@ -143,23 +143,31 @@ def unrun_codex() -> dict[str, str]:
     has open, so it is `dead`, and resuming it starts its turns.
     """
     now = time.time()
+    held = queued.held(daemon_setup.codex_home())
+    with db.connect() as conn:
+        rows = {
+            thread: row
+            for thread in held
+            if (
+                row := db.get_by_channel(
+                    conn, codex_channels.for_session(conn, thread), unread_only=False
+                )
+            )
+        }
     reasons = {
-        thread: reason
-        for thread, found in queued.held(daemon_setup.codex_home()).items()
-        if (record := codex_threads.get([thread]).get(thread)) is not None
-        and record.path
-        and (reason := queued.unrun(found, queued.last_turn_end(Path(record.path)), now))
+        row.channel: reason
+        for thread, row in rows.items()
+        if (reason := queued.unrun(held[thread], codex_turns.last_end(row), now))
     }
     open_threads = processes.open_threads(_LISTED_WITHIN) if reasons else None
     if not open_threads:
         return {}
 
-    with db.connect() as conn:
-        return {
-            codex_channels.for_session(conn, thread): reason
-            for thread, reason in reasons.items()
-            if thread in open_threads
-        }
+    return {
+        rows[thread].channel: reasons[rows[thread].channel]
+        for thread in rows
+        if rows[thread].channel in reasons and thread in open_threads
+    }
 
 
 def classify(

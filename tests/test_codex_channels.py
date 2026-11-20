@@ -8,7 +8,7 @@ import pytest
 
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
-from lemonaid.codex import notify, watcher
+from lemonaid.codex import notify
 from lemonaid.inbox import db, emoji
 from lemonaid.inbox.migrations import m010_full_codex_channels
 from tests import codex_fakes
@@ -80,7 +80,7 @@ def test_matching_post_tool_use_clears_permission_notice():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps({"session_id": _THREAD_A, "tool_name": "Bash", "turn_id": "turn-1"})
     )
 
@@ -101,7 +101,7 @@ def test_matching_pre_tool_use_clears_permission_notice():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps(
             {
                 "session_id": _THREAD_A,
@@ -129,7 +129,7 @@ def test_unrelated_tool_use_keeps_permission_notice_visible():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps({"session_id": _THREAD_A, "tool_name": "Read", "turn_id": "turn-1"})
     )
 
@@ -234,15 +234,6 @@ def test_upgraded_thread_keeps_its_row_and_brief_when_it_notifies_again(tmp_path
         assert attached.by_channel(conn, [f"codex:{_THREAD_A}", f"codex:{_THREAD_B}"]) == {
             f"codex:{_THREAD_A}": Path("/b/0.md")
         }
-
-
-def test_a_full_id_without_a_rollout_does_not_borrow_a_siblings(tmp_path, codex_records):
-    sibling = tmp_path / f"rollout-2026-09-28T10-00-00-{_THREAD_B}.jsonl"
-    codex_records[_THREAD_A] = None
-    codex_records[_THREAD_B] = codex_fakes.thread(_THREAD_B, "/work/hq", path=str(sibling))
-
-    assert watcher.get_session_path(_THREAD_A, "/work/hq") is None
-    assert watcher.get_session_path(_THREAD_B, "/work/hq") == sibling
 
 
 def _database_at_version_9(path: Path, rows: list[tuple[str, dict]]) -> sqlite3.Connection:

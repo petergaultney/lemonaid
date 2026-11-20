@@ -20,7 +20,7 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, location, permissions, threads
+from . import channels, location, permissions, threads, turns
 from .utils import extract_session_id_from_filename
 
 _log = get_logger("codex.notify")
@@ -193,9 +193,19 @@ def handle_notification(
         return
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
+    turn = data.get("turn-id") or data.get("turn_id")
+    turn = turn if isinstance(turn, str) else ""
+    ends_turn = notification_type in _TURN_ENDED
     with db.connect() as conn:
         if not os.environ.get("LEMONAID_HANDOFF_TOKEN"):
             channel = channels.for_session(conn, session_id or "")
+        if ends_turn:
+            conn.execute("BEGIN IMMEDIATE")  # no turn hook writes between the check and add
+            if turns.superseded(db.get_by_channel(conn, channel, unread_only=False), turn):
+                db.record_turn_end(conn, channel, turn, time.time(), interrupted=False)
+                _log.info("kept a later turn: channel=%s ended=%s", channel, turn)
+                return
+
         db.add(
             conn,
             channel=channel,
@@ -204,8 +214,10 @@ def handle_notification(
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
             status=_status_after(notification_type, channel, data),
-            ends_turn=notification_type in _TURN_ENDED,
+            ends_turn=ends_turn,
         )
+        if ends_turn:
+            db.record_turn_end(conn, channel, turn, time.time(), interrupted=False)
         if token := os.environ.get("LEMONAID_HANDOFF_TOKEN"):
             handoff_state.bind_target(conn, token, channel)
         handoff_transfer.reclaim(conn, channel)
@@ -259,8 +271,9 @@ def handle_dismiss(debug: bool = False) -> None:
     _log.info("dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count)
 
 
-def handle_tool_used(stdin_data: str | None = None) -> None:
-    """Clear a matching permission notice when Codex starts or finishes the requested tool."""
+def handle_turn_hook(stdin_data: str | None = None) -> None:
+    """Record a turn's start, tool use or interrupt, and clear a permission notice whose
+    requested tool has started or returned."""
     if stdin_data is None:
         stdin_data = sys.stdin.read()
 
@@ -269,6 +282,11 @@ def handle_tool_used(stdin_data: str | None = None) -> None:
     except json.JSONDecodeError:
         data = {}
 
+    turns.record(data)
+    _clear_permission_notice(data)
+
+
+def _clear_permission_notice(data: dict) -> None:
     session_id = _extract_session_id(data)
     tool_name = data.get("tool_name")
     turn_id = data.get("turn_id")

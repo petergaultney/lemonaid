@@ -14,8 +14,6 @@ import sqlite3
 import typing as ty
 from pathlib import Path
 
-from .. import auto_read
-from ..lemon_watchers import watcher as lemon_watcher  # a module: it imports this one, via tmux
 from ..log import get_logger
 
 _log = get_logger("codex.queued")
@@ -58,26 +56,6 @@ def held(home: Path) -> dict[str, Held]:
             error,
         )
         return {}
-
-
-def last_turn_end(rollout: Path) -> TurnEnd | None:
-    """How the thread's last turn ended; None while a turn is open or the rollout's tail doesn't say."""
-    for entry in auto_read.newest_first(lemon_watcher.read_jsonl_tail(rollout)):
-        payload = entry.get("payload")
-        if entry.get("type") != "event_msg" or not isinstance(payload, dict):
-            continue
-
-        if payload.get("type") == "task_started":
-            return None
-
-        if payload.get("type") in ("task_complete", "turn_aborted"):
-            at = lemon_watcher.parse_timestamp(entry.get("timestamp", ""))
-            interrupted = (
-                payload["type"] == "turn_aborted" and payload.get("reason") == "interrupted"
-            )
-            return TurnEnd(at, interrupted) if at is not None else None
-
-    return None
 
 
 def _count(found: Held) -> str:

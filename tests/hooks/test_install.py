@@ -54,7 +54,7 @@ def test_codex_hooks_go_beside_the_users_own(tmp_path, monkeypatch):
     assert _commands(hooks_json, "Stop") == ["lemonaid hooks stop --harness codex"]
     assert _commands(hooks_json, "PreToolUse") == [
         install.own_change_command("codex"),
-        "lemonaid codex tool-used",
+        "lemonaid codex turn",
     ]
     assert all("already installed" in line for line in again)
 
@@ -90,7 +90,7 @@ def test_a_dry_run_changes_nothing(tmp_path):
     assert all(line.startswith("would add") for line in lines)
 
 
-def test_codex_install_adds_tool_used_once_beside_a_hand_added_one(tmp_path, monkeypatch):
+def test_codex_install_replaces_the_old_tool_used_hook_with_the_turn_hook(tmp_path, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
     hooks_json = tmp_path / "hooks.json"
     tool_used = {"hooks": [{"type": "command", "command": "lemonaid codex tool-used"}]}
@@ -98,21 +98,13 @@ def test_codex_install_adds_tool_used_once_beside_a_hand_added_one(tmp_path, mon
 
     install.install("codex")
 
-    assert _commands(hooks_json, "PostToolUse").count("lemonaid codex tool-used") == 1
-    assert _commands(hooks_json, "PreToolUse").count("lemonaid codex tool-used") == 1
+    for event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Interrupt", "PostModelRequest"):
+        assert _commands(hooks_json, event).count("lemonaid codex turn") == 1
+        assert "lemonaid codex tool-used" not in _commands(hooks_json, event)
 
     install.uninstall("codex")
     assert _commands(hooks_json, "PreToolUse") == []
     assert _commands(hooks_json, "PostToolUse") == ["python3 folder-notes-hook.py"]
-
-
-def test_a_fresh_codex_install_adds_tool_used(tmp_path, monkeypatch):
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
-
-    install.install("codex")
-
-    assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PreToolUse")
-    assert "lemonaid codex tool-used" in _commands(tmp_path / "hooks.json", "PostToolUse")
 
 
 def test_codex_session_start_takes_the_whole_context_doc(tmp_path):
@@ -156,6 +148,6 @@ def test_codex_hooks_are_named_and_claude_hooks_are_not(tmp_path):
         "lemonaid: stop",
         "lemonaid: session-start",
         "lemonaid: session-end",
-        "lemonaid: tool-used",
+        "lemonaid: turn",
     }
     assert "statusMessage" not in claude.read_text()
