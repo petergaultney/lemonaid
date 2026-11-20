@@ -205,7 +205,7 @@ function cellGrid(per, x0, y0, x1, y1) {
   const i0 = Math.floor(x0 * per), j0 = Math.floor(y0 * per * YS);
   const cols = Math.max(1, Math.ceil(x1 * per) - i0), rows = Math.max(1, Math.ceil(y1 * per * YS) - j0), img = new ImageData(cols, rows);
   return {per, i0, j0, cols, rows, img,
-    paint: (i, j, c) => { if (i >= 0 && j >= 0 && i < cols && j < rows) img.data.set([...hex(c), 255], 4 * (j * cols + i)); },
+    paint: (i, j, c, alpha = 255) => { if (i >= 0 && j >= 0 && i < cols && j < rows) img.data.set([...hex(c), alpha], 4 * (j * cols + i)); },
     map: (i, j) => [(i0 + i + 0.5) / per, (j0 + j + 0.5) / per]};  // a cell's middle in columns both ways, for textures
 }
 // For each cell of grid *g* within *reach* cells of the line through *points* (grove units): its
@@ -316,6 +316,24 @@ function paintGround(g, b) {
   }
 }
 
+// The ground between and around the blocks: the blocks' texture without their color, faint and partly
+// see-through, so a translucent window stays so. Bare ground is left clear for the window's background.
+function paintWild(g) {
+  const {cols, rows, paint} = g;
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const [wx, wc] = g.map(i, j);
+    if (organic(wx * 0.3, wc * 0.3, 5) > 0.6) paint(i, j, "#7d858f", 20);
+  }
+  for (let j = 2; j < rows; j++) for (let i = 1; i < cols - 1; i++) {
+    const [wx, wc] = g.map(i, j), r = noise(Math.round(wx * 2) + 17, Math.round(wc * 2) + 5);
+    if (r >= 0.03 && r <= 0.998) continue;  // most cells, before the costlier noise below
+
+    const often = organic(wx * 0.2, wc * 0.2, 13) > 0.64 ? 0.03 : 0.0015;
+    if (r < often) TUFTS[Math.floor(noise(Math.round(wx * 2), Math.round(wc * 2) + 3) * TUFTS.length)].forEach(([a, c]) => paint(i + a, j + c, r < often / 2 ? "#5d6b57" : "#6b675a", 110));
+    else if (r > 0.998) paint(i, j, "#7d858f", 80);
+  }
+}
+
 // The terrain's bitmaps for the grove's layout, painted when blocks, their colors, the roads or the
 // stream change, not when trees or lemons do.
 let terrain = {key: ""};
@@ -325,19 +343,20 @@ function terrainFor() {
 
   const ps = blocks.map(b => b.plot), x0 = Math.min(0, ...ps.map(p => p.x)), y0 = Math.min(0, ...ps.map(p => p.y));
   const x1 = Math.max(1, ...ps.map(p => p.x + p.w)), y1 = Math.max(1, ...ps.map(p => p.y + p.h));
-  const land = cellGrid(LAND_CELLS, x0 - 120, y0 - 40, x1 + 120, y1 + 40);  // past the blocks, where roads and the stream run on
+  const wild = cellGrid(GROUND_CELLS, x0 - 120, y0 - 40, x1 + 120, y1 + 40), land = cellGrid(LAND_CELLS, x0 - 120, y0 - 40, x1 + 120, y1 + 40);  // past the blocks too
+  paintWild(wild);
   (DATA.roads || []).forEach(r => paintRoad(land, r));
   const st = DATA.stream || [], out = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1; return [a[0] + dx / d * 400, a[1] + dy / d * 400]; };
   if (st.length > 1) paintStream(land, [out(st[0], st[1]), ...st, out(st[st.length - 1], st[st.length - 2])]);  // a stream runs on past the map
   const ground = cellGrid(2 * GROUND_CELLS, x0, y0, x1, y1);
   blocks.forEach(b => paintGround(ground, b));
   const canvas = g => { const c = document.createElement("canvas"); c.width = g.cols; c.height = g.rows; c.getContext("2d").putImageData(g.img, 0, 0); return {g, c}; };
-  terrain = {key, layers: [canvas(land), canvas(ground)]};
+  terrain = {key, wild: canvas(wild), land: canvas(land), ground: canvas(ground)};
   return terrain;
 }
-function drawTerrain() {
+function drawLayer({g, c}) {
   ctx.imageSmoothingEnabled = false;
-  terrainFor().layers.forEach(({g, c}) => ctx.drawImage(c, sx(g.i0 / g.per), sy(g.j0 / (g.per * YS)), g.cols / g.per * view.k, g.rows / g.per * view.k));
+  ctx.drawImage(c, sx(g.i0 / g.per), sy(g.j0 / (g.per * YS)), g.cols / g.per * view.k, g.rows / g.per * view.k);
   ctx.imageSmoothingEnabled = true;
 }
 
@@ -701,7 +720,8 @@ function drawBackground() {
   if (key === bgKey) return;
   bgKey = key; bg.width = cv.width; bg.height = cv.height;
   const main = ctx; ctx = bg.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawStars(); drawTerrain(); (DATA.open || []).forEach(drawOpen);
+  const t = terrainFor();
+  drawLayer(t.wild); drawStars(); drawLayer(t.land); drawLayer(t.ground); (DATA.open || []).forEach(drawOpen);
   ctx = main;
 }
 
