@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 
 import lemonaid.cli
+from lemonaid.codex import snapshot
+from tests import codex_fakes
 from tests.cli_startup_shared import run
 
 _NO_TEXTUAL = """
@@ -102,15 +104,11 @@ getattr(importlib.import_module(module), function)()
     ],
     ids=lambda words: " ".join(words),
 )
-def test_notification_hooks_write_without_textual(tmp_path, command):
+def test_notification_hooks_write_without_textual(tmp_path, monkeypatch, command):
     setup = ""
-    if command == ("codex", "notify"):
-        sessions = tmp_path / ".codex" / "sessions"
-        sessions.mkdir(parents=True)
-        (sessions / "rollout-test-lazy-imports.jsonl").write_text(
-            json.dumps({"type": "session_meta", "payload": {"id": "test-lazy-imports"}}) + "\n"
-        )
-        setup = f"import os\nos.environ['HOME'] = {str(tmp_path)!r}\n"
+    if command == ("codex", "notify"):  # the hook reads what Codex has stored from the snapshot
+        monkeypatch.setenv("LEMONAID_STATE_DIR", str(tmp_path / "state"))
+        snapshot.write({"test-lazy-imports": codex_fakes.thread("test-lazy-imports")})
     payload = json.dumps(
         {
             "session_id": "test-lazy-imports",

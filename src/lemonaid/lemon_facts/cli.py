@@ -131,7 +131,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
             _fail(args, str(error))
         gathered, skipped = [], []
         running, attachment = owners.running(), brief.lemon.finder(conn)
-        waiters, commands = registry.by_lemon(conn), recipient.tty_commands()
+        waiters, commands = registry.by_lemon(), recipient.tty_commands()
         parked, unrun = recipient.parked_jobs(), recipient.unrun_codex()
         for lemon_id in ids:
             try:

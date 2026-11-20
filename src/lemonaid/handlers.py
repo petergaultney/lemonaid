@@ -116,13 +116,11 @@ def repair_tmux_locations(
         locations = codex_tmux_locations()
     if locations is None:
         return 0
-    repaired = codex_channels.repair_duplicates(conn, locations)
+    repaired = 0
     for notification in db.get_active(conn, switch_source="tmux"):
         if not notification.channel.startswith("codex:"):
             continue
-        matches = locations.get(
-            codex_channels.owner_id(notification.channel, notification.metadata, locations), []
-        )
+        matches = locations.get(codex_channels.thread(notification.channel), [])
         if len(matches) == 1 and db.repair_location(conn, notification, matches[0]):
             repaired += 1
             _log.info(

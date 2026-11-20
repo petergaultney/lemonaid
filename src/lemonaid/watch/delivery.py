@@ -16,12 +16,10 @@ import tempfile
 import typing as ty
 
 from ..codex import channels, processes
-from ..inbox import db
 from ..launch.restart import gates
 from ..log import get_logger
 
 _log = get_logger("watch.delivery")
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 Deliver = ty.Callable[[str], None]
 
@@ -64,7 +62,7 @@ def to_stdout(message: str) -> None:
 
 def codex_executable(thread: str) -> str:
     """The executable of the Codex process that has *thread* open, else `codex` from PATH."""
-    return processes.executable(thread, _LISTED_WITHIN) or "codex"
+    return processes.executable(thread) or "codex"
 
 
 def codex_setup_problem(executable: str = "codex") -> str:
@@ -139,9 +137,7 @@ def queue_text(thread: str, kind: str, text_of: ty.Callable[[str], str]) -> Deli
         _log.info("queued a %s event into Codex thread %s", kind, thread)
 
     def deliver(message: str) -> None:
-        with db.connect() as conn:
-            channel = channels.for_session(conn, thread)
-        gates.deliver(channel, queue)(message)
+        gates.deliver(channels.channel(thread), queue)(message)
 
     return deliver
 

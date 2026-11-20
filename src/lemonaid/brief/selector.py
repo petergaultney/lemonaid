@@ -17,7 +17,7 @@ import os
 import sqlite3
 import subprocess
 
-from ..codex import utils
+from ..codex import threads
 from ..inbox import db
 from ..inbox.channel import channel_id
 from ..lemon_watchers import watcher
@@ -62,21 +62,20 @@ def _self(conn: sqlite3.Connection) -> tuple[Selected | None, str]:
     if found:
         return _selected(found), ""
 
-    if _has_top_level_rollout(channel):
+    if _started_top_level_codex_thread(channel):
         return Selected(channel, "", ""), ""
 
     return None, f"No inbox session on channel {channel!r}"
 
 
-def _has_top_level_rollout(channel: str) -> bool:
+def _started_top_level_codex_thread(channel: str) -> bool:
     """Whether *channel* is a Codex thread that has started, but has no inbox row until its first turn ends."""
     backend, _, thread = channel.partition(":")
     if backend != "codex":
         return False
 
-    path = utils.find_session_path(thread)
-    meta = utils.read_session_meta(path) if path else None
-    return bool(meta) and not utils.is_spawned_thread(meta)
+    found = threads.get([thread], running=True).get(thread)
+    return found is not None and not found.parent
 
 
 def _running_in(tmux_session: str, index: str) -> list[tuple[str, str, bool]]:

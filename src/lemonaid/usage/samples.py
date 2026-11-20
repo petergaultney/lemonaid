@@ -3,12 +3,13 @@
 import json
 import os
 import tempfile
+from collections import abc
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..codex import limits
 from . import paths
 
-_CODEX_FILES_SCANNED = 5
 _CLAUDE_WINDOW_MINUTES = {"five_hour": 300, "seven_day": 10080}
 
 
@@ -52,45 +53,15 @@ def claude_samples(limits_file: Path) -> dict[str, Sample]:
     }
 
 
-def _last_codex_limits(rollout: Path) -> tuple[str, dict] | None:
-    found = None
-    for line in rollout.read_text(errors="replace").splitlines():
-        if '"rate_limits"' not in line:
-            continue
-
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-
-        limits = (event.get("payload") or {}).get("rate_limits")
-        if limits:
-            found = (event["timestamp"], limits)
-
-    return found
-
-
-def codex_samples(sessions: Path) -> dict[str, Sample]:
-    """Newest rate_limits event among the most recently modified rollouts."""
-    rollouts = sorted(sessions.glob("*/*/*/rollout-*.jsonl"), key=lambda p: p.stat().st_mtime)
-    newest = max(
-        filter(None, (_last_codex_limits(r) for r in rollouts[-_CODEX_FILES_SCANNED:])),
-        default=None,
-    )
-    if not newest:
-        return {}
-
+def codex_samples(windows: abc.Iterable[limits.Window]) -> dict[str, Sample]:
     return {
-        f"codex {name} ({w['window_minutes']}min)": Sample(
-            w["used_percent"], int(w["resets_at"]), int(w["window_minutes"])
-        )
-        for name in ("primary", "secondary")
-        if (w := newest[1].get(name))
+        f"codex {w.name} ({w.minutes}min)": Sample(w.used_percent, w.resets_at, w.minutes)
+        for w in windows
     }
 
 
 def current_samples() -> dict[str, Sample]:
     return {
         **claude_samples(claude_limits_file()),
-        **codex_samples(Path.home() / ".codex" / "sessions"),
+        **codex_samples(limits.windows()),
     }

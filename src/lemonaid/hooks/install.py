@@ -11,7 +11,8 @@ Both read hooks in the same format, Claude from `~/.claude/settings.json` and Co
   which waiters to arm;
 - SessionEnd: record why the session ended, so a quit is told from a crash.
 
-Codex also gets `lemonaid codex tool-used` on PreToolUse and PostToolUse, which clears a
+Codex also gets `lemonaid codex turn`, run without Codex waiting for it, on UserPromptSubmit,
+PreToolUse, PostToolUse, Interrupt and PostModelRequest. It records the lemon's turns and what it is doing (`codex/turns.py`), and clears a
 permission notice when its requested tool starts or returns.
 
 Each Codex handler gets a `statusMessage` naming it (`lemonaid: session-start`), and the
@@ -80,7 +81,8 @@ def previous_own_change_command(harness: str) -> str:
     return f"sh -c {shlex.quote(script)}"
 
 
-_CODEX_TOOL_USED_COMMAND = "lemonaid codex tool-used"
+_CODEX_TURN_COMMAND = "lemonaid codex turn"
+_CODEX_TOOL_USED_COMMAND = "lemonaid codex tool-used"  # before the turn hook took its place
 SESSION_END_CODEX = "lemonaid codex session-end"
 
 
@@ -100,15 +102,21 @@ def session_end_command(harness: str) -> str:
     return install_hooks.SESSION_END_COMMAND if harness == "claude" else SESSION_END_CODEX
 
 
+def status_message(name: str) -> str:
+    """How Codex titles lemonaid's handler *name* in `/hooks`."""
+    return f"lemonaid: {name}"
+
+
 def _handler_fields(harness: str, event: str, name: str) -> dict[str, object]:
     """Codex titles a hook in `/hooks`, and while it runs, by its `statusMessage`."""
     if harness != "codex":
         return {}
 
     return {
-        "statusMessage": f"lemonaid: {name}",
+        "statusMessage": status_message(name),
         **({"additionalContextLimit": 0} if event == "SessionStart" else {}),
         **({"timeout": 3} if event == "SessionEnd" else {}),  # Codex's longest; 1s by default
+        **({"async": True} if name == "turn" else {}),  # records only; Codex needn't wait
     }
 
 
@@ -122,8 +130,14 @@ def hooks(harness: str) -> list[tuple[str, str, str]]:
         ("SessionEnd", session_end_command(harness), "session-end"),
         *(
             [
-                ("PreToolUse", _CODEX_TOOL_USED_COMMAND, "tool-used"),
-                ("PostToolUse", _CODEX_TOOL_USED_COMMAND, "tool-used"),
+                (event, _CODEX_TURN_COMMAND, "turn")
+                for event in (
+                    "UserPromptSubmit",
+                    "PreToolUse",
+                    "PostToolUse",
+                    "Interrupt",
+                    "PostModelRequest",
+                )
             ]
             if harness == "codex"
             else []
@@ -183,6 +197,7 @@ def install(
         for command in (
             previous_own_change_command(harness),
             f"sh -c {shlex.quote(_ungated_script(harness))}",
+            *([_CODEX_TOOL_USED_COMMAND] if harness == "codex" else []),
         )
         for event in ("PreToolUse", "PostToolUse")
     ):

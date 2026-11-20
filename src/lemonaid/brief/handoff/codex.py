@@ -1,138 +1,35 @@
-"""Read exact user handoff phrases from Codex transcript entries."""
+"""Read a Codex lemon's ready marker and its user's exact handoff phrases from Codex."""
 
-import json
-
-from ... import auto_read
-from ...codex import channels
-from ...codex import watcher as codex_watcher
+from ...codex import channels, threads
 from ...inbox import db
-from ...lemon_watchers import read_jsonl_tail
 from . import state as handoff_state
+
+_PHRASE_TURNS = 5  # how far back a typed handoff phrase is still looked for
+
+
+def _thread(conn, channel: str) -> str:
+    notification = db.get_by_channel(conn, channel, unread_only=False)
+    return "" if notification is None else channels.thread(channel)
 
 
 def has_ready_marker(conn, row) -> bool:
-    """Read a standalone ready marker from the outgoing Codex final reply."""
+    """A standalone ready marker in the outgoing lemon's final reply of a completed turn."""
     channel = row["source"]
-    if not channel.startswith("codex:"):
+    if not channel.startswith("codex:") or not (thread := _thread(conn, channel)):
         return False
 
-    notification = db.get_by_channel(conn, channel, unread_only=False)
-    if notification is None:
+    latest = threads.latest_turns(thread, 1)
+    if not latest or not latest[0].completed or not latest[0].said:
         return False
 
-    transcript = codex_watcher.get_session_path(
-        channels.owner_id(channel, notification.metadata, {}),
-        str(notification.metadata.get("cwd") or ""),
-    )
-    if transcript is None:
-        return False
-
-    try:
-        recent = list(auto_read.newest_first(read_jsonl_tail(transcript, max_bytes=256 * 1024)))
-    except OSError:
-        return False
-
-    if not _latest_turn_completed(recent):
-        return False
-
-    marker = f"Handoff-Ready: {row['token']}"
-    return marker in _final_message(recent).splitlines()
-
-
-def _latest_turn_completed(recent: list[dict]) -> bool:
-    """Whether Codex's newest turn ended normally, rather than being active or aborted."""
-    for entry in recent:
-        if entry.get("type") != "event_msg":
-            continue
-        payload = entry.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        event = payload.get("type")
-        if event == "task_complete":
-            return True
-        if event in ("task_started", "turn_aborted"):
-            return False
-    return False
-
-
-def _final_message(recent: list[dict]) -> str:
-    """Read the latest assistant prose from the newest completed turn."""
-    for entry in recent:
-        if entry.get("type") == "event_msg":
-            payload = entry.get("payload")
-            if not isinstance(payload, dict):
-                continue
-            event = payload.get("type")
-            if event == "task_started":
-                return ""
-            if event == "agent_message" and isinstance(payload.get("message"), str):
-                return payload["message"]
-            continue
-
-        if entry.get("type") != "response_item":
-            continue
-        payload = entry.get("payload")
-        if not isinstance(payload, dict) or payload.get("type") != "message":
-            continue
-        if payload.get("role") != "assistant":
-            continue
-        content = payload.get("content")
-        if not isinstance(content, list):
-            continue
-        text = "\n".join(
-            block["text"]
-            for block in content
-            if isinstance(block, dict)
-            and block.get("type") in ("output_text", "text")
-            and isinstance(block.get("text"), str)
-        )
-        if text:
-            return text
-    return ""
+    return f"Handoff-Ready: {row['token']}" in latest[0].said[-1].splitlines()
 
 
 def phrases(conn, row) -> None:
     for channel in (row["source"], row["target"]):
-        if not channel.startswith("codex:"):
+        if not channel.startswith("codex:") or not (thread := _thread(conn, channel)):
             continue
 
-        notification = db.get_by_channel(conn, channel, unread_only=False)
-        if notification is None:
-            continue
-
-        path = codex_watcher.get_session_path(
-            channels.owner_id(channel, notification.metadata, {}),
-            str(notification.metadata.get("cwd") or ""),
-        )
-        if path is None:
-            continue
-
-        try:
-            with path.open(encoding="utf-8") as file:
-                lines = file.readlines()[-100:]
-        except OSError:
-            continue
-
-        for line in lines:
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            if entry.get("type") != "response_item":
-                continue
-
-            payload = entry.get("payload", {})
-            if payload.get("type") != "message" or payload.get("role") != "user":
-                continue
-
-            content = payload.get("content", [])
-            if (
-                not isinstance(content, list)
-                or len(content) != 1
-                or not isinstance(content[0], dict)
-                or content[0].get("type") != "input_text"
-            ):
-                continue
-
-            handoff_state.typed_message(conn, channel, content[0].get("text", ""))
+        for turn in reversed(threads.latest_turns(thread, _PHRASE_TURNS)):
+            for typed in turn.typed:
+                handoff_state.typed_message(conn, channel, typed)

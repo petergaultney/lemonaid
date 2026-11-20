@@ -44,7 +44,7 @@ def run(a: argparse.Namespace) -> int:
     current = samples.current_samples()
     if not current:
         print(
-            "no usage data yet (needs a Claude session with lemonaid-claude-statusline, or Codex rollouts)"
+            "no usage data yet (needs a Claude session with lemonaid-claude-statusline, or a Codex that can be asked)"
         )
 
         return 1

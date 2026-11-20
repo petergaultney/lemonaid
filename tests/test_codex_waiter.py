@@ -5,6 +5,7 @@ from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db
 from lemonaid.messages import recipient
 from lemonaid.watch import codex_waiter, scout_roster, scout_start, wait_state, waiter_lock
+from tests import codex_fakes
 
 
 def test_ensure_registers_the_real_thread_with_the_host(monkeypatch):
@@ -57,7 +58,7 @@ def test_restore_starts_a_scout_for_a_brief_with_nothing_to_watch(monkeypatch):
         attached.attach(conn, "codex:root", path)
         lemon_id = identity.ensure(conn, path)
     started = []
-    monkeypatch.setattr(codex_waiter.utils, "find_session_path", lambda thread: "rollout.jsonl")
+    codex_fakes.answer(monkeypatch, codex_fakes.thread)
     monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
     monkeypatch.setattr(codex_waiter, "_restored", {})
     monkeypatch.setattr(codex_waiter, "ensure", lambda *args: started.append(args))
@@ -79,7 +80,7 @@ def test_restore_skips_a_done_brief_and_names_the_lemons_it_started(monkeypatch)
             attached.attach(conn, f"codex:{name}", path)
             ids[name] = identity.ensure(conn, path)
     started = []
-    monkeypatch.setattr(codex_waiter.utils, "find_session_path", lambda thread: "rollout.jsonl")
+    codex_fakes.answer(monkeypatch, codex_fakes.thread)
     monkeypatch.setattr(recipient, "harness_alive", lambda row: True)
     monkeypatch.setattr(codex_waiter, "_restored", {})
     monkeypatch.setattr(codex_waiter, "ensure", lambda *args: started.append(args[0]) or True)

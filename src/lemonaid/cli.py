@@ -12,6 +12,7 @@ import lemonaid.brief.archive_cli
 import lemonaid.brief.cli
 import lemonaid.claude.cli
 import lemonaid.codex.cli
+import lemonaid.codex.service
 import lemonaid.groups.cli
 import lemonaid.grove.cli
 import lemonaid.home.cli
@@ -174,7 +175,12 @@ def main() -> None:
     lemonaid.watch.wait_cli.setup_parser(subparsers)
     lemonaid.watch.run_cli.setup_parser(subparsers)
     lemonaid.watch.cli.setup_parser(
-        subparsers, (lemonaid.tmux.label_host.service, lemonaid.tasks.inspection.service.service)
+        subparsers,
+        (
+            lemonaid.tmux.label_host.service,
+            lemonaid.tasks.inspection.service.service,
+            lemonaid.codex.service.service,
+        ),
     )
     lemonaid.wezterm.cli.setup_parser(subparsers)
     setup_config_parser(subparsers)

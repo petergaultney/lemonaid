@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from lemonaid.brief import child_cli, cli, lemon, write_cli
-from lemonaid.codex import utils
 from lemonaid.inbox import db, decorate_cli
+from tests import codex_fakes
 
 THREAD = "01a0d8ce-0000-7000-8000-000000000001"
 CHANNEL = f"codex:{THREAD}"
@@ -59,10 +59,10 @@ def test_brief_verbs_find_the_codex_thread_without_tmux(capsys):
     assert checked["error"] is None and checked["path"] == str(brief)
 
 
-def _rollout(tmp_path, monkeypatch, **meta) -> None:
-    path = tmp_path / f"rollout-2026-10-22T09-00-00-{THREAD}.jsonl"
-    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": THREAD, **meta}}) + "\n")
-    monkeypatch.setattr(utils, "find_session_path", lambda thread: path)
+def _rollout(tmp_path, monkeypatch, parent_thread_id: str = "") -> None:
+    codex_fakes.answer(
+        monkeypatch, lambda thread: codex_fakes.thread(thread, parent=parent_thread_id)
+    )
 
 
 def test_a_started_thread_with_no_inbox_row_yet_can_attach(capsys, tmp_path, monkeypatch):

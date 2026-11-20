@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from .. import auto_read, tmux
+from ..codex import processes
 from ..launch.restart import state
 from ..log import get_logger
 from . import untracked
@@ -408,8 +409,8 @@ def _archive_stale_sessions(
 
     `pane_locations` is the pre-fetched result of one `tmux list-panes -a` per
     server, shared with `_record_locations` so tmux is only asked once per tick.
-    `codex_directories` is where every Codex process is working, for the rows
-    with no tty that `untracked.gone` can judge; None judges none of them.
+    `codex_directories` is every thread a Codex process runs, for the rows with no tty
+    that `untracked.gone` can judge; None judges none of them.
     `located` is, by channel, where a session that can outlive its tty runs now:
     its current tty, False if it is gone, None if its backend could not tell. A
     located session is judged on its current tty rather than the recorded one.
@@ -666,7 +667,7 @@ def _archive_stale_sessions(
     return archived
 
 
-_CODEX_CHECK_SECONDS = 10.0  # lsof costs ~75ms; a dead row can wait this long
+_CODEX_CHECK_SECONDS = 10.0  # listing Codex processes costs ~0.3s; a dead row can wait this long
 
 
 def unified_watch_loop(
@@ -786,7 +787,7 @@ def unified_watch_loop(
                     map(untracked.is_untracked, active)
                 ):
                     codex_checked_at = time.time()
-                    codex_directories = untracked.codex_directories()
+                    codex_directories = processes.open_threads()
 
                 archived_channels = _archive_stale_sessions(
                     active,

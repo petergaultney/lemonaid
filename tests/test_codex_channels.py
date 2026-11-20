@@ -8,9 +8,10 @@ import pytest
 
 from lemonaid.brief import attached
 from lemonaid.brief import store as brief_store
-from lemonaid.codex import notify, utils, watcher
+from lemonaid.codex import notify
 from lemonaid.inbox import db, emoji
 from lemonaid.inbox.migrations import m010_full_codex_channels
+from tests import codex_fakes
 
 # UUIDv7 ids from the same minute share their leading timestamp digits.
 _THREAD_A = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
@@ -19,17 +20,11 @@ _THREAD_C = "01999a7d-0000-7000-8000-000000000033"
 
 
 @pytest.fixture(autouse=True)
-def _notification_rollouts(monkeypatch, tmp_path):
-    monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: None)
-
-    def rollout(session_id):
-        path = tmp_path / f"rollout-{session_id}.jsonl"
-        path.write_text(json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n")
-        return path
-
-    monkeypatch.setattr(notify, "find_session_path", rollout)
-    monkeypatch.setattr(watcher, "get_sessions_root", lambda: tmp_path / "no-sessions")
-    monkeypatch.setattr(utils, "get_sessions_root", lambda: tmp_path / "sessions")
+def _notification_rollouts(monkeypatch, tmp_path, codex_records):
+    codex_records.everything = lambda thread: codex_fakes.thread(
+        thread, path=str(tmp_path / f"rollout-{thread}.jsonl")
+    )
+    monkeypatch.setattr(m010_full_codex_channels, "_sessions_root", lambda: tmp_path / "sessions")
     monkeypatch.delenv("TMUX_PANE", raising=False)
 
 
@@ -85,7 +80,7 @@ def test_matching_post_tool_use_clears_permission_notice():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps({"session_id": _THREAD_A, "tool_name": "Bash", "turn_id": "turn-1"})
     )
 
@@ -106,7 +101,7 @@ def test_matching_pre_tool_use_clears_permission_notice():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps(
             {
                 "session_id": _THREAD_A,
@@ -134,7 +129,7 @@ def test_unrelated_tool_use_keeps_permission_notice_visible():
     }
     notify.handle_notification(json.dumps(payload))
 
-    notify.handle_tool_used(
+    notify.handle_turn_hook(
         json.dumps({"session_id": _THREAD_A, "tool_name": "Read", "turn_id": "turn-1"})
     )
 
@@ -239,18 +234,6 @@ def test_upgraded_thread_keeps_its_row_and_brief_when_it_notifies_again(tmp_path
         assert attached.by_channel(conn, [f"codex:{_THREAD_A}", f"codex:{_THREAD_B}"]) == {
             f"codex:{_THREAD_A}": Path("/b/0.md")
         }
-
-
-def test_a_full_id_without_a_rollout_does_not_borrow_a_siblings(tmp_path, monkeypatch):
-    sessions = tmp_path / "sessions"
-    sessions.mkdir()
-    sibling = sessions / f"rollout-2026-09-28T10-00-00-{_THREAD_B}.jsonl"
-    sibling.write_text("{}\n")
-    monkeypatch.setattr(watcher, "get_sessions_root", lambda: sessions)
-    monkeypatch.setattr(watcher, "find_latest_session_for_cwd", lambda cwd: sibling)
-
-    assert watcher.get_session_path(_THREAD_A, "/work/hq") is None
-    assert watcher.get_session_path(_THREAD_B, "/work/hq") == sibling
 
 
 def _database_at_version_9(path: Path, rows: list[tuple[str, dict]]) -> sqlite3.Connection:
@@ -429,14 +412,13 @@ def test_a_spawned_thread_on_its_own_channel_stays_there(tmp_path):
         ]
 
 
-def test_notification_with_missing_rollout_does_not_update_sibling(tmp_path, monkeypatch):
-    sibling = _rollout(tmp_path, _THREAD_A, cwd="/work/shared")
-    monkeypatch.setattr(notify, "find_latest_session_for_cwd", lambda cwd: sibling)
+def test_notification_with_missing_rollout_does_not_update_sibling(codex_records):
+    codex_records[_THREAD_A] = codex_fakes.thread(_THREAD_A, "/work/shared")
     _notify(_THREAD_A, "/work/shared")
     with db.connect() as conn:
         original = db.get_by_channel(conn, f"codex:{_THREAD_A}", unread_only=False)
 
-    monkeypatch.setattr(notify, "find_session_path", lambda sid: None)
+    codex_records[_THREAD_B] = None
     _notify(_THREAD_B, "/work/shared")
 
     with db.connect() as conn:

@@ -1,5 +1,4 @@
-import json
-
+from lemonaid.codex import limits
 from lemonaid.usage import samples
 
 
@@ -19,18 +18,18 @@ def test_statusline_data_without_rate_limits_saves_nothing(tmp_path, monkeypatch
     assert not samples.claude_limits_file().exists()
 
 
-def test_codex_takes_newest_event_across_rollouts(tmp_path):
-    def rollout(name: str, ts: str, used: float) -> None:
-        path = tmp_path / "2026" / "10" / "08" / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        limits = {
-            "primary": {"used_percent": used, "window_minutes": 10080, "resets_at": 9},
-            "secondary": None,
-        }
-        path.write_text(json.dumps({"timestamp": ts, "payload": {"rate_limits": limits}}) + "\n")
+class _Codex:
+    def ask(self, calls, timeout):
+        assert [method for method, _ in calls] == ["account/rateLimits/read"]
+        window = {"usedPercent": 60, "windowDurationMins": 10080, "resetsAt": 9}
+        return [{"result": {"rateLimits": {"primary": window, "secondary": None}}}]
 
-    rollout("rollout-a.jsonl", "2026-10-08T10:00:00Z", 50)
-    rollout("rollout-b.jsonl", "2026-10-08T11:00:00Z", 60)
-    assert samples.codex_samples(tmp_path) == {
+
+def test_codex_reports_its_own_limit_windows(monkeypatch):
+    monkeypatch.setattr(
+        limits.app_server, "once", lambda question, about, unanswered, timeout: question(_Codex())
+    )
+
+    assert samples.codex_samples(limits.windows()) == {
         "codex primary (10080min)": samples.Sample(60, 9, 10080)
     }

@@ -6,7 +6,7 @@ import time
 import typing as ty
 from collections import abc
 
-from .... import claude, codex, config, handlers, openclaw, opencode, status_registry
+from .... import claude, config, handlers, openclaw, opencode, status_registry
 from ....audit import events
 from ....brief import attached
 from ....brief import status as brief_status
@@ -326,7 +326,7 @@ def start(
         return active_sessions()
 
     start_unified_watcher(
-        backends=ty.cast(list, [claude.watcher, codex.watcher, openclaw.watcher, opencode.watcher]),
+        backends=ty.cast(list, [claude.watcher, openclaw.watcher, opencode.watcher]),
         get_active=active,
         mark_read=mark_channel_read,
         update_message=update_channel_message,

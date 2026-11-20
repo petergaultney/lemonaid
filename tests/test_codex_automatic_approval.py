@@ -6,6 +6,7 @@ import pytest
 
 from lemonaid.codex import notify, permissions
 from lemonaid.inbox import db
+from tests import codex_fakes
 
 _THREAD = "01999a7c-2f10-7a3e-9c41-5b2d8e0f1a11"
 _TURN = "approval-turn"
@@ -26,7 +27,7 @@ _TURN = "approval-turn"
     "tool_name", ["Bash", "apply_patch", "mcp__codex_apps__example_write", "unknown", ""]
 )
 def test_permission_hook_uses_its_own_turn_reviewer(
-    monkeypatch, tmp_path, reviewer, context_turn, hook_turn, suppressed, existing, tool_name
+    codex_records, tmp_path, reviewer, context_turn, hook_turn, suppressed, existing, tool_name
 ):
     rollout = tmp_path / f"rollout-{_THREAD}.jsonl"
     entries = [
@@ -38,7 +39,7 @@ def test_permission_hook_uses_its_own_turn_reviewer(
         {"type": "event_msg", "payload": {"message": "x" * 100_000}},
     ]
     rollout.write_text("\n".join(map(json.dumps, entries)) + "\n")
-    monkeypatch.setattr(notify, "find_session_path", lambda session_id: rollout)
+    codex_records[_THREAD] = codex_fakes.thread(_THREAD, "/tmp/project", path=str(rollout))
     channel = f"codex:{_THREAD}"
     with db.connect() as conn:
         if existing:

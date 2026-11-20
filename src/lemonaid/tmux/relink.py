@@ -2,7 +2,7 @@
 
 A row only names a tty, and ttys are reused when tmux restarts, so the evidence
 here is the lemon itself: the pane whose Claude process lists that session, or
-whose Codex process has that thread's rollout open. Nothing is ever pointed at
+whose Codex process runs that thread. Nothing is ever pointed at
 a pane on the strength of its tty alone.
 """
 

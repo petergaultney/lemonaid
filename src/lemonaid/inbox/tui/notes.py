@@ -57,7 +57,7 @@ class NotesPanel(scroll_position.StableScroll):
     def __init__(self, path: Path, *, id: str | None = None) -> None:
         super().__init__(id=id)
         self.path = path
-        self._shown: tuple[int, float] | None | bool = False  # False: nothing read yet
+        self._shown: tuple[int, float] | bool | None = False  # False: nothing read yet
 
     def compose(self) -> ComposeResult:
         yield Markdown()

@@ -485,7 +485,7 @@ codex = "0.65M"
 
 What each harness reports:
 
-- **Codex:** each `token_count` event in the rollout gives the tokens the last request sent and the model's context window.
+- **Codex:** the `PostModelRequest` hook gives the tokens the last request sent. Codex reports no context window, so a Codex row keeps any window an earlier version recorded and otherwise shows the count alone.
 - **Claude:** the transcript gives each request's input tokens, including cached ones, but not the window. `lemonaid-claude-statusline` saves the window Claude Code passes it, per session, under the state directory. Without that statusLine command, a share like `"50%"` has no window to apply to and the row shows nothing; a token count still works.
 - OpenClaw and OpenCode rows show no reading.
 

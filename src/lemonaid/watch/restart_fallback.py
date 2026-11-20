@@ -4,7 +4,6 @@ import time
 from collections import abc
 
 from ..codex import channels
-from ..inbox import db
 from ..log import get_logger
 from . import codex_waiter, push_scout, registry, stopping
 
@@ -38,9 +37,7 @@ def _start_scout(waiter: registry.Waiter) -> bool | None:
         return push_scout.ensure(waiter.channel.removeprefix("claude:"), lemon_id)
 
     if waiter.channel.startswith("codex:"):
-        with db.connect() as conn:
-            row = db.get_by_channel(conn, waiter.channel, unread_only=False)
-        thread = channels.owner_id(waiter.channel, row.metadata if row else {}, {})
+        thread = channels.thread(waiter.channel)
         return codex_waiter.ensure(waiter.channel, thread, lemon_id)
 
     return None

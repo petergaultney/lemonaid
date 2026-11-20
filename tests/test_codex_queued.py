@@ -1,6 +1,4 @@
 import contextlib
-import datetime as dt
-import json
 import sqlite3
 import time
 from pathlib import Path
@@ -8,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from lemonaid.codex import processes, queued
-from lemonaid.codex import utils as codex_utils
 from lemonaid.inbox import db
 from lemonaid.messages import recipient
 
@@ -42,20 +39,6 @@ def _queue(home: Path, *rows: tuple[str, float], wal: bool = False) -> Path:
             ],
         )
         conn.commit()
-    return path
-
-
-def _event(kind: str, at: float, **fields: str) -> str:
-    stamp = dt.datetime.fromtimestamp(at, dt.UTC).isoformat().replace("+00:00", "Z")
-    return json.dumps(
-        {"timestamp": stamp, "type": "event_msg", "payload": {"type": kind, **fields}}
-    )
-
-
-def _rollout(path: Path, *events: str) -> Path:
-    path.write_text(
-        "\n".join([json.dumps({"type": "session_meta", "payload": {}}), *events]) + "\n"
-    )
     return path
 
 
@@ -156,30 +139,6 @@ def test_locked_database_is_logged_and_can_be_read_after_unlock(tmp_path, caplog
     assert _HELD(tmp_path) == {"a": queued.Held(1, 1000.0)}
 
 
-def test_a_completed_turn_ends_it_and_an_interrupt_is_named(tmp_path):
-    done = _rollout(
-        tmp_path / "done.jsonl", _event("task_started", 10.0), _event("task_complete", 20.0)
-    )
-    stopped = _rollout(
-        tmp_path / "stopped.jsonl",
-        _event("task_started", 10.0),
-        _event("turn_aborted", 30.0, reason="interrupted"),
-    )
-
-    assert queued.last_turn_end(done) == queued.TurnEnd(20.0, False)
-    assert queued.last_turn_end(stopped) == queued.TurnEnd(30.0, True)
-
-
-def test_an_open_turn_or_a_tail_without_a_boundary_has_no_end(tmp_path):
-    running = _rollout(
-        tmp_path / "running.jsonl", _event("task_complete", 5.0), _event("task_started", 10.0)
-    )
-    fresh = _rollout(tmp_path / "fresh.jsonl")
-
-    assert queued.last_turn_end(running) is None
-    assert queued.last_turn_end(fresh) is None
-
-
 @pytest.mark.parametrize(
     ("since", "ended", "now"),
     [
@@ -207,25 +166,28 @@ def test_a_message_held_a_minute_on_an_idle_thread_is_unrun():
     )
 
 
-def _codex(monkeypatch, tmp_path, events: list[str], queued_at: float, open_threads=None) -> None:
-    """A Codex thread whose rollout has *events*, with a message Codex took at *queued_at*."""
-    rollout = _rollout(tmp_path / f"rollout-{_THREAD}.jsonl", *events)
+def _codex(monkeypatch, turn: tuple[str, float], queued_at: float, open_threads=None) -> None:
+    """A Codex thread whose hooks last reported *turn* (an event and when), holding a message
+    Codex took at *queued_at*."""
     monkeypatch.setattr(queued, "held", lambda home: {_THREAD: queued.Held(1, queued_at)})
-    monkeypatch.setattr(codex_utils, "find_session_path", lambda thread: rollout)
     monkeypatch.setattr(
         processes,
         "open_threads",
         lambda max_age=0.0: {_THREAD} if open_threads is None else open_threads,
     )
+    channel = f"codex:{_THREAD}"
+    event, at = turn
     with db.connect() as conn:
-        db.add(conn, f"codex:{_THREAD}", "", metadata={"session_id": _THREAD})
+        db.add(conn, channel, "", metadata={"session_id": _THREAD})
+        if event == "started":
+            db.record_turn(conn, channel, at)
+        else:
+            db.record_turn_end(conn, channel, "", at, interrupted=event == "interrupted")
 
 
 def test_an_interrupted_thread_s_held_message_is_unrun_by_channel(monkeypatch, tmp_path):
     now = time.time()
-    _codex(
-        monkeypatch, tmp_path, [_event("turn_aborted", now - 300, reason="interrupted")], now - 120
-    )
+    _codex(monkeypatch, ("interrupted", now - 300), now - 120)
 
     found = recipient.unrun_codex()
 
@@ -235,13 +197,13 @@ def test_an_interrupted_thread_s_held_message_is_unrun_by_channel(monkeypatch, t
 
 def test_a_thread_no_codex_process_has_open_is_left_to_the_dead_check(monkeypatch, tmp_path):
     now = time.time()
-    _codex(monkeypatch, tmp_path, [_event("task_complete", now - 300)], now - 120, set())
+    _codex(monkeypatch, ("completed", now - 300), now - 120, set())
 
     assert recipient.unrun_codex() == {}
 
 
 def test_a_message_held_while_a_turn_runs_is_not_unrun(monkeypatch, tmp_path):
     now = time.time()
-    _codex(monkeypatch, tmp_path, [_event("task_started", now - 600)], now - 300)
+    _codex(monkeypatch, ("started", now - 600), now - 300)
 
     assert recipient.unrun_codex() == {}

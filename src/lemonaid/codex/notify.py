@@ -20,14 +20,8 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, location, permissions
-from .utils import (
-    extract_session_id_from_filename,
-    find_latest_session_for_cwd,
-    find_session_path,
-    is_spawned_thread,
-    read_session_meta,
-)
+from . import channels, location, permissions, threads, turns
+from .utils import extract_session_id_from_filename
 
 _log = get_logger("codex.notify")
 
@@ -44,52 +38,29 @@ def _parse_input_messages(data: dict) -> str | None:
     return None
 
 
-def _extract_session_id(data: dict, session_path: Path | None) -> str | None:
-    # Codex's generic `id` identifies the notification/turn, not the rollout.
-    # Treating it as a session ID leaves the watcher looking for a file that
-    # cannot exist.
+def _extract_session_id(data: dict) -> str | None:
+    # Codex's generic `id` identifies the notification/turn, not the thread.
     for key in ("session_id", "sessionId", "thread_id", "thread-id", "threadId"):
         value = data.get(key)
         if isinstance(value, str) and value:
             return value
 
-    if session_path:
-        session_id = extract_session_id_from_filename(session_path.name)
-        if session_id:
-            return session_id
-
-        meta = read_session_meta(session_path)
-        if meta and isinstance(meta.get("id"), str):
-            return meta["id"]
-
     return None
 
 
-def _resolve_session_path(
+def _codex_thread(
     session_id: str | None, cwd: str | None, session_path: str | None
-) -> Path | None:
-    if session_id:
-        return find_session_path(session_id)
+) -> threads.Thread | None:
+    """Codex's record of the hook's thread, or None when Codex doesn't know it or can't
+    be asked."""
+    thread = session_id or extract_session_id_from_filename(Path(session_path or "").name)
+    if thread:
+        answers = threads.get([thread], running=True)
+        if thread not in answers:
+            _log.warning("Codex could not be asked about thread %s", thread)
+        return answers.get(thread)
 
-    if session_path:
-        path = Path(session_path).expanduser()
-        if path.exists():
-            return path
-
-    if cwd:
-        return find_latest_session_for_cwd(cwd)
-
-    return None
-
-
-def _resolve_cwd(cwd: str | None, session_path: Path | None) -> str | None:
-    if cwd:
-        return cwd
-    if session_path:
-        meta = read_session_meta(session_path)
-        if meta:
-            return meta.get("cwd")
-    return None
+    return threads.latest_in(cwd) if cwd else None
 
 
 _TURN_ENDED = ("agent-turn-complete", "turn-complete", "idle_prompt")
@@ -137,33 +108,22 @@ def handle_notification(
 
     data_cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else None
     resolved_cwd = cwd or data_cwd
-    payload_session_id = _extract_session_id(data, None)
-    session_path_obj = _resolve_session_path(
-        session_id or payload_session_id, resolved_cwd, session_path
-    )
-    if session_path_obj is None:
-        _log.info("ignored a thread with no rollout: thread=%s", session_id or payload_session_id)
-        return
-    meta = read_session_meta(session_path_obj)
-    if meta is None:
-        # Codex writes session_meta when a thread starts, so this is a damaged
-        # rollout - and possibly a subagent's, which must not get a row.
-        _log.warning("ignored a thread whose rollout has no session_meta: %s", session_path_obj)
-        return
-
-    if meta and is_spawned_thread(meta):
+    payload_session_id = _extract_session_id(data)
+    thread = _codex_thread(session_id or payload_session_id, resolved_cwd, session_path)
+    if thread is None:
         _log.info(
-            "ignored a spawned thread: thread=%s parent=%s source=%s",
-            meta.get("id"),
-            meta.get("parent_thread_id"),
-            meta.get("thread_source"),
+            "ignored a thread Codex doesn't know: thread=%s", session_id or payload_session_id
         )
         return
 
-    canonical_session_id = _extract_session_id({}, session_path_obj)
-    session_id = session_id or canonical_session_id or payload_session_id
+    if thread.parent:
+        _log.info("ignored a spawned thread: thread=%s parent=%s", thread.id, thread.parent)
+        return
+
+    known = thread
+    session_id = session_id or known.id
     native.observe({"session_id": session_id}, "codex")
-    cwd = _resolve_cwd(resolved_cwd, session_path_obj)
+    cwd = resolved_cwd or known.cwd
     notification_type = (
         notification_type
         or data.get("notification_type")
@@ -173,8 +133,12 @@ def handle_notification(
         or "agent-turn-complete"
     )
 
-    if notification_type == "PermissionRequest" and permissions.automatically_reviewed(
-        session_path_obj, data.get("turn_id", ""), data.get("tool_name", "")
+    if (
+        notification_type == "PermissionRequest"
+        and known.path
+        and permissions.automatically_reviewed(
+            Path(known.path), data.get("turn_id", ""), data.get("tool_name", "")
+        )
     ):
         _log.info(
             "ignored automatic approval review: session=%s turn=%s", session_id, data.get("turn_id")
@@ -211,8 +175,8 @@ def handle_notification(
         if isinstance(value, str) and value:
             metadata[key] = value
     metadata["name_source"] = name_source
-    if session_path_obj:
-        metadata["session_path"] = str(session_path_obj)
+    if known.path:
+        metadata["session_path"] = known.path
     thread_id = data.get("thread_id") or data.get("thread-id") or data.get("threadId")
     if isinstance(thread_id, str) and thread_id:
         metadata["thread_id"] = thread_id
@@ -229,9 +193,19 @@ def handle_notification(
         return
 
     # Add to inbox (upsert=True by default, so repeated notifications update timestamp)
+    turn = data.get("turn-id") or data.get("turn_id")
+    turn = turn if isinstance(turn, str) else ""
+    ends_turn = notification_type in _TURN_ENDED
     with db.connect() as conn:
         if not os.environ.get("LEMONAID_HANDOFF_TOKEN"):
-            channel = channels.for_session(conn, session_id or "")
+            channel = channels.channel(session_id or "")
+        if ends_turn:
+            conn.execute("BEGIN IMMEDIATE")  # no turn hook writes between the check and add
+            if turns.superseded(db.get_by_channel(conn, channel, unread_only=False), turn):
+                db.record_turn_end(conn, channel, turn, time.time(), interrupted=False)
+                _log.info("kept a later turn: channel=%s ended=%s", channel, turn)
+                return
+
         db.add(
             conn,
             channel=channel,
@@ -240,8 +214,10 @@ def handle_notification(
             metadata=metadata,
             switch_source=switch_source if switch_source != "unknown" else None,
             status=_status_after(notification_type, channel, data),
-            ends_turn=notification_type in _TURN_ENDED,
+            ends_turn=ends_turn,
         )
+        if ends_turn:
+            db.record_turn_end(conn, channel, turn, time.time(), interrupted=False)
         if token := os.environ.get("LEMONAID_HANDOFF_TOKEN"):
             handoff_state.bind_target(conn, token, channel)
         handoff_transfer.reclaim(conn, channel)
@@ -267,7 +243,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
-        channel = channels.for_session(conn, session_id)
+        channel = channels.channel(session_id)
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
             print(
@@ -289,14 +265,15 @@ def handle_dismiss(debug: bool = False) -> None:
     except json.JSONDecodeError:
         data = {}
 
-    session_id = _extract_session_id(data, None)
+    session_id = _extract_session_id(data)
     count = dismiss_session(session_id or "", debug=debug)
 
     _log.info("dismiss: session_id=%s, marked=%d", session_id[:8] if session_id else "NONE", count)
 
 
-def handle_tool_used(stdin_data: str | None = None) -> None:
-    """Clear a matching permission notice when Codex starts or finishes the requested tool."""
+def handle_turn_hook(stdin_data: str | None = None) -> None:
+    """Record a turn's start, tool use or interrupt, and clear a permission notice whose
+    requested tool has started or returned."""
     if stdin_data is None:
         stdin_data = sys.stdin.read()
 
@@ -305,7 +282,12 @@ def handle_tool_used(stdin_data: str | None = None) -> None:
     except json.JSONDecodeError:
         data = {}
 
-    session_id = _extract_session_id(data, None)
+    turns.record(data)
+    _clear_permission_notice(data)
+
+
+def _clear_permission_notice(data: dict) -> None:
+    session_id = _extract_session_id(data)
     tool_name = data.get("tool_name")
     turn_id = data.get("turn_id")
     if (
@@ -319,7 +301,7 @@ def handle_tool_used(stdin_data: str | None = None) -> None:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
-        channel = channels.for_session(conn, session_id)
+        channel = channels.channel(session_id)
         row = conn.execute(
             "SELECT id, metadata FROM notifications WHERE channel = ?", (channel,)
         ).fetchone()

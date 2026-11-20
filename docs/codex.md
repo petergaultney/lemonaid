@@ -37,8 +37,9 @@ Codex's `notify` reports only finished turns. To have the inbox show a Codex lem
 Codex asks you to trust a new hook the first time it loads it.
 
 `PermissionRequest` also runs for requests handled by Codex's automatic approval
-reviewer. Lemonaid checks the requesting turn's `approvals_reviewer` in its rollout
-and ignores shell and patch hooks when it is `auto_review`, so these reviews do not show
+reviewer. Lemonaid checks the requesting turn's `approvals_reviewer` in the thread's
+rollout file, at the path Codex reports for the thread, since Codex reports the reviewer
+nowhere else. It ignores shell and patch hooks when it is `auto_review`, so these reviews do not show
 "Permission needed" or surface hidden lemons. User-reviewed requests still appear
 immediately. If the turn's reviewer cannot be determined, the request appears as a
 permission notice. MCP/app requests stay visible because an app can override the
@@ -47,8 +48,7 @@ which can differ from a session's effective settings.
 
 `lemonaid hooks install --harness codex` adds lemonaid's lemon-side hooks to the same file,
 beside yours: PreToolUse and PostToolUse hooks that keep a lemon's own edits and pushes from
-waking its watchers, the `lemonaid codex tool-used` PreToolUse and PostToolUse hooks
-(section 3 below), a Stop hook that requires the unified watcher for subscribed briefs
+waking its watchers, the `lemonaid codex turn` hook (section 4 below), a Stop hook that requires the unified watcher for subscribed briefs
 and a valid brief, a SessionStart hook, and a SessionEnd hook that records a quit, so a
 thread that stops without one is kept to restore (see [tmux](tmux.md#telling-a-quit-from-a-crash)).
 The SessionStart hook also gives a new
@@ -60,35 +60,27 @@ Codex also shows while a slow hook runs. Codex
 trusts each hook by a hash of it (`[hooks.state]` in `config.toml`), so after installing, or
 after an upgrade changes a hook, trust them again in Codex's `/hooks`.
 
-Stop checks resolve an attached transient notification channel from verified terminal
-ownership even before the first turn-complete notification records its root thread.
 Codex treats a blocking Stop response as a request to continue the turn.
 
 A Codex lemon with a brief gets a push scout: `lemonaid watch --self --push` registers it
 with the scout host, which runs every lemon's scout and queues each batch of watch events and messages into its thread with `codex queue`
 and keeps watching, so the lemon never rearms a watcher. It runs outside the Codex
-sandbox, since `codex queue` writes `~/.codex`, and exits when no Codex process has the
-thread's rollout open or the brief is detached. The SessionStart and Stop hooks start it. The
+sandbox, since `codex queue` writes `~/.codex`, and exits when no Codex process runs the
+thread or the brief is detached. The SessionStart and Stop hooks start it. The
 inbox also starts one at startup and every ten seconds for a live, idle Codex lemon with
-a brief and no watcher, at most once a minute per lemon. It uses the persistent
-root thread for delivery and preserves the attached brief's channel, and skips dead,
-unknown, archived, mid-turn and pending-handoff sessions. A lemon whose
+a brief and no watcher, at most once a minute per lemon. It skips dead, unknown,
+archived, mid-turn and pending-handoff sessions. A lemon whose
 `lemonaid watch --self --status` says `no watcher running` can start its own with
 `lemonaid watch --self --push`, run with escalated permissions. See
 [watch.md](watch.md#the-push-scout).
 
 Codex 0.163's automatic recaps run in temporary threads that send ordinary
-turn-complete notifications but never save a rollout. Lemonaid logs and ignores
-any notification whose thread has no rollout before opening the inbox database,
-so recap rows never appear and recaps do not change the lemon's unread state.
-UUIDv7 thread IDs give the creation date; lookup checks that date's directory
-under `~/.codex/sessions/` and the adjacent days. Notifications with a thread ID
-never fall back to another conversation in the same directory. Rollouts with a
-`parent_thread_id` are also ignored.
-
-Notification identity does not depend on a terminal or multiplexer. Existing
-unattached duplicates are cleaned up at startup and during refresh, preserving
-brief attachments and waiter channels.
+turn-complete notifications but are never stored. Lemonaid asks Codex about each
+notification's thread (see [What lemonaid asks Codex](#what-lemonaid-asks-codex)) and logs
+and ignores one Codex doesn't know before opening the inbox database, so recap rows never
+appear and recaps do not change the lemon's unread state. Notifications with a thread ID
+never fall back to another conversation in the same directory. Threads Codex records with a
+parent (subagents and approval reviewers) are also ignored.
 
 ### 3. Allow brief and message commands under the automatic approval reviewer
 
@@ -104,38 +96,28 @@ prefix_rule(pattern=["lemonaid", "watch"], decision="allow")
 
 These commands write under `~/.lemons/` (`~/.brief-lemons/` before `lemonaid home migrate`) and `~/.local/share/lemonaid/`, outside the project workspace. An `allow` rule lets a matching command run outside the sandbox without prompting. Codex matches rules only against commands it can split into plain words, so a command with a shell expansion in it (`--codex-thread "$CODEX_THREAD_ID"`) goes to the approval reviewer instead; write `--codex-thread` bare. Restart running Codex sessions after changing `default.rules`, since they read the rules at session start.
 
-### 3. Clear permission notices after approval
+### 4. Record turns and activity
 
-Add `PreToolUse` and `PostToolUse` handlers to `~/.codex/hooks.json` so a permission notice clears when its requested tool starts, with `PostToolUse` as a fallback when the tool returns:
+`lemonaid codex turn` runs on Codex's `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
+`Interrupt` and `PostModelRequest` hooks, without Codex waiting for it. It records when a
+turn starts (and marks the row read, since its user is back), what the lemon is doing, an
+interrupt, the model and the context used, and clears a permission notice when its requested
+tool starts or returns. The notify hook's turn-complete records the turn's end.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid codex tool-used"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "lemonaid codex tool-used"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+`lemonaid hooks install --harness codex` adds these entries beside your other hooks and only
+if they aren't there already, replacing the `lemonaid codex tool-used` hooks of earlier
+versions; `--uninstall` removes them. Trust the new hooks in Codex's `/hooks`. Lemonaid clears
+only a matching `PermissionRequest` from the same Codex session, turn, and tool. A request
+that remains unanswered stays unread and visible.
 
-`lemonaid hooks install --harness codex` adds these entries beside your other hooks and only if they aren't there already; `--uninstall` removes them. Codex requires you to trust the new `PreToolUse` hook in `/hooks`. To add the entries by hand, merge them into the existing `hooks` object and keep any other hooks already configured. Lemonaid clears only a matching `PermissionRequest` from the same Codex session, turn, and tool. The `PreToolUse` hook clears it when the approved tool starts; `PostToolUse` handles cases where the tool returns without a matching start event, including nonzero command exits. A request that remains unanswered stays unread and visible.
+### After upgrading lemonaid
+
+When a release's notes say its hooks changed, install and trust them again:
+
+1. Run `lemonaid hooks install --harness codex`.
+2. Open `/hooks` in Codex and trust every `lemonaid:` hook it lists as changed or new.
+
+Until you trust them, Codex skips those hooks, so turns, activity and quits go unrecorded.
 
 ## How it works
 
@@ -146,18 +128,35 @@ Add `PreToolUse` and `PostToolUse` handlers to `~/.codex/hooks.json` so a permis
 3. Lemonaid extracts session ID, cwd, and notification type
 4. Notification appears in `lma` inbox with channel `codex:<thread_id>`
 
-### Auto-dismiss
+### Turns and activity
 
-The Codex watcher monitors JSONL session files under `~/.codex/sessions/` for activity. When Codex starts working again (function calls, web searches, assistant messages), the notification is automatically marked as read. The hooks above also clear a matching permission notice when its approved tool starts or returns.
+The turn hook (section 4) keeps the row current. A prompt marks it read and shows
+"Working...", and each tool the lemon starts shows what it is doing: "Running: uv run pytest"
+for a shell command, "Editing src/a.py" for a patch, "Using create_issue" for an app. The
+context column shows the tokens the last model request sent; Codex reports no window size,
+so a Codex lemon shows its window only when an earlier version recorded one.
 
-### Live activity updates
+The turn hook runs asynchronously, so its reports can arrive out of order; the
+[decision record](decisions/codex-turn-hooks-run-async.md) says how lemonaid handles that
+and why the hooks aren't synchronous.
 
-While Codex is working, the notification message updates to show current activity:
+### What lemonaid asks Codex
 
-- "Running ls" (shell commands)
-- "Reading /path/to/file" (MCP resources)
-- "Searching: query" (web searches)
-- First line of assistant responses
+lemonaid reads none of Codex's own files to learn about threads. The scout host keeps one
+private `codex app-server` on stdio (never Codex's shared daemon) and writes what Codex has
+stored about every thread lemonaid has asked about to
+`~/.local/state/lemonaid/codex/threads.json`: whether it exists or is archived, its directory,
+title, parent and rollout path. It re-reads them each minute, and sooner for a thread it
+hasn't read. Hooks, the inbox and commands read that file. A thread not in it yet is asked
+of a short-lived app-server, which also starts the scout host. With no Codex to ask, a thread
+counts as unknown, never as gone. The handoff ready marker and typed phrases come from
+`thread/turns/list`, hook trust from `hooks/list`, and rate limits from
+`account/rateLimits/read`.
+
+Which Codex process runs which thread comes from what Codex's hooks recorded: each hook
+records the process it runs under, and one still running (the same pid, started at the same
+moment) runs the thread it reported last. A process restore resumed that hasn't run a hook
+yet runs the thread its `resume` argument names.
 
 ### Messages Codex holds
 
@@ -175,20 +174,20 @@ and log a warning with the path and error in `/tmp/lemonaid.log` (or `LEMONAID_L
 Missing tables or columns after a Codex schema change are logged this way too. When a
 message has waited 60 seconds on an idle thread that a Codex process has open, the lemon
 is `parked`. `tell` exits 1 and says why, `lma` marks it `deaf`, and its parent wakes
-once. The rollout says whether the thread is idle, and whether an Esc ended its last turn.
+once. Codex's hooks say whether the thread is idle, and whether an Esc ended its last turn.
 A healthy thread starts a queued message within about 10 seconds of being idle, so 60
 seconds gives no false report for a lemon that is mid-turn or has just finished a turn.
 lemonaid types nothing into a parked lemon's pane: after an Esc, a prompt there would undo
 its user's interrupt. Codex keeps the messages, and runs them after the next prompt.
 
-A thread that no Codex process has open is not `parked`: no process runs it, so it is
+A thread that no Codex process runs is not `parked`: no process runs it, so it is
 `dead`, and a resume runs what Codex holds for it.
 
 lemonaid can't see these cases:
 
 - **A thread switch in the pane** (`/new`, `/resume`, `/fork`). Codex keeps the old thread
   loaded for 60 seconds, and runs its queued messages where no one sees them. Then it
-  unloads the thread. The scout stops when no process has the thread open, and `tell`
+  unloads the thread. The scout stops when no process runs the thread, and `tell`
   treats the lemon as `dead`.
 - **Codex's daemon** (a launch without `--no-daemon`). The Left Arrow agents view and "Run
   in background" take the thread out of the pane. The daemon runs its queued messages in
@@ -227,8 +226,8 @@ lemonaid codex notify '{"type": "agent-turn-complete", "thread-id": "abc123", "c
 lemonaid codex dismiss --session-id abc123
 ```
 
-`lemonaid codex tool-used` is called by the `PreToolUse` and `PostToolUse` hooks with
-Codex's event JSON on stdin.
+`lemonaid codex turn` is called by the turn hooks (section 4) with Codex's event JSON on
+stdin.
 
 ## JSON payload format
 
@@ -243,16 +242,6 @@ Codex passes a JSON argument with these fields:
 | `last-assistant-message` | Final assistant response text |
 
 Lemonaid also checks for alternative key names (`session_id`, `sessionId`, `thread_id`, etc.) for compatibility.
-
-## Session files
-
-Codex stores sessions in `~/.codex/sessions/` as JSONL files:
-
-```
-~/.codex/sessions/rollout-2026-01-23T23-32-37-<uuid>.jsonl
-```
-
-Each line is a JSON entry with `type` and `payload` fields. The watcher reads these to detect activity and extract status updates.
 
 ## Troubleshooting
 
@@ -271,22 +260,32 @@ Each line is a JSON entry with `type` and `payload` fields. The watcher reads th
    rg 'lemonaid\\.codex' /tmp/lemonaid.log
    ```
 
-### Notifications not auto-dismissing
+### Rows not marked read, or showing old activity
 
-1. **Check watcher logs**:
+1. **Check the turn hook is trusted**: open `/hooks` in Codex and trust `lemonaid: turn` for
+   each of its events.
+
+2. **Check logs**:
    ```bash
-   rg 'lemonaid\\.(watcher|codex)' /tmp/lemonaid.log
+   rg 'lemonaid\\.codex\\.(turns|threads|service)' /tmp/lemonaid.log
    ```
 
-2. **Verify session file exists**:
-   ```bash
-   find ~/.codex/sessions -name '*.jsonl' -maxdepth 5
-   ```
+### Codex lemons stay after uninstalling Codex
 
-3. **Check notification metadata** has `session_id` and `cwd`:
-   ```bash
-   lemonaid inbox list --json | jq '.[] | select(.channel | startswith("codex:"))'
-   ```
+A Codex lemon's row is archived when its pane or process goes, like any lemon's. A lemon
+kept to restore, though, stays until Codex says its thread is gone, and with no `codex` to
+ask (which looks the same as a broken `PATH`) that never happens. Once you have stopped using
+Codex, archive its rows yourself:
+
+```sh
+sqlite3 ~/.local/share/lemonaid/lemonaid.db \
+  "select distinct channel from notifications where channel like 'codex:%' and status != 'archived'" |
+  while read -r channel; do lemonaid inbox archive --channel "$channel"; done
+```
+
+That hides each row as the inbox's archive key does, and `lemonaid inbox unarchive` brings
+one back. Briefs and places stay; close a place with `lemonaid place toss <key>`. To remove
+one lemon, run `lemonaid inbox archive --lemon <Lemon-ID>`.
 
 ### Switching to pane doesn't work
 

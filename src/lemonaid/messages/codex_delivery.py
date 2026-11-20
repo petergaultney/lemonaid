@@ -16,16 +16,13 @@ from ..inbox.channel import full_channel_id
 from ..launch.restart import state
 from . import store
 
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
-
 
 def own_thread(channel: str) -> str:
     """This process's Codex thread, when the watched channel is that thread's own."""
     thread = os.environ.get("CODEX_THREAD_ID", "")
     if not thread:
         return ""
-    with db.connect() as conn:
-        return thread if channel == channels.for_session(conn, thread) else ""
+    return thread if channel == channels.channel(thread) else ""
 
 
 def _with_status_note(mailbox: Path, message: str) -> str:
@@ -40,9 +37,7 @@ def _with_status_note(mailbox: Path, message: str) -> str:
 
 
 def _queue(thread: str, path: Path, message: str) -> None:
-    executable = (
-        processes.executable(thread, _LISTED_WITHIN) or "codex"
-    )  # PATH may have none that works
+    executable = processes.executable(thread) or "codex"  # PATH may have none that works
     try:
         result = subprocess.run(
             [
@@ -81,8 +76,7 @@ def deliver_next(
     only if it yields True, and otherwise the file stays pending and this returns None.
     The thread's first message of a day ends with `daily_date`'s line.
     """
-    with db.connect() as conn:
-        channel = channels.for_session(conn, thread)
+    channel = channels.channel(thread)
     with state.admission(channel) as allowed:
         if not allowed:
             return None

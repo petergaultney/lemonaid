@@ -26,8 +26,14 @@ Write each bullet as one or two sentences: what changed, and the one thing a rea
 otherwise find surprising. A PR that changes `src/`, or
 `docs/for-lemons.md` (which ships in the wheel), adds a file; any other PR needs none.
 
+A change that adds or changes a hook lemonaid installs says in its entry to run
+`lemonaid hooks install --harness <harness>`, and for Codex to trust the hooks again in
+Codex's `/hooks`; until then the old hooks keep running, or Codex skips the new ones.
+
 A PR never adds a version to `pyproject.toml`, or edits `CHANGES.md` or a change file
-already on main. The `changes` workflow checks this.
+already on main. The `changes` workflow checks this, and that a PR changing
+`src/lemonaid/hooks/install.py` or `src/lemonaid/claude/install_hooks.py` mentions
+`hooks install` in its change file.
 
 ## Releasing
 

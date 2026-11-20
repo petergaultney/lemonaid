@@ -25,6 +25,7 @@ _HARNESS = r"""
 #include <string.h>
 #include <unistd.h>
 int main(int argc, char **argv) {
+  if (argc > 1 && !strcmp(argv[1], "app-server")) return 1;
   if (argc > 1 && !strcmp(argv[1], "queue")) {
     FILE *out = fopen(getenv("TEST_QUEUE"), "a");
     for (int i=0; i<argc; ++i) fprintf(out, "%s\n", argv[i]);

@@ -7,7 +7,6 @@ the lemon dead.
 """
 
 import os
-from pathlib import Path
 
 from ..brief.handoff import state as handoff_state
 from ..brief.handoff import transfer as handoff_transfer
@@ -20,18 +19,9 @@ from ..lemon_watchers import (
     shorten_path,
 )
 from ..log import get_logger
-from . import channels, location
-from .utils import find_session_path, is_spawned_thread, read_session_meta
+from . import channels, location, threads
 
 _log = get_logger("codex.startup")
-
-
-def _rollout(data: dict, session_id: str) -> Path | None:
-    given = data.get("transcript_path")
-    if isinstance(given, str) and given and Path(given).is_file():
-        return Path(given)
-
-    return find_session_path(session_id)
 
 
 def register(data: dict) -> None:
@@ -40,18 +30,23 @@ def register(data: dict) -> None:
     if not isinstance(session_id, str) or not session_id:
         return
 
-    rollout = _rollout(data, session_id)
-    meta = read_session_meta(rollout) if rollout else None
-    if meta is None or is_spawned_thread(meta):
-        _log.info("not registering thread %s: no rollout, or a spawned thread", session_id)
+    answers = threads.get([session_id], running=True)
+    if session_id not in answers:
+        _log.warning("not registering thread %s: Codex could not be asked about it", session_id)
         return
 
-    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else meta.get("cwd") or ""
+    thread = answers[session_id]
+    if thread is None or thread.parent:
+        _log.info("not registering thread %s: unknown to Codex, or a spawned thread", session_id)
+        return
+
+    path = thread.path
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else thread.cwd
     switch_source = detect_terminal_switch_source()
     metadata = {
         "cwd": cwd,
         "session_id": session_id,
-        "session_path": str(rollout),
+        **({"session_path": path} if path else {}),
         "notification_type": "SessionStart",
         "session_start_source": data.get("source") or "startup",
         "name_source": "environment",
@@ -60,11 +55,7 @@ def register(data: dict) -> None:
     }
     with db.connect() as conn:
         token = os.environ.get("LEMONAID_HANDOFF_TOKEN")
-        channel = (
-            full_channel_id("codex", session_id)
-            if token
-            else channels.for_session(conn, session_id)
-        )
+        channel = full_channel_id("codex", session_id) if token else channels.channel(session_id)
         db.register_working(
             conn,
             channel=channel,

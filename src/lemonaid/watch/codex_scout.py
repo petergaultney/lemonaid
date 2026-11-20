@@ -11,31 +11,28 @@ from pathlib import Path
 
 from ..brief import identity
 from ..codex import channels, processes
-from ..inbox import db
 from ..log import LOG_PATH
 from . import batch_text, codex_waiter, delivery, push_scout
 
 _NEXT = "queues the next batch into this thread"
 _ALIVE_EVERY = 30.0
-_LISTED_WITHIN = 15.0  # every scout checks, so one recent listing serves the rest
 
 
-def thread_alive(thread: str, max_age: float = 0.0) -> bool:
-    """False only when no Codex process, the shared daemon included, has *thread*'s rollout
-    open, as of a listing under *max_age* seconds old."""
-    open_threads = processes.open_threads(max_age)
+def thread_alive(thread: str) -> bool:
+    """False only when no Codex process, the shared daemon included, runs *thread*."""
+    open_threads = processes.open_threads()
     return open_threads is None or thread in open_threads
 
 
 def liveness(thread: str) -> abc.Callable[[], bool]:
     """A cheap `thread_alive` for a loop: the first check comes `_ALIVE_EVERY` seconds in,
-    leaving a starting session time to open its rollout."""
+    leaving a starting session time to report itself."""
     checked, alive = time.monotonic(), True
 
     def still() -> bool:
         nonlocal checked, alive
         if time.monotonic() - checked >= _ALIVE_EVERY:
-            checked, alive = time.monotonic(), thread_alive(thread, _LISTED_WITHIN)
+            checked, alive = time.monotonic(), thread_alive(thread)
         return alive
 
     return still
@@ -68,8 +65,7 @@ def ensure_for(thread: str, path: Path) -> bool:
     except (OSError, ValueError):
         return False
 
-    with db.connect() as conn:
-        channel = channels.for_session(conn, thread)
+    channel = channels.channel(thread)
     return (
         bool(lemon_id)
         and codex_waiter.ensure(channel, thread, lemon_id)

@@ -13,10 +13,11 @@ import time
 
 import pytest
 
-from lemonaid.codex import hosting
+from lemonaid.codex import hosting, processes
 from lemonaid.codex import notify as codex_notify
 from lemonaid.inbox import db
 from lemonaid.lemon_watchers import untracked, watcher
+from tests import codex_fakes
 
 _DAEMON = (
     "/Users/me/.codex/packages/app-server-daemon/releases/0.159.0/bin/codex "
@@ -29,8 +30,7 @@ _CWD = "/work/review"
 @pytest.fixture(autouse=True)
 def _persistent_notify_thread(tmp_path, monkeypatch):
     path = tmp_path / "rollout.jsonl"
-    path.write_text(json.dumps({"type": "session_meta", "payload": {"id": _THREAD}}) + "\n")
-    monkeypatch.setattr(codex_notify, "find_session_path", lambda thread: path)
+    codex_fakes.answer(monkeypatch, lambda thread: codex_fakes.thread(thread, path=str(path)))
 
 
 def _process_tree(monkeypatch, chain: list[str]) -> None:
@@ -123,74 +123,38 @@ def _archived(monkeypatch, rows, directories) -> list[str]:
     return archived
 
 
-def test_a_codex_row_with_no_codex_in_its_directory_is_archived(monkeypatch):
+def test_a_codex_row_whose_thread_no_codex_runs_is_archived(monkeypatch):
     """A Claude author still working in the same worktree does not keep it."""
-    assert _archived(monkeypatch, [_row(f"codex:{_THREAD}")], {"/elsewhere"}) == [
+    assert _archived(monkeypatch, [_row(f"codex:{_THREAD}")], {"01a0ee30-other"}) == [
         f"codex:{_THREAD}"
     ]
 
 
-def test_a_codex_row_with_codex_in_its_directory_stays(monkeypatch):
-    assert _archived(monkeypatch, [_row(f"codex:{_THREAD}")], {_CWD}) == []
+def test_a_codex_row_whose_thread_a_codex_runs_stays(monkeypatch):
+    assert _archived(monkeypatch, [_row(f"codex:{_THREAD}")], {_THREAD}) == []
 
 
-def test_an_lsof_that_did_not_answer_archives_nothing(monkeypatch):
+def test_unlisted_processes_archive_nothing(monkeypatch):
     assert _archived(monkeypatch, [_row(f"codex:{_THREAD}")], None) == []
 
 
 @pytest.mark.parametrize("channel", ["claude:6ea7a38c", "opencode:abc"])
 def test_other_harnesses_rows_with_no_tty_stay(monkeypatch, channel):
     """A Claude hook reports the directory its shell moved to, not its pane's."""
-    assert _archived(monkeypatch, [_row(channel)], {"/elsewhere"}) == []
+    assert _archived(monkeypatch, [_row(channel)], set()) == []
 
 
-def _lsof(monkeypatch, returncode: int, stdout: str = "", stderr: str = "") -> None:
-    monkeypatch.setattr(
-        untracked.subprocess,
-        "run",
-        lambda argv, **kw: subprocess.CompletedProcess(argv, returncode, stdout, stderr),
-    )
-
-
-def test_the_daemon_does_not_keep_rows_in_its_directory_alive(monkeypatch):
-    """It and its helpers work in the directory of the TUI that started it, not a session's."""
-
-    def run(argv, **kwargs):
-        if argv[0] == "lsof":
-            out = "p10\nn/work/daemon-start\np11\nn/work/daemon-start\np20\nn/work/review\n"
-        else:
-            out = (
-                f"   10     1 {_DAEMON}\n"
-                "   11    10 /opt/bin/codex-code-mode-host\n"
-                "   20  5000 /opt/bin/codex review the PR\n"
-            )
-        return subprocess.CompletedProcess(argv, 0, out, "")
-
-    monkeypatch.setattr(untracked.subprocess, "run", run)
-
-    assert untracked.codex_directories() == {"/work/review"}
-
-
-def test_lsof_finding_no_codex_is_an_empty_answer(monkeypatch):
-    _lsof(monkeypatch, 1)
-
-    assert untracked.codex_directories() == set()
-
-
-def test_lsof_failing_is_no_answer(monkeypatch):
-    _lsof(monkeypatch, 1, stderr="lsof: WARNING: can't stat() ...")
-
-    assert untracked.codex_directories() is None
+def _running() -> set[str] | None:
+    found = processes.running()
+    return None if found is None else {each.thread for each in found}
 
 
 def test_a_codex_process_keeps_its_row_until_it_exits(tmp_path):
-    """Against the real process table, with a stand-in named codex.
+    """Against the real process table, with a stand-in named codex resuming the thread.
 
     Asking processes rather than tmux: the hook's TMUX is the daemon's, so a row
     records no server, and asking the wrong one archived live sessions.
     """
-    worktree = tmp_path / "review"
-    worktree.mkdir()
     if not shutil.which("cc"):
         pytest.skip("needs a C compiler for a process named codex")
 
@@ -199,14 +163,14 @@ def test_a_codex_process_keeps_its_row_until_it_exits(tmp_path):
     source.write_text("#include <unistd.h>\nint main(void) { sleep(30); return 0; }\n")
     codex = tmp_path / "codex"
     subprocess.run(["cc", str(source), "-o", str(codex)], check=True)
-    row = _row(f"codex:{_THREAD}", cwd=str(worktree))
-    process = subprocess.Popen([str(codex)], cwd=worktree)
+    row = _row(f"codex:{_THREAD}")
+    process = subprocess.Popen([str(codex), "resume", _THREAD])
     try:
         time.sleep(0.2)
-        running = untracked.codex_directories()
+        running = _running()
     finally:
         process.kill()
         process.wait()
 
     assert not untracked.gone(row, running)
-    assert untracked.gone(row, untracked.codex_directories())
+    assert untracked.gone(row, _running())

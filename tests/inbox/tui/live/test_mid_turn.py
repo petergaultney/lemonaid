@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lemonaid import claude, codex
+from lemonaid import claude
 from lemonaid.brief import attached, render, target
 from lemonaid.brief import store as brief_store
 from lemonaid.inbox import db, turns
@@ -61,35 +61,6 @@ def test_a_slash_command_after_a_turn_opens_none(content):
 
 def test_a_claude_tail_with_no_turn_entries_says_nothing():
     assert claude.watcher.turn_open([{"type": "attachment"}]) is None
-
-
-def _event(kind: str) -> dict:
-    return {"type": "event_msg", "payload": {"type": kind}}
-
-
-_TOOL_CALL = {"type": "response_item", "payload": {"type": "custom_tool_call", "name": "exec"}}
-
-
-def test_a_codex_turn_runs_from_task_started_to_task_complete():
-    assert codex.watcher.turn_open(_newest_first(_event("task_started"), _TOOL_CALL)) is True
-    assert (
-        codex.watcher.turn_open(
-            _newest_first(_event("task_started"), _TOOL_CALL, _event("task_complete"))
-        )
-        is False
-    )
-
-
-def test_an_aborted_codex_turn_is_over():
-    assert codex.watcher.turn_open(_newest_first(_TOOL_CALL, _event("turn_aborted"))) is False
-
-
-def test_a_codex_turn_longer_than_the_tail_is_open():
-    assert codex.watcher.turn_open([_TOOL_CALL] * 50) is True
-
-
-def test_a_codex_tail_with_only_bookkeeping_says_nothing():
-    assert codex.watcher.turn_open([_event("token_count")]) is None
 
 
 def _row(turn_at: float | None, status: str = "read") -> db.Notification:

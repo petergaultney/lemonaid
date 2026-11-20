@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..brief import attached, identity, status
 from ..brief.handoff import state as handoff_state
-from ..codex import channels, processes, utils
+from ..codex import channels, processes, threads
 from ..log import get_logger
 from . import deaf_waiter, scout_start, wait_state, waiter_lock
 
@@ -72,13 +72,12 @@ def restore(conn: sqlite3.Connection, owners: dict[str, set[str]] | None = None)
         row = entry.notification
         if not entry.channel.startswith("codex:") or row is None or row.is_archived:
             continue
-        thread = channels.owner_id(entry.channel, row.metadata, {})
+        thread = channels.thread(entry.channel)
         if (
             not thread
             or row.turn_at is not None
             or owners.get(thread) != {row.metadata.get("tty")}
-            or utils.find_session_path(thread) is None
-            or channels.for_session(conn, thread) != entry.channel
+            or thread in threads.gone([thread])
         ):
             continue
         try:

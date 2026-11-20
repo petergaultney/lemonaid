@@ -446,6 +446,11 @@ _STICKY_METADATA = (
     "model",
     "context_tokens",
     "context_window",
+    # A Codex lemon's turns, recorded by its hooks (`codex/turns.py`).
+    "turn_id",
+    "turn_ended_id",
+    "turn_ended_at",
+    "turn_interrupted",
 )
 
 
@@ -879,6 +884,47 @@ def hold_snooze_through_turns(conn: sqlite3.Connection, notification_id: int) ->
 def record_turn(conn: sqlite3.Connection, channel: str, at: float | None) -> int:
     """Record that *channel* is mid-turn as of *at*, or between turns when None."""
     cursor = conn.execute("UPDATE notifications SET turn_at = ? WHERE channel = ?", (at, channel))
+    conn.commit()
+    return cursor.rowcount
+
+
+def start_turn(
+    conn: sqlite3.Connection, channel: str, turn: str, at: float, seen: bool = False
+) -> int:
+    """Record that *channel* is in *turn* as of *at*, unless a later turn has started or
+    *turn* or a later one has ended; with *seen*, an unread row becomes read. Turn IDs are
+    UUIDv7, so they sort in the order the turns started. One statement, so a late report of
+    an older turn changes nothing however hooks interleave. A blank *turn* is always taken."""
+    cursor = conn.execute(
+        "UPDATE notifications SET turn_at = ?,"
+        " metadata = json_set(coalesce(metadata, '{}'), '$.turn_id', ?),"
+        " status = CASE WHEN ? AND status = 'unread' THEN 'read' ELSE status END,"
+        " read_at = CASE WHEN ? AND status = 'unread' THEN ? ELSE read_at END"
+        " WHERE channel = ? AND (? = '' OR (? >= coalesce(json_extract(metadata, '$.turn_id'), '')"
+        " AND ? > coalesce(json_extract(metadata, '$.turn_ended_id'), '')))",
+        (at, turn, seen, seen, at, channel, turn, turn, turn),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+def record_turn_end(
+    conn: sqlite3.Connection, channel: str, turn: str, at: float, interrupted: bool
+) -> int:
+    """Record that *channel*'s *turn* ended at *at*, and whether an interrupt ended it, unless
+    a later turn has already ended. The row leaves its turn only when no later turn has
+    started. Like `start_turn`'s, the ended turn only moves forward, so an end that arrives
+    before its start keeps that start, arriving late, from reopening it. A blank *turn* is
+    always taken."""
+    cursor = conn.execute(
+        "UPDATE notifications SET"
+        " turn_at = CASE WHEN ? = '' OR ? >= coalesce(json_extract(metadata, '$.turn_id'), '')"
+        " THEN NULL ELSE turn_at END,"
+        " metadata = json_set(coalesce(metadata, '{}'), '$.turn_ended_at', ?,"
+        " '$.turn_interrupted', json(?), '$.turn_ended_id', ?) WHERE channel = ?"
+        " AND (? = '' OR ? >= coalesce(json_extract(metadata, '$.turn_ended_id'), ''))",
+        (turn, turn, at, "true" if interrupted else "false", turn, channel, turn, turn),
+    )
     conn.commit()
     return cursor.rowcount
 

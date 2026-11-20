@@ -2,8 +2,8 @@
 
 A row records a tty, and ttys are reused, so a harness on that tty may be some
 other lemon. The process says whose it is: a Claude process lists its session
-in `~/.claude/sessions/<pid>.json`, and a Codex process holds its thread's
-rollout open.
+in `~/.claude/sessions/<pid>.json`, and a Codex process runs the thread its hooks
+reported (`codex/processes.py`).
 """
 
 from collections import abc
@@ -17,7 +17,7 @@ Owners = abc.Mapping[str, set[str]]  # a session or thread id, and the ttys runn
 
 
 def running() -> dict[str, set[str]] | None:
-    """The ttys each running lemon is on, or None if `ps` or `lsof` couldn't say."""
+    """The ttys each running lemon is on, or None if `ps` couldn't say."""
     claude = live_sessions.by_tty()
     codex = processes.thread_ttys()
     if claude is None or codex is None:
@@ -33,7 +33,7 @@ def running() -> dict[str, set[str]] | None:
 def owner(row: db.Notification, owners: Owners) -> str:
     """The id *owners* would know *row*'s lemon by."""
     if row.channel.startswith("codex:"):
-        return codex_channels.owner_id(row.channel, row.metadata, {k: [] for k in owners})
+        return codex_channels.thread(row.channel)
 
     if session_id := row.metadata.get("session_id"):
         return session_id

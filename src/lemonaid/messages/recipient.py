@@ -18,7 +18,7 @@ from .. import handlers
 from ..claude import session_socket
 from ..codex import channels as codex_channels
 from ..codex import daemon_setup, processes, queued
-from ..codex import utils as codex_utils
+from ..codex import turns as codex_turns
 from ..inbox import db, turns
 from ..inbox.channel import channel_id
 from ..lemon_watchers import owners
@@ -38,7 +38,6 @@ PARKED = "parked"  # a background job runs its Claude conversation, or Codex hol
 UNREAD = frozenset({ASKING, DEAF, DEAD, PARKED})
 
 _HARNESSES = ("claude", "codex")
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 
 class State(ty.NamedTuple):
@@ -143,22 +142,27 @@ def unrun_codex() -> dict[str, str]:
     has open, so it is `dead`, and resuming it starts its turns.
     """
     now = time.time()
+    held = queued.held(daemon_setup.codex_home())
+    with db.connect() as conn:
+        rows = {
+            thread: row
+            for thread in held
+            if (row := db.get_by_channel(conn, codex_channels.channel(thread), unread_only=False))
+        }
     reasons = {
-        thread: reason
-        for thread, found in queued.held(daemon_setup.codex_home()).items()
-        if (rollout := codex_utils.find_session_path(thread))
-        and (reason := queued.unrun(found, queued.last_turn_end(rollout), now))
+        row.channel: reason
+        for thread, row in rows.items()
+        if (reason := queued.unrun(held[thread], codex_turns.last_end(row), now))
     }
-    open_threads = processes.open_threads(_LISTED_WITHIN) if reasons else None
+    open_threads = processes.open_threads() if reasons else None
     if not open_threads:
         return {}
 
-    with db.connect() as conn:
-        return {
-            codex_channels.for_session(conn, thread): reason
-            for thread, reason in reasons.items()
-            if thread in open_threads
-        }
+    return {
+        rows[thread].channel: reasons[rows[thread].channel]
+        for thread in rows
+        if rows[thread].channel in reasons and thread in open_threads
+    }
 
 
 def classify(
@@ -180,7 +184,7 @@ def classify(
     why its push scout keeps failing (see `scout_failure`). A parked
     lemon's scout may still hold the lock for a moment, and a Codex lemon's
     scout holds it while Codex holds its messages, so both outrank *armed*.
-    *unrun* also outranks the row's turn: Codex's rollout says no turn is open.
+    *unrun* also outranks the row's turn: Codex's hooks say no turn is open.
     """
     if not channel:
         return State(NOT_STARTED, "it reads its mailbox when it starts")

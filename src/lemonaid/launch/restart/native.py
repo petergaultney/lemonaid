@@ -22,12 +22,7 @@ def _observe(data: dict, harness: str) -> None:
     source = next((entry for entry in ancestors if recipient.is_harness(entry.executable)), None)
     if source is None or (Path(source.executable).name == "codex") != (harness == "codex"):
         return
-    with db.connect() as conn:
-        target = (
-            channel_id(harness, session)
-            if harness == "claude"
-            else channels.for_session(conn, session)
-        )
+    target = channel_id(harness, session) if harness == "claude" else channels.channel(session)
     state.write(
         "native-" + state.key(target) + ".json",
         {
