@@ -22,23 +22,28 @@ def _hex(color: rich_color.Color | None, default: str) -> str:
     return "#{:02x}{:02x}{:02x}".format(*color.get_truecolor())
 
 
-def _chips(canvas: Canvas, x: int, chips: Text, limit: int) -> None:
+def chips(attention: Text) -> list[tuple[str, str, str, bool]]:
+    """The attention bar's runs of text, each with its color, fill and boldness, as drawn."""
+    return [
+        (
+            segment.text,
+            _hex(segment.style.color if segment.style else None, colors.MUTED),
+            _hex(segment.style.bgcolor if segment.style else None, colors.BAR),
+            bool(segment.style and segment.style.bold),
+        )
+        for segment in attention.render(_CONSOLE)
+        if segment.text
+    ]
+
+
+def _chips(canvas: Canvas, x: int, attention: Text, limit: int) -> None:
     column = x
-    for segment in chips.render(_CONSOLE):
-        style = segment.style
-        for char in segment.text:
+    for run, color, fill_color, bold in chips(attention):
+        for char in run:
             if column >= limit:
                 return
 
-            put(
-                canvas,
-                column,
-                0,
-                char,
-                _hex(style.color if style else None, colors.MUTED),
-                _hex(style.bgcolor if style else None, colors.BAR),
-                bold=bool(style and style.bold),
-            )
+            put(canvas, column, 0, char, color, fill_color, bold=bold)
             column += 1
 
 

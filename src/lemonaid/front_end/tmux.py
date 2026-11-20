@@ -12,7 +12,7 @@ from ..launch.restart import pane, process
 from ..lemon_watchers import watcher
 from ..log import get_logger
 from ..restore import run
-from ..tmux import command_popup, restore
+from ..tmux import command_popup, rename, restore
 from . import interface
 
 _log = get_logger("front_end.tmux")
@@ -202,3 +202,7 @@ def restorer(start: bool) -> run.Terminal:
 
 def popup(command: abc.Sequence[str], title: str) -> int | None:
     return command_popup.run(command, title)
+
+
+def rename_session(old: str, new: str) -> str:
+    return rename.session(old, new)

@@ -71,3 +71,6 @@ class FrontEnd:
     """Run a command, given (argv, title), in a window over the caller's view, wait for it to
     close, and return its exit status, or None when the window never ran it. It blocks, so a
     UI calls it from a worker. None where the caller runs the command in its own terminal."""
+    rename_workspace: abc.Callable[[str, str], str] | None = None
+    """Rename a workspace, given (old, new) names; why it couldn't, or "". None where a
+    workspace's name isn't lemonaid's to change."""

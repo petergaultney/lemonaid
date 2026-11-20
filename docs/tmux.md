@@ -100,6 +100,21 @@ Reload tmux config:
 tmux source-file ~/.tmux.conf
 ```
 
+## Keys that work from any pane
+
+`lma`'s own keys work only while the inbox has focus. A tmux key works in any pane of any session: press the tmux prefix (`Ctrl-b` unless you changed it), then the key. Lemonaid binds none of these for you. Each is a few lines in `~/.tmux.conf`, which you add once and reload with `tmux source-file ~/.tmux.conf`. The keys below are suggestions; any free key works.
+
+| Suggested key | What it does | The lines |
+|---|---|---|
+| `prefix Space` | Summons the [grove window](grove.md#the-grove-window-beta-macos) over your terminal on macOS, starting it if needed; elsewhere it opens the terminal grove | printed by `lemonaid grove window binding` |
+| `prefix G` | Opens the terminal [grove](grove.md) in a popup | printed by `lemonaid tmux popup grove --binding G --title ' lemon grove '` |
+| `prefix l` | Shows or hides the inbox in a [scratch pane](#scratch-pane) | [Scratch pane setup](#setup-1) |
+| `prefix L` | Moves the scratch pane between the left and the top | [Moving between top and left](#moving-between-top-and-left) |
+| `prefix b` | Shows the brief of the lemon in this window, in a popup | [Brief view](#brief-view) |
+| `prefix p` | Goes back to where you were before the last jump | [the back-navigation key](#add-a-back-navigation-keybinding-optional-but-recommended) |
+
+`prefix Space` replaces tmux's own `next-layout`. A lemon can walk you through adding these: ask it to set up lemonaid's tmux keys, and it follows [for-lemons.md](for-lemons.md#setting-up-a-persons-tmux-keys).
+
 ## How it works
 
 A lemon whose brief is hidden (`hidden: true` in its frontmatter, or an older brief's `Hidden: yes` line; add it with `lemonaid brief hide`) stays out of the default inbox while its brief has no special status. Reviewers without the line stay visible. Switching to their terminal, selecting or pinning their row, or changing their brief to `alert`, `blocked`, `running`, `merge`, `approve`, `review`, or `done` keeps them visible, as does a permission prompt or question waiting on you. A reviewer stays in history and the snoozed list under the usual rules.
