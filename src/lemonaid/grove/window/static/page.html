@@ -121,9 +121,14 @@ document.getElementById("placement").addEventListener("click", () => {
 document.getElementById("top").addEventListener("mousedown", e => {
   if (e.button === 0 && !(e.target.id === "placement" && e.target.className === "floating")) window.pywebview.api.drag();
 });
+// Back to the whole grove with nothing under way, as it opens after a jump or once hidden.
+function wholeGrove() {
+  typed = ""; drag = press = moving = search = dot = selecting = null; flipped = false;
+  hideUsage(); closeMenus(); help.style.display = "none"; goTo(null);
+}
 window.setShown = v => {
   shown = v;
-  if (!v && DATA) { typed = ""; drag = press = moving = search = dot = selecting = null; flipped = false; hideUsage(); closeMenus(); help.style.display = "none"; goTo(null); }
+  if (!v && DATA) wholeGrove();
   if (DATA) draw();
 };
 const sprite = document.createElement("canvas");  // a crown or lemon at a pixel a cell, before stamp scales it up
@@ -940,9 +945,13 @@ function showCard(e, b, t) {
 }
 function jumpTo(l) {
   if (!l) return;
-  if (l.jump_problem) { document.getElementById("msg").textContent = `can't jump: ${l.jump_problem}`; return; }
+  // A lemon with a jump problem still asks Python, which resumes one whose pane is gone (window/data.py).
   hideCard();
-  window.pywebview.api.jump(l.channel).then(problem => { if (problem) document.getElementById("msg").textContent = problem; });
+  // A window left up after the jump waits at the whole grove; one that failed stays to say why.
+  window.pywebview.api.jump(l.channel).then(problem => {
+    if (problem) document.getElementById("msg").textContent = problem;
+    else { wholeGrove(); draw(); }
+  });
 }
 function zoomTo(d) {
   const b = DATA.blocks.find(b => b.digit === d);
