@@ -132,7 +132,7 @@ document.addEventListener("pointerdown", e => { if (menuOpen() && !menu.contains
 const help = document.getElementById("help"), helpOpen = () => help.style.display === "block";
 function showHelp() {
   const rows = [
-    ...(zoomed ? [["a letter", "jump to that tree's first lemon"], [".s1", "another lemon on tree s: 1 is the second, 0a the eleventh"], [". .", "back to this block's fit"], ["drag a tree", "move it within its block"]]
+    ...(zoomed ? [["a letter", "jump to that tree's first lemon"], [".s1", "another lemon on tree s: 1 is the second, 0a the eleventh"], [". .", "back to this block's fit"], ["drag a tree", "move it within its block"], ["drag a bare tree", "move it, or off its block's ground to clear it"]]
       : [["a digit", "zoom into that block"], ["click a tree", "jump to its first lemon"], [".", "back to the grove's fit"], ["drag a block", "move it, or by its edge resize it; open ground too"]]),
     ["click a lemon's row", "jump to that lemon; on its other page, a PR number opens the PR"],
     ["right-click", "a lemon's, tree's or block's edits: rename, snooze, archive, pin, move to a group; recolor a block"],

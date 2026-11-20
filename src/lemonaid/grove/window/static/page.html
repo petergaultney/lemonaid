@@ -500,7 +500,7 @@ const selectable = (t, parts) => selecting && zoomed ? {...parts, key: parts.key
 // A bare tree where a tree whose session ended stood (the terminal's plots.stump), within the crown
 // a one-lemon tree would have at (cx, cy) and on the same ground, with a few brown and yellow leaves
 // left. With a *label*, its tree went recently: it keeps more leaves and shows the tree's name, at
-// label size *k*.
+// label size *k*. Returns its box.
 const DEAD_LEAVES = ["#b8925e", "#c9a446", "#8a6a3a"];
 function drawStump(stump, cx, cy, k) {
   const ghost = {key: stump.key, lemons: [{}], lead: false}, s = crownShape(ghost, treeScale(ghost, zoomed));
@@ -554,10 +554,12 @@ function drawStump(stump, cx, cy, k) {
   }
   shadow(cx, ground, 1.2 * cw, Math.max(2, 0.25 * rh), px, 0.25);
   stamp(img, x0 - px, ground - h * px - px, px);
-  if (!stump.label) return;
+  const box = {x: x0, y: ground - h * px, w: w * px, h: h * px, groundY: ground};
+  if (!stump.label) return box;
 
   const name = stump.label.length > 20 ? stump.label.slice(0, 19) + "…" : stump.label;
   txtAt(name, cx - name.length * CW * k / 2, ground + 0.2 * rh, mix(DEAD_LEAVES[0], BG, 0.3), null, 600, k);
+  return box;
 }
 
 function drawTag(b, t, x, y, parts) {
@@ -707,14 +709,17 @@ function markHits(b, t, x, y, k) {
   listMarks = [];
 }
 
-// A tree being dragged, over the frame drawn without it: each move redraws only this.
+// A tree or bare tree being dragged, over the frame drawn without it: each move redraws only this. A
+// bare tree dragged off its block's ground is drawn faint, and framed in amber: letting go clears it.
 const dragBase = document.createElement("canvas");
 function drawDrag() {
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(dragBase, 0, 0); ctx.restore();
-  const {b, t, fx, fy, problem} = drag, kept = [hits.length, pulsers.tags.length];
-  ctx.save(); ctx.globalAlpha = drag.landing ? 1 : 0.85; const box = drawTree(b, t, sx(b.plot.x + fx), sy(b.plot.y + fy), treeScale(t, zoomed)); ctx.restore();
-  drawLabel(b, t, fx - t.spot[0], fy - t.spot[1]);
-  if (!drag.landing) frame(box.x - 4, box.y - 4, box.w + 8, box.groundY - box.y + 8, problem === null ? "#9aa3ad" : problem ? "#e5534b" : "#5fbf6a", 2, 4);
+  const {b, t, st, fx, fy, problem, clears} = drag, kept = [hits.length, pulsers.tags.length];
+  ctx.save(); ctx.globalAlpha = clears ? 0.4 : drag.landing ? 1 : 0.85;
+  const box = st ? drawStump({...st, label: ""}, sx(b.plot.x + fx), sy(b.plot.y + fy), 1) : drawTree(b, t, sx(b.plot.x + fx), sy(b.plot.y + fy), treeScale(t, zoomed));
+  ctx.restore();
+  if (t) drawLabel(b, t, fx - t.spot[0], fy - t.spot[1]);
+  if (!drag.landing) frame(box.x - 4, box.y - 4, box.w + 8, box.groundY - box.y + 8, problem === null ? "#9aa3ad" : problem ? "#e5534b" : clears ? "#f2c14e" : "#5fbf6a", 2, 4);
   hits.length = kept[0]; pulsers.tags.length = kept[1];  // the frame's own registries; a drag's overlay adds nothing to them
 }
 
@@ -745,9 +750,14 @@ function draw() {
   const trees = [];
   DATA.blocks.filter(b => b.group).forEach(b => b.trees.forEach(t => trees.push({b, t, cx: sx(b.plot.x + shift(b)[0] + t.spot[0]), cy: sy(b.plot.y + shift(b)[1] + t.spot[1])})));
   // Drawn where the drag has it, below; a refresh brings new objects, so it's found by block and key.
-  const dragged = T => drag && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
+  const dragged = T => drag && drag.t && T.b.digit === drag.b.digit && T.t.key === drag.t.key;
   const k = Math.min(Math.max(view.k / placed.k0 * placed.ls, MIN_TEXT), MAX_TEXT);  // the labels' text size, as drawLabel works it out
-  DATA.blocks.filter(b => b.group).forEach(b => (b.stumps || []).forEach(st => drawStump(st, sx(b.plot.x + shift(b)[0] + st.spot[0]), sy(b.plot.y + shift(b)[1] + st.spot[1]), k)));
+  DATA.blocks.filter(b => b.group).forEach(b => (b.stumps || []).forEach(st => {
+    if (drag && drag.st && drag.b.digit === b.digit && drag.st.key === st.key) return;
+
+    const box = drawStump(st, sx(b.plot.x + shift(b)[0] + st.spot[0]), sy(b.plot.y + shift(b)[1] + st.spot[1]), k);
+    hits.push({...box, block: b, stump: st});
+  }));
   trees.sort((a, c) => a.cy - c.cy).forEach(T => {
     if (dragged(T)) return;
     const box = drawTree(T.b, T.t, T.cx, T.cy, treeScale(T.t, zoomed)); hits.push({...box, block: T.b, tree: T.t});
@@ -1010,7 +1020,7 @@ cv.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;  // a right-click opens the edit menu (menu.js), and moves nothing
   if (drag?.landing || moving?.landing) { drag = moving = null; draw(); }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top);
-  const movable = zoomed && h && h.tree && h.block.group && !h.label, at = worldAt(e);
+  const movable = zoomed && h && (h.tree || h.stump) && h.block.group && !h.label, at = worldAt(e);
   press = {x: e.clientX, y: e.clientY, v: {...view}, moved: false, tree: movable ? h : null, block: blockAt(...at), at};
   cv.setPointerCapture(e.pointerId);
 });
@@ -1026,7 +1036,7 @@ cv.addEventListener("pointermove", e => {
     return;
   }
   const r = cv.getBoundingClientRect(), h = hitAt(e.clientX - r.left, e.clientY - r.top), on = blockAt(...worldAt(e));
-  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && h.tree ? (zoomed && h.block.group ? "grab" : "pointer") : on ? "move" : "default";
+  cv.style.cursor = on && on.sides.length ? RESIZE[on.sides.join("")] : h && (h.tree || h.stump) ? (zoomed && h.block.group ? "grab" : h.tree ? "pointer" : "default") : on ? "move" : "default";
   // The card stays put while the pointer is on one tree or its label; a refresh brings new objects for
   // the same tree, so it's known by block and key, and only its lines are brought up to date.
   if (h && h.tree) {
@@ -1036,19 +1046,21 @@ cv.addEventListener("pointermove", e => {
   }
   else { hideCard(); }
 });
-// The tree follows the pointer; it drops on the grove unit nearest, which is what Python is asked about.
+// The tree or bare tree follows the pointer; it drops on the grove unit nearest, which is what Python is
+// asked about. A bare tree off its block's ground (judged as Python's ground.inside does) clears.
 function dragTo(e) {
-  const {block: b, tree: t} = press.tree, [wx, wy] = worldAt(e);
-  const fx = t.spot[0] + wx - press.at[0], fy = t.spot[1] + wy - press.at[1], x = Math.round(fx), y = Math.round(fy);
+  const {block: b, tree: t, stump: st} = press.tree, spot = (t || st).spot, [wx, wy] = worldAt(e);
+  const fx = spot[0] + wx - press.at[0], fy = spot[1] + wy - press.at[1], x = Math.round(fx), y = Math.round(fy);
   const first = !drag;
   if (!first && drag.x === x && drag.y === y) { drag.fx = fx; drag.fy = fy; return drawDrag(); }
 
-  drag = {b, t, x, y, fx, fy, problem: null};
-  const asked = drag;
-  window.pywebview.api.refusal(b.digit, t.key, x, y).then(problem => {
+  const clears = !!st && !inside(b.plot, b.plot.x + x, b.plot.y + y), what = t ? `${b.digit}${t.letter}` : `bare tree${st.label ? " " + st.label : ""}`;
+  drag = {b, t, st, x, y, fx, fy, problem: null, clears};
+  const asked = drag, api = window.pywebview.api;
+  (st ? api.stump_refusal(b.digit, st.key, x - spot[0], y - spot[1]) : api.refusal(b.digit, t.key, x, y)).then(problem => {
     if (drag !== asked) return;
     drag.problem = problem;
-    note(problem ? `can't drop here: ${problem}` : `drop ${b.digit}${t.letter} at ${x},${y}`, !!problem);
+    note(problem ? `can't drop here: ${problem}` : clears ? `release to clear the ${what} · esc puts it back` : `drop ${what} at ${x},${y}`, !!problem);
     drawDrag();
   });
   first ? draw() : drawDrag();  // the first move draws the frame without the tree, for the rest to draw over
@@ -1073,11 +1085,12 @@ cv.addEventListener("pointerup", e => {
     return draw();
   }
   if (d) {
-    if (d.problem === "" && (d.x !== d.t.spot[0] || d.y !== d.t.spot[1])) {
-      note(`moving ${d.b.digit}${d.t.letter}…`);
+    const spot = (d.t || d.st).spot;
+    if (d.problem === "" && (d.x !== spot[0] || d.y !== spot[1])) {
       drag = {...d, fx: d.x, fy: d.y, landing: true};
       const landing = drag;
-      window.pywebview.api.plant(d.b.digit, d.t.key, d.x, d.y).then(problem => settle(problem, landing));
+      if (d.st) { note(d.clears ? "clearing the bare tree…" : "moving the bare tree…"); window.pywebview.api.stump_drop(d.b.digit, d.st.key, d.x - spot[0], d.y - spot[1]).then(problem => settle(problem, landing)); }
+      else { note(`moving ${d.b.digit}${d.t.letter}…`); window.pywebview.api.plant(d.b.digit, d.t.key, d.x, d.y).then(problem => settle(problem, landing)); }
       return drawDrag();
     } else note(d.problem ? `not moved: ${d.problem}` : "", !!d.problem);
     return draw();
@@ -1091,9 +1104,11 @@ cv.addEventListener("pointerup", e => {
 // The data now shows a dropped tree or block where it landed, or shows it gone: stop drawing it there.
 function landed(d) {
   if (drag?.landing) {
-    const t = d.blocks.find(b => b.digit === drag.b.digit)?.trees.find(t => t.key === drag.t.key);
-    if (!t || (t.spot[0] === drag.x && t.spot[1] === drag.y)) drag = null;
-    else Object.assign(drag, {b: d.blocks.find(b => b.digit === drag.b.digit), t});  // still saving: the new objects, kept in the same landing
+    const b = d.blocks.find(b => b.digit === drag.b.digit);
+    const t = drag.t && b?.trees.find(t => t.key === drag.t.key), st = drag.st && (b?.stumps || []).find(s => s.key === drag.st.key);
+    const now = t || st;  // a cleared bare tree is gone from the data
+    if (!now || (now.spot[0] === drag.x && now.spot[1] === drag.y)) drag = null;
+    else Object.assign(drag, {b}, t ? {t} : {st});  // still saving: the new objects, kept in the same landing
   }
   if (moving?.landing) {
     const a = moving.aim, p = moving.b.open ? (d.open || [])[Number(moving.b.digit.slice(5))] : d.blocks.find(b => b.digit === moving.b.digit)?.plot;

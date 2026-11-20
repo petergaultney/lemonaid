@@ -1,3 +1,5 @@
+import pytest
+
 from lemonaid.config import load_config
 from lemonaid.grove.layout import state
 from lemonaid.grove.source import blocks, live
@@ -47,14 +49,56 @@ def test_the_window_shows_what_grove_show_json_prints_with_colors_leads_and_land
     )
 
 
-def test_a_tree_whose_session_ended_shows_as_a_stump_with_its_name(monkeypatch):
+def _stumped(monkeypatch):
+    """A grove whose tree t has gone, leaving a bare tree, beside tree s."""
     _grove(monkeypatch)
     monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s")),))
     live.fresh(load_config(), None)
+    return data.load(load_config())
 
-    stumps = data.shown(data.load(load_config()))["blocks"][0]["stumps"]
+
+def test_a_tree_whose_session_ended_shows_as_a_stump_with_its_name(monkeypatch):
+    stumps = data.shown(_stumped(monkeypatch))["blocks"][0]["stumps"]
     assert [(s["key"], s["label"]) for s in stumps] == [("t", "t")]
     assert stumps[0]["spot"] == [state.load()["trees"]["a"]["t"][k] for k in ("x", "y")]
+
+
+def test_a_bare_tree_moved_on_its_block_is_saved_there_and_one_dragged_off_it_is_cleared(
+    monkeypatch,
+):
+    grove = _stumped(monkeypatch)
+    t = state.load()["trees"]["a"]["t"]
+
+    assert data.stump_refusal(grove, "1", "t", 2, 0) == ""
+    assert data.stump_drop(grove, "1", "t", 2, 0) == ""
+    moved = state.load()["trees"]["a"]["t"]
+    assert (moved["x"], moved["y"]) == (t["x"] + 2, t["y"])
+
+    assert data.stump_drop(data.load(load_config()), "1", "t", 0, 100) == ""
+    assert "t" not in state.load()["trees"]["a"]
+
+
+def test_a_bare_tree_dropped_on_a_tree_or_gone_is_refused_and_not_saved(monkeypatch):
+    grove = _stumped(monkeypatch)
+    before = state.load()
+    s, t = before["trees"]["a"]["s"], before["trees"]["a"]["t"]
+
+    assert (
+        data.stump_drop(grove, "1", "t", s["x"] - t["x"], s["y"] - t["y"]) == "a tree stands there"
+    )
+    assert data.stump_refusal(grove, "1", "s", 1, 0) == "that bare tree is gone"
+    assert state.load() == before
+
+
+@pytest.mark.parametrize("moved", [(2, 0), (0, 100)], ids=["move", "clear"])
+def test_a_bare_tree_whose_tree_came_back_during_the_drag_is_left_alone(monkeypatch, moved):
+    grove = _stumped(monkeypatch)
+    monkeypatch.setattr(blocks, "blocks", lambda *_args: (block("a", "1", tree("s"), tree("t")),))
+    live.fresh(load_config(), None)  # another grove saves t standing again
+    before = state.load()
+
+    assert "No bare tree" in data.stump_drop(grove, "1", "t", *moved)
+    assert state.load() == before
 
 
 def test_a_tree_no_grove_has_saved_yet_can_be_dropped(monkeypatch):

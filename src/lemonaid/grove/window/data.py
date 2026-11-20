@@ -1,4 +1,5 @@
-"""What the grove window shows, and the changes it asks for: jumping and standing trees.
+"""What the grove window shows, and the changes it asks for: jumping, and gardening its blocks,
+trees and bare trees.
 
 Reads the live grove without saving anything; only a dropped tree writes the layout, through
 the same rule `lemonaid grove plant` follows.
@@ -157,6 +158,38 @@ def reframe(grove: Grove, digit: str, sides: abc.Iterable[str], dx: int, dy: int
     try:
         # As in `plant`: a block no grove has saved yet gets its plot from arranging, under the lock.
         state.update(lambda saved: dropped(arrange.arrange(grove.blocks, saved)[1]))
+    except edit.EditError as error:
+        return str(error)
+    return ""
+
+
+def _stump_drag(grove: Grove, digit: str, key: str, dx: int, dy: int) -> garden.Drag:
+    """The terminal grove's drag of the bare tree left by tree *key* of block *digit*."""
+    block = next(b for b in grove.blocks if b.digit == digit)
+    return garden.Drag(block, key, frozenset(), (0, 0), (1.0, 1.0), moved=(dx, dy), stump=True)
+
+
+def stump_refusal(grove: Grove, digit: str, key: str, dx: int, dy: int) -> str:
+    """Why the bare tree left by tree *key* of block *digit* can't be moved by (*dx*, *dy*), or "".
+    A move off its block's ground clears it, and is never refused."""
+    block = next((b for b in grove.blocks if b.digit == digit), None)
+    if block is None or not any(s.key == key for s in grove.arrangement.stumps.get(block.name, ())):
+        return "that bare tree is gone"
+
+    return drop.refused(grove, _stump_drag(grove, digit, key, dx, dy))
+
+
+def stump_drop(grove: Grove, digit: str, key: str, dx: int, dy: int) -> str:
+    """Move the bare tree by (*dx*, *dy*) in the live layout, or clear it when that's off its
+    block's ground; returns why it didn't, or ""."""
+    problem = stump_refusal(grove, digit, key, dx, dy)
+    if problem:
+        return problem
+
+    try:
+        # Against the layout as saved, not as this snapshot would arrange it: a tree that came back
+        # since is live there, and the terminal grove's save refuses to move or clear its spot.
+        state.update(drop.drop(grove, _stump_drag(grove, digit, key, dx, dy)))
     except edit.EditError as error:
         return str(error)
     return ""
