@@ -23,6 +23,9 @@ def test_the_same_name_gets_the_same_plot():
     assert placement.new_plot("same", (30, 9), []) == placement.new_plot("same", (30, 9), [])
 
 
-def test_a_full_grove_grows_past_its_right_edge():
-    plot = placement.new_plot("late", (30, 9), [(0, 0, WORLD_WIDTH, WORLD_HEIGHT)])
-    assert plot.x >= WORLD_WIDTH
+def test_a_full_grove_grows_past_whichever_edge_is_nearer_its_middle():
+    below = placement.new_plot("late", (30, 9), [(0, 0, WORLD_WIDTH, WORLD_HEIGHT)])
+    assert below.y > WORLD_HEIGHT and below.x < WORLD_WIDTH
+
+    tall = placement.new_plot("late", (30, 9), [(0, 0, WORLD_WIDTH, 3 * WORLD_HEIGHT)])
+    assert tall.x >= WORLD_WIDTH
