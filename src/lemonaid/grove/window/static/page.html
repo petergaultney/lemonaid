@@ -316,6 +316,40 @@ function paintGround(g, b) {
   }
 }
 
+// A wooden bridge wherever a road crosses the stream: along the road for as long as it stays over
+// the water and its banks, however slantwise it crosses, with planks across it and a rail with posts
+// along each side.
+function paintBridges(g, roads, water) {
+  const cell = ([x, y]) => [x * g.per - g.i0, y * g.per * YS - g.j0], stream = smooth(water).map(cell);
+  const half = 1.3 * g.per, banks = 1.4 * YS * g.per;  // the road's half width; half the stream's width with its banks
+  const fromStream = (x, y) => Math.min(...stream.slice(1).map(([bx, by], n) => {
+    const [ax, ay] = stream[n], dx = bx - ax, dy = by - ay, f = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - ax - f * dx, y - ay - f * dy);
+  }));
+  const deck = run => run.forEach(([x, y, tx, ty], n) => {
+    for (let across = -half - 1; across <= half + 1; across += 0.5) {
+      const rail = Math.abs(across) > half;
+      g.paint(Math.floor(x - ty * across), Math.floor(y + tx * across), rail ? (n % 3 ? "#3b2b1b" : "#24190f") : n % 2 ? "#5a4329" : "#6b5134");
+    }
+  });
+  roads.forEach(road => {
+    const line = smooth(road).map(cell), path = [];  // a point a cell apart along the road, with its heading
+    for (let a = 1; a < line.length; a++) {
+      const [ax, ay] = line[a - 1], [bx, by] = line[a], l = Math.hypot(bx - ax, by - ay);
+      for (let k = 0; k < l; k++) path.push([ax + (bx - ax) * k / l, ay + (by - ay) * k / l, (bx - ax) / l, (by - ay) / l]);
+    }
+    let run = [], crossed = false;  // a stretch over the stream's banks; a bridge if it reaches the stream's middle
+    path.forEach(([x, y, tx, ty]) => {
+      const d = fromStream(x, y);
+      if (d <= banks) { run.push([x, y, tx, ty]); crossed ||= d < 1; return; }
+
+      if (crossed) deck(run);
+      run = []; crossed = false;
+    });
+    if (crossed) deck(run);
+  });
+}
+
 // The ground between and around the blocks: the blocks' texture without their color, faint and partly
 // see-through, so a translucent window stays so. Bare ground is left clear for the window's background.
 function paintWild(g) {
@@ -347,7 +381,8 @@ function terrainFor() {
   paintWild(wild);
   (DATA.roads || []).forEach(r => paintRoad(land, r));
   const st = DATA.stream || [], out = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1; return [a[0] + dx / d * 400, a[1] + dy / d * 400]; };
-  if (st.length > 1) paintStream(land, [out(st[0], st[1]), ...st, out(st[st.length - 1], st[st.length - 2])]);  // a stream runs on past the map
+  const water = st.length > 1 ? [out(st[0], st[1]), ...st, out(st[st.length - 1], st[st.length - 2])] : [];  // a stream runs on past the map
+  if (water.length) { paintStream(land, water); paintBridges(land, DATA.roads || [], water); }
   const ground = cellGrid(2 * GROUND_CELLS, x0, y0, x1, y1);
   blocks.forEach(b => paintGround(ground, b));
   const canvas = g => { const c = document.createElement("canvas"); c.width = g.cols; c.height = g.rows; c.getContext("2d").putImageData(g.img, 0, 0); return {g, c}; };
