@@ -1,7 +1,7 @@
 """Edits a lemon made to a doc it watches, so its own waiter does not wake it for them.
 
 An edit is recorded as a numbered transition between two body digests (the body outside
-comment threads, see relay_comments.body_without_threads) under the writer's key, per doc.
+comments, see file_comments.body) under the writer's key, per doc.
 The waiter replays, in order, the transitions it has not yet consumed, starting from the
 body it last reported, and adopts a changed body silently only when that chain reaches it.
 Anyone else's change on the way, a human's edit made earlier in the same turn included,
@@ -26,7 +26,7 @@ import pathlib
 import time
 from collections import abc
 
-from . import body_norm, relay_comments
+from . import body_norm, file_comments
 
 _KEEP = 50
 _PENDING_MAX_AGE = 600.0  # seconds; an --editing whose edit failed must not pair with a later one
@@ -77,10 +77,10 @@ def body_digest(body: str) -> str:
 
 def _file_digest(doc: pathlib.Path) -> str:
     try:
-        text = doc.read_text()
+        text = file_comments.read(doc)
     except FileNotFoundError:
         text = ""
-    return body_digest(relay_comments.body_without_threads(text))
+    return body_digest(file_comments.body(doc, text))
 
 
 @contextlib.contextmanager

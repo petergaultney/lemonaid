@@ -1,6 +1,7 @@
 """The records in a threads section: reading and validating them, and writing one."""
 
 import json
+import re
 import typing as ty
 from collections import abc
 
@@ -62,9 +63,32 @@ _COMMENT_FIELDS: ty.Final = frozenset({"id", "author", "at", "body", "re", "span
 _RESOLUTION_FIELDS: ty.Final = frozenset({"resolves", "author", "at"})
 
 
+_SURROGATE: ty.Final = re.compile("[\ud800-\udfff]")
+
+
+def _is_unicode(obj: dict[str, ty.Any]) -> bool:
+    """Whether every string in the record, keys included, can be written as UTF-8: JSON's
+    `\\ud800` escape decodes to a lone surrogate, which can't. Walked with a stack, since a
+    record may nest deeper than the recursion limit allows."""
+    stack: list[object] = [obj]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, str):
+            if _SURROGATE.search(value):
+                return False
+        elif isinstance(value, dict):
+            stack += value.keys()
+            stack += value.values()
+        elif isinstance(value, list):
+            stack += value
+    return True
+
+
 def _record(obj: object, offset: int) -> model.Comment | model.Resolution | model.ParseError:
     if not isinstance(obj, dict):
         return _record_error(offset, "a record is not a JSON object")
+    if not _is_unicode(obj):
+        return _record_error(offset, "a record holds an escaped surrogate, which isn't text")
 
     author, at = obj.get("author"), obj.get("at")
     if not isinstance(author, str) or not author:

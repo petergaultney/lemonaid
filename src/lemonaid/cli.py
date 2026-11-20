@@ -13,6 +13,7 @@ import lemonaid.brief.cli
 import lemonaid.claude.cli
 import lemonaid.codex.cli
 import lemonaid.codex.service
+import lemonaid.comments.cli
 import lemonaid.groups.cli
 import lemonaid.grove.cli
 import lemonaid.home.cli
@@ -163,6 +164,7 @@ def main() -> None:
     lemonaid.hooks.cli.setup_parser(subparsers)
     lemonaid.claude.cli.setup_parser(subparsers)
     lemonaid.codex.cli.setup_parser(subparsers)
+    lemonaid.comments.cli.setup_parser(subparsers)
     lemonaid.openclaw.cli.setup_parser(subparsers)
     lemonaid.opencode.cli.setup_parser(subparsers)
     lemonaid.places.cli.setup_parser(subparsers)

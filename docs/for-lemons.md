@@ -1424,6 +1424,12 @@ Codex thread instead. `--status <doc> --me <name>` says whether a waiter is alre
 a second one for the same doc and name refuses to start (exit 3). OpenClaw sessions use
 `lemonaid watch openclaw start <doc> --session-key <key> --me <name>`. Details: [watch.md](watch.md).
 
+A Python or Markdown file can also hold comment threads of its own, in a section at its
+end ([comments.md](comments.md)). For such a file, `watch doc` wakes you for each new
+unanswered comment instead of Relay threads. Read them with `lemonaid comments list <path>
+--unanswered --me <your name>` and answer each with `lemonaid comments reply <path> --re
+<id> --as <your name> <body>`; never edit the section by hand.
+
 Your own edits to the doc's body don't wake your own waiter, as long as they're recorded,
 and reformatting such as a re-padded table never does. With `lemonaid hooks install`, Claude
 Code and Codex record every tool call's change to a doc you watch, whatever the tool.

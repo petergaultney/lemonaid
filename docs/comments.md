@@ -64,14 +64,14 @@ def f():
 
 ```python
 # [lma:threads]
-# {"id": "SleepRib", "author": "caleb.gregory", "at": "2026-11-19T19:40:00Z", "body": "why not `yield_results`?"}
-# {"id": "TinOwl", "re": "SleepRib", "span": [8, 22], "author": "BraveFig", "at": "2026-11-19T19:41:12Z", "body": "it fails fast"}
-# {"resolves": "TinOwl", "author": "caleb.gregory", "at": "2026-11-19T19:50:30Z"}
+# {"id": "SleepRib", "author": "Sam Lee", "at": "2026-11-19T19:40:00Z", "body": "why not `yield_results`?"}
+# {"id": "TinOwl", "re": "SleepRib", "span": [8, 22], "author": "BraveFig (Author)", "at": "2026-11-19T19:41:12Z", "body": "it fails fast"}
+# {"resolves": "TinOwl", "author": "Sam Lee", "at": "2026-11-19T19:50:30Z"}
 ```
 
 ```markdown
 <!-- [lma:threads]
-{"id": "SleepRib", "author": "caleb.gregory", "at": "2026-11-19T19:40:00Z", "body": "..."}
+{"id": "SleepRib", "author": "Sam Lee", "at": "2026-11-19T19:40:00Z", "body": "..."}
 -->
 ```
 
@@ -113,6 +113,47 @@ write `>` as
   a time that isn't UTC, and a line that isn't JSON are errors. lemonaid reports them and
   never rewrites the file to fix them. Threads leave out a comment whose id an earlier
   record used, and any comment in a cycle of replies.
+
+## Reading and writing comments from a shell
+
+`lemonaid comments` reads and writes the threads, so nobody writes the JSON by hand. It
+makes each comment's id and timestamp, keeps the file's line endings, and replaces the
+file in one step. A write the model refuses leaves the file as it was and exits 2.
+
+```sh
+lemonaid comments list <path> [--unanswered --me <name>] [--resolved]
+lemonaid comments add <path> --lines <a>[-<b>] --as <name> <body | ->
+lemonaid comments reply <path> --re <id> --as <name> <body | ->
+lemonaid comments resolve <path> <id> --as <name>
+lemonaid comments strip <path>
+```
+
+- `list` prints each thread's anchored lines and its comments as a tree, and leaves
+  resolved branches out unless `--resolved`. With `--unanswered`, it prints only the
+  threads with a comment waiting on `--me`, and marks those comments `UNANSWERED`. It
+  prints format errors to stderr and exits 1 when there are any.
+- `add` and `reply` print the new comment's id. A body of `-` is read from stdin.
+- A write follows a symlink and changes the file it names, whose extension decides its
+  kind. If the file changes while a command computes, whether an editor saved it or
+  another command wrote it, `reply`, `resolve` and `strip` start again from the new text,
+  up to three times, and `add` refuses, since its line numbers may name other code by
+  then. A save that lands in the instant between the last check and the replace is still
+  lost from the file; the editor holds it unsaved.
+- lemonaid's own writers of one file take turns, so two commands never lose each other's
+  comment. A command that waits more than five seconds for its turn, such as behind a
+  suspended one, refuses and asks you to try again.
+- `--lines` counts lines from 1, and the empty line after a file's last line ending is
+  not one.
+- `--as` and `--me` take the signature a lemon uses in Relay and on GitHub,
+  `SleepRib (Author)`. `--me` also counts the spaced spelling, `Sleep Rib (Author)`.
+
+## Watching a file for comments
+
+`lemonaid watch doc` reads a Python or Markdown file that has a threads section with
+this model, and any other doc for Relay Comment threads. It wakes a lemon for each new
+unanswered comment, by id, and the wake says how to list and answer them. Markers and the
+threads section are not part of the body, so adding a comment or replying is never a body
+edit.
 
 ## Known limits
 

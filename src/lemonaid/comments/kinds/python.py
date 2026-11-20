@@ -158,7 +158,10 @@ def _layout(text: str) -> _Layout:
         for token in tokenize.generate_tokens(io.StringIO(text).readline):
             name = tokenize.tok_name[token.type]
             if previous_end_row is not None and token.start[0] > previous_end_row:
-                continued |= {line_starts[row] for row in range(previous_end_row, token.start[0])}
+                # Python 3.11's tokenizer also ends a line at a bare CR, which `line_starts`
+                # doesn't count, so its rows can run past the list.
+                rows = range(previous_end_row, min(token.start[0], len(line_starts)))
+                continued |= {line_starts[row] for row in rows}
             previous_end_row = None if name in _LINE_ENDING_TOKENS else token.end[0]
             if name == "STRING":
                 strings.append(
