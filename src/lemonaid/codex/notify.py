@@ -198,7 +198,7 @@ def handle_notification(
     ends_turn = notification_type in _TURN_ENDED
     with db.connect() as conn:
         if not os.environ.get("LEMONAID_HANDOFF_TOKEN"):
-            channel = channels.for_session(conn, session_id or "")
+            channel = channels.channel(session_id or "")
         if ends_turn:
             conn.execute("BEGIN IMMEDIATE")  # no turn hook writes between the check and add
             if turns.superseded(db.get_by_channel(conn, channel, unread_only=False), turn):
@@ -243,7 +243,7 @@ def dismiss_session(session_id: str, debug: bool = False) -> int:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
-        channel = channels.for_session(conn, session_id)
+        channel = channels.channel(session_id)
         count = db.mark_all_read_for_channel(conn, channel)
         if debug:
             print(
@@ -301,7 +301,7 @@ def _clear_permission_notice(data: dict) -> None:
 
     channel = full_channel_id("codex", session_id)
     with db.connect() as conn:
-        channel = channels.for_session(conn, session_id)
+        channel = channels.channel(session_id)
         row = conn.execute(
             "SELECT id, metadata FROM notifications WHERE channel = ?", (channel,)
         ).fetchone()

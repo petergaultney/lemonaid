@@ -860,24 +860,16 @@ lived in it.
 3. Test manually: `tmux switch-client -t %5` (replace %5 with actual pane ID)
 
 The inbox repairs saved Codex locations in the background at startup and every
-ten seconds when open rollout files identify one live terminal for the thread.
+ten seconds when the Codex process running the thread is in one live terminal.
 Codex clicks use the recorded pane identity and tmux directly, without process
 scans or location repair. Without a recorded pane or usable TTY, a Codex click
 is refused; cwd alone cannot identify it. Other backends keep their existing
 process-aware directory fallback. Until background repair corrects an old row,
 clicks and the attention marker trust its saved pane and TTY. An author and reviewer sharing a directory are repaired by
 their separate threads, preserving names, messages, read state and timestamps.
-Notifications without a rollout, including automatic recaps, are ignored before
-they can create a row. Background repair archives existing duplicate rows without
-moving brief attachments or changing waiter subscriptions. Real new sessions and
-explicit handoffs keep their own channels, even when they reuse a reconciled
-alias's pane. Pending handoff channels stay outside automatic reconciliation
-until transfer finishes. Linked windows count as one physical pane. Unavailable
-process information or ambiguous ownership leaves saved rows unchanged.
-
-An attached Codex alias also keeps the same inbox, watcher registry and watch
-cursors. Unified and direct watchers find its brief through the persistent
-thread ID, while messages are still queued to the actual Codex thread.
+Notifications for a thread Codex doesn't know, including automatic recaps, are
+ignored before they can create a row. Linked windows count as one physical pane.
+Unavailable process information or ambiguous ownership leaves saved rows unchanged.
 
 Jumps log the channel, resolved session and pane, and whether tmux accepted the
 switch in `/tmp/lemonaid.log` (or `$LEMONAID_LOG`). The client listing immediately

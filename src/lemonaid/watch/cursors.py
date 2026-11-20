@@ -41,9 +41,7 @@ def owner(me: str, codex_thread: str = "") -> str:
         with db.connect() as conn:
             return lemon.current(
                 conn,
-                lemon.own_id(
-                    conn, channels.for_session(conn, codex_thread) if codex_thread else ""
-                ),
+                lemon.own_id(conn, channels.channel(codex_thread) if codex_thread else ""),
             )
     except (LookupError, ValueError):
         pass

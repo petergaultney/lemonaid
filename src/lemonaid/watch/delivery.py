@@ -16,7 +16,6 @@ import tempfile
 import typing as ty
 
 from ..codex import channels, processes
-from ..inbox import db
 from ..launch.restart import gates
 from ..log import get_logger
 
@@ -138,9 +137,7 @@ def queue_text(thread: str, kind: str, text_of: ty.Callable[[str], str]) -> Deli
         _log.info("queued a %s event into Codex thread %s", kind, thread)
 
     def deliver(message: str) -> None:
-        with db.connect() as conn:
-            channel = channels.for_session(conn, thread)
-        gates.deliver(channel, queue)(message)
+        gates.deliver(channels.channel(thread), queue)(message)
 
     return deliver
 

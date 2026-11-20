@@ -30,6 +30,6 @@ def handle_session_end(stdin_data: str | None = None) -> None:
         return
 
     with db.connect() as conn:
-        channel = channels.for_session(conn, session_id)
+        channel = channels.channel(session_id)
         if not db.record_exit(conn, channel, time.time(), str(data.get("reason") or ""), True):
             _log.info("session end for %s, which the inbox has no row for", channel)

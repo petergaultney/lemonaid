@@ -55,11 +55,7 @@ def register(data: dict) -> None:
     }
     with db.connect() as conn:
         token = os.environ.get("LEMONAID_HANDOFF_TOKEN")
-        channel = (
-            full_channel_id("codex", session_id)
-            if token
-            else channels.for_session(conn, session_id)
-        )
+        channel = full_channel_id("codex", session_id) if token else channels.channel(session_id)
         db.register_working(
             conn,
             channel=channel,

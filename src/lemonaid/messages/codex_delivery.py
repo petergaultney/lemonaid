@@ -22,8 +22,7 @@ def own_thread(channel: str) -> str:
     thread = os.environ.get("CODEX_THREAD_ID", "")
     if not thread:
         return ""
-    with db.connect() as conn:
-        return thread if channel == channels.for_session(conn, thread) else ""
+    return thread if channel == channels.channel(thread) else ""
 
 
 def _with_status_note(mailbox: Path, message: str) -> str:
@@ -77,8 +76,7 @@ def deliver_next(
     only if it yields True, and otherwise the file stays pending and this returns None.
     The thread's first message of a day ends with `daily_date`'s line.
     """
-    with db.connect() as conn:
-        channel = channels.for_session(conn, thread)
+    channel = channels.channel(thread)
     with state.admission(channel) as allowed:
         if not allowed:
             return None

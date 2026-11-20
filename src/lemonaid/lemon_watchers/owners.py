@@ -33,7 +33,7 @@ def running() -> dict[str, set[str]] | None:
 def owner(row: db.Notification, owners: Owners) -> str:
     """The id *owners* would know *row*'s lemon by."""
     if row.channel.startswith("codex:"):
-        return codex_channels.owner_id(row.channel, row.metadata, {k: [] for k in owners})
+        return codex_channels.thread(row.channel)
 
     if session_id := row.metadata.get("session_id"):
         return session_id

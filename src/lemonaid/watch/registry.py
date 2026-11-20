@@ -7,12 +7,10 @@ process still holds its entry.
 
 import contextlib
 import dataclasses
-import functools
 import json
 import os
 import pathlib
 import shlex
-import sqlite3
 import sys
 import time
 import typing as ty
@@ -79,7 +77,7 @@ def owner_channel(explicit: str = "", codex_thread: str = "") -> str:
     """The caller's channel, or "" when it has none."""
     with db.connect() as conn:
         if codex_thread:
-            return channels.for_session(conn, codex_thread)
+            return channels.channel(codex_thread)
 
         try:
             return lemon.self_channel(conn, explicit)
@@ -210,33 +208,24 @@ def _matches(waiter: Waiter, target: str) -> bool:
     return any(t in candidates or t.endswith(f"#{target}") for t in waiter.targets)
 
 
-def _owner(conn: sqlite3.Connection, channel: str) -> str:
-    return channels.for_session(conn, channel[6:]) if channel.startswith("codex:") else channel
-
-
 def mine(channel: str, kind: str = "", target: str = "") -> list[Waiter]:
     """`channel`'s running waiters, of `kind` and watching `target` when given."""
     if not channel:
         return []
 
-    with db.connect() as conn:
-        owner = _owner(conn, channel)
-        return [
-            waiter
-            for waiter in running()
-            if _owner(conn, waiter.channel) == owner
-            and kind in ("", waiter.kind)
-            and _matches(waiter, target)
-        ]
+    return [
+        waiter
+        for waiter in running()
+        if waiter.channel == channel and kind in ("", waiter.kind) and _matches(waiter, target)
+    ]
 
 
-def by_lemon(conn: sqlite3.Connection) -> abc.Callable[[str], list[Waiter]]:
-    """`mine` for many channels, listing the running waiters and resolving each channel once."""
-    owner = functools.cache(functools.partial(_owner, conn))
+def by_lemon() -> abc.Callable[[str], list[Waiter]]:
+    """`mine` for many channels, listing the running waiters once."""
     found: dict[str, list[Waiter]] = {}
     for waiter in running():
-        found.setdefault(owner(waiter.channel), []).append(waiter)
-    return lambda channel: list(found.get(owner(channel), [])) if channel else []
+        found.setdefault(waiter.channel, []).append(waiter)
+    return lambda channel: list(found.get(channel, [])) if channel else []
 
 
 def running_for(kind: str, target: str) -> list[Waiter]:

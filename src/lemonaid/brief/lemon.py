@@ -22,10 +22,6 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
     """
     channel = explicit or os.environ.get("LEMONAID_CHANNEL", "")
     if channel:
-        if channel.startswith("codex:"):
-            from ..codex import channels
-
-            return channels.for_session(conn, channel.removeprefix("codex:"))
         return channel
 
     if session_id := os.environ.get("CLAUDE_CODE_SESSION_ID"):
@@ -34,7 +30,7 @@ def self_channel(conn: sqlite3.Connection, explicit: str = "", fallback: str = "
     if session_id := os.environ.get("CODEX_THREAD_ID"):
         from ..codex import channels
 
-        return channels.for_session(conn, session_id)
+        return channels.channel(session_id)
 
     if pane_id := os.environ.get("TMUX_PANE"):
         where = self_session.pane_location(pane_id)
@@ -85,10 +81,6 @@ def _find(
     brief_ids: abc.Callable[[], dict[Path, str]],
     target: str,
 ) -> attached.Attachment:
-    if target.startswith("codex:"):
-        from ..codex import channels
-
-        target = channels.for_session(conn, target.removeprefix("codex:"))
     found = [entry for entry in all_briefs if entry.channel == target and entry.channel]
     if not found and identity.valid(target):
         lemon_id = current(conn, target)

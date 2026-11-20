@@ -3,8 +3,9 @@
 UserPromptSubmit starts a turn, PreToolUse says what it is doing, and the notify hook's
 turn-complete or the Interrupt hook ends it. Codex runs these hooks concurrently, so each
 carries its turn's ID: a late report of an ended turn doesn't reopen it, and a late
-interrupt doesn't end the turn after it. PostModelRequest gives the context used. Every
-hook also names the model.
+interrupt doesn't end the turn after it. Why they run async rather than in order:
+docs/decisions/codex-turn-hooks-run-async.md. PostModelRequest gives the context used.
+Every hook also names the model.
 """
 
 import json
@@ -56,7 +57,7 @@ def _channel(conn, data: dict) -> str:
     if not isinstance(thread, str) or not thread:
         return ""
 
-    channel = channels.for_session(conn, thread)
+    channel = channels.channel(thread)
     return channel if db.get_by_channel(conn, channel, unread_only=False) else ""
 
 
