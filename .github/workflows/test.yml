@@ -17,4 +17,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
-      - run: uv run --with pytest-github-actions-annotate-failures pytest -q -rs -n 4
+      # The tmux restore drills run one at a time in their own process: in parallel they
+      # starve each other and time out. The rest of the suite uses the other three workers.
+      - run: |
+          run_pytest() { uv run --with pytest-github-actions-annotate-failures pytest -q -rs "$@"; }
+          run_pytest -n 3 --ignore=tests/restore & others=$!
+          run_pytest tests/restore & restore=$!
+          status=0
+          wait "$others" || status=1
+          wait "$restore" || status=1
+          exit "$status"
