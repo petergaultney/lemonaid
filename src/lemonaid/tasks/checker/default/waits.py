@@ -2,8 +2,9 @@
 and what happens once they release.
 
 A closed dependency is the holder's move once the idle grace has passed since it closed.
-CI known to be running on the task's PR is a wait; in any other state, or with no PR or no
-CI known, an idle holder falls to the idle rule and its backoff. Dependency waits need the
+CI known to be running on the task's PR is a wait, and so is a teammate's open PR the user
+has approved, which waits on its merge; in any other state, or with no PR or no CI known,
+an idle holder falls to the idle rule and its backoff. Dependency waits need the
 child's own latest finding, and a dependency cycle is reported once, by the task with the
 smallest ID in it.
 """
@@ -99,6 +100,26 @@ def _ci(s: _Subject, url: str) -> list[protocol.Record]:
     return [_wait(s, "waiting-for-ci", evidence, until, "CI is running")]
 
 
+def _merge(s: _Subject, url: str) -> list[protocol.Record]:
+    facts = {
+        field: (found.value if (found := s.view.facts.get(("pr", url, field))) else "")
+        for field in ("state", "authored", "user_verdict")
+    }
+    if (
+        facts["state"] != "OPEN"
+        or facts["authored"] != "false"
+        or facts["user_verdict"] != "APPROVED"
+    ):
+        return []
+
+    until = settings.at(s.policy, s.policy.now + s.policy.reconcile)
+    return [
+        _wait(
+            s, "waiting-for-merge", f"{url} approved", until, "its PR is approved, awaiting merge"
+        )
+    ]
+
+
 def findings(
     view: checker_input.View, policy: settings.Policy, holder: str
 ) -> list[protocol.Record]:
@@ -114,6 +135,7 @@ def findings(
     found = [
         *(r for child in dependencies for r in _dependency(s, child)),
         *(_ci(s, url) if url else []),
+        *(_merge(s, url) if url else []),
     ]
     actionable = [r for r in found if r[0] != "ok"]
     if any(r[0] != "recheck" for r in actionable):

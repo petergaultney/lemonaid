@@ -192,7 +192,9 @@ def due(
 ) -> dict[str, Problem]:
     """The problems to report now: new, and unchanged for long enough to be real.
 
-    A lemon first seen, or healthy again, is recorded without a report.
+    A lemon first seen is recorded without a report. A reported problem ends only once the
+    lemon has stayed healthy for the settle time, so a probe that fails for a moment (as
+    tmux does while lemonaid is being reinstalled) does not make the same problem new.
     """
     ready: dict[str, Problem] = {}
     changed = False
@@ -201,20 +203,23 @@ def due(
         last = tracker.reported.get(lemon_id)
         if last is None:
             tracker.reported[lemon_id], changed = token, True
-        elif token == last:
-            tracker.held.pop(lemon_id, None)
-        else:
-            if last:  # whatever was reported has ended, so its return is a new event
-                tracker.reported[lemon_id], changed = "", True
-            if not problem:
-                tracker.held.pop(lemon_id, None)
-                continue
+            continue
 
-            held = tracker.held.get(lemon_id)
-            if held is None or held[0] != token:
-                held = tracker.held[lemon_id] = (token, now)
-            if now - held[1] >= (_DEAF_SETTLE if problem.kind in _SETTLED else settle):
-                ready[lemon_id] = problem
+        if token == last:
+            tracker.held.pop(lemon_id, None)
+            continue
+
+        held = tracker.held.get(lemon_id)
+        if held is None or held[0] != token:
+            held = tracker.held[lemon_id] = (token, now)
+        if now - held[1] < (_DEAF_SETTLE if problem and problem.kind in _SETTLED else settle):
+            continue
+
+        if problem:
+            ready[lemon_id] = problem
+        else:
+            tracker.reported[lemon_id], changed = "", True
+            tracker.held.pop(lemon_id, None)
     if changed:
         cursors.write_json(tracker.path, tracker.reported)
     return ready

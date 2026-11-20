@@ -98,7 +98,7 @@ def test_needs_change_wakes_by_default(grove):
     assert "Needs: pick a colour" in _poll(w)[0]
 
 
-def test_a_gone_session_is_reported_once_per_exit(grove, sessions):
+def test_a_gone_session_is_not_reported_again_after_a_brief_return(grove, sessions):
     _, child, child_path, _, _, _ = grove
     w = _watch(grove)
     sessions.discard("s-child")
@@ -108,7 +108,7 @@ def test_a_gone_session_is_reported_once_per_exit(grove, sessions):
     sessions.add("s-child")
     assert _poll(w) == []
     sessions.discard("s-child")
-    assert len(_poll(w)) == 1
+    assert _poll(w) == []
 
 
 def test_a_lost_lemon_is_not_reported_gone_while_a_restore_runs(grove, sessions):
@@ -271,3 +271,20 @@ def test_an_archived_child_is_dropped_without_a_report(grove, sessions):
         archive.archive(conn, child_path, 0.0, why="test")
 
     assert _poll(w) == []
+
+
+def test_a_brief_blip_of_health_does_not_make_a_reported_problem_new(tmp_path):
+    gone = lemon_liveness.Problem("gone", "", "its tmux session is gone")
+    tracker = lemon_liveness.open_tracker(tmp_path / "live.json", {"c": None})
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 0) == {}
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 6) == {"c": gone}
+    lemon_liveness.commit(tracker, {"c": gone})
+
+    assert lemon_liveness.due(tracker, {"c": None}, 5, 10) == {}
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 12) == {}
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 30) == {}
+
+    assert lemon_liveness.due(tracker, {"c": None}, 5, 40) == {}
+    assert lemon_liveness.due(tracker, {"c": None}, 5, 46) == {}
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 50) == {}
+    assert lemon_liveness.due(tracker, {"c": gone}, 5, 56) == {"c": gone}
