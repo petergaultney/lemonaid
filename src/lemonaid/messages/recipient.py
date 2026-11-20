@@ -38,7 +38,6 @@ PARKED = "parked"  # a background job runs its Claude conversation, or Codex hol
 UNREAD = frozenset({ASKING, DEAF, DEAD, PARKED})
 
 _HARNESSES = ("claude", "codex")
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
 
 
 class State(ty.NamedTuple):
@@ -159,7 +158,7 @@ def unrun_codex() -> dict[str, str]:
         for thread, row in rows.items()
         if (reason := queued.unrun(held[thread], codex_turns.last_end(row), now))
     }
-    open_threads = processes.open_threads(_LISTED_WITHIN) if reasons else None
+    open_threads = processes.open_threads() if reasons else None
     if not open_threads:
         return {}
 
@@ -189,7 +188,7 @@ def classify(
     why its push scout keeps failing (see `scout_failure`). A parked
     lemon's scout may still hold the lock for a moment, and a Codex lemon's
     scout holds it while Codex holds its messages, so both outrank *armed*.
-    *unrun* also outranks the row's turn: Codex's rollout says no turn is open.
+    *unrun* also outranks the row's turn: Codex's hooks say no turn is open.
     """
     if not channel:
         return State(NOT_STARTED, "it reads its mailbox when it starts")

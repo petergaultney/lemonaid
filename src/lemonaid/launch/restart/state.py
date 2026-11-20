@@ -8,15 +8,19 @@ import os
 import secrets
 import time
 from collections import abc
+from pathlib import Path
 
 from ...inbox import db
 
 TERMINAL = {"started", "failed", "partial"}
 
 
-def _path(name: str):
-    root = db.get_db_path().parent / "restarts"
-    return root / name
+def root() -> Path:
+    return db.get_db_path().parent / "restarts"
+
+
+def _path(name: str) -> Path:
+    return root() / name
 
 
 def key(channel: str) -> str:

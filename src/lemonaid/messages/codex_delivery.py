@@ -16,8 +16,6 @@ from ..inbox.channel import full_channel_id
 from ..launch.restart import state
 from . import store
 
-_LISTED_WITHIN = 15.0  # a Codex process listing this recent serves
-
 
 def own_thread(channel: str) -> str:
     """This process's Codex thread, when the watched channel is that thread's own."""
@@ -40,9 +38,7 @@ def _with_status_note(mailbox: Path, message: str) -> str:
 
 
 def _queue(thread: str, path: Path, message: str) -> None:
-    executable = (
-        processes.executable(thread, _LISTED_WITHIN) or "codex"
-    )  # PATH may have none that works
+    executable = processes.executable(thread) or "codex"  # PATH may have none that works
     try:
         result = subprocess.run(
             [
