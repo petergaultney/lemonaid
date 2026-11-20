@@ -14,6 +14,9 @@ CHANGES_DIR = "changes/"
 
 
 _PACKAGED_DOC = "docs/for-lemons.md"  # pyproject.toml force-includes it in the wheel
+_HOOK_DEFINITIONS = frozenset(
+    {"src/lemonaid/hooks/install.py", "src/lemonaid/claude/install_hooks.py"}
+)  # what `lemonaid hooks install` writes into each harness's settings
 
 
 def changes_src(paths: abc.Iterable[str]) -> bool:
@@ -60,3 +63,11 @@ def check(
             changefiles.parse(name, read(CHANGES_DIR + name))
         except changefiles.MalformedChange as err:
             yield str(err)
+
+    if any(path in _HOOK_DEFINITIONS for _, path in changed):
+        for name in added:
+            if "hooks install" not in read(CHANGES_DIR + name):
+                yield (
+                    f"changes/{name}: this PR changes the hooks lemonaid installs, so its entry"
+                    " says to run `lemonaid hooks install` (and, for Codex, to trust them in /hooks)"
+                )

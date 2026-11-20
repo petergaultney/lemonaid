@@ -110,6 +110,15 @@ versions; `--uninstall` removes them. Trust the new hooks in Codex's `/hooks`. L
 only a matching `PermissionRequest` from the same Codex session, turn, and tool. A request
 that remains unanswered stays unread and visible.
 
+### After upgrading lemonaid
+
+When a release's notes say its hooks changed, install and trust them again:
+
+1. Run `lemonaid hooks install --harness codex`.
+2. Open `/hooks` in Codex and trust every `lemonaid:` hook it lists as changed or new.
+
+Until you trust them, Codex skips those hooks, so turns, activity and quits go unrecorded.
+
 ## How it works
 
 ### Notification flow
